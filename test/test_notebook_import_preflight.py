@@ -170,6 +170,82 @@ def test_supervisor_notebook_import_preserves_artifact_role_inference() -> None:
     assert preflight["artifact_contract"]["unknown"] == []
 
 
+def test_supervisor_notebook_import_prefers_edited_exported_source_cell() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_preflight_supervisor_source_cell_module")
+    edited_source = "print('edited export')\n"
+    notebook = {
+        "cells": [
+            {"cell_type": "markdown", "source": ["# Exported notebook\n"]},
+            {"cell_type": "code", "source": ["# helper\n"]},
+            {"cell_type": "markdown", "source": ["## Stage 0\n"]},
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "tags": ["agilab.runtime.worker"],
+                    "agilab": {
+                        "runtime_role": "worker",
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "source",
+                            "stage_index": 0,
+                            "runtime": "agi.run",
+                            "env": "/tmp/worker-env",
+                        },
+                    },
+                },
+                "source": [
+                    f"STAGE_000_CODE = {edited_source!r}\n",
+                    "print(STAGE_000_CODE)\n",
+                ],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "agilab": {
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "runner",
+                            "stage_index": 0,
+                        }
+                    }
+                },
+                "source": ["run_agilab_stage(0, code_override=STAGE_000_CODE)\n"],
+            },
+        ],
+        "metadata": {
+            "agilab": {
+                "stages": [
+                    {
+                        "description": "Run edited export",
+                        "question": "Use edited source cell.",
+                        "code": "print('stale metadata')\n",
+                        "runtime": "runpy",
+                    }
+                ]
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="edited-supervisor.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+
+    stage = imported["pipeline_stages"][0]
+    assert stage["source_cell_index"] == 4
+    assert stage["source_lines"] == [edited_source]
+    assert stage["runtime_role"] == "worker"
+    assert stage["runtime"] == "agi.run"
+    assert stage["env"] == "/tmp/worker-env"
+    assert preview["demo_project"][0]["C"] == edited_source
+    assert preview["demo_project"][0]["R"] == "agi.run"
+    assert preview["demo_project"][0]["E"] == "/tmp/worker-env"
+    assert preview["demo_project"][0]["NB_RUNTIME_ROLE"] == "worker"
+
+
 def test_notebook_import_metadata_prefills_project_defaults_and_runtime_tags() -> None:
     core_module = _load_module(CORE_PATH, "notebook_import_metadata_defaults_module")
     notebook = {

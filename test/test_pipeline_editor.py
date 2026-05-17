@@ -1215,6 +1215,52 @@ def test_confirm_notebook_import_preview_promotes_selected_cell_only(monkeypatch
     assert ("revision", "bump") in messages
 
 
+def test_confirm_notebook_import_preview_persists_cell_runtime_roles(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="roles.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "code", "source": ["print('prepare')\n"]},
+                    {"cell_type": "code", "source": ["print('worker')\n"]},
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    module_dir = tmp_path / "demo_project"
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        module_dir,
+        module_dir / "lab_stages.toml",
+        "idx",
+        runtime_roles={"cell-1": "manager", "cell-2": "worker"},
+    )
+
+    stored = tomllib.loads((module_dir / "lab_stages.toml").read_text(encoding="utf-8"))
+    contract = json.loads((module_dir / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    assert count == 2
+    assert [stage["NB_RUNTIME_ROLE"] for stage in stored["demo_project"]] == ["manager", "worker"]
+    assert [stage["R"] for stage in stored["demo_project"]] == ["runpy", "agi.run"]
+    assert [stage["runtime_role"] for stage in contract["stages"]] == ["manager", "worker"]
+    assert [stage["runtime"] for stage in contract["stages"]] == ["runpy", "agi.run"]
+    assert ("success", "Imported 2 notebook code cell(s).") in messages
+    assert ("revision", "bump") in messages
+
+
 def test_notebook_import_write_preview_text_shows_selected_scope_diff(tmp_path):
     uploaded = SimpleNamespace(
         name="selected.ipynb",
@@ -1254,6 +1300,7 @@ def test_notebook_import_write_preview_text_shows_selected_scope_diff(tmp_path):
 
     assert "Stages to write: 1" in text
     assert "Stage IDs: cell-4" in text
+    assert "Runtime roles: none" in text
     assert "Inputs: inputs/orders.parquet" in text
     assert "Outputs: results/summary.json" in text
     assert "Sidecars: notebook_import_contract.json" in text
@@ -1415,6 +1462,85 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
         item[0] == "caption" and item[1].startswith("Selected cell 4;")
         for item in messages
     )
+
+
+def test_render_notebook_import_preview_collects_runtime_roles(monkeypatch, tmp_path):
+    uploaded = SimpleNamespace(
+        name="roles.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "code", "source": ["print('prepare')\n"]},
+                    {"cell_type": "code", "source": ["print('worker')\n"]},
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, tmp_path / "demo_project")
+    captured: dict[str, object] = {}
+    messages: list[tuple[str, object]] = []
+
+    class _RoleBox:
+        def caption(self, message, *args, **kwargs):
+            messages.append(("role-caption", message))
+
+        def selectbox(self, label, options, *args, **kwargs):
+            messages.append(("role-selectbox", label, list(options)))
+            if "Cell 1" in label:
+                return "Manager (local runpy)"
+            if "Cell 2" in label:
+                return "Worker (AGILAB worker)"
+            return options[0]
+
+    preview_box = SimpleNamespace(
+        code=lambda text, *args, **kwargs: messages.append(("code", kwargs.get("language"), text)),
+    )
+
+    def _expander(label, *args, **kwargs):
+        messages.append(("expander", label))
+        if label == "Runtime role per cell":
+            return _RoleBox()
+        return preview_box
+
+    def _button(label, *args, **kwargs):
+        messages.append(("button", label))
+        return label == "Import all runnable cells"
+
+    def _confirm(module_dir, stages_file, index_page, **kwargs):
+        captured["confirm"] = (module_dir, stages_file, index_page, kwargs)
+        return 2
+
+    sidebar = SimpleNamespace(
+        caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
+        expander=_expander,
+        selectbox=lambda label, options, *args, **kwargs: options[0],
+        button=_button,
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx__notebook_import_preview": preview}),
+        sidebar=sidebar,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "confirm_notebook_import_preview", _confirm)
+
+    pipeline_editor.render_notebook_import_preview(
+        tmp_path / "demo_project",
+        tmp_path / "demo_project" / "lab_stages.toml",
+        "idx",
+    )
+
+    assert captured["confirm"][3]["runtime_roles"] == {
+        "cell-1": "manager",
+        "cell-2": "worker",
+    }
+    assert any(
+        item[0] == "code"
+        and item[1] == "diff"
+        and "Runtime roles: cell-1=manager/runpy, cell-2=worker/agi.run" in item[2]
+        for item in messages
+    )
+    assert ("role-caption", "Choose where each imported cell runs before writing the pipeline.") in messages
 
 
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
@@ -2294,7 +2420,9 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
+    stage_source_metadata = notebook["cells"][3]["metadata"]
     stage_source_cell = "".join(notebook["cells"][3]["source"])
+    stage_runner_metadata = notebook["cells"][4]["metadata"]
     stage_runner_cell = "".join(notebook["cells"][4]["source"])
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
@@ -2321,6 +2449,15 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
+    assert stage_source_metadata["tags"] == ["agilab.runtime.worker"]
+    assert stage_source_metadata["agilab"]["runtime_role"] == "worker"
+    assert stage_source_metadata["agilab"]["stage_cell"]["schema"] == "agilab.notebook_export.stage_cell.v1"
+    assert stage_source_metadata["agilab"]["stage_cell"]["kind"] == "source"
+    assert stage_source_metadata["agilab"]["stage_cell"]["stage_index"] == 0
+    assert stage_source_metadata["agilab"]["stage_cell"]["module"] == "demo_project"
+    assert stage_source_metadata["agilab"]["stage_cell"]["runtime"] == "agi.run"
+    assert stage_runner_metadata["agilab"]["stage_cell"]["kind"] == "runner"
+    assert stage_runner_metadata["agilab"]["stage_cell"]["stage_id"] == "supervisor-stage-1"
     stage_namespace: dict[str, object] = {}
     exec(stage_source_cell, stage_namespace)
     assert stage_namespace["STAGE_000_CODE"] == stage_code

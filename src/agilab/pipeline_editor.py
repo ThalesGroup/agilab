@@ -6,7 +6,8 @@ import importlib.util
 import json
 import logging
 import os
-from collections.abc import Iterable
+import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -98,12 +99,22 @@ build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
 discover_notebook_import_view_manifest = _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
+normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
 write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
 write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
 write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
 NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
+NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS = {
+    "": "Keep notebook/default",
+    "manager": "Manager (local runpy)",
+    "worker": "Worker (AGILAB worker)",
+}
+NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL = {
+    label: role for role, label in NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS.items()
+}
 
 
 def _emit_streamlit_message(level: str, *args: Any, **kwargs: Any) -> None:
@@ -379,6 +390,116 @@ def _selected_notebook_import_preview(
     return selected_preview
 
 
+def _normalize_notebook_import_runtime_roles(
+    runtime_roles: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for raw_stage_id, raw_role in (runtime_roles or {}).items():
+        stage_id = str(raw_stage_id or "").strip()
+        role = normalize_notebook_runtime_role(raw_role)
+        if stage_id and role:
+            normalized[stage_id] = role
+    return normalized
+
+
+def _notebook_import_preview_with_runtime_roles(
+    preview: Dict[str, Any],
+    runtime_roles: Mapping[str, Any] | None,
+) -> Dict[str, Any]:
+    normalized_roles = _normalize_notebook_import_runtime_roles(runtime_roles)
+    if not normalized_roles:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, Mapping):
+        return preview
+
+    module = str(preview.get("module", "") or "lab_stages")
+    updated_import = apply_notebook_runtime_roles(notebook_import, normalized_roles)
+    preflight = build_notebook_import_preflight(updated_import)
+    selected_preview = dict(preview)
+    selected_preview.update(
+        {
+            "notebook_import": updated_import,
+            "preflight": preflight,
+            "toml_content": build_lab_stages_preview(updated_import, module_name=module),
+            "contract": build_notebook_import_contract(
+                updated_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+            "runtime_roles": normalized_roles,
+        }
+    )
+    return selected_preview
+
+
+def _notebook_import_runtime_role_summary(preview: Dict[str, Any]) -> str:
+    parts: list[str] = []
+    for index, stage in enumerate(_notebook_import_stages(preview), start=1):
+        stage_id = _notebook_import_stage_identity(stage, index)
+        role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        if not role:
+            continue
+        runtime = str(stage.get("runtime", "") or "")
+        suffix = f"/{runtime}" if runtime else ""
+        parts.append(f"{stage_id}={role}{suffix}")
+    return _notebook_import_string_list(parts, limit=6)
+
+
+def _notebook_import_role_widget_key(index_page: str, stage_id: str) -> str:
+    safe_stage_id = re.sub(r"[^A-Za-z0-9_]+", "_", stage_id).strip("_") or "stage"
+    return f"{index_page}__notebook_runtime_role_{safe_stage_id}"
+
+
+def _render_notebook_import_runtime_role_controls(
+    sidebar: Any,
+    preview: Dict[str, Any],
+    index_page: str,
+) -> dict[str, str]:
+    stage_options = _notebook_import_stage_options(preview)
+    if not stage_options:
+        return {}
+
+    expander = getattr(sidebar, "expander", None)
+    target = expander("Runtime role per cell", expanded=False) if callable(expander) else sidebar
+    caption = getattr(target, "caption", None)
+    if callable(caption):
+        caption("Choose where each imported cell runs before writing the pipeline.")
+
+    selectbox = getattr(target, "selectbox", None)
+    if not callable(selectbox):
+        return {}
+
+    labels = list(NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL)
+    selected_roles: dict[str, str] = {}
+    for index, option in enumerate(stage_options, start=1):
+        stage = option["stage"]
+        stage_id = str(option["id"])
+        current_role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        default_label = NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS.get(
+            current_role,
+            NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS[""],
+        )
+        try:
+            default_index = labels.index(default_label)
+        except ValueError:
+            default_index = 0
+        selected_label = selectbox(
+            f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
+            labels,
+            index=default_index,
+            key=_notebook_import_role_widget_key(index_page, stage_id),
+            help=(
+                "Manager runs locally with runpy. Worker persists the stage for "
+                "AGILAB worker execution with agi.run."
+            ),
+        )
+        role = NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
+        if role:
+            selected_roles[stage_id] = role
+    return selected_roles
+
+
 def _notebook_import_string_list(value: Any, limit: int = 5) -> str:
     if not isinstance(value, list):
         return "none"
@@ -441,6 +562,7 @@ def _notebook_import_write_preview_text(
     lines = [
         f"Stages to write: {int(summary.get('pipeline_stage_count', preview.get('cell_count', 0)) or 0)}",
         f"Stage IDs: {_notebook_import_string_list(stage_ids)}",
+        f"Runtime roles: {_notebook_import_runtime_role_summary(preview)}",
         f"Inputs: {_notebook_import_string_list(input_paths)}",
         f"Outputs: {_notebook_import_string_list(output_paths)}",
         f"Unclassified artifacts: {_notebook_import_string_list(unknown_paths)}",
@@ -1301,6 +1423,7 @@ def confirm_notebook_import_preview(
     *,
     view_manifest_dir: Path | None = None,
     selected_stage_ids: Iterable[str] | None = None,
+    runtime_roles: Mapping[str, Any] | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -1308,10 +1431,15 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
-    preview_to_write = _selected_notebook_import_preview(preview, selected_stage_ids)
+    preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+    preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
     if not _notebook_import_preview_is_safe(preview):
         detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
         _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
+        return 0
+    if not _notebook_import_preview_is_safe(preview_with_roles):
+        detail = _notebook_import_blocking_detail(preview_with_roles.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook runtime role review is blocked: {detail}")
         return 0
     if not _notebook_import_preview_is_safe(preview_to_write):
         detail = _notebook_import_blocking_detail(preview_to_write.get("preflight", {}))
@@ -1393,6 +1521,11 @@ def render_notebook_import_preview(
         return
     selected_stage_ids: list[str] | None = None
     if _notebook_import_preview_is_safe(preview):
+        runtime_roles = _render_notebook_import_runtime_role_controls(
+            sidebar,
+            preview,
+            index_page,
+        )
         stage_options = _notebook_import_stage_options(preview)
         selectbox = getattr(sidebar, "selectbox", None)
         if stage_options and callable(selectbox):
@@ -1420,7 +1553,8 @@ def render_notebook_import_preview(
                     selected_stage_ids = [str(selected_option["id"])]
                     if callable(caption):
                         caption(_notebook_import_stage_detail(selected_option["stage"]))
-        preview_to_write = _selected_notebook_import_preview(preview, selected_stage_ids)
+        preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+        preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
         _render_notebook_import_write_preview(sidebar, preview_to_write, stages_file)
     import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
     if _notebook_import_preview_is_safe(preview) and button(
@@ -1433,6 +1567,7 @@ def render_notebook_import_preview(
             index_page,
             view_manifest_dir=view_manifest_dir,
             selected_stage_ids=selected_stage_ids,
+            runtime_roles=runtime_roles,
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
