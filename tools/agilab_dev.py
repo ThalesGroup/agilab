@@ -91,8 +91,11 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "shared-core-typing",
                 "--profile",
                 "docs",
-                "--profile",
-                "badges",
+            ),
+            _uv_python(
+                "tools/coverage_badge_guard.py",
+                "--changed-only",
+                "--require-fresh-xml",
             ),
         ]
 

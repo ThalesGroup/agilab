@@ -39,7 +39,12 @@ def test_changed_coverage_components_maps_gui_and_root_tests() -> None:
 def test_changed_coverage_components_ignores_coverage_tooling_tests() -> None:
     module = _load_module()
 
-    changed = module.changed_coverage_components(["test/test_coverage_badge_guard.py"])
+    changed = module.changed_coverage_components(
+        [
+            "test/test_coverage_badge_guard.py",
+            "test/test_agilab_dev_shortcuts.py",
+        ]
+    )
 
     assert changed == {}
 
