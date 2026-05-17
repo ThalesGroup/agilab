@@ -6,6 +6,7 @@ import sys
 
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +53,38 @@ def _optional_dependencies(path: Path, extra: str) -> list[Requirement]:
 
 def _has_version_floor(requirement: Requirement) -> bool:
     return any(spec.operator in {">=", "~=", "=="} for spec in requirement.specifier)
+
+
+def _requires_python_floor(requires_python: str) -> tuple[int, int] | None:
+    floor: tuple[int, int] | None = None
+    for specifier in SpecifierSet(requires_python):
+        if specifier.operator not in {">=", "~=", "=="}:
+            continue
+        version = tuple(int(part) for part in specifier.version.split(".")[:2])
+        if len(version) != 2:
+            continue
+        if floor is None or version > floor:
+            floor = version
+    return floor
+
+
+def _marker_excludes_python_below(requirement: Requirement, floor: tuple[int, int]) -> bool:
+    if requirement.marker is None:
+        return False
+    major, minor = floor
+    if minor == 0:
+        major -= 1
+        minor = 99
+    else:
+        minor -= 1
+    env = default_environment()
+    env["python_version"] = f"{major}.{minor}"
+    env["python_full_version"] = f"{major}.{minor}.99"
+    return not requirement.marker.evaluate(env)
+
+
+def _project_pyprojects() -> list[Path]:
+    return [REPO_ROOT / "pyproject.toml", *sorted(SRC_PACKAGE.rglob("pyproject.toml"))]
 
 
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
@@ -112,6 +145,50 @@ def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
             continue
         if not _has_version_floor(requirement):
             violations.append(f"{requirement}: missing lower bound or compatible version floor")
+
+    assert violations == []
+
+
+def test_internal_dependencies_do_not_broaden_python_support() -> None:
+    projects_by_name: dict[str, tuple[Path, str]] = {}
+    for pyproject in _project_pyprojects():
+        data = _load_pyproject(pyproject)
+        project = data.get("project", {})
+        name = str(project.get("name", "")).lower().replace("_", "-")
+        if name:
+            projects_by_name[name] = (pyproject, str(project.get("requires-python", "")))
+
+    violations: list[str] = []
+    for pyproject in _project_pyprojects():
+        data = _load_pyproject(pyproject)
+        project = data.get("project", {})
+        project_name = str(project.get("name", pyproject)).lower().replace("_", "-")
+        project_floor = _requires_python_floor(str(project.get("requires-python", ""))) or (0, 0)
+        dependencies = [
+            *project.get("dependencies", []),
+            *[
+                dependency
+                for extra_dependencies in project.get("optional-dependencies", {}).values()
+                for dependency in extra_dependencies
+            ],
+        ]
+        for dependency in dependencies:
+            requirement = Requirement(dependency)
+            dependency_name = requirement.name.lower().replace("_", "-")
+            internal = projects_by_name.get(dependency_name)
+            if internal is None:
+                continue
+            _internal_pyproject, dependency_requires_python = internal
+            dependency_floor = _requires_python_floor(dependency_requires_python) or (0, 0)
+            if dependency_floor <= project_floor:
+                continue
+            if _marker_excludes_python_below(requirement, dependency_floor):
+                continue
+            violations.append(
+                f"{pyproject.relative_to(REPO_ROOT)}: {project_name} supports "
+                f"{project.get('requires-python')} but depends on {requirement} "
+                f"which requires {dependency_requires_python}"
+            )
 
     assert violations == []
 
