@@ -33,91 +33,98 @@ references, and example projects.
    :maxdepth: 2
    :caption: Start
 
-   newcomer-guide
-   quick-start
-   release-proof
-   newcomer-troubleshooting
-   contributor-guide
-   architecture-five-minutes
-   compatibility-matrix
+   Newcomer guide <newcomer-guide>
+   Local first proof <quick-start>
+   Release proof <release-proof>
+   First-failure recovery <newcomer-troubleshooting>
+   Compatibility matrix <compatibility-matrix>
 
 .. toctree::
    :maxdepth: 2
-   :caption: Use
+   :caption: Product
 
-   introduction
-   features
-   data-connectors
-   AGILAB Demo <agilab-demo>
-   Advanced Proof Pack <advanced-proof-pack>
-   notebook-quickstart
-   notebook-advanced
-   agilab
+   Product overview <introduction>
+   Capabilities <features>
+   Data connectors <data-connectors>
+   Public web demo <agilab-demo>
+   Advanced proof pack <advanced-proof-pack>
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Notebooks and API
+
+   Notebook quickstart with agi-core <notebook-quickstart>
+   Advanced notebook routes <notebook-advanced>
+   Python API reference <agilab>
+   Framework API <framework-api>
 
 .. toctree::
    :maxdepth: 2
    :caption: Build
 
-   architecture
-   agi-core-architecture
-   agilab-mlops-positioning
-   learning-workflows
-   framework-api
-   framework-submodule-contract
-   cluster
-   modules
-   environment
-   agent-workflows
-   faq
-   directory-structure
-   troubleshooting
-   license
+   Architecture in 5 minutes <architecture-five-minutes>
+   Product architecture <architecture>
+   AGI Core architecture <agi-core-architecture>
+   MLOps positioning <agilab-mlops-positioning>
+   Learning workflows <learning-workflows>
+   Project file structure <directory-structure>
+   Agent workflows <agent-workflows>
+   Contributor guide <contributor-guide>
 
 .. toctree::
    :maxdepth: 2
-   :caption: Pages
+   :caption: Web UI pages
 
-   Main Page <agilab-help>
-   edit-help
-   execute-help
-   experiment-help
-   explore-help
+   Landing page <agilab-help>
+   PROJECT page <edit-help>
+   ORCHESTRATE page <execute-help>
+   WORKFLOW page <experiment-help>
+   ANALYSIS page <explore-help>
+   Page bundles <apps-pages>
 
 .. toctree::
    :maxdepth: 2
-   :caption: Service and Operations
+   :caption: Operations
 
-   service-mode
+   Cluster setup <cluster>
+   Distributed workers <distributed-workers>
+   SSH keys for workers <key-generation>
+   Service mode <service-mode>
    Service install paths <service_mode_and_paths>
-   service-health-schema
+   Service health schema <service-health-schema>
+   Environment variables <environment>
+   Troubleshooting <troubleshooting>
+   FAQ <faq>
 
 .. toctree::
    :maxdepth: 2
    :caption: Examples
 
-   demos
-   execution-playground
-   industrial-optimization-examples
-   notebook-migration-skforecast-meteo
-   mycode-project
-
-   flight-telemetry-project
+   Demo chooser <demos>
+   Execution playground <execution-playground>
+   Industrial optimization examples <industrial-optimization-examples>
+   Notebook migration example <notebook-migration-skforecast-meteo>
+   MyCode project <mycode-project>
+   Flight telemetry project <flight-telemetry-project>
 
 .. toctree::
    :maxdepth: 2
    :caption: Reference
 
-   agilab-github
+   Project and packages <agilab-github>
    Security and adoption <security-adoption>
-   package-publishing-policy
-   beta-readiness
-   strategic-potential
+   Package publishing policy <package-publishing-policy>
+   Framework submodule contract <framework-submodule-contract>
+   Module reference <modules>
+   Beta readiness <beta-readiness>
+   Strategic potential <strategic-potential>
+   Licenses <license>
 
 .. toctree::
    :maxdepth: 2
    :caption: Roadmap
 
-   roadmap/index
+   Roadmap <roadmap/index>
 
 Indices and tables
 ==================

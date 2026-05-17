@@ -1,10 +1,10 @@
-**AGILab project**
-------------------
+Project and packages
+====================
 
 - `AGILab on GitHub <https://github.com/ThalesGroup/agilab/>`_
 
-**AGILab components**
----------------------
+AGILab components
+-----------------
 
 The public distribution is split into install surfaces, runtime components,
 and payload bundles. ``agilab`` is the product entry point, ``agi-core`` is the
