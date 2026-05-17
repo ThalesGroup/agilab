@@ -7,6 +7,59 @@ This page tracks planned work only.
 
 The goal here is to rank future work, not to restate the current feature set.
 
+## Professional target
+
+AGILab should feel professional when a new team can trust the release, complete
+the first proof, import or export notebook work, diagnose failures, understand
+the security boundary, and hand evidence to another tool or reviewer without
+needing the original developer.
+
+The roadmap therefore prioritizes trust, clarity, and maintainability before
+adding larger product surfaces.
+
+### Professional scorecard
+
+Use this scorecard before promoting a release, demo, app, or major feature as
+professional-ready.
+
+| Area | Professional bar | Primary proof |
+| --- | --- | --- |
+| Release trust | Clean install, release proof, badges, PyPI, docs, and demo text agree | Release guard and release proof |
+| First-run UX | A newcomer can complete one local proof without guessing page actions | First-proof smoke and UI robot path |
+| Notebook bridge | Work can enter from notebooks and leave as reusable notebooks | Import/export round-trip evidence |
+| Failure clarity | Common failures are classified before raw tracebacks | Diagnostic tests and user-facing errors |
+| Security boundary | Shared, public, sensitive, and production use limits are explicit | Security check and adoption docs |
+| Team runtime | Cluster/share/service routes fail fast and explain remediation | Cluster/share/service health gates |
+| Evidence handoff | Runs, artifacts, compatibility, and promotion decisions are portable | Evidence bundle and release decision |
+| Maintainability | New features extend tested contracts instead of page-specific glue | Contract tests and pattern guardrails |
+| Ecosystem quality | Published apps are named, documented, installable, runnable, and scoped | App package smoke and README checks |
+
+### Phase plan
+
+Use phases as the product sequence. Dates can move; ordering should not move
+unless a higher-priority item is explicitly accepted as a risk.
+
+| Phase | Focus | Exit gate |
+| --- | --- | --- |
+| Phase 0 | Release trust and docs alignment | Clean release lane, fresh docs mirror, green badge guard, no stale public claims |
+| Phase 1 | Newcomer first proof and notebook parity | Built-in and notebook first proofs install, execute, and open analysis predictably |
+| Phase 2 | Diagnostics, security, and team readiness | Failures are classified; shared/team/cluster use has explicit checks and limits |
+| Phase 3 | Evidence and data integration | Promotion evidence, run diff, connectors, and provenance are consumable outside the UI |
+| Phase 4 | Maintainable extension model | Apps, pages, notebooks, connectors, reducers, and evidence reports follow stable contracts |
+| Phase 5 | Product expansion | Multi-app DAG, operator mode, observability, and MLOps handoff build on the stable baseline |
+
+### Sequencing rules
+
+- Fix release trust before adding feature breadth.
+- Fix first-run UX before asking users to try clusters or service mode.
+- Prove notebook import parity before advertising notebook migration broadly.
+- Add diagnostics before broadening team and cluster validation.
+- Add security and supply-chain gates before shared, exposed, or sensitive use.
+- Standardize evidence schemas before adding dashboards.
+- Stabilize extension contracts before publishing more apps.
+- Productize multi-app DAGs only after the first-run, runtime, evidence, and
+  contract layers are stable.
+
 ## Professionalization priority order
 
 Use this order when the goal is to make AGILab feel professional, adoptable,
