@@ -569,3 +569,89 @@ jobs:
               --notes "AGILAB release artifacts and supply-chain evidence."
           fi
           gh release upload "$release_tag" github-release-assets/* --clobber
+
+  sync-hf-space:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.publish-release-assets.result == 'success' }}
+    needs:
+      - release-plan
+      - publish-release-assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}
+      HF_SPACE_PROFILE: ${{ vars.AGILAB_HF_SPACE_PROFILE || 'first-proof' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.release_tag || github.ref_name }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install HF release sync dependencies
+        run: python -m pip install --upgrade --no-cache-dir "huggingface_hub[cli]"
+
+      - name: Deploy and validate Hugging Face Space
+        id: hf-sync
+        run: |
+          set -euxo pipefail
+          test -n "${HF_TOKEN:-}" || {
+            echo "HF_TOKEN secret is required so every release syncs the public Hugging Face Space." >&2
+            exit 2
+          }
+          python tools/hf_space_release_sync.py \
+            --space "$HF_SPACE_ID" \
+            --profile "$HF_SPACE_PROFILE" \
+            --github-output "$GITHUB_OUTPUT" \
+            --json
+
+      - name: Update public release proof with HF Space commit
+        run: |
+          set -euxo pipefail
+          hf_commit="${{ steps.hf-sync.outputs.hf_space_commit }}"
+          test -n "$hf_commit"
+
+          release_tag="${RELEASE_TAG#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git switch -C main origin/main
+
+          python tools/release_proof_report.py \
+            --refresh-from-local \
+            --github-release-tag "$release_tag" \
+            --github-release-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${release_tag}" \
+            --hf-space-commit "$hf_commit" \
+            --render \
+            --check \
+            --check-github-runs \
+            --compact
+          python tools/sync_docs_source.py \
+            --source docs/source \
+            --target docs/source \
+            --apply \
+            --delete \
+            --quiet
+
+          if git diff --quiet -- docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json; then
+            echo "Release proof already records HF Space commit ${hf_commit}."
+            exit 0
+          fi
+
+          git add docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json
+          git commit -m "docs(release): record HF Space sync"
+          git push origin HEAD:main

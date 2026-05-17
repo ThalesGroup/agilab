@@ -204,6 +204,14 @@ validate package metadata, internal pins, dependency-policy hygiene, docs mirror
 integrity, installer behavior, and release-proof consistency before either the
 library packages or the umbrella ``agilab`` wheel are uploaded.
 
+After PyPI provenance and GitHub release assets succeed, the public release
+workflow runs ``tools/hf_space_release_sync.py`` against the release source
+snapshot. That job requires the ``HF_TOKEN`` repository secret, deploys the
+bounded first-proof Hugging Face Space, waits for the hosted runtime to report
+the deployed Space commit, runs ``tools/hf_space_smoke.py``, and commits the
+Space commit back into the public release-proof docs. A missing or invalid
+``HF_TOKEN`` is a release failure, not a warning.
+
 Publishing authentication
 -------------------------
 

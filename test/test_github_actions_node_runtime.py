@@ -15,8 +15,8 @@ NODE24_COMPATIBLE_ACTIONS = {
     "actions/configure-pages": {"v6"},
     "actions/upload-pages-artifact": {"v5"},
     "actions/deploy-pages": {"v5"},
-    "actions/github-script": {"v8"},
-    "astral-sh/setup-uv": {"v7"},
+    "actions/github-script": {"v8", "v9"},
+    "astral-sh/setup-uv": {"v7", "v8"},
     "codecov/codecov-action": {"v6"},
 }
 
