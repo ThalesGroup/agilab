@@ -155,6 +155,66 @@ def test_delete_release_reports_missing_non_interactive_2fa_secret(monkeypatch) 
         )
 
 
+def test_delete_release_falls_back_when_pypi_cleanup_cannot_parse_delete_form(monkeypatch, capsys) -> None:
+    module = _load_module()
+    fallback_calls = []
+
+    def fake_run(cmd, **kwargs):
+        return module.subprocess.CompletedProcess(
+            cmd,
+            1,
+            stdout="ValueError: No CSFR found in /manage/project/agilab/release/2026.5.17/\n",
+        )
+
+    def fake_fallback(**kwargs):
+        fallback_calls.append(kwargs)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(module, "delete_release_via_pypi_web", fake_fallback)
+
+    module.delete_release(
+        package="agilab",
+        version="2026.05.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        auth_code="123456",
+    )
+
+    assert fallback_calls == [
+        {
+            "package": "agilab",
+            "version": "2026.05.17",
+            "repo": "pypi",
+            "username": "maintainer",
+            "password": "secret",
+            "auth_code": "123456",
+        }
+    ]
+    assert "direct PyPI web fallback" in capsys.readouterr().err
+
+
+def test_delete_form_parser_accepts_empty_action_and_fills_confirmation_fields() -> None:
+    module = _load_module()
+
+    form = module._find_form(
+        """
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="token">
+          <input name="confirm_delete_version" value="">
+        </form>
+        """,
+        target_path="/manage/project/agilab/release/2026.5.17/",
+        required_input="confirm_delete_version",
+    )
+
+    assert module._prepare_delete_form_data(
+        form,
+        package="agilab",
+        version="2026.5.17",
+    ) == {"csrf_token": "token", "confirm_delete_version": "2026.5.17"}
+
+
 def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -> None:
     module = _load_module()
     releases = {

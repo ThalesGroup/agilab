@@ -8,6 +8,7 @@ import base64
 import binascii
 import hmac
 import hashlib
+from html.parser import HTMLParser
 import json
 import os
 import re
@@ -17,9 +18,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
+from urllib.parse import urljoin, urlparse
 
 from packaging.version import InvalidVersion, Version
 
@@ -33,6 +36,37 @@ PYPI_HOSTS = {
     "testpypi": "https://test.pypi.org/",
 }
 SCHEMA_VERSION = "agilab.pypi_release_retention.v1"
+
+
+@dataclass(frozen=True)
+class HtmlForm:
+    action: str | None
+    inputs: dict[str, str]
+
+
+class FormParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.forms: list[HtmlForm] = []
+        self._action: str | None = None
+        self._inputs: dict[str, str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {key: value for key, value in attrs}
+        if tag == "form":
+            self._action = values.get("action")
+            self._inputs = {}
+            return
+        if tag == "input" and self._inputs is not None:
+            name = values.get("name")
+            if name:
+                self._inputs[name] = values.get("value") or ""
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "form" and self._inputs is not None:
+            self.forms.append(HtmlForm(action=self._action, inputs=dict(self._inputs)))
+            self._action = None
+            self._inputs = None
 
 
 @dataclass(frozen=True)
@@ -162,6 +196,130 @@ def _redact_auth_code(output: str, auth_code: str | None) -> str:
     return output
 
 
+def _form_action_matches(action: str | None, target_path: str) -> bool:
+    if not action:
+        return True
+    parsed = urlparse(action)
+    action_path = parsed.path or target_path
+    return action_path.rstrip("/") == target_path.rstrip("/")
+
+
+def _find_form(
+    html: str,
+    *,
+    target_path: str,
+    required_input: str | None = None,
+) -> HtmlForm:
+    parser = FormParser()
+    parser.feed(html)
+    matching = [
+        form
+        for form in parser.forms
+        if _form_action_matches(form.action, target_path)
+        and "csrf_token" in form.inputs
+    ]
+    if required_input:
+        with_input = [form for form in matching if required_input in form.inputs]
+        if with_input:
+            return with_input[0]
+    if matching:
+        return matching[0]
+    raise RuntimeError(f"no csrf-bearing form found for {target_path}")
+
+
+def _prepare_delete_form_data(form: HtmlForm, *, package: str, version: str) -> dict[str, str]:
+    data = dict(form.inputs)
+    data.setdefault("confirm_delete_version", version)
+    for key in tuple(data):
+        lowered = key.lower()
+        if "version" in lowered and ("confirm" in lowered or "delete" in lowered):
+            data[key] = version
+        elif "project" in lowered and ("confirm" in lowered or "delete" in lowered):
+            data[key] = package
+    return data
+
+
+def delete_release_via_pypi_web(
+    *,
+    package: str,
+    version: str,
+    repo: str,
+    username: str,
+    password: str,
+    auth_code: str | None = None,
+    session_factory: Callable[[], Any] | None = None,
+) -> None:
+    import requests
+
+    base_url = PYPI_HOSTS[repo].rstrip("/")
+    session_factory = session_factory or requests.Session
+    with session_factory() as session:
+        session.headers.update(
+            {
+                "User-Agent": (
+                    "agilab-pypi-release-retention/1 "
+                    f"(requests/{requests.__version__})"
+                )
+            }
+        )
+
+        login_path = "/account/login/"
+        login_url = f"{base_url}{login_path}"
+        response = session.get(login_url)
+        response.raise_for_status()
+        login_form = _find_form(response.text, target_path=login_path)
+        login_data = dict(login_form.inputs)
+        login_data.update({"username": username, "password": password})
+        response = session.post(
+            urljoin(base_url, login_form.action or login_path),
+            data=login_data,
+            headers={"referer": login_url},
+        )
+        response.raise_for_status()
+        if response.url.rstrip("/") == login_url.rstrip("/"):
+            raise RuntimeError(f"login failed for PyPI user {username!r}")
+
+        two_factor_prefix = f"{base_url}/account/two-factor/"
+        if response.url.startswith(two_factor_prefix):
+            if auth_code is None:
+                raise RuntimeError(
+                    "PyPI requested 2FA but no non-interactive code was available"
+                )
+            two_factor_path = urlparse(response.url).path
+            two_factor_form = _find_form(response.text, target_path=two_factor_path)
+            two_factor_data = dict(two_factor_form.inputs)
+            two_factor_data.update({"method": "totp", "totp_value": auth_code})
+            response = session.post(
+                urljoin(base_url, two_factor_form.action or two_factor_path),
+                data=two_factor_data,
+                headers={"referer": response.url},
+            )
+            response.raise_for_status()
+            if response.url.startswith(two_factor_prefix):
+                raise RuntimeError("PyPI rejected the generated TOTP code")
+
+        delete_path = f"/manage/project/{package}/release/{version}/"
+        delete_url = f"{base_url}{delete_path}"
+        response = session.get(delete_url)
+        response.raise_for_status()
+        delete_form = _find_form(
+            response.text,
+            target_path=delete_path,
+            required_input="confirm_delete_version",
+        )
+        delete_data = _prepare_delete_form_data(
+            delete_form,
+            package=package,
+            version=version,
+        )
+        response = session.post(
+            urljoin(base_url, delete_form.action or delete_path),
+            data=delete_data,
+            headers={"referer": delete_url},
+        )
+        response.raise_for_status()
+
+
 def delete_release(
     *,
     package: str,
@@ -215,6 +373,27 @@ def delete_release(
             "PYPI_RELEASE_PRUNE_TOTP_SECRET for non-interactive TOTP generation, or "
             "PYPI_RELEASE_PRUNE_OTP for a one-time manual rerun."
         )
+    if "No CSFR found" in output or "No CSRF found" in output:
+        print(
+            "[pypi-retention] pypi-cleanup could not parse the delete form; "
+            "using direct PyPI web fallback",
+            file=sys.stderr,
+        )
+        try:
+            delete_release_via_pypi_web(
+                package=package,
+                version=version,
+                repo=repo,
+                username=username,
+                password=password,
+                auth_code=auth_code,
+            )
+        except Exception as exc:
+            raise SystemExit(
+                "ERROR: direct PyPI web deletion fallback failed for "
+                f"{package} {version}: {exc}"
+            ) from exc
+        return
     raise SystemExit(f"ERROR: pypi-cleanup failed for {package} {version} with exit code {completed.returncode}")
 
 
