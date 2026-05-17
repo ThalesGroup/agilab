@@ -129,6 +129,12 @@ def _run_security_check(argv: list[str]) -> int:
     return security_check.main(argv)
 
 
+def _run_adoption_report(argv: list[str]) -> int:
+    from agilab import adoption_report
+
+    return adoption_report.main(argv)
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -172,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_first_proof(["--dry-run", *raw_argv[1:]])
     if raw_argv[:1] in (["security-check"], ["security_check"]):
         return _run_security_check(raw_argv[1:])
+    if raw_argv[:1] in (["adoption-report"], ["adoption_report"]):
+        return _run_adoption_report(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

@@ -34,8 +34,9 @@ Use this order when you need the quickest route to confidence:
        import path.
    * - Evidence record
      - Keep ``~/log/execute/flight_telemetry/run_manifest.json`` from
-       ``agilab first-proof --json``.
-     - Gives support, contributors, and future runs the same baseline.
+       ``agilab first-proof --json``, then run ``agilab adoption-report``.
+     - Gives support, contributors, and future runs the same baseline plus a
+       clear go/no-go before changing lanes.
    * - Expansion
      - Move to notebooks, package mode, private apps, or cluster work.
      - Prevents day-1 failures from mixing product, app, and infrastructure
@@ -86,6 +87,12 @@ proof has a passing ``run_manifest.json`` and a project-local
 ``notebooks/lab_stages.ipynb`` export exists. Only then move to a controlled
 team trial, and still treat secrets, UI exposure, quotas, repository pinning,
 cluster shares, and service mode as separate hardening decisions.
+
+For a shell-readable checkpoint, run ``agilab adoption-report`` after the
+manifest exists. It reads the first-proof manifest, shows missing handoff
+evidence, prints the compatibility and security-check commands to capture next,
+and stays pointed at :doc:`newcomer-troubleshooting` until the first proof is a
+passing baseline.
 
 When the gate passes, prepare a small handoff bundle instead of sending a verbal
 "it works" claim: the passing ``run_manifest.json``, the exported
