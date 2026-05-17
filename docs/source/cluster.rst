@@ -354,8 +354,5 @@ You typically generate a key pair on the machine running AGILab and copy the
 public key to each worker node so the deploy/run steps can connect without
 interactive prompts.
 
-.. toctree::
-   :maxdepth: 1
-
-   distributed-workers
-   key-generation
+See :doc:`distributed-workers` for the full UI-driven distributed workflow and
+:doc:`key-generation` for SSH key setup details.
