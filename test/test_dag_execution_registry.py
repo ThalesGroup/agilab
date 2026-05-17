@@ -320,6 +320,40 @@ def test_registry_reports_missing_runner_status_marker(tmp_path):
     assert "missing the controlled execution status marker" in support.message
 
 
+def test_registry_resolve_source_surfaces_marker_status_and_contract_edge_helpers(tmp_path):
+    repo_root = tmp_path
+    dag_path = repo_root / dag_execution_registry.UAV_QUEUE_TEMPLATE_RELATIVE_PATH
+    dag_path.parent.mkdir(parents=True)
+    payload = json.loads(_template_path(Path.cwd()).read_text(encoding="utf-8"))
+    payload["execution"].pop("runner_status")
+    dag_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    support = dag_execution_registry.resolve_real_run_support(
+        units=_uav_units(),
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert not support.supported
+    assert "missing the controlled execution status marker" in support.message
+    assert dag_execution_registry._has_declared_artifact("bad") is False
+    assert dag_execution_registry._controlled_contract_stage_issue(
+        [],
+        dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER,
+    ) == "This controlled contract DAG does not contain any executable stages."
+    assert "must declare at least one produced artifact" in dag_execution_registry._controlled_contract_stage_issue(
+        [{"id": "stage_a", "execution_contract": {"entrypoint": "demo.run"}, "produces": []}],
+        dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER,
+    )
+
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    assert dag_execution_registry._dag_execution_payload(broken) == {}
+    list_payload = tmp_path / "list.json"
+    list_payload.write_text("[]", encoding="utf-8")
+    assert dag_execution_registry._dag_execution_payload(list_payload) == {}
+
+
 def test_registry_keeps_legacy_sample_executable_for_existing_docs_flow():
     repo_root = Path.cwd()
 

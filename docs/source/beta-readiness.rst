@@ -60,6 +60,7 @@ publishing a beta-classified package:
 
    uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env --profile agi-core-combined --profile agi-gui --profile docs --profile installer --profile shared-core-typing --profile dependency-policy
    uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+   uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile production-readiness
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
    uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
@@ -69,6 +70,12 @@ using the ``shared`` adoption profile. It remains non-blocking unless
 ``AGILAB_SECURITY_CHECK_STRICT=1`` is set; with that variable enabled, missing
 shared-deployment controls such as SBOM evidence, app-repository allowlists, or
 public-bind controls fail the gate.
+
+The ``production-readiness`` profile writes
+``test-results/production-readiness.json`` and runs the full production
+readiness evidence report, including docs parity. Passing this profile means the
+controlled-pilot evidence and guardrails are internally consistent; it is still
+not a standalone production MLOps certification.
 
 If any command fails, keep the public classifier at alpha and fix the underlying
 reproducibility, install, demo, or publication issue first.

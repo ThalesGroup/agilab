@@ -736,6 +736,33 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert str(repo_root) in module.sys.path
     assert str(src_root / "agilab") in fake_agilab_package.__path__
 
+    fake_agilab_tuple_package = ModuleType("agilab")
+    fake_agilab_tuple_package.__path__ = ()
+    monkeypatch.setitem(module.sys.modules, "agilab", fake_agilab_tuple_package)
+    module._ensure_repo_on_path()
+    assert fake_agilab_tuple_package.__path__ == [str(src_root / "agilab")]
+
+    run_manifest_path = src_root / "agilab" / "run_manifest.py"
+    run_manifest_path.write_text("RUN_MANIFEST_FILENAME = 'run_manifest.json'\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module.importlib.util,
+        "spec_from_file_location",
+        lambda *_args, **_kwargs: SimpleNamespace(loader=None),
+    )
+    with pytest.raises(ModuleNotFoundError):
+        module._load_run_manifest_module()
+
+    registry_paths: list[str] = []
+
+    class _Registry:
+        def path(self, name: str) -> Path:
+            registry_paths.append(name)
+            return tmp_path / name
+
+    monkeypatch.setattr(module, "_connector_path_registry", lambda _env: _Registry())
+    assert module._default_artifact_root(SimpleNamespace(target="demo", app="demo")) == tmp_path / "artifact_root"
+    assert registry_paths == ["artifact_root"]
+
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []
 
@@ -902,6 +929,377 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     with pytest.raises(RuntimeError, match="stop"):
         module._resolve_active_app()
     assert any("Provided --active-app path not found" in message for message in errors)
+
+
+def test_view_release_decision_helper_error_edges(tmp_path, monkeypatch) -> None:
+    module = _load_release_helpers()
+
+    broken_manifest_args = "--manifest 'unterminated"
+    manifest_paths, manifest_dirs, parse_errors = module._parse_manifest_import_args(broken_manifest_args)
+    assert manifest_paths == []
+    assert manifest_dirs == []
+    assert parse_errors[0]["source"] == "import args"
+    missing_dir_rows, missing_dir_summary = module._build_manifest_import_rows(
+        "--manifest-dir " + str(tmp_path / "missing-manifests")
+    )
+    assert missing_dir_rows[0]["evidence_status"] == "invalid"
+    assert missing_dir_summary["invalid_manifest_count"] == 1
+    equals_manifest, equals_dirs, equals_errors = module._parse_manifest_import_args(
+        f"--manifest={tmp_path / 'a.json'} --manifest-dir={tmp_path}"
+    )
+    assert equals_manifest == [tmp_path / "a.json"]
+    assert equals_dirs == [tmp_path]
+    assert equals_errors == []
+
+    bad_manifest = tmp_path / "bad" / "run_manifest.json"
+    bad_manifest.parent.mkdir()
+    bad_manifest.write_text("{broken", encoding="utf-8")
+    invalid_rows, invalid_summary = module._build_manifest_import_rows(
+        "--manifest " + str(bad_manifest)
+    )
+    assert invalid_rows[0]["evidence_status"] == "invalid"
+    assert "Unable to load run manifest" in invalid_rows[0]["detail"]
+    assert invalid_summary["attached_manifest_count"] == 1
+    file_dir_rows, _file_dir_summary = module._build_manifest_import_rows(
+        "--manifest-dir " + str(bad_manifest)
+    )
+    assert file_dir_rows[0]["provenance"].startswith("--manifest-dir")
+
+    harvest_path = tmp_path / "ci_artifact_harvest.json"
+    harvest_path.write_text(
+        json.dumps(
+            {
+                "schema": "other",
+                "run_status": "failed",
+                "release": "not-a-dict",
+                "summary": "not-a-dict",
+                "artifacts": "not-a-list",
+            }
+        ),
+        encoding="utf-8",
+    )
+    deduped_harvest_paths, harvest_parse_errors = module._parse_ci_artifact_harvest_import_args(
+        f"--ci-artifact-harvest {harvest_path} --ci-artifact-harvest={harvest_path}"
+    )
+    assert deduped_harvest_paths == [harvest_path]
+    assert harvest_parse_errors == []
+    harvest_rows, harvest_summary = module._build_ci_artifact_harvest_rows(
+        f"--ci-artifact-harvest {harvest_path}"
+    )
+    assert harvest_rows[0]["detail"] == "loaded without artifact rows"
+    assert harvest_summary["loaded_harvest_count"] == 1
+    assert module._ci_artifact_harvest_summary_counts(
+        [{"loaded": True, "source": "x", "release_status": ""}],
+        requested_count=1,
+        parse_error_count=0,
+    )["release_status_counts"] == {}
+
+    comparison_rows = module._build_manifest_index_comparison_rows(
+        {
+            "releases": {
+                "bad": "not-a-dict",
+                "same": {"candidate_bundle_root": "bundle", "manifests": [{"path": "a"}]},
+                "prior": {"candidate_bundle_root": "old", "manifests": ["not-a-dict"]},
+            }
+        },
+        {"release_id": "current", "candidate_bundle_root": "bundle", "manifests": [{"path": "a"}]},
+    )
+    assert comparison_rows[0]["comparison_status"] == "new_evidence_not_validated"
+
+    class _BrokenPath:
+        def __init__(self, _value: object) -> None:
+            pass
+
+        def expanduser(self):
+            return self
+
+        def is_relative_to(self, _bundle_root: Path) -> bool:
+            raise ValueError("bad path")
+
+    with monkeypatch.context() as reduce_monkeypatch:
+        reduce_monkeypatch.setattr(module, "Path", _BrokenPath)
+        assert module._reduce_rows_for_bundle([{"path": "broken"}], tmp_path) == []
+
+    signed_manifest = _write_first_proof_manifest(tmp_path / "signed")
+    signature_path = Path(str(signed_manifest) + ".sig")
+    signature_path.write_text("signature", encoding="utf-8")
+    signed_rows, signed_summary = module._build_manifest_import_rows(
+        "--manifest " + str(signed_manifest)
+    )
+    assert signed_rows[0]["attachment_status"] == "signed"
+    assert signed_rows[0]["attachment_signature_path"] == str(signature_path)
+    assert signed_summary["signed_attachment_count"] == 1
+    assert module._manifest_attachment_status({"attachment": {"sha256": "abc"}}) == "provenance_tagged"
+
+    original_file_metadata = module._file_metadata
+
+    def fail_signature_metadata(path: Path):
+        if path == signature_path:
+            raise OSError("signature denied")
+        return original_file_metadata(path)
+
+    monkeypatch.setattr(module, "_file_metadata", fail_signature_metadata)
+    assert module._manifest_signature_sidecar(signed_manifest) is None
+
+    def fail_all_metadata(_path: Path):
+        raise OSError("file denied")
+
+    monkeypatch.setattr(module, "_file_metadata", fail_all_metadata)
+    assert module._manifest_attachment_metadata(signed_manifest, "manual")["verification_status"] == "unverifiable"
+    assert module._ci_artifact_harvest_attachment_metadata(signed_manifest, "manual")["verification_status"] == (
+        "unverifiable"
+    )
+    monkeypatch.setattr(module, "_file_metadata", original_file_metadata)
+
+    ci_paths, ci_errors = module._parse_ci_artifact_harvest_import_args(
+        "--ci-artifact-harvest --harvest=/tmp/ci_artifact_harvest.json ci_artifact_harvest.json"
+    )
+    assert ci_errors == [
+        {"source": "--ci-artifact-harvest", "detail": "--ci-artifact-harvest requires a path value"}
+    ]
+    assert [path.name for path in ci_paths] == ["ci_artifact_harvest.json", "ci_artifact_harvest.json"]
+    assert module._parse_ci_artifact_harvest_import_args("--harvest 'unterminated")[1][0]["source"] == (
+        "import args"
+    )
+    ci_bad = tmp_path / "ci_artifact_harvest.json"
+    ci_bad.write_text("[]", encoding="utf-8")
+    ci_rows, ci_summary = module._build_ci_artifact_harvest_rows(
+        "--ci-artifact-harvest " + str(ci_bad)
+    )
+    assert ci_rows[0]["harvest_status"] == "invalid"
+    assert "must be a JSON object" in ci_rows[0]["detail"]
+    assert ci_summary["gate_status"] == "fail"
+
+    ci_empty = tmp_path / "ci-empty.json"
+    ci_empty.write_text(
+        json.dumps(
+            {
+                "schema": module.CI_ARTIFACT_HARVEST_SCHEMA,
+                "run_status": "harvest_ready",
+                "release": "bad",
+                "summary": "bad",
+                "artifacts": ["bad"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    empty_rows, empty_summary = module._build_ci_artifact_harvest_rows(
+        "--harvest " + str(ci_empty)
+    )
+    assert empty_rows == []
+    assert empty_summary["gate_status"] == "fail"
+
+    invalid_index_path = tmp_path / "manifest_index.json"
+    for payload, expected in (
+        ("[]", "manifest index must be a JSON object"),
+        (json.dumps({"schema": "wrong"}), "unsupported manifest index schema"),
+        (json.dumps({"schema": module.MANIFEST_INDEX_SCHEMA, "releases": []}), "manifest index releases must be an object"),
+    ):
+        invalid_index_path.write_text(payload, encoding="utf-8")
+        _index, summary = module._load_manifest_index(invalid_index_path)
+        assert expected in summary["error"]
+
+    mixed_index = {
+        "schema": module.MANIFEST_INDEX_SCHEMA,
+        "releases": {
+            "bad": "not-a-release",
+            "release-a": {"candidate_bundle_root": "bundle-a", "manifests": ["bad"]},
+        },
+    }
+    assert module._manifest_index_rows(mixed_index) == []
+    assert module._manifest_evidence_rank(None) == -1
+    assert module._manifest_duration(None) is None
+    assert module._best_manifest_record([]) is None
+
+    assert module._classify_manifest_comparison(None, {"evidence_status": "validated"})[0] == (
+        "missing_current_evidence"
+    )
+    assert module._classify_manifest_comparison({"evidence_status": "validated"}, None)[0] == (
+        "newly_validated"
+    )
+    assert module._classify_manifest_comparison({"evidence_status": "failed"}, None)[0] == "failed"
+    assert module._classify_manifest_comparison({"evidence_status": "invalid"}, None)[0] == (
+        "new_evidence_not_validated"
+    )
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "invalid", "run_id": "new"},
+        {"evidence_status": "validated", "run_id": "old"},
+    )[0] == "regressed"
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "failed", "run_id": "new"},
+        {"evidence_status": "validated", "run_id": "old"},
+    )[0] == "failed"
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "validated", "run_id": "new"},
+        {"evidence_status": "failed", "run_id": "old"},
+    )[0] == "improved"
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "validated", "run_id": "new", "duration_seconds": 3.0},
+        {"evidence_status": "validated", "run_id": "old", "duration_seconds": 5.0},
+    )[0] == "better"
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "validated", "run_id": "new", "duration_seconds": 7.0},
+        {"evidence_status": "validated", "run_id": "old", "duration_seconds": 5.0},
+    )[0] == "slower"
+    assert module._classify_manifest_comparison(
+        {"evidence_status": "validated", "run_id": "new"},
+        {"evidence_status": "validated", "run_id": "old"},
+    )[0] == "stable"
+    assert module._manifest_is_same_evidence(
+        {"run_id": "same-run"},
+        {"run_id": "same-run"},
+    ) is True
+
+    assert module._manifest_evidence_from_summary(
+        {"loaded": True, "status": "pass", "error": "missing"},
+        "missing.json",
+    )["evidence_status"] == "missing"
+    assert module._manifest_evidence_from_summary(
+        {"loaded": False, "status": "pass", "error": "parse"},
+        "bad.json",
+    )["evidence_status"] == "invalid"
+    assert module._selected_release_manifest_evidence(
+        {"selected_run_manifest_summary": {"loaded": True, "status": "pass"}, "selected_run_manifest_path": "run.json"}
+    )["evidence_status"] == "validated"
+    assert module._selected_release_manifest_evidence({}) is None
+
+    outside_row = {"path": object(), "status": "pass"}
+    assert module._reduce_rows_for_bundle([{}, outside_row], tmp_path) == []
+    inside_row = {"path": str(tmp_path / "bundle" / "reduce_summary_worker_0.json"), "status": "pass"}
+    assert module._reduce_rows_for_bundle([inside_row], tmp_path / "bundle") == [inside_row]
+    current_invalid = {"invalid_count": 1, "valid_count": 0, "reducers": []}
+    target_valid = {"invalid_count": 0, "valid_count": 1, "reducers": ["a"]}
+    assert module._compare_reduce_summaries(current_invalid, target_valid)[0] == "invalid_current"
+    assert module._compare_reduce_summaries({"invalid_count": 0, "valid_count": 0, "reducers": []}, target_valid)[0] == (
+        "missing_current"
+    )
+    assert module._compare_reduce_summaries({"invalid_count": 0, "valid_count": 2, "reducers": ["a"]}, target_valid)[0] == (
+        "expanded"
+    )
+    assert module._compare_reduce_summaries({"invalid_count": 0, "valid_count": 1, "reducers": []}, {"invalid_count": 0, "valid_count": 2, "reducers": []})[0] == (
+        "reduced"
+    )
+    assert module._compare_reduce_summaries({"invalid_count": 0, "valid_count": 1, "reducers": ["b"]}, target_valid)[0] == (
+        "changed"
+    )
+    assert module._compare_reduce_summaries({"invalid_count": 0, "valid_count": 0, "reducers": []}, {"invalid_count": 0, "valid_count": 0, "reducers": []})[0] == (
+        "not_available"
+    )
+
+    metrics_file = tmp_path / "metrics.json"
+    metrics_file.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="Metrics payload"):
+        module._load_metrics(metrics_file)
+    assert module._relative_display_path(Path("/not/under/root"), tmp_path) == "/not/under/root"
+    assert module._comma_joined(None) == ""
+    assert module._comma_joined(["a", "b"]) == "a, b"
+    assert module._comma_joined("x") == "x"
+    assert module._metadata_subset({"a": "x", "b": True, "c": 1}) == {"a": "x", "c": 1}
+    higher_rows = module._build_metric_rows({"accuracy": 0.8, "neutral": 1.0}, {"accuracy": 0.7, "neutral": 1.5}, 0)
+    assert {row["metric"]: row["status"] for row in higher_rows} == {
+        "accuracy": "fail",
+        "neutral": "review",
+    }
+    artifact_rows = module._build_artifact_rows(tmp_path / "baseline", tmp_path / "candidate", ["*.csv"])
+    assert artifact_rows[0]["status"] == "fail"
+    invalid_manifest_file = tmp_path / "invalid-run-manifest.json"
+    invalid_manifest_file.write_text("{broken", encoding="utf-8")
+    invalid_gate_rows, invalid_gate_summary = module._build_run_manifest_gate_rows(invalid_manifest_file)
+    assert invalid_gate_rows[0]["gate"] == "run_manifest_valid"
+    assert invalid_gate_summary["error"]
+    assert module._decision_status(
+        baseline_path=tmp_path / "base.json",
+        candidate_path=tmp_path / "candidate.json",
+        artifact_rows=[],
+        metric_rows=[{"status": "fail"}],
+    )[0] == "blocked"
+    assert module._decision_status(
+        baseline_path=tmp_path / "base.json",
+        candidate_path=tmp_path / "candidate.json",
+        artifact_rows=[],
+        metric_rows=[],
+    )[0] == "needs_review"
+
+    blocked_status, blocked_summary = module._decision_status(
+        baseline_path=tmp_path / "base.json",
+        candidate_path=tmp_path / "candidate.json",
+        artifact_rows=[],
+        metric_rows=[],
+        ci_artifact_harvest_summary={"gate_status": "fail"},
+    )
+    assert blocked_status == "blocked"
+    assert "CI artifact harvest" in blocked_summary
+
+    missing_target_rows = module._evidence_target_rows(
+        target_kind="baseline",
+        target_release_id="base",
+        target_bundle=tmp_path / "base",
+        target_metrics_path=None,
+        target_metrics_payload=None,
+        target_manifest=None,
+        candidate_bundle=tmp_path / "candidate",
+        candidate_metrics_payload={},
+        current_manifest={"evidence_status": "validated", "path_id": "first-proof"},
+        required_patterns=[],
+        reduce_artifact_rows=[],
+        tolerance_pct=0,
+    )
+    assert any(row["status"] == "missing_target" for row in missing_target_rows)
+
+    baseline_metrics = tmp_path / "baseline" / "metrics.json"
+    candidate_metrics = tmp_path / "candidate" / "metrics.json"
+    prior_bad_metrics = tmp_path / "prior" / "metrics.json"
+    baseline_metrics.parent.mkdir()
+    candidate_metrics.parent.mkdir()
+    prior_bad_metrics.parent.mkdir()
+    baseline_metrics.write_text('{"mae": 1.0}', encoding="utf-8")
+    candidate_metrics.write_text('{"mae": 0.9}', encoding="utf-8")
+    prior_bad_metrics.write_text("[]", encoding="utf-8")
+    comparison_rows = module._build_evidence_bundle_comparison_rows(
+        existing_index={
+            "releases": {
+                "same-current": {"candidate_bundle_root": str(candidate_metrics.parent)},
+                "prior": {
+                    "release_id": "prior",
+                    "candidate_bundle_root": str(prior_bad_metrics.parent),
+                    "candidate_metrics_file": str(prior_bad_metrics),
+                },
+            }
+        },
+        baseline_path=baseline_metrics,
+        candidate_path=candidate_metrics,
+        candidate_payload={"mae": 0.9},
+        run_manifest_path=tmp_path / "run.json",
+        run_manifest_summary={"loaded": True, "status": "pass"},
+        current_release={
+            "release_id": "current",
+            "candidate_bundle_root": str(candidate_metrics.parent),
+            "selected_run_manifest_summary": {"loaded": True, "status": "pass"},
+            "selected_run_manifest_path": str(tmp_path / "run.json"),
+        },
+        required_patterns=[],
+        reduce_artifact_rows=[],
+        tolerance_pct=0,
+    )
+    assert any(row["target_kind"] == "prior_indexed" and row["status"] == "missing_target" for row in comparison_rows)
+
+    class BrokenStatPath:
+        def stat(self):
+            raise OSError("stat denied")
+
+        def as_posix(self):
+            return "broken"
+
+    assert module._sort_key_with_mtime(BrokenStatPath()) == (0, "broken")
+
+    def raise_preview(_repo_root=None):
+        raise RuntimeError("preview failed")
+
+    monkeypatch.setattr(module, "_build_release_decision_connector_preview_state", raise_preview)
+    captions: list[str] = []
+    fallback = module._render_release_decision_connector_live_ui(SimpleNamespace(caption=captions.append))
+    assert fallback["run_status"] == "unavailable"
+    assert "preview failed" in captions[0]
 
 
 def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(tmp_path) -> None:

@@ -212,6 +212,42 @@ def test_data_connector_runtime_adapters_accept_secret_uri_auth_refs(tmp_path: P
     assert adapters["artifact_object_store"]["credential_resolution"] == "deferred_to_operator_runtime"
 
 
+def test_data_connector_runtime_adapters_core_covers_unsupported_and_relative_catalog_edges(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_core_edges_test_module",
+    )
+
+    assert core_module._connector_target({"kind": "custom"}) == ""
+    assert core_module._sql_dependency({"driver": "mysql"}) == "package:pymysql"
+    assert core_module._sql_dependency({}) == "driver:unspecified"
+    unsupported = core_module._adapter_row({"id": "custom", "kind": "custom"})
+    assert unsupported["adapter_class"] == "UnsupportedRuntimeAdapter"
+    assert unsupported["runtime_dependency"] == "unsupported"
+
+    monkeypatch.setattr(core_module, "load_connector_catalog", lambda _path: {"connectors": []})
+    monkeypatch.setattr(
+        core_module,
+        "build_data_connector_runtime_adapters",
+        lambda catalog, *, source_path: {
+            "run_status": "ready_for_runtime_binding",
+            "source_path": str(source_path),
+        },
+    )
+
+    result = core_module.persist_data_connector_runtime_adapters(
+        repo_root=tmp_path,
+        output_path=tmp_path / "runtime_adapters.json",
+        catalog_path=Path("connectors.toml"),
+    )
+
+    assert result["ok"] is True
+    assert result["catalog_path"] == str(tmp_path / "connectors.toml")
+
+
 def test_data_connector_runtime_adapters_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
     core_module = _load_module(
         CORE_PATH,

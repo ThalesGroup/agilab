@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 import sys
 import tomllib
 import types
@@ -92,6 +93,7 @@ def test_analysis_sidebar_notebook_url_encodes_project_and_path(tmp_path: Path):
 
 def test_discover_project_notebooks_skips_checkpoints_and_sorts(tmp_path: Path):
     module = _load_analysis_module()
+    module._NOTEBOOK_DISCOVERY_CACHE.clear()
     project_root = tmp_path / "flight_telemetry_project"
     notebooks_root = project_root / "notebooks"
     (notebooks_root / "extra").mkdir(parents=True)
@@ -107,6 +109,75 @@ def test_discover_project_notebooks_skips_checkpoints_and_sorts(tmp_path: Path):
 
     assert list(notebooks) == ["extra/demo.ipynb", "lab_stages.ipynb"]
     assert notebooks["lab_stages.ipynb"] == (notebooks_root / "lab_stages.ipynb").resolve()
+
+
+def test_discover_views_uses_cache_until_directory_signature_changes(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    module._VIEW_DISCOVERY_CACHE.clear()
+    pages_root = tmp_path / "apps-pages"
+    pages_root.mkdir()
+    first_view = (pages_root / "view_a.py").resolve()
+    first_view.write_text("def main(): pass\n", encoding="utf-8")
+    calls: list[Path] = []
+
+    def fake_discover(root: Path) -> list[Path]:
+        calls.append(root)
+        return [path.resolve() for path in sorted(root.glob("*.py"))]
+
+    monkeypatch.setattr(module, "_discover_views_uncached", fake_discover)
+
+    assert module.discover_views(pages_root) == [first_view]
+    assert module.discover_views(pages_root) == [first_view]
+    assert calls == [pages_root.resolve()]
+
+    second_view = (pages_root / "view_b.py").resolve()
+    second_view.write_text("def main(): pass\n", encoding="utf-8")
+
+    assert module.discover_views(pages_root) == [first_view, second_view]
+    assert calls == [pages_root.resolve(), pages_root.resolve()]
+
+
+def test_discover_project_notebooks_uses_cache_until_directory_signature_changes(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    module._NOTEBOOK_DISCOVERY_CACHE.clear()
+    project_root = tmp_path / "flight_telemetry_project"
+    notebooks_root = project_root / "notebooks"
+    notebooks_root.mkdir(parents=True)
+    first_notebook = (notebooks_root / "lab_stages.ipynb").resolve()
+    first_notebook.write_text("{}", encoding="utf-8")
+    calls: list[Path] = []
+
+    def fake_discover(root: Path) -> dict[str, Path]:
+        calls.append(root)
+        return {
+            path.resolve().relative_to(root).as_posix(): path.resolve()
+            for path in sorted(root.rglob("*.ipynb"), key=lambda item: item.as_posix())
+        }
+
+    monkeypatch.setattr(module, "_discover_project_notebooks_uncached", fake_discover)
+
+    assert module.discover_project_notebooks(project_root) == {
+        "lab_stages.ipynb": first_notebook,
+    }
+    assert module.discover_project_notebooks(project_root) == {
+        "lab_stages.ipynb": first_notebook,
+    }
+    assert calls == [notebooks_root.resolve()]
+
+    extra_root = notebooks_root / "extra"
+    extra_root.mkdir()
+    second_notebook = (extra_root / "demo.ipynb").resolve()
+    second_notebook.write_text("{}", encoding="utf-8")
+    os.utime(extra_root)
+
+    assert module.discover_project_notebooks(project_root) == {
+        "extra/demo.ipynb": second_notebook,
+        "lab_stages.ipynb": first_notebook,
+    }
+    assert calls == [notebooks_root.resolve(), notebooks_root.resolve()]
 
 
 def test_configured_notebook_options_filters_unavailable_entries():

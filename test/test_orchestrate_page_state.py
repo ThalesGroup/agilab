@@ -506,6 +506,25 @@ def test_orchestrate_run_artifact_state_allows_graph_delete_but_not_export():
     assert state.stats_action.enabled is False
 
 
+def test_orchestrate_page_state_helper_edges(tmp_path):
+    assert orchestrate_page_state._coerce_int_tuple(["1", "bad", None, 2.0]) == (1, 2)
+    missing = orchestrate_page_state._missing_install_paths(tmp_path / "missing-manager", None)
+    assert "worker venv `<unknown>`" in missing
+
+    hidden_loaded = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=False,
+        loaded_dataframe=pd.DataFrame({"value": [1]}),
+    )
+    assert hidden_loaded.export_action.enabled is True
+
+    hidden_empty = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=False,
+        loaded_dataframe=None,
+    )
+    assert hidden_empty.export_action.enabled is False
+    assert "No data loaded yet" in hidden_empty.export_action.disabled_reason
+
+
 def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
     active_app = tmp_path / "src" / "agilab" / "apps" / "flight_telemetry_project"
     return orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -595,3 +614,22 @@ def test_orchestrate_combined_workflow_state_reports_runnable(tmp_path):
     assert state.distribution_generated is True
     assert state.runnable is True
     assert state.blocked_reason == ""
+
+
+def test_orchestrate_combined_workflow_state_reports_installed_and_not_installed(tmp_path):
+    not_installed_root = tmp_path / "not-installed"
+    installed = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(cmd=None, worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=True),
+    )
+    not_installed = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(not_installed_root, show_install=False),
+        distribution_state=_distribution_state(show_distribute=False, worker_env_path=not_installed_root / "wenv"),
+        execute_state=_execute_state(not_installed_root, installed=False),
+    )
+
+    assert installed.phase is orchestrate_page_state.OrchestrateWorkflowPhase.INSTALLED
+    assert installed.blocked_reason
+    assert not_installed.phase is orchestrate_page_state.OrchestrateWorkflowPhase.NOT_INSTALLED
+    assert not_installed.blocked_reason

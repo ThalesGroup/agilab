@@ -8,6 +8,7 @@ import pytest
 
 
 REPORT_PATH = Path("tools/repository_knowledge_report.py").resolve()
+CORE_PATH = Path("src/agilab/repository_knowledge.py").resolve()
 
 
 def _load_module(path: Path, name: str):
@@ -79,3 +80,72 @@ def test_repository_knowledge_index_excludes_generated_paths(repository_knowledg
     assert not any(path.startswith(".venv/") for path in indexed_paths)
     assert payload["provenance"]["generated_content_source_of_truth"] is False
     assert payload["provenance"]["official_docs_remain_source_of_truth"] is True
+
+
+def test_repository_knowledge_core_handles_small_and_malformed_repositories(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_core_test_module")
+    missing = tmp_path / "missing"
+    excluded = tmp_path / ".venv" / "file.py"
+    excluded.parent.mkdir()
+    excluded.write_text("print('skip')\n", encoding="utf-8")
+    syntax_error = tmp_path / "bad.py"
+    syntax_error.write_text("def broken(:\n", encoding="utf-8")
+    doc = tmp_path / "doc.rst"
+    doc.write_text(".. comment\n:field: value\n| table\nVisible heading\n", encoding="utf-8")
+
+    assert module._iter_files(missing) == []
+    assert module._iter_files(excluded) == []
+    assert module._iter_files(syntax_error) == [syntax_error]
+    assert module._iter_named_files(missing, "pyproject.toml") == []
+    assert module._python_outline(syntax_error)["parse_status"] == "syntax_error"
+    assert module._first_heading(doc.read_text(encoding="utf-8")) == "Visible heading"
+    assert module._first_heading(".. comment\n:field: value\n| table\n") == ""
+
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True)
+    (repo_root / "tools").mkdir()
+    (repo_root / ".venv").mkdir()
+    (repo_root / "src" / "agilab" / "module.py").write_text('"""Doc."""\nimport os\nclass A: pass\ndef f(): pass\n', encoding="utf-8")
+    (repo_root / "tools" / "tool.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (repo_root / "README.md").write_text("# Demo\n", encoding="utf-8")
+
+    state = module.build_repository_knowledge_index(repo_root=repo_root)
+
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["docs_file_count"] == 0
+    assert state["issues"] == [
+        {
+            "level": "error",
+            "location": "official_docs",
+            "message": "official documentation was not indexed",
+        }
+    ]
+    assert ".venv" in state["excluded_existing_roots"]
+
+
+def test_repository_knowledge_core_reports_excluded_index_hits(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_exclusion_test_module")
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    duplicate = repo_root / "src" / "agilab" / "same.py"
+    duplicate.parent.mkdir(parents=True)
+    duplicate.write_text("VALUE = 1\n", encoding="utf-8")
+    pyproject = repo_root / "pyproject.toml"
+    pyproject.write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    assert module._records(repo_root)
+
+    monkeypatch.setattr(
+        module,
+        "_records",
+        lambda _repo_root: [{"path": ".venv/generated.py", "kind": "package_source"}],
+    )
+
+    state = module.build_repository_knowledge_index(repo_root=repo_root)
+
+    assert state["run_status"] == "invalid"
+    assert any(issue["location"] == "exclusion_guardrail" for issue in state["issues"])

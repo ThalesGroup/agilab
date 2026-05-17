@@ -89,6 +89,7 @@ def _load_flight_form_module(
     tmp_path: Path,
     *,
     session_state: dict[str, object],
+    form_path: str = APP_ARGS_FORM,
     share_root_error: bool = False,
     load_error: Exception | None = None,
     defaults_error_source: str | None = None,
@@ -216,7 +217,7 @@ def _load_flight_form_module(
     sys.modules["flight"] = fake_flight
 
     module_name = f"flight_form_test_{len(sys.modules)}"
-    spec = importlib.util.spec_from_file_location(module_name, APP_ARGS_FORM)
+    spec = importlib.util.spec_from_file_location(module_name, form_path)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     sys.modules[module_name] = module
@@ -642,6 +643,99 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert "stLinkButton" not in pipeline_source
     assert '"Open UI"' not in pipeline_source
     assert '"Open"' not in pipeline_source
+
+
+def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_MODULE_CACHE.clear()
+    monkeypatch.setattr(main_page, "_about_resources_path", lambda: tmp_path / "resources")
+    monkeypatch.setattr(main_page, "_ensure_navigation_environment", lambda *_args, **_kwargs: object())
+    monkeypatch.delenv("AGILAB_DISABLE_PAGE_MODULE_CACHE", raising=False)
+
+    import_counter = tmp_path / "imports.txt"
+    call_counter = tmp_path / "calls.txt"
+    page_file = tmp_path / "cached_page.py"
+
+    def write_page(version: str) -> None:
+        page_file.write_text(
+            "\n".join(
+                [
+                    "from pathlib import Path",
+                    f"IMPORT_COUNTER = Path({str(import_counter)!r})",
+                    f"CALL_COUNTER = Path({str(call_counter)!r})",
+                    "IMPORT_COUNTER.write_text(str(int(IMPORT_COUNTER.read_text() or '0') + 1) if IMPORT_COUNTER.exists() else '1')",
+                    f"VERSION = {version!r}",
+                    "def main():",
+                    "    CALL_COUNTER.write_text((CALL_COUNTER.read_text() if CALL_COUNTER.exists() else '') + VERSION)",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    write_page("A")
+    runner = main_page._page_file_runner(page_file)
+    runner()
+    runner()
+
+    assert import_counter.read_text(encoding="utf-8") == "1"
+    assert call_counter.read_text(encoding="utf-8") == "AA"
+
+    previous_mtime = page_file.stat().st_mtime_ns
+    write_page("B")
+    os.utime(page_file, ns=(previous_mtime + 1_000_000_000, previous_mtime + 1_000_000_000))
+    runner()
+
+    assert import_counter.read_text(encoding="utf-8") == "2"
+    assert call_counter.read_text(encoding="utf-8") == "AAB"
+
+
+def test_main_page_lazy_modules_import_only_on_attribute_access(tmp_path, monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    calls = []
+    fake_module = SimpleNamespace(answer=42)
+    lazy_module = main_page._LazyAgilabModule(
+        "agilab.fake_heavy_module",
+        fallback_path=tmp_path / "fake_heavy_module.py",
+        fallback_name="agilab_fake_heavy_module_fallback",
+    )
+
+    def fake_import(module_name, **kwargs):
+        calls.append((module_name, kwargs["fallback_name"]))
+        return fake_module
+
+    monkeypatch.setattr(main_page, "_import_agilab_module_or_stop", fake_import)
+
+    assert calls == []
+    assert lazy_module.answer == 42
+    lazy_module.extra = "loaded-once"
+
+    assert calls == [("agilab.fake_heavy_module", "agilab_fake_heavy_module_fallback")]
+    assert fake_module.extra == "loaded-once"
+
+
+def test_page_load_timing_is_opt_in_sidebar_diagnostic(monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    captions = []
+    fake_streamlit = SimpleNamespace(sidebar=SimpleNamespace(caption=captions.append))
+
+    monkeypatch.delenv(main_page.PAGE_LOAD_TIMING_ENV_KEY, raising=False)
+    main_page._render_page_load_timing(
+        "PROJECT",
+        10.0,
+        streamlit=fake_streamlit,
+        perf_counter=lambda: 10.123,
+    )
+    assert captions == []
+
+    monkeypatch.setenv(main_page.PAGE_LOAD_TIMING_ENV_KEY, "1")
+    main_page._render_page_load_timing(
+        "PROJECT",
+        10.0,
+        streamlit=fake_streamlit,
+        perf_counter=lambda: 10.123,
+    )
+    assert captions == ["PROJECT loaded in 123 ms"]
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
@@ -1078,6 +1172,85 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
 
     assert not any("Input directory does not exist" in message for message in calls["warning"])
     assert any("public Hugging Face Space" in message for message in calls["info"])
+
+
+def test_flight_project_app_args_form_import_matches_public_file_contract(monkeypatch, tmp_path):
+    form_path = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
+    with pytest.raises(RuntimeError, match="st.stop"):
+        _load_flight_form_module(monkeypatch, tmp_path, form_path=form_path, session_state={}, inject_env=False)
+
+    module, fake_st, calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        form_path=form_path,
+        session_state={
+            "flight_project:app_args_form:data_source": "hawk",
+            "flight_project:app_args_form:data_in": "missing/input",
+            "flight_project:app_args_form:data_out": "custom/output",
+            "flight_project:app_args_form:files": "*.csv",
+        },
+        share_root_error=True,
+        load_error=RuntimeError("broken settings"),
+    )
+
+    assert module._k("data_source") == "flight_project:app_args_form:data_source"
+    assert fake_st.session_state["flight_project:app_args_form:data_source"] == "file"
+    assert any("Unsupported Flight data source reset" in message for message in calls["warning"])
+    assert any("Unable to load Flight args" in message for message in calls["warning"])
+    assert any("Input directory does not exist" in message for message in calls["warning"])
+    assert calls["success"]
+
+    fake_st.session_state["flight_project:app_args_form:data_source"] = "hawk"
+    module._on_data_source_change()
+    assert fake_st.session_state["flight_project:app_args_form:data_source"] == "file"
+
+    fallback = date(2020, 1, 2)
+    assert module._parse_iso_date(fallback, fallback=fallback) == fallback
+    assert module._parse_iso_date("bad", fallback=fallback) == fallback
+    assert module._parse_iso_date("", fallback=fallback) == fallback
+    assert module._is_huggingface_space(SimpleNamespace(envars={"SPACE_HOST": "space"})) is True
+    assert module._is_default_file_seed("flight\\dataset/") is True
+    module.apply_source_defaults = lambda _args: (_ for _ in ()).throw(RuntimeError("defaults failed"))
+    module._on_data_source_change()
+
+    _invalid_module, _invalid_st, invalid_calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        form_path=form_path,
+        session_state={
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
+        },
+        with_humanized_errors=False,
+    )
+    assert invalid_calls["error"] == ["Invalid Flight parameters:"]
+    assert invalid_calls["code"]
+
+    _humanized_module, _humanized_st, humanized_calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        form_path=form_path,
+        session_state={
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
+        },
+        with_humanized_errors=True,
+    )
+    assert humanized_calls["markdown"]
+
+    monkeypatch.setenv("SPACE_ID", "thales/agilab")
+    _hf_module, _hf_st, hf_calls = _load_flight_form_module(
+        monkeypatch,
+        tmp_path,
+        form_path=form_path,
+        session_state={
+            "flight_project:app_args_form:data_in": "flight/dataset",
+            "flight_project:app_args_form:data_out": "flight/dataframe",
+        },
+        share_root_error=True,
+        load_error=RuntimeError("broken settings"),
+    )
+    assert any("public Hugging Face Space" in message for message in hf_calls["info"])
 
 
 def test_explore_page_multiselect(mock_ui_env):

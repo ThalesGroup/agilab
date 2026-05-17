@@ -154,7 +154,18 @@ def test_view_shap_explanation_helper_branches(monkeypatch, tmp_path: Path) -> N
 
     assert module._discover_files(tmp_path / "missing", "[") == []
     assert module._safe_float(object()) is None
+    assert module._load_json(None) == {}
     assert module._load_json(tmp_path / "missing.json") == {}
+
+    class BadBase:
+        def glob(self, _pattern):
+            raise OSError("bad glob")
+
+    assert module._discover_files(BadBase(), "*.csv") == []
+
+    parquet_path = tmp_path / "values.parquet"
+    monkeypatch.setattr(module.pd, "read_parquet", lambda path: pd.DataFrame({"feature": ["age"], "shap_value": [1.0]}))
+    assert module._load_table(parquet_path)["feature"].tolist() == ["age"]
 
 
 def test_view_shap_explanation_normalizes_long_and_wide_artifacts() -> None:
@@ -176,7 +187,44 @@ def test_view_shap_explanation_normalizes_long_and_wide_artifacts() -> None:
     wide = module._coerce_shap_frame(wide_frame)
     assert wide["feature"].tolist() == ["age", "priors_count"]
 
+    assert module._coerce_shap_frame(pd.DataFrame()).columns.tolist() == [
+        "feature",
+        "shap_value",
+        "abs_shap_value",
+    ]
+    non_numeric = module._coerce_shap_frame(pd.DataFrame([{"feature": "age", "shap_value": "bad"}]))
+    assert non_numeric.empty
+
     shap_frame = pd.DataFrame({"feature": ["age"], "shap_value": [0.46], "abs_shap_value": [0.46]})
     feature_frame = pd.DataFrame({"feature": ["age"], "feature_value": [21]})
     merged = module._merge_feature_values(shap_frame, feature_frame)
     assert merged["feature_value"].tolist() == [21]
+    assert module._merge_feature_values(pd.DataFrame(), feature_frame).empty
+    assert module._merge_feature_values(shap_frame.assign(feature_value=[99]), feature_frame)["feature_value"].tolist() == [99]
+
+    assert module._coerce_feature_values(pd.DataFrame()).columns.tolist() == ["feature", "feature_value"]
+    wide_values = module._coerce_feature_values(pd.DataFrame([{"age": 21, "priors_count": 0}]))
+    assert wide_values.to_dict(orient="records") == [
+        {"feature": "age", "feature_value": 21},
+        {"feature": "priors_count", "feature_value": 0},
+    ]
+    assert module._metadata_value({"model_output": 0.7}, "prediction", "model_output") == 0.7
+    assert module._metadata_value({"prediction": ""}, "prediction") is None
+
+
+def test_view_shap_explanation_state_text_input_initializes_default(monkeypatch) -> None:
+    module = _load_shap_helpers()
+    calls: list[tuple[str, str]] = []
+    session_state: dict[str, str] = {}
+
+    def text_input(label: str, *, key: str):
+        calls.append((label, key))
+        return session_state[key]
+
+    module.st = SimpleNamespace(session_state=session_state, sidebar=SimpleNamespace(text_input=text_input))
+
+    assert module._state_text_input("demo_key", "Demo label", "default") == "default"
+    assert session_state["demo_key"] == "default"
+    session_state["demo_key"] = "kept"
+    assert module._state_text_input("demo_key", "Demo label", "other") == "kept"
+    assert calls == [("Demo label", "demo_key"), ("Demo label", "demo_key")]

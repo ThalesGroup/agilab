@@ -66,6 +66,58 @@ def _reset_agi_capacity_state():
             setattr(AGI, field, value)
 
 
+def test_capacity_support_private_helper_edges(monkeypatch, tmp_path):
+    with pytest.raises(RuntimeError, match="Benchmark path is not configured"):
+        capacity_support._benchmark_path(SimpleNamespace(benchmark=None))
+    with pytest.raises(RuntimeError, match="Manager path is not configured"):
+        capacity_support._manager_path(SimpleNamespace(manager_path=str(tmp_path)))
+
+    assert capacity_support._worker_host("ssh://user@[fe80::1]:22") == "fe80::1"
+    assert capacity_support._worker_host("user@10.0.0.2:8787") == "10.0.0.2"
+    assert capacity_support._worker_host("") == ""
+    assert capacity_support._node_count(None) == 1
+    assert capacity_support._node_count({"user@10.0.0.2:8787": 1, "ssh://user@10.0.0.2": 1}) == 1
+
+    fake_agi = SimpleNamespace(_capacity={"user@10.0.0.3": 3.0, "user@10.0.0.2": 1.0})
+    assert capacity_support._best_single_node_host(fake_agi, {"fallback": 1}) == "10.0.0.3"
+    assert capacity_support._best_single_node_workers(SimpleNamespace(_capacity={}), {"user@10.0.0.4": 1}) == {
+        "10.0.0.4": 1
+    }
+    assert capacity_support._best_single_node_workers(SimpleNamespace(_capacity={}), {"": 1}) == {}
+
+    assert capacity_support._rapids_capability_value(True) is True
+    assert capacity_support._rapids_capability_value("off") is False
+    assert capacity_support._rapids_capability_value("unknown") is None
+
+    class _BrokenLocalEnv:
+        envars = {}
+
+        def is_local(self, _host):
+            raise RuntimeError("local check failed")
+
+    assert capacity_support._worker_rapids_capability(_BrokenLocalEnv(), "127.0.0.1") is None
+
+    env = SimpleNamespace(envars={"worker@10.0.0.5": "yes"}, hw_rapids_capable=False, is_local=lambda host: host == "localhost")
+    assert capacity_support._worker_rapids_capability(env, "10.0.0.5") is True
+    assert capacity_support._worker_rapids_capability(env, "localhost") is False
+    assert capacity_support._worker_rapids_capable(env, "10.0.0.5") is True
+
+    assert capacity_support._best_single_node_modes([0, 8], rapids_capable=True, rapids_mode_bit=8, prefer_requested_rapids=True) == [8]
+    assert capacity_support._best_single_node_modes([0, 1], rapids_capable=False, rapids_mode_bit=8) == [0, 1]
+
+    assert capacity_support._rapids_run_mode_bit(SimpleNamespace(_RAPIDS_SET="bad", _RAPIDS_RESET=0)) == 8
+    assert capacity_support._rapids_requested_for_best_node(
+        SimpleNamespace(_RAPIDS_SET=8, _RAPIDS_RESET=0),
+        [0],
+        8,
+    ) is True
+    assert capacity_support._auto_rapids_requires_best_node_capability(
+        SimpleNamespace(_RAPIDS_SET=8, _RAPIDS_RESET=0),
+        [0, 8],
+        8,
+    ) is True
+
+
 @pytest.mark.asyncio
 async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     env = _mycode_env()

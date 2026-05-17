@@ -6,9 +6,19 @@ from pathlib import Path
 
 
 REPORT_PATH = Path("tools/data_connector_app_catalogs_report.py").resolve()
+CORE_PATH = Path("src/agilab/data_connector_app_catalogs.py").resolve()
 
 
 def _load_module(path: Path, name: str):
+    src_root = Path.cwd() / "src"
+    src_root_text = str(src_root)
+    if src_root_text not in sys.path:
+        sys.path.insert(0, src_root_text)
+    package = sys.modules.get("agilab")
+    package_paths = getattr(package, "__path__", None)
+    package_path = str(src_root / "agilab")
+    if package_paths is not None and package_path not in list(package_paths):
+        package_paths.append(package_path)
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -90,3 +100,53 @@ def test_data_connector_app_catalogs_resolve_relative_to_app_settings(tmp_path: 
     assert paths["uav_relay_queue_project"].endswith(
         "uav_relay_queue_project/src/connectors/data_connectors.toml"
     )
+
+
+def test_data_connector_app_catalogs_core_reports_invalid_app_catalog_edges(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module(CORE_PATH, "data_connector_app_catalogs_core_edges_test_module")
+    repo_root = tmp_path / "repo"
+    settings_rel = Path("src/agilab/apps/builtin/demo_project/src/app_settings.toml")
+    settings_path = repo_root / settings_rel
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text("[", encoding="utf-8")
+
+    assert module._settings_with_catalog(settings_path) is None
+    assert module._app_name(Path("app_settings.toml")) == ""
+
+    monkeypatch.setattr(module, "load_app_settings", lambda _path: {"connector_catalog": {"path": "connectors.toml"}})
+    monkeypatch.setattr(module, "_settings_catalog_path", lambda *_args, **_kwargs: repo_root / "connectors.toml")
+    monkeypatch.setattr(module, "load_connector_catalog", lambda _path: {"connectors": []})
+    monkeypatch.setattr(
+        module,
+        "build_data_connector_facility",
+        lambda *_args, **_kwargs: {
+            "run_status": "invalid",
+            "summary": {"connector_count": 1, "supported_kinds": ["sql"], "network_probe_count": 0},
+            "connectors": [{"id": "warehouse"}],
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "build_data_connector_resolution",
+        lambda **_kwargs: {
+            "run_status": "invalid",
+            "summary": {
+                "connector_ref_count": 1,
+                "page_connector_ref_count": 1,
+                "legacy_path_count": 0,
+                "missing_ref_count": 1,
+                "network_probe_count": 0,
+            },
+            "resolutions": [{"page": "release_decision"}],
+        },
+    )
+
+    state = module.build_data_connector_app_catalogs(repo_root=repo_root, settings_paths=[settings_rel])
+
+    assert state["run_status"] == "invalid"
+    assert state["apps"][0]["app"] == "demo_project"
+    assert {issue["location"] for issue in state["issues"]} >= {
+        "demo_project.facility",
+        "demo_project.resolution",
+        "demo_project",
+    }

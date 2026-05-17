@@ -120,3 +120,141 @@ def test_evidence_graph_validation_rejects_dangling_edges() -> None:
     assert module.validate_evidence_graph(graph) == (
         "evidence graph edge #0 target is unknown: missing:node",
     )
+
+
+def test_evidence_graph_validation_reports_shape_and_reference_errors() -> None:
+    module = _load_module()
+
+    graph = {
+        "schema": "wrong",
+        "kind": "wrong",
+        "nodes": [
+            "bad-node",
+            {},
+            {"id": "run:demo"},
+            {"id": "run:demo", "kind": "run"},
+            {"id": "run:demo", "kind": "run"},
+        ],
+        "edges": [
+            "bad-edge",
+            {},
+            {"source": "missing:source", "target": "run:demo"},
+            {"source": "run:demo", "target": "missing:target", "kind": ""},
+        ],
+    }
+
+    issues = module.validate_evidence_graph(graph)
+
+    assert "evidence graph schema is unsupported" in issues
+    assert "evidence graph kind is unsupported" in issues
+    assert "evidence graph node #0 must be an object" in issues
+    assert "evidence graph node #1 id is missing" in issues
+    assert "evidence graph node run:demo kind is missing" in issues
+    assert "evidence graph node id is duplicated: run:demo" in issues
+    assert "evidence graph edge #0 must be an object" in issues
+    assert "evidence graph edge #1 source/target is missing" in issues
+    assert "evidence graph edge #2 source is unknown: missing:source" in issues
+    assert "evidence graph edge #2 kind is missing" in issues
+    assert "evidence graph edge #3 target is unknown: missing:target" in issues
+    assert "evidence graph edge #3 kind is missing" in issues
+    assert module.validate_evidence_graph({"nodes": "bad", "edges": "bad"}) == (
+        "evidence graph schema is unsupported",
+        "evidence graph kind is unsupported",
+        "evidence graph nodes must be a list",
+        "evidence graph edges must be a list",
+    )
+
+
+def test_evidence_graph_summary_and_messy_manifest_edge_cases() -> None:
+    module = _load_module()
+
+    assert module.evidence_graph_summary(
+        {
+            "nodes": [
+                {"kind": "run"},
+                {"kind": ""},
+                "skip",
+            ],
+            "edges": [
+                {"kind": "references"},
+                {"kind": ""},
+                "skip",
+            ],
+        }
+    ) == {
+        "node_count": 2,
+        "edge_count": 2,
+        "node_kinds": {"run": 1, "unknown": 1},
+        "edge_kinds": {"references": 1, "unknown": 1},
+    }
+
+    messy_manifest = {
+        "manifest_id": "demo manifest!",
+        "run_id": "",
+        "status": "",
+        "workflow": {"source_type": "generated"},
+        "runtime_contract": {
+            "phase": "",
+            "event_count": "bad",
+            "controls": [
+                {"label": "", "enabled": True},
+                {"label": "Retry", "enabled": True, "reason": ""},
+            ],
+        },
+        "stages": [
+            {"id": "", "order_index": 0},
+            {"id": "late", "order_index": "bad", "depends_on": ["missing"]},
+            {"id": "first", "order_index": 1, "depends_on": ["late"]},
+        ],
+        "artifact_contracts": {
+            "produced": [
+                {"artifact": "", "producer": "first"},
+                {"artifact": "loose", "producer": "missing"},
+            ],
+            "consumed": [
+                {"artifact": "", "consumer": "first"},
+                {"artifact": "external", "consumer": "missing", "source_path": "input.csv"},
+            ],
+        },
+        "validations": [
+            {"label": "", "status": "", "summary": ""},
+            {"label": "Smoke", "status": "", "summary": "ok"},
+        ],
+        "artifacts": [
+            {"name": "loose", "kind": "table", "path": "loose.csv", "exists": False, "sha256": ""},
+            {"path": "unnamed.txt", "kind": "", "exists": True, "sha256": "abc"},
+        ],
+        "evidence_ledger": {"path": "ledger.json"},
+        "evidence_graph": {"kind": "graph"},
+    }
+
+    graph = module.build_evidence_graph_from_workflow_manifest(messy_manifest)
+    assert module.validate_evidence_graph(graph) == ()
+    assert graph["source"]["run_id"] == "demo manifest!"
+    assert graph["source"]["status"] == "unknown"
+    assert {"source": "stage:late", "target": "stage:first", "kind": "precedes"} in graph["edges"]
+    node_by_id = {node["id"]: node for node in graph["nodes"]}
+    assert node_by_id["phase:unknown"]["properties"] == {"event_count": 0}
+    assert node_by_id["control:Retry"]["properties"] == {"enabled": True}
+    assert node_by_id["validation:validation"]["properties"] == {"status": "unknown"}
+    assert node_by_id["artifact:loose"]["kind"] == "artifact"
+    assert node_by_id["artifact:loose"]["properties"] == {"kind": "table", "path": "loose.csv", "exists": False}
+    assert node_by_id["evidence_artifact:unnamed.txt"]["properties"] == {
+        "path": "unnamed.txt",
+        "exists": True,
+        "sha256": "abc",
+    }
+    assert node_by_id["evidence_artifact:evidence_ledger"]["properties"] == {"path": "ledger.json"}
+    assert node_by_id["evidence_artifact:evidence_graph"]["properties"] == {"kind": "graph"}
+
+    builder = module._GraphBuilder()
+    builder.add_node("n", "kind", "", {"drop": "", "keep": "a"})
+    builder.add_node("n", "kind", "ignored", {"drop": [], "keep": "b", "other": 1})
+    builder.add_edge("", "n", "bad")
+    builder.add_edge("n", "n", "self")
+    assert builder.nodes() == [{"id": "n", "kind": "kind", "label": "n", "properties": {"keep": "b", "other": 1}}]
+    assert builder.edges() == [{"source": "n", "target": "n", "kind": "self"}]
+    assert module._mapping("bad") == {}
+    assert module._sequence("bad") == ()
+    assert module._int(object()) == 0
+    assert module._token("   ") == "item"

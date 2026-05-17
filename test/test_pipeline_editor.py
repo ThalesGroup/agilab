@@ -327,6 +327,147 @@ def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     assert stored["flight_telemetry_project"][1]["NB_CELL_ID"] == "cell-3"
 
 
+def test_notebook_import_helper_edge_branches(monkeypatch, tmp_path):
+    events: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        info=lambda message, **_kwargs: events.append(("info", message)),
+        warning=lambda message, **_kwargs: events.append(("warning", message)),
+        error=lambda message, **_kwargs: events.append(("error", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    assert pipeline_editor._coerce_source_lines(None) == []
+    assert pipeline_editor._coerce_source_lines("a\nb") == ["a\n", "b"]
+    assert pipeline_editor._coerce_source_lines(("a\n", 3)) == ["a\n", "3"]
+    assert pipeline_editor._coerce_source_lines(42) == ["42"]
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="notes.txt", type="text/plain")) is False
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="", type="")) is True
+    assert pipeline_editor._is_uploaded_notebook(SimpleNamespace(name="", type="application/x-ipynb+json")) is True
+
+    contract_path = tmp_path / "notebook_import_contract.json"
+    view_plan_path = tmp_path / "notebook_import_view_plan.json"
+    pipeline_editor._emit_notebook_preflight_result(
+        {
+            "status": "blocked",
+            "summary": {"pipeline_stage_count": 2, "input_count": 1, "output_count": 1},
+            "risk_counts": {"error": 1},
+        },
+        contract_path,
+        view_plan_path=view_plan_path,
+    )
+    pipeline_editor._emit_notebook_preflight_result(
+        {"summary": {}, "risk_counts": {"warning": 1}},
+        contract_path,
+    )
+    pipeline_editor._emit_streamlit_message("missing_api", "ignored")
+
+    assert events[0][0] == "error"
+    assert "View plan: notebook_import_view_plan.json" in events[0][1]
+    assert events[1][0] == "warning"
+
+    long_stage = {
+        "id": "",
+        "source_cell_index": 3,
+        "description": "x" * 80,
+        "source_lines": "not-a-list",
+        "env_hints": ["a", "b", "c", "d", "e"],
+        "artifact_references": [
+            {"path": "a.csv"},
+            {"path": "b.csv"},
+            {"path": "c.csv"},
+            {"path": "d.csv"},
+        ],
+    }
+    assert pipeline_editor._notebook_import_stages({"notebook_import": {"pipeline_stages": "bad"}}) == []
+    assert "..." in pipeline_editor._notebook_import_stage_label(long_stage, 2)
+    assert "+1 more" in pipeline_editor._notebook_import_stage_detail(long_stage)
+    assert pipeline_editor._notebook_import_first_code_line(long_stage) == ""
+    assert pipeline_editor._notebook_import_first_code_line({"source_lines": ["", "print('x')" + "y" * 120]}).endswith("...")
+    assert pipeline_editor._stage_env_hints_from_notebook_stage({"env_hints": "bad"}) == []
+    assert pipeline_editor._artifact_paths_from_notebook_stage({"artifact_references": "bad"}) == []
+    assert pipeline_editor._artifact_paths_from_notebook_stage({"artifact_references": ["bad", {"path": "out.csv"}]}) == [
+        "out.csv"
+    ]
+
+    preview = {"notebook_import": "bad", "preflight": {"safe_to_import": True}}
+    assert pipeline_editor._selected_notebook_import_preview(preview, ["stage-1"]) is preview
+    assert pipeline_editor._notebook_import_preview_with_runtime_roles(preview, {"stage-1": "manager"}) is preview
+    assert pipeline_editor._normalize_notebook_import_runtime_roles({"": "manager", "stage-1": "worker"}) == {
+        "stage-1": "worker"
+    }
+    assert pipeline_editor._notebook_import_string_list("bad") == "none"
+    assert pipeline_editor._notebook_import_toml_preview_text({"toml_content": "bad"}) == ""
+
+
+def test_notebook_import_runtime_role_controls_and_write_preview_edges(monkeypatch, tmp_path):
+    captions: list[str] = []
+    selectbox_calls: list[tuple[str, int]] = []
+
+    class SidebarWithoutSelectbox:
+        def expander(self, *_args, **_kwargs):
+            return SimpleNamespace(caption=captions.append)
+
+    assert pipeline_editor._render_notebook_import_runtime_role_controls(
+        SidebarWithoutSelectbox(),
+        {"notebook_import": {"pipeline_stages": [{"id": "stage-1"}]}},
+        "idx",
+    ) == {}
+
+    class SidebarWithSelectbox:
+        def expander(self, *_args, **_kwargs):
+            return self
+
+        def caption(self, message):
+            captions.append(message)
+
+        def selectbox(self, label, options, *, index=0, **_kwargs):
+            selectbox_calls.append((label, index))
+            return "Worker (AGILAB worker)"
+
+    preview = {
+        "source_signature": "bad/sig",
+        "notebook_import": {
+            "pipeline_stages": [
+                {
+                    "id": "stage/1",
+                    "source_cell_index": 1,
+                    "source_lines": ["print('x')"],
+                    "runtime_role": "unknown",
+                    "env_hints": ["pandas"],
+                    "artifact_references": [{"path": "out.csv"}],
+                }
+            ],
+            "summary": {"pipeline_stage_count": 1},
+        },
+        "toml_content": {"flight": [{"Q": "q", "C": "print('x')"}]},
+        "preflight": {"summary": {"pipeline_stage_count": 1}},
+        "contract": {"artifact_contract": {"inputs": ["in.csv"], "outputs": ["out.csv"], "unknown": ["tmp.bin"]}},
+    }
+    roles = pipeline_editor._render_notebook_import_runtime_role_controls(SidebarWithSelectbox(), preview, "idx")
+
+    assert roles == {"stage/1": "worker"}
+    assert selectbox_calls == [("Cell 1 runtime", 0)]
+    assert captions[0] == "Select Manager or Worker for every runnable cell before writing the pipeline."
+    assert "Cell 1:" in captions[-1]
+    assert pipeline_editor._notebook_import_role_widget_key("idx", "stage/1", "bad/sig") == (
+        "idx__notebook_runtime_role_bad_sig_stage_1"
+    )
+
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("[[flight]]\nQ='old'\n", encoding="utf-8")
+    text = pipeline_editor._notebook_import_write_preview_text(preview, stages_file, max_diff_lines=1)
+
+    assert "Runtime roles: none" in text
+    assert "... diff truncated" in text
+
+    class CaptionOnlySidebar:
+        def caption(self, message):
+            captions.append(message)
+
+    pipeline_editor._render_notebook_import_write_preview(CaptionOnlySidebar(), preview, stages_file)
+    assert any("Stages to write" in caption for caption in captions)
+
+
 def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(
         session_state={
@@ -1807,6 +1948,567 @@ def test_notebook_export_handoff_quotes_paths_with_spaces():
     assert "Update absolute paths if the export is shared outside this workstation." in handoff
 
 
+def test_notebook_export_path_and_app_root_edge_helpers(monkeypatch, tmp_path):
+    support = notebook_export_support
+
+    assert support._normalize_path(None) == ""
+    assert support._normalize_path(object())
+    assert support._repo_root_candidates(SimpleNamespace(repo_root=object()), current_file=object()) == ()
+    assert support._truthy_env(" ON ") is True
+    assert support._truthy_env("off") is False
+    assert support._runtime_role_from_engine("agi.run") == "worker"
+    assert support._runtime_role_from_engine("Python") == "manager"
+    assert support._runtime_role_from_engine("unknown") == ""
+    assert support._project_name_candidates("") == ()
+    monkeypatch.setenv("AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS", "yes")
+    assert support._allow_workspace_sibling_apps() is True
+
+    repo_root = tmp_path / "workspace" / "agilab"
+    (repo_root / "src" / "agilab").mkdir(parents=True)
+    (repo_root / ".idea").mkdir()
+    sibling = repo_root.parent / "thales_agilab"
+    sibling.mkdir()
+    source_apps = repo_root / "src" / "agilab" / "apps"
+    repo_apps = repo_root / "apps"
+
+    assert support._normalize_repo_root_hint(repo_root / "src" / "agilab") == str(repo_root)
+    assert support._normalize_repo_root_hint(None) == ""
+    assert support._normalize_repo_root_hint(object())
+    assert list(support._iter_checkout_workspace_apps_dirs(None)) == []
+    assert list(support._iter_checkout_workspace_apps_dirs(tmp_path / "not_checkout")) == []
+    assert list(support._iter_checkout_workspace_apps_dirs(repo_root)) == [source_apps, repo_apps]
+    assert list(support._iter_checkout_workspace_apps_dirs(repo_root, allow_siblings=True)) == [
+        source_apps,
+        repo_apps,
+        sibling / "apps",
+        sibling / "src" / "agilab" / "apps",
+    ]
+
+    app_root = source_apps / "builtin" / "demo_project"
+    app_root.mkdir(parents=True)
+    context = support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(tmp_path / "export" / "demo-artifacts"),
+        active_app=str(app_root),
+        repo_root=str(repo_root),
+    )
+    assert support._project_notebook_mirror_path(None, "lab_stages.ipynb") is None
+    assert support._project_notebook_mirror_path(context, "lab_stages.ipynb") is None
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    assert support._project_notebook_mirror_path(context, "lab_stages.ipynb") == (
+        app_root / "notebooks" / "lab_stages.ipynb"
+    )
+    mismatch = support.NotebookExportContext(
+        project_name="other_project",
+        module_path="other_project",
+        artifact_dir=str(tmp_path / "export"),
+        active_app=str(app_root),
+        repo_root=str(repo_root),
+    )
+    assert support._project_notebook_mirror_path(mismatch, "lab_stages.ipynb") is None
+    assert support.pycharm_notebook_mirror_path(object(), export_context=context) == ""
+    assert support.pycharm_notebook_mirror_path(tmp_path / "external.toml", current_file=tmp_path / "plain.py") == ""
+    assert support.pycharm_notebook_mirror_path(
+        repo_root / "inside" / "lab_stages.toml",
+        export_context=support.NotebookExportContext(
+            project_name="other_project",
+            module_path="other_project",
+            artifact_dir=str(tmp_path / "external" / "artifact-name"),
+            repo_root=str(repo_root),
+        ),
+    ) == str(repo_root / "inside" / "lab_stages.ipynb")
+    assert support.pycharm_notebook_mirror_path(
+        tmp_path / "external" / "lab_stages.toml",
+        export_context=support.NotebookExportContext(
+            project_name="other_project",
+            module_path="other_project",
+            artifact_dir=str(tmp_path / "external" / "artifact-name"),
+            repo_root=str(repo_root),
+        ),
+    ) == str(repo_root / "exported_notebooks" / "artifact-name" / "lab_stages.ipynb")
+    assert support.pycharm_notebook_sitecustomize_text()
+
+    assert support._settings_to_app_root(None) == ""
+    assert support._settings_to_app_root(app_root / "src" / "app_settings.toml") == str(app_root)
+    assert support._settings_to_app_root(app_root / "app_settings.toml") == str(app_root)
+    assert support._is_valid_app_root(None) is False
+    assert support._is_valid_app_root(object()) is False
+    assert support._is_valid_app_root(tmp_path / "missing") is False
+    assert support._is_valid_app_root(app_root) is True
+    assert support._app_root_matches_project(app_root, "") is True
+    assert support._app_root_matches_project(None, "demo_project") is False
+    assert support._app_root_matches_project(object(), "demo_project") is False
+    assert support._app_root_matches_project(app_root, "other_project") is False
+    assert support._project_notebook_mirror_path(
+        support.NotebookExportContext(
+            project_name="demo_project",
+            module_path="demo_project",
+            artifact_dir="",
+            active_app=str(tmp_path / "missing_app"),
+        ),
+        "lab.ipynb",
+    ) is None
+
+    apps_dir = tmp_path / "apps"
+    direct_app = tmp_path / "direct" / "demo_project"
+    builtin_app = apps_dir / "builtin" / "demo_project"
+    for candidate in (direct_app, builtin_app):
+        candidate.mkdir(parents=True)
+        (candidate / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    roots_without_project = list(
+        support._iter_valid_app_roots("", direct_roots=[direct_app], apps_dirs=[apps_dir])
+    )
+    roots_with_project = list(
+        support._iter_valid_app_roots(
+            "demo_project",
+            direct_roots=[direct_app, direct_app, tmp_path / "nope"],
+            apps_dirs=[apps_dir, None],
+        )
+    )
+    assert roots_without_project == [str(direct_app)]
+    assert roots_with_project == [str(direct_app), str(builtin_app)]
+
+    monkeypatch.setattr(support, "_normalize_repo_root_hint", lambda _value: object())
+    assert list(support._iter_checkout_workspace_apps_dirs(repo_root)) == []
+    monkeypatch.setattr(support, "_normalize_repo_root_hint", lambda value: str(repo_root))
+    original_iterdir = support.Path.iterdir
+
+    def _raise_workspace_iterdir(self):
+        if self == repo_root.parent:
+            raise OSError("iterdir boom")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(support.Path, "iterdir", _raise_workspace_iterdir, raising=False)
+    assert list(support._iter_checkout_workspace_apps_dirs(repo_root, allow_siblings=True)) == [source_apps, repo_apps]
+
+    original_is_dir = support.Path.is_dir
+
+    def _raise_app_is_dir(self):
+        if self == app_root:
+            raise OSError("is-dir boom")
+        return original_is_dir(self)
+
+    monkeypatch.setattr(support.Path, "is_dir", _raise_app_is_dir, raising=False)
+    assert support._is_valid_app_root(app_root) is False
+
+
+def test_notebook_export_related_page_and_provider_edge_helpers(monkeypatch, tmp_path):
+    support = notebook_export_support
+
+    settings = tmp_path / "app_settings.toml"
+    assert support._load_related_pages_from_settings(None) == ()
+    settings.write_text("[pages\n", encoding="utf-8")
+    assert support._load_related_pages_from_settings(settings) == ()
+    settings.write_text("[pages]\nview_module='view_demo'\n", encoding="utf-8")
+    assert support._load_related_pages_from_settings(settings) == ()
+    settings.write_text("[pages]\nview_module=['view_demo', '', 'view_demo', 'view_other']\n", encoding="utf-8")
+    assert support._load_related_pages_from_settings(settings) == ("view_demo", "view_other")
+
+    assert support._candidate_notebook_manifest_paths(None) == ()
+    assert support._candidate_notebook_manifest_paths(object()) == ()
+    broken_app = tmp_path / "broken_app"
+    broken_app.mkdir()
+    (broken_app / "notebook_export.toml").write_text("[notebook_export\n", encoding="utf-8")
+    assert support._load_related_page_manifest(broken_app) == ({}, ())
+    nonlist_app = tmp_path / "nonlist_app"
+    nonlist_app.mkdir()
+    (nonlist_app / "notebook_export.toml").write_text(
+        "[notebook_export]\nrelated_pages='view_demo'\n",
+        encoding="utf-8",
+    )
+    assert support._load_related_page_manifest(nonlist_app) == ({}, ())
+    manifest_app = tmp_path / "manifest_app"
+    manifest_app.mkdir()
+    (manifest_app / "src").mkdir()
+    (manifest_app / "src" / "notebook_export.toml").write_text(
+        """
+[notebook_export]
+related_pages = [
+  "skip-me",
+  { module = "", label = "skip-empty" },
+  { module = "view_demo", label = "Demo", description = "desc", artifacts = ["a.json", ""], launch_note = "open", inline_renderer = "renderer.py:render" },
+  { module = "view_demo", label = "Demo again" },
+  { module = "view_other", artifacts = ["b.csv"] },
+]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    records, order = support._load_related_page_manifest(manifest_app)
+    assert order == ("view_demo", "view_other")
+    assert records["view_demo"]["label"] == "Demo again"
+    assert records["view_demo"]["artifacts"] == ()
+    assert records["view_other"]["artifacts"] == ("b.csv",)
+
+    class _BrokenBundle:
+        def as_dict(self):
+            raise RuntimeError("boom")
+
+    class _ObjectBundle:
+        name = "object_page"
+        module = ""
+        root_path = tmp_path
+        script_path = tmp_path / "object_page.py"
+        inline_renderer = "inline.py:render"
+
+    assert support._bundle_record_from_provider(None) == {}
+    assert support._bundle_record_from_provider(_BrokenBundle()) == {}
+    assert support._bundle_record_from_provider({"name": "no_script"}) == {}
+    assert support._bundle_record_from_provider(_ObjectBundle()) == {
+        "name": "object_page",
+        "module": "object_page",
+        "root_path": str(tmp_path),
+        "script_path": str(tmp_path / "object_page.py"),
+        "inline_renderer": "inline.py:render",
+    }
+
+    monkeypatch.delitem(sys.modules, "agi_pages", raising=False)
+    assert support._discover_agi_pages_bundle("view_demo") == {}
+
+    fake_agi_pages = types.ModuleType("agi_pages")
+    fake_agi_pages.resolve_bundle = lambda module_name, pages_root=None: {
+        "module": module_name,
+        "script_path": tmp_path / "resolved.py",
+    }
+    monkeypatch.setitem(sys.modules, "agi_pages", fake_agi_pages)
+    assert support._discover_agi_pages_bundle("view_demo")["script_path"] == str(tmp_path / "resolved.py")
+
+    def _type_error_resolver(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old signature")
+        return None
+
+    def _type_error_script(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old signature")
+        return tmp_path / "script.py"
+
+    def _type_error_inline(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old signature")
+        return "inline.py:render"
+
+    fake_agi_pages.resolve_bundle = _type_error_resolver
+    fake_agi_pages.script_path = _type_error_script
+    fake_agi_pages.inline_renderer_target = _type_error_inline
+    legacy_record = support._discover_agi_pages_bundle("legacy_page", pages_root=tmp_path)
+    assert legacy_record["script_path"] == str(tmp_path / "script.py")
+    assert legacy_record["inline_renderer"] == "inline.py:render"
+    fake_agi_pages.script_path = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom"))
+    assert support._discover_agi_pages_bundle("broken_page", pages_root=tmp_path) == {}
+
+    monkeypatch.setattr(
+        support,
+        "discover_page_bundle",
+        lambda pages_root, module_name: SimpleNamespace(script_path=tmp_path / "bundle.py"),
+    )
+    assert support._discover_page_script(tmp_path, "view_demo") == str(tmp_path / "bundle.py")
+    monkeypatch.setattr(support, "discover_page_bundle", lambda *_args, **_kwargs: None)
+    fake_agi_pages.script_path = lambda module_name, pages_root=None: tmp_path / f"{module_name}.py"
+    fake_agi_pages.inline_renderer_target = lambda module_name, pages_root=None: ""
+    assert support._discover_page_script(None, "provider_page") == str(tmp_path / "provider_page.py")
+    assert support._discover_page_inline_renderer({"view_demo": {"inline_renderer": "configured.py:render"}}, "view_demo", script_path="x.py") == "configured.py:render"
+    assert support._discover_page_inline_renderer({}, "view_demo", script_path="") == ""
+    script_path = tmp_path / "page.py"
+    script_path.write_text("print('page')\n", encoding="utf-8")
+    inline_path = tmp_path / "notebook_inline.py"
+    inline_path.write_text("def render_inline(): pass\n", encoding="utf-8")
+    assert support._discover_page_inline_renderer({}, "view_demo", script_path=str(script_path)) == (
+        f"{inline_path}:render_inline"
+    )
+    inline_path.unlink()
+    fake_agi_pages.inline_renderer_target = lambda module_name, pages_root=None: "provider.py:render"
+    assert support._discover_page_inline_renderer({}, "view_demo", script_path=str(script_path)) == "provider.py:render"
+
+    def _resolver_type_error_then_fail(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old provider")
+        raise RuntimeError("resolver boom")
+
+    fake_agi_pages.resolve_bundle = _resolver_type_error_then_fail
+    fake_agi_pages.script_path = None
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path) == {}
+
+    fake_agi_pages.resolve_bundle = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("resolver boom"))
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path) == {}
+
+    del fake_agi_pages.resolve_bundle
+
+    def _script_type_error_then_fail(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old script provider")
+        raise RuntimeError("script boom")
+
+    fake_agi_pages.script_path = _script_type_error_then_fail
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path) == {}
+    fake_agi_pages.script_path = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("script boom"))
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path) == {}
+
+    fake_agi_pages.script_path = lambda *_args, **_kwargs: tmp_path / "page.py"
+
+    def _inline_type_error_then_fail(module_name, pages_root=None):
+        if pages_root is not None:
+            raise TypeError("old inline provider")
+        raise RuntimeError("inline boom")
+
+    fake_agi_pages.inline_renderer_target = _inline_type_error_then_fail
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path)["inline_renderer"] == ""
+    fake_agi_pages.inline_renderer_target = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("inline boom"))
+    assert support._discover_agi_pages_bundle("view_demo", pages_root=tmp_path)["inline_renderer"] == ""
+    assert support._discover_page_inline_renderer({}, "view_demo", script_path=object()) == ""
+
+
+def test_build_notebook_export_context_handles_broken_env_methods(tmp_path):
+    class _BrokenEnv:
+        active_app = object()
+        AGILAB_PAGES_ABS = object()
+
+        def resolve_user_app_settings_file(self, *_args, **_kwargs):
+            raise ValueError("settings boom")
+
+        def find_source_app_settings_file(self, *_args, **_kwargs):
+            raise RuntimeError("source boom")
+
+        def read_agilab_path(self):
+            raise OSError("repo boom")
+
+    context = notebook_export_support.build_notebook_export_context(
+        _BrokenEnv(),
+        Path("demo_project"),
+        tmp_path / "export" / "lab_stages.toml",
+        project_name="demo_project",
+    )
+
+    assert context.project_name == "demo_project"
+    assert context.active_app == ""
+    assert context.app_settings_file == ""
+    assert context.repo_root == ""
+    assert context.related_pages == ()
+
+    context = notebook_export_support.build_notebook_export_context(
+        SimpleNamespace(app_settings_file=object()),
+        Path("demo_project"),
+        tmp_path / "export" / "lab_stages.toml",
+        project_name="demo_project",
+    )
+    assert context.app_settings_file == ""
+
+
+def test_notebook_export_manifest_and_verifier_edge_helpers(tmp_path):
+    support = notebook_export_support
+
+    plain = support._build_plain_notebook(
+        {
+            "__meta__": {"ignored": True},
+            "ignored": {"not": "a list"},
+            "demo_project": [{"C": ""}, {"C": "print('dict')\n"}, "print('raw')\n"],
+        }
+    )
+    assert [cell["source"] for cell in plain["cells"]] == [["print('dict')\n"], ["print('raw')\n"]]
+
+    records = support._stage_records(
+        {
+            "__meta__": {},
+            "ignored": "not a list",
+            "demo_project": [
+                {"D": "desc", "Q": "question", "M": "model", "R": "python", "E": tmp_path, "C": "print(1)"},
+                {"C": ""},
+                42,
+                "print(2)\n",
+            ],
+        }
+    )
+    assert [record["code"] for record in records] == ["print(1)", "print(2)\n"]
+    assert records[0]["runtime"] == "python"
+    assert records[1]["description"] == ""
+
+    assert support._with_cell_id({"metadata": {}}, None) == {"metadata": {}}
+    assert support._cell_id("", "Symbols / and spaces") == "symbols-and-spaces"
+    assert support._notebook_agilab_metadata({"metadata": []}) == {}
+    assert support._notebook_agilab_metadata({"metadata": {"agilab": []}}) == {}
+    assert support._notebook_cells({"cells": "not-list"}) == []
+    assert support._stage_cell_manifest_records(
+        {
+            "cells": [
+                {"metadata": []},
+                {"metadata": {"agilab": []}},
+                {"metadata": {"agilab": {"stage_cell": {}}}},
+                {
+                    "id": "stage-1",
+                    "metadata": {
+                        "agilab": {
+                            "runtime_role": "manager",
+                            "stage_cell": {
+                                "kind": "source",
+                                "stage_index": 1,
+                                "stage_id": "supervisor-stage-2",
+                                "module": "demo_project",
+                                "module_index": 0,
+                                "runtime": "runpy",
+                                "env": "",
+                            },
+                        }
+                    },
+                },
+            ]
+        }
+    ) == [
+        {
+            "cell_index": 3,
+            "cell_id": "stage-1",
+            "kind": "source",
+            "stage_index": 1,
+            "stage_id": "supervisor-stage-2",
+            "module": "demo_project",
+            "module_index": 0,
+            "runtime": "runpy",
+            "runtime_role": "manager",
+            "env": "",
+        }
+    ]
+    assert support._cell_source_text({"source": "print(1)"}) == "print(1)"
+    assert support._cell_source_text({"source": ["a", "b"]}) == "ab"
+    assert support._cell_source_text({"source": 12}) == "12"
+    assert support._extract_stage_source_from_exported_cell({"source": "if True print('bad')"}, 0) == "if True print('bad')"
+    assert support._extract_stage_source_from_exported_cell({"source": "STAGE_000_CODE = OTHER = 'x'\n"}, 0) == (
+        "STAGE_000_CODE = OTHER = 'x'\n"
+    )
+    assert support._extract_stage_source_from_exported_cell({"source": "OTHER = 'x'\n"}, 0) == "OTHER = 'x'\n"
+    assert support._extract_stage_source_from_exported_cell({"source": "STAGE_000_CODE = open('x')\n"}, 0) == "STAGE_000_CODE = open('x')\n"
+    assert support._extract_stage_source_from_exported_cell({"source": "STAGE_000_CODE = 'print(1)'\n"}, 0) == "print(1)"
+    assert support._stage_source_hashes({"stages": "bad"}) == []
+    assert support._stage_manifest_records({"stages": "bad"}) == []
+    assert support._related_page_manifest_records({"related_pages": "bad"}) == []
+    assert support._related_page_manifest_records(
+        {
+            "related_pages": [
+                "skip",
+                {"module": "view_demo", "artifacts": "not-list", "script_path": "page.py"},
+            ]
+        }
+    )[0]["artifacts"] == []
+    assert support._path_kind("") == "missing"
+    assert support._path_kind("/tmp/file") == "absolute"
+    assert support._path_kind("C:/tmp/file") == "absolute"
+    assert support._path_kind("relative/file") == "relative"
+
+    local_review = support.build_notebook_export_portability_review({"stages": [], "related_page_count": 0})
+    assert local_review["level"] == "notebook-local"
+    assert local_review["absolute_path_count"] == 0
+    project_review = support.build_notebook_export_portability_review(
+        {
+            "active_app": str(tmp_path / "app"),
+            "related_page_count": 1,
+            "stages": [{"runtime": "agi", "env": str(tmp_path / "venv")}],
+        }
+    )
+    assert project_review["level"] == "project-bound"
+    assert project_review["worker_stage_count"] == 1
+    assert project_review["env_path_count"] == 1
+    assert project_review["related_page_count"] == 1
+
+    minimal_notebook = {"metadata": {"agilab": {"stages": "bad", "related_pages": "bad"}}, "cells": "bad"}
+    manifest = support.build_notebook_export_manifest(
+        minimal_notebook,
+        tmp_path / "minimal.ipynb",
+        mirror_path=tmp_path / "mirror.ipynb",
+        sitecustomize_path=tmp_path / "sitecustomize.py",
+        handoff_path=tmp_path / "handoff.md",
+    )
+    assert manifest["stage_count"] == 0
+    assert manifest["related_page_count"] == 0
+    assert manifest["cell_count"] == 0
+    assert manifest["mirror_path"].endswith("mirror.ipynb")
+    assert support._markdown_code("") == "`(not set)`"
+
+    handoff = support.build_notebook_export_handoff_markdown(
+        {
+            "project_name": "",
+            "notebook_path": "lab.ipynb",
+            "portability_review": {"actions": []},
+            "stages": [],
+            "related_pages": [
+                {
+                    "module": "view_demo",
+                    "label": "Demo",
+                    "description": "desc",
+                    "artifacts": ["a.json"],
+                    "inline_renderer": "inline.py:render",
+                    "script_path": "page.py",
+                }
+            ],
+        }
+    )
+    assert "# AGILAB notebook handoff: AGILAB project" in handoff
+    assert "- Run `validate_agilab_export()` before executing workflow code." in handoff
+    assert "| - | - | - | - | No executable stages exported. |" in handoff
+    assert "Expected artifacts: `a.json`" in handoff
+    assert "Inline renderer: `inline.py:render`" in handoff
+
+    array_json = tmp_path / "array.json"
+    array_json.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="Expected JSON object"):
+        support._read_json_object(array_json)
+
+    missing = support.verify_notebook_export_manifest(tmp_path / "missing.ipynb")
+    assert missing["ok"] is False
+    assert missing["checks"] == [
+        {
+            "id": "notebook_exists",
+            "status": "fail",
+            "summary": "Notebook file exists.",
+            "details": {"notebook_path": str(tmp_path / "missing.ipynb")},
+        }
+    ]
+
+    notebook_path = tmp_path / "lab.ipynb"
+    notebook_path.write_text(support.notebook_export_json_text({"cells": []}), encoding="utf-8")
+    no_manifest = support.verify_notebook_export_manifest(notebook_path)
+    assert no_manifest["ok"] is False
+    assert [check["id"] for check in no_manifest["checks"]] == ["notebook_exists", "manifest_exists"]
+
+    handoff_path = tmp_path / "handoff.md"
+    handoff_path.write_text("handoff", encoding="utf-8")
+    notebook = {
+        "cells": [
+            {"id": "intro", "metadata": "bad", "source": []},
+            {"id": "wrong", "metadata": {"agilab": []}, "source": []},
+            {"id": "bad-stage-cell", "metadata": {"agilab": {"stage_cell": []}}, "source": []},
+            {"id": "runner", "metadata": {"agilab": {"stage_cell": {"kind": "runner"}}}, "source": []},
+            {"id": "source", "metadata": {"agilab": {"stage_cell": {"kind": "source", "stage_index": "bad"}}}, "source": []},
+        ]
+    }
+    notebook_path.write_text(support.notebook_export_json_text(notebook), encoding="utf-8")
+    manifest_path = support.notebook_export_manifest_path(notebook_path)
+    manifest_path.write_text(
+        support.notebook_export_json_text(
+            {
+                "schema": "wrong.schema",
+                "notebook_sha256": "wrong",
+                "cell_ids": ["other"],
+                "handoff_path": str(handoff_path),
+                "handoff_sha256": "wrong",
+                "stage_source_hashes": [
+                    "skip",
+                    {"stage_index": "bad", "source_sha256": "expected"},
+                    {"stage_index": 99, "source_sha256": "expected"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    verification = support.verify_notebook_export_manifest(notebook_path)
+    checks = {check["id"]: check for check in verification["checks"]}
+    assert verification["ok"] is False
+    assert checks["manifest_schema"]["status"] == "fail"
+    assert checks["notebook_sha256"]["status"] == "fail"
+    assert checks["cell_ids"]["status"] == "fail"
+    assert checks["handoff_sha256"]["status"] == "fail"
+    assert checks["stage_source_-1"]["status"] == "fail"
+    assert checks["stage_source_99"]["status"] == "fail"
+
+
 def test_save_stage_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
     stages_file = tmp_path / "lab_stages.toml"
     errors: list[str] = []
@@ -2021,6 +2723,108 @@ def test_on_import_notebook_does_not_report_success_after_write_failure(monkeypa
     assert not (tmp_path / "demo_project" / "lab_stages.toml").exists()
 
 
+def test_pipeline_editor_notebook_export_and_import_error_edges(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        session_state=_State({}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    monkeypatch.setattr(pipeline_editor, "pycharm_notebook_mirror_path", lambda *_args, **_kwargs: "")
+    assert pipeline_editor.resolve_pycharm_notebook_path(tmp_path / "lab_stages.toml") is None
+
+    class _BrokenPath:
+        def __init__(self, _value):
+            raise ValueError("bad path")
+
+    with monkeypatch.context() as path_monkeypatch:
+        path_monkeypatch.setattr(pipeline_editor, "pycharm_notebook_mirror_path", lambda *_args, **_kwargs: "bad")
+        path_monkeypatch.setattr(pipeline_editor, "Path", _BrokenPath)
+        assert pipeline_editor.resolve_pycharm_notebook_path(tmp_path / "lab_stages.toml") is None
+
+    notebook_path = tmp_path / "demo.ipynb"
+    write_calls: list[Path] = []
+
+    def _fake_write_json(payload, path):
+        del payload
+        write_calls.append(path)
+
+    monkeypatch.setattr(pipeline_editor, "_write_json_atomic", _fake_write_json)
+    monkeypatch.setattr(pipeline_editor, "_atomic_write_text", lambda path, text: write_calls.append(path))
+    monkeypatch.setattr(
+        pipeline_editor,
+        "verify_notebook_export_manifest",
+        lambda _path: {"ok": False, "checks": [{"id": "manifest-hash", "status": "fail"}]},
+    )
+    with pytest.raises(ValueError, match="manifest-hash"):
+        pipeline_editor._write_notebook_json({"cells": []}, notebook_path)
+
+    monkeypatch.setattr(pipeline_editor, "verify_notebook_export_manifest", lambda _path: {"ok": True, "checks": []})
+    monkeypatch.setattr(pipeline_editor, "resolve_pycharm_notebook_path", lambda *_args, **_kwargs: None)
+    pipeline_editor.toml_to_notebook({"demo": []}, tmp_path / "lab_stages.toml")
+
+    mirror_path = tmp_path / "mirror" / "lab_stages.ipynb"
+
+    def _write_notebook_json_maybe_fail(_data, path, **_kwargs):
+        if path == mirror_path:
+            raise OSError("mirror boom")
+        write_calls.append(path)
+
+    monkeypatch.setattr(pipeline_editor, "_write_notebook_json", _write_notebook_json_maybe_fail)
+    monkeypatch.setattr(pipeline_editor, "resolve_pycharm_notebook_path", lambda *_args, **_kwargs: mirror_path)
+    pipeline_editor.toml_to_notebook({"demo": []}, tmp_path / "lab_stages.toml")
+
+    monkeypatch.setattr(pipeline_editor, "_write_notebook_json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "_write_pycharm_sitecustomize",
+        lambda _path: (_ for _ in ()).throw(OSError("sitecustomize boom")),
+    )
+    pipeline_editor.toml_to_notebook({"demo": []}, tmp_path / "lab_stages.toml")
+
+    unsafe_preview = {
+        "cell_count": 1,
+        "preflight": {
+            "safe_to_import": False,
+            "summary": {"pipeline_stage_count": 1},
+            "risks": [{"level": "error", "message": "unsafe"}],
+        },
+    }
+    monkeypatch.setattr(pipeline_editor, "build_notebook_import_preview", lambda *_args, **_kwargs: unsafe_preview)
+    assert pipeline_editor.notebook_to_toml(SimpleNamespace(name="demo.ipynb"), "lab_stages.toml", tmp_path) is None
+
+    fake_st.session_state["upload"] = None
+    pipeline_editor.on_preview_notebook_import("upload", tmp_path, "idx")
+    fake_st.session_state["upload"] = SimpleNamespace(name="demo.txt", type="text/plain")
+    pipeline_editor.on_preview_notebook_import("upload", tmp_path, "idx")
+    monkeypatch.setattr(pipeline_editor, "build_notebook_import_preview", lambda *_args, **_kwargs: None)
+    fake_st.session_state["upload"] = SimpleNamespace(name="demo.ipynb", type="application/x-ipynb+json")
+    pipeline_editor.on_preview_notebook_import("upload", tmp_path, "idx")
+
+    safe_preview = {
+        "cell_count": 1,
+        "stages": [{"id": "cell-1", "D": "demo", "Q": "demo", "C": "print(1)"}],
+        "preflight": {"safe_to_import": True, "summary": {"pipeline_stage_count": 1}, "risks": []},
+    }
+    fake_st.session_state["idx__notebook_import_preview"] = safe_preview
+    monkeypatch.setattr(pipeline_editor, "_notebook_import_preview_with_runtime_roles", lambda *_args, **_kwargs: unsafe_preview)
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    monkeypatch.setattr(pipeline_editor, "_notebook_import_preview_with_runtime_roles", lambda preview, _roles: preview)
+    monkeypatch.setattr(pipeline_editor, "_selected_notebook_import_preview", lambda *_args, **_kwargs: unsafe_preview)
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+
+    sidebar_without_button = SimpleNamespace(caption=lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "st",
+        SimpleNamespace(session_state=_State({"idx__notebook_import_preview": safe_preview}), sidebar=sidebar_without_button),
+    )
+    pipeline_editor.render_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx")
+
+
 def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp_path):
     errors: list[str] = []
     fake_st = SimpleNamespace(session_state={}, error=lambda message, *args, **kwargs: errors.append(message))
@@ -2111,6 +2915,146 @@ def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
     assert entry["M"] == "model"
     assert entry["C"] == "print(1)"
 
+
+def test_pipeline_editor_notebook_import_helper_edges(monkeypatch, tmp_path):
+    stage = {
+        "id": "stage-1",
+        "source_cell_index": 1,
+        "source_lines": ["   ", "print('hello')" * 20],
+        "artifact_references": [
+            {"path": "a.csv"},
+            {"path": "b.csv"},
+            {"path": "c.csv"},
+            {"path": "d.csv"},
+            "bad",
+        ],
+        "env_hints": ["pandas", "numpy", "matplotlib", "plotly", "polars"],
+    }
+    preview = {
+        "source_signature": "sig:1",
+        "notebook_import": {
+            "pipeline_stages": [stage],
+            "context_blocks": [{"id": "ctx-1", "text": "context"}, "bad"],
+            "summary": {"source": "notebook"},
+        },
+    }
+
+    assert pipeline_editor._notebook_import_first_code_line({"source_lines": ["", "   "]}) == ""
+    detail = pipeline_editor._notebook_import_stage_detail(stage)
+    assert "+1 more" in detail
+    assert pipeline_editor._notebook_import_role_widget_key("idx", "stage 1!") == "idx__notebook_runtime_role_stage_1"
+    assert pipeline_editor._notebook_import_role_widget_key("idx", "stage 1!", "sig:1") == (
+        "idx__notebook_runtime_role_sig_1_stage_1"
+    )
+    assert pipeline_editor._artifact_paths_from_notebook_stage({"artifact_references": "bad"}) == []
+    assert pipeline_editor._stage_env_hints_from_notebook_stage({"env_hints": "bad"}) == []
+
+    filtered = pipeline_editor._filter_notebook_import_for_stage_ids(
+        {
+            "pipeline_stages": [{**stage, "context_ids": ["ctx-1"], "execution_count": 2}],
+            "context_blocks": [{"id": "ctx-1"}, {"id": "other"}],
+            "summary": {"kept": True},
+        },
+        ["stage-1"],
+    )
+    assert filtered["summary"]["pipeline_stage_count"] == 1
+    assert filtered["summary"]["context_ids"] == ["ctx-1"]
+    assert filtered["context_blocks"] == [{"id": "ctx-1"}]
+
+    captions: list[str] = []
+
+    class SidebarNoSelect:
+        def expander(self, *_args, **_kwargs):
+            return self
+
+        def caption(self, value, *_args, **_kwargs):
+            captions.append(value)
+
+    assert pipeline_editor._render_notebook_import_runtime_role_controls(SidebarNoSelect(), {"notebook_import": {}}, "idx") == {}
+    assert pipeline_editor._render_notebook_import_runtime_role_controls(SidebarNoSelect(), preview, "idx") == {}
+    assert captions
+
+    class SidebarSelect(SidebarNoSelect):
+        def selectbox(self, *_args, **_kwargs):
+            return "Worker (AGILAB worker)"
+
+    assert pipeline_editor._render_notebook_import_runtime_role_controls(SidebarSelect(), preview, "idx") == {
+        "stage-1": "worker"
+    }
+
+    caption_fallbacks: list[str] = []
+    pipeline_editor._render_notebook_import_write_preview(
+        SimpleNamespace(caption=lambda value, *args, **kwargs: caption_fallbacks.append(value)),
+        {"cell_count": 1, "notebook_import": {"pipeline_stages": [stage]}},
+        tmp_path / "lab_stages.toml",
+    )
+    assert caption_fallbacks and "lab_stages.toml" in caption_fallbacks[0]
+
+    assert pipeline_editor._notebook_import_blocking_detail("bad") == "Notebook preflight did not produce a valid report."
+    assert pipeline_editor._notebook_import_blocking_detail({"risks": [{"level": "warning"}, {"level": "error"}]}) == (
+        "Notebook import preflight marked this notebook unsafe to import."
+    )
+
+
+def test_pipeline_editor_notebook_import_confirm_edges(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        session_state=_State(),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    assert messages[-1] == ("error", "No notebook import preview is available.")
+
+    preview_key = pipeline_editor._notebook_import_preview_key("idx")
+    fake_st.session_state[preview_key] = {
+        "preflight": {"safe_to_import": False, "risks": [{"level": "error", "message": "blocked"}]},
+    }
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    assert messages[-1] == ("error", "Notebook import is blocked: blocked")
+
+    safe_preview = {
+        "module": "demo_project",
+        "preflight": {"safe_to_import": True, "risk_counts": {"error": 0}},
+        "notebook_import": {
+            "pipeline_stages": [
+                {"id": "stage-1", "source_cell_index": 1, "source_lines": ["print(1)"], "runtime_role": ""}
+            ]
+        },
+    }
+    fake_st.session_state[preview_key] = safe_preview
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    assert messages[-1][0] == "error"
+    assert "runtime role review is incomplete" in messages[-1][1]
+
+    ready_preview = {
+        **safe_preview,
+        "notebook_import": {
+            "pipeline_stages": [
+                {"id": "stage-1", "source_cell_index": 1, "source_lines": ["print(1)"], "runtime_role": "manager"}
+            ]
+        },
+    }
+    fake_st.session_state[preview_key] = ready_preview
+    monkeypatch.setattr(
+        pipeline_editor,
+        "write_notebook_import_preview",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("write failed")),
+    )
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    assert messages[-1] == ("error", "Failed to save notebook import preview: write failed")
+
+    fake_st.session_state[preview_key] = ready_preview
+    fake_st.session_state["idx"] = [0, 0]
+    monkeypatch.setattr(pipeline_editor, "write_notebook_import_preview", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    assert pipeline_editor.confirm_notebook_import_preview(tmp_path, tmp_path / "lab_stages.toml", "idx") == 0
+    assert messages[-1] == ("warning", "Notebook imported, but no code cells were found.")
+    assert fake_st.session_state["idx"][-1] == 0
+    assert preview_key not in fake_st.session_state
 
 
 def test_toml_to_notebook_handles_meta_string_stages_and_blank_entries(tmp_path):

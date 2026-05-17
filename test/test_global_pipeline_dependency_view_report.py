@@ -93,6 +93,32 @@ def test_dependency_view_reads_existing_operator_state(tmp_path: Path) -> None:
     assert flow["consumer_unit_ids"] == ["relay_followup"]
 
 
+def test_dependency_view_core_handles_malformed_optional_rows() -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_dependency_view_core_edge_test_module")
+
+    issue = core_module._issue("source", "bad source")
+    proof = core_module.DependencyViewProof(
+        ok=False,
+        issues=(issue,),
+        path="/tmp/dependency.json",
+        operator_state_path="/tmp/operator.json",
+        dependency_view={"nodes": "bad", "edges": "bad", "summary": "bad"},
+        reloaded_view={},
+    )
+
+    payload = proof.as_dict()
+    assert payload["issues"] == [{"level": "error", "location": "source", "message": "bad source"}]
+    assert payload["round_trip_ok"] is False
+    assert payload["node_count"] == 0
+    assert payload["edge_count"] == 0
+    assert payload["cross_app_edge_count"] == 0
+    assert payload["visible_unit_ids"] == []
+    assert core_module._unit_rows({"operator_units": "bad"}) == ()
+    assert core_module._artifact_rows({"artifacts": "bad"}) == ()
+    assert core_module._handoff_rows({"handoffs": "bad"}) == ()
+    assert core_module._action_ids_for_unit({"actions": "bad"}) == []
+
+
 def test_dependency_view_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_module(REPORT_PATH, "global_pipeline_dependency_view_report_failure_test_module")
     missing = tmp_path / "missing_operator_state.json"

@@ -2129,17 +2129,19 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "app_catalog_validation_only"
-            and summary.get("app_catalog_count") == 6
-            and summary.get("connector_count") == 18
-            and summary.get("page_connector_ref_count") == 15
-            and summary.get("legacy_path_count") == 12
+            and summary.get("app_catalog_count") == 8
+            and summary.get("connector_count") == 24
+            and summary.get("page_connector_ref_count") == 18
+            and summary.get("legacy_path_count") == 16
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("apps")
             == [
                 "execution_pandas_project",
                 "execution_polars_project",
+                "flight_project",
                 "flight_telemetry_project",
+                "meteo_forecast_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
                 "weather_forecast_project",
@@ -2167,7 +2169,9 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
         evidence=[
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
+            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
             "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",
@@ -2184,8 +2188,10 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
         required_labels = {
             "streamlit health",
             "base app",
-            "flight-telemetry project",
+            "flight project",
             "flight view_maps",
+            "meteo forecast project",
+            "meteo forecast view",
         }
         ok = (
             required_labels.issubset(labels)

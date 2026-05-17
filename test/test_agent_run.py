@@ -7,6 +7,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src" / "agilab" / "agent_run.py"
@@ -182,3 +184,74 @@ def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     assert result.manifest["status"] == "timeout"
     assert result.manifest["timing"]["duration_seconds"] == 2.0
     assert "Timed out after 1s" in (tmp_path / "stderr.txt").read_text(encoding="utf-8")
+
+
+def test_agent_run_defaults_and_helper_error_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "logs"))
+
+    run_id = module._new_run_id("Codex Agent")
+    assert run_id.startswith("agent-Codex-Agent-")
+    assert module._default_log_root() == tmp_path / "logs"
+    assert module._default_output_dir("Codex Agent", "run-1") == tmp_path / "logs" / "agents" / "Codex-Agent" / "run-1"
+
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True)
+    (repo_root / "pyproject.toml").write_text("[project]\nname='agilab'\n", encoding="utf-8")
+    assert module._detect_repo_root(repo_root / "src" / "agilab") == repo_root
+    assert module._detect_repo_root(tmp_path / "outside") is None
+
+    with pytest.raises(ValueError, match="expected KEY=VALUE"):
+        module._parse_env_overrides(["BROKEN"])
+    with pytest.raises(ValueError, match="KEY cannot be empty"):
+        module._parse_env_overrides([" =value"])
+
+    missing_payload = module._file_payload(tmp_path / "missing.txt")
+    assert missing_payload == {
+        "path": str(tmp_path / "missing.txt"),
+        "exists": False,
+        "size_bytes": 0,
+        "line_count": 0,
+    }
+
+
+def test_agent_run_parser_validation_errors(tmp_path: Path) -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit):
+        module.parse_args(["--"])
+    with pytest.raises(SystemExit):
+        module.parse_args(["--timeout", "0", "--", sys.executable])
+    with pytest.raises(SystemExit):
+        module.parse_args(["--cwd", str(tmp_path / "missing"), "--", sys.executable])
+
+
+def test_agent_run_human_rendering_and_allow_failure(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    without_manifest = module.render_human(
+        {"agent": "codex", "run_id": "agent-human", "status": "planned", "artifacts": "not-a-dict"}
+    )
+    assert "status: planned" in without_manifest
+    assert "manifest:" not in without_manifest
+
+    exit_code = module.main(
+        [
+            "--agent",
+            "codex",
+            "--run-id",
+            "agent-allowed-fail",
+            "--output-dir",
+            str(tmp_path),
+            "--allow-failure",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(3)",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "status: fail" in output
+    assert f"manifest: {tmp_path / 'agent_run_manifest.json'}" in output

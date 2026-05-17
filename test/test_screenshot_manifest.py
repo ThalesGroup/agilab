@@ -110,6 +110,27 @@ def test_screenshot_manifest_records_jpeg_and_external_paths(tmp_path: Path) -> 
     assert no_root_record.image_path == str(image)
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"\xff\xd8",
+        b"\xff\xd8\x00",
+        b"\xff\xd8\xff\xff\xc0",
+        b"\xff\xd8\xff\xe0\x00",
+        b"\xff\xd8\xff\xe0\x00\x01",
+        b"not-an-image",
+    ],
+)
+def test_screenshot_manifest_image_dimensions_handles_truncated_or_unknown_images(
+    tmp_path: Path,
+    payload: bytes,
+) -> None:
+    image = tmp_path / "broken-image.bin"
+    image.write_bytes(payload)
+
+    assert image_dimensions(image) == (None, None)
+
+
 def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> None:
     missing, reason = try_load_screenshot_manifest(tmp_path / "missing.json")
     assert missing is None

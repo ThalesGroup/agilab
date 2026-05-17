@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import tomllib
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -92,6 +93,164 @@ def test_flight_manager_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
         )
 
 
+def test_flight_args_validation_persistence_and_default_helpers(monkeypatch, tmp_path):
+    _import_flight_modules(monkeypatch)
+    from flight.flight_args import (
+        ARGS_SECTION,
+        FlightArgs,
+        apply_source_defaults,
+        dump_args,
+        dump_args_to_toml,
+        ensure_defaults,
+        load_args,
+        load_args_from_toml,
+        merge_args,
+    )
+
+    migrated = FlightArgs(data_uri="flight/custom", files="*.csv", nfile=0, data_out="")
+    assert migrated.data_in == Path("flight/custom")
+    assert migrated.data_out == Path("flight/dataframe")
+    assert migrated.nfile == 999_999_999_999
+    assert migrated.to_toml_payload()["datemin"] == "2020-01-01"
+
+    with pytest.raises(ValueError, match="file-based input"):
+        FlightArgs(data_source="hawk")
+    with pytest.raises(TypeError, match="data_in must be"):
+        FlightArgs(data_in=object())
+    with pytest.raises(TypeError, match="data_out must be"):
+        FlightArgs(data_out=object())
+    with pytest.raises(ValueError, match="datemin must be on or after"):
+        FlightArgs(datemin="2019-12-31")
+    with pytest.raises(ValueError, match="datemax must be on or after datemin"):
+        FlightArgs(datemin="2020-02-01", datemax="2020-01-01")
+    with pytest.raises(ValueError, match="datemax must be on or before"):
+        FlightArgs(datemax="2022-01-01")
+    with pytest.raises(ValueError, match="not a valid regex"):
+        FlightArgs(files="[")
+    with pytest.raises(ValueError):
+        FlightArgs.model_validate("not-a-dict")
+    with pytest.raises(ValueError, match="file-based input"):
+        apply_source_defaults(SimpleNamespace(data_source="hawk"))
+
+    base = FlightArgs(data_in="flight/dataset", files="")
+    with_defaults = apply_source_defaults(base)
+    assert with_defaults.files == "*"
+    assert ensure_defaults(FlightArgs(files="*.csv")) is not None
+    unchanged = FlightArgs(files="*.csv")
+    assert apply_source_defaults(unchanged) is unchanged
+    merged = merge_args(unchanged, {"files": ".*\\.csv", "output_format": "csv"})
+    assert merged.files == ".*\\.csv"
+    assert merged.output_format == "csv"
+
+    settings_path = tmp_path / "app_settings.toml"
+    dump_args_to_toml(merged, settings_path)
+    dump_args_to_toml(merged, settings_path)
+    loaded = load_args_from_toml(settings_path)
+    assert loaded.files == ".*\\.csv"
+    assert load_args(settings_path).files == ".*\\.csv"
+    dumped_path = tmp_path / "dumped.toml"
+    dump_args(loaded, dumped_path)
+    assert tomllib.loads(dumped_path.read_text(encoding="utf-8"))[ARGS_SECTION]["output_format"] == "csv"
+    with pytest.raises(FileNotFoundError, match="Settings file not found"):
+        dump_args_to_toml(loaded, tmp_path / "missing.toml", create_missing=False)
+
+
+def test_flight_manager_constructor_and_helper_branches(monkeypatch, tmp_path):
+    Flight, _ = _import_flight_modules(monkeypatch)
+    import flight.flight as flight_module
+    from flight.flight_args import FlightArgs
+
+    env = _FakeEnv(tmp_path / "share")
+    existing_out = env.share_root / "existing-output"
+    existing_out.mkdir(parents=True)
+    (existing_out / "stale.txt").write_text("old", encoding="utf-8")
+
+    direct = Flight(
+        env,
+        args=FlightArgs(data_in="flight/dataset", data_out="existing-output", reset_target=True),
+    )
+    assert direct.args.data_in == env.share_root / "flight" / "dataset"
+    assert not (existing_out / "stale.txt").exists()
+
+    from_dict = Flight(env, args={"data_in": "dict-in", "data_out": "dict-out", "reset_target": False})
+    assert from_dict.args.data_in == env.share_root / "dict-in"
+
+    from_object = Flight(
+        env,
+        args=SimpleNamespace(data_in="object-in", data_out="object-out", reset_target=False),
+    )
+    assert from_object.args.data_out == env.share_root / "object-out"
+
+    class SlotOnly:
+        __slots__ = ()
+
+    with pytest.raises(ValueError, match="Invalid Flight arguments"):
+        Flight(env, args=SlotOnly())
+
+    settings_path = tmp_path / "flight_settings.toml"
+    settings_path.write_text(
+        "[args]\ndata_in = 'settings-in'\ndata_out = 'settings-out'\nreset_target = false\n",
+        encoding="utf-8",
+    )
+    loaded = Flight.from_toml(env, settings_path, data_out="override-out")
+    assert loaded.args.data_out == env.share_root / "override-out"
+    loaded.to_toml(tmp_path / "written_settings.toml")
+    assert loaded.as_dict()["data_source"] == "file"
+
+    assert Flight.extract_plane_from_file_name("logs/prefix_value_AC34.csv") == 34
+    with pytest.raises(NotImplementedError, match="file-based input"):
+        direct.get_data_from_hawk()
+
+    monkeypatch.setattr(direct, "get_data_from_files", lambda: pl.DataFrame({"files": ["60_dummy.csv"], "size": [1000]}))
+    monkeypatch.setattr(flight_module.WorkDispatcher, "make_chunks", lambda *_args, **_kwargs: [])
+    assert direct.build_distribution({"127.0.0.1": 1}) == ([], [], "plane", "files", "KB")
+
+    def fail_inventory():
+        raise OSError("bad inventory")
+
+    monkeypatch.setattr(direct, "get_data_from_files", fail_inventory)
+    with pytest.raises(RuntimeError, match="Unable to build flight distribution"):
+        direct.build_distribution({"127.0.0.1": 1})
+
+
+def test_flight_manager_file_inventory_error_and_absolute_display(monkeypatch, tmp_path):
+    Flight, _ = _import_flight_modules(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    share_root = tmp_path / "outside-share"
+    source_root = share_root / "flight" / "dataset"
+    source_root.mkdir(parents=True)
+    source = source_root / "60_abs.csv"
+    source.write_text("x" * 1000, encoding="utf-8")
+
+    flight = Flight(
+        _FakeEnv(share_root),
+        data_in="flight/dataset",
+        data_out="flight/dataframe",
+        files="*.csv",
+        reset_target=False,
+    )
+
+    assert flight.get_data_from_files().to_dict(as_series=False) == {
+        "files": [str(source)],
+        "size": [1],
+    }
+
+    missing = Flight(
+        _FakeEnv(share_root),
+        data_in="missing",
+        data_out="flight/dataframe",
+        files="*.csv",
+        reset_target=False,
+    )
+    with pytest.raises(FileNotFoundError, match="no files found"):
+        missing.get_data_from_files()
+
+    raw = object.__new__(Flight)
+    raw.args = MutableNamespace(data_source="hawk", data_in="hawk", files="*.csv")
+    with pytest.raises(NotImplementedError, match="file-based input"):
+        raw.get_data_from_files()
+
+
 def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
     Flight, _ = _import_flight_modules(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -161,6 +320,71 @@ def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     assert worker.args.data_source == "file"
     assert worker.args.output_format == "parquet"
     assert worker.pool_vars["args"] is worker.args
+
+    object_args_worker = object.__new__(FlightWorker)
+    object_args_worker.args = SimpleNamespace(
+        data_in="flight/dataset",
+        data_out="flight/dataframe",
+        reset_target=True,
+        data_source="",
+        output_format="",
+    )
+    object_args_worker.verbose = 2
+    object_args_worker._worker_id = 3
+    object_args_worker.env = _FakeEnv(tmp_path / "share")
+    object_args_worker.pool_vars = None
+    object_args_worker.data_out = str(tmp_path / "share" / "flight" / "dataframe")
+    object_args_worker.setup_data_directories = fake_setup_data_directories
+
+    object_args_worker.start()
+
+    assert isinstance(object_args_worker.args, MutableNamespace)
+    assert object_args_worker.args.data_source == "file"
+    assert object_args_worker.args.output_format == "parquet"
+    assert object_args_worker.pool_vars["verbose"] == 2
+
+
+def test_flight_worker_helper_and_error_branches(monkeypatch, tmp_path):
+    _, FlightWorker = _import_flight_modules(monkeypatch)
+    import flight_worker.flight_worker as worker_module
+
+    assert worker_module._haversine_distance_m({"prev_lat": None, "prev_long": 2, "lat": 3, "long": 4}) == 0.0
+    assert worker_module._haversine_distance_m({"prev_lat": "bad", "prev_long": 2, "lat": 3, "long": 4}) == 0.0
+    assert worker_module._haversine_distance_m({"prev_lat": 48.0, "prev_long": 2.0, "lat": 48.001, "long": 2.001}) > 0
+
+    worker = object.__new__(FlightWorker)
+    worker.pool_init({"args": MutableNamespace(data_source="file")})
+    with pytest.raises(FileNotFoundError):
+        worker.work_pool("missing.csv")
+    worker.pool_init({"args": MutableNamespace(data_source="hawk")})
+    with pytest.raises(NotImplementedError, match="file-based input"):
+        worker.work_pool("ignored.csv")
+    worker.work_init()
+
+    worker.args = MutableNamespace(output_format="csv")
+    worker.data_out = str(tmp_path / "csv-output")
+    worker._worker_id = 7
+    worker.work_done(
+        pl.DataFrame(
+            {
+                "aircraft": ["A1", "A1"],
+                "date": ["2021-01-01 00:00:00", "2021-01-01 00:01:00"],
+                "speed": [0.0, 10.0],
+                "source_file": ["source.csv", "source.csv"],
+            }
+        ).with_columns(pl.col("date").str.strptime(pl.Datetime, format="%Y-%m-%d %H:%M:%S"))
+    )
+    assert list((tmp_path / "csv-output").glob("A1_*.csv"))
+    worker.work_done(pl.DataFrame())
+
+    stop_calls: list[bool] = []
+    monkeypatch.setattr(worker_module.PolarsWorker, "stop", lambda _self: stop_calls.append(True))
+    worker.verbose = 1
+    worker.stop()
+    assert stop_calls == [True]
+    monkeypatch.setattr(worker_module.glob, "glob", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("boom")))
+    worker.stop()
+    assert stop_calls == [True, True]
 
 
 def test_flight_worker_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
@@ -244,6 +468,36 @@ def test_flight_reduce_contract_merges_trajectory_partials(monkeypatch):
     assert artifact.payload["max_speed_m"] == 100.0
     assert artifact.payload["time_start"] == "2021-01-01T00:00:00"
     assert artifact.payload["time_end"] == "2021-01-01T00:02:00"
+
+
+def test_flight_reduce_contract_validation_edges(monkeypatch):
+    _import_flight_modules(monkeypatch)
+    from flight import reduction
+
+    assert reduction._timestamp(date(2021, 1, 2)) == "2021-01-02"
+    assert reduction._timestamp(None) == ""
+    assert reduction._sorted_strings({"B", "", "A"}) == ["A", "B"]
+    with pytest.raises(ValueError, match="non-empty trajectory"):
+        reduction.partial_from_flight_frame(pl.DataFrame(), partial_id="empty")
+    with pytest.raises(ValueError, match="missing columns"):
+        reduction.partial_from_flight_frame(pl.DataFrame({"aircraft": ["A1"]}), partial_id="missing")
+
+    for payload, message in [
+        ({"row_count": 0, "aircraft_count": 1, "source_file_count": 1}, "no trajectory rows"),
+        ({"row_count": 1, "aircraft_count": 0, "source_file_count": 1}, "no aircraft metadata"),
+        ({"row_count": 1, "aircraft_count": 1, "source_file_count": 0}, "no source files"),
+    ]:
+        artifact = ReduceArtifact(
+            name=reduction.REDUCE_ARTIFACT_NAME,
+            reducer=reduction.REDUCER_NAME,
+            schema_version="1",
+            partial_count=1,
+            partial_ids=("partial",),
+            payload=payload,
+            metadata={},
+        )
+        with pytest.raises(ValueError, match=message):
+            reduction._validate_flight_artifact(artifact)
 
 
 def test_flight_worker_emits_reduce_artifact(monkeypatch, tmp_path):

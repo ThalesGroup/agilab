@@ -149,6 +149,71 @@ def test_resolve_page_bundles_accepts_names_files_and_directories(tmp_path: Path
     assert resolved[2].source == "explicit_path"
 
 
+def test_page_bundle_discovery_and_resolution_edge_cases(tmp_path: Path) -> None:
+    assert discover_page_bundles(object()).names() == ()
+    assert discover_page_templates(object()).names() == ()
+    assert discover_page_bundle(object(), "view_demo") is None
+    assert discover_page_bundle(tmp_path, "") is None
+    assert discover_page_template(object(), "demo_page_template") is None
+    assert discover_page_template(tmp_path, "not_a_template") is None
+    assert discover_page_template(tmp_path, "missing_page_template") is None
+
+    pages_root = tmp_path / "pages"
+    pages_root.mkdir()
+    (pages_root / "__init__.py").write_text("", encoding="utf-8")
+    (pages_root / ".hidden.py").write_text("", encoding="utf-8")
+    (pages_root / ".hidden").mkdir()
+    direct = pages_root / "view_direct.py"
+    direct.write_text("def main(): pass\n", encoding="utf-8")
+    no_entry = pages_root / "view_no_entry"
+    no_entry.mkdir()
+    (no_entry / "pyproject.toml").write_text("[project]\nname='view_no_entry'\n", encoding="utf-8")
+    app_bundle = pages_root / "view_app"
+    app_bundle.mkdir()
+    app_script = app_bundle / "app.py"
+    app_script.write_text("def main(): pass\n", encoding="utf-8")
+    contractless = pages_root / "view_contractless"
+    (contractless / "src" / "view_contractless").mkdir(parents=True)
+    (contractless / "src" / "view_contractless" / "view_contractless.py").write_text(
+        "def main(): pass\n",
+        encoding="utf-8",
+    )
+
+    registry = discover_page_bundles(pages_root)
+    assert registry.names() == ("view_app", "view_contractless", "view_direct")
+    assert discover_page_bundle(pages_root, "view_direct").script_path == direct.resolve()
+    assert discover_page_bundle(pages_root, "view_no_entry") is None
+    assert discover_page_bundle(pages_root, "view_contractless", require_contract=True) is None
+    assert discover_page_bundle(pages_root, "view_no_entry", require_pyproject=True) is None
+    assert discover_page_bundle(pages_root, "view_app").script_path == app_script.resolve()
+
+    templates_root = tmp_path / "templates"
+    templates_root.mkdir()
+    (templates_root / "not_a_template").mkdir()
+    missing_pyproject = templates_root / "missing_page_template"
+    missing_pyproject.mkdir()
+    missing_contract = templates_root / "missing_contract_page_template"
+    missing_contract.mkdir()
+    (missing_contract / "pyproject.toml").write_text("[project]\nname='missing-contract'\n", encoding="utf-8")
+    complete = templates_root / "complete_page_template"
+    complete.mkdir()
+    (complete / "pyproject.toml").write_text("[project]\nname='complete'\n", encoding="utf-8")
+
+    assert discover_page_templates(templates_root).names() == ()
+    assert discover_page_template(templates_root, "missing_page_template") is None
+    assert discover_page_template(templates_root, "missing_contract_page_template") is None
+    assert discover_page_template(templates_root, "complete_page_template", require_contract=False) is not None
+    assert discover_page_templates(templates_root, require_contract=False).names() == (
+        "complete_page_template",
+        "missing_contract_page_template",
+    )
+
+    with pytest.raises(ValueError, match="Unknown apps-page bundle"):
+        resolve_page_bundles((" ", "missing"), pages_root=pages_root)
+    with pytest.raises(ValueError, match="no supported entrypoint"):
+        resolve_page_bundles((str(no_entry),), pages_root=pages_root)
+
+
 def test_page_bundle_registry_selects_configured_names_without_duplicates(tmp_path: Path) -> None:
     first = PageBundleSpec("view_first", tmp_path / "view_first", tmp_path / "view_first.py")
     second = PageBundleSpec("view_second", tmp_path / "view_second", tmp_path / "view_second.py")
@@ -169,6 +234,61 @@ def test_page_bundle_registry_reports_unknown_and_duplicate_names(tmp_path: Path
         PageBundleRegistry((first, duplicate))
     with pytest.raises(KeyError, match="Unknown apps-page bundle 'missing'"):
         PageBundleRegistry((first,)).require("missing")
+
+
+def test_page_bundle_and_template_registries_cover_edge_helpers(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="non-empty string"):
+        PageBundleSpec("  ", tmp_path / "root", tmp_path / "root.py")
+
+    contract = SimpleNamespace(template_version=7)
+    bundle = PageBundleSpec(
+        " view_demo ",
+        str(tmp_path / "root"),
+        str(tmp_path / "root" / "view_demo.py"),
+        contract_path=str(tmp_path / "root" / "agilab.template.toml"),
+        contract=contract,
+    )
+    registry = PageBundleRegistry((bundle,))
+
+    assert bundle.name == "view_demo"
+    assert bundle.root_path == tmp_path / "root"
+    assert bundle.script_path == tmp_path / "root" / "view_demo.py"
+    assert bundle.contract_path == tmp_path / "root" / "agilab.template.toml"
+    assert bundle.as_row()["template_version"] == "7"
+    assert "view_demo" in registry
+    assert object() not in registry
+    assert len(registry) == 1
+    assert tuple(registry) == (bundle,)
+    assert registry.bundles == (bundle,)
+    assert registry.get("missing", "fallback") == "fallback"
+
+    template_contract = SimpleNamespace(kind="page", template_version=3)
+    template = PageTemplateSpec(
+        " demo_page_template ",
+        str(tmp_path / "template"),
+        str(tmp_path / "template" / "pyproject.toml"),
+        contract_path=str(tmp_path / "template" / "agilab.template.toml"),
+        contract=template_contract,
+    )
+    template_registry = PageTemplateRegistry((template,))
+    assert template.name == "demo_page_template"
+    assert template.root_path == tmp_path / "template"
+    assert template.pyproject_path == tmp_path / "template" / "pyproject.toml"
+    assert template.contract_path == tmp_path / "template" / "agilab.template.toml"
+    assert template.as_row()["template_kind"] == "page"
+    assert template.as_row()["template_version"] == "3"
+    assert "DEMO_PAGE_TEMPLATE" in template_registry
+    assert object() not in template_registry
+    assert len(template_registry) == 1
+    assert tuple(template_registry) == (template,)
+    assert template_registry.templates == (template,)
+    assert template_registry.get("missing", "fallback") == "fallback"
+    assert template_registry.select(("missing", "", "demo_page_template", "DEMO_PAGE_TEMPLATE")) == (template,)
+    assert template_registry.as_rows()[0]["schema"] == PAGE_TEMPLATE_SCHEMA
+    with pytest.raises(ValueError, match="Duplicate page template"):
+        PageTemplateRegistry((template, template))
+    with pytest.raises(KeyError, match="Unknown page template 'missing'"):
+        template_registry.require("missing")
 
 
 def test_page_template_registry_discovers_contract_templates(tmp_path: Path) -> None:

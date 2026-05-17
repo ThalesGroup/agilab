@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
+
 SRC_ROOT = Path("src").resolve()
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -19,6 +21,7 @@ from agilab.ci_artifact_harvest import (
     build_ci_artifact_harvest,
     sample_ci_artifacts,
 )
+from agilab import ci_provider_artifacts as provider_artifacts
 from agilab.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     build_gitlab_ci_artifact_index,
@@ -376,3 +379,186 @@ def test_live_gitlab_ci_artifact_index_uses_api_downloads(tmp_path: Path) -> Non
     assert index["provenance"]["queries_ci_provider"] is True
     assert index["provenance"]["downloads_provider_archives"] is True
     assert index["summary"]["missing_required_count"] == 3
+
+
+def test_provider_archive_edge_cases_cover_validation_and_duplicates(tmp_path: Path) -> None:
+    bad_archive = tmp_path / "bad-json.zip"
+    with ZipFile(bad_archive, "w") as archive:
+        archive.writestr("run_manifest.json", "[]")
+
+    with pytest.raises(ValueError, match="not a JSON object"):
+        provider_artifacts.build_artifact_index_from_archives([bad_archive])
+
+    first = tmp_path / "first.zip"
+    second = tmp_path / "second.zip"
+    for path in (first, second):
+        with ZipFile(path, "w") as archive:
+            archive.writestr(
+                "run_manifest.json",
+                json.dumps(_sample_payload("run_manifest"), sort_keys=True),
+            )
+
+    index = provider_artifacts.build_artifact_index_from_archives(
+        [first, second],
+        provider="My Provider!",
+    )
+
+    assert index["artifacts"][0]["path"].startswith("my-provider-archive://")
+    assert any(issue["level"] == "warning" for issue in index["issues"])
+
+
+def test_provider_api_error_and_pagination_edges(tmp_path: Path) -> None:
+    class _Response:
+        def __init__(self, payload: object) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode("utf-8")
+
+    with pytest.raises(ValueError, match="GitHub API response is not a JSON object"):
+        provider_artifacts._read_json_url("https://api.example.invalid", token=None, urlopen=lambda _req: _Response([]))
+
+    with pytest.raises(ValueError, match="GitLab API response is not a JSON list"):
+        provider_artifacts._read_gitlab_json_url(
+            "https://gitlab.example.invalid",
+            token=None,
+            urlopen=lambda _req: _Response({}),
+        )
+
+    with pytest.raises(ValueError, match="artifacts list"):
+        provider_artifacts.list_github_actions_artifacts(
+            repository="ThalesGroup/agilab",
+            run_id="1",
+            urlopen=lambda _req: _Response({"total_count": 1, "artifacts": {}}),
+        )
+
+    github_pages = iter(
+        [
+            {"total_count": 2, "artifacts": [{"id": 1, "name": "a"}]},
+            {"total_count": 2, "artifacts": [{"id": 2, "name": "b"}]},
+        ]
+    )
+    github_artifacts, query_count = provider_artifacts.list_github_actions_artifacts(
+        repository="ThalesGroup/agilab",
+        run_id="1",
+        urlopen=lambda _req: _Response(next(github_pages)),
+    )
+    assert [artifact["id"] for artifact in github_artifacts] == [1, 2]
+    assert query_count == 2
+
+    gitlab_page = [{"id": index, "artifacts_file": {"filename": "a.zip"}} for index in range(100)]
+    gitlab_pages = iter([gitlab_page, []])
+    gitlab_artifacts, gitlab_query_count = provider_artifacts.list_gitlab_ci_artifacts(
+        project="thales/agilab",
+        pipeline_id="1",
+        urlopen=lambda _req: _Response(next(gitlab_pages)),
+    )
+    assert len(gitlab_artifacts) == 100
+    assert gitlab_query_count == 2
+
+
+def test_provider_download_helpers_cover_skips_headers_and_default_filenames(tmp_path: Path) -> None:
+    req = provider_artifacts._github_artifact_download_request("https://example.invalid/a.zip", token=None)
+    assert "Authorization" not in req.headers
+    assert "Authorization" not in req.unredirected_hdrs
+    assert "PRIVATE-TOKEN" not in provider_artifacts._gitlab_headers(None)
+
+    class _ZipResponse:
+        def __enter__(self) -> "_ZipResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            archive_bytes = io.BytesIO()
+            with ZipFile(archive_bytes, "w") as archive:
+                archive.writestr("run_manifest.json", json.dumps(_sample_payload("run_manifest"), sort_keys=True))
+            return archive_bytes.getvalue()
+
+    github_paths, github_downloads = provider_artifacts.download_github_actions_artifacts(
+        [{"id": 1, "name": "ignored-without-url"}, {"id": 2, "name": "valid", "archive_download_url": "https://x/a.zip"}],
+        destination=tmp_path / "github",
+        urlopen=lambda _req: _ZipResponse(),
+    )
+    assert github_downloads == 1
+    assert github_paths[0].name == "valid-2.zip"
+
+    gitlab_paths, gitlab_downloads = provider_artifacts.download_gitlab_ci_artifacts(
+        [{"name": "missing-id"}, {"id": 7, "name": "job", "artifacts_file": "not-a-mapping"}],
+        destination=tmp_path / "gitlab",
+        project="thales/agilab",
+        urlopen=lambda _req: _ZipResponse(),
+    )
+    assert gitlab_downloads == 1
+    assert gitlab_paths[0].name == "job-7-artifacts_zip.zip"
+
+
+def test_provider_indexes_support_temporary_download_dirs_and_env_token(monkeypatch) -> None:
+    class _Response:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    archive_bytes = io.BytesIO()
+    with ZipFile(archive_bytes, "w") as archive:
+        archive.writestr("run_manifest.json", json.dumps(_sample_payload("run_manifest"), sort_keys=True))
+    archive_payload = archive_bytes.getvalue()
+
+    def github_urlopen(req: object) -> _Response:
+        url = str(getattr(req, "full_url"))
+        if "actions/runs" in url:
+            return _Response(
+                json.dumps(
+                    {
+                        "total_count": 1,
+                        "artifacts": [
+                            {"id": 1, "name": "proof", "archive_download_url": "https://example.invalid/proof.zip"}
+                        ],
+                    }
+                ).encode("utf-8")
+            )
+        return _Response(archive_payload)
+
+    github_index = provider_artifacts.build_github_actions_artifact_index(
+        repository="ThalesGroup/agilab",
+        run_id="1",
+        urlopen=github_urlopen,
+    )
+    assert github_index["summary"]["download_count"] == 1
+
+    def gitlab_urlopen(req: object) -> _Response:
+        url = str(getattr(req, "full_url"))
+        if "/pipelines/" in url:
+            return _Response(
+                json.dumps([{"id": 2, "name": "proof", "artifacts_file": {"filename": "proof.zip"}}]).encode(
+                    "utf-8"
+                )
+            )
+        return _Response(archive_payload)
+
+    gitlab_index = provider_artifacts.build_gitlab_ci_artifact_index(
+        project="thales/agilab",
+        pipeline_id="2",
+        urlopen=gitlab_urlopen,
+    )
+    assert gitlab_index["summary"]["download_count"] == 1
+
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert provider_artifacts.token_from_env() is None
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    assert provider_artifacts.token_from_env() == "token"

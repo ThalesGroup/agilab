@@ -234,6 +234,10 @@ def test_pipeline_run_controls_edge_branches_for_logs_ttl_and_lock_payloads(tmp_
     fake_st.session_state["page__run_log_file"] = str(bad_log_path)
     module._push_run_log("page", "cannot append", placeholder)
     assert placeholder.codes[-1] == "cannot append"
+    fake_st.session_state.pop("page__run_logs", None)
+    monkeypatch.setattr(module, "_append_run_log", lambda *_args, **_kwargs: None)
+    module._push_run_log("page", "", placeholder)
+    assert placeholder.captions[-1] == "No runs recorded yet."
 
     calls: list[object] = []
 
@@ -293,6 +297,7 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
 
     module._refresh_pipeline_run_lock(None)
     module._refresh_pipeline_run_lock({})
+    module._refresh_pipeline_run_lock({"path": tmp_path / "unused.lock", "token": ""})
     module._refresh_pipeline_run_lock({"path": tmp_path / "missing.lock", "token": "token"})
 
     refresh_lock = tmp_path / "refresh.lock"
@@ -306,6 +311,7 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
 
     module._release_pipeline_run_lock(None, "page")
     module._release_pipeline_run_lock({}, "page")
+    module._release_pipeline_run_lock({"path": tmp_path / "unused.lock", "token": ""}, "page")
     module._release_pipeline_run_lock({"path": tmp_path / "missing-release.lock", "token": "token"}, "page")
 
     release_lock = tmp_path / "release.lock"
@@ -363,6 +369,9 @@ def test_pipeline_run_controls_stale_owner_and_retry_exhaustion_branches(tmp_pat
         kind == "warning" and "after stale cleanup retries" in message
         for kind, message in fake_st.messages
     )
+
+    monkeypatch.setattr(module, "_clear_pipeline_run_lock", lambda *_args, **_kwargs: False)
+    assert module._acquire_pipeline_run_lock(env, "page") is None
 
 
 def test_pipeline_run_controls_legacy_stage_formatting_and_clean_abort(tmp_path, monkeypatch):

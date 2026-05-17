@@ -88,6 +88,12 @@ def test_parse_args_requires_cluster_and_positive_rows():
         cfv._parse_args(["--discover-lan", "--cluster"])
 
     with pytest.raises(SystemExit):
+        cfv._parse_args(["--cluster", "--workers", "127.0.0.1"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--cluster", "--scheduler", "127.0.0.1"])
+
+    with pytest.raises(SystemExit):
         cfv._parse_args(
             [
                 "--cluster",
@@ -99,6 +105,18 @@ def test_parse_args_requires_cluster_and_positive_rows():
                 "0",
             ]
         )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--discovery-limit", "0"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--discovery-timeout", "0"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--ssh-probe-timeout", "0"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--cidr", "not-a-cidr"])
 
     with pytest.raises(SystemExit):
         cfv._parse_args(
@@ -121,8 +139,37 @@ def test_parse_args_requires_cluster_and_positive_rows():
                 "127.0.0.1",
                 "--workers",
                 "127.0.0.1",
+                "--share-check-only",
+                "--print-share-setup",
+                "sshfs",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
                 "--setup-share",
                 "sshfs",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--setup-share",
+                "sshfs",
+                "--apply",
+                "--dry-run",
             ]
         )
 
@@ -150,6 +197,22 @@ def test_parse_args_requires_cluster_and_positive_rows():
                 "sshfs",
                 "--apply",
                 "--share-check-only",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--setup-share",
+                "sshfs",
+                "--apply",
+                "--print-share-setup",
+                "sshfs",
             ]
         )
 
@@ -315,6 +378,32 @@ def test_sync_remote_inputs_builds_ssh_and_scp_commands(tmp_path: Path, monkeypa
     assert all(timeout == 12 for _, timeout in commands)
 
 
+def test_sync_remote_inputs_skips_remote_cluster_share_when_empty(tmp_path: Path, monkeypatch):
+    plan = replace(
+        cfv.build_validation_plan(
+            _args(workers="jpm@192.168.3.35"),
+            home=tmp_path,
+            environ={"USER": "agi"},
+        ),
+        remote_cluster_share_setting="",
+    )
+    input_file = tmp_path / "input.csv"
+    input_file.write_text("aircraft,date,lat,long\n", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    def fake_run(argv, *, timeout=None):
+        commands.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(cfv, "_run_command", fake_run)
+
+    cfv.sync_remote_inputs(plan, [input_file], timeout=12)
+
+    assert len(commands) == 2
+    assert commands[0][0] == "ssh"
+    assert commands[1][0] == "scp"
+
+
 def test_run_command_captures_stdout():
     completed = cfv._run_command([sys.executable, "-c", "print('ok')"], timeout=5)
 
@@ -455,6 +544,29 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     assert "sudo apt-get install -y sshfs" in script
     assert "--share-check-only" in script
     assert "--remote-cluster-share /Users/jpm/clustershare/agilab-two-node" in script
+
+
+def test_share_setup_helpers_cover_scheduler_and_path_variants(tmp_path: Path):
+    plan = cfv.build_validation_plan(
+        _args(
+            scheduler="ops@192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share="clustershare/agi",
+            remote_cluster_share="~/remote share",
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+
+    assert cfv._scheduler_ssh_target(plan, local_user="ignored") == "ops@192.168.3.103"
+    assert cfv._remote_share_assignment("~/remote share") == '"$HOME"/' + "'remote share'"
+    assert cfv._remote_share_assignment("~") == '"$HOME"'
+    assert cfv._remote_share_assignment("relative/path") == '"$HOME"/relative/path'
+
+    with pytest.raises(ValueError, match="unsupported share setup backend"):
+        cfv.share_setup_script_lines(plan, "nfs")
+    with pytest.raises(ValueError, match="unsupported share setup backend"):
+        cfv.apply_share_setup(plan, "nfs", timeout=1)
 
 
 def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monkeypatch):
@@ -767,6 +879,70 @@ def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsy
     assert "AGILAB cluster-share setup using SSHFS" in output
     assert "sshfs" in output
     assert "--share-check-only" in output
+
+
+def test_run_lan_discovery_prints_and_serializes(monkeypatch, capsys):
+    class FakeReport:
+        def to_dict(self):
+            return {"nodes": [{"host": "192.168.3.35"}]}
+
+    reports: list[object] = []
+    printed: list[object] = []
+
+    def fake_discover(options):
+        reports.append(options)
+        return FakeReport()
+
+    monkeypatch.setattr(cfv, "discover_lan_nodes", fake_discover)
+    monkeypatch.setattr(cfv, "print_discovery_report", lambda report: printed.append(report))
+
+    payload = cfv._run_lan_discovery(
+        Namespace(
+            cidr="",
+            remote_user="jpm",
+            passive_only=True,
+            discovery_timeout=0.2,
+            ssh_probe_timeout=3,
+            discovery_limit=10,
+            scheduler="",
+            no_discovery_cache=True,
+            json=False,
+        )
+    )
+
+    assert payload == {"success": True, "lan_discovery": {"nodes": [{"host": "192.168.3.35"}]}}
+    assert reports[0].remote_user == "jpm"
+    assert reports[0].active is False
+    assert reports[0].cache_path is None
+    assert printed
+
+    cfv._run_lan_discovery(
+        Namespace(
+            cidr="192.168.3.0/30",
+            remote_user="",
+            passive_only=False,
+            discovery_timeout=0.2,
+            ssh_probe_timeout=3,
+            discovery_limit=10,
+            scheduler="192.168.3.103",
+            no_discovery_cache=False,
+            json=True,
+        )
+    )
+    assert '"success": true' in capsys.readouterr().out
+
+
+def test_main_discover_lan_writes_summary(tmp_path: Path, monkeypatch):
+    summary_path = tmp_path / "lan.json"
+    monkeypatch.setattr(cfv, "_run_lan_discovery", lambda args: {"success": True, "lan_discovery": {"nodes": []}})
+
+    rc = cfv.main(["--discover-lan", "--summary-json", str(summary_path)])
+
+    assert rc == 0
+    assert json.loads(summary_path.read_text(encoding="utf-8")) == {
+        "success": True,
+        "lan_discovery": {"nodes": []},
+    }
 
 
 def test_main_setup_share_apply_runs_setup_and_share_check(

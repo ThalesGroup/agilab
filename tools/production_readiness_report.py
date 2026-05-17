@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 import tomllib
 
 
@@ -57,6 +57,24 @@ def _check_result(
         "evidence": list(evidence),
         "details": details or {},
     }
+
+
+def _missing_required_tokens(
+    repo_root: Path,
+    required: Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
+    missing: dict[str, list[str]] = {}
+    for relative_path, tokens in required.items():
+        path = repo_root / relative_path
+        try:
+            text = _read_text(path)
+        except Exception as exc:
+            missing[relative_path] = [f"<unable to read: {exc}>"]
+            continue
+        missing_tokens = [token for token in tokens if token not in text]
+        if missing_tokens:
+            missing[relative_path] = missing_tokens
+    return missing
 
 
 def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
@@ -139,6 +157,54 @@ def _check_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
         ok,
         summary,
         evidence=["tools/workflow_parity.py"],
+        details=details,
+    )
+
+
+def _check_production_readiness_workflow_profile(repo_root: Path) -> dict[str, Any]:
+    try:
+        workflow_parity = _load_tool_module("workflow_parity")
+        args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+        profiles = workflow_parity._profile_commands(args)
+        commands = profiles.get("production-readiness") or []
+        command_details = [
+            {
+                "label": getattr(command, "label", ""),
+                "argv": list(getattr(command, "argv", [])),
+                "ensure_dirs": list(getattr(command, "ensure_dirs", [])),
+                "remove_paths": list(getattr(command, "remove_paths", [])),
+                "timeout_seconds": getattr(command, "timeout_seconds", None),
+            }
+            for command in commands
+        ]
+        command = commands[0] if commands else None
+        argv = list(getattr(command, "argv", [])) if command else []
+        ok = bool(
+            command
+            and "tools/production_readiness_report.py" in argv
+            and "--run-docs-profile" in argv
+            and "--output" in argv
+            and "test-results/production-readiness.json" in argv
+            and list(getattr(command, "ensure_dirs", [])) == ["test-results"]
+            and "test-results/production-readiness.json"
+            in list(getattr(command, "remove_paths", []))
+        )
+        summary = (
+            "production-readiness workflow profile runs the full report and persists a JSON artifact"
+            if ok
+            else "production-readiness workflow profile is missing or incomplete"
+        )
+        details = {"commands": command_details, "argv": argv}
+    except Exception as exc:
+        ok = False
+        summary = str(exc)
+        details = {}
+    return _check_result(
+        "production_readiness_workflow_profile",
+        "Production-readiness workflow profile",
+        ok,
+        summary,
+        evidence=["tools/workflow_parity.py", "tools/production_readiness_report.py"],
         details=details,
     )
 
@@ -405,15 +471,244 @@ def _check_security_policy(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_security_adoption_gate(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "tools/workflow_parity.py": [
+            "security-adoption",
+            "_security_adoption_profile",
+            "tools/security_adoption_check.py",
+            "test-results/security-check.json",
+            "AGILAB_SECURITY_CHECK_STRICT=1",
+        ],
+        "tools/security_adoption_check.py": [
+            'STRICT_ENV_VAR = "AGILAB_SECURITY_CHECK_STRICT"',
+            "--strict",
+            "--profile",
+            "security_check.build_report",
+        ],
+        "test/test_workflow_parity.py": [
+            "security_adoption",
+            "tools/security_adoption_check.py",
+            "test-results/security-check.json",
+        ],
+        "docs/source/security-adoption.rst": [
+            "workflow_parity.py --profile security-adoption",
+            "AGILAB_SECURITY_CHECK_STRICT=1",
+            "Use strict mode when missing controls must fail the gate",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "security-adoption workflow profile persists a reviewable security-check artifact and supports strict gating"
+        if ok
+        else "security-adoption workflow profile or strict-gate documentation is incomplete"
+    )
+    return _check_result(
+        "security_adoption_strict_gate",
+        "Security-adoption strict gate",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
+def _check_profile_supply_chain_gate(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "tools/profile_supply_chain_scan.py": [
+            "PROFILE_EXTRAS",
+            "DEFAULT_PROFILES",
+            "pip-audit",
+            "cyclonedx-py",
+            "write_pip_audit_requirements",
+            "--profile",
+            "--run",
+        ],
+        "test/test_profile_supply_chain_scan.py": [
+            "test_cli_prints_all_profile_scan_plan",
+            "test_write_pip_audit_requirements_removes_local_editables",
+            "pip-audit",
+            "cyclonedx-py",
+        ],
+        "src/agilab/security_check.py": [
+            "supply_chain_artifacts",
+            "tools/profile_supply_chain_scan.py --profile all --run",
+        ],
+        "docs/source/security-adoption.rst": [
+            "tools/profile_supply_chain_scan.py --profile all --run",
+        ],
+        "README.md": [
+            "tools/profile_supply_chain_scan.py",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "profile-specific pip-audit and CycloneDX SBOM evidence is planned, tested, and linked from adoption guidance"
+        if ok
+        else "profile-specific supply-chain evidence gate is incomplete"
+    )
+    return _check_result(
+        "profile_supply_chain_scan_gate",
+        "Profile supply-chain scan gate",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
+def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "src/agilab/ui_public_bind_guard.py": [
+            "EXPOSED_UI_HOSTS",
+            "PUBLIC_BIND_OK_ENV",
+            "AGILAB_PUBLIC_BIND_OK",
+            "PUBLIC_BIND_CONTROL_ENVS",
+            "PublicBindPolicyError",
+            "public_bind_has_controls",
+            "enforce_public_bind_policy",
+        ],
+        "test/test_ui_public_bind_guard.py": [
+            "test_public_bind_requires_explicit_ok_and_auth_or_tls_indicator",
+            "test_direct_streamlit_public_bind_is_refused_without_controls",
+            "test_direct_streamlit_public_bind_is_allowed_with_controls",
+            "AGILAB_TLS_TERMINATED",
+        ],
+        "src/agilab/security_check.py": [
+            "ui_network_exposure",
+            "AGILAB_PUBLIC_BIND_OK",
+            "auth/TLS",
+        ],
+        "docs/source/environment.rst": [
+            "AGILAB_PUBLIC_BIND_OK",
+            "AGILAB_TLS_TERMINATED",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "public Streamlit binds require explicit operator acknowledgement plus an auth/TLS indicator and regression coverage"
+        if ok
+        else "public UI bind guard contract is incomplete"
+    )
+    return _check_result(
+        "public_ui_bind_guard",
+        "Public UI bind guard",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
+def _check_cluster_share_fail_fast(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "src/agilab/security_check.py": [
+            "cluster_share_isolation",
+            "Cluster share is the same path as the local share.",
+            "do not silently degrade to localshare",
+        ],
+        "src/agilab/orchestrate_cluster.py": [
+            "Cluster mode needs `AGI_CLUSTER_SHARE`",
+            "Fix the cluster share before enabling cluster mode",
+        ],
+        "src/agilab/core/agi-env/test/test_agi_env.py": [
+            "test_cluster_share_same_as_local_share_raises",
+            "must not fall back to localshare",
+            "Cluster-enabled apps must fail fast",
+        ],
+        "test/test_security_check.py": [
+            "cluster_share_isolation",
+            "same_as_local_share",
+        ],
+        "docs/source/faq.rst": [
+            "requires an explicit usable cluster share",
+            "distinct from the local share",
+            "instead of silently",
+        ],
+        "docs/source/distributed-workers.rst": [
+            "Keep cluster share and local share conceptually separate",
+            "not silently on local-only",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "cluster mode is documented and tested to fail fast unless a distinct usable cluster share exists"
+        if ok
+        else "cluster-share fail-fast contract is incomplete"
+    )
+    return _check_result(
+        "cluster_share_fail_fast",
+        "Cluster-share fail-fast contract",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
+def _check_production_boundary_docs(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "README.md": [
+            "AGILAB complements MLflow and production MLOps platforms",
+            "Not safe as-is",
+            "Sole production MLOps control plane",
+            "not production MLOps claims",
+        ],
+        "SECURITY.md": [
+            "Not recommended as-is",
+            "production ML serving",
+            "only production MLOps control plane",
+            "Hardening Checklist",
+        ],
+        "docs/source/security-adoption.rst": [
+            "No-go as a standalone production platform",
+            "Public Streamlit exposure",
+            "sole MLOps control plane",
+        ],
+        "docs/source/agilab-mlops-positioning.rst": [
+            "not as a production MLOps platform",
+            "not a production MLOps certification",
+        ],
+        "docs/source/compatibility-matrix.rst": [
+            "tools/production_readiness_report.py --compact",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "public docs consistently present AGILAB as a controlled experimentation workbench, not standalone production MLOps"
+        if ok
+        else "production boundary documentation is incomplete or inconsistent"
+    )
+    return _check_result(
+        "production_boundary_docs",
+        "Production boundary documentation",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
 def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     checks = [
         _check_docs_mirror_stamp(repo_root),
         _check_docs_workflow_profile(repo_root),
+        _check_production_readiness_workflow_profile(repo_root),
         _check_compatibility_matrix(repo_root),
         _check_service_health_contract(repo_root),
         _check_release_decision_contract(repo_root),
         _check_security_policy(repo_root),
+        _check_security_adoption_gate(repo_root),
+        _check_profile_supply_chain_gate(repo_root),
+        _check_public_ui_bind_guard(repo_root),
+        _check_cluster_share_fail_fast(repo_root),
+        _check_production_boundary_docs(repo_root),
     ]
     if run_docs_profile:
         checks.append(_run_docs_workflow_profile(repo_root))
@@ -448,16 +743,28 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit compact JSON without indentation.",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional JSON artifact path to write in addition to stdout.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     report = build_report(run_docs_profile=args.run_docs_profile)
-    if args.compact:
-        print(json.dumps(report, sort_keys=True, separators=(",", ":")))
-    else:
-        print(json.dumps(report, indent=2, sort_keys=True))
+    if args.output is not None:
+        output = args.output.expanduser()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    stdout_payload = (
+        json.dumps(report, sort_keys=True, separators=(",", ":"))
+        if args.compact
+        else json.dumps(report, indent=2, sort_keys=True)
+    )
+    print(stdout_payload)
     return 0 if report["status"] == "pass" else 1
 
 

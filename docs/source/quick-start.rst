@@ -185,12 +185,36 @@ machine-readable proof record.
    Treat that as a separate starting lane: prove either the built-in flight
    project or a notebook-imported project first, not both at the same time.
 
+   The notebook lane is the full adoption proof, not only an upload shortcut:
+   notebook -> PROJECT ``Create`` -> ORCHESTRATE ``INSTALL`` -> ORCHESTRATE
+   ``EXECUTE`` -> ANALYSIS -> WORKFLOW ``Download pipeline notebook``. The last
+   step is the no-lock-in check: the work remains available as
+   ``lab_stages.ipynb`` if AGILAB is no longer the right runtime for the
+   project.
+
+   The ABOUT page also shows an adoption gate. Treat it as a go/no-go for
+   widening from one user to a controlled team trial: one first proof must have a
+   passing ``run_manifest.json`` and the project must have an exported
+   ``notebooks/lab_stages.ipynb``. This gate does not certify production,
+   public exposure, multi-tenant use, secrets handling, or cluster/service
+   hardening.
+
+   Before sharing the proof with someone else, keep a handoff bundle: the
+   passing ``run_manifest.json``, the exported ``notebooks/lab_stages.ipynb``,
+   the compatibility-report output for that manifest, and a redacted
+   ``agilab security-check --json --strict`` result. That bundle makes the proof
+   portable for review without pretending it is production certification.
+
 5. **Check the first proof outcome**
 
    You are past the newcomer hurdle when these are true:
 
    - ``~/log/execute/flight_telemetry/run_manifest.json`` has ``status: pass``
    - fresh output exists under ``~/log/execute/flight_telemetry/``
+   - if you start from a notebook, ``notebooks/lab_stages.ipynb`` exists in the
+     imported project as the no-lock-in handoff artifact
+   - the handoff bundle lists the manifest, notebook export, compatibility
+     report, and strict security-check result needed for review
    - you can open the default ``ANALYSIS`` view for ``flight_telemetry_project`` and see
      the bundled network view as an available route
 
@@ -402,16 +426,13 @@ present::
     uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
 The opt-in UI robot matrix used by GitHub Actions covers isolated core pages,
-the entry shell plus configured app pages, the default ``PROJECT`` route, the
-``PROJECT`` notebook-import deep link, the ``PROJECT`` Import sidebar mode, and
-the ``SETTINGS`` route for every built-in app::
+the entry shell plus configured app pages, and the ``PROJECT`` and ``SETTINGS``
+routes for every built-in app::
 
     uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
       --scenario isolated-core-pages \
       --scenario isolated-entry-and-app-pages \
       --scenario isolated-project-page \
-      --scenario isolated-project-notebook-import \
-      --scenario isolated-project-import-sidebar \
       --scenario isolated-settings-page \
       --json \
       --quiet-progress

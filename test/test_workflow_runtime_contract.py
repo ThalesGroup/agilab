@@ -147,3 +147,52 @@ def test_runtime_contract_validation_reports_bad_shapes() -> None:
     assert "runtime control #0 label is missing" in issues
     assert "runtime control #0 enabled flag must be boolean" in issues
     assert "runtime event_count must be non-negative" in issues
+
+
+def test_runtime_contract_covers_remaining_phase_priorities_and_bad_shapes() -> None:
+    failed = runtime_contract.build_workflow_runtime_contract(
+        _state(units=[{"id": "train", "dispatch_status": "failed"}])
+    )
+    paused_unit = runtime_contract.build_workflow_runtime_contract(
+        _state(units=[{"id": "review", "dispatch_status": "paused"}])
+    )
+    completed = runtime_contract.build_workflow_runtime_contract(
+        _state(units=[{"id": "done", "dispatch_status": "completed"}])
+    )
+    running = runtime_contract.build_workflow_runtime_contract(
+        _state(units=[{"id": "active", "dispatch_status": "running"}])
+    )
+    explicit_running = runtime_contract.build_workflow_runtime_contract(
+        {"run_status": "running", "units": [], "events": "bad"}
+    )
+
+    assert failed["phase"] == "failed"
+    assert paused_unit["phase"] == "paused"
+    assert completed["phase"] == "completed"
+    assert running["phase"] == "running"
+    assert explicit_running["phase"] == "running"
+    assert explicit_running["event_count"] == 0
+    assert runtime_contract.enabled_workflow_control_labels({"controls": "bad"}) == ()
+
+    issues = runtime_contract.validate_workflow_runtime_contract(
+        {
+            "schema": runtime_contract.WORKFLOW_RUNTIME_CONTRACT_SCHEMA,
+            "phase": "planned",
+            "controls": ["bad"],
+            "event_count": object(),
+        }
+    )
+
+    assert "runtime control #0 must be an object" in issues
+    assert "runtime event_count must be an integer" in issues
+    assert runtime_contract._unit_rows({"units": "bad"}) == []
+    assert runtime_contract._event_rows({"events": ["bad"]}) == []
+    assert runtime_contract.workflow_phase({"run_status": "", "units": []}) == "unknown"
+    assert runtime_contract.validate_workflow_runtime_contract(
+        {
+            "schema": runtime_contract.WORKFLOW_RUNTIME_CONTRACT_SCHEMA,
+            "phase": "planned",
+            "controls": "bad",
+            "event_count": 0,
+        }
+    ) == ("runtime controls must be a list",)

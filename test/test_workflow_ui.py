@@ -542,3 +542,135 @@ def test_command_and_history_edge_cases() -> None:
     workflow_ui.render_action_history(fake_st, session_state={workflow_ui.ACTION_HISTORY_KEY: "bad"}, page_label="WORKFLOW")
     workflow_ui.render_action_history(fake_st, session_state={}, page_label="WORKFLOW")
     assert any("Action: Info" in value for event, value in fake_st.events if event == "caption")
+
+
+def test_workflow_ui_direct_helper_error_edges(tmp_path) -> None:
+    fake_st = _FakeStreamlit()
+
+    class _NoTupleShape:
+        empty = False
+        shape = "bad"
+
+    assert workflow_ui._dataframe_shape(_NoTupleShape()) is None
+
+    class _StatErrorPath:
+        name = "stat-error.csv"
+        suffix = ".csv"
+
+        def is_file(self):
+            return True
+
+        def is_dir(self):
+            return False
+
+        def stat(self):
+            raise OSError("stat blocked")
+
+        def __str__(self):
+            return "stat-error.csv"
+
+    class _ReadErrorPath(_StatErrorPath):
+        name = "read-error.csv"
+
+        def stat(self):
+            return SimpleNamespace(st_size=1)
+
+        def read_bytes(self):
+            raise OSError("read blocked")
+
+        def read_text(self, **_kwargs):
+            raise OSError("read blocked")
+
+        def __str__(self):
+            return "read-error.csv"
+
+    stat_error = _StatErrorPath()
+    read_error = _ReadErrorPath()
+    class _StatusErrorPath(_StatErrorPath):
+        def is_file(self):
+            raise OSError("status blocked")
+
+    status_error = _StatusErrorPath()
+    workflow_ui._render_output_download(fake_st, path=stat_error, key="stat")
+    workflow_ui._render_output_download(fake_st, path=read_error, key="read")
+    workflow_ui._render_artifact_download(fake_st, path=stat_error, key="artifact-stat")
+    workflow_ui._render_artifact_download(fake_st, path=read_error, key="artifact-read")
+    assert not [event for event in fake_st.events if event[0] == "download"]
+    assert workflow_ui._artifact_status(status_error) == "Unavailable"
+    assert workflow_ui._read_text_preview(stat_error) == ""
+    assert workflow_ui._read_text_preview(read_error) == ""
+
+    nameless = tmp_path / "artifact"
+    nameless.write_text("payload", encoding="utf-8")
+    normalized_path = workflow_ui._normalize_artifact(nameless)
+    assert normalized_path is not None
+    assert normalized_path["label"] == "artifact"
+    assert normalized_path["kind"] == "file"
+
+    assert workflow_ui._normalize_artifact({"path": "", "description": ""}) is None
+
+    empty_json = tmp_path / "empty.json"
+    empty_json.write_text("", encoding="utf-8")
+    workflow_ui._render_artifact_preview(fake_st, path=empty_json, kind="json")
+
+    json_without_container_view = tmp_path / "payload.json"
+    json_without_container_view.write_text('{"ok": true}', encoding="utf-8")
+
+    class _CodeOnly:
+        def __init__(self):
+            self.events: list[tuple[str, str]] = []
+
+        def code(self, body, language=None):
+            self.events.append(("code", f"{language}:{body}"))
+
+    code_only = _CodeOnly()
+    workflow_ui._render_artifact_preview(code_only, path=json_without_container_view, kind="json")
+    assert any(event[0] == "code" and event[1].startswith("json:{") for event in code_only.events)
+
+    state = {workflow_ui.ACTION_HISTORY_KEY: {workflow_ui.workflow_state_scope("WORKFLOW"): "stale"}}
+    workflow_ui.record_action_history(state, page_label="WORKFLOW", title="Recovered")
+    assert state[workflow_ui.ACTION_HISTORY_KEY][workflow_ui.workflow_state_scope("WORKFLOW")][0]["title"] == "Recovered"
+
+
+def test_workflow_ui_remaining_render_branches(tmp_path) -> None:
+    fake_st = _FakeStreamlit()
+    workflow_ui._download_log_button(SimpleNamespace(), body="logs", key="missing", file_name="run.log")
+    workflow_ui.render_action_readiness(
+        fake_st,
+        actions=[("Install", True, ""), ("Run", False, "blocked")],
+    )
+    workflow_ui.render_latest_outputs(fake_st, key_prefix="empty")
+    workflow_ui.render_artifact_drawer(fake_st, artifacts=[], key_prefix="empty")
+
+    missing = tmp_path / "missing.csv"
+    workflow_ui._render_output_download(fake_st, path=missing, key="missing-output")
+    assert workflow_ui._normalize_artifact({"path": object()}) is None
+
+    image = tmp_path / "plot.png"
+    image.write_bytes(b"png")
+    workflow_ui._render_artifact_preview(fake_st, path=image, kind="png")
+    assert ("image", str(image)) in fake_st.events
+
+    empty_text = tmp_path / "empty.txt"
+    empty_text.write_text("", encoding="utf-8")
+    workflow_ui._render_artifact_preview(fake_st, path=empty_text, kind="txt")
+
+    output = tmp_path / "output.txt"
+    output.write_text("out", encoding="utf-8")
+    log = tmp_path / "run.log"
+    log.write_text("log", encoding="utf-8")
+    workflow_ui.render_latest_run_card(
+        fake_st,
+        status="running",
+        output_path=output,
+        log_path=log,
+        started_at="2026-05-17T10:00:00",
+        duration="2s",
+        key_prefix="latest",
+    )
+    assert ("caption", "Install: Ready") in fake_st.events
+    assert ("caption", "Run: blocked") in fake_st.events
+    assert ("caption", "Started: 2026-05-17T10:00:00") in fake_st.events
+    assert ("caption", "Duration: 2s") in fake_st.events
+    assert ("download", "latest:latest_output:False") in fake_st.events
+    assert ("download", "latest:latest_log:False") in fake_st.events

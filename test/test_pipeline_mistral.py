@@ -121,6 +121,18 @@ def test_mistral_payload_accepts_none_reasoning_temperature_and_max_tokens():
     assert payload["max_tokens"] == 512
 
 
+def test_mistral_payload_helper_edges():
+    assert pipeline_mistral._content_to_text(None) == ""
+    assert pipeline_mistral._content_to_text([{"text": "alpha"}, "beta", 3]) == "alpha\nbeta\n3"
+    with pytest.raises(ValueError, match="MISTRAL_TIMEOUT must be numeric"):
+        pipeline_mistral.call_mistral_chat_completion(
+            [{"role": "user", "content": "make code"}],
+            {"MISTRAL_TIMEOUT": "slow"},
+            "mistral-secret-value-123456",
+            urlopen=lambda *_args, **_kwargs: None,
+        )
+
+
 def test_mistral_normalizes_urls_and_reads_model_from_environment(monkeypatch):
     normalize = pipeline_mistral.normalize_mistral_base_url
     monkeypatch.setenv("MISTRAL_MODEL", " env-medium ")

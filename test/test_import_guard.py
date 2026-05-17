@@ -206,3 +206,128 @@ def test_pipeline_run_controls_uses_explicit_module_aliases() -> None:
     assert module._logging_utils.LOG_PATH_LIMIT > 0
     assert not hasattr(module, "_stage_summary")
     assert not hasattr(module, "LOG_PATH_LIMIT")
+
+
+def test_import_guard_low_level_edge_branches(tmp_path, monkeypatch) -> None:
+    package_root = _make_source_package(tmp_path / "current")
+    current_file = package_root / "main_page.py"
+
+    with pytest.raises(RuntimeError, match="Unable to resolve"):
+        import_guard.resolve_package_root(tmp_path / "outside.py")
+
+    module = types.SimpleNamespace(
+        __file__=str(package_root / "__init__.py"),
+        __path__=[str(package_root), str(package_root)],
+    )
+    assert import_guard._module_origin_paths(module) == [
+        (package_root / "__init__.py").resolve(),
+        package_root.resolve(),
+    ]
+
+    monkeypatch.delitem(sys.modules, "agilab", raising=False)
+    assert import_guard.assert_agilab_checkout_alignment(current_file) == package_root.resolve()
+
+    assert import_guard._source_root_for_package_root(Path("/agilab")) is None
+    assert import_guard._source_root_for_package_root(tmp_path / "not" / "src" / "agilab") is None
+    assert import_guard._source_root_for_python_executable("/usr/bin/python") is None
+    assert import_guard._source_root_for_python_executable(".venv/bin/python") is None
+    flat_package = tmp_path / "flat" / "agilab"
+    flat_package.mkdir(parents=True)
+    (flat_package / "__init__.py").write_text("", encoding="utf-8")
+    (flat_package / "main_page.py").write_text("", encoding="utf-8")
+    assert import_guard.assert_sys_path_checkout_alignment(flat_package / "main_page.py") == flat_package.resolve()
+    assert import_guard._should_fallback_module_not_found(
+        ModuleNotFoundError(name="agilab.sub.dependency"),
+        "agilab.target",
+        "agilab",
+    ) is True
+
+
+def test_import_guard_import_error_and_symbol_edges(tmp_path, monkeypatch) -> None:
+    package_root = _make_source_package(tmp_path / "current")
+    current_file = package_root / "main_page.py"
+    fallback = package_root / "fallback.py"
+    fallback.write_text("VALUE = 1\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "current" / ".venv" / "bin" / "python"))
+    monkeypatch.setattr(sys, "path", [str(tmp_path / "current" / "src")])
+    monkeypatch.setitem(
+        sys.modules,
+        "agilab",
+        types.SimpleNamespace(__file__=str(package_root / "__init__.py"), __path__=[str(package_root)]),
+    )
+
+    def _raise_dependency_missing(_module_name):
+        raise ModuleNotFoundError("missing dependency", name="external_dependency")
+
+    monkeypatch.setattr(import_guard.importlib, "import_module", _raise_dependency_missing)
+    with pytest.raises(ModuleNotFoundError, match="missing dependency"):
+        import_guard.import_agilab_module(
+            "agilab.target",
+            current_file=current_file,
+            fallback_path=fallback,
+        )
+
+    outside_module = types.ModuleType("agilab.outside")
+    outside_root = tmp_path / "outside" / "agilab"
+    outside_root.mkdir(parents=True)
+    outside_file = outside_root / "outside.py"
+    outside_file.write_text("", encoding="utf-8")
+    outside_module.__file__ = str(outside_file)
+    monkeypatch.setattr(import_guard.importlib, "import_module", lambda _name: outside_module)
+    with pytest.raises(import_guard.MixedCheckoutImportError, match="Mixed AGILAB checkout"):
+        import_guard.import_agilab_module(
+            "agilab.outside",
+            current_file=current_file,
+            fallback_path=fallback,
+        )
+
+    def _raise_import_error(_module_name):
+        raise ImportError("boom")
+
+    monkeypatch.setattr(import_guard.importlib, "import_module", _raise_import_error)
+    with pytest.raises(ImportError, match="boom"):
+        import_guard.import_agilab_module(
+            "agilab.boom",
+            current_file=current_file,
+            fallback_path=fallback,
+        )
+
+    def _raise_import_error_with_mixed(_module_name):
+        monkeypatch.setitem(
+            sys.modules,
+            "agilab",
+            types.SimpleNamespace(__file__=str(outside_file), __path__=[str(outside_root)]),
+        )
+        raise ImportError("boom")
+
+    monkeypatch.setattr(import_guard.importlib, "import_module", _raise_import_error_with_mixed)
+    with pytest.raises(import_guard.MixedCheckoutImportError):
+        import_guard.import_agilab_module(
+            "agilab.mixed",
+            current_file=current_file,
+            fallback_path=fallback,
+        )
+
+    fallback.write_text("VALUE = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        import_guard,
+        "import_agilab_module",
+        lambda *_args, **_kwargs: types.SimpleNamespace(VALUE=1),
+    )
+    target_globals: dict[str, object] = {}
+    import_guard.import_agilab_symbols(
+        target_globals,
+        "agilab.symbols",
+        ["VALUE"],
+        current_file=current_file,
+        fallback_path=fallback,
+    )
+    assert target_globals["VALUE"] == 1
+    with pytest.raises(ImportError, match="cannot import name"):
+        import_guard.import_agilab_symbols(
+            {},
+            "agilab.symbols",
+            ["MISSING"],
+            current_file=current_file,
+            fallback_path=fallback,
+        )

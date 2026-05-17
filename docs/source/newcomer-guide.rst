@@ -75,6 +75,25 @@ lane from the landing page:
   use PROJECT -> ``Create`` -> ``From notebook``. Prove the imported project
   before adding infrastructure variables.
 
+For notebook-first adoption, the proof is complete only after the imported
+project has been created, installed, executed, inspected in ANALYSIS, and
+exported from WORKFLOW as ``lab_stages.ipynb``. That exported notebook is the
+handoff and exit-path artifact: if the team later decides not to keep AGILAB for
+that project, the validated workflow is still reusable outside the UI.
+
+Use the ABOUT adoption gate before widening the audience. Stay local until one
+proof has a passing ``run_manifest.json`` and a project-local
+``notebooks/lab_stages.ipynb`` export exists. Only then move to a controlled
+team trial, and still treat secrets, UI exposure, quotas, repository pinning,
+cluster shares, and service mode as separate hardening decisions.
+
+When the gate passes, prepare a small handoff bundle instead of sending a verbal
+"it works" claim: the passing ``run_manifest.json``, the exported
+``notebooks/lab_stages.ipynb``, the compatibility-report output for that
+manifest, and a redacted ``agilab security-check --json --strict`` result. This
+bundle is review evidence for a controlled team trial; it is not production,
+public exposure, or multi-tenant approval.
+
 That is enough for day 1. Do not widen the problem to package mode, private
 apps, or cluster setup until one lane works once and gives you a clear
 baseline.

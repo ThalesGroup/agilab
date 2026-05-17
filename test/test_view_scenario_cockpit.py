@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
+
+import pandas as pd
+import pytest
 
 PAGE_PATH = (
     "src/agilab/apps-pages/view_scenario_cockpit/"
@@ -170,6 +174,85 @@ def test_view_scenario_cockpit_helpers_build_hashable_evidence_bundle(tmp_path) 
     assert bundle["candidate_run"] == candidate_label
     assert any(record.get("sha256") for record in bundle["artifacts"] if record["exists"])
     json.dumps(bundle)
+
+
+def test_view_scenario_cockpit_helper_edge_cases(monkeypatch, tmp_path) -> None:
+    module = _load_helpers()
+
+    module.__file__ = str(tmp_path / "outside" / "view_scenario_cockpit.py")
+    monkeypatch.setattr(module.sys, "path", [])
+    module._ensure_repo_on_path()
+    assert module.sys.path == []
+
+    errors: list[str] = []
+
+    def stop_now():
+        raise RuntimeError("stop")
+
+    module.st = SimpleNamespace(error=errors.append, stop=stop_now)
+    monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
+    with pytest.raises(RuntimeError, match="stop"):
+        module._resolve_active_app()
+    assert any("Provided --active-app path not found" in message for message in errors)
+
+    env = SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="demo")
+    assert module._default_artifact_root(env) == tmp_path / "export" / "demo" / "queue_analysis"
+    assert module._coerce_selection("a", ["a", "b"]) == ["a"]
+    assert module._coerce_selection(("missing", "b"), ["a", "b"]) == ["b"]
+    assert module._coerce_selection(object(), ["a", "b"], fallback=["a"]) == ["a"]
+    assert module._coerce_selection(object(), ["a", "b", "c"]) == ["b", "c"]
+    assert module._coerce_selection(object(), ["a"]) == ["a"]
+    assert module._safe_metric("bad") == "n/a"
+
+
+def test_scenario_cockpit_evidence_edge_cases(tmp_path) -> None:
+    module = _load_helpers()
+
+    class BadBase:
+        def glob(self, _pattern):
+            raise OSError("bad glob")
+
+    assert module._discover_files(BadBase(), "*.json") == []
+    assert module._relative_label(tmp_path / "outside.json", tmp_path / "root") == "outside.json"
+    assert module._build_comparison_frame({}, tmp_path, "missing").empty
+
+    summary = tmp_path / "run" / "candidate_summary_metrics.json"
+    summary.parent.mkdir()
+    summary.write_text(
+        json.dumps(
+            {
+                "scenario": "demo",
+                "routing_policy": "candidate",
+                "pdr": 0.5,
+                "mean_e2e_delay_ms": 200,
+                "mean_queue_wait_ms": 50,
+                "max_queue_depth_pkts": 8,
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate_label = module._relative_label(summary, tmp_path)
+    frame = module._build_comparison_frame({candidate_label: summary}, tmp_path, "baseline-missing")
+    gate = module._candidate_gate(frame, candidate_label)
+    assert gate["status"] == "needs-review"
+    assert module._candidate_gate(pd.DataFrame(), "missing")["status"] == "missing-candidate"
+    assert module._safe_float(float("nan")) is None
+    assert module._safe_float(float("inf")) is None
+
+    assert module._json_safe({"path": tmp_path, "items": [pd.NA], "custom": object()})["items"] == [None]
+    missing_record = module._artifact_record(tmp_path / "missing.csv", tmp_path)
+    assert missing_record == {
+        "path": str(tmp_path / "missing.csv"),
+        "relative_path": "missing.csv",
+        "exists": False,
+    }
+
+    pipeline_dir = summary.parent / "pipeline"
+    pipeline_dir.mkdir()
+    trajectory = pipeline_dir / "extra_trajectory.csv"
+    trajectory.write_text("x\n", encoding="utf-8")
+    records = module._evidence_artifacts(summary, tmp_path)
+    assert any(record["relative_path"].endswith("extra_trajectory.csv") for record in records)
 
 
 def test_view_scenario_cockpit_warns_when_artifact_directory_is_missing(
