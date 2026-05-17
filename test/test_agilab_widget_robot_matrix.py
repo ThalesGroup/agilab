@@ -26,14 +26,20 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
 
     assert [scenario.name for scenario in scenarios] == [
         "isolated-core-pages",
+        "isolated-entry-and-app-pages",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
-    isolated, current_home, journey = scenarios
+    isolated, entry, current_home, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
     assert isolated.assert_workflow_artifacts is True
+    assert entry.pages == "HOME"
+    assert entry.apps_pages == "configured"
+    assert entry.runtime_isolation == "isolated"
+    assert entry.action_button_policy == "safe-click"
+    assert entry.action_timeout_seconds == 30.0
     assert current_home.pages == "ORCHESTRATE"
     assert current_home.runtime_isolation == "current-home"
     assert current_home.action_button_policy == "click-selected"
@@ -121,6 +127,33 @@ def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep
     assert "--assert-workflow-artifacts" in argv
 
 
+def test_build_robot_command_covers_entry_shell_and_configured_app_pages(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-entry-and-app-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME"
+    assert argv[argv.index("--apps-pages") + 1] == "configured"
+    assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-timeout") + 1] == "30.0"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-entry-and-app-pages"
+    )
+    assert summary_path == tmp_path / "isolated-entry-and-app-pages.json"
+    assert progress_path == tmp_path / "isolated-entry-and-app-pages.ndjson"
+
+
 def test_streaming_runner_keeps_child_output_on_stderr(capsys) -> None:
     module = _load_module()
 
@@ -179,15 +212,16 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
 
     assert seen == [
         "isolated-core-pages",
+        "isolated-entry-and-app-pages",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 3
-    assert summary["page_count"] == 6
-    assert summary["widget_count"] == 15
-    assert summary["interacted_count"] == 9
-    assert summary["probed_count"] == 6
+    assert summary["scenario_count"] == 4
+    assert summary["page_count"] == 8
+    assert summary["widget_count"] == 20
+    assert summary["interacted_count"] == 12
+    assert summary["probed_count"] == 8
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 

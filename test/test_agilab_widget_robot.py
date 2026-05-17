@@ -849,6 +849,46 @@ def test_summarize_counts_interactions_and_failures() -> None:
     assert summary.within_target is False
 
 
+def test_summarize_reports_skipped_widgets_without_failing_sweep() -> None:
+    module = _load_module()
+    skip = module.WidgetProbe(
+        "flight_telemetry_project",
+        "WORKFLOW",
+        "segmented_control",
+        "Safe actions",
+        "skipped",
+        "not enabled",
+        "http://demo",
+    )
+    pages = [
+        module.PageSweep(
+            app="flight_telemetry_project",
+            page="WORKFLOW",
+            success=True,
+            duration_seconds=1.0,
+            widget_count=3,
+            main_widget_count=3,
+            sidebar_widget_count=0,
+            interacted_count=1,
+            probed_count=1,
+            skipped_count=1,
+            failed_count=0,
+            url="http://demo",
+            failures=[],
+            skips=[skip],
+            status="passed",
+        )
+    ]
+
+    summary = module.summarize(pages, app_count=1, target_seconds=10.0)
+
+    assert summary.success is True
+    assert summary.within_target is True
+    assert summary.skipped_count == 1
+    assert summary.failed_count == 0
+    assert summary.pages[0].skips == [skip]
+
+
 def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     module = _load_module()
     passed = module.PageSweep(

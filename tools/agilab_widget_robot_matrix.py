@@ -100,6 +100,19 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_button_policy="trial",
         assert_workflow_artifacts=True,
     ),
+    "isolated-entry-and-app-pages": RobotScenario(
+        name="isolated-entry-and-app-pages",
+        description=(
+            "Sweep the entry shell plus each app's configured analysis "
+            "views with an isolated runtime and guarded safe-click navigation."
+        ),
+        pages="HOME",
+        apps_pages="configured",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "current-home-actions": RobotScenario(
         name="current-home-actions",
         description=(

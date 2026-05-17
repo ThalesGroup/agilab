@@ -343,6 +343,7 @@ jobs:
 
           run_gui_chunk robots \
             test/test_agilab_web_robot.py \
+            test/test_agilab_widget_robot_matrix.py \
             test/test_agilab_widget_robot.py \
             test/test_first_launch_robot.py \
             test/test_screenshot_manifest.py
