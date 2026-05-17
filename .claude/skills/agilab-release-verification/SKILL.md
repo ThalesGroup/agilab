@@ -47,6 +47,24 @@ dirty paths and ahead/behind state are explained.
 If `./dev release` fails, fix the local guard first unless the failure is
 explicitly GitHub-only, secret-dependent, or network/publication-dependent.
 
+For a release that should prune old PyPI releases and sync Hugging Face, verify
+the required repository secrets exist before dispatching or rerunning the
+workflow. Do not print secret values:
+
+```bash
+gh secret list -R ThalesGroup/agilab
+```
+
+Expected release automation secrets include `HF_TOKEN`,
+`PYPI_RELEASE_PRUNE_USERNAME`, `PYPI_RELEASE_PRUNE_PASSWORD`, and either
+`PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time `PYPI_RELEASE_PRUNE_OTP` for
+non-interactive PyPI cleanup. If `HF_TOKEN` is missing but the local Hugging
+Face CLI is authenticated, set it without echoing the token:
+
+```bash
+hf auth token | gh secret set HF_TOKEN -R ThalesGroup/agilab
+```
+
 ## Current Workflow Contract
 
 The public release path is currently GitHub-workflow-owned after the tag or
@@ -145,6 +163,31 @@ Then inspect:
 Do not call docs aligned until the Pages workflow has succeeded and the public
 page shows the expected version/tag/HF commit.
 
+When manually refreshing release proof after a failed or rerun deployment, edit
+the canonical docs source, not only the public mirror:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
+  --docs-source ../thales_agilab/docs/source \
+  --refresh-from-local \
+  --github-release-tag <tag> \
+  --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
+  --hf-space-commit <space-sha> \
+  --render \
+  --check \
+  --check-github-runs \
+  --compact
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --source ../thales_agilab/docs/source \
+  --target docs/source \
+  --apply \
+  --delete
+```
+
+After publishing, grep the public page for the expected values and stale
+release wording. A page can contain the right table row while a CI evidence
+summary still mentions an older tag.
+
 ### Hugging Face Space
 
 For the public demo route:
@@ -169,6 +212,11 @@ The release workflow should record the Space commit in release proof when
 `sync-hf-space` runs. If it did not, inspect the workflow job before doing any
 manual sync.
 
+If manual HF recovery is required after package publication, do it from a clean
+public worktree at the intended `origin/main` commit, not from a dirty local
+checkout. Run `tools/hf_space_release_sync.py --dry-run --json` first, then the
+real sync, then update release proof with the returned `hf_space_commit`.
+
 ### Badges
 
 Check what the README points to before claiming a badge is fixed:
@@ -191,8 +239,17 @@ after the badge/source change.
 - PyPI published but `sync-hf-space` skipped: check
   `needs.release-plan.outputs.pypi_publish_selected` and
   `needs.publish-release-assets.result`.
+- `sync-hf-space` failed immediately with a missing token: configure the
+  repository `HF_TOKEN` secret from a valid local or service Hugging Face token,
+  then rerun the workflow job or perform a clean-worktree manual sync.
+- PyPI retention stops at an interactive authentication prompt: verify
+  `PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time `PYPI_RELEASE_PRUNE_OTP` is
+  configured. Do not weaken retention logic just to bypass 2FA.
 - HF Space changed but release proof stale: inspect the `sync-hf-space` commit
   step before applying a manual docs refresh.
+- Release proof shows the new tag/commit but still mentions an old tag in a
+  CI-run summary: update `docs/source/data/release_proof.toml`, rerender, sync
+  the public mirror, wait for `docs-publish`, and verify the published page.
 - Docs source updated but public page stale: check `docs-publish.yaml` run and
   Pages publication status.
 - Badge failed online but local guard passes: identify which badge is failing
