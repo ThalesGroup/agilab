@@ -628,6 +628,8 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'page_label="SETTINGS"' in source
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
+    project_block = source.split("project_page = st.Page(", 1)[1].split("orchestrate_page", 1)[0]
+    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_block
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source

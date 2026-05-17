@@ -249,6 +249,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "tools/agilab_widget_robot_matrix.py" in ui_robot_matrix.argv
     assert "isolated-core-pages" in ui_robot_matrix.argv
     assert "isolated-entry-and-app-pages" in ui_robot_matrix.argv
+    assert "isolated-project-page" in ui_robot_matrix.argv
     assert "--quiet-progress" in ui_robot_matrix.argv
     assert "--json" in ui_robot_matrix.argv
     assert "--screenshot-dir" in ui_robot_matrix.argv

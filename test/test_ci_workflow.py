@@ -86,6 +86,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "tools/agilab_widget_robot_matrix.py" in text
     assert "--scenario isolated-core-pages" in text
     assert "--scenario isolated-entry-and-app-pages" in text
+    assert "--scenario isolated-project-page" in text
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
     assert "--quiet-progress" in text

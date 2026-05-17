@@ -723,7 +723,7 @@ def _navigation_pages() -> list[Any]:
         visibility="hidden",
     )
     project_page = st.Page(
-        pages_root / "1_PROJECT.py",
+        _page_file_runner(pages_root / "1_PROJECT.py"),
         title="PROJECT",
         url_path="PROJECT",
         visibility="hidden",

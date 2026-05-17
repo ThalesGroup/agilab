@@ -67,6 +67,7 @@ jobs:
           uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
             --scenario isolated-core-pages \
             --scenario isolated-entry-and-app-pages \
+            --scenario isolated-project-page \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \
             --widget-timeout "${robot_widget_timeout}" \
