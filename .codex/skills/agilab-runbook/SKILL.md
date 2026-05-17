@@ -61,6 +61,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `py_compile`, Sphinx builds, or publish dry-runs. Reserve coverage badge generation for
   release/pre-release validation or badge tooling changes. Use CI only for GitHub-only behavior such
   as runner differences, OS/Python matrix coverage, permissions/secrets, or the final publish/deploy step.
+- **Current-code planning guardrail**: before answering "next move", "ready for release",
+  "release it", "sync HF", or any operational sequencing question, inspect the current
+  repo state and authoritative workflow/tooling files. For release sequencing, check
+  `./dev --print-only release`, `.github/workflows/pypi-publish.yaml`, and
+  `tools/release_plan.py` before saying whether PyPI, GitHub release assets,
+  Hugging Face sync, release proof, or docs updates are separate manual steps.
+  If the workflow already performs a step, state its condition instead of adding
+  a redundant manual follow-up.
 - **Impact triage first**: for non-trivial diffs, run
   `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before editing further or pushing. Use its output to decide:
@@ -206,9 +214,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `cd /tmp && uv --preview-features extra-build-dependencies run --refresh-package agilab --no-project --with 'agilab[examples]==<version>' python -m agilab.lab_run first-proof --json --max-seconds 60`
   - Use `agilab[examples]` for packaged first-proof smoke; the base `agilab`
     wheel is intentionally lean and may not install demo payload dependencies.
-- If the release is followed by a Hugging Face deploy, refresh release proof metadata with the live Space commit after runtime cutover, then sync and push both docs repos:
-  - `uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --docs-source ../thales_agilab/docs/source --refresh-from-local --hf-space-commit <space-sha> --render --check --compact`
-  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --source ../thales_agilab/docs/source --target docs/source --apply --delete`
+- The public PyPI release workflow includes the `sync-hf-space` job after GitHub
+  release assets. It deploys the Hugging Face Space, runs the hosted smoke test,
+  and records the Space commit in release proof when
+  `needs.release-plan.outputs.pypi_publish_selected == 'true'` and
+  `needs.publish-release-assets.result == 'success'`. Do not add a separate
+  manual HF sync step to a release plan unless that job failed, was skipped by
+  selected package scope, or the user explicitly asks for an out-of-band Space
+  redeploy.
 - If the version changes, update the static badge and GitHub Release in the same commit series as the version bump so `main`, PyPI, the README, and release metadata stay aligned.
 
 ## CI workflow lessons

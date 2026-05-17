@@ -61,6 +61,14 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
+- **Current-code planning guardrail**: Before answering "next move", "ready for release",
+  "release it", "sync HF", or any operational sequencing question, inspect the current
+  repository state and the authoritative workflow/tooling files instead of relying on memory.
+  For release sequencing, check at least `./dev --print-only release`,
+  `.github/workflows/pypi-publish.yaml`, and `tools/release_plan.py` before saying
+  whether PyPI, GitHub release assets, Hugging Face sync, release proof, or docs updates
+  are separate manual steps. If the workflow already performs a step, state the condition
+  under which it runs rather than adding a redundant manual step.
 - **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
   for each checkout. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,

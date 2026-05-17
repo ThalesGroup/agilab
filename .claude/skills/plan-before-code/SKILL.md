@@ -70,6 +70,12 @@ Use for risky or multi-step work.
    - Read the relevant files.
    - Check logs, failing tests, or current behavior when available.
    - Do not start editing from memory.
+   - For operational plans such as "next move", "ready for release", "release it",
+     or "sync HF", inspect the current workflow/tooling files before proposing
+     sequencing. In AGILAB release work, check `./dev --print-only release`,
+     `.github/workflows/pypi-publish.yaml`, and `tools/release_plan.py` before
+     deciding which steps are local preflight, GitHub workflow jobs, or manual
+     follow-ups.
 
 3. Create the plan before coding.
    - Use a short visible plan for substantial work.
@@ -126,6 +132,8 @@ A bad plan:
 - In `agilab`, do not skip `tools/impact_validate.py` for multi-file diffs or risky bug fixes when it
   can clarify shared-core, installer, badge, or skill-index impact.
 - Do not treat “I know this codebase” as evidence.
+- Do not present an operational plan from memory when the repository has an
+  authoritative script, workflow, or generated plan that can be inspected first.
 - Do not let a plan become stale after new evidence appears.
 - Do not over-plan tiny work; choose the lightest mode that still protects quality.
 
