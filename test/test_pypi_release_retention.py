@@ -97,6 +97,64 @@ def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch) -> None
         module.main(["--package", "agilab", "--protect-version", "2026.05.17", "--confirm-delete"])
 
 
+def test_totp_generation_matches_rfc_vector() -> None:
+    module = _load_module()
+
+    assert module.generate_totp(
+        "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+        for_time=59,
+    ) == "287082"
+
+
+def test_delete_release_feeds_and_redacts_non_interactive_otp(monkeypatch, capsys) -> None:
+    module = _load_module()
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return module.subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="Authentication code 123456 accepted\nDeleted\n",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    module.delete_release(
+        package="agilab",
+        version="2026.05.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        auth_code="123456",
+    )
+
+    assert calls[0][1]["input"] == "123456\n"
+    assert "123456" not in capsys.readouterr().err
+
+
+def test_delete_release_reports_missing_non_interactive_2fa_secret(monkeypatch) -> None:
+    module = _load_module()
+
+    def fake_run(cmd, **kwargs):
+        return module.subprocess.CompletedProcess(
+            cmd,
+            1,
+            stdout="Authentication code: Traceback\nEOFError: EOF when reading a line\n",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit, match="PYPI_RELEASE_PRUNE_TOTP_SECRET"):
+        module.delete_release(
+            package="agilab",
+            version="2026.05.17",
+            repo="pypi",
+            username="maintainer",
+            password="secret",
+        )
+
+
 def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -> None:
     module = _load_module()
     releases = {
@@ -105,8 +163,8 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
     }
     deletes: list[tuple[str, str, str, str]] = []
 
-    def fake_delete_release(*, package, version, repo, username, password, verbose=False):
-        deletes.append((package, version, username, password))
+    def fake_delete_release(*, package, version, repo, username, password, auth_code=None, verbose=False):
+        deletes.append((package, version, username, password, auth_code))
         releases[package] = [item for item in releases[package] if item != version]
 
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
@@ -124,6 +182,8 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
             "maintainer",
             "--password",
             "secret",
+            "--otp-code",
+            "123456",
             "--confirm-delete",
             "--json",
             "--retry-delay",
@@ -133,13 +193,13 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
 
     assert status == 0
     assert deletes == [
-        ("agilab", "2026.04.16", "maintainer", "secret"),
-        ("agi-core", "2026.04.16", "maintainer", "secret"),
+        ("agilab", "2026.04.16", "maintainer", "secret", "123456"),
+        ("agi-core", "2026.04.16", "maintainer", "secret", "123456"),
     ]
     assert '"success": true' in capsys.readouterr().out
 
 
-def test_main_can_allow_noninteractive_cleanup_failure(monkeypatch, capsys) -> None:
+def test_main_blocks_when_cleanup_failure_remains(monkeypatch) -> None:
     module = _load_module()
 
     monkeypatch.setattr(
@@ -149,30 +209,25 @@ def test_main_can_allow_noninteractive_cleanup_failure(monkeypatch, capsys) -> N
     )
 
     def fail_delete_release(**kwargs):
-        raise module.subprocess.CalledProcessError(1, ["pypi-cleanup"])
+        raise SystemExit("cleanup failed")
 
     monkeypatch.setattr(module, "delete_release", fail_delete_release)
 
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--protect-version",
-            "2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--confirm-delete",
-            "--allow-delete-failure",
-            "--json",
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert status == 0
-    assert '"success": false' in captured.out
-    assert "interactive MFA/authentication" in captured.err
+    with pytest.raises(SystemExit, match="cleanup failed"):
+        module.main(
+            [
+                "--package",
+                "agilab",
+                "--protect-version",
+                "2026.05.17",
+                "--username",
+                "maintainer",
+                "--password",
+                "secret",
+                "--confirm-delete",
+                "--json",
+            ]
+        )
 
 
 def test_main_rejects_missing_protected_release(monkeypatch) -> None:

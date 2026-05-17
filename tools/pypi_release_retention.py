@@ -4,9 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import hmac
+import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -127,6 +132,36 @@ def require_credentials(username: str | None, password: str | None) -> tuple[str
     return user, secret
 
 
+def generate_totp(secret: str, *, for_time: float | None = None, step: int = 30, digits: int = 6) -> str:
+    normalized = re.sub(r"\s+", "", secret).upper()
+    padding = "=" * ((8 - len(normalized) % 8) % 8)
+    try:
+        key = base64.b32decode(normalized + padding, casefold=True)
+    except (binascii.Error, ValueError) as exc:
+        raise SystemExit("ERROR: PYPI_RELEASE_PRUNE_TOTP_SECRET is not valid base32") from exc
+    counter = int((time.time() if for_time is None else for_time) // step)
+    digest = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    code = struct.unpack(">I", digest[offset : offset + 4])[0] & 0x7FFFFFFF
+    return str(code % (10**digits)).zfill(digits)
+
+
+def resolve_auth_code(otp_code: str | None, totp_secret: str | None) -> str | None:
+    explicit = (otp_code or os.environ.get("PYPI_RELEASE_PRUNE_OTP") or "").strip()
+    if explicit:
+        return explicit
+    secret = (totp_secret or os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
+    if secret:
+        return generate_totp(secret)
+    return None
+
+
+def _redact_auth_code(output: str, auth_code: str | None) -> str:
+    if auth_code:
+        output = output.replace(auth_code, "***")
+    return output
+
+
 def delete_release(
     *,
     package: str,
@@ -134,6 +169,7 @@ def delete_release(
     repo: str,
     username: str,
     password: str,
+    auth_code: str | None = None,
     verbose: bool = False,
 ) -> None:
     cmd = [
@@ -159,7 +195,28 @@ def delete_release(
             "PYPI_CLEANUP_PASSWORD": password,
         }
     )
-    subprocess.run(cmd, check=True, text=True, env=env)
+    completed = subprocess.run(
+        cmd,
+        check=False,
+        text=True,
+        env=env,
+        input=f"{auth_code}\n" if auth_code else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = _redact_auth_code(completed.stdout or "", auth_code)
+    if output:
+        print(output, end="" if output.endswith("\n") else "\n", file=sys.stderr)
+    if completed.returncode == 0:
+        return
+    if auth_code is None and ("Authentication code:" in output or "EOFError" in output):
+        raise SystemExit(
+            "ERROR: PyPI release pruning reached a 2FA prompt. Add repository secret "
+            "PYPI_RELEASE_PRUNE_TOTP_SECRET for non-interactive TOTP generation, or "
+            "PYPI_RELEASE_PRUNE_OTP for a one-time manual rerun."
+        )
+    raise SystemExit(f"ERROR: pypi-cleanup failed for {package} {version} with exit code {completed.returncode}")
+
 
 
 def verify_retention(
@@ -248,15 +305,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--protect-version", required=True)
     parser.add_argument("--username")
     parser.add_argument("--password")
+    parser.add_argument("--otp-code")
+    parser.add_argument("--totp-secret")
     parser.add_argument("--confirm-delete", action="store_true")
-    parser.add_argument(
-        "--allow-delete-failure",
-        action="store_true",
-        help=(
-            "Return success after protected-release and provenance visibility checks "
-            "even if PyPI web cleanup cannot delete older releases non-interactively."
-        ),
-    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -300,37 +351,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.confirm_delete:
             raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
         username, password = require_credentials(args.username, args.password)
-        delete_failed = False
         for package, version in pending_deletes:
             print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
-            try:
-                delete_release(
-                    package=package,
-                    version=version,
-                    repo=args.repo,
-                    username=username,
-                    password=password,
-                    verbose=args.verbose,
-                )
-            except subprocess.CalledProcessError as exc:
-                if not args.allow_delete_failure:
-                    raise
-                delete_failed = True
-                print(
-                    "[pypi-retention] WARNING: cleanup failed for "
-                    f"{package} {version}; continuing because "
-                    "--allow-delete-failure is set. PyPI may require "
-                    f"interactive MFA/authentication. exit={exc.returncode}",
-                    file=sys.stderr,
-                )
-        if not delete_failed:
-            plans = verify_retention(
-                packages=packages,
+            delete_release(
+                package=package,
+                version=version,
                 repo=args.repo,
-                protect_version=protect_version,
-                attempts=args.verify_attempts,
-                retry_delay=args.retry_delay,
+                username=username,
+                password=password,
+                auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+                verbose=args.verbose,
             )
+        plans = verify_retention(
+            packages=packages,
+            repo=args.repo,
+            protect_version=protect_version,
+            attempts=args.verify_attempts,
+            retry_delay=args.retry_delay,
+        )
 
     summary = render_summary(plans, dry_run=args.dry_run)
     if args.github_step_summary:
@@ -344,7 +382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{package['package']}: keep={package['protect_version']} "
                 f"published={len(package['published_versions'])} old={deleted}"
             )
-    return 0 if summary["success"] or args.dry_run or args.allow_delete_failure else 1
+    return 0 if summary["success"] or args.dry_run else 1
 
 
 if __name__ == "__main__":
