@@ -11,6 +11,15 @@ reference. The global map shows the current level of abstraction: AGILAB is not
 one monolithic runtime, but a project contract that can move between UI,
 notebooks, CLI scripts, local runs, cluster runs, analysis, and notebook export.
 
+Read the architecture as three simple rules:
+
+- one app project contract is reused across UI, CLI, notebooks, package mode,
+  and export
+- two runtimes stay separate: the manager prepares and dispatches work; workers
+  execute packaged stage code
+- one public control path stays visible from first proof to evidence:
+  ``AgiEnv -> AGI.run -> worker package -> artifacts``
+
 Global architecture map
 -----------------------
 
@@ -47,6 +56,11 @@ One control path
      v
    Artifacts, run manifests, app pages, and ANALYSIS views
 
+The important point is not the transport. A local run, a Dask run, and an SSH
+cluster run all keep the same high-level shape. Distributed execution adds
+scheduler, worker, and share configuration, but it does not change the app
+contract.
+
 What each layer owns
 --------------------
 
@@ -77,6 +91,23 @@ What each layer owns
      - Dask is the worker dispatch back-plane; MLflow is an optional tracking
        system AGILAB can integrate with, not replace.
      - Dask logs, MLflow runs, artifacts, and ANALYSIS pages.
+
+Manager versus worker
+---------------------
+
+The manager side is where AGILAB reads settings, validates form arguments,
+chooses datasets, prepares a ``RunRequest``, and calls ``AGI.run``. The worker
+side is where app-specific stage code runs after it has been packaged into a
+worker environment.
+
+This split also explains dependencies:
+
+- manager dependencies belong in the app project ``pyproject.toml``
+- worker dependencies belong in ``src/<app>_worker/pyproject.toml``
+- UI-only dependencies such as Streamlit should stay out of worker manifests
+
+If a run fails only after worker deployment, inspect the worker manifest and
+``~/wenv/<app>_worker`` copy before changing the manager code.
 
 Boundary
 --------

@@ -37,12 +37,12 @@ and adopters a versioned, repository-local upgrade trail.
 
 ## [2026.05.17.post1] - 2026-05-17
 
-GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-2
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
 
 ### Changed
 
 - Published AGILAB `2026.05.17.post1` to PyPI for `agilab`.
-- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept GitHub release evidence under `v2026.05.17`, the public release tag available on GitHub.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.05.17] - 2026-05-17
@@ -619,4 +619,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.15.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
 [2026.05.16]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16
 [2026.05.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
-[2026.05.17.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-2
+[2026.05.17.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
