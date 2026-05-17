@@ -30,7 +30,12 @@ from agilab.page_bundle_registry import (
     discover_page_templates,
     resolve_page_bundles,
 )
-from agilab.template_contracts import TEMPLATE_CONTRACT_SCHEMA, missing_required_files
+from agilab.template_contracts import (
+    TEMPLATE_CONTRACT_SCHEMA,
+    load_optional_template_contract,
+    load_template_contract,
+    missing_required_files,
+)
 
 
 def _write_bundle(root: Path, name: str, *, pyproject: bool = True, script_name: str | None = None) -> Path:
@@ -187,6 +192,43 @@ def test_page_template_registry_discovers_contract_templates(tmp_path: Path) -> 
     assert discover_page_template(tmp_path, "analysis_page_template") == template
     with pytest.raises(ValueError, match="must end with '_page_template'"):
         PageTemplateSpec("analysis_page", tmp_path / "x", tmp_path / "x" / "pyproject.toml")
+
+
+def test_template_contract_helpers_handle_missing_and_malformed_optional_fields(tmp_path: Path) -> None:
+    assert load_optional_template_contract(tmp_path) == (None, None)
+
+    contract_path = tmp_path / "agilab.template.toml"
+    contract_path.write_text(
+        "\n".join(
+            [
+                f'schema = "{TEMPLATE_CONTRACT_SCHEMA}"',
+                'kind = "page"',
+                'template_version = "bad"',
+                'package_name_pattern = " view-{page_slug} "',
+                'entrypoint = " src/view_demo/view_demo.py "',
+                'files = "not-a-table"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded_path, contract = load_optional_template_contract(tmp_path)
+
+    assert loaded_path == contract_path.resolve()
+    assert contract == load_template_contract(contract_path)
+    assert contract is not None
+    assert contract.template_version == 0
+    assert contract.required_files == ()
+    assert contract.package_name_pattern == "view-{page_slug}"
+    assert contract.entrypoint == "src/view_demo/view_demo.py"
+
+
+def test_missing_required_files_reports_absent_contract_files(tmp_path: Path) -> None:
+    contract_path = _write_contract(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    contract = load_template_contract(contract_path)
+
+    assert missing_required_files(tmp_path, contract) == ("src/view_demo/view_demo.py",)
 
 
 def test_configured_page_bundle_names_reads_default_and_view_module() -> None:
