@@ -211,7 +211,11 @@ authentication can use non-interactive authentication through
 short-lived manual rerun fallback. If PyPI still requires interactive cleanup,
 the job records the stale releases as a warning and lets release assets and the
 Hugging Face sync continue, because upload and provenance have already been
-validated. A missing current version remains a hard failure.
+validated. PyPI may require unrecognized-login email confirmation from the same
+IP address before accepting destructive web-management actions, so GitHub-hosted
+runners cannot guarantee automated deletion; use a self-hosted/static-IP runner
+or manual cleanup from a confirmed device when strict one-release retention is
+required. A missing current version remains a hard failure.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror
