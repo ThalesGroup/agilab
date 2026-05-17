@@ -65,6 +65,31 @@ Face CLI is authenticated, set it without echoing the token:
 hf auth token | gh secret set HF_TOKEN -R ThalesGroup/agilab
 ```
 
+Before publishing a retry release, also verify the package graph that will be
+uploaded, not just the source version:
+
+```bash
+uv lock --check
+uv run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --format json --compact
+rm -rf /tmp/agilab-build-check
+uv run python -m build --wheel --outdir /tmp/agilab-build-check .
+python - <<'PY'
+import email, pathlib, zipfile
+wheel = next(pathlib.Path("/tmp/agilab-build-check").glob("agilab-*.whl"))
+with zipfile.ZipFile(wheel) as archive:
+    metadata_name = next(name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
+    metadata = email.message_from_bytes(archive.read(metadata_name))
+print(metadata["Version"])
+for requirement in metadata.get_all("Requires-Dist") or []:
+    if requirement.startswith(("agi-core", "agi-env", "agi-apps", "agi-pages", "agi-gui")):
+        print(requirement)
+PY
+```
+
+Do not publish if the top-level wheel metadata still pins internal packages to
+the previous release. A PyPI upload can succeed while fresh installs fail later
+because `Requires-Dist` points at pruned versions.
+
 ## Current Workflow Contract
 
 The public release path is currently GitHub-workflow-owned after the tag or
@@ -140,6 +165,38 @@ uv --preview-features extra-build-dependencies run --refresh-package agilab --no
 
 Use `agilab[examples]` for packaged first-proof smoke; bare `agilab` is
 intentionally lean.
+
+For split-package release truth, check every provenance package, not only
+`agilab`:
+
+```bash
+uv run python - <<'PY'
+import json, urllib.request
+from tools.release_plan import release_plan
+
+expected = "<normalized-version>"  # Example: 2026.5.17.post2
+missing = []
+stale = []
+for name in release_plan()["provenance_packages"]:
+    req = urllib.request.Request(
+        f"https://pypi.org/pypi/{name}/json",
+        headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as response:
+        releases = sorted((json.load(response).get("releases") or {}))
+    if expected not in [version.lower() for version in releases]:
+        missing.append((name, releases))
+    old = [version for version in releases if version.lower() != expected]
+    if old:
+        stale.append((name, old))
+print(json.dumps({"missing_expected": missing, "stale_old_releases": stale}, sort_keys=True))
+PY
+```
+
+After PyPI pruning, `missing_expected` and `stale_old_releases` must both be
+empty. If stale releases remain, distinguish between a retention job that
+concluded success and actual PyPI state; the job can be non-fatal when PyPI web
+login or reauthentication blocks deletion.
 
 ### Release Proof and Docs
 
@@ -234,6 +291,13 @@ after the badge/source change.
 
 - PyPI JSON current but install resolves old version: check the Simple API and
   force a fresh resolver cache with `uv --refresh-package`.
+- Fresh PyPI install fails after retention/pruning: inspect the published
+  `agilab` wheel metadata. If `Requires-Dist` pins internal packages to a
+  deleted version, publish a new corrective `.postN` release for the whole
+  package graph before deleting anything else.
+- PyPI retention reports success but old releases remain: confirm whether PyPI
+  required password/TOTP reauthentication or unrecognized-login confirmation.
+  OIDC Trusted Publishing cannot delete old releases.
 - GitHub Release exists but PyPI missing: inspect `publish-agilab` and split
   package jobs; do not assume release assets imply package upload.
 - PyPI published but `sync-hf-space` skipped: check
@@ -255,6 +319,21 @@ after the badge/source change.
 - Badge failed online but local guard passes: identify which badge is failing
   and whether it is CI status, coverage workflow, static PyPI badge, or a
   generated coverage SVG.
+
+## PyPI Retention Guardrails
+
+- Never delete the previous release until the replacement release is published
+  and a clean public PyPI install with Python 3.13 succeeds.
+- Delete only explicit stale versions. Protect the expected version in any
+  cleanup script and fail closed when the current page is ambiguous.
+- Treat PyPI credentials, TOTP seeds, recovery codes, cookies, and browser
+  session data as secrets. Do not print them, commit them, or store them in
+  repo-managed skills.
+- If old releases must be deleted manually, use PyPI's project release pages or
+  a controlled browser session, then re-run the split-package release truth
+  check above.
+- Keep a single-current-release policy as a post-publish cleanup step, not as a
+  precondition for publishing the replacement package graph.
 
 ## Final Answer Contract
 
