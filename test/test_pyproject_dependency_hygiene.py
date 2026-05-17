@@ -250,6 +250,24 @@ def test_builtin_worker_manifests_have_resolvable_core_sources() -> None:
     assert core_worker_pyprojects
 
 
+def test_worker_manifests_do_not_depend_on_streamlit() -> None:
+    worker_pyprojects = sorted(
+        {
+            *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"),
+            *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/src/*_worker/pyproject.toml"),
+        }
+    )
+    assert worker_pyprojects
+
+    violations = [
+        pyproject.relative_to(REPO_ROOT).as_posix()
+        for pyproject in worker_pyprojects
+        if "streamlit" in _dependency_names(pyproject)
+    ]
+
+    assert violations == []
+
+
 def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
     stale_by_manifest = {
         "src/agilab/core/agi-env/pyproject.toml": {
