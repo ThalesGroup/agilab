@@ -28,7 +28,7 @@ SHARED_TOOLING_PATHS = {
 SHELL_CHECK_FILES = {"install.sh", "src/agilab/install_apps.sh"}
 RUNCONFIG_PREFIXES = (".idea/runConfigurations/", "tools/run_configs/")
 SKILL_PREFIXES = (".claude/skills/", ".codex/skills/")
-BADGE_PATH_PREFIXES = ("badges/",)
+COVERAGE_BADGE_PATH_PREFIXES = ("badges/coverage-",)
 DOCS_PREFIXES = ("docs/source/",)
 GUI_PREFIXES = (
     "src/agilab/apps-pages/",
@@ -195,7 +195,13 @@ def _risk_zones(paths: list[str]) -> list[RiskZone]:
         ("installer", "Installer or deployment contract touched.", lambda p: p in SHELL_CHECK_FILES or p == "src/agilab/apps/install.py"),
         ("runconfig", "Run configuration or generated launcher touched.", lambda p: _matches_prefix(p, RUNCONFIG_PREFIXES)),
         ("skills", "Shared agent skill trees touched.", lambda p: _matches_prefix(p, SKILL_PREFIXES)),
-        ("badges", "Coverage badge inputs or generated badge artifacts touched.", lambda p: _matches_prefix(p, BADGE_PATH_PREFIXES) or "coverage-" in Path(p).name or p == "tools/generate_component_coverage_badges.py"),
+        (
+            "badges",
+            "Coverage badge inputs or generated badge artifacts touched.",
+            lambda p: _matches_prefix(p, COVERAGE_BADGE_PATH_PREFIXES)
+            or "coverage-" in Path(p).name
+            or p == "tools/generate_component_coverage_badges.py",
+        ),
         ("gui", "GUI/page/runtime surface touched.", _is_gui_file),
         ("docs", "Docs source touched.", lambda p: _matches_prefix(p, DOCS_PREFIXES)),
     )
@@ -488,7 +494,7 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
 
     components = _component_hints(paths)
     if any(
-        _matches_prefix(path, BADGE_PATH_PREFIXES)
+        _matches_prefix(path, COVERAGE_BADGE_PATH_PREFIXES)
         or "coverage-" in Path(path).name
         or path == "tools/generate_component_coverage_badges.py"
         for path in paths
