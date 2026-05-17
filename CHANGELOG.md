@@ -35,6 +35,19 @@ and adopters a versioned, repository-local upgrade trail.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
 
+## [2026.05.17.post2] - 2026-05-17
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-6
+
+### Fixed
+
+- Republished the public AGILAB package set as `2026.05.17.post2` with all
+  internal dependency pins aligned to the post-release package version.
+- Restored clean package installability after PyPI retention removed the
+  superseded `2026.5.17` releases.
+- Kept the release proof and hosted Hugging Face Space evidence aligned with
+  the corrective release tag.
+
 ## [2026.05.17.post1] - 2026-05-17
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5
@@ -619,4 +632,5 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.15.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
 [2026.05.16]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16
 [2026.05.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
-[2026.05.17.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
+[2026.05.17.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5
+[2026.05.17.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-6
