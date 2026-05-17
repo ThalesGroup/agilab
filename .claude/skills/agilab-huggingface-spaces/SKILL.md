@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-16
+  updated: 2026-05-17
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -172,6 +172,8 @@ Before touching the Space deployment, verify:
 3. `hf auth whoami` succeeds, or `HF_TOKEN` is present.
 4. The current README, Dockerfile, and deploy script still agree on:
    - SDK type
+   - Space README metadata frontmatter uses Hugging Face-valid values, including
+     a literal emoji such as `emoji: 🧪` rather than an emoji name like `lab_coat`
    - exposed port
    - secret names
    - anti-lock-in / runnable-notebook-export positioning
