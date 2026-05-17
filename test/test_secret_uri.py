@@ -72,6 +72,27 @@ def test_secret_and_vault_uri_resolution_use_explicit_resolvers() -> None:
     )
 
 
+def test_secret_uri_uses_default_keyring_getter_when_available(monkeypatch) -> None:
+    module = _load_module()
+    fake_keyring = types.SimpleNamespace(
+        get_password=lambda service, account: f"{service}:{account}:from-keyring"
+    )
+    monkeypatch.setitem(sys.modules, "keyring", fake_keyring)
+
+    assert module.resolve_secret_uri("secret://agilab/openai") == "agilab:openai:from-keyring"
+
+
+def test_credential_env_name_rejects_non_env_parse_result(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "parse_secret_uri",
+        lambda _ref: types.SimpleNamespace(scheme="vault", name="TOKEN"),
+    )
+
+    assert module.credential_env_name("env://TOKEN") == ""
+
+
 def test_secret_uri_helpers_fail_closed_for_plain_or_unsupported_values() -> None:
     module = _load_module()
     assert module.is_secret_uri("env://TOKEN")

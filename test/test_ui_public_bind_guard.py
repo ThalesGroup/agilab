@@ -33,6 +33,15 @@ def test_configured_streamlit_host_reads_direct_streamlit_config_when_env_is_emp
     )
 
 
+def test_configured_streamlit_host_uses_streamlit_address_env_and_ignores_broken_config():
+    assert configured_streamlit_host({"STREAMLIT_SERVER_ADDRESS": " 0.0.0.0 "}) == "0.0.0.0"
+
+    def _broken_config(_key: str):
+        raise RuntimeError("streamlit config unavailable")
+
+    assert configured_streamlit_host({}, streamlit_config_getter=_broken_config) == DEFAULT_STREAMLIT_HOST
+
+
 def test_env_host_takes_precedence_over_streamlit_config():
     assert (
         configured_streamlit_host(
