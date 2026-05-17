@@ -25,6 +25,10 @@ def _project_dependency_pin(project_name: str) -> str:
     return f"{metadata['name']}=={metadata['version']}"
 
 
+def _normalized_dependency_pins(dependencies: list[str]) -> set[str]:
+    return {dependency.split(";", 1)[0].strip() for dependency in dependencies}
+
+
 def _load_module():
     previous_package = sys.modules.get("agilab")
     sys.modules.pop("agilab.first_proof_cli", None)
@@ -784,7 +788,7 @@ def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> Non
         _project_dependency_pin("agi-app-flight-telemetry"),
         _project_dependency_pin("agi-app-weather-forecast"),
         _project_dependency_pin("agi-app-uav-relay-queue"),
-    } <= set(dependencies)
+    } <= _normalized_dependency_pins(dependencies)
 
 
 def test_flight_telemetry_project_package_data_includes_payload_for_execute() -> None:
