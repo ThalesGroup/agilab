@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 from importlib.machinery import ModuleSpec
@@ -1055,6 +1056,7 @@ optional_artifacts = ["data/*.csv"]
         module_dir,
         module_dir / "lab_stages.toml",
         "idx",
+        runtime_roles={"cell-2": "worker"},
     )
 
     stored = tomllib.loads((module_dir / "lab_stages.toml").read_text(encoding="utf-8"))
@@ -1135,6 +1137,7 @@ optional_artifacts = ["flight/raw/*.csv"]
         export_dir / "lab_stages.toml",
         "idx",
         view_manifest_dir=app_dir,
+        runtime_roles={"cell-2": "worker"},
     )
 
     view_plan = json.loads((export_dir / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
@@ -1200,6 +1203,7 @@ def test_confirm_notebook_import_preview_promotes_selected_cell_only(monkeypatch
         module_dir / "lab_stages.toml",
         "idx",
         selected_stage_ids=["cell-4"],
+        runtime_roles={"cell-4": "worker"},
     )
 
     stored = tomllib.loads((module_dir / "lab_stages.toml").read_text(encoding="utf-8"))
@@ -1259,6 +1263,47 @@ def test_confirm_notebook_import_preview_persists_cell_runtime_roles(monkeypatch
     assert [stage["runtime"] for stage in contract["stages"]] == ["runpy", "agi.run"]
     assert ("success", "Imported 2 notebook code cell(s).") in messages
     assert ("revision", "bump") in messages
+
+
+def test_confirm_notebook_import_preview_blocks_unreviewed_runtime_roles(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="unreviewed.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {"cells": [{"cell_type": "code", "source": ["print('needs role')\n"]}]}
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    module_dir = tmp_path / "demo_project"
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        module_dir,
+        module_dir / "lab_stages.toml",
+        "idx",
+    )
+
+    assert count == 0
+    assert not (module_dir / "lab_stages.toml").exists()
+    assert not (module_dir / "notebook_import_contract.json").exists()
+    assert "idx__notebook_import_preview" in fake_st.session_state
+    assert "page_broken" not in fake_st.session_state
+    assert messages == [
+        (
+            "error",
+            "Notebook runtime role review is incomplete: Select Manager or Worker for: cell-1.",
+        )
+    ]
 
 
 def test_notebook_import_write_preview_text_shows_selected_scope_diff(tmp_path):
@@ -1427,12 +1472,27 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
         selected["confirm"] = (module_dir, stages_file, index_page, kwargs)
         return 1
 
+    class _RoleBox:
+        def caption(self, message, *args, **kwargs):
+            messages.append(("role-caption", message))
+
+        def selectbox(self, label, options, *args, **kwargs):
+            messages.append(("role-selectbox", label, list(options)))
+            return "Worker (AGILAB worker)"
+
     preview_box = SimpleNamespace(
         code=lambda text, *args, **kwargs: messages.append(("code", kwargs.get("language"), text)),
     )
+
+    def _expander(label, *args, **kwargs):
+        messages.append(("expander", label))
+        if label == "Runtime role per cell":
+            return _RoleBox()
+        return preview_box
+
     sidebar = SimpleNamespace(
         caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
-        expander=lambda label, *args, **kwargs: messages.append(("expander", label)) or preview_box,
+        expander=_expander,
         selectbox=_selectbox,
         button=_button,
     )
@@ -1452,6 +1512,10 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
     assert selected["selectbox"][0] == "Notebook import scope"
     assert "All runnable cells" in selected["selectbox"][1]
     assert selected["confirm"][3]["selected_stage_ids"] == [options[1]["id"]]
+    assert selected["confirm"][3]["runtime_roles"] == {
+        "cell-2": "worker",
+        "cell-4": "worker",
+    }
     assert ("button", "Promote selected cell") in messages
     assert ("expander", "What will be written") in messages
     assert any(
@@ -1462,6 +1526,79 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
         item[0] == "caption" and item[1].startswith("Selected cell 4;")
         for item in messages
     )
+
+
+def test_render_notebook_import_preview_requires_runtime_roles(monkeypatch, tmp_path):
+    uploaded = SimpleNamespace(
+        name="needs-role.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {"cells": [{"cell_type": "code", "source": ["print('needs role')\n"]}]}
+        ).encode("utf-8"),
+    )
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, tmp_path / "demo_project")
+    messages: list[tuple[str, object]] = []
+    captured: dict[str, object] = {"buttons": []}
+
+    class _RoleBox:
+        def caption(self, message, *args, **kwargs):
+            messages.append(("role-caption", message))
+
+        def selectbox(self, label, options, *args, **kwargs):
+            messages.append(("role-selectbox", label, list(options), kwargs))
+            return "Select runtime role"
+
+    preview_box = SimpleNamespace(
+        code=lambda text, *args, **kwargs: messages.append(("code", kwargs.get("language"), text)),
+    )
+
+    def _expander(label, *args, **kwargs):
+        messages.append(("expander", label))
+        if label == "Runtime role per cell":
+            return _RoleBox()
+        return preview_box
+
+    def _button(label, *args, **kwargs):
+        captured["buttons"].append((label, kwargs))
+        return True
+
+    def _confirm(*args, **kwargs):
+        captured["confirm"] = (args, kwargs)
+        return 1
+
+    sidebar = SimpleNamespace(
+        caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
+        expander=_expander,
+        selectbox=lambda label, options, *args, **kwargs: options[0],
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        button=_button,
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx__notebook_import_preview": preview}),
+        sidebar=sidebar,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "confirm_notebook_import_preview", _confirm)
+
+    pipeline_editor.render_notebook_import_preview(
+        tmp_path / "demo_project",
+        tmp_path / "demo_project" / "lab_stages.toml",
+        "idx",
+    )
+
+    assert (
+        "Import all runnable cells",
+        {"key": "idx__confirm_notebook_import", "disabled": True},
+    ) in captured["buttons"]
+    assert "confirm" not in captured
+    assert (
+        "warning",
+        "Runtime review required: Select Manager or Worker for: cell-1.",
+    ) in messages
+    assert (
+        "role-caption",
+        "Select Manager or Worker for every runnable cell before writing the pipeline.",
+    ) in messages
 
 
 def test_render_notebook_import_preview_collects_runtime_roles(monkeypatch, tmp_path):
@@ -1540,7 +1677,14 @@ def test_render_notebook_import_preview_collects_runtime_roles(monkeypatch, tmp_
         and "Runtime roles: cell-1=manager/runpy, cell-2=worker/agi.run" in item[2]
         for item in messages
     )
-    assert ("role-caption", "Choose where each imported cell runs before writing the pipeline.") in messages
+    assert (
+        "role-caption",
+        "Select Manager or Worker for every runnable cell before writing the pipeline.",
+    ) in messages
+    assert (
+        "role-caption",
+        "Cell 1: print('prepare'); artifacts: none; environment hints: none.",
+    ) in messages
 
 
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
@@ -1586,8 +1730,8 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
 
     monkeypatch.setattr(
-        pipeline_editor.json,
-        "dump",
+        pipeline_editor,
+        "_write_json_atomic",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("nb boom")),
     )
     pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print(1)"}]}, tmp_path / "lab_stages.toml")
@@ -1607,6 +1751,54 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
         "Failed to save notebook: nb boom",
         "Failed to save TOML file: toml boom",
     ]
+
+
+def test_write_notebook_json_is_atomic_when_replace_fails(monkeypatch, tmp_path):
+    target = tmp_path / "lab_stages.ipynb"
+    target.write_text("original-notebook\n", encoding="utf-8")
+    manifest_path = notebook_export_support.notebook_export_manifest_path(target)
+    replace_sources: list[Path] = []
+
+    def _fail_replace(source, _target):
+        replace_sources.append(Path(source))
+        raise OSError("replace boom")
+
+    monkeypatch.setattr(pipeline_editor.os, "replace", _fail_replace)
+
+    with pytest.raises(OSError, match="replace boom"):
+        pipeline_editor._write_notebook_json(
+            {
+                "cells": [],
+                "metadata": {"agilab": {"schema": "agilab.notebook_export.v1"}},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            },
+            target,
+        )
+
+    assert target.read_text(encoding="utf-8") == "original-notebook\n"
+    assert not manifest_path.exists()
+    assert replace_sources
+    assert all(not path.exists() for path in replace_sources)
+
+
+def test_notebook_export_handoff_quotes_paths_with_spaces():
+    handoff = notebook_export_support.build_notebook_export_handoff_markdown(
+        {
+            "project_name": "demo project",
+            "active_app": "/tmp/agilab apps/demo project",
+            "notebook_path": "/tmp/agilab exports/demo project/lab stages.ipynb",
+            "manifest_path": "/tmp/agilab exports/demo project/lab stages.notebook_export.json",
+            "handoff_path": "/tmp/agilab exports/demo project/lab stages.notebook_export.md",
+            "stage_count": 0,
+            "stages": [],
+            "related_pages": [],
+        }
+    )
+
+    assert "uv --project '/tmp/agilab apps/demo project' run" in handoff
+    assert "jupyter lab '/tmp/agilab exports/demo project/lab stages.ipynb'" in handoff
+    assert "--inplace '/tmp/agilab exports/demo project/lab stages.ipynb'" in handoff
 
 
 def test_save_stage_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
@@ -2366,6 +2558,14 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     app_root = tmp_path / "apps" / "demo_project"
     (app_root / "src").mkdir(parents=True, exist_ok=True)
     (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    page_script = tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+    inline_renderer = page_script.with_name("notebook_inline.py")
+    inline_renderer.write_text(
+        "def render_inline(*, page, record, export_payload):\n    return 'inline:' + page\n",
+        encoding="utf-8",
+    )
     stage_code = (
         "print('stage-0')\n"
         'path = r"C:\\tmp"\n'
@@ -2391,8 +2591,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
                 description="Inspect demo artifacts.",
                 artifacts=("demo.json", "demo.csv"),
                 launch_note="Open this after the run.",
-                script_path=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"),
-                inline_renderer=str(tmp_path / "apps-pages" / "view_demo" / "src" / "view_demo" / "notebook_inline.py:render_inline"),
+                script_path=str(page_script),
+                inline_renderer=f"{inline_renderer}:render_inline",
             ),
         ),
     )
@@ -2418,12 +2618,30 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     pycharm_mirror = app_root / "notebooks" / "lab_stages.ipynb"
     pycharm_sitecustomize = pycharm_mirror.parent / "sitecustomize.py"
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
+    manifest = json.loads(toml_path.with_suffix(".notebook_export.json").read_text(encoding="utf-8"))
+    mirror_manifest = json.loads(
+        pycharm_mirror.with_suffix(".notebook_export.json").read_text(encoding="utf-8")
+    )
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
-    stage_source_metadata = notebook["cells"][3]["metadata"]
-    stage_source_cell = "".join(notebook["cells"][3]["source"])
-    stage_runner_metadata = notebook["cells"][4]["metadata"]
-    stage_runner_cell = "".join(notebook["cells"][4]["source"])
+    validation_source = "".join(notebook["cells"][2]["source"])
+    handoff_source = "".join(notebook["cells"][3]["source"])
+    handoff_text = toml_path.with_suffix(".notebook_export.md").read_text(encoding="utf-8")
+    mirror_handoff_text = pycharm_mirror.with_suffix(".notebook_export.md").read_text(encoding="utf-8")
+    stage_source_record = next(
+        cell
+        for cell in notebook["cells"]
+        if cell.get("metadata", {}).get("agilab", {}).get("stage_cell", {}).get("kind") == "source"
+    )
+    stage_runner_record = next(
+        cell
+        for cell in notebook["cells"]
+        if cell.get("metadata", {}).get("agilab", {}).get("stage_cell", {}).get("kind") == "runner"
+    )
+    stage_source_metadata = stage_source_record["metadata"]
+    stage_source_cell = "".join(stage_source_record["source"])
+    stage_runner_metadata = stage_runner_record["metadata"]
+    stage_runner_cell = "".join(stage_runner_record["source"])
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
@@ -2440,8 +2658,85 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert metadata["related_pages"][0]["artifacts"] == ["demo.json", "demo.csv"]
     assert notebook["metadata"]["kernelspec"]["name"] == "python3"
     assert notebook["metadata"]["language_info"]["name"] == "python"
+    assert manifest["schema"] == "agilab.notebook_export_manifest.v1"
+    assert manifest["notebook_path"] == str(toml_path.with_suffix(".ipynb"))
+    assert manifest["manifest_path"] == str(toml_path.with_suffix(".notebook_export.json"))
+    assert manifest["handoff_path"] == str(toml_path.with_suffix(".notebook_export.md"))
+    assert manifest["handoff_sha256"] == hashlib.sha256(handoff_text.encode("utf-8")).hexdigest()
+    assert manifest["mirror_path"] == str(pycharm_mirror)
+    assert manifest["sitecustomize_path"] == str(pycharm_sitecustomize)
+    assert manifest["project_name"] == "demo_project"
+    assert manifest["export_mode"] == "supervisor"
+    assert manifest["stage_count"] == 1
+    assert manifest["related_page_count"] == 1
+    assert manifest["notebook_sha256"] == hashlib.sha256(
+        toml_path.with_suffix(".ipynb").read_text(encoding="utf-8").encode("utf-8")
+    ).hexdigest()
+    assert manifest["stage_source_hashes"] == [
+        {
+            "stage_index": 0,
+            "stage_id": "supervisor-stage-1",
+            "module": "demo_project",
+            "module_index": 0,
+            "source_sha256": hashlib.sha256(stage_code.encode("utf-8")).hexdigest(),
+            "source_hash": hashlib.sha256(stage_code.encode("utf-8")).hexdigest()[:16],
+            "runtime": "agi.run",
+            "runtime_role": "worker",
+        }
+    ]
+    assert manifest["cell_ids"][:4] == [
+        "agilab-export-intro",
+        "agilab-export-helper",
+        "agilab-export-validate",
+        "agilab-export-handoff",
+    ]
+    assert manifest["stages"][0]["description"] == "Prepare data"
+    assert manifest["stages"][0]["source_hash"] == hashlib.sha256(stage_code.encode("utf-8")).hexdigest()[:16]
+    assert manifest["related_pages"][0]["module"] == "view_demo"
+    assert [record["kind"] for record in manifest["stage_cells"]] == ["source", "runner"]
+    assert [record["cell_id"] for record in manifest["stage_cells"]] == [
+        "stage-000-source",
+        "stage-000-runner",
+    ]
+    assert manifest["stage_cells"][0]["runtime_role"] == "worker"
+    assert mirror_manifest["notebook_path"] == str(pycharm_mirror)
+    assert mirror_manifest["manifest_path"] == str(pycharm_mirror.with_suffix(".notebook_export.json"))
+    assert mirror_manifest["handoff_path"] == str(pycharm_mirror.with_suffix(".notebook_export.md"))
+    assert mirror_manifest["handoff_sha256"] == hashlib.sha256(mirror_handoff_text.encode("utf-8")).hexdigest()
+    assert mirror_manifest["notebook_sha256"] == manifest["notebook_sha256"]
+    assert mirror_manifest["stage_source_hashes"] == manifest["stage_source_hashes"]
+    assert mirror_manifest["cell_ids"] == manifest["cell_ids"]
+    assert "# AGILAB notebook handoff: demo_project" in handoff_text
+    assert "validate_agilab_export()" in handoff_text
+    assert "run_agilab_pipeline()" in handoff_text
+    assert "Prepare data" in handoff_text
+    assert str(toml_path.with_suffix(".ipynb")) in handoff_text
+    assert str(pycharm_mirror) in mirror_handoff_text
+    assert "Prepare data" in mirror_handoff_text
+    verification = notebook_export_support.verify_notebook_export_manifest(toml_path.with_suffix(".ipynb"))
+    assert verification["ok"] is True
+    assert {check["id"] for check in verification["checks"]} >= {
+        "notebook_exists",
+        "manifest_exists",
+        "manifest_schema",
+        "notebook_sha256",
+        "handoff_exists",
+        "handoff_sha256",
+        "cell_ids",
+        "stage_source_0",
+    }
+    assert [cell["id"] for cell in notebook["cells"][:4]] == [
+        "agilab-export-intro",
+        "agilab-export-helper",
+        "agilab-export-validate",
+        "agilab-export-handoff",
+    ]
     assert "run_agilab_stage" in helper_source
     assert "run_agilab_pipeline" in helper_source
+    assert "validate_agilab_export" in helper_source
+    assert "show_agilab_export_handoff" in helper_source
+    assert "export_handoff_markdown" in helper_source
+    assert "_command_or_path_exists" in helper_source
     assert "analysis_launch_command" in helper_source
     assert "analysis_launch_argv" in helper_source
     assert "render_analysis_page" in helper_source
@@ -2449,6 +2744,11 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
+    compile(helper_source, "<agilab-notebook-export-helper>", "exec")
+    assert validation_source == "validate_agilab_export()\n"
+    compile(validation_source, "<agilab-notebook-export-validation>", "exec")
+    assert handoff_source == "show_agilab_export_handoff()\n"
+    compile(handoff_source, "<agilab-notebook-export-handoff>", "exec")
     assert stage_source_metadata["tags"] == ["agilab.runtime.worker"]
     assert stage_source_metadata["agilab"]["runtime_role"] == "worker"
     assert stage_source_metadata["agilab"]["stage_cell"]["schema"] == "agilab.notebook_export.stage_cell.v1"
@@ -2456,8 +2756,10 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert stage_source_metadata["agilab"]["stage_cell"]["stage_index"] == 0
     assert stage_source_metadata["agilab"]["stage_cell"]["module"] == "demo_project"
     assert stage_source_metadata["agilab"]["stage_cell"]["runtime"] == "agi.run"
+    assert stage_source_record["id"] == "stage-000-source"
     assert stage_runner_metadata["agilab"]["stage_cell"]["kind"] == "runner"
     assert stage_runner_metadata["agilab"]["stage_cell"]["stage_id"] == "supervisor-stage-1"
+    assert stage_runner_record["id"] == "stage-000-runner"
     stage_namespace: dict[str, object] = {}
     exec(stage_source_cell, stage_namespace)
     assert stage_namespace["STAGE_000_CODE"] == stage_code
@@ -2471,9 +2773,65 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "render_analysis_page(page)" in analysis_source
     assert "launch_analysis_page(page)" not in analysis_source
     assert "print(analysis_launch_command(page))" not in analysis_source
+    helper_namespace: dict[str, object] = {}
+    exec(helper_source, helper_namespace)
+    validation_report = helper_namespace["validate_agilab_export"](verbose=False)
+    assert validation_report["ok"] is True
+    assert {check["id"] for check in validation_report["checks"]} == {
+        "schema",
+        "stages",
+        "artifact_dir",
+        "stage_0_python",
+        "analysis_page_view_demo",
+    }
     assert mirror_notebook == notebook
     assert pycharm_sitecustomize.exists()
     assert "ValuesPolicy" in pycharm_sitecustomize.read_text(encoding="utf-8")
+
+
+def test_verify_notebook_export_manifest_detects_tampered_stage_source(tmp_path):
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_stages.toml"
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(export_dir),
+        repo_root=str(tmp_path / "repo"),
+    )
+    pipeline_editor.toml_to_notebook(
+        {
+            "demo_project": [
+                {
+                    "D": "Original stage",
+                    "Q": "Run original source.",
+                    "C": "print('original')\n",
+                    "R": "runpy",
+                }
+            ]
+        },
+        toml_path,
+        export_context=context,
+    )
+
+    notebook_path = toml_path.with_suffix(".ipynb")
+    manifest_path = notebook_export_support.notebook_export_manifest_path(notebook_path)
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    for cell in notebook["cells"]:
+        if cell.get("id") == "stage-000-source":
+            cell["source"] = ["STAGE_000_CODE = \"print('tampered')\\n\"\n", "print(STAGE_000_CODE)\n"]
+            break
+    notebook_path.write_text(notebook_export_support.notebook_export_json_text(notebook), encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["notebook_sha256"] = notebook_export_support.notebook_export_sha256(notebook)
+    manifest_path.write_text(notebook_export_support.notebook_export_json_text(manifest), encoding="utf-8")
+
+    verification = notebook_export_support.verify_notebook_export_manifest(notebook_path)
+
+    assert verification["ok"] is False
+    checks = {check["id"]: check for check in verification["checks"]}
+    assert checks["notebook_sha256"]["status"] == "pass"
+    assert checks["stage_source_0"]["status"] == "fail"
 
 
 def test_notebook_helper_re_resolves_stale_analysis_page_paths_with_agi_env_and_agi_pages(

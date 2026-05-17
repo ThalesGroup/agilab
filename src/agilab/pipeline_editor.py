@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import hashlib
 import importlib.util
 import json
 import logging
@@ -85,6 +86,12 @@ _notebook_export_support_module = import_agilab_module(
 )
 build_notebook_document = _notebook_export_support_module.build_notebook_document
 build_notebook_export_context = _notebook_export_support_module.build_notebook_export_context
+build_notebook_export_handoff_markdown = _notebook_export_support_module.build_notebook_export_handoff_markdown
+build_notebook_export_manifest = _notebook_export_support_module.build_notebook_export_manifest
+notebook_export_json_text = _notebook_export_support_module.notebook_export_json_text
+notebook_export_handoff_path = _notebook_export_support_module.notebook_export_handoff_path
+notebook_export_manifest_path = _notebook_export_support_module.notebook_export_manifest_path
+verify_notebook_export_manifest = _notebook_export_support_module.verify_notebook_export_manifest
 pycharm_notebook_mirror_path = _notebook_export_support_module.pycharm_notebook_mirror_path
 pycharm_notebook_sitecustomize_text = _notebook_export_support_module.pycharm_notebook_sitecustomize_text
 
@@ -108,7 +115,7 @@ write_notebook_import_view_plan = _notebook_pipeline_import_module.write_noteboo
 logger = logging.getLogger(__name__)
 NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
 NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS = {
-    "": "Keep notebook/default",
+    "": "Select runtime role",
     "manager": "Manager (local runpy)",
     "worker": "Worker (AGILAB worker)",
 }
@@ -251,6 +258,29 @@ def _notebook_import_stage_detail(stage: Dict[str, Any]) -> str:
         f"Selected cell {source_cell_index}; "
         f"artifacts: {artifact_text}; "
         f"environment hints: {env_text}."
+    )
+
+
+def _notebook_import_first_code_line(stage: Dict[str, Any]) -> str:
+    source_lines = stage.get("source_lines", [])
+    if not isinstance(source_lines, list):
+        return ""
+    for line in source_lines:
+        text = str(line).strip()
+        if text:
+            return text[:96] + ("..." if len(text) > 96 else "")
+    return ""
+
+
+def _notebook_import_runtime_role_cell_hint(stage: Dict[str, Any], index: int) -> str:
+    source_cell_index = int(stage.get("source_cell_index", index) or index)
+    first_line = _notebook_import_first_code_line(stage) or "code cell"
+    artifacts = _artifact_paths_from_notebook_stage(stage)
+    env_hints = _stage_env_hints_from_notebook_stage(stage)
+    return (
+        f"Cell {source_cell_index}: {first_line}; "
+        f"artifacts: {_notebook_import_string_list(artifacts, limit=3)}; "
+        f"environment hints: {_notebook_import_string_list(env_hints, limit=4)}."
     )
 
 
@@ -446,8 +476,27 @@ def _notebook_import_runtime_role_summary(preview: Dict[str, Any]) -> str:
     return _notebook_import_string_list(parts, limit=6)
 
 
-def _notebook_import_role_widget_key(index_page: str, stage_id: str) -> str:
+def _notebook_import_missing_runtime_role_stage_ids(preview: Dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    for index, stage in enumerate(_notebook_import_stages(preview), start=1):
+        if normalize_notebook_runtime_role(stage.get("runtime_role")):
+            continue
+        missing.append(_notebook_import_stage_identity(stage, index))
+    return missing
+
+
+def _notebook_import_runtime_role_review_detail(preview: Dict[str, Any]) -> str:
+    missing = _notebook_import_missing_runtime_role_stage_ids(preview)
+    if not missing:
+        return ""
+    return f"Select Manager or Worker for: {_notebook_import_string_list(missing, limit=8)}."
+
+
+def _notebook_import_role_widget_key(index_page: str, stage_id: str, source_signature: str = "") -> str:
+    safe_signature = re.sub(r"[^A-Za-z0-9_]+", "_", source_signature).strip("_")
     safe_stage_id = re.sub(r"[^A-Za-z0-9_]+", "_", stage_id).strip("_") or "stage"
+    if safe_signature:
+        return f"{index_page}__notebook_runtime_role_{safe_signature}_{safe_stage_id}"
     return f"{index_page}__notebook_runtime_role_{safe_stage_id}"
 
 
@@ -464,13 +513,14 @@ def _render_notebook_import_runtime_role_controls(
     target = expander("Runtime role per cell", expanded=False) if callable(expander) else sidebar
     caption = getattr(target, "caption", None)
     if callable(caption):
-        caption("Choose where each imported cell runs before writing the pipeline.")
+        caption("Select Manager or Worker for every runnable cell before writing the pipeline.")
 
     selectbox = getattr(target, "selectbox", None)
     if not callable(selectbox):
         return {}
 
     labels = list(NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL)
+    source_signature = str(preview.get("source_signature", "") or "")
     selected_roles: dict[str, str] = {}
     for index, option in enumerate(stage_options, start=1):
         stage = option["stage"]
@@ -488,12 +538,14 @@ def _render_notebook_import_runtime_role_controls(
             f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
             labels,
             index=default_index,
-            key=_notebook_import_role_widget_key(index_page, stage_id),
+            key=_notebook_import_role_widget_key(index_page, stage_id, source_signature),
             help=(
                 "Manager runs locally with runpy. Worker persists the stage for "
                 "AGILAB worker execution with agi.run."
             ),
         )
+        if callable(caption):
+            caption(_notebook_import_runtime_role_cell_hint(stage, index))
         role = NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
         if role:
             selected_roles[stage_id] = role
@@ -652,6 +704,7 @@ def build_notebook_import_preview(
         return None
     return {
         "source_name": source_name,
+        "source_signature": hashlib.sha256(file_content.encode("utf-8")).hexdigest()[:16],
         "module": module,
         "cell_count": int(notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0),
         "toml_content": toml_content,
@@ -1123,17 +1176,58 @@ def resolve_pycharm_notebook_path(
         return None
 
 
-def _write_notebook_json(notebook_data: Dict[str, Any], notebook_path: Path) -> None:
-    notebook_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(notebook_path, "w", encoding="utf-8") as nb_file:
-        json.dump(notebook_data, nb_file, indent=2)
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    try:
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            logger.warning("Unable to remove temporary notebook export file %s", tmp_path)
+
+
+def _write_json_atomic(payload: Dict[str, Any], path: Path) -> None:
+    _atomic_write_text(path, notebook_export_json_text(payload))
+
+
+def _write_notebook_json(
+    notebook_data: Dict[str, Any],
+    notebook_path: Path,
+    *,
+    mirror_path: Path | None = None,
+    sitecustomize_path: Path | None = None,
+) -> None:
+    _write_json_atomic(notebook_data, notebook_path)
+    handoff_path = notebook_export_handoff_path(notebook_path)
+    manifest = build_notebook_export_manifest(
+        notebook_data,
+        notebook_path,
+        mirror_path=mirror_path,
+        sitecustomize_path=sitecustomize_path,
+        handoff_path=handoff_path,
+    )
+    handoff_text = build_notebook_export_handoff_markdown(manifest)
+    manifest["handoff_sha256"] = hashlib.sha256(handoff_text.encode("utf-8")).hexdigest()
+    _atomic_write_text(handoff_path, handoff_text)
+    _write_json_atomic(manifest, notebook_export_manifest_path(notebook_path))
+    verification = verify_notebook_export_manifest(notebook_path)
+    if not verification.get("ok"):
+        failed = [
+            str(check.get("id", "unknown"))
+            for check in verification.get("checks", [])
+            if isinstance(check, dict) and check.get("status") != "pass"
+        ]
+        detail = ", ".join(failed) if failed else "unknown verification failure"
+        raise ValueError(f"Notebook export verification failed for {notebook_path}: {detail}")
 
 
 def _write_pycharm_sitecustomize(notebook_path: Path) -> None:
     sitecustomize_path = notebook_path.parent / "sitecustomize.py"
-    sitecustomize_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(sitecustomize_path, "w", encoding="utf-8") as stream:
-        stream.write(pycharm_notebook_sitecustomize_text())
+    _atomic_write_text(sitecustomize_path, pycharm_notebook_sitecustomize_text())
 
 
 def toml_to_notebook(
@@ -1144,8 +1238,15 @@ def toml_to_notebook(
     """Convert TOML stage data to a Jupyter notebook file."""
     notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
     notebook_path = toml_path.with_suffix(".ipynb")
+    pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
+    sitecustomize_path = pycharm_path.parent / "sitecustomize.py" if pycharm_path is not None else None
     try:
-        _write_notebook_json(notebook_data, notebook_path)
+        _write_notebook_json(
+            notebook_data,
+            notebook_path,
+            mirror_path=pycharm_path,
+            sitecustomize_path=sitecustomize_path,
+        )
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save notebook: {e}")
         logger.error(
@@ -1154,12 +1255,16 @@ def toml_to_notebook(
         )
         return
 
-    pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
     if pycharm_path is None:
         return
     if pycharm_path != notebook_path:
         try:
-            _write_notebook_json(notebook_data, pycharm_path)
+            _write_notebook_json(
+                notebook_data,
+                pycharm_path,
+                mirror_path=pycharm_path,
+                sitecustomize_path=sitecustomize_path,
+            )
         except (OSError, TypeError, ValueError) as exc:
             logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
             return
@@ -1445,6 +1550,10 @@ def confirm_notebook_import_preview(
         detail = _notebook_import_blocking_detail(preview_to_write.get("preflight", {}))
         _emit_streamlit_message("error", f"Notebook cell promotion is blocked: {detail}")
         return 0
+    role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+    if role_detail:
+        _emit_streamlit_message("error", f"Notebook runtime role review is incomplete: {role_detail}")
+        return 0
     try:
         cell_count = write_notebook_import_preview(
             preview_to_write,
@@ -1520,6 +1629,8 @@ def render_notebook_import_preview(
     if not callable(button):
         return
     selected_stage_ids: list[str] | None = None
+    preview_to_write: Dict[str, Any] | None = None
+    role_detail = ""
     if _notebook_import_preview_is_safe(preview):
         runtime_roles = _render_notebook_import_runtime_role_controls(
             sidebar,
@@ -1556,11 +1667,18 @@ def render_notebook_import_preview(
         preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
         preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
         _render_notebook_import_write_preview(sidebar, preview_to_write, stages_file)
+        role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+        if role_detail:
+            warning = getattr(sidebar, "warning", None)
+            if callable(warning):
+                warning(f"Runtime review required: {role_detail}")
     import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
+    import_ready = _notebook_import_preview_is_safe(preview) and preview_to_write is not None and not role_detail
     if _notebook_import_preview_is_safe(preview) and button(
         import_label,
         key=f"{index_page}__confirm_notebook_import",
-    ):
+        disabled=not import_ready,
+    ) and import_ready:
         confirm_notebook_import_preview(
             module_dir,
             stages_file,

@@ -2197,6 +2197,11 @@ def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
     )
     assert uploader is not None
     assert at.query_params.get("start") == ["notebook-import"]
+    create_button = next((button for button in at.sidebar.button if button.label == "Create"), None)
+    assert create_button is not None
+    assert getattr(create_button, "disabled", None) is True
+    sidebar_info = "\n".join(str(item.value) for item in at.sidebar.info)
+    assert "Upload a notebook before creating the project." in sidebar_info
 
     notebook_payload = {
         "cells": [
