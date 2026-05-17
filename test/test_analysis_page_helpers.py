@@ -695,6 +695,59 @@ def test_analysis_page_state_uses_default_only_before_explicit_session_selection
     assert explicit_state.config_view_module == ()
 
 
+def test_analysis_page_state_restricts_to_configured_normalized_views(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_network = tmp_path / "view_maps_network.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "restrict_to_view_module": True,
+            "default_views": ["!! view_maps", "view_maps", "missing_view"],
+        },
+        current_page=None,
+        configured_views=["?? view_maps", "view_maps", "view_maps_network"],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_maps_network": view_network,
+        },
+        custom_view_lookup={},
+    )
+
+    assert state.view_names == ("view_maps", "view_maps_network")
+    assert state.default_view_names == ("view_maps",)
+    assert state.widget_selection == ("view_maps", "view_maps_network")
+    assert state.config_view_module == ("view_maps", "view_maps_network")
+
+
+def test_analysis_page_state_falls_back_to_all_views_when_restrict_config_is_empty(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    custom_view = tmp_path / "custom.py"
+    custom_key = str(custom_view)
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={"restrict_to_view_module": True},
+        current_page=None,
+        configured_views=["missing_view"],
+        resolved_pages={"view_maps": view_maps},
+        custom_view_lookup={custom_key: custom_view},
+    )
+
+    assert state.view_names == (custom_key, "view_maps")
+    assert state.widget_selection == ()
+
+
+def test_analysis_page_state_handles_invalid_and_unresolved_defaults(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+
+    assert state_module.normalize_view_name(None) == ""
+    assert state_module.normalize_view_name("") == ""
+    assert state_module._resolve_default_view(42, (), {}, {}) == (None, None)
+    assert state_module._resolve_default_view("   ", (), {}, {}) == (None, None)
+    assert state_module._resolve_default_view("missing_path", ("missing_path",), {}, {}) == (None, None)
+
+
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
     module = _load_analysis_module()
 
