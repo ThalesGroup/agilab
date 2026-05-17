@@ -81,7 +81,7 @@ DOCKERIGNORE = """\
 README_TEMPLATE = """\
 ---
 title: AGILAB
-emoji: lab_coat
+emoji: 🧪
 colorFrom: blue
 colorTo: indigo
 sdk: docker
