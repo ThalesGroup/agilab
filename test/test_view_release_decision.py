@@ -762,6 +762,30 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(module, "_connector_path_registry", lambda _env: _Registry())
     assert module._default_artifact_root(SimpleNamespace(target="demo", app="demo")) == tmp_path / "artifact_root"
     assert registry_paths == ["artifact_root"]
+    fake_st = SimpleNamespace(
+        session_state={
+            "release_decision_app_scope": "old:/old",
+            "release_decision_datadir": "/old/artifacts",
+            "release_decision_metrics_glob": "*.json",
+            "release_decision_required_patterns": "*.json",
+            "release_decision_run_manifest_path": "/old/run_manifest.json",
+        }
+    )
+    env = SimpleNamespace(app="weather_forecast_project", active_app=tmp_path / "weather_forecast_project")
+    module._reset_app_scoped_session_defaults(fake_st, env)
+    assert fake_st.session_state == {
+        "release_decision_app_scope": f"weather_forecast_project:{tmp_path / 'weather_forecast_project'}",
+    }
+    normalized_env = SimpleNamespace(
+        app="meteo_forecast",
+        target="meteo_forecast",
+        active_app=tmp_path / "weather_forecast_project",
+    )
+    assert module._default_metrics_glob(normalized_env) == "**/forecast_metrics.json"
+    assert module._default_required_patterns(normalized_env) == [
+        "forecast_metrics.json",
+        "forecast_predictions.csv",
+    ]
 
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []

@@ -73,7 +73,7 @@ def render_project_selector(
         help=help_text,
     )
     if show_edit_button:
-        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", use_container_width=True):
+        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", width="stretch"):
             streamlit.query_params["active_app"] = selection
             streamlit.switch_page(Path("pages/1_PROJECT.py"))
     if selection != current:

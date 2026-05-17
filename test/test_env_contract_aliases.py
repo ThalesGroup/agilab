@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -29,6 +30,13 @@ RETIRED_ENV_SURFACES = (
 )
 
 
+def _contains_retired_surface(text: str, retired: str) -> bool:
+    if retired.startswith("--"):
+        return retired in text
+    pattern = rf"(?<![A-Za-z0-9_]){re.escape(retired)}(?![A-Za-z0-9_])"
+    return re.search(pattern, text) is not None
+
+
 def _iter_text_files(root: Path):
     if root.is_file():
         yield root
@@ -53,7 +61,7 @@ def test_retired_environment_aliases_do_not_reappear() -> None:
             except UnicodeDecodeError:
                 continue
             for retired in RETIRED_ENV_SURFACES:
-                if retired in text:
+                if _contains_retired_surface(text, retired):
                     findings.append(f"{path.relative_to(REPO_ROOT)}: contains {retired}")
 
     assert findings == []
