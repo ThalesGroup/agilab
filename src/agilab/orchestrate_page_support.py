@@ -58,6 +58,9 @@ _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("ssh_exchange_identification",),
     ("broken pipe",),
     ("timeout expired",),
+    ("failed to extract", ".7z"),
+    ("not a 7z file",),
+    ("bad7zfile",),
 )
 
 _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(

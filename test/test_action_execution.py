@@ -98,6 +98,34 @@ def test_run_streamlit_action_converts_exceptions_to_action_errors():
     assert callbacks == []
 
 
+def test_run_streamlit_action_classifies_archive_exceptions():
+    fake_st = _FakeStreamlit()
+
+    def _raise():
+        raise RuntimeError("Failed to extract '/tmp/dataset.7z': not a 7z file")
+
+    result = action_execution.run_streamlit_action(
+        fake_st,
+        action_execution.ActionSpec(
+            name="Import project",
+            start_message="Importing...",
+            failure_title="Project import failed.",
+        ),
+        _raise,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project import failed."
+    assert result.detail == (
+        "dataset.7z could not be extracted. The archive is missing, truncated, "
+        "or not a valid .7z dataset archive."
+    )
+    assert result.next_action is not None
+    assert result.data == {"failure_category": "archive"}
+    assert fake_st.messages[0] == ("error", "Project import failed.")
+    assert "not a 7z file" not in str(fake_st.messages)
+
+
 def test_render_action_result_supports_warning_outcomes():
     fake_st = _FakeStreamlit()
 

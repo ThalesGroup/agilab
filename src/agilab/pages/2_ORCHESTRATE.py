@@ -170,6 +170,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.runtime_failure_diagnostics",
+    {
+        "classify_runtime_failure": "classify_runtime_failure",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "runtime_failure_diagnostics.py",
+    fallback_name="agilab_runtime_failure_diagnostics_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_page_helpers",
     {
         "app_install_status": "_orchestrate_app_install_status",
@@ -903,10 +913,16 @@ async def _install_worker_action(
         "venv": venv,
     }
     if error_flag:
+        diagnostic = classify_runtime_failure(
+            "\n".join(str(line) for line in (*local_log, install_stderr)),
+            phase="install",
+        )
+        if diagnostic is not None:
+            data["failure_category"] = diagnostic.category
         return ActionResult.error(
-            "Cluster installation failed.",
-            detail=str(install_stderr or install_error or "Install logs indicate failure."),
-            next_action="Check install logs above, fix the worker environment, then rerun INSTALL.",
+            diagnostic.title if diagnostic else "Cluster installation failed.",
+            detail=diagnostic.detail if diagnostic else str(install_stderr or install_error or "Install logs indicate failure."),
+            next_action=diagnostic.next_action if diagnostic else "Check install logs above, fix the worker environment, then rerun INSTALL.",
             data=data,
         )
     return ActionResult.success(

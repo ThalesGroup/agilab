@@ -1097,6 +1097,7 @@ async def test_render_execute_section_run_failure_keeps_logs_visible(monkeypatch
     assert fake_st.session_state["_last_execute_failed"] is True
     assert "ConnectionError: scheduler host is invalid" in fake_st.session_state["run_log_cache"]
     assert any(kind == "error" and msg == "AGI execution failed." for kind, msg in fake_st.messages)
+    assert any(kind == "info" and msg == "Scheduler is unreachable." for kind, msg in fake_st.messages)
     assert any(kind == "code" and "ConnectionError: scheduler host is invalid" in msg for kind, msg in fake_st.messages)
     assert fake_st.session_state.get("_benchmark_expand") is not True
 
