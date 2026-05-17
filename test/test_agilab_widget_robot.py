@@ -51,6 +51,18 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
     assert module.resolve_pages("PROJECT, ANALYSIS") == ["PROJECT", "ANALYSIS"]
 
 
+def test_settings_page_has_stable_robot_expectations() -> None:
+    module = _load_module()
+
+    assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == (
+        "SETTINGS",
+        "Settings",
+        "Runtime diagnostics",
+        "Environment variables",
+    )
+    assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
+
+
 def test_streamlit_health_failure_detail_includes_process_output() -> None:
     module = _load_module()
 

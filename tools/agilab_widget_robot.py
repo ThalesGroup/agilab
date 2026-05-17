@@ -158,11 +158,12 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
+    "SETTINGS": ("SETTINGS", "Settings", "Runtime diagnostics", "Environment variables"),
     "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
     "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
-PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 
 WIDGET_COLLECTOR_JS = r"""
 () => {
