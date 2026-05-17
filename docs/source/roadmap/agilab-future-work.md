@@ -212,6 +212,243 @@ Done means:
 - users can adopt one app, one notebook import, one demo, or the full workbench
   without discovering different contracts for each path
 
+## Professional execution backlog
+
+Treat this as the delivery order. Lower-priority feature work should not
+displace higher-priority adoption, release, and safety work unless there is an
+explicit product decision.
+
+### Priority 1. Clean release lane
+
+Ship only when the public package, public docs, release proof, coverage badges,
+trusted publishing, Hugging Face copy, and first-proof commands all describe the
+same release.
+
+Acceptance gate:
+
+- `./dev release`, `./dev docs`, and the release proof report pass from a clean
+  checkout
+- the release proof names the exact version, validation routes, and known
+  non-certified environments
+- no manual release note, README, public docs page, or demo copy contradicts the
+  package that was published
+
+Why first:
+
+- professional adoption starts by trusting the published artifact, not by
+  trusting the developer machine
+
+### Priority 2. Notebook import parity
+
+Every public example that is advertised as importable from a notebook must ship
+with a notebook sample, deterministic metadata, and an imported-project smoke
+that proves `INSTALL` and `EXECUTE` behave like the original app.
+
+Acceptance gate:
+
+- each supported sample creates a predictably named
+  `<example>-from-notebook-project`
+- manager/worker cell roles are explicit or force review before project
+  creation
+- at least one imported notebook project is included in the release smoke
+
+Why now:
+
+- notebook import is a unique adoption bridge only if users can prove that the
+  imported project still runs
+
+### Priority 3. First-run wizard contract
+
+The default UI path must be direct: buttons perform the action they promise, and
+the next required user action is visible before navigation.
+
+Acceptance gate:
+
+- built-in first proof: select demo, install, execute, and analysis are all
+  direct and recoverable
+- notebook first proof: create from packaged notebook does not require the user
+  to find a hidden file
+- spinners, success messages, and failure messages are scoped to the action that
+  actually ran
+
+Why now:
+
+- first-run confusion makes the product feel experimental even when the backend
+  works
+
+### Priority 4. Runtime failure diagnostics
+
+Failures must classify themselves before showing raw tracebacks.
+
+Acceptance gate:
+
+- install/run/delete/import failures distinguish dependency, path, archive,
+  project-state, cluster-share, worker-copy, and scheduler failures
+- stale local app directories and stale worker environments produce actionable
+  remediation
+- corrupted archives and invalid imported notebooks fail fast with a concise
+  cause and a safe next step
+
+Why now:
+
+- professional users can tolerate failures; they cannot tolerate unclear
+  failures
+
+### Priority 5. Security and shared-use hardening
+
+Keep controlled local R&D easy, but make shared-team use conditional on explicit
+controls.
+
+Acceptance gate:
+
+- public bind, external app repositories, notebook import, generated code,
+  secrets, cluster accounts, and service mode each have an explicit guard or
+  operator checklist
+- security checks can emit machine-readable results for the selected install
+  profile
+- the docs continue to reject standalone production, public, multi-tenant, or
+  regulated-data claims without external hardening
+
+Why now:
+
+- adoption grows only if the boundary between safe default use and hardened use
+  stays explicit
+
+### Priority 6. Cluster and team operation
+
+Cluster mode should be a supported team workflow, not a best-effort advanced
+demo.
+
+Acceptance gate:
+
+- cluster requests fail when no usable shared path exists
+- SSH, SSHFS, LAN discovery, remote path, and share-sentinel checks are exposed
+  through CLI and UI diagnostics
+- validation evidence covers local, bare-metal cluster, VM cluster, AI
+  Lightning, Hugging Face, and cloud targets only where each route has actually
+  been tested
+
+Why now:
+
+- distributed execution is a core differentiator only when setup and failure
+  modes are operationally clear
+
+### Priority 7. Evidence and promotion workflow
+
+AGILab should make it easy to decide whether a run, app, notebook import, or
+cluster validation is ready to reuse, publish, or hand off.
+
+Acceptance gate:
+
+- run evidence, release decisions, compatibility reports, run diff, artifact
+  provenance, and supply-chain evidence share stable schemas
+- evidence bundles can be consumed outside AGILab by reviewers, CI, MLflow, or
+  platform teams
+- promotion decisions state what passed, what failed, and what is out of scope
+
+Why now:
+
+- this is the bridge between a useful workbench and professional engineering
+  governance
+
+### Priority 8. Connector-backed data access
+
+Move data access from repeated path settings to declarative connectors.
+
+Acceptance gate:
+
+- SQL, OpenSearch/ELK, object storage, local paths, and simulation backends use
+  connector definitions instead of page-specific path glue where practical
+- connector health checks stay operator-triggered and do not leak credentials
+- import/export provenance names the connector and artifact source
+
+Why now:
+
+- professional workflows fail when data paths are machine-specific or invisible
+
+### Priority 9. Extension and design-pattern guardrails
+
+New app, page, workflow, notebook, connector, and reducer behavior should extend
+stable contracts instead of adding special cases.
+
+Acceptance gate:
+
+- public app templates, page metadata, pipeline stages, notebook import roles,
+  reducers, connectors, and evidence reports have focused tests
+- pattern-gated checks block new workflow behavior that bypasses the shared
+  contracts
+- deprecations include a migration path and removal target
+
+Why now:
+
+- long-term maintenance depends more on repeatable patterns than on another
+  feature page
+
+### Priority 10. Curated app ecosystem
+
+Publish fewer apps, but make every published app useful, named well, documented,
+installable, runnable, and importable when it claims notebook support.
+
+Acceptance gate:
+
+- app packages use consistent `agi-app-*` names, trusted publishing, and clean
+  metadata
+- example READMEs explain purpose, inputs, outputs, install/run path, notebook
+  import status, and limitations
+- app repository update behavior wins over stale local copies without hidden
+  compatibility aliases
+
+Why now:
+
+- app quality is the most visible proof that the platform contract works
+
+### Priority 11. Multi-app DAG productization
+
+Productize multi-app orchestration only after the release, first-run, notebook,
+diagnostic, and evidence layers are stable.
+
+Acceptance gate:
+
+- `WORKFLOW` can show, validate, and execute a product-level DAG with persisted
+  operator-visible state
+- retry, partial rerun, dependency visualization, and artifact handoff are
+  visible in the same operator surface
+- the shipped two-app executable DAG remains the regression baseline before
+  broader DAG coverage is claimed
+
+Why later:
+
+- multi-app DAGs are high-value, but they amplify every weak contract beneath
+  them
+
+### Priority 12. Observability and MLOps handoff
+
+Integrate with observability and MLOps platforms without claiming to replace
+them.
+
+Acceptance gate:
+
+- MLflow remains the tracking and registry handoff path
+- OpenSearch/Grafana/Superset-style integrations consume AGILab evidence and
+  telemetry instead of duplicating app logic
+- production serving, drift detection, feature stores, and enterprise
+  governance are framed as external platform integrations
+
+Why later:
+
+- observability is most useful after run evidence and operational status are
+  already consistent
+
+### Explicit non-priorities until the above is stable
+
+- broad public OS, GPU, cloud, or network certification without matching run
+  evidence
+- production multi-tenant claims without external identity, isolation, quotas,
+  secrets management, audit, and monitoring controls
+- generic dashboards that are not tied to AGILab runs, artifacts, or decisions
+- new app publishing when the app lacks a clear purpose, deterministic first
+  run, README, evidence, and package metadata
+
 ## Feature sequencing after the professional baseline
 
 If the goal is near-term product sequencing rather than broad idea collection,
