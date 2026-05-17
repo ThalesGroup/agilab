@@ -617,6 +617,7 @@ jobs:
             --repo pypi
             --protect-version "$current_version"
             --confirm-delete
+            --allow-delete-failure-warning
             --json
             --github-step-summary "$GITHUB_STEP_SUMMARY"
           )

@@ -373,6 +373,14 @@ def delete_release_via_pypi_web(
             username=username,
             password=password,
         )
+        if urlparse(response.url).path.rstrip("/") == "/account/login":
+            raise RuntimeError(
+                "PyPI redirected back to login while opening the release delete "
+                "page after password/TOTP authentication. PyPI likely requires "
+                "unrecognized-login email confirmation from the same runner IP; "
+                "use a self-hosted/static-IP runner for automatic deletion or "
+                "run the cleanup manually from a confirmed device."
+            )
         try:
             delete_form = _find_form(
                 response.text,
@@ -563,6 +571,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--otp-code")
     parser.add_argument("--totp-secret")
     parser.add_argument("--confirm-delete", action="store_true")
+    parser.add_argument(
+        "--allow-delete-failure-warning",
+        action="store_true",
+        help=(
+            "Return success after recording stale releases when PyPI web deletion "
+            "needs interactive cleanup. Missing protected releases still fail."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -606,17 +622,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.confirm_delete:
             raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
         username, password = require_credentials(args.username, args.password)
+        delete_blocked = False
         for package, version in pending_deletes:
             print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
-            delete_release(
-                package=package,
-                version=version,
-                repo=args.repo,
-                username=username,
-                password=password,
-                auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
-                verbose=args.verbose,
-            )
+            try:
+                delete_release(
+                    package=package,
+                    version=version,
+                    repo=args.repo,
+                    username=username,
+                    password=password,
+                    auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+                    verbose=args.verbose,
+                )
+            except SystemExit as exc:
+                if not args.allow_delete_failure_warning:
+                    raise
+                delete_blocked = True
+                message = str(exc).replace("\n", " ")
+                print(
+                    "::warning title=PyPI release retention::"
+                    f"Old PyPI releases remain for {package}: {message}",
+                    file=sys.stderr,
+                )
+                break
         plans = verify_retention(
             packages=packages,
             repo=args.repo,
@@ -624,6 +653,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             attempts=args.verify_attempts,
             retry_delay=args.retry_delay,
         )
+    else:
+        delete_blocked = False
 
     summary = render_summary(plans, dry_run=args.dry_run)
     if args.github_step_summary:
@@ -637,7 +668,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{package['package']}: keep={package['protect_version']} "
                 f"published={len(package['published_versions'])} old={deleted}"
             )
-    return 0 if summary["success"] or args.dry_run else 1
+    return 0 if summary["success"] or args.dry_run or delete_blocked else 1
 
 
 if __name__ == "__main__":

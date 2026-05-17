@@ -402,6 +402,45 @@ def test_main_blocks_when_cleanup_failure_remains(monkeypatch) -> None:
         )
 
 
+def test_main_can_warn_when_cleanup_requires_interactive_pypi(monkeypatch, capsys) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.05.17"],
+    )
+
+    def fail_delete_release(**kwargs):
+        raise SystemExit("PyPI redirected back to login")
+
+    monkeypatch.setattr(module, "delete_release", fail_delete_release)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--protect-version",
+            "2026.05.17",
+            "--username",
+            "maintainer",
+            "--password",
+            "secret",
+            "--confirm-delete",
+            "--allow-delete-failure-warning",
+            "--json",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert "::warning title=PyPI release retention::" in captured.err
+    assert '"success": false' in captured.out
+    assert '"delete_versions": [\n        "2026.04.16"\n      ]' in captured.out
+
+
 def test_main_rejects_missing_protected_release(monkeypatch) -> None:
     module = _load_module()
 
