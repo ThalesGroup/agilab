@@ -20,13 +20,13 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.05.17.post1"
+package_version = "2026.05.17.post2"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.05.17-5"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5"
+github_release_tag = "v2026.05.17-6"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-6"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
 hf_space_commit = "baac670370f241bb16c3d8e643f90e1f62863037"
@@ -69,7 +69,7 @@ label = "PyPI publish"
 workflow = "pypi-publish"
 run_id = "25971244152"
 url = "https://github.com/ThalesGroup/agilab/actions/runs/25971244152"
-summary = "published the 2026.05.17.post1 package after preflight, release evidence, and supply-chain evidence passed; GitHub release evidence is recorded under v2026.05.17-5"
+summary = "published the 2026.05.17.post2 package after preflight, release evidence, and supply-chain evidence passed; GitHub release evidence is recorded under v2026.05.17-5"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"

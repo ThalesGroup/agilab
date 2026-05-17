@@ -1,6 +1,6 @@
 [project]
 name = "execution_polars_project"
-version = "2026.05.17.post1"
+version = "2026.05.17.post2"
 description = "Built-in AGILab execution playground using PolarsWorker"
 requires-python = ">=3.11"
 dependencies = ["agi-env>=2026.05.17", "agi-node>=2026.05.17", "polars", "pydantic"]
