@@ -401,6 +401,17 @@ present::
     AGILAB_RUN_FULL_UI_ROBOT=1 \
     uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
+The opt-in UI robot matrix used by GitHub Actions covers isolated core pages,
+the entry shell plus configured app pages, and the ``PROJECT`` route for every
+built-in app::
+
+    uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
+      --scenario isolated-core-pages \
+      --scenario isolated-entry-and-app-pages \
+      --scenario isolated-project-page \
+      --json \
+      --quiet-progress
+
 To run the same robot against the public Hugging Face Space instead of a local
 server::
 

@@ -113,6 +113,19 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
+    "isolated-project-page": RobotScenario(
+        name="isolated-project-page",
+        description=(
+            "Sweep the PROJECT route for every built-in app through the guarded "
+            "source navigation wrapper."
+        ),
+        pages="PROJECT",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "current-home-actions": RobotScenario(
         name="current-home-actions",
         description=(
