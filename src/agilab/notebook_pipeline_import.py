@@ -28,6 +28,7 @@ VIEW_PLAN_SCHEMA = "agilab.notebook_import_view_plan.v1"
 VIEW_MANIFEST_SCHEMA = "agilab.notebook_import_views.v1"
 VIEW_MANIFEST_NAME = "notebook_import_views.toml"
 NOTEBOOK_IMPORT_METADATA_SCHEMA = "agilab.notebook_import.v1"
+NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA = "agilab.notebook_export.stage_cell.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -142,6 +143,14 @@ class NotebookPipelineImportProof:
             "notebook_import": self.notebook_import,
             "reloaded_import": self.reloaded_import,
         }
+
+
+@dataclass(frozen=True)
+class _SupervisorStageSourceOverride:
+    source_cell_index: int
+    source: str
+    stage_cell_metadata: Mapping[str, Any]
+    runtime_role: str
 
 
 def _issue(location: str, message: str) -> NotebookPipelineImportIssue:
@@ -583,6 +592,78 @@ def _agilab_supervisor_stages(notebook: Mapping[str, Any]) -> list[dict[str, Any
     return [stage for stage in stages if isinstance(stage, dict)]
 
 
+def _cell_agilab_metadata(cell: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = cell.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        return {}
+    agilab_metadata = metadata.get("agilab", {})
+    return agilab_metadata if isinstance(agilab_metadata, Mapping) else {}
+
+
+def _export_stage_cell_metadata(cell: Mapping[str, Any]) -> Mapping[str, Any]:
+    stage_cell = _cell_agilab_metadata(cell).get("stage_cell", {})
+    if not isinstance(stage_cell, Mapping):
+        return {}
+    schema = str(stage_cell.get("schema", "") or "").strip()
+    if schema and schema != NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA:
+        return {}
+    return stage_cell
+
+
+def _coerce_nonnegative_int(value: Any) -> int | None:
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result >= 0 else None
+
+
+def _extract_exported_stage_source(source_cell_text: str, stage_index: int) -> str:
+    """Return the editable stage source from an exported source cell."""
+    variable_name = f"STAGE_{stage_index:03d}_CODE"
+    try:
+        tree = ast.parse(source_cell_text or "")
+    except SyntaxError:
+        return source_cell_text
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id != variable_name:
+            continue
+        try:
+            value = ast.literal_eval(node.value)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(value, str):
+            return value
+    return source_cell_text
+
+
+def _supervisor_stage_source_overrides(notebook: Mapping[str, Any]) -> dict[int, _SupervisorStageSourceOverride]:
+    overrides: dict[int, _SupervisorStageSourceOverride] = {}
+    for cell_index, cell in enumerate(_notebook_cells(notebook), start=1):
+        if cell.get("cell_type") != "code":
+            continue
+        stage_cell = _export_stage_cell_metadata(cell)
+        if str(stage_cell.get("kind", "") or "").strip().lower() != "source":
+            continue
+        stage_index = _coerce_nonnegative_int(stage_cell.get("stage_index"))
+        if stage_index is None or stage_index in overrides:
+            continue
+        agilab_metadata = _cell_agilab_metadata(cell)
+        runtime_role = normalize_notebook_runtime_role(agilab_metadata.get("runtime_role"))
+        if not runtime_role:
+            runtime_role = normalize_notebook_runtime_role(stage_cell.get("runtime_role"))
+        overrides[stage_index] = _SupervisorStageSourceOverride(
+            source_cell_index=cell_index,
+            source=_extract_exported_stage_source(_source_text(cell), stage_index),
+            stage_cell_metadata=stage_cell,
+            runtime_role=runtime_role,
+        )
+    return overrides
+
+
 def _supervisor_context_text(stage: Mapping[str, Any]) -> str:
     parts = [
         str(stage.get("description", "") or "").strip(),
@@ -604,12 +685,17 @@ def _build_from_supervisor_metadata(
     context_blocks: list[dict[str, Any]] = []
     all_env_hints: list[str] = []
     all_artifact_references: list[dict[str, Any]] = []
+    source_overrides = _supervisor_stage_source_overrides(notebook)
 
-    for stage_index, stage in enumerate(supervisor_stages, start=1):
-        source = str(stage.get("code", "") or "")
+    for stage_offset, stage in enumerate(supervisor_stages):
+        stage_order = stage_offset + 1
+        source_override = source_overrides.get(stage_offset)
+        stage_cell_metadata = source_override.stage_cell_metadata if source_override is not None else {}
+        source_cell_index = source_override.source_cell_index if source_override is not None else stage_order
+        source = source_override.source if source_override is not None else str(stage.get("code", "") or "")
         if not source.strip():
             continue
-        context_id = f"agilab-stage-{stage_index}-context"
+        context_id = f"agilab-stage-{stage_order}-context"
         context_text = _supervisor_context_text(stage)
         context_blocks.append(
             {
@@ -620,14 +706,20 @@ def _build_from_supervisor_metadata(
             }
         )
         env_hints = extract_env_hints(source)
-        artifact_references = extract_artifact_references(source, stage_index)
+        artifact_references = extract_artifact_references(source, source_cell_index)
         all_env_hints.extend(env_hints)
         all_artifact_references.extend(artifact_references)
-        runtime_role = normalize_notebook_runtime_role(stage.get("runtime"))
+        runtime = str(stage_cell_metadata.get("runtime", "") or stage.get("runtime", "") or "")
+        env = str(stage_cell_metadata.get("env", "") or stage.get("env", "") or "")
+        runtime_role = source_override.runtime_role if source_override is not None else ""
+        if not runtime_role:
+            runtime_role = normalize_notebook_runtime_role(stage_cell_metadata.get("runtime_role"))
+        if not runtime_role:
+            runtime_role = normalize_notebook_runtime_role(runtime)
         stage_payload = {
-            "id": f"supervisor-stage-{stage_index}",
+            "id": f"supervisor-stage-{stage_order}",
             "order": len(pipeline_stages) + 1,
-            "source_cell_index": stage_index,
+            "source_cell_index": source_cell_index,
             "cell_type": "code",
             "execution_count": None,
             "source_lines": source.splitlines(keepends=True),
@@ -639,8 +731,8 @@ def _build_from_supervisor_metadata(
             "description": str(stage.get("description", "") or ""),
             "question": str(stage.get("question", "") or ""),
             "model": str(stage.get("model", "") or ""),
-            "runtime": str(stage.get("runtime", "") or ""),
-            "env": str(stage.get("env", "") or ""),
+            "runtime": runtime,
+            "env": env,
             "pipeline_mapping": {
                 "format": "lab_stages.toml-preview",
                 "description_field": "D",

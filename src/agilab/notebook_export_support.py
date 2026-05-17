@@ -6,7 +6,7 @@ import sys
 import textwrap
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Sequence
+from typing import Any, Dict, Iterable, Mapping, Sequence
 
 import tomllib
 
@@ -18,6 +18,7 @@ from .page_bundle_registry import discover_page_bundle
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
 NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
+NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA = "agilab.notebook_export.stage_cell.v1"
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 PROJECT_NOTEBOOK_MIRROR_DIR = "notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
@@ -182,6 +183,15 @@ def _looks_like_source_checkout(root: Path) -> bool:
 
 def _truthy_env(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _runtime_role_from_engine(value: Any) -> str:
+    normalized = str(value or "").strip().lower().replace("_", "-")
+    if normalized in {"agi.run", "agi"}:
+        return "worker"
+    if normalized in {"runpy", "python", "local"}:
+        return "manager"
+    return ""
 
 
 def _allow_workspace_sibling_apps() -> bool:
@@ -752,11 +762,11 @@ def _markdown_cell(text: str) -> dict[str, Any]:
     }
 
 
-def _code_cell(code: str) -> dict[str, Any]:
+def _code_cell(code: str, *, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
     return {
         "cell_type": "code",
         "execution_count": None,
-        "metadata": {},
+        "metadata": dict(metadata or {}),
         "outputs": [],
         "source": code.splitlines(keepends=True),
     }
@@ -1613,6 +1623,39 @@ def _stage_runner_cell(stage: dict[str, Any]) -> str:
     ).strip() + "\n"
 
 
+def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
+    stage_index = int(stage.get("index", 0) or 0)
+    runtime = str(stage.get("runtime", "") or "")
+    runtime_role = _runtime_role_from_engine(runtime)
+    stage_cell = {
+        "schema": NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA,
+        "kind": kind,
+        "stage_index": stage_index,
+        "stage_id": f"supervisor-stage-{stage_index + 1}",
+        "module": str(stage.get("module", "") or ""),
+        "module_index": int(stage.get("module_index", 0) or 0),
+        "description": str(stage.get("description", "") or ""),
+        "question": str(stage.get("question", "") or ""),
+        "model": str(stage.get("model", "") or ""),
+        "runtime": runtime,
+        "env": str(stage.get("env", "") or ""),
+    }
+    if runtime_role:
+        stage_cell["runtime_role"] = runtime_role
+
+    agilab_payload: dict[str, Any] = {
+        "schema": NOTEBOOK_EXPORT_SCHEMA,
+        "stage_cell": stage_cell,
+    }
+    if runtime_role:
+        agilab_payload["runtime_role"] = runtime_role
+
+    metadata: dict[str, Any] = {"agilab": agilab_payload}
+    if runtime_role:
+        metadata["tags"] = [f"agilab.runtime.{runtime_role}"]
+    return metadata
+
+
 def _agilab_notebook_payload(
     agilab_payload: dict[str, Any] | None = None,
     *,
@@ -1716,8 +1759,8 @@ def build_notebook_document(
                 )
             )
         )
-        cells.append(_code_cell(_stage_source_cell(stage)))
-        cells.append(_code_cell(_stage_runner_cell(stage)))
+        cells.append(_code_cell(_stage_source_cell(stage), metadata=_stage_cell_metadata(stage, kind="source")))
+        cells.append(_code_cell(_stage_runner_cell(stage), metadata=_stage_cell_metadata(stage, kind="runner")))
 
     if export_context.related_pages:
         cells.append(
