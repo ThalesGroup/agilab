@@ -20,7 +20,7 @@ Current public release
    * - Package version
      - ``agilab[examples]==2026.05.17.post1`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.05.17-2 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-2>`__
+     - `v2026.05.17 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17>`__
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``cc68572ed40b83296a231cce9e7e961e0fe76c78``
    * - Public guardrails
@@ -32,7 +32,7 @@ Current public release
    * - Coverage
      - `coverage run 25971242033 <https://github.com/ThalesGroup/agilab/actions/runs/25971242033>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 25971244152 <https://github.com/ThalesGroup/agilab/actions/runs/25971244152>`__ published the 2026.05.17.post1 package set and release assets after preflight, release evidence, and supply-chain evidence passed
+     - `pypi-publish run 25971244152 <https://github.com/ThalesGroup/agilab/actions/runs/25971244152>`__ published the 2026.05.17.post1 package after preflight, release evidence, and supply-chain evidence passed; GitHub release evidence remains under v2026.05.17
 
 What was proved
 ---------------
