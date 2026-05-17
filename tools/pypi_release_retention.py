@@ -249,6 +249,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--username")
     parser.add_argument("--password")
     parser.add_argument("--confirm-delete", action="store_true")
+    parser.add_argument(
+        "--allow-delete-failure",
+        action="store_true",
+        help=(
+            "Return success after protected-release and provenance visibility checks "
+            "even if PyPI web cleanup cannot delete older releases non-interactively."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -292,23 +300,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.confirm_delete:
             raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
         username, password = require_credentials(args.username, args.password)
+        delete_failed = False
         for package, version in pending_deletes:
             print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
-            delete_release(
-                package=package,
-                version=version,
+            try:
+                delete_release(
+                    package=package,
+                    version=version,
+                    repo=args.repo,
+                    username=username,
+                    password=password,
+                    verbose=args.verbose,
+                )
+            except subprocess.CalledProcessError as exc:
+                if not args.allow_delete_failure:
+                    raise
+                delete_failed = True
+                print(
+                    "[pypi-retention] WARNING: cleanup failed for "
+                    f"{package} {version}; continuing because "
+                    "--allow-delete-failure is set. PyPI may require "
+                    f"interactive MFA/authentication. exit={exc.returncode}",
+                    file=sys.stderr,
+                )
+        if not delete_failed:
+            plans = verify_retention(
+                packages=packages,
                 repo=args.repo,
-                username=username,
-                password=password,
-                verbose=args.verbose,
+                protect_version=protect_version,
+                attempts=args.verify_attempts,
+                retry_delay=args.retry_delay,
             )
-        plans = verify_retention(
-            packages=packages,
-            repo=args.repo,
-            protect_version=protect_version,
-            attempts=args.verify_attempts,
-            retry_delay=args.retry_delay,
-        )
 
     summary = render_summary(plans, dry_run=args.dry_run)
     if args.github_step_summary:
@@ -322,7 +344,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{package['package']}: keep={package['protect_version']} "
                 f"published={len(package['published_versions'])} old={deleted}"
             )
-    return 0 if summary["success"] or args.dry_run else 1
+    return 0 if summary["success"] or args.dry_run or args.allow_delete_failure else 1
 
 
 if __name__ == "__main__":

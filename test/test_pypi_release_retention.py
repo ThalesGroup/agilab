@@ -139,6 +139,42 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
     assert '"success": true' in capsys.readouterr().out
 
 
+def test_main_can_allow_noninteractive_cleanup_failure(monkeypatch, capsys) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.05.17"],
+    )
+
+    def fail_delete_release(**kwargs):
+        raise module.subprocess.CalledProcessError(1, ["pypi-cleanup"])
+
+    monkeypatch.setattr(module, "delete_release", fail_delete_release)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--protect-version",
+            "2026.05.17",
+            "--username",
+            "maintainer",
+            "--password",
+            "secret",
+            "--confirm-delete",
+            "--allow-delete-failure",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert '"success": false' in captured.out
+    assert "interactive MFA/authentication" in captured.err
+
+
 def test_main_rejects_missing_protected_release(monkeypatch) -> None:
     module = _load_module()
 
