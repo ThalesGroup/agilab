@@ -494,12 +494,13 @@ jobs:
           retention-days: 90
 
   publish-release-assets:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && needs.pypi-release-retention.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
       - release-plan
       - publish-library-packages
       - publish-agilab
       - pypi-provenance-evidence
+      - pypi-release-retention
       - supply-chain-evidence
     runs-on: ubuntu-latest
     permissions:
@@ -569,6 +570,58 @@ jobs:
               --notes "AGILAB release artifacts and supply-chain evidence."
           fi
           gh release upload "$release_tag" github-release-assets/* --clobber
+
+  pypi-release-retention:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    needs:
+      - release-plan
+      - publish-library-packages
+      - publish-agilab
+      - pypi-provenance-evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
+      PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+      PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PyPI retention dependencies
+        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup
+
+      - name: Delete older PyPI releases and keep the current release only
+        run: |
+          set -euxo pipefail
+          current_version="$(python - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("pyproject.toml").read_text(encoding="utf-8")
+          match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+          if not match:
+              raise SystemExit("root pyproject.toml has no project version")
+          print(match.group(1))
+          PY
+          )"
+          args=(
+            --repo pypi
+            --protect-version "$current_version"
+            --confirm-delete
+            --json
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+          )
+          for package in ${PYPI_RETENTION_PACKAGES}; do
+            args+=(--package "$package")
+          done
+          python tools/pypi_release_retention.py "${args[@]}"
 
   sync-hf-space:
     if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.publish-release-assets.result == 'success' }}

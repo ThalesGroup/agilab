@@ -199,6 +199,17 @@ regenerate the release commit, rerun preflight, and publish from that committed
 state. TestPyPI rehearsals may still use retry-oriented ``.postN`` versions,
 but those rehearsals are not the source of truth for a real release.
 
+After PyPI provenance passes, the release workflow enforces one retained PyPI
+release per selected PyPI project. ``tools/pypi_release_retention.py`` keeps
+the current committed release version and deletes every older release for each
+selected project before GitHub release assets are published. This is a
+destructive PyPI web-management operation, separate from Trusted Publishing, so
+the workflow requires ``PYPI_RELEASE_PRUNE_USERNAME`` and
+``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. If the current version is
+not visible on PyPI or old releases cannot be removed, the release must fail
+instead of publishing GitHub release assets or syncing the Hugging Face Space
+against a partially-retained package set.
+
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror
 integrity, installer behavior, and release-proof consistency before either the

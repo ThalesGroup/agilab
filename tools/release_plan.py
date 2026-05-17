@@ -272,6 +272,15 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "pypi-provenance-evidence.tar.gz": (
             "workflow must attach PyPI provenance evidence to GitHub release assets"
         ),
+        "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
+        "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
+        "PYPI_RELEASE_PRUNE_PASSWORD": (
+            "workflow must keep PyPI release pruning credentials separate from OIDC upload"
+        ),
+        "--confirm-delete": "workflow must make destructive PyPI retention explicit",
+        "needs.pypi-release-retention.result == 'success'": (
+            "release assets must wait for PyPI release retention to finish"
+        ),
         "workflow-dist-${{ matrix.package }}": (
             "non-published package artifacts must stay workflow-only"
         ),
