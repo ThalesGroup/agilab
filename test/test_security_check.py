@@ -7,6 +7,8 @@ import runpy
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY_CHECK_PATH = ROOT / "src" / "agilab" / "security_check.py"
@@ -165,6 +167,39 @@ def test_shared_profile_requires_apps_repository_origin_allowlist(tmp_path: Path
     assert allowlisted.status == "pass"
     assert allowlisted.details["allowlist_configured"] is True
 
+    allowlist_file = tmp_path / "allowlist.txt"
+    allowlist_file.write_text(f"# comment\n{origin}; https://example.invalid/apps\n", encoding="utf-8")
+    allowlisted_by_file = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE": str(allowlist_file),
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+    assert allowlisted_by_file.status == "pass"
+
+
+def test_shared_profile_requires_origin_url_for_pinned_apps_repository(tmp_path: Path):
+    apps = tmp_path / "apps"
+    git_dir = apps / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
+    (git_dir / "config").write_text(
+        "\n# ignored\n[remote \"upstream\"]\n    fetch = +refs/heads/*:refs/remotes/upstream/*\n",
+        encoding="utf-8",
+    )
+
+    check = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": str(apps)},
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "no origin URL" in check.summary
+    assert security_check._git_config_value(tmp_path / "missing", 'remote "origin"', "url") is None
+
 
 def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     cluster_share = tmp_path / "clustershare"
@@ -196,6 +231,37 @@ def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     assert exposure_check.status == "pass"
     assert exposure_check.details["host"] == "0.0.0.0"
     assert exposure_check.details["auth_or_tls_indicator"] is True
+
+
+def test_cluster_share_reports_missing_unusable_and_world_writable_paths(tmp_path: Path):
+    missing = security_check._check_cluster_share(
+        {"AGI_WORKERS": "worker1"},
+        cwd=tmp_path,
+    )
+    assert missing.status == "warn"
+    assert "not configured" in missing.summary
+
+    unusable = security_check._check_cluster_share(
+        {"AGI_CLUSTER_SHARE": str(tmp_path / "missing-share")},
+        cwd=tmp_path,
+        profile="cluster",
+    )
+    assert unusable.status == "fail"
+    assert "not an existing writable directory" in unusable.summary
+
+    world_writable = tmp_path / "world"
+    world_writable.mkdir()
+    world_writable.chmod(0o777)
+    try:
+        world = security_check._check_cluster_share(
+            {"AGI_CLUSTER_SHARE": str(world_writable)},
+            cwd=tmp_path,
+            profile="cluster",
+        )
+    finally:
+        world_writable.chmod(0o755)
+    assert world.status == "fail"
+    assert "world-writable" in world.summary
 
 
 def test_optional_profiles_ignore_nonlocal_provider_and_print_text_skips_bad_checks(capsys):
@@ -251,6 +317,9 @@ def test_build_report_passes_for_clean_local_profile(tmp_path: Path):
     assert report["status"] == "pass"
     assert report["summary"]["warnings"] == 0
     assert {check["status"] for check in report["checks"]} == {"pass"}
+
+    with pytest.raises(ValueError, match="unknown security-check profile"):
+        security_check.build_report(profile="unknown", cwd=cwd, home=home)
 
 
 def test_build_report_warns_on_adoption_risks_without_leaking_secret_values(tmp_path: Path):

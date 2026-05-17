@@ -242,6 +242,135 @@ def test_supply_chain_attestation_rejects_stale_internal_dependency_pin(
     )
 
 
+def test_supply_chain_attestation_defensive_helpers(tmp_path: Path) -> None:
+    core = _load_module(CORE_PATH, "supply_chain_attestation_helpers_test_module")
+    package_data_project = tmp_path / "pyproject.toml"
+    package_data_project.write_text(
+        """
+[project]
+name = "demo"
+version = "1"
+optional-dependencies = "bad"
+
+[tool.setuptools]
+package-data = "bad"
+""",
+        encoding="utf-8",
+    )
+    page_project = tmp_path / "src/agilab/lib/agi-gui/pyproject.toml"
+    page_project.parent.mkdir(parents=True)
+    page_project.write_text(
+        """
+[project]
+name = "agi-gui"
+version = "1"
+
+[tool.setuptools.package-data]
+agilab = "bad"
+""",
+        encoding="utf-8",
+    )
+    no_project = tmp_path / "no-project.toml"
+    no_project.write_text("[tool.demo]\nname = 'demo'\n", encoding="utf-8")
+    bad_project = tmp_path / "bad-project.toml"
+    bad_project.write_text('project = "bad"\n', encoding="utf-8")
+
+    assert core._package_data_patterns(tmp_path) == []
+    assert core._project_metadata(bad_project)["name"] == ""
+    assert core._project_metadata(package_data_project)["optional_dependencies"] == []
+    assert core._project_metadata(no_project)["name"] == ""
+    assert core._dependency_parts("!!!") is None
+    assert core._internal_dependency_constraint_rows(
+        {"demo": {"dependencies": ["!!!"]}},
+        {"agi-core": "1"},
+        expected_operator="==",
+    ) == []
+
+
+def test_supply_chain_attestation_reports_release_graph_and_payload_budget_issues(
+    tmp_path: Path,
+) -> None:
+    core = _load_module(CORE_PATH, "supply_chain_attestation_issue_test_module")
+    version = "2026.05.17"
+    stale_version = "2026.05.16"
+    files = {
+        "pyproject.toml": (
+            "[project]\n"
+            "name = 'agilab'\n"
+            f"version = '{version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/core/agi-core/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-core'\n"
+            f"version = '{stale_version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/core/agi-env/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-env'\n"
+            f"version = '{version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/core/agi-cluster/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-cluster'\n"
+            f"version = '{version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/core/agi-node/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-node'\n"
+            f"version = '{version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/lib/agi-gui/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-gui'\n"
+            f"version = '{stale_version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/lib/agi-pages/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-pages'\n"
+            f"version = '{version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/lib/agi-apps/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-apps'\n"
+            f"version = '{stale_version}'\n"
+            "dependencies = []\n"
+        ),
+        "uv.lock": "",
+        "LICENSE": "license\n",
+        "README.pypi.md": "readme\n",
+        "src/agilab/apps/builtin/demo_project/payload.json": "{}\n",
+        "src/agilab/apps/builtin/demo_project/extra.toml": "value = 1\n",
+    }
+    for relative_path, content in files.items():
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    original_budgets = dict(core.PACKAGE_PAYLOAD_BUDGETS)
+    core.PACKAGE_PAYLOAD_BUDGETS["max_files"] = 1
+    try:
+        state = core.build_supply_chain_attestation(tmp_path)
+    finally:
+        core.PACKAGE_PAYLOAD_BUDGETS.update(original_budgets)
+
+    assert state["run_status"] == "invalid"
+    assert {
+        issue["location"] for issue in state["issues"]
+    } >= {
+        "core.version_alignment",
+        "page_lib.version_alignment",
+        "app_lib.version_alignment",
+        "package_payload.budget",
+    }
+
+
 def test_supply_chain_attestation_accepts_partial_umbrella_post_release(
     tmp_path: Path,
 ) -> None:

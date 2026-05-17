@@ -70,6 +70,21 @@ def test_compute_service_mode_uses_expected_bitmask():
     assert result == 15
 
 
+def test_service_path_and_status_helpers_cover_defensive_edges(tmp_path):
+    builtin_app = tmp_path / "apps" / "builtin" / "demo_project"
+    builtin_app.mkdir(parents=True)
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(active_app=builtin_app)) == str(builtin_app.parent)
+
+    bad_apps_path = "bad\0path"
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(apps_path=bad_apps_path, app="demo")) == bad_apps_path
+    assert orchestrate_services._coerce_worker_health("bad") == ()
+    assert orchestrate_services._coerce_service_status(
+        enabled=True,
+        status_text="surprising",
+        worker_health=(),
+    ) is orchestrate_services.ServiceWorkflowStatus.UNKNOWN
+
+
 def test_service_mode_flags_and_defaults_are_named_constants():
     assert orchestrate_services.SERVICE_MODE_POOL == 1
     assert orchestrate_services.SERVICE_MODE_CYTHON == 2

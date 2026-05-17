@@ -19,6 +19,15 @@ def _load_module(module_name: str, relative_path: str):
 pipeline_page_state = _load_module("agilab.pipeline_page_state", "src/agilab/pipeline_page_state.py")
 
 
+class _BadStr:
+    def __str__(self) -> str:
+        raise RuntimeError("bad str")
+
+
+class _BadStagesFile:
+    parent = _BadStr()
+
+
 def _deps(**overrides: Any):
     defaults = dict(
         is_displayable_stage=lambda entry: bool(entry.get("Q") or entry.get("C")),
@@ -30,6 +39,58 @@ def _deps(**overrides: Any):
     )
     defaults.update(overrides)
     return pipeline_page_state.PipelinePageStateDeps(**defaults)
+
+
+def test_default_stage_helpers_cover_question_code_and_empty_entries() -> None:
+    default_deps = pipeline_page_state.PipelinePageStateDeps()
+
+    assert default_deps.is_displayable_stage({"Q": "  ask  "}) is True
+    assert default_deps.is_displayable_stage({"Q": "", "C": "print('run')"}) is True
+    assert default_deps.is_displayable_stage({"Q": "", "C": "   "}) is False
+    assert default_deps.is_runnable_stage({"C": "print('run')"}) is True
+    assert default_deps.is_runnable_stage({"C": "   "}) is False
+    assert default_deps.stage_summary({"Q": "  line one\nline two  "}) == "line one line two"
+    assert default_deps.stage_summary({"Q": "", "C": "  print('run')\nprint('skip')  "}) == "print('run')"
+    assert default_deps.stage_summary({"Q": "", "C": ""}) == ""
+    assert default_deps.stage_label(0, {"Q": "  ask  "}) == "Stage 1: ask"
+    assert default_deps.stage_label(1, {"Q": "", "C": ""}) == "Stage 2"
+    assert default_deps.find_legacy_agi_run_stages([], []) == ()
+
+
+def test_pipeline_page_state_helper_edge_branches(tmp_path, monkeypatch):
+    assert pipeline_page_state.normalize_execution_sequence(2, ["x", None, 1, 1, 4]) == (1,)
+    assert pipeline_page_state._format_stale_stage_refs(
+        [
+            {"stage": idx + 1, "line": idx, "summary": "run", "project": "demo"}
+            for idx in range(6)
+        ]
+    ).endswith("1 more")
+    assert pipeline_page_state._selected_lab_name(_BadStr(), tmp_path / "lab_stages.toml") == tmp_path.name
+    assert pipeline_page_state._selected_lab_name(None, _BadStagesFile()) == ""
+
+    real_path = pipeline_page_state.Path
+
+    def _bad_path(_text):
+        raise ValueError("bad path")
+
+    monkeypatch.setattr(pipeline_page_state, "Path", _bad_path)
+    assert pipeline_page_state._selected_lab_name("plain-lab", tmp_path / "lab_stages.toml") == "plain-lab"
+    monkeypatch.setattr(pipeline_page_state, "Path", real_path)
+    assert (
+        pipeline_page_state._derive_actions(
+            total_stages=1,
+            has_undo_snapshot=False,
+            can_run=False,
+            can_force_run=False,
+            lock_state={"owner_text": "pid 1"},
+            run_disabled_reason="",
+            runnable_stage_count=1,
+            stale_stage_refs=[],
+        )[1][pipeline_page_state.PipelineAction.FORCE_RUN]
+        == "Workflow cannot be force-run in the current state."
+    )
+    assert pipeline_page_state._coerce_total_stages({"demo": [0, object()]}, "demo", -3) == 0
+    assert pipeline_page_state._coerce_total_stages({}, "demo", 4) == 4
 
 
 def test_pipeline_page_state_keeps_visible_stages_when_logs_are_missing_or_cleared(tmp_path):
@@ -148,6 +209,30 @@ def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects
     assert "No visible workflow stages" in result.message
     assert session_state == {}
     assert calls == []
+
+
+def test_start_pipeline_run_command_refuses_unsupported_action(tmp_path):
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        stages_file=tmp_path / "lab_stages.toml",
+        stages=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state={},
+        deps=_deps(),
+    )
+
+    result = pipeline_page_state.start_pipeline_run_command(
+        page_state=state,
+        requested_action=pipeline_page_state.PipelineAction.ADD_STAGE,
+        session_state={},
+        env=object(),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, None),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        push_run_log=lambda *_args, **_kwargs: None,
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
+    assert "Unsupported pipeline action" in result.message
 
 
 def test_start_pipeline_run_command_sets_running_status_and_logs_path(tmp_path):
@@ -363,6 +448,19 @@ def test_pipeline_page_state_stale_lock_is_explicit_and_forceable(tmp_path):
     assert state.lock_state["stale_reason"] == "heartbeat expired"
 
 
+def test_pipeline_page_state_reports_failed_last_status(tmp_path):
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        stages_file=tmp_path / "lab_stages.toml",
+        stages=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state={"demo__last_run_status": " error "},
+        deps=_deps(),
+    )
+
+    assert state.status is pipeline_page_state.PipelineWorkflowStatus.FAILED
+
+
 def test_clear_pipeline_run_logs_returns_noop_and_failure_results():
     empty_state: dict[str, Any] = {}
     noop = pipeline_page_state.clear_pipeline_run_logs(empty_state, "demo")
@@ -435,6 +533,23 @@ def test_delete_pipeline_stage_command_refuses_missing_stage(tmp_path):
     assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
     assert selected_map == {0: "runtime-a"}
     assert removed == []
+
+
+def test_delete_pipeline_stage_command_reports_remove_errors(tmp_path):
+    result = pipeline_page_state.delete_pipeline_stage_command(
+        session_state={},
+        index_page="demo",
+        stage_index=0,
+        lab_dir=tmp_path / "lab",
+        stages_file=tmp_path / "lab_stages.toml",
+        persisted_stages=[{"Q": "alpha"}],
+        selected_map={},
+        capture_pipeline_snapshot=lambda *_args: {"stages": [{"Q": "alpha"}]},
+        remove_stage=lambda *_args: (_ for _ in ()).throw(RuntimeError("remove boom")),
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert "remove boom" in result.message
 
 
 def test_delete_all_pipeline_stages_command_resets_editor_state_without_touching_logs(tmp_path):
@@ -518,6 +633,26 @@ def test_delete_all_pipeline_stages_command_noops_without_stages(tmp_path):
     assert "demo_confirm_delete_all" not in session_state
 
 
+def test_delete_all_pipeline_stages_command_reports_remove_errors(tmp_path):
+    result = pipeline_page_state.delete_all_pipeline_stages_command(
+        session_state={"demo_confirm_delete_all": True},
+        index_page="demo",
+        lab_dir=tmp_path / "lab",
+        module_path=tmp_path / "module",
+        stages_file=tmp_path / "lab_stages.toml",
+        persisted_stages=[{"Q": "alpha"}],
+        sequence_widget_key="demo_run_sequence_widget",
+        capture_pipeline_snapshot=lambda *_args: {"stages": [{"Q": "alpha"}]},
+        remove_stage=lambda *_args: (_ for _ in ()).throw(RuntimeError("delete boom")),
+        bump_history_revision=lambda: None,
+        persist_sequence_preferences=lambda *_args: None,
+        confirm_key="demo_confirm_delete_all",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert "delete boom" in result.message
+
+
 def test_undo_pipeline_delete_command_restores_and_clears_snapshot(tmp_path):
     session_state: dict[str, Any] = {
         "demo__undo_delete_snapshot": {"stages": [{"Q": "restored"}], "label": "delete pipeline"}
@@ -544,6 +679,33 @@ def test_undo_pipeline_delete_command_restores_and_clears_snapshot(tmp_path):
             {"stages": [{"Q": "restored"}], "label": "delete pipeline"},
         )
     ]
+
+
+def test_undo_pipeline_delete_command_noops_without_snapshot(tmp_path):
+    result = pipeline_page_state.undo_pipeline_delete_command(
+        session_state={"demo__undo_delete_snapshot": {"stages": "not-a-list"}},
+        index_page="demo",
+        module_path=tmp_path / "module",
+        stages_file=tmp_path / "lab_stages.toml",
+        sequence_widget_key="demo_run_sequence_widget",
+        restore_pipeline_snapshot=lambda *_args: None,
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.NO_OP
+
+
+def test_undo_pipeline_delete_command_reports_restore_exceptions(tmp_path):
+    result = pipeline_page_state.undo_pipeline_delete_command(
+        session_state={"demo__undo_delete_snapshot": {"stages": [{"Q": "restored"}]}},
+        index_page="demo",
+        module_path=tmp_path / "module",
+        stages_file=tmp_path / "lab_stages.toml",
+        sequence_widget_key="demo_run_sequence_widget",
+        restore_pipeline_snapshot=lambda *_args: (_ for _ in ()).throw(RuntimeError("restore boom")),
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert "restore boom" in result.message
 
 
 def test_undo_pipeline_delete_command_reports_restore_errors(tmp_path):

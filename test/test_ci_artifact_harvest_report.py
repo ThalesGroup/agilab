@@ -166,3 +166,56 @@ def test_ci_artifact_harvest_core_detects_missing_required_artifacts() -> None:
         "compatibility_report",
         "promotion_decision",
     ]
+
+
+def test_ci_artifact_harvest_core_reports_failed_payloads_and_bad_metadata() -> None:
+    module = _load_module(CORE_PATH, "ci_artifact_harvest_edge_test_module")
+
+    assert module._payload_status("run_manifest", {"status": "fail"}) == "failed"
+    assert module._payload_status("kpi_evidence_bundle", {"status": "pass", "summary": {"failed": 1}}) == "failed"
+    assert module._payload_status("compatibility_report", {"report": "Compatibility matrix report", "status": "fail"}) == "failed"
+    assert module._payload_status(
+        "promotion_decision",
+        {"schema": "agilab.promotion.decision.v1", "decision": "blocked", "gate_status": "fail"},
+    ) == "failed"
+    assert module._payload_status("extra", {"status": "pass"}) == "not_required"
+    assert module._payload_summary("extra", {"status": "custom"}) == {"status": "custom"}
+    assert module._payload_summary("kpi_evidence_bundle", {"status": "pass", "summary": "bad"})["failed"] is None
+
+    row = module._artifact_row(
+        {
+            "id": "bad",
+            "kind": "run_manifest",
+            "payload": "bad",
+            "sha256": "not-the-calculated-hash",
+        },
+        release_id="release",
+    )
+    mapping = module._status_mapping(
+        [
+            row,
+            {"kind": "kpi_evidence_bundle", "payload_status": "validated"},
+            {"kind": "compatibility_report", "payload_status": "validated"},
+            {"kind": "promotion_decision", "payload_status": "validated"},
+        ],
+        "release",
+    )
+    issues = module._issues([row], mapping)
+
+    assert mapping["public_status"] == "failed"
+    assert row["sha256_verified"] is False
+    assert row["payload_status"] == "failed"
+    assert {issue["message"] for issue in issues} == {
+        "artifact checksum does not match payload",
+        "required artifact payload is not validated",
+        "artifact is missing source-machine provenance",
+    }
+
+
+def test_ci_artifact_harvest_sample_builder() -> None:
+    module = _load_module(CORE_PATH, "ci_artifact_harvest_sample_test_module")
+
+    state = module.build_sample_ci_artifact_harvest()
+
+    assert state["run_status"] == "harvest_ready"
+    assert state["summary"]["artifact_count"] == 4

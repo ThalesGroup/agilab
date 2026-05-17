@@ -110,6 +110,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     dependency_policy = profiles["dependency-policy"][0]
     release_proof = profiles["release-proof"][0]
     security_adoption = profiles["security-adoption"][0]
+    production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
 
@@ -181,6 +182,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
     assert "'coverage', 'combine'" in agi_gui_combine_argv
     assert "--keep" in agi_gui_combine_argv
+    assert agi_gui_combine.env["COVERAGE_FILE"] == ".coverage.agi-gui"
     assert "range(120)" in agi_gui_combine_argv
     assert "parent.glob(base_path.name + '*')" in agi_gui_combine_argv
     assert "stat().st_size > 0" in agi_gui_combine_argv
@@ -234,6 +236,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert security_adoption.ensure_dirs == ["test-results"]
     assert security_adoption.remove_paths == ["test-results/security-check.json"]
+    assert production_readiness.label == "production readiness gate"
+    assert production_readiness.argv[-5:] == [
+        "tools/production_readiness_report.py",
+        "--run-docs-profile",
+        "--output",
+        "test-results/production-readiness.json",
+        "--compact",
+    ]
+    assert production_readiness.timeout_seconds == 5 * 60
+    assert production_readiness.ensure_dirs == ["test-results"]
+    assert production_readiness.remove_paths == ["test-results/production-readiness.json"]
     assert [command.label for command in cloud_emulators] == [
         "cloud emulator connector evidence",
         "cloud emulator connector tests",
@@ -272,6 +285,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "agi-cluster" not in selected
     assert "release-proof" not in selected
     assert "security-adoption" not in selected
+    assert "production-readiness" not in selected
     assert "ui-robot-matrix" not in selected
 
 
@@ -372,4 +386,23 @@ def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
         "tools/sync_agent_skills.py",
         "--skills",
         "agilab-installer",
+    ]
+
+
+def test_main_accepts_production_readiness_profile(capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(["--profile", "production-readiness", "--print-only", "--json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["profiles"] == ["production-readiness"]
+    command = payload["commands"]["production-readiness"][0]
+    assert command["label"] == "production readiness gate"
+    assert command["argv"][-5:] == [
+        "tools/production_readiness_report.py",
+        "--run-docs-profile",
+        "--output",
+        "test-results/production-readiness.json",
+        "--compact",
     ]

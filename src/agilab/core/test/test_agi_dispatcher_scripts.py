@@ -235,6 +235,32 @@ def test_cython_type_preprocess_handles_complex_function_shapes():
     assert "\r\n        cdef Py_ssize_t count\r\n" in pyx_source
 
 
+def test_cython_type_preprocess_extra_safe_and_blocked_edges():
+    source = """
+def run(values):
+    flag: bool = True
+    ok = bool(values)
+    name_attr = values.count
+    mixed = 1.0
+    mixed = 1
+    blocked: object = 1.0
+    (pair := values)
+    return flag, name_attr, mixed, blocked, pair
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name: item.reason for item in preview.skipped}
+
+    assert ("ok", "bint") in typed
+    assert skipped["flag"] == "source annotation already provides a type hint"
+    assert "name_attr" in skipped
+    assert "mixed" in skipped
+    assert "blocked" in skipped
+    assert "pair" in skipped
+    assert type_preprocess_mod._call_name(type_preprocess_mod.ast.Constant(value=1)) is None
+
+
 def test_cython_type_preprocess_respects_global_and_nonlocal_targets():
     source = """
 def use_global():

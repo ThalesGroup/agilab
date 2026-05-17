@@ -138,3 +138,61 @@ def test_tracker_reuses_active_run_and_skips_missing_artifact(monkeypatch, tmp_p
     assert tracker.active_run_id == "existing-run"
     assert tracker.log_artifact(Path(tmp_path / "missing.txt")) is False
     assert fake_mlflow.artifacts == []
+
+
+def test_tracker_handles_mlflow_edge_cases(monkeypatch):
+    tracker = tracking.Tracker()
+    tracker._mlflow_import_attempted = True
+    tracker._mlflow = None
+    assert tracker.active_run_id is None
+
+    class NoTextMlflow:
+        def __init__(self) -> None:
+            self.active = None
+
+        def active_run(self):
+            return self.active
+
+    fake_mlflow = NoTextMlflow()
+    monkeypatch.setattr(tracking.importlib, "import_module", lambda name: fake_mlflow if name == "mlflow" else None)
+    no_run_tracker = tracking.Tracker()
+    assert no_run_tracker.configure() is True
+    assert no_run_tracker.log_text("hello", "artifact.txt") is False
+
+    class StartRunErrorMlflow(FakeMlflow):
+        def start_run(self, *, run_id):
+            raise ValueError("bad run")
+
+    failing_mlflow = StartRunErrorMlflow()
+    monkeypatch.setattr(
+        tracking.importlib,
+        "import_module",
+        lambda name: failing_mlflow if name == "mlflow" else None,
+    )
+    monkeypatch.setenv(tracking.AGILAB_RUN_ID_ENV, "run-123")
+    failing_tracker = tracking.Tracker()
+    assert failing_tracker.configure() is False
+    assert failing_tracker.log_param("key", "value") is False
+
+    class ActiveRunMissing:
+        pass
+
+    assert tracking.Tracker._active_run(ActiveRunMissing()) is None
+
+    class ActiveRunRaises:
+        def active_run(self):
+            raise RuntimeError("no active run")
+
+    assert tracking.Tracker._active_run(ActiveRunRaises()) is None
+
+    tracker_without_run = tracking.Tracker()
+    tracker_without_run._end_started_run()
+
+    class EndRunRaises(FakeMlflow):
+        def end_run(self):
+            raise RuntimeError("cannot end")
+
+    end_tracker = tracking.Tracker()
+    end_tracker._mlflow = EndRunRaises()
+    end_tracker._started_run = True
+    end_tracker._end_started_run()

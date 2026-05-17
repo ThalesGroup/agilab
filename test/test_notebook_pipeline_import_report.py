@@ -492,3 +492,431 @@ def test_notebook_pipeline_import_helper_edges(tmp_path: Path) -> None:
         output_path=tmp_path / "imported.json",
     )
     assert proof.ok is True
+
+
+def test_notebook_pipeline_import_edge_serialization_and_malformed_inputs(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "notebook_pipeline_import_more_edges_test_module")
+
+    issue = core_module._issue("schema", "bad schema")
+    proof = core_module.NotebookPipelineImportProof(
+        ok=False,
+        issues=(issue,),
+        path="import.json",
+        notebook_path="source.ipynb",
+        notebook_import={
+            "summary": {
+                "pipeline_stage_count": "2",
+                "env_hint_count": None,
+                "artifact_reference_count": 3,
+            }
+        },
+        reloaded_import={},
+    )
+    proof_state = proof.as_dict()
+    assert proof_state["issues"] == [
+        {"level": "error", "location": "schema", "message": "bad schema"}
+    ]
+    assert proof_state["round_trip_ok"] is False
+    assert proof_state["pipeline_stage_count"] == 2
+    assert proof_state["env_hint_count"] == 0
+    assert proof_state["artifact_reference_count"] == 3
+
+    assert core_module.extract_notebook_import_defaults(
+        {"metadata": {"agilab": {"import": [], "notebook_import": []}}}
+    ) == {}
+    assert core_module.apply_notebook_runtime_roles(
+        {"pipeline_stages": ["bad", {"id": "run", "runtime_role": "local", "env": "worker"}]},
+        {},
+    )["pipeline_stages"][1] == {
+        "id": "run",
+        "runtime_role": "manager",
+        "runtime": "runpy",
+    }
+    assert core_module._pipeline_stage_sources({"pipeline_stages": "bad"}) == []
+    assert core_module._pipeline_stage_sources({"pipeline_stages": ["bad"]}) == []
+    assert core_module._safe_node_id("x", "").startswith("x_node_")
+    assert core_module._notebook_cells({"cells": [{"a": 1}, "bad"]}) == [{"a": 1}]
+    with pytest.raises(ValueError, match="cells must be a list"):
+        core_module._notebook_cells({"cells": "bad"})
+    assert core_module._kernel_name({"metadata": {"kernelspec": "bad"}}) == ""
+    assert core_module._agilab_supervisor_stages({"metadata": {"agilab": {"stages": "bad"}}}) == []
+    assert core_module._cell_agilab_metadata({"metadata": []}) == {}
+    assert core_module._export_stage_cell_metadata({"metadata": {"agilab": {"stage_cell": []}}}) == {}
+    assert core_module._coerce_nonnegative_int("bad") is None
+    assert core_module._coerce_nonnegative_int(-1) is None
+    assert core_module._extract_exported_stage_source("STAGE_000_CODE = [", 0) == "STAGE_000_CODE = ["
+    assert core_module._extract_exported_stage_source("STAGE_000_CODE = 42", 0) == "STAGE_000_CODE = 42"
+
+    malformed = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"agilab": {"stage_cell": {"kind": "source", "stage_index": "bad"}}},
+                "source": ["print('ignored bad index')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "agilab": {
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "source",
+                            "stage_index": 0,
+                            "runtime_role": "driver",
+                        }
+                    }
+                },
+                "source": ["STAGE_000_CODE = \"print('first')\\n\"\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "agilab": {
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "source",
+                            "stage_index": 0,
+                        }
+                    }
+                },
+                "source": ["STAGE_000_CODE = \"print('duplicate')\\n\"\n"],
+            },
+        ],
+        "metadata": {
+            "agilab": {
+                "stages": [
+                    {
+                        "description": "Stage",
+                        "question": "Run",
+                        "runtime": "",
+                        "code": "print('fallback')\n",
+                    }
+                ]
+            }
+        },
+    }
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=malformed,
+        source_notebook="malformed.ipynb",
+    )
+    assert imported["pipeline_stages"][0]["source_lines"] == ["print('first')\n"]
+    assert imported["pipeline_stages"][0]["runtime_role"] == "manager"
+
+    contexts = core_module._context_lookup({"context_blocks": ["bad", {"id": "", "text": "x"}]})
+    assert contexts == {}
+    assert core_module._context_lookup({"context_blocks": "bad"}) == {}
+    assert core_module._context_summary(["ctx"], {"ctx": "\n# Useful title\nbody"}) == "Useful title"
+    assert core_module._context_summary(["missing"], {}) == ""
+    assert core_module._artifact_paths({"artifact_references": "bad"}) == []
+    assert core_module._artifact_paths({"artifact_references": ["bad", {"path": ""}, {"path": "out.csv"}]}) == [
+        "out.csv"
+    ]
+    assert core_module._stage_env_hints({"env_hints": "bad"}) == []
+
+    preview = core_module.build_lab_stages_preview(
+        {
+            "source": "bad",
+            "execution_mode": "manual",
+            "context_blocks": [{"id": "ctx", "text": "# Context title"}],
+            "pipeline_stages": [
+                "bad",
+                {"id": "empty", "source_lines": ["\n"]},
+                {
+                    "id": "",
+                    "source_cell_index": 3,
+                    "source_lines": ["print(3)\n"],
+                    "context_ids": ["ctx", ""],
+                    "artifact_references": "bad",
+                    "env_hints": "bad",
+                },
+            ],
+        },
+        module_name="",
+    )
+    assert preview["lab_stages"][0]["Q"] == "Imported notebook cell"
+    assert preview["lab_stages"][0]["D"] == "Context title"
+    assert preview["lab_stages"][0]["NB_EXECUTION_MODE"] == "manual"
+    assert preview["lab_stages"][0]["NB_SOURCE_NOTEBOOK"] == ""
+
+    contract = core_module.build_notebook_artifact_contract(
+        {
+            "pipeline_stages": [
+                {
+                    "id": "stage",
+                    "source_cell_index": 1,
+                    "source_lines": [
+                        "df = pd.read_csv('shared/data.csv')\n",
+                        "df.to_csv('shared/data.csv')\n",
+                        "Path('notes.txt').read_text()\n",
+                    ],
+                }
+            ],
+            "artifact_references": [
+                "bad",
+                {"path": "", "source_cell_index": 1},
+                {"path": "shared/data.csv", "source_cell_index": 1},
+                {"path": "notes.txt", "source_cell_index": 1},
+                {"path": "notes.txt", "source_cell_index": 1},
+            ],
+        }
+    )
+    assert contract["inputs"] == ["notes.txt", "shared/data.csv"]
+    assert contract["outputs"] == ["shared/data.csv"]
+    notes = next(item for item in contract["references"] if item["path"] == "notes.txt")
+    assert notes["source_cell_indices"] == [1]
+
+    view = core_module.build_notebook_import_pipeline_view(
+        {
+            "source": "bad",
+            "context_blocks": "bad",
+            "pipeline_stages": [
+                "bad",
+                {"id": "", "source_lines": ["print('ignored')\n"]},
+                {
+                    "id": "cell-x",
+                    "source_cell_index": 2,
+                    "source_lines": ["Path('late.txt').write_text('x')\n"],
+                    "artifact_references": [{"path": "late.txt"}],
+                },
+            ],
+        },
+        preflight={"artifact_contract": {"references": ["bad", {"path": ""}]}},
+        module_name="",
+    )
+    assert view["module_name"] == "notebook_import_project"
+    assert any(node["path"] == "late.txt" for node in view["nodes"] if node["kind"] == "artifact")
+    assert any(edge["kind"] == "artifact_output" for edge in view["edges"])
+
+    no_edge_view = core_module.build_notebook_import_pipeline_view(
+        {
+            "pipeline_stages": [
+                {
+                    "id": "cell-y",
+                    "source_cell_index": 1,
+                    "source_lines": ["print('no artifacts')\n"],
+                }
+            ],
+        },
+        preflight={"artifact_contract": {"references": []}},
+    )
+    assert any(edge["kind"] == "analysis_candidate" for edge in no_edge_view["edges"])
+
+    raw_manifest = {
+        "notebook_import_views": "bad",
+        "views": [
+            "bad",
+            {
+                "page": "view_page",
+                "required": "outputs/*.csv",
+                "optional": {"ignored": "mapping"},
+                "settings_hints": {None: "ignored", "mode": "summary"},
+                "query_params": "bad",
+            },
+        ],
+    }
+    normalized = core_module._normalize_import_view_manifest(raw_manifest)
+    assert normalized["views"][0]["id"] == "view_page"
+    assert normalized["views"][0]["required_artifacts"] == ["outputs/*.csv"]
+    assert normalized["views"][0]["optional_artifacts"] == []
+    assert normalized["views"][0]["settings_hints"] == {"mode": "summary"}
+
+    bad_path = tmp_path / "bad-view.toml"
+    bad_path.write_text("not toml = [", encoding="utf-8")
+    plan_path = tmp_path / "plan.json"
+    core_module.write_notebook_import_view_plan(
+        plan_path,
+        {"summary": {}, "pipeline_stages": []},
+        manifest_path=bad_path,
+    )
+    assert "Unable to load notebook import view manifest" in plan_path.read_text(encoding="utf-8")
+
+
+def test_notebook_pipeline_import_more_branch_edges(tmp_path: Path, monkeypatch) -> None:
+    core_module = _load_module(CORE_PATH, "notebook_pipeline_import_branch_edges_test_module")
+
+    assert core_module._cell_runtime_role_from_metadata(
+        {"metadata": {"agilab": {"execution_location": "driver"}}}
+    ) == "manager"
+    assert core_module._cell_runtime_role_from_metadata({"metadata": {"runtime_role": "app"}}) == "worker"
+    assert core_module.extract_notebook_import_defaults({"metadata": {"agilab": {}}}) == {}
+    assert core_module.extract_env_hints("def broken(:\nfrom package.sub import thing\n") == ["package"]
+    assert core_module._line_role_for_path(
+        "df = pd.read_csv('shared.csv'); df.to_csv('shared.csv')",
+        "shared.csv",
+    ) == "input_output"
+    assert core_module._combine_artifact_roles("input", "warning") == "input"
+    assert core_module._extract_exported_stage_source("other = 'x'\nSTAGE_000_CODE = 'ok'\n", 0) == "ok"
+    assert core_module._extract_exported_stage_source("STAGE_000_CODE = object()\n", 0).startswith(
+        "STAGE_000_CODE"
+    )
+
+    class BrokenPath:
+        def __init__(self, _value):
+            pass
+
+        def is_absolute(self):
+            raise OSError("bad path")
+
+    monkeypatch.setattr(core_module, "Path", BrokenPath)
+    assert core_module._is_absolute_path_text("/absolute/data.csv") is True
+    monkeypatch.setattr(core_module, "Path", Path)
+
+    supervisor_notebook = {
+        "nbformat": 4,
+        "metadata": {
+            "agilab": {
+                "stages": [
+                    {
+                        "description": "Stage",
+                        "question": "Run",
+                        "runtime": "worker",
+                        "code": "print('fallback')\n",
+                    }
+                ]
+            }
+        },
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "agilab": {
+                        "stage_cell": {
+                            "schema": core_module.NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA,
+                            "kind": "source",
+                            "stage_index": 0,
+                            "runtime_role": "unknown",
+                            "env": "custom-env",
+                        }
+                    }
+                },
+                "source": ["STAGE_000_CODE = \"print('override')\\n\"\n"],
+            }
+        ],
+    }
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=supervisor_notebook,
+        source_notebook="supervisor.ipynb",
+    )
+    assert imported["pipeline_stages"][0]["runtime_role"] == "worker"
+    assert imported["pipeline_stages"][0]["runtime"] == "worker"
+    assert imported["pipeline_stages"][0]["env"] == "custom-env"
+
+    preflight = core_module.build_notebook_import_preflight(
+        {
+            "summary": {"pipeline_stage_count": 1, "markdown_cell_count": 1},
+            "pipeline_stages": [],
+            "artifact_references": ["bad", {"path": "/tmp/out.csv", "source_cell_index": 1}],
+        }
+    )
+    assert any(risk["rule"] == "absolute_artifact_path" for risk in preflight["risks"])
+
+    contract = core_module.build_notebook_import_contract(
+        {
+            "source": "bad",
+            "summary": "bad",
+            "env_hints": ["pandas"],
+            "pipeline_stages": ["bad"],
+        },
+        preflight={"risks": "bad", "artifact_contract": {}},
+    )
+    assert contract["source"] == {}
+    assert contract["summary"] == {}
+    assert contract["stages"] == []
+
+    view = core_module.build_notebook_import_pipeline_view(
+        {
+            "context_blocks": [
+                "bad",
+                {"id": ""},
+                {"id": "ctx", "text": "# Title"},
+                {"id": "ctx", "text": "# Duplicate"},
+            ],
+            "pipeline_stages": [
+                {
+                    "id": "cell",
+                    "source_cell_index": 1,
+                    "source_lines": ["print('x')\n"],
+                    "context_ids": ["ctx", "ctx"],
+                    "artifact_references": [{"path": "artifact.csv"}, {"path": "artifact.csv"}],
+                }
+            ],
+        },
+        preflight={
+            "artifact_contract": {
+                "references": [
+                    {"path": "artifact.csv", "role": "unknown", "source_cell_indices": [1]},
+                ],
+                "outputs": ["artifact.csv"],
+                "unknown": ["artifact.csv"],
+            }
+        },
+    )
+    assert len({(edge["from"], edge["to"], edge["kind"], edge.get("artifact", "")) for edge in view["edges"]}) == len(
+        view["edges"]
+    )
+
+    assert core_module._string_list(42) == ["42"]
+    assert core_module._string_list(["a", "a", "", "b"]) == ["a", "b"]
+    assert core_module._safe_mapping({None: "bad", "ok": 1}) == {"ok": 1}
+    normalized_export = core_module._normalize_import_view_manifest(
+        {
+            "app": "demo",
+            "notebook_export": {
+                "related_pages": [
+                    "bad",
+                    {"module": "view_demo", "label": "View", "artifacts": ["out.csv"]},
+                ]
+            },
+        }
+    )
+    assert normalized_export["source_schema"] == "agilab.notebook_export.v1"
+    assert normalized_export["views"][0]["module"] == "view_demo"
+
+    class BadModuleDir:
+        def __fspath__(self):
+            raise TypeError("bad path")
+
+    assert core_module.discover_notebook_import_view_manifest(BadModuleDir()) is None
+    assert core_module._artifact_entries_for_view_plan(
+        {
+            "references": ["bad", {"path": ""}, {"path": "out.csv", "role": "output"}],
+            "inputs": ["in.csv", "in.csv"],
+            "unknown": "maybe.txt",
+        }
+    ) == (["in.csv", "maybe.txt", "out.csv"], {"out.csv": "output", "in.csv": "input", "maybe.txt": "unknown"})
+
+
+def test_notebook_pipeline_import_persist_reports_invalid_generated_import(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    core_module = _load_module(CORE_PATH, "notebook_pipeline_import_persist_edges_test_module")
+    source = tmp_path / "source.ipynb"
+    source.write_text('{"nbformat": 4, "cells": []}', encoding="utf-8")
+
+    monkeypatch.setattr(core_module, "load_notebook", lambda _path: {"cells": []})
+    monkeypatch.setattr(
+        core_module,
+        "build_notebook_pipeline_import",
+        lambda **_kwargs: {
+            "schema": "wrong",
+            "execution_mode": "executed",
+            "pipeline_stages": [],
+        },
+    )
+    monkeypatch.setattr(core_module, "write_notebook_pipeline_import", lambda output_path, _payload: output_path)
+    monkeypatch.setattr(core_module, "load_notebook_pipeline_import", lambda _path: {"schema": "different"})
+
+    proof = core_module.persist_notebook_pipeline_import(
+        repo_root=tmp_path,
+        notebook_path=source,
+        output_path=tmp_path / "import.json",
+    )
+
+    assert proof.ok is False
+    assert {issue.location for issue in proof.issues} == {
+        "persistence.round_trip",
+        "schema",
+        "execution_mode",
+        "pipeline_stages",
+    }

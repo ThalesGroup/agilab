@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import builtins
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 
 MODULE_PATH = Path("src/agilab/first_proof_wizard.py").resolve()
@@ -254,3 +257,149 @@ def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None
     assert any("target_seconds=fail" in action for action in state["remediation_actions"])
     assert any("recommended_project=missing" in action for action in state["remediation_actions"])
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
+
+
+def test_first_proof_loader_error_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="unable to load tool module"):
+        module._load_tool_module(tmp_path, "missing_tool")
+    with pytest.raises(RuntimeError, match="unable to load run manifest module"):
+        module._load_run_manifest_module()
+
+
+def test_first_proof_installed_provider_error_branches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+    original_import = builtins.__import__
+
+    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_env.app_provider_registry":
+            raise ImportError("blocked provider registry")
+        return original_import(name, globals, locals, fromlist, level)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(builtins, "__import__", blocked_import)
+        assert module._resolve_installed_first_proof_project() is None
+
+    import agi_env.app_provider_registry as registry
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(registry, "resolve_installed_app_project", lambda _name: (_ for _ in ()).throw(RuntimeError("boom")))
+        assert module._resolve_installed_first_proof_project() is None
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(registry, "resolve_installed_app_project", lambda _name: None)
+        assert module._resolve_installed_first_proof_project() is None
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(registry, "resolve_installed_app_project", lambda _name: object())
+        assert module._resolve_installed_first_proof_project() is None
+
+    missing_pyproject = tmp_path / "installed" / "flight_telemetry_project"
+    missing_pyproject.mkdir(parents=True)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(registry, "resolve_installed_app_project", lambda _name: missing_pyproject)
+        assert module._resolve_installed_first_proof_project() is None
+
+
+def test_first_proof_project_path_handles_bad_env_and_duplicates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: None)
+
+    bad_env = SimpleNamespace(apps_path=object())
+    assert module.newcomer_first_proof_project_path(bad_env, repo_root=tmp_path / "missing-root").name == (
+        "flight_telemetry_project"
+    )
+
+    duplicate_root = tmp_path / "duplicate-root"
+    duplicate_env = SimpleNamespace(apps_path=duplicate_root / "src" / "agilab" / "apps" / "builtin")
+    assert module.newcomer_first_proof_project_path(duplicate_env, repo_root=duplicate_root).name == (
+        "flight_telemetry_project"
+    )
+
+
+def test_first_proof_state_without_project_points_to_app_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "newcomer_first_proof_project_path", lambda _env, _repo_root=module.REPO_ROOT: None)
+
+    env = SimpleNamespace(app="flight_telemetry_project", AGILAB_LOG_ABS=tmp_path / "log")
+
+    state = module.newcomer_first_proof_state(env)
+
+    assert state["project_available"] is False
+    assert state["next_step"].startswith("Fix the app list first.")
+
+
+def test_first_proof_state_reports_invalid_manifest_and_filtered_outputs(tmp_path: Path) -> None:
+    module = _load_module()
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir.mkdir(parents=True)
+    (output_dir / "run_manifest.json").write_text("{not-json", encoding="utf-8")
+    (output_dir / ".hidden").write_text("hidden", encoding="utf-8")
+    (output_dir / "AGI_get_flight_telemetry.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "artifact.csv").write_text("x\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="flight_telemetry_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = module.newcomer_first_proof_state(env)
+
+    assert [path.name for path in state["visible_outputs"]] == ["artifact.csv"]
+    assert state["run_manifest_loaded"] is False
+    assert state["run_manifest_status"] == "invalid"
+    assert state["remediation_status"] == "invalid"
+    assert state["run_manifest_error"]
+
+
+def test_first_proof_failing_remediation_lists_path_and_missing_target(tmp_path: Path) -> None:
+    module = _load_module()
+    run_manifest = module._load_run_manifest_module()
+    manifest = run_manifest.build_run_manifest(
+        path_id="wrong-path",
+        label="Wrong path",
+        status="pass",
+        command=run_manifest.RunManifestCommand(
+            label="newcomer first proof",
+            argv=("tools/newcomer_first_proof.py", "--json"),
+            cwd=str(tmp_path),
+        ),
+        environment=run_manifest.RunManifestEnvironment.from_paths(
+            repo_root=tmp_path,
+            active_app=tmp_path / "apps" / "flight_telemetry_project",
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at="2026-04-25T00:00:00Z",
+            finished_at="2026-04-25T00:00:05Z",
+            duration_seconds=5.0,
+            target_seconds=None,
+        ),
+        artifacts=[],
+        validations=[
+            run_manifest.RunManifestValidation(label=label, status="pass", summary=f"{label} passed")
+            for label in ("proof_steps", "target_seconds", "recommended_project")
+        ],
+        run_id="first-proof-wrong-path",
+        created_at="2026-04-25T00:00:05Z",
+    )
+
+    rows = module._manifest_validation_rows(manifest)
+    remediation = module._first_proof_remediation(
+        manifest=manifest,
+        manifest_error=None,
+        manifest_path=tmp_path / "run_manifest.json",
+        manifest_passed=False,
+        validation_rows=rows,
+        visible_outputs=(),
+    )
+
+    assert remediation["status"] == "failing"
+    assert any("path_id is `wrong-path`" in action for action in remediation["actions"])
+    assert any("target_seconds is missing" in action for action in remediation["actions"])

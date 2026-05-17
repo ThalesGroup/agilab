@@ -140,7 +140,10 @@
 
   <g id="header" transform="translate(58,58)">
     <text class="page-title" x="0" y="0">AGILAB global architecture</text>
-    <text class="page-subtitle" x="0" y="34">A reproducibility workbench: one app contract across UI, notebooks, CLI, local runs, clusters, evidence, and export.</text>
+    <text class="page-subtitle" x="0" y="34">
+      <tspan x="0" dy="0">One app contract across UI, notebooks, CLI, local runs, clusters, evidence, and export.</tspan>
+      <tspan x="0" dy="24">Manager control, worker runtime, shared state, and guardrails stay explicit.</tspan>
+    </text>
   </g>
 
   <line class="lane" x1="58" y1="406" x2="1402" y2="406" />
@@ -158,7 +161,7 @@
         <tspan x="28" dy="24">PyCharm run configs</tspan>
         <tspan x="28" dy="24">Notebook import</tspan>
       </text>
-      <text class="card-note" x="28" y="184">PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS</text>
+      <text class="card-note" x="28" y="184">Core pages plus notebook start</text>
     </g>
 
     <g id="project-contract" transform="translate(333,154)">
@@ -170,7 +173,7 @@
         <tspan x="28" dy="24">lab_stages.toml</tspan>
         <tspan x="28" dy="24">Settings, data, artifacts</tspan>
       </text>
-      <text class="card-note" x="28" y="184">The unit that survives UI and runtime changes</text>
+      <text class="card-note" x="28" y="184">Portable unit of work</text>
     </g>
 
     <g id="control-plane" transform="translate(608,154)">
@@ -182,7 +185,7 @@
         <tspan x="28" dy="24">WorkDispatcher plan</tspan>
         <tspan x="28" dy="24">Telemetry context</tspan>
       </text>
-      <text class="card-note" x="28" y="184">Install, distribute, run, service, export</text>
+      <text class="card-note" x="28" y="184">Install, run, service, export</text>
     </g>
 
     <g id="runtime-backplanes" transform="translate(883,154)">
@@ -194,7 +197,7 @@
         <tspan x="28" dy="24">Dask scheduler</tspan>
         <tspan x="28" dy="24">SSH workers / service mode</tspan>
       </text>
-      <text class="card-note" x="28" y="184">Same work plan, different execution target</text>
+      <text class="card-note" x="28" y="184">Same plan, target changes</text>
     </g>
 
     <g id="evidence-portability" transform="translate(1158,154)">
@@ -206,7 +209,7 @@
         <tspan x="28" dy="24">Optional MLflow tracking</tspan>
         <tspan x="28" dy="24">Export back to notebook</tspan>
       </text>
-      <text class="card-note" x="28" y="184">Keep work usable if AGILAB is no longer needed</text>
+      <text class="card-note" x="28" y="184">Work remains reusable</text>
     </g>
   </g>
 
@@ -215,7 +218,8 @@
   <path class="arrow" d="M 858 259 H 876" marker-end="url(#arrowhead)" />
   <path class="arrow" d="M 1133 259 H 1151" marker-end="url(#arrowhead)" />
   <path class="arrow-soft" d="M 1260 366 C 1260 390 178 390 178 366" marker-end="url(#arrowhead-soft)" />
-  <text class="card-note" x="620" y="391" text-anchor="middle">feedback loop: results, imported notebooks, exported notebooks, and refined app code</text>
+  <rect x="494" y="374" width="252" height="28" fill="#f8fbff" stroke="#d6e1ec" stroke-width="1.4" rx="14" ry="14" />
+  <text class="card-note" x="620" y="393" text-anchor="middle">feedback and export loop</text>
 
   <g id="runtime-split" transform="translate(58,466)">
     <rect class="callout" width="414" height="156" />
@@ -240,14 +244,14 @@
     <rect class="pill" x="28" y="108" width="142" height="32" fill="#f0f9e9" stroke="#9bc87d" />
     <text class="pill-text" x="99" y="129" text-anchor="middle">agi_node</text>
     <rect class="pill" x="182" y="108" width="148" height="32" fill="#f7f0ff" stroke="#b8a4e6" />
-    <text class="pill-text" x="256" y="129" text-anchor="middle">~/wenv/&lt;app&gt;</text>
+    <text class="pill-text" x="256" y="129" text-anchor="middle">~/wenv/app_worker</text>
   </g>
 
   <g id="shared-state" transform="translate(988,466)">
     <rect class="callout" width="420" height="156" />
     <text class="callout-title" x="28" y="38">Shared state and integrations</text>
     <text class="callout-body" x="28" y="70">
-      <tspan x="28" dy="0">Localshare, clustershare, optional MLflow, app pages,</tspan>
+      <tspan x="28" dy="0">Localshare, clustershare, MLflow, app pages,</tspan>
       <tspan x="28" dy="22">release proof, and repository app updates.</tspan>
     </text>
     <rect class="pill" x="28" y="108" width="132" height="32" fill="#fff3f6" stroke="#d997a8" />

@@ -11,6 +11,15 @@ DISPATCH_CORE_PATH = Path("src/agilab/global_pipeline_app_dispatch_smoke.py").re
 
 
 def _load_module(path: Path, name: str):
+    src_root = Path.cwd() / "src"
+    src_root_text = str(src_root)
+    if src_root_text not in sys.path:
+        sys.path.insert(0, src_root_text)
+    package = sys.modules.get("agilab")
+    package_paths = getattr(package, "__path__", None)
+    package_path = str(src_root / "agilab")
+    if package_paths is not None and package_path not in list(package_paths):
+        package_paths.append(package_path)
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -113,3 +122,54 @@ def test_operator_state_report_handles_load_failure(tmp_path: Path) -> None:
             "summary": "global pipeline operator state could not be persisted",
         }
     ]
+
+
+def test_operator_state_core_reports_defensive_edges_and_persistence_mismatch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_operator_state_core_edges_test_module")
+    issue = core_module._issue("where", "what")
+    assert issue.as_dict() == {"level": "error", "location": "where", "message": "what"}
+    assert core_module._unit_rows({"units": "bad"}) == ()
+    assert core_module._artifact_rows({"artifacts": "bad"}) == ()
+    assert core_module._handoff_rows(
+        units=({"id": "consumer", "artifact_dependencies": ["bad", {"artifact": "missing", "from": "producer"}]},),
+        artifacts_by_id={},
+    ) == [
+        {
+            "from": "producer",
+            "to": "consumer",
+            "artifact": "missing",
+            "status": "missing",
+            "path": "",
+            "handoff": "",
+        }
+    ]
+
+    dispatch_path = tmp_path / "dispatch_state.json"
+    dispatch_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        core_module,
+        "load_dispatch_state",
+        lambda _path: {
+            "schema": "wrong.schema",
+            "units": [],
+            "artifacts": [],
+            "summary": {},
+            "source": {},
+        },
+    )
+    monkeypatch.setattr(core_module, "load_operator_state", lambda _path: {"changed": True})
+
+    proof = core_module.persist_operator_state(
+        repo_root=tmp_path,
+        output_path=tmp_path / "operator_state.json",
+        dispatch_state_path=dispatch_path,
+    )
+
+    assert proof.ok is False
+    assert {issue.location for issue in proof.issues} == {
+        "persistence.round_trip",
+        "source.dispatch_state_schema",
+    }

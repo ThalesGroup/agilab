@@ -83,3 +83,60 @@ def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_non
     assert flight_payload["nodes"][1]["execution"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert flight_payload["nodes"][1]["execution"]["params"]["station"] == "Paris-Montsouris"
     assert flight_payload["nodes"][1]["execution"]["data_in"] == "weather_forecast/dataset"
+
+
+def test_app_dag_templates_handles_missing_builtin_root_and_external_paths(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    external = tmp_path / "external" / "template.json"
+    external.parent.mkdir()
+    external.write_text(
+        '{"schema": "agilab.multi_app_dag.v1", "dag_id": "external"}',
+        encoding="utf-8",
+    )
+    option = multi_app_dag_templates.DagTemplateOption(
+        path=external,
+        app_name="external_project",
+        label="External",
+        dag_id="external",
+    )
+
+    assert multi_app_dag_templates.discover_app_dag_templates(repo_root) == ()
+    assert option.repo_relative(repo_root) == str(external)
+    assert multi_app_dag_templates._normalize_app_name(None) == ""
+
+
+def test_app_dag_templates_discovers_suffix_variants_and_filters_bad_templates(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    builtin = repo_root / "src" / "agilab" / "apps" / "builtin"
+    app_dir = builtin / "demo_project"
+    templates = app_dir / "dag_templates"
+    templates.mkdir(parents=True)
+    (app_dir / "pipeline_view.json").write_text(
+        '{"schema": "agilab.multi_app_dag.v1", "label": "Pipeline View", "dag_id": "pipeline"}',
+        encoding="utf-8",
+    )
+    (templates / "a.json").write_text("{not-json", encoding="utf-8")
+    (templates / "b.json").write_text('["not", "an", "object"]', encoding="utf-8")
+    (templates / "c.json").write_text('{"schema": "other"}', encoding="utf-8")
+    (templates / "d.json").write_text(
+        '{"schema": "agilab.multi_app_dag.v1"}',
+        encoding="utf-8",
+    )
+
+    options = multi_app_dag_templates.discover_app_dag_templates(
+        repo_root,
+        app_name="demo",
+    )
+
+    assert [option.label for option in options] == ["Pipeline View", "d"]
+    assert [option.dag_id for option in options] == ["pipeline", "d"]
+    assert multi_app_dag_templates.app_dag_template_paths(
+        repo_root,
+        app_name="../demo_project",
+    ) == [
+        "src/agilab/apps/builtin/demo_project/pipeline_view.json",
+        "src/agilab/apps/builtin/demo_project/dag_templates/d.json",
+    ]
+
+    assert multi_app_dag_templates.discover_app_dag_templates(repo_root)

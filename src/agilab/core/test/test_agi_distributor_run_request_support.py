@@ -33,11 +33,19 @@ def test_run_request_separates_app_fields_from_dispatch_stages() -> None:
 def test_run_request_rejects_legacy_top_level_args() -> None:
     with pytest.raises(ValueError, match="legacy key 'args'"):
         RunRequest(params={"args": [{"name": "demo", "args": {}}]})
+    with pytest.raises(ValueError, match="legacy key 'steps'"):
+        RunRequest(params={"steps": []})
+    with pytest.raises(ValueError, match=RUN_STAGES_KEY):
+        RunRequest(params={RUN_STAGES_KEY: []})
 
 
 def test_stage_request_requires_mapping_args() -> None:
+    with pytest.raises(ValueError, match="StageRequest.name"):
+        StageRequest(name="", args={})
     with pytest.raises(TypeError, match="StageRequest.args must be a mapping"):
         StageRequest(name="demo", args=["bad"])  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="RunRequest.stages entries"):
+        RunRequest(stages=["bad"])  # type: ignore[list-item]
 
 
 def test_run_request_with_execution_updates_only_runtime_controls() -> None:

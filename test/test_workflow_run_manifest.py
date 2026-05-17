@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
+
 
 def _ensure_agilab_package_path() -> None:
     package_root = Path("src/agilab").resolve()
@@ -203,6 +205,169 @@ def test_workflow_run_manifest_loads_legacy_schema_v2_without_graph(tmp_path: Pa
     assert summary["manifest_id"] == "legacy-demo"
     assert summary["phase"] == "unknown"
     assert "evidence_graph" not in manifest
+
+
+def test_workflow_manifest_loaders_and_helpers_cover_error_paths(tmp_path: Path, monkeypatch) -> None:
+    manifest_path = tmp_path / "workflow_run_manifest.json"
+    ledger_path = tmp_path / "evidence_ledger.json"
+
+    manifest_path.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        load_workflow_run_manifest(manifest_path)
+    for payload, message in (
+        ({"schema_version": 999}, "Unsupported workflow run manifest schema"),
+        ({"schema_version": 3, "kind": "wrong"}, "Unsupported workflow run manifest kind"),
+        (
+            {
+                "schema_version": 3,
+                "kind": workflow_run_manifest.WORKFLOW_RUN_MANIFEST_KIND,
+                "status": "weird",
+            },
+            "Unsupported workflow run manifest status",
+        ),
+        (
+            {
+                "schema_version": 3,
+                "kind": workflow_run_manifest.WORKFLOW_RUN_MANIFEST_KIND,
+                "status": "unknown",
+                "runtime_contract": "bad",
+            },
+            "runtime_contract must be a JSON object",
+        ),
+        (
+            {
+                "schema_version": 3,
+                "kind": workflow_run_manifest.WORKFLOW_RUN_MANIFEST_KIND,
+                "status": "unknown",
+                "runtime_contract": {"schema": "bad"},
+            },
+            "Invalid workflow runtime contract",
+        ),
+        (
+            {
+                "schema_version": 3,
+                "kind": workflow_run_manifest.WORKFLOW_RUN_MANIFEST_KIND,
+                "status": "unknown",
+                "evidence_graph": "bad",
+            },
+            "evidence_graph must be a JSON object",
+        ),
+    ):
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(ValueError, match=message):
+            load_workflow_run_manifest(manifest_path)
+
+    ledger_path.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="evidence ledger must be a JSON object"):
+        load_evidence_ledger(ledger_path)
+    for payload, message in (
+        ({"schema_version": 2}, "Unsupported evidence ledger schema"),
+        ({"schema_version": 1, "kind": "wrong"}, "Unsupported evidence ledger kind"),
+    ):
+        ledger_path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(ValueError, match=message):
+            load_evidence_ledger(ledger_path)
+
+    assert workflow_run_manifest.workflow_evidence_paths(tmp_path, "bad id!") == (
+        tmp_path
+        / ".agilab"
+        / workflow_run_manifest.WORKFLOW_EVIDENCE_DIRNAME
+        / "bad-id"
+        / workflow_run_manifest.WORKFLOW_RUN_MANIFEST_FILENAME,
+        tmp_path
+        / ".agilab"
+        / workflow_run_manifest.WORKFLOW_EVIDENCE_DIRNAME
+        / "bad-id"
+        / workflow_run_manifest.EVIDENCE_LEDGER_FILENAME,
+        tmp_path
+        / ".agilab"
+        / workflow_run_manifest.WORKFLOW_EVIDENCE_DIRNAME
+        / workflow_run_manifest.LATEST_WORKFLOW_EVIDENCE_FILENAME,
+    )
+    assert workflow_run_manifest.workflow_evidence_graph_path(tmp_path, "bad id!").name == (
+        workflow_run_manifest.EVIDENCE_GRAPH_FILENAME
+    )
+    assert workflow_run_manifest._safe_id("  ") == "workflow-run"
+    assert workflow_run_manifest._json_safe({"p": tmp_path, "items": (1, tmp_path), "custom": object()})[
+        "items"
+    ] == [1, str(tmp_path)]
+    assert workflow_run_manifest._sha256_file_or_empty(tmp_path / "missing") == ""
+    assert workflow_run_manifest._repo_relative_text(tmp_path / "outside.txt", tmp_path / "repo") == str(
+        tmp_path / "outside.txt"
+    )
+    assert workflow_run_manifest._workflow_source_path({}, None, tmp_path) == ""
+    assert workflow_run_manifest._workflow_source_path({"source_dag": "legacy.json"}, tmp_path / "x", tmp_path) == (
+        "legacy.json"
+    )
+    assert workflow_run_manifest._state_timestamp({"events": [{"timestamp": ""}, {"timestamp": "event-ts"}]}) == (
+        "event-ts"
+    )
+    monkeypatch.setattr(workflow_run_manifest, "utc_now", lambda: "now-ts")
+    assert workflow_run_manifest._state_timestamp({"events": "bad"}) == "now-ts"
+    assert workflow_run_manifest._unit_rows({"units": "bad"}) == []
+    assert workflow_run_manifest._unit_sort_key({"order_index": "bad", "id": "x"}) == (999_999, "x")
+
+    produced, consumed = workflow_run_manifest._artifact_contracts(
+        [
+            {
+                "id": "unit",
+                "app": "app",
+                "produces": ["bad", {"id": "artifact-from-id"}, {"artifact": ""}],
+                "artifact_dependencies": ["bad", {"artifact": ""}, {"artifact": "input"}],
+            }
+        ]
+    )
+    assert produced[0]["artifact"] == "artifact-from-id"
+    assert consumed[0]["artifact"] == "input"
+    stage = workflow_run_manifest._stage_record(
+        {
+            "id": "unit",
+            "depends_on": "bad",
+            "produces": ["bad", {"id": "artifact-from-id"}],
+            "execution_contract": "bad",
+        }
+    )
+    assert stage["depends_on"] == []
+    assert stage["produces"] == ["artifact-from-id"]
+    assert stage["execution_contract_sha256"] == ""
+    assert workflow_run_manifest._manifest_status({"run_status": "failed"}, []) == "fail"
+    assert workflow_run_manifest._manifest_status({}, [{"dispatch_status": "failed"}]) == "fail"
+    validations = workflow_run_manifest._manifest_validations(
+        state={},
+        units=[{"id": "bad", "dispatch_status": "failed"}],
+        produced_artifacts=[],
+        consumed_artifacts=[],
+    )
+    assert [item["status"] for item in validations] == ["fail", "unknown", "fail"]
+    assert workflow_run_manifest._run_outcome_summary("failed", 1, 0, []) == (
+        "workflow failed; failed units: unknown"
+    )
+    directory_record = workflow_run_manifest._file_record(tmp_path, name="dir", kind="directory")
+    assert directory_record["exists"] is True
+    assert directory_record["size_bytes"] is None
+
+    written = workflow_run_manifest._write_json(tmp_path / "out" / "payload.json", {"p": tmp_path})
+    assert json.loads(written.read_text(encoding="utf-8")) == {"p": str(tmp_path)}
+    immutable = tmp_path / "immutable.json"
+    workflow_run_manifest._write_immutable_json(immutable, {"a": 1})
+    assert workflow_run_manifest._write_immutable_json(immutable, {"a": 1}) == immutable
+    with pytest.raises(FileExistsError, match="Refusing to overwrite immutable"):
+        workflow_run_manifest._write_immutable_json(immutable, {"a": 2})
+
+
+def test_write_workflow_evidence_rejects_invalid_generated_graph(tmp_path: Path, monkeypatch) -> None:
+    state_path = tmp_path / "state.json"
+    state_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(workflow_run_manifest, "build_evidence_graph_from_workflow_manifest", lambda _manifest: {})
+    monkeypatch.setattr(workflow_run_manifest, "validate_evidence_graph", lambda _graph: ("bad graph",))
+
+    with pytest.raises(ValueError, match="Invalid workflow evidence graph: bad graph"):
+        write_workflow_run_evidence(
+            state={"run_id": "demo"},
+            state_path=state_path,
+            repo_root=tmp_path,
+            lab_dir=tmp_path,
+        )
 
 
 def test_dag_run_engine_emits_workflow_evidence_on_state_writes(tmp_path: Path) -> None:

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tomllib
 import types
+import builtins
 from pathlib import Path
 
 import pytest
@@ -211,6 +212,91 @@ def test_default_active_app_uses_installed_payload_provider(monkeypatch, tmp_pat
     active_app = module.default_active_app()
 
     assert active_app == installed_project.resolve()
+
+
+def test_installed_first_proof_project_provider_edges(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    original_import = builtins.__import__
+
+    def import_missing_provider(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            raise ImportError("provider missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_missing_provider)
+    assert module._resolve_installed_first_proof_project() is None
+
+    class ProviderModule:
+        @staticmethod
+        def resolve_installed_app_project(_name):
+            raise RuntimeError("provider failed")
+
+    def import_failing_provider(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            return ProviderModule
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_failing_provider)
+    assert module._resolve_installed_first_proof_project() is None
+
+    class EmptyProviderModule:
+        @staticmethod
+        def resolve_installed_app_project(_name):
+            return None
+
+    def import_empty_provider(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            return EmptyProviderModule
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_empty_provider)
+    assert module._resolve_installed_first_proof_project() is None
+
+    class BadPathProviderModule:
+        @staticmethod
+        def resolve_installed_app_project(_name):
+            return object()
+
+    def import_bad_path_provider(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            return BadPathProviderModule
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_bad_path_provider)
+    assert module._resolve_installed_first_proof_project() is None
+
+    project = tmp_path / "installed" / module.FIRST_PROOF_PROJECT
+    project.mkdir(parents=True)
+
+    class MissingPyprojectProviderModule:
+        @staticmethod
+        def resolve_installed_app_project(_name):
+            return project
+
+    def import_missing_pyproject_provider(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            return MissingPyprojectProviderModule
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_missing_pyproject_provider)
+    assert module._resolve_installed_first_proof_project() is None
+
+
+def test_render_human_dry_run_core_smoke_message() -> None:
+    module = _load_module()
+
+    text = module.render_human(
+        active_app=module.default_core_smoke_target(),
+        dry_run=True,
+        with_install=False,
+        with_ui=False,
+        commands=[],
+        results=[],
+        print_only=False,
+    )
+
+    assert "active app: not required (core smoke only)" in text
+    assert "mode: dry-run (core smoke only)" in text
 
 
 def test_main_rejects_non_positive_kpi_target() -> None:

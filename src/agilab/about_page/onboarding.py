@@ -57,8 +57,9 @@ FIRST_PROOF_NOTEBOOK_HINT = (
     "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
 )
 FIRST_PROOF_NOTEBOOK_LANE_LABEL = "Notebook import: included sample"
+FIRST_PROOF_NOTEBOOK_PROJECT = "flight_telemetry_from_notebook_project"
 FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
-    "Then click PROJECT `Create`; it builds `flight_telemetry_from_notebook_project`."
+    f"Then click PROJECT `Create`; it builds `{FIRST_PROOF_NOTEBOOK_PROJECT}`."
 )
 FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
@@ -332,6 +333,229 @@ def _first_proof_action_columns_layout(
     return spec, total_width
 
 
+def _notebook_to_validated_app_project_path(env: Any) -> Path | None:
+    """Return the expected project path for the packaged notebook lane."""
+    apps_path = getattr(env, "apps_path", None)
+    if not apps_path:
+        return None
+    apps_root = Path(apps_path)
+    candidates = [
+        apps_root / FIRST_PROOF_NOTEBOOK_PROJECT,
+        apps_root / "builtin" / FIRST_PROOF_NOTEBOOK_PROJECT,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _notebook_to_validated_app_rows(env: Any) -> List[Dict[str, str]]:
+    """Return the visible proof contract for the notebook-to-app path."""
+    project_path = _notebook_to_validated_app_project_path(env)
+    project_exists = bool(project_path and project_path.exists())
+    project_detail = (
+        f"`{FIRST_PROOF_NOTEBOOK_PROJECT}` exists."
+        if project_exists
+        else f"`{FIRST_PROOF_NOTEBOOK_PROJECT}` will be created."
+    )
+    return [
+        {
+            "stage": "Import",
+            "status": "Done" if project_exists else "Start",
+            "action": f"Click `{FIRST_PROOF_NOTEBOOK_BUTTON}`, then PROJECT `Create`.",
+            "proof": project_detail,
+        },
+        {
+            "stage": "Install",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Open ORCHESTRATE and click `INSTALL`.",
+            "proof": "A project environment and worker environment are prepared.",
+        },
+        {
+            "stage": "Execute",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Click ORCHESTRATE `EXECUTE` with cluster and service mode off.",
+            "proof": "The imported notebook stages run as an AGILAB app.",
+        },
+        {
+            "stage": "Analyze",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Open ANALYSIS and inspect the generated outputs.",
+            "proof": "The result is visible outside the original notebook kernel.",
+        },
+        {
+            "stage": "Exit path",
+            "status": "Required proof",
+            "action": "Open WORKFLOW and click `Download pipeline notebook`.",
+            "proof": "`lab_stages.ipynb` can be kept if AGILAB is no longer needed.",
+        },
+    ]
+
+
+def _notebook_to_validated_app_markdown(rows: List[Dict[str, str]]) -> str:
+    """Render the notebook proof contract as a compact Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Step | Status | Action | Evidence |", "| --- | --- | --- | --- |"]
+    table.extend(
+        (
+            f"| {_cell(row['stage'])} | {_cell(row['status'])} | "
+            f"{_cell(row['action'])} | {_cell(row['proof'])} |"
+        )
+        for row in rows
+    )
+    return "\n".join(table)
+
+
+def _first_proof_export_notebook_candidates(env: Any, state: Dict[str, Any]) -> List[Path]:
+    """Return project-local notebook export locations that prove a no-lock-in handoff."""
+    candidates: List[Path] = []
+
+    def _append_project(project_path: Any) -> None:
+        if not project_path:
+            return
+        candidates.append(Path(project_path) / "notebooks" / "lab_stages.ipynb")
+
+    _append_project(state.get("project_path"))
+    _append_project(_notebook_to_validated_app_project_path(env))
+
+    apps_path = getattr(env, "apps_path", None)
+    active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
+    if apps_path and active_app:
+        apps_root = Path(apps_path)
+        _append_project(apps_root / active_app)
+        _append_project(apps_root / "builtin" / active_app)
+
+    unique: List[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
+def _first_existing_path(paths: List[Path]) -> Path | None:
+    """Return the first existing path from a deterministic candidate list."""
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _first_proof_adoption_gate(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
+    """Return the visible readiness gate before widening adoption beyond one user."""
+    manifest_passed = bool(state.get("run_manifest_passed"))
+    outputs_seen = bool(state.get("run_output_detected") or state.get("visible_outputs"))
+    export_candidates = _first_proof_export_notebook_candidates(env, state)
+    exported_notebook = _first_existing_path(export_candidates)
+    expected_export = export_candidates[0] if export_candidates else None
+
+    if manifest_passed and exported_notebook:
+        return {
+            "status": "Ready for a controlled team trial",
+            "action": "Keep the manifest and exported notebook; add secrets, auth/TLS, quotas, and pinning before shared use.",
+            "evidence": f"`{state.get('run_manifest_path')}` and `{exported_notebook}`.",
+        }
+    if manifest_passed:
+        expected = f"`{expected_export}`" if expected_export else "`notebooks/lab_stages.ipynb`"
+        return {
+            "status": "Stay local: export missing",
+            "action": "Open WORKFLOW and download the pipeline notebook before handoff.",
+            "evidence": f"`run_manifest.json` passed; expected {expected}.",
+        }
+    if outputs_seen:
+        return {
+            "status": "Stay local: proof incomplete",
+            "action": "Generate a passing `run_manifest.json`, then export `lab_stages.ipynb`.",
+            "evidence": "Outputs exist, but no passing first-proof manifest was found.",
+        }
+    return {
+        "status": "Not ready yet",
+        "action": "Run one local proof first; keep cluster, service mode, and team sharing for later.",
+        "evidence": "No passing first-proof evidence was found.",
+    }
+
+
+def _first_proof_adoption_gate_caption(gate: Dict[str, str]) -> str:
+    """Render the adoption gate as one compact onboarding line."""
+    return (
+        f"Adoption gate: {gate['status']}. "
+        f"{gate['action']} Evidence: {gate['evidence']}"
+    )
+
+
+def _first_proof_compatibility_command(state: Dict[str, Any]) -> str:
+    """Return the compatibility-report command to attach to a handoff bundle."""
+    for command in state.get("evidence_commands", ()):
+        if "compatibility_report.py" in str(command):
+            return str(command)
+    manifest_path = str(state.get("run_manifest_path") or "~/log/execute/flight_telemetry/run_manifest.json")
+    return f"python tools/compatibility_report.py --manifest {manifest_path} --compact"
+
+
+def _first_proof_handoff_bundle_rows(env: Any, state: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return the minimal evidence package to share after a first proof."""
+    export_candidates = _first_proof_export_notebook_candidates(env, state)
+    exported_notebook = _first_existing_path(export_candidates)
+    expected_export = export_candidates[0] if export_candidates else Path("notebooks/lab_stages.ipynb")
+    manifest_path = str(state.get("run_manifest_path") or "~/log/execute/flight_telemetry/run_manifest.json")
+    manifest_status = "Ready" if state.get("run_manifest_passed") else "Missing or not passing"
+    notebook_status = "Ready" if exported_notebook else "Export from WORKFLOW"
+    notebook_path = exported_notebook or expected_export
+    return [
+        {
+            "item": "Run proof",
+            "status": manifest_status,
+            "evidence": f"`{manifest_path}`",
+        },
+        {
+            "item": "No-lock-in notebook",
+            "status": notebook_status,
+            "evidence": f"`{notebook_path}`",
+        },
+        {
+            "item": "Compatibility report",
+            "status": "Run before handoff",
+            "evidence": f"`{_first_proof_compatibility_command(state)}`",
+        },
+        {
+            "item": "Local security check",
+            "status": "Run before team use",
+            "evidence": "`agilab security-check --json --strict`",
+        },
+    ]
+
+
+def _first_proof_handoff_bundle_markdown(rows: List[Dict[str, str]]) -> str:
+    """Render the adoption handoff bundle as a compact Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Include | Status | Path or command |", "| --- | --- | --- |"]
+    table.extend(
+        f"| {_cell(row['item'])} | {_cell(row['status'])} | {_cell(row['evidence'])} |"
+        for row in rows
+    )
+    return "\n".join(table)
+
+
+def _first_proof_handoff_bundle_caption(rows: List[Dict[str, str]]) -> str:
+    """Return the one-line visible cue for the portable first-proof package."""
+    ready_core = rows[0]["status"] == "Ready" and rows[1]["status"] == "Ready"
+    if ready_core:
+        return (
+            "Handoff bundle: core proof files are ready; attach the compatibility "
+            "report and strict security-check output before team sharing."
+        )
+    return (
+        "Handoff bundle: keep the passing run manifest, exported pipeline notebook, "
+        "compatibility report, and strict security-check output before team sharing."
+    )
+
+
 def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
     """Return the wizard step that should be visually promoted."""
     if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
@@ -546,6 +770,15 @@ def _render_first_proof_wizard_actions(
         st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
 
+    st.markdown("**Notebook to validated app: full proof**")
+    st.caption(
+        "Use this lane when the starting asset is a notebook and the target is "
+        "a reusable app with a no-lock-in handoff."
+    )
+    st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
+    st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
+    st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
+
 
 def _render_first_proof_next_action(
     env: Any,
@@ -605,6 +838,12 @@ def render_newcomer_first_proof(
     with st.expander("If it fails / proof details", expanded=False):
         st.markdown("**Progress**")
         st.markdown(_first_proof_progress_markdown(progress_rows))
+        st.markdown("**Handoff bundle**")
+        st.markdown(_first_proof_handoff_bundle_markdown(_first_proof_handoff_bundle_rows(env, state)))
+        st.caption(
+            "This is review evidence for a controlled team trial; it is not "
+            "production, public exposure, or multi-tenant certification."
+        )
         st.caption(
             "Validated path: "
             f"{state['recommended_path_label']} "

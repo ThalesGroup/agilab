@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 import types
+import ast
 from pathlib import Path
 
 REPORT_PATH = Path("tools/notebook_import_doctor_report.py").resolve()
@@ -149,3 +150,80 @@ def test_notebook_import_doctor_report_handles_load_failure(tmp_path: Path) -> N
     assert report["status"] == "fail"
     assert report["checks"][0]["id"] == "notebook_import_doctor_load"
     assert report["checks"][0]["evidence"] == [str(missing)]
+
+
+def test_notebook_import_doctor_reports_syntax_and_missing_names() -> None:
+    notebook = {
+        "cells": [
+            {"cell_type": "code", "execution_count": 1, "source": ["value = \n"]},
+            {"cell_type": "code", "execution_count": 2, "source": ["result = missing_value + 1\n"]},
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    report = doctor.diagnose_notebook(notebook, source_notebook="bad.ipynb")
+    codes = {issue["code"] for issue in report["issues"]}
+
+    assert report["status"] == "fail"
+    assert {"syntax_error", "missing_name"} <= codes
+    assert report["cell_reports"][0]["role"] == "invalid"
+    assert report["readiness_score"] == 50
+    assert any("undefined names" in item for item in report["recommendations"])
+
+
+def test_notebook_import_doctor_detects_tuple_bindings_keyword_paths_and_load_role() -> None:
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "execution_count": 1,
+                "source": [
+                    "from pathlib import Path\n",
+                    "output_path = Path('artifacts/out.txt')\n",
+                    "data = read_csv(filepath_or_buffer='data/input.csv')\n",
+                    "Path(output_path).write_text('done')\n",
+                ],
+            },
+            {
+                "cell_type": "code",
+                "execution_count": 2,
+                "source": ["data = load(path='models/model.pkl')\n"],
+            },
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    report = doctor.diagnose_notebook(notebook, source_notebook="paths.ipynb")
+
+    assert report["artifact_contract"]["inputs"] == ["data/input.csv", "models/model.pkl"]
+    assert report["artifact_contract"]["outputs"] == ["artifacts/out.txt"]
+    assert report["cell_reports"][1]["role"] == "load"
+    assert doctor._target_names(ast.parse("(left, (right,)) = (1, (2,))").body[0].targets[0]) == [
+        "left",
+        "right",
+    ]
+
+
+def test_notebook_import_doctor_helper_edges_cover_empty_and_low_score_cases(tmp_path: Path) -> None:
+    tree = ast.parse("read_json(fname='data/input.json')\nsavefig('plots/result.png')\n")
+    contract = doctor._artifact_contract(tree, {})
+
+    assert contract["inputs"] == ["data/input.json"]
+    assert contract["outputs"] == ["plots/result.png"]
+    assert doctor._looks_like_artifact("") is False
+    assert doctor._cell_role(ast.parse("value = 1\n"), {"inputs": [], "outputs": []}) == "transform"
+    assert doctor._readiness_score(
+        [
+            doctor.NotebookImportDoctorIssue("error", "e", "a", "b"),
+            doctor.NotebookImportDoctorIssue("warning", "w", "a", "b"),
+            doctor.NotebookImportDoctorIssue("info", "i", "a", "b"),
+        ]
+        * 4
+    ) == 0
+
+    output_path = doctor.write_doctor_report(tmp_path / "nested" / "doctor.json", {"ok": True})
+    assert output_path.read_text(encoding="utf-8") == '{\n  "ok": true\n}\n'

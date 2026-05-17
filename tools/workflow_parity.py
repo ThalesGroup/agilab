@@ -84,6 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "dependency-policy",
             "release-proof",
             "security-adoption",
+            "production-readiness",
             "cloud-emulators",
             "ui-robot-matrix",
         ],
@@ -148,6 +149,10 @@ def _profile_descriptions() -> dict[str, str]:
             "Write an advisory security-check JSON artifact; set "
             "AGILAB_SECURITY_CHECK_STRICT=1 to fail on warnings."
         ),
+        "production-readiness": (
+            "Run the controlled-pilot readiness gate, including production-readiness "
+            "evidence, hardening guardrails, and docs parity."
+        ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
     }
@@ -168,6 +173,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "dependency-policy": _dependency_policy_profile(),
         "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
+        "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
     }
@@ -343,8 +349,7 @@ def _agi_gui_coverage_combine() -> CommandSpec:
         "if missing:\n"
         "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
         "    sys.exit(1)\n"
-        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', "
-        "'--data-file=.coverage.agi-gui', *paths]\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *paths]\n"
         "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
     )
     return CommandSpec(
@@ -364,7 +369,10 @@ def _agi_gui_coverage_combine() -> CommandSpec:
             "-c",
             combine_code,
         ],
-        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        env={
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "COVERAGE_FILE": ".coverage.agi-gui",
+        },
         timeout_seconds=5 * 60,
         ensure_dirs=["test-results"],
     )
@@ -873,6 +881,29 @@ def _security_adoption_profile() -> list[CommandSpec]:
     ]
 
 
+def _production_readiness_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="production readiness gate",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/production_readiness_report.py",
+                "--run-docs-profile",
+                "--output",
+                "test-results/production-readiness.json",
+                "--compact",
+            ],
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/production-readiness.json"],
+        )
+    ]
+
+
 def _cloud_emulators_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -945,7 +976,14 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    opt_in_profiles = {"agi-node", "agi-cluster", "release-proof", "security-adoption", "ui-robot-matrix"}
+    opt_in_profiles = {
+        "agi-node",
+        "agi-cluster",
+        "release-proof",
+        "security-adoption",
+        "production-readiness",
+        "ui-robot-matrix",
+    }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 
 

@@ -9,6 +9,7 @@ import networkx as nx
 import pandas as pd
 from agi_node.reduction import ReduceArtifact
 from agi_node.pandas_worker import PandasWorker
+import pytest
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -208,6 +209,126 @@ def test_uav_relay_queue_reduce_contract_merges_summary_partials() -> None:
 def test_uav_relay_queue_worker_is_installable_supported_worker() -> None:
     assert issubclass(UavRelayQueueWorker, PandasWorker)
     assert issubclass(UavQueueWorker, UavRelayQueueWorker)
+
+
+def test_uav_relay_queue_manager_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+
+    with pytest.raises(ValueError, match="Invalid UavRelayQueue arguments"):
+        UavRelayQueue(env, nfile="not-an-int")
+
+    existing = env.resolve_share_path("uav_relay_queue/results")
+    existing.mkdir(parents=True)
+    (existing / "old.txt").write_text("old", encoding="utf-8")
+    manager = UavRelayQueue(env, args=UavRelayQueueArgs(reset_target=True))
+    assert not (manager.data_out / "old.txt").exists()
+
+    fallback_env = SimpleNamespace(
+        verbose=0,
+        target="uav_relay_queue",
+        resolve_share_path=env.resolve_share_path,
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+    fallback_manager = UavRelayQueue(fallback_env, args=UavRelayQueueArgs())
+    assert fallback_manager.analysis_artifact_dir == Path.home() / "export" / "uav_relay_queue" / "queue_analysis"
+    fallback_manager._ensure_dataset(fallback_manager.args.data_in)
+
+    monkeypatch.setattr(fallback_manager, "_sample_dataset_source", lambda: tmp_path / "missing.json")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    fallback_manager.args.files = "*.json"
+    with pytest.raises(FileNotFoundError, match="Bundled sample scenario missing"):
+        fallback_manager._ensure_dataset(empty)
+
+    settings = tmp_path / "app_settings.toml"
+    manager.to_toml(settings)
+    loaded = UavRelayQueue.from_toml(env, settings_path=settings)
+    assert loaded.as_dict()["routing_policy"] == manager.args.routing_policy
+
+    no_files = UavRelayQueue(env, args=UavRelayQueueArgs(files="*.missing"))
+    with pytest.raises(FileNotFoundError, match="No scenario file found"):
+        no_files.build_distribution({"127.0.0.1": 1})
+
+
+def test_uav_relay_queue_worker_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    import uav_relay_queue_worker.uav_relay_queue_worker as worker_module
+
+    env = _make_env(tmp_path)
+    assert worker_module._artifact_dir(SimpleNamespace(resolve_share_path=env.resolve_share_path), "leaf") == (
+        Path(env.AGI_LOCAL_SHARE) / "leaf"
+    )
+    assert worker_module._artifact_dir(SimpleNamespace(), "leaf") == Path.home() / "export" / "leaf"
+
+    worker = object.__new__(UavRelayQueueWorker)
+    worker.env = env
+    worker.args = SimpleNamespace(data_in="in", data_out="out", reset_target=False)
+    worker.verbose = 0
+    worker._worker_id = 0
+    worker.worker_id = 0
+
+    monkeypatch.setattr(
+        worker,
+        "setup_data_directories",
+        lambda **_kwargs: SimpleNamespace(
+            normalized_input=tmp_path / "input",
+            normalized_output=tmp_path / "output",
+            output_path=tmp_path / "output",
+        ),
+    )
+    worker.start()
+    worker.pool_init({"args": {"data_source": "file"}})
+    assert worker._current_args().data_source == "file"
+
+    calls: list[object] = []
+    monkeypatch.setattr(worker, "work_init", lambda: calls.append("init"))
+    monkeypatch.setattr(worker, "work_pool", lambda item: {"item": item})
+    monkeypatch.setattr(worker, "work_done", lambda result: calls.append(result["item"]))
+    monkeypatch.setattr(worker, "stop", lambda: calls.append("stop"))
+    worker.works([["single-item"]], None)
+    assert calls == ["init", "single-item", "stop"]
+
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="JSON object"):
+        worker._load_scenario(invalid)
+    missing_relays = tmp_path / "missing-relays.json"
+    missing_relays.write_text('{"relays": []}', encoding="utf-8")
+    with pytest.raises(ValueError, match="at least two relays"):
+        worker._load_scenario(missing_relays)
+
+    worker.data_out = tmp_path / "out"
+    worker.artifact_dir = tmp_path / "artifacts"
+    worker.reset_target = True
+    old_run = worker.artifact_dir / "demo"
+    old_run.mkdir(parents=True)
+    result = {
+        "summary_metrics": {
+            "artifact_stem": "demo",
+            "scenario": "demo",
+            "routing_policy": "shortest_path",
+            "random_seed": 2026,
+            "packets_generated": 1,
+            "packets_delivered": 1,
+            "packets_dropped": 0,
+            "mean_e2e_delay_ms": 1.0,
+            "mean_queue_wait_ms": 0.1,
+            "max_queue_depth_pkts": 1,
+            "bottleneck_relay": "relay_a",
+        },
+        "packet_events": [],
+        "queue_timeseries": [],
+        "node_positions": [],
+        "routing_summary": [],
+        "topology_graph": nx.MultiDiGraph(),
+        "demands": [],
+        "allocations_steps": [],
+        "trajectory_summary": {},
+        "trajectory_frames": {"trajectory.csv": []},
+    }
+    UavRelayQueueWorker.work_done(worker, None)
+    UavRelayQueueWorker.work_done(worker, result)
+    assert (worker.artifact_dir / "demo" / "pipeline" / "allocations_steps.csv").is_file()
 
 
 def test_uav_relay_queue_multi_scenario_outputs_do_not_overwrite(tmp_path: Path) -> None:

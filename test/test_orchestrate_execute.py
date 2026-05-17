@@ -410,6 +410,35 @@ def test_render_execute_notice_unknown_kind_uses_info():
     assert orchestrate_execute.EXECUTE_NOTICE_KEY not in fake_st.session_state
 
 
+def test_execute_notice_and_preview_target_defensive_edges(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    orchestrate_execute.render_execute_notice(
+        fake_st,
+        {orchestrate_execute.EXECUTE_NOTICE_KEY: {"kind": "info", "message": "   "}},
+    )
+    assert fake_st.messages == []
+
+    class _FallbackStreamlit:
+        def __init__(self):
+            self.messages: list[str] = []
+
+        def info(self, message):
+            self.messages.append(str(message))
+
+    fallback_st = _FallbackStreamlit()
+    orchestrate_execute.render_execute_notice(
+        fallback_st,
+        {orchestrate_execute.EXECUTE_NOTICE_KEY: {"kind": "success", "message": "fallback"}},
+    )
+    assert fallback_st.messages == ["fallback"]
+
+    directory_candidate = tmp_path / "candidate-dir"
+    directory_candidate.mkdir()
+    monkeypatch.setattr(orchestrate_execute, "_preview_candidate_paths", lambda _roots: [directory_candidate])
+
+    assert orchestrate_execute.find_preview_target([tmp_path]) == (None, [])
+
+
 def test_find_preview_target_skips_oversized_files(tmp_path, monkeypatch):
     small_csv = tmp_path / "small.csv"
     small_csv.write_text("a,b\n1,2\n", encoding="utf-8")

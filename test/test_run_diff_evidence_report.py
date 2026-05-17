@@ -114,3 +114,38 @@ def test_run_diff_core_compares_custom_inputs() -> None:
     assert payload["summary"]["check_status_changed_count"] == 1
     assert payload["summary"]["manifest_status_changed"] is True
     assert payload["summary"]["counterfactual_count"] == 0
+
+
+def test_run_diff_core_handles_malformed_helper_inputs() -> None:
+    module = _load_module(CORE_PATH, "run_diff_evidence_helpers_test_module")
+
+    assert module._checks_by_id({"checks": "bad"}) == {}
+    assert module._artifacts_by_id({"artifacts": "bad"}) == {}
+    assert module._artifacts_by_id(
+        {
+            "artifacts": [
+                "bad",
+                {"name": "by-name"},
+                {"path": "by-path"},
+                {"artifact_id": "by-artifact-id"},
+            ]
+        }
+    ) == {
+        "by-name": {"name": "by-name"},
+        "by-path": {"path": "by-path"},
+        "by-artifact-id": {"artifact_id": "by-artifact-id"},
+    }
+    assert module._artifact_id({}) == ""
+    assert module._manifest_artifact_count({"artifacts": "bad", "summary": {"artifact_count": 4}}) == 4
+    assert module._manifest_artifact_count({"artifacts": "bad", "summary": "bad"}) == 0
+    assert module._validation_labels({"validations": "bad"}) == set()
+    assert module._validation_labels({"validations": ["bad", {"label": "smoke"}]}) == {"smoke"}
+
+
+def test_run_diff_sample_builder_uses_packaged_inputs() -> None:
+    module = _load_module(CORE_PATH, "run_diff_evidence_sample_test_module")
+
+    payload = module.build_sample_run_diff()
+
+    assert payload["schema"] == "agilab.run_diff_evidence.v1"
+    assert payload["summary"]["artifact_added_count"] == 2

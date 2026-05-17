@@ -908,7 +908,71 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
     return False
 
 
-def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
+ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV = "AGILAB_DISABLE_ANALYSIS_DISCOVERY_CACHE"
+_ANALYSIS_DISCOVERY_SKIP_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "venv",
+}
+_VIEW_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], tuple[Path, ...]]] = {}
+_NOTEBOOK_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], dict[str, Path]]] = {}
+
+
+def _analysis_discovery_cache_enabled(environ: Any = os.environ) -> bool:
+    value = str(environ.get(ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV, "")).strip().lower()
+    return value not in {"1", "true", "yes", "on"}
+
+
+def _directory_tree_signature(root: Path, *, file_suffixes: tuple[str, ...]) -> tuple[Any, ...]:
+    """Return a cheap invalidation signature for discovery-relevant files."""
+    try:
+        resolved_root = root.expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        resolved_root = root
+    if not resolved_root.exists():
+        return ("missing", str(resolved_root))
+    if not resolved_root.is_dir():
+        try:
+            stat = resolved_root.stat()
+        except OSError as exc:
+            return ("file-error", str(resolved_root), type(exc).__name__)
+        return ("file", str(resolved_root), stat.st_mtime_ns, stat.st_size)
+
+    entries: list[tuple[Any, ...]] = []
+    suffixes = tuple(suffix.lower() for suffix in file_suffixes)
+    try:
+        for dirpath, dirnames, filenames in os.walk(resolved_root):
+            dirnames[:] = sorted(
+                dirname
+                for dirname in dirnames
+                if dirname not in _ANALYSIS_DISCOVERY_SKIP_DIRS
+                and not dirname.startswith(".")
+            )
+            current_dir = Path(dirpath)
+            try:
+                stat = current_dir.stat()
+                rel_dir = current_dir.relative_to(resolved_root).as_posix()
+            except (OSError, ValueError):
+                continue
+            relevant_files = tuple(
+                sorted(
+                    filename
+                    for filename in filenames
+                    if filename.lower().endswith(suffixes)
+                    and not filename.startswith(".")
+                )
+            )
+            entries.append((rel_dir, stat.st_mtime_ns, stat.st_size, tuple(dirnames), relevant_files))
+    except OSError as exc:
+        return ("walk-error", str(resolved_root), type(exc).__name__)
+    return ("dir", str(resolved_root), tuple(entries))
+
+
+def _discover_views_uncached(pages_dir: Path) -> list[Path]:
     """
     Dynamic discovery under env.AGILAB_PAGES_ABS with common layouts:
       - <root>/apps-pages/*.py
@@ -918,7 +982,6 @@ def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
     Returns a list of concrete script Paths.
     """
     out: set[Path] = set()
-    pages_dir = Path(pages_dir).resolve()  # follow symlinks
 
     if not pages_dir.exists():
         return []
@@ -937,17 +1000,35 @@ def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
 
 
-def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Path]:
-    """Return project notebook labels mapped to concrete files under <project>/notebooks."""
+def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
+    try:
+        resolved_pages_dir = Path(pages_dir).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return []
+    if not _analysis_discovery_cache_enabled():
+        return _discover_views_uncached(resolved_pages_dir)
+
+    signature = _directory_tree_signature(resolved_pages_dir, file_suffixes=(".py",))
+    cached = _VIEW_DISCOVERY_CACHE.get(resolved_pages_dir)
+    if cached is not None and cached[0] == signature:
+        return list(cached[1])
+
+    discovered = tuple(_discover_views_uncached(resolved_pages_dir))
+    _VIEW_DISCOVERY_CACHE[resolved_pages_dir] = (signature, discovered)
+    return list(discovered)
+
+
+def _project_notebooks_root(project_root: str | Path | None) -> Path | None:
     if project_root is None:
-        return {}
+        return None
     try:
         notebooks_root = (Path(project_root).expanduser() / "notebooks").resolve()
     except (OSError, RuntimeError, TypeError, ValueError):
-        return {}
-    if not notebooks_root.is_dir():
-        return {}
+        return None
+    return notebooks_root if notebooks_root.is_dir() else None
 
+
+def _discover_project_notebooks_uncached(notebooks_root: Path) -> dict[str, Path]:
     discovered: dict[str, Path] = {}
     try:
         notebook_paths = sorted(notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix())
@@ -964,6 +1045,25 @@ def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Pat
             continue
         if notebook_path.is_file():
             discovered[rel_path.as_posix()] = notebook_path.resolve()
+    return discovered
+
+
+def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Path]:
+    """Return project notebook labels mapped to concrete files under <project>/notebooks."""
+    notebooks_root = _project_notebooks_root(project_root)
+    if notebooks_root is None:
+        return {}
+
+    if not _analysis_discovery_cache_enabled():
+        return _discover_project_notebooks_uncached(notebooks_root)
+
+    signature = _directory_tree_signature(notebooks_root, file_suffixes=(".ipynb",))
+    cached = _NOTEBOOK_DISCOVERY_CACHE.get(notebooks_root)
+    if cached is not None and cached[0] == signature:
+        return dict(cached[1])
+
+    discovered = _discover_project_notebooks_uncached(notebooks_root)
+    _NOTEBOOK_DISCOVERY_CACHE[notebooks_root] = (signature, dict(discovered))
     return discovered
 
 

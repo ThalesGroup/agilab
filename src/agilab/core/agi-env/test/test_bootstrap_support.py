@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from agi_env import bootstrap_support
 from agi_env.bootstrap_support import (
     can_link_repo_apps,
     coerce_active_app_request,
@@ -42,6 +43,22 @@ def test_coerce_active_app_request_preserves_explicit_app_and_handles_bad_path_c
     assert override is None
     assert "active_app" not in kwargs
 
+    class _SecondBrokenPath:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self, value):
+            self.calls += 1
+            if self.calls == 2:
+                raise ValueError("bad name")
+            return Path(value)
+
+    tmp_path_name = "demo_project"
+    kwargs = {"active_app": tmp_path_name}
+    app, override = coerce_active_app_request(None, kwargs, path_cls=_SecondBrokenPath())
+    assert app == tmp_path_name
+    assert override == Path(tmp_path_name)
+
 
 def test_resolve_install_type_detects_worker_and_source_layouts(tmp_path):
     worker_root = tmp_path / "wenv" / "demo_worker"
@@ -63,6 +80,16 @@ def test_resolve_install_type_handles_default_worker_and_path_errors(tmp_path):
             raise RuntimeError("resolve bug")
 
     assert resolve_install_type(_BrokenAppsPath()) == (0, False)
+
+    class _BrokenPartsPath:
+        def resolve(self):
+            return self
+
+        @property
+        def parts(self):
+            raise RuntimeError("parts bug")
+
+    assert resolve_install_type(_BrokenPartsPath()) == (0, False)
 
 
 def test_resolve_requested_apps_path_prefers_explicit_apps_path_over_env(tmp_path):
@@ -170,6 +197,28 @@ def test_resolve_requested_apps_path_handles_resolve_errors_via_custom_path_cls(
         path_cls=_BrokenExplicitPath,
     )
     assert isinstance(apps_path, _BrokenExplicitPath)
+    assert builtin_root is None
+
+    class _BadAbsolutePath:
+        def __init__(self, value):
+            self.value = value
+
+        def expanduser(self):
+            return self
+
+        def resolve(self):
+            raise OSError("resolve bug")
+
+        def is_absolute(self):
+            raise TypeError("no absolute")
+
+    apps_path, builtin_root = resolve_requested_apps_path(
+        env_apps_path="~/apps",
+        explicit_apps_path=None,
+        active_app_override=object(),
+        path_cls=_BadAbsolutePath,
+    )
+    assert isinstance(apps_path, _BadAbsolutePath)
     assert builtin_root is None
 
 
@@ -331,6 +380,50 @@ def test_resolve_active_app_selection_handles_base_dir_and_builtin_resolution_er
         default_app="demo_project",
     )
     assert selected.active_app == apps_path / "demo_project"
+
+
+def test_bootstrap_support_private_scoring_and_active_app_errors(tmp_path):
+    class _BrokenIsDirPath(type(Path())):
+        def is_dir(self):
+            raise OSError("unreadable")
+
+    assert bootstrap_support._app_root_score(_BrokenIsDirPath(tmp_path / "broken"), "demo_project") == -1
+
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    builtin_root = tmp_path / "apps" / "builtin"
+    builtin_root.mkdir(parents=True)
+
+    class _BrokenBuiltinPath(type(Path())):
+        def exists(self):
+            raise OSError("exists bug")
+
+    selected = resolve_active_app_selection(
+        app="custom_project",
+        active_app_override=active_app,
+        apps_path=tmp_path / "apps",
+        builtin_apps_path=_BrokenBuiltinPath(builtin_root),
+        home_abs=tmp_path / "home",
+        is_worker_env=False,
+        default_app="demo_project",
+    )
+    assert selected.active_app == active_app
+
+    class _BrokenActivePath(type(Path())):
+        def exists(self):
+            raise OSError("exists bug")
+
+    broken_apps = _BrokenActivePath(tmp_path / "apps")
+    selected = resolve_active_app_selection(
+        app="demo_project",
+        active_app_override=None,
+        apps_path=broken_apps,
+        builtin_apps_path=None,
+        home_abs=tmp_path / "home",
+        is_worker_env=False,
+        default_app="demo_project",
+    )
+    assert selected.active_app == broken_apps / "demo_project"
 
 
 def test_resolve_active_app_selection_covers_no_builtin_path_and_builtin_exists_error(tmp_path):

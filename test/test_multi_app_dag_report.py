@@ -28,6 +28,15 @@ def _load_core_module():
     return module
 
 
+def _repo_with_apps(tmp_path: Path, *apps: str) -> Path:
+    builtin_root = tmp_path / "src" / "agilab" / "apps" / "builtin"
+    for app in apps:
+        app_root = builtin_root / app
+        app_root.mkdir(parents=True)
+        (app_root / "pyproject.toml").write_text("[project]\nname = 'test-app'\n", encoding="utf-8")
+    return tmp_path
+
+
 def test_multi_app_dag_report_validates_checked_in_sample() -> None:
     module = _load_report_module()
 
@@ -174,3 +183,132 @@ def test_multi_app_dag_validation_rejects_nonportable_artifact_paths() -> None:
     } >= {
         "artifact path must be portable and relative",
     }
+
+
+def test_multi_app_dag_load_rejects_non_object_payload(tmp_path: Path) -> None:
+    module = _load_core_module()
+    dag_path = tmp_path / "dag.json"
+    dag_path.write_text("[]", encoding="utf-8")
+
+    try:
+        module.load_multi_app_dag(dag_path)
+    except ValueError as exc:
+        assert "must be a JSON object" in str(exc)
+    else:
+        raise AssertionError("load_multi_app_dag should reject non-object JSON")
+
+
+def test_multi_app_dag_validation_reports_contract_shape_errors(tmp_path: Path) -> None:
+    module = _load_core_module()
+    repo_root = _repo_with_apps(tmp_path, "app_a_project", "app_b_project")
+    payload = {
+        "schema": "wrong",
+        "dag_id": "",
+        "nodes": [
+            "not-object",
+            {
+                "id": "",
+                "app": "",
+                "produces": "not-list",
+                "consumes": [
+                    "not-object",
+                    {"id": "", "path": ""},
+                    {"id": "dup", "path": "in.json"},
+                    {"id": "dup", "path": "in2.json"},
+                ],
+            },
+            {"id": "bad id", "app": "missing_project"},
+        ],
+        "edges": "not-list",
+    }
+
+    result = module.validate_multi_app_dag(payload, repo_root=repo_root)
+    messages = {issue.message for issue in result.issues}
+
+    assert result.ok is False
+    assert "unsupported schema 'wrong'; expected 'agilab.multi_app_dag.v1'" in messages
+    assert "dag_id is required" in messages
+    assert "edges must be a list" in messages
+    assert "node must be an object" in messages
+    assert "node id is required" in messages
+    assert "node app is required" in messages
+    assert "artifact entries must be a list" in messages
+    assert "artifact entry must be an object" in messages
+    assert "artifact id is required" in messages
+    assert "artifact path is required" in messages
+    assert "duplicate artifact id 'dup'" in messages
+    assert "node id 'bad id' is not portable" in messages
+    assert "node app 'missing_project' is not a checked-in built-in app" in messages
+
+
+def test_multi_app_dag_validation_reports_edge_shape_errors(tmp_path: Path) -> None:
+    module = _load_core_module()
+    repo_root = _repo_with_apps(tmp_path, "app_a_project", "app_b_project")
+    payload = {
+        "schema": "agilab.multi_app_dag.v1",
+        "dag_id": "bad-edges",
+        "nodes": [
+            {
+                "id": "a",
+                "app": "app_a_project",
+                "produces": [{"id": "a_out", "path": "a.json"}],
+            },
+            {
+                "id": "b",
+                "app": "app_b_project",
+                "consumes": [{"id": "wanted", "path": "wanted.json"}],
+            },
+            {
+                "id": "b",
+                "app": "app_b_project",
+                "produces": [{"id": "b_out", "path": "b.json"}],
+            },
+        ],
+        "edges": [
+            "not-object",
+            {"from": "missing", "to": "b", "artifact": "a_out"},
+            {"from": "a", "to": "missing", "artifact": "a_out"},
+            {"from": "a", "to": "a", "artifact": "a_out"},
+            {"from": "a", "to": "b", "artifact": ""},
+            {"from": "a", "to": "b", "artifact": "a_out"},
+        ],
+    }
+
+    result = module.validate_multi_app_dag(payload, repo_root=repo_root)
+    messages = {issue.message for issue in result.issues}
+
+    assert result.ok is False
+    assert "duplicate node id 'b'" in messages
+    assert "edge must be an object" in messages
+    assert "edge source 'missing' does not match a node" in messages
+    assert "edge target 'missing' does not match a node" in messages
+    assert "edge cannot depend on itself" in messages
+    assert "edge artifact is required" in messages
+    assert "target node does not consume artifact 'a_out'" in messages
+
+
+def test_multi_app_dag_validation_requires_cross_app_edge_when_edges_exist(tmp_path: Path) -> None:
+    module = _load_core_module()
+    repo_root = _repo_with_apps(tmp_path, "app_a_project", "app_b_project")
+    payload = {
+        "schema": "agilab.multi_app_dag.v1",
+        "dag_id": "same-app",
+        "nodes": [
+            {
+                "id": "a",
+                "app": "app_a_project",
+                "produces": [{"id": "a_out", "path": "a.json"}],
+            },
+            {
+                "id": "b",
+                "app": "app_a_project",
+                "consumes": [{"id": "a_out", "path": "a.json"}],
+            },
+        ],
+        "edges": [{"from": "a", "to": "b", "artifact": "a_out"}],
+    }
+
+    result = module.validate_multi_app_dag(payload, repo_root=repo_root)
+
+    assert result.ok is False
+    assert "DAG must include at least one cross-app edge" in {issue.message for issue in result.issues}

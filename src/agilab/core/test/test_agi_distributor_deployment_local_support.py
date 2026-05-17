@@ -3007,3 +3007,57 @@ async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(tmp_pat
 
     copied_archives = [src for src, _dst in copy_calls if src.name == "Trajectory.7z"]
     assert copied_archives == [second_archive, first_archive]
+
+
+def test_deployment_local_small_helper_edges(monkeypatch, tmp_path):
+    assert deployment_local_support._python_version_tuple(None) is None
+    assert deployment_local_support._python_version_tuple("python") is None
+    assert deployment_local_support._project_venv_cfg_version(tmp_path / "missing") is None
+
+    cfg_project = tmp_path / "cfg"
+    (cfg_project / ".venv").mkdir(parents=True)
+    (cfg_project / ".venv" / "pyvenv.cfg").write_text("home=/tmp\nversion = 3.13.2\n", encoding="utf-8")
+    assert deployment_local_support._project_venv_cfg_version(cfg_project) == (3, 13, 2)
+    assert deployment_local_support._project_venv_matches(cfg_project, python_version="3.13") is False
+    (cfg_project / ".venv" / "bin").mkdir()
+    (cfg_project / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    assert deployment_local_support._project_venv_matches(cfg_project, python_version="3.13") is True
+
+    class _BrokenEnvars:
+        def get(self, _key):
+            raise RuntimeError("broken")
+
+    monkeypatch.delenv("AGILAB_SHARED_WORKER_VENV_DIR", raising=False)
+    assert deployment_local_support._env_value(_BrokenEnvars(), "AGILAB_SHARED_WORKER_VENV_DIR") is None
+
+    active_app = tmp_path / "app"
+    wenv = tmp_path / "wenv"
+    active_app.mkdir()
+    wenv.mkdir()
+    shared_project = deployment_local_support._shared_worker_venv_project(
+        {
+            deployment_local_support.SHARED_WORKER_VENV_ENV: "1",
+            deployment_local_support.SHARED_WORKER_VENV_DIR_ENV: "relative-cache",
+        },
+        active_app=active_app,
+        wenv_abs=wenv,
+        python_version="3.13",
+        run_type="uv run",
+        options_worker="",
+        worker_core_add_specs=[],
+        hw_rapids_capable=False,
+    )
+    assert shared_project is not None
+    assert shared_project.parent == wenv.parent / "relative-cache"
+
+    resources_dest = tmp_path / "dest" / "resources"
+    deployment_local_support._copy_package_resources(tmp_path / "missing-resources", resources_dest)
+    assert not resources_dest.exists()
+
+    legacy = tmp_path / "legacy_app" / "agilab/core/agi-env/src/agi_env/resources"
+    legacy.mkdir(parents=True)
+    blocker = legacy.parent / "blocker.txt"
+    blocker.write_text("keep parent non-empty", encoding="utf-8")
+    deployment_local_support._remove_legacy_app_resource_copy(tmp_path / "legacy_app")
+    assert not legacy.exists()
+    assert blocker.exists()

@@ -142,6 +142,31 @@ def test_get_scheduler_accepts_bracketed_ipv6_endpoint():
     assert agi_cls._scheduler == "2001:db8::1:8786"
 
 
+def test_get_scheduler_rejects_invalid_bracketed_and_out_of_range_endpoints():
+    agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
+    with pytest.raises(ValueError, match="Scheduler address is not valid"):
+        scheduler_io_support.get_scheduler(
+            agi_cls,
+            "[2001:db8::1",
+            find_free_port_fn=lambda: 6000,
+            gethostbyname_fn=lambda _host: "127.0.0.1",
+        )
+    with pytest.raises(ValueError, match="Scheduler address is not valid"):
+        scheduler_io_support.get_scheduler(
+            agi_cls,
+            "[2001:db8::1]bad",
+            find_free_port_fn=lambda: 6000,
+            gethostbyname_fn=lambda _host: "127.0.0.1",
+        )
+    with pytest.raises(ValueError, match="Scheduler port is not valid"):
+        scheduler_io_support.get_scheduler(
+            agi_cls,
+            "192.168.0.10:70000",
+            find_free_port_fn=lambda: 6000,
+            gethostbyname_fn=lambda _host: "127.0.0.1",
+        )
+
+
 def test_get_scheduler_rejects_invalid_endpoint_port():
     agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
     with pytest.raises(ValueError, match="Scheduler port is not valid"):

@@ -45,6 +45,50 @@ def test_parse_remote_rapids_probe_rejects_missing_json():
         deployment_remote_support._parse_remote_rapids_probe("no json here")
 
 
+def test_remote_deployment_path_and_probe_helpers(tmp_path):
+    env = SimpleNamespace(home_abs=tmp_path / "home")
+    assert deployment_remote_support._resolve_local_share_path("share", env) == (tmp_path / "home" / "share").resolve(strict=False)
+    assert deployment_remote_support._remote_share_assignment("~/clustershare") == '"$HOME"/clustershare'
+    assert deployment_remote_support._remote_share_assignment("~") == '"$HOME"'
+    assert deployment_remote_support._remote_share_assignment("/mnt/share") == "/mnt/share"
+    assert deployment_remote_support._home_relative_share_setting(str(tmp_path / "home" / "clustershare"), env) == "clustershare"
+    assert deployment_remote_support._home_relative_share_setting("/Users/demo/clustershare", SimpleNamespace()) == "clustershare"
+
+    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@[fe80::1]:8786")) == "fe80::1"
+    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@10.0.0.1:8786")) == "10.0.0.1"
+    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip="10.0.0.1"), SimpleNamespace(user="agi")) == "agi@10.0.0.1"
+    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip=""), SimpleNamespace(user="agi")) == ""
+
+    assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (10, 15, 7)
+    assert deployment_remote_support._parse_version_prefix("beta") == ()
+    assert deployment_remote_support._parse_remote_rapids_probe('{"rapids_capable": false}\n[]\n{bad json}\n') is False
+
+
+@pytest.mark.asyncio
+async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
+    class _AgiNoScheduler:
+        _scheduler_ip = ""
+
+        async def exec_ssh(self, *_args):
+            return "ok"
+
+    env = SimpleNamespace(AGI_CLUSTER_SHARE="share", envars={}, home_abs=tmp_path, user="", verbose=0)
+    with pytest.raises(RuntimeError, match="scheduler host is unknown"):
+        await deployment_remote_support._prepare_remote_cluster_share(_AgiNoScheduler(), "10.0.0.2", env, "clustershare")
+
+    calls: list[str] = []
+
+    class _Agi:
+        async def exec_ssh(self, _ip, cmd):
+            calls.append(cmd)
+            if cmd == deployment_remote_support._remote_platform_probe_command():
+                raise RuntimeError("probe failed")
+            return "ok"
+
+    assert await deployment_remote_support._legacy_intel_macos_dependency_specs(_Agi(), "10.0.0.2") == ()
+    assert calls == [deployment_remote_support._remote_platform_probe_command()]
+
+
 async def _call_deploy_remote_worker(
     agi_cls,
     ip: str,

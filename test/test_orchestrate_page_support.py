@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 import types
 from pathlib import Path
@@ -602,6 +603,197 @@ def test_filter_warning_messages_removes_virtual_env_mismatch():
     )
 
 
+def test_orchestrate_page_support_additional_helper_edges(tmp_path: Path, monkeypatch):
+    builtin_active = tmp_path / "apps" / "builtin" / "demo_project"
+    builtin_active.mkdir(parents=True)
+    assert orchestrate_page_support.snippet_apps_path(
+        SimpleNamespace(apps_path=tmp_path / "apps", app="demo_project", active_app=builtin_active)
+    ) == str(builtin_active.parent)
+    assert orchestrate_page_support.snippet_apps_path(SimpleNamespace(apps_path="", app="", active_app=None)) == ""
+    with monkeypatch.context() as path_monkeypatch:
+        original_exists = Path.exists
+
+        def _exists_or_raise(self):
+            if self == tmp_path / "apps" / "builtin" / "demo_project":
+                raise OSError("exists failed")
+            return original_exists(self)
+
+        path_monkeypatch.setattr(Path, "exists", _exists_or_raise)
+        assert orchestrate_page_support.snippet_apps_path(
+            SimpleNamespace(apps_path=tmp_path / "apps", app="demo_project", active_app=None)
+        ) == str(tmp_path / "apps")
+
+    assert orchestrate_page_support.is_dask_shutdown_noise("") is False
+    assert orchestrate_page_support.is_dask_shutdown_noise("The above exception was the direct cause") is True
+    assert orchestrate_page_support.is_dask_shutdown_noise("Traceback") is True
+    assert orchestrate_page_support.format_log_block("") == ""
+
+    assert orchestrate_page_support._split_run_request_payload({"stages": None})[1] == []
+    with pytest.raises(TypeError, match="stages"):
+        orchestrate_page_support._split_run_request_payload({"stages": "bad"})
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=False,
+        args_project="a",
+        previous_project="a",
+        app_settings_snapshot={"args": {"x": 1}},
+    ) is None
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="a",
+        previous_project="a",
+        app_settings_snapshot={"args": {}},
+    ) is None
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="a",
+        previous_project="b",
+        app_settings_snapshot={"args": {"x": 1}},
+    ) is None
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="a",
+        previous_project="a",
+        app_settings_snapshot="bad",
+    ) is None
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="a",
+        previous_project="a",
+        app_settings_snapshot={"args": "bad"},
+    ) is None
+    assert orchestrate_page_support._install_scheduler_expr(None) is None
+    assert orchestrate_page_support._install_scheduler_expr(json.dumps(123)) == json.dumps(123)
+    assert orchestrate_page_support._install_scheduler_expr(json.dumps("192.168.20.111:8786")) == json.dumps(
+        "192.168.20.111"
+    )
+
+    assert orchestrate_page_support.merge_app_settings_sources({"args": "bad"}, {"args": {"x": 1}})["args"] == {"x": 1}
+    assert orchestrate_page_support.optional_python_expr(True, []) == "None"
+    assert orchestrate_page_support._install_scheduler_expr('"not-a-host-port"') == '"not-a-host-port"'
+    assert orchestrate_page_support._install_scheduler_expr('{"not": "a string"}') == '{"not": "a string"}'
+
+    assert orchestrate_page_support.available_benchmark_modes(
+        {"pool": False, "cython": False, "rapids": False},
+        cluster_enabled=False,
+    ) == [0]
+    assert orchestrate_page_support.benchmark_mode_label(-1) == "-1: unknown"
+    assert orchestrate_page_support._best_node_rapids_counterpart_key("bad") is None
+    assert orchestrate_page_support._best_node_rapids_counterpart_key("x:best-node") is None
+    assert orchestrate_page_support._best_node_rapids_counterpart_key("8:best-node") is None
+    assert orchestrate_page_support.benchmark_rows_with_delta_percent({"meta": "kept"}) == {"meta": "kept"}
+    assert orchestrate_page_support.sanitize_benchmark_modes("1", [1]) == []
+    assert orchestrate_page_support.order_benchmark_display_columns(["seconds", "value"]) == ["seconds", "value"]
+    assert orchestrate_page_support.benchmark_dataframe_column_config(SimpleNamespace()) == {}
+
+    assert orchestrate_page_support._worker_host("ssh://agi@[2001:db8::1]:22") == "2001:db8::1"
+    assert orchestrate_page_support._worker_host("agi@192.168.1.5:22") == "192.168.1.5"
+    assert orchestrate_page_support.has_nonlocal_workers("bad") is False
+    assert orchestrate_page_support._resolved_path(None) is None
+    assert orchestrate_page_support._resolved_path("\0bad") is None
+    assert orchestrate_page_support.describe_run_mode([], True) == "Run mode benchmark (no mode selected)"
+    assert orchestrate_page_support.describe_run_mode(99, False) == "Run mode unknown"
+
+    reassigned_meta, reassigned_plan = orchestrate_page_support.reassign_distribution_plan(
+        workers=["w1"],
+        work_plan_metadata=[[("A", 1)], [("B", 1)]],
+        work_plan=[[["a"]], [["b"]]],
+        selections={orchestrate_page_support.workplan_selection_key("B", 1, 0): "missing"},
+    )
+    assert reassigned_meta == [[("A", 1)]]
+    assert reassigned_plan == [[["a"]]]
+
+    buffer: list[str] = []
+    traceback_state = {"active": True}
+    orchestrate_page_support.append_log_lines(buffer, "\nkept\n", cluster_verbose=1, traceback_state=traceback_state)
+    assert buffer == ["kept"]
+    assert traceback_state["active"] is False
+
+    verbose_buffer: list[str] = []
+    orchestrate_page_support.append_log_lines(
+        verbose_buffer,
+        "Traceback (most recent call last):\nkept",
+        cluster_verbose=2,
+        traceback_state={"active": False},
+    )
+    assert verbose_buffer == ["Traceback (most recent call last):", "kept"]
+
+    code_sink = _CaptureCodeSink()
+    orchestrate_page_support.display_log(
+        stdout="",
+        stderr="",
+        session_state={},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        code_fn=code_sink,
+    )
+    assert code_sink.calls[-1][0][0] == "No logs available"
+
+    state: dict[str, object] = {}
+    orchestrate_page_support.init_session_state(state, {"a": 1})
+    orchestrate_page_support.clear_log(state)
+    assert state["a"] == 1
+    assert state["log_text"] == ""
+    assert orchestrate_page_support.update_delete_confirm_state(
+        state,
+        "confirm",
+        delete_armed_clicked=True,
+        delete_cancel_clicked=False,
+    ) is True
+    assert state["confirm"] is True
+    assert orchestrate_page_support.update_delete_confirm_state(
+        state,
+        "confirm",
+        delete_armed_clicked=False,
+        delete_cancel_clicked=True,
+    ) is True
+    assert "confirm" not in state
+    assert orchestrate_page_support.update_delete_confirm_state(
+        state,
+        "confirm",
+        delete_armed_clicked=False,
+        delete_cancel_clicked=False,
+    ) is False
+
+    cleared: list[str] = []
+    orchestrate_page_support.clear_cached_distribution(SimpleNamespace(clear=lambda: cleared.append("dist")))
+    orchestrate_page_support.clear_mount_table_cache(SimpleNamespace(cache_clear=lambda: cleared.append("mount")))
+    assert cleared == ["dist", "mount"]
+
+    class BadResolvePath:
+        def __init__(self, value):
+            self.path = Path(str(value))
+
+        def is_absolute(self):
+            return self.path.is_absolute()
+
+        def __truediv__(self, other):
+            return BadResolvePath(self.path / Path(str(other)))
+
+        def expanduser(self):
+            self.path = self.path.expanduser()
+            return self
+
+        def resolve(self, *args, **kwargs):
+            raise OSError("cannot resolve")
+
+        def __str__(self):
+            return str(self.path)
+
+    assert str(orchestrate_page_support.resolve_share_candidate("share", tmp_path, path_type=BadResolvePath)) == str(
+        tmp_path / "share"
+    )
+    assert orchestrate_page_support.configured_cluster_share_matches(
+        object(),
+        cluster_share_path="share",
+        home_abs=tmp_path,
+        path_type=lambda _value: (_ for _ in ()).throw(TypeError("bad path")),
+    ) is False
+
+    benchmark_file = tmp_path / "benchmark.json"
+    benchmark_file.write_text("{}", encoding="utf-8")
+    assert orchestrate_page_support.benchmark_display_date(benchmark_file, "manual") == "manual"
+    assert orchestrate_page_support.benchmark_display_date(tmp_path / "missing.json", "") == ""
+
+
 def test_log_indicates_install_failure():
     assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
     assert not orchestrate_page_support.log_indicates_install_failure(
@@ -636,6 +828,155 @@ def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_pa
     assert status["worker_missing_modules"] == ("agi_env",)
     assert status["worker_problem"] == "missing modules: agi_env"
     assert orchestrate_page_support.is_app_installed(env) is False
+
+
+def test_app_install_status_reports_missing_env_and_python(tmp_path: Path, monkeypatch) -> None:
+    missing_venv = tmp_path / "missing"
+    missing_status = orchestrate_page_support._venv_import_status(missing_venv, ("agi_env",))
+    assert missing_status["exists"] is False
+    assert missing_status["missing_modules"] == ("agi_env",)
+    assert "environment path does not exist" in missing_status["problem"]
+
+    empty_venv = tmp_path / "empty"
+    empty_venv.mkdir()
+    python_missing_status = orchestrate_page_support._venv_import_status(empty_venv, ("agi_env",))
+    assert python_missing_status["exists"] is True
+    assert python_missing_status["missing_modules"] == ("python",)
+    assert "python executable is missing" in python_missing_status["problem"]
+
+    lib_root = tmp_path / "lib-root"
+    assert orchestrate_page_support._module_available_on_root(lib_root, "standalone") is False
+    (lib_root / "standalone.py").parent.mkdir(parents=True, exist_ok=True)
+    (lib_root / "standalone.py").write_text("", encoding="utf-8")
+    assert orchestrate_page_support._module_available_on_root(lib_root, "standalone") is True
+    assert orchestrate_page_support._drop_shadowed_best_node_non_rapids_rows(
+        {
+            "4:best-node": {"variant": "best-node", "node": "alpha"},
+            "12:best-node": "not a mapping",
+            "5:best-node": {"variant": "other", "node": "alpha"},
+            "13:best-node": {"variant": "best-node", "node": "alpha"},
+            "6:best-node": {"variant": "best-node", "node": "alpha"},
+            "14:best-node": {"variant": "best-node", "node": "beta"},
+        }
+    ) == {
+        "4:best-node": {"variant": "best-node", "node": "alpha"},
+        "12:best-node": "not a mapping",
+        "5:best-node": {"variant": "other", "node": "alpha"},
+        "13:best-node": {"variant": "best-node", "node": "alpha"},
+        "6:best-node": {"variant": "best-node", "node": "alpha"},
+        "14:best-node": {"variant": "best-node", "node": "beta"},
+    }
+
+    site_packages = tmp_path / "site-packages"
+    site_packages.mkdir()
+    editable = tmp_path / "editable"
+    editable.mkdir()
+    (site_packages / "editable.pth").write_text("# comment\nimport site\nrelative-missing\n" + str(editable), encoding="utf-8")
+    assert orchestrate_page_support._pth_import_roots(site_packages) == (editable.resolve(strict=False),)
+
+    with monkeypatch.context() as path_monkeypatch:
+        path_monkeypatch.setattr(
+            Path,
+            "glob",
+            lambda self, pattern: (_ for _ in ()).throw(OSError("glob failed"))
+            if self == site_packages and pattern == "*.pth"
+            else (),
+        )
+        assert orchestrate_page_support._pth_import_roots(site_packages) == ()
+
+    unreadable_pth = site_packages / "unreadable.pth"
+    unreadable_pth.write_text(str(editable), encoding="utf-8")
+    with monkeypatch.context() as path_monkeypatch:
+        original_read_text = Path.read_text
+
+        def _read_text_or_raise(self, *args, **kwargs):
+            if self == unreadable_pth:
+                raise OSError("unreadable")
+            return original_read_text(self, *args, **kwargs)
+
+        path_monkeypatch.setattr(Path, "read_text", _read_text_or_raise)
+        assert editable.resolve(strict=False) in orchestrate_page_support._pth_import_roots(site_packages)
+
+    with monkeypatch.context() as path_monkeypatch:
+        original_resolve = Path.resolve
+
+        def _resolve_or_raise(self, *args, **kwargs):
+            if self == editable:
+                raise OSError("resolve failed")
+            return original_resolve(self, *args, **kwargs)
+
+        path_monkeypatch.setattr(Path, "resolve", _resolve_or_raise)
+        assert editable in orchestrate_page_support._pth_import_roots(site_packages)
+
+    source_root = tmp_path / "source-root"
+    module_dir = source_root / "pkg"
+    module_dir.mkdir(parents=True)
+    (module_dir / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    assert orchestrate_page_support._symbol_available_on_root(source_root, "pkg", "VALUE") is True
+    with monkeypatch.context() as path_monkeypatch:
+        original_read_text = Path.read_text
+
+        def _source_read_text_or_raise(self, *args, **kwargs):
+            if self == module_dir / "__init__.py":
+                raise OSError("unreadable source")
+            return original_read_text(self, *args, **kwargs)
+
+        path_monkeypatch.setattr(Path, "read_text", _source_read_text_or_raise)
+        assert orchestrate_page_support._symbol_available_on_root(source_root, "pkg", "VALUE") is False
+
+
+def test_dataframe_preview_state_roundtrip_cleans_export_flags():
+    state: dict[str, object] = {
+        "loaded_df": "df",
+        "loaded_graph": "graph",
+        "loaded_source_path": "source.csv",
+        "df_cols": ("a", "b"),
+        "selected_cols": ("a",),
+        "check_all": False,
+        "_force_export_open": True,
+        "dataframe_deleted": True,
+        "export_col_0": False,
+        "export_col_stale": True,
+    }
+
+    snapshot = orchestrate_page_support.capture_dataframe_preview_state(state)
+    assert snapshot["df_cols"] == ["a", "b"]
+    assert snapshot["selected_cols"] == ["a"]
+
+    restore_state = {"export_col_0": False, "export_col_stale": True}
+    orchestrate_page_support.restore_dataframe_preview_state(
+        restore_state,
+        {
+            "loaded_df": "df2",
+            "loaded_graph": None,
+            "loaded_source_path": "",
+            "df_cols": ["x", "y"],
+            "selected_cols": ["z"],
+            "check_all": True,
+            "force_export_open": True,
+            "dataframe_deleted": True,
+        },
+    )
+
+    assert restore_state["loaded_df"] == "df2"
+    assert "loaded_graph" not in restore_state
+    assert "loaded_source_path" not in restore_state
+    assert restore_state["selected_cols"] == ["x", "y"]
+    assert restore_state["check_all"] is True
+    assert restore_state["export_col_0"] is True
+    assert restore_state["export_col_1"] is True
+    assert "export_col_stale" not in restore_state
+
+    orchestrate_page_support.toggle_select_all(restore_state)
+    assert restore_state["selected_cols"] == ["x", "y"]
+    restore_state["check_all"] = False
+    orchestrate_page_support.toggle_select_all(restore_state)
+    assert restore_state["selected_cols"] == []
+    restore_state["export_col_0"] = True
+    restore_state["export_col_1"] = False
+    orchestrate_page_support.update_select_all(restore_state)
+    assert restore_state["check_all"] is False
+    assert restore_state["selected_cols"] == ["x"]
 
 
 def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) -> None:
