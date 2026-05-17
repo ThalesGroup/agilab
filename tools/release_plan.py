@@ -275,6 +275,12 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "workflow-dist-${{ matrix.package }}": (
             "non-published package artifacts must stay workflow-only"
         ),
+        "sync-hf-space:": "workflow must sync the public Hugging Face Space after release assets",
+        "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
+        "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
+        "--hf-space-commit \"$hf_commit\"": (
+            "workflow must refresh release proof with the deployed HF Space commit"
+        ),
     }
     missing = [
         f"{description}: missing {fragment!r}"
