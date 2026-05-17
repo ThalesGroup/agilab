@@ -6,7 +6,7 @@ from agi_env import AgiEnv
 
 
 APP = "flight_telemetry_project"
-LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.CYTHON_MODE | AGI.DASK_MODE
+LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.DASK_MODE
 
 
 def agilab_apps_path() -> Path:
@@ -16,7 +16,7 @@ def agilab_apps_path() -> Path:
             "AGILAB is not initialized. Run the AGILAB installer or "
             "`agilab first-proof --json` before this example."
         )
-    return Path(marker.read_text(encoding="utf-8").strip()) / "apps"
+    return Path(marker.read_text(encoding="utf-8").strip()) / "apps" / "builtin"
 
 
 async def main():

@@ -7,7 +7,20 @@ result analysis while preserving an exit path: workflows can be exported back
 to runnable notebooks if AGILAB stops being the right runtime for a project.
 
 Use this page for the mental model before opening the detailed architecture
-reference.
+reference. The global map shows the current level of abstraction: AGILAB is not
+one monolithic runtime, but a project contract that can move between UI,
+notebooks, CLI scripts, local runs, cluster runs, analysis, and notebook export.
+
+Global architecture map
+-----------------------
+
+.. figure:: diagrams/agilab_global_architecture.svg
+   :alt: Global AGILAB architecture from entry surfaces through the app project contract, control plane, runtime back-planes, evidence, portability, and guardrails.
+   :class: diagram-panel diagram-hero
+
+   The same app project contract connects Streamlit pages, notebooks, CLI/API
+   entry points, local execution, distributed execution, evidence, and the
+   notebook export exit path.
 
 One control path
 ----------------

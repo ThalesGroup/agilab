@@ -1,0 +1,297 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1460" height="900" viewBox="0 0 1460 900" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB global architecture</title>
+  <desc id="desc">Global AGILAB architecture showing entry surfaces, app project contract, control plane, runtime back-planes, evidence and portability, plus runtime isolation and operational guardrails.</desc>
+  <defs>
+    <style>
+      text {
+        font-family: Arial, Helvetica, sans-serif;
+        fill: #10263e;
+      }
+      .page-title {
+        font-size: 38px;
+        font-weight: 700;
+      }
+      .page-subtitle {
+        font-size: 18px;
+        fill: #536984;
+      }
+      .section-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        fill: #6f849d;
+      }
+      .card {
+        stroke: #17324f;
+        stroke-width: 2.4;
+        rx: 24;
+        ry: 24;
+        filter: url(#shadow);
+      }
+      .card-title {
+        font-size: 21px;
+        font-weight: 700;
+      }
+      .card-body {
+        font-size: 15px;
+        fill: #304a66;
+      }
+      .card-note {
+        font-size: 13px;
+        fill: #647891;
+      }
+      .pill {
+        stroke-width: 1.8;
+        rx: 16;
+        ry: 16;
+      }
+      .pill-text {
+        font-size: 14px;
+        font-weight: 700;
+        fill: #16304d;
+      }
+      .lane {
+        stroke: #d8e2ee;
+        stroke-width: 2;
+        stroke-dasharray: 8 8;
+      }
+      .arrow {
+        stroke: #17324f;
+        stroke-width: 3.4;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .arrow-soft {
+        stroke: #7088a4;
+        stroke-width: 2.4;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 8 8;
+      }
+      .callout {
+        fill: #ffffff;
+        stroke: #d2dce9;
+        stroke-width: 2;
+        rx: 22;
+        ry: 22;
+        filter: url(#soft-shadow);
+      }
+      .callout-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .callout-body {
+        font-size: 14px;
+        fill: #405a76;
+      }
+      .micro-title {
+        font-size: 15px;
+        font-weight: 700;
+        fill: #17324f;
+      }
+      .micro-body {
+        font-size: 13px;
+        fill: #51677f;
+      }
+    </style>
+    <linearGradient id="background" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbfdff" />
+      <stop offset="58%" stop-color="#f4f8fd" />
+      <stop offset="100%" stop-color="#edf3f9" />
+    </linearGradient>
+    <linearGradient id="entry" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dff3ff" />
+      <stop offset="100%" stop-color="#c7e7fb" />
+    </linearGradient>
+    <linearGradient id="contract" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8e1ff" />
+      <stop offset="100%" stop-color="#d9d1ff" />
+    </linearGradient>
+    <linearGradient id="control" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1bf" />
+      <stop offset="100%" stop-color="#f8dc83" />
+    </linearGradient>
+    <linearGradient id="runtime" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dff7df" />
+      <stop offset="100%" stop-color="#c8edc9" />
+    </linearGradient>
+    <linearGradient id="evidence" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe3e9" />
+      <stop offset="100%" stop-color="#ffcdd8" />
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-12%" width="132%" height="136%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#748aa5" flood-opacity="0.16" />
+    </filter>
+    <filter id="soft-shadow" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#748aa5" flood-opacity="0.11" />
+    </filter>
+    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#17324f" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#7088a4" />
+    </marker>
+  </defs>
+
+  <rect width="1460" height="900" fill="url(#background)" rx="42" ry="42" />
+
+  <g id="header" transform="translate(58,58)">
+    <text class="page-title" x="0" y="0">AGILAB global architecture</text>
+    <text class="page-subtitle" x="0" y="34">A reproducibility workbench: one app contract across UI, notebooks, CLI, local runs, clusters, evidence, and export.</text>
+  </g>
+
+  <line class="lane" x1="58" y1="406" x2="1402" y2="406" />
+  <text class="section-label" x="58" y="130">Primary control path</text>
+  <text class="section-label" x="58" y="444">Runtime split and shared state</text>
+  <text class="section-label" x="58" y="674">Operational guardrails</text>
+
+  <g id="primary-flow">
+    <g id="entry-surfaces" transform="translate(58,154)">
+      <rect class="card" width="250" height="210" fill="url(#entry)" />
+      <text class="card-title" x="125" y="38" text-anchor="middle">Entry surfaces</text>
+      <text class="card-body" x="28" y="74">
+        <tspan x="28" dy="0">Streamlit pages</tspan>
+        <tspan x="28" dy="24">CLI and API examples</tspan>
+        <tspan x="28" dy="24">PyCharm run configs</tspan>
+        <tspan x="28" dy="24">Notebook import</tspan>
+      </text>
+      <text class="card-note" x="28" y="184">PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS</text>
+    </g>
+
+    <g id="project-contract" transform="translate(333,154)">
+      <rect class="card" width="250" height="210" fill="url(#contract)" />
+      <text class="card-title" x="125" y="38" text-anchor="middle">App project contract</text>
+      <text class="card-body" x="28" y="74">
+        <tspan x="28" dy="0">Manager code</tspan>
+        <tspan x="28" dy="24">Worker package</tspan>
+        <tspan x="28" dy="24">lab_stages.toml</tspan>
+        <tspan x="28" dy="24">Settings, data, artifacts</tspan>
+      </text>
+      <text class="card-note" x="28" y="184">The unit that survives UI and runtime changes</text>
+    </g>
+
+    <g id="control-plane" transform="translate(608,154)">
+      <rect class="card" width="250" height="210" fill="url(#control)" />
+      <text class="card-title" x="125" y="38" text-anchor="middle">Control plane</text>
+      <text class="card-body" x="28" y="74">
+        <tspan x="28" dy="0">AgiEnv path and config</tspan>
+        <tspan x="28" dy="24">AGI facade actions</tspan>
+        <tspan x="28" dy="24">WorkDispatcher plan</tspan>
+        <tspan x="28" dy="24">Telemetry context</tspan>
+      </text>
+      <text class="card-note" x="28" y="184">Install, distribute, run, service, export</text>
+    </g>
+
+    <g id="runtime-backplanes" transform="translate(883,154)">
+      <rect class="card" width="250" height="210" fill="url(#runtime)" />
+      <text class="card-title" x="125" y="38" text-anchor="middle">Runtime back-planes</text>
+      <text class="card-body" x="28" y="74">
+        <tspan x="28" dy="0">Local process</tspan>
+        <tspan x="28" dy="24">Process pool / Cython</tspan>
+        <tspan x="28" dy="24">Dask scheduler</tspan>
+        <tspan x="28" dy="24">SSH workers / service mode</tspan>
+      </text>
+      <text class="card-note" x="28" y="184">Same work plan, different execution target</text>
+    </g>
+
+    <g id="evidence-portability" transform="translate(1158,154)">
+      <rect class="card" width="250" height="210" fill="url(#evidence)" />
+      <text class="card-title" x="125" y="38" text-anchor="middle">Evidence and exit path</text>
+      <text class="card-body" x="28" y="74">
+        <tspan x="28" dy="0">Run manifest and logs</tspan>
+        <tspan x="28" dy="24">Artifacts and ANALYSIS</tspan>
+        <tspan x="28" dy="24">Optional MLflow tracking</tspan>
+        <tspan x="28" dy="24">Export back to notebook</tspan>
+      </text>
+      <text class="card-note" x="28" y="184">Keep work usable if AGILAB is no longer needed</text>
+    </g>
+  </g>
+
+  <path class="arrow" d="M 308 259 H 326" marker-end="url(#arrowhead)" />
+  <path class="arrow" d="M 583 259 H 601" marker-end="url(#arrowhead)" />
+  <path class="arrow" d="M 858 259 H 876" marker-end="url(#arrowhead)" />
+  <path class="arrow" d="M 1133 259 H 1151" marker-end="url(#arrowhead)" />
+  <path class="arrow-soft" d="M 1260 366 C 1260 390 178 390 178 366" marker-end="url(#arrowhead-soft)" />
+  <text class="card-note" x="620" y="391" text-anchor="middle">feedback loop: results, imported notebooks, exported notebooks, and refined app code</text>
+
+  <g id="runtime-split" transform="translate(58,466)">
+    <rect class="callout" width="414" height="156" />
+    <text class="callout-title" x="28" y="38">Manager runtime</text>
+    <text class="callout-body" x="28" y="70">
+      <tspan x="28" dy="0">Resolves UI state, project selection, settings,</tspan>
+      <tspan x="28" dy="22">secrets references, run history, and action logs.</tspan>
+    </text>
+    <rect class="pill" x="28" y="108" width="138" height="32" fill="#eef6ff" stroke="#8db9dd" />
+    <text class="pill-text" x="97" y="129" text-anchor="middle">AgiEnv</text>
+    <rect class="pill" x="178" y="108" width="110" height="32" fill="#fff5d6" stroke="#dec06a" />
+    <text class="pill-text" x="233" y="129" text-anchor="middle">AGI.*</text>
+  </g>
+
+  <g id="worker-runtime" transform="translate(523,466)">
+    <rect class="callout" width="414" height="156" />
+    <text class="callout-title" x="28" y="38">Worker runtime</text>
+    <text class="callout-body" x="28" y="70">
+      <tspan x="28" dy="0">Packages worker code independently so imports,</tspan>
+      <tspan x="28" dy="22">dependencies, and Cython artifacts stay isolated.</tspan>
+    </text>
+    <rect class="pill" x="28" y="108" width="142" height="32" fill="#f0f9e9" stroke="#9bc87d" />
+    <text class="pill-text" x="99" y="129" text-anchor="middle">agi_node</text>
+    <rect class="pill" x="182" y="108" width="148" height="32" fill="#f7f0ff" stroke="#b8a4e6" />
+    <text class="pill-text" x="256" y="129" text-anchor="middle">~/wenv/&lt;app&gt;</text>
+  </g>
+
+  <g id="shared-state" transform="translate(988,466)">
+    <rect class="callout" width="420" height="156" />
+    <text class="callout-title" x="28" y="38">Shared state and integrations</text>
+    <text class="callout-body" x="28" y="70">
+      <tspan x="28" dy="0">Localshare, clustershare, optional MLflow, app pages,</tspan>
+      <tspan x="28" dy="22">release proof, and repository app updates.</tspan>
+    </text>
+    <rect class="pill" x="28" y="108" width="132" height="32" fill="#fff3f6" stroke="#d997a8" />
+    <text class="pill-text" x="94" y="129" text-anchor="middle">artifacts</text>
+    <rect class="pill" x="172" y="108" width="132" height="32" fill="#eef6ff" stroke="#8db9dd" />
+    <text class="pill-text" x="238" y="129" text-anchor="middle">evidence</text>
+  </g>
+
+  <path class="arrow-soft" d="M 472 544 H 516" marker-end="url(#arrowhead-soft)" />
+  <path class="arrow-soft" d="M 937 544 H 981" marker-end="url(#arrowhead-soft)" />
+
+  <g id="guardrails" transform="translate(58,696)">
+    <rect class="callout" width="322" height="132" />
+    <text class="micro-title" x="24" y="34">Security boundary</text>
+    <text class="micro-body" x="24" y="62">
+      <tspan x="24" dy="0">Local bind by default, explicit public UI opt-in,</tspan>
+      <tspan x="24" dy="20">JSON service tasks, and generated-code caution.</tspan>
+    </text>
+  </g>
+
+  <g id="cluster-guardrail" transform="translate(407,696)">
+    <rect class="callout" width="322" height="132" />
+    <text class="micro-title" x="24" y="34">Cluster contract</text>
+    <text class="micro-body" x="24" y="62">
+      <tspan x="24" dy="0">Cluster mode requires an explicit shared path;</tspan>
+      <tspan x="24" dy="20">do not silently degrade to localshare.</tspan>
+    </text>
+  </g>
+
+  <g id="supply-chain" transform="translate(756,696)">
+    <rect class="callout" width="322" height="132" />
+    <text class="micro-title" x="24" y="34">Supply-chain evidence</text>
+    <text class="micro-body" x="24" y="62">
+      <tspan x="24" dy="0">Trusted PyPI publishing, SBOM, pip-audit,</tspan>
+      <tspan x="24" dy="20">release proof, and docs mirror checks.</tspan>
+    </text>
+  </g>
+
+  <g id="adoption-boundary" transform="translate(1105,696)">
+    <rect class="callout" width="303" height="132" />
+    <text class="micro-title" x="24" y="34">Adoption boundary</text>
+    <text class="micro-body" x="24" y="62">
+      <tspan x="24" dy="0">R&amp;D and controlled team use first;</tspan>
+      <tspan x="24" dy="20">production MLOps needs external hardening.</tspan>
+    </text>
+  </g>
+</svg>
