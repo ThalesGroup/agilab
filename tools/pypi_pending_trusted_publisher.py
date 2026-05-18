@@ -165,6 +165,41 @@ def _consume_confirm_login_url(session: Any, url: str) -> None:
     response.raise_for_status()
 
 
+def _response_diagnostic(text: str) -> str:
+    plain = _normalize_html(text)
+    markers = [
+        "trusted publisher could not",
+        "registered a new pending publisher",
+        "already been registered",
+        "already exists",
+        "project name",
+        "owner",
+        "repository",
+        "workflow",
+        "environment",
+        "unknown",
+        "invalid",
+        "maximum",
+        "pending trusted publisher",
+        "no pending publishers",
+        "add a new pending publisher",
+    ]
+    snippets: list[str] = []
+    lowered = plain.lower()
+    for marker in markers:
+        index = lowered.find(marker)
+        if index < 0:
+            continue
+        start = max(0, index - 160)
+        end = min(len(plain), index + 420)
+        snippet = plain[start:end].strip()
+        if snippet and snippet not in snippets:
+            snippets.append(snippet)
+    if not snippets:
+        snippets.append(plain[:800])
+    return " || ".join(snippets)[:2400]
+
+
 def _fetch_github_actions_variable(
     *,
     repository: str,
@@ -293,10 +328,9 @@ def _interpret_registration_response(
             "project name, GitHub owner/repository, workflow filename, environment, "
             "and whether this publisher identity is already pending for another project."
         )
-    snippet = text[:800]
     raise RuntimeError(
         "PyPI did not confirm pending trusted publisher registration; "
-        f"response text starts with: {snippet!r}"
+        f"diagnostic: {_response_diagnostic(response_text)!r}"
     )
 
 
