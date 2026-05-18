@@ -537,6 +537,45 @@ def _write_page_sync_stamp(project_root: Path) -> None:
     )
 
 
+def _source_bootstrap_stamp_path(project_root: Path) -> Path:
+    return project_root / ".venv" / ".agilab-source-bootstrap-stamp.json"
+
+
+def _source_bootstrap_fingerprint(project_root: Path, source_root: Path) -> dict[str, Any]:
+    resolved_source_root = source_root.resolve(strict=False)
+    return {
+        "schema": 1,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "page_sync": _page_sync_fingerprint(project_root),
+        "source_root": str(resolved_source_root),
+        "source_pyproject": _page_sync_file_entry(resolved_source_root, "pyproject.toml"),
+    }
+
+
+def _source_bootstrap_is_fresh(project_root: Path, source_root: Path) -> bool:
+    if not _python_in_venv(project_root / ".venv").exists():
+        return False
+    stamp_path = _source_bootstrap_stamp_path(project_root)
+    try:
+        saved = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return saved == _source_bootstrap_fingerprint(project_root, source_root)
+
+
+def _write_source_bootstrap_stamp(project_root: Path, source_root: Path) -> None:
+    stamp_path = _source_bootstrap_stamp_path(project_root)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(
+        json.dumps(
+            _source_bootstrap_fingerprint(project_root, source_root),
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+
+
 def _short_page_token(view_path: Path) -> str:
     return hashlib.sha1(str(view_path.resolve()).encode("utf-8")).hexdigest()[:10]
 
@@ -843,25 +882,44 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 env.logger.warning("Could not write analysis page sync stamp for %s: %s", page_home, exc)
 
         if env.is_source_env:
-            ensure_cmd = (
-                f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} run python -m ensurepip"
-            )
-            env.logger.info(ensure_cmd)
-            ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
-            if ensure_process.wait() != 0:
-                last_error = f"ensurepip failed with code {ensure_process.wait()} for {page_home}"
-                env.logger.error(last_error)
-                continue
+            source_root = Path(env.env_pck).parent.parent
+            if _source_bootstrap_is_fresh(page_root, source_root):
+                env.logger.info("Skipping analysis page source bootstrap; environment is up to date for %s", page_home)
+            else:
+                pip_probe_cmd = (
+                    f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
+                    f"run python -c {shlex.quote('import pip')}"
+                )
+                env.logger.info(pip_probe_cmd)
+                pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home)
+                if pip_probe_process.wait() != 0:
+                    ensure_cmd = (
+                        f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
+                        "run python -m ensurepip"
+                    )
+                    env.logger.info(ensure_cmd)
+                    ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
+                    ensure_code = ensure_process.wait()
+                    if ensure_code != 0:
+                        last_error = f"ensurepip failed with code {ensure_code} for {page_home}"
+                        env.logger.error(last_error)
+                        continue
 
-            install_cmd = (
-                f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} run python -m pip install -e {shlex.quote(str(env.env_pck.parent.parent))}"
-            )
-            env.logger.info(install_cmd)
-            install_process = exec_bg(env, install_cmd, cwd=page_home)
-            if install_process.wait() != 0:
-                last_error = f"pip install failed with code {install_process.wait()} for {page_home}"
-                env.logger.error(last_error)
-                continue
+                install_cmd = (
+                    f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
+                    f"run python -m pip install -e {shlex.quote(str(source_root))}"
+                )
+                env.logger.info(install_cmd)
+                install_process = exec_bg(env, install_cmd, cwd=page_home)
+                install_code = install_process.wait()
+                if install_code != 0:
+                    last_error = f"pip install failed with code {install_code} for {page_home}"
+                    env.logger.error(last_error)
+                    continue
+                try:
+                    _write_source_bootstrap_stamp(page_root, source_root)
+                except OSError as exc:
+                    env.logger.warning("Could not write analysis page source bootstrap stamp for %s: %s", page_home, exc)
 
         run_cmd = (
             f"{uv} run --project {page_home_quoted} python -m streamlit run {view_arg} "
