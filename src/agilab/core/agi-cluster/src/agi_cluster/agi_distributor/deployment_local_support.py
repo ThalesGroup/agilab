@@ -9,7 +9,11 @@ import shutil
 import stat
 import subprocess
 from shlex import quote
-from importlib.metadata import PackageNotFoundError, distribution as pkg_distribution, version as pkg_version
+from importlib.metadata import (
+    PackageNotFoundError,
+    distribution as pkg_distribution,
+    version as pkg_version,
+)
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, cast
@@ -30,13 +34,18 @@ PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
 REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
+DISABLE_DEPLOY_STAGE_CACHE_ENV = "AGILAB_DISABLE_DEPLOY_STAGE_CACHE"
+DEPLOY_STAGE_CACHE_SCHEMA = "agilab-deploy-stage-cache-v1"
+DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
     matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
     if not matches:
         return None
-    return max(matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+    return max(
+        matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name)
+    )
 
 
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
@@ -47,7 +56,11 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
     if not path.exists():
         return
 
-    def _on_err(func: Callable[..., Any], p: str, exc: tuple[type[BaseException], BaseException, Any]) -> None:
+    def _on_err(
+        func: Callable[..., Any],
+        p: str,
+        exc: tuple[type[BaseException], BaseException, Any],
+    ) -> None:
         os.chmod(p, stat.S_IWRITE)
         try:
             func(p)
@@ -61,7 +74,9 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
 
     if path.exists():
         if env_logger is not None:
-            env_logger.warn("Path {} still exists, using subprocess cmd to delete it.".format(path))
+            env_logger.warn(
+                "Path {} still exists, using subprocess cmd to delete it.".format(path)
+            )
         subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], check=False)
 
 
@@ -82,7 +97,9 @@ def _cleanup_editable(site_packages: Path) -> None:
 
 
 def _is_python_project(path: Path) -> bool:
-    return path.is_dir() and any((path / marker).exists() for marker in ("pyproject.toml", "setup.py"))
+    return path.is_dir() and any(
+        (path / marker).exists() for marker in ("pyproject.toml", "setup.py")
+    )
 
 
 def _resolve_distribution_install_spec(package_name: str) -> str | None:
@@ -112,7 +129,9 @@ def _resolve_distribution_install_spec(package_name: str) -> str | None:
                     vcs = vcs_info.get("vcs")
                     if isinstance(vcs, str) and vcs:
                         spec = f"{package_name} @ {vcs}+{raw_url}"
-                        requested_revision = vcs_info.get("requested_revision") or vcs_info.get("commit_id")
+                        requested_revision = vcs_info.get(
+                            "requested_revision"
+                        ) or vcs_info.get("commit_id")
                         if isinstance(requested_revision, str) and requested_revision:
                             spec += f"@{requested_revision}"
                         if isinstance(subdirectory, str) and subdirectory:
@@ -158,14 +177,16 @@ def _build_worker_core_add_commands(
     commands = []
 
     if editable_specs:
-        quoted_specs = " ".join(f"\"{spec}\"" for spec in editable_specs)
+        quoted_specs = " ".join(f'"{spec}"' for spec in editable_specs)
         commands.append(
             f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add --editable {quoted_specs}"
         )
 
     if normal_specs:
-        quoted_specs = " ".join(f"\"{spec}\"" for spec in normal_specs)
-        commands.append(f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}")
+        quoted_specs = " ".join(f'"{spec}"' for spec in normal_specs)
+        commands.append(
+            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}"
+        )
 
     return commands
 
@@ -264,6 +285,156 @@ def _env_truthy(envars: Any, key: str) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
+def _deploy_stage_cache_enabled(envars: Any) -> bool:
+    if _env_truthy(envars, REFRESH_LOCKS_ENV):
+        return False
+    return not _env_truthy(envars, DISABLE_DEPLOY_STAGE_CACHE_ENV)
+
+
+def _deploy_stage_cache_path(wenv_abs: Path) -> Path:
+    return wenv_abs / ".agilab-stage-cache.json"
+
+
+def _load_deploy_stage_cache(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    stages = data.get("stages")
+    if data.get("schema") != DEPLOY_STAGE_CACHE_SCHEMA or not isinstance(stages, dict):
+        return {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": {}}
+    return {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": stages}
+
+
+def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
+    payload = {
+        "schema": DEPLOY_STAGE_CACHE_SCHEMA,
+        "stages": state.get("stages") if isinstance(state.get("stages"), dict) else {},
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
+def _deploy_stage_file_fingerprint(path: Path) -> dict[str, Any]:
+    resolved = path.expanduser().resolve(strict=False)
+    fingerprint: dict[str, Any] = {"path": resolved.as_posix()}
+    try:
+        stat_result = resolved.stat()
+    except OSError:
+        fingerprint["missing"] = True
+        return fingerprint
+
+    fingerprint["size"] = stat_result.st_size
+    if not resolved.is_file():
+        fingerprint["kind"] = "directory" if resolved.is_dir() else "other"
+        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
+        return fingerprint
+
+    if stat_result.st_size > DEPLOY_STAGE_CACHE_HASH_LIMIT:
+        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
+        return fingerprint
+
+    try:
+        fingerprint["sha256"] = hashlib.sha256(resolved.read_bytes()).hexdigest()
+    except OSError:
+        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
+    return fingerprint
+
+
+def _deploy_stage_project_inputs(*projects: Path | None) -> list[Path]:
+    inputs: list[Path] = []
+    for project in projects:
+        if not isinstance(project, Path):
+            continue
+        inputs.extend(
+            [
+                project / "pyproject.toml",
+                project / "uv.lock",
+                project / "uv_config.toml",
+                project / "setup.py",
+                project / "setup.cfg",
+            ]
+        )
+    return inputs
+
+
+def _deploy_stage_inputs_for_specs(specs: list[str]) -> list[Path]:
+    projects: list[Path] = []
+    for spec in specs:
+        if _is_local_project_install_spec(spec):
+            projects.append(Path(spec).expanduser())
+    return _deploy_stage_project_inputs(*projects)
+
+
+def _deploy_stage_digest(
+    stage_name: str,
+    cmd: str,
+    cwd: Path,
+    *,
+    inputs: list[Path],
+) -> str:
+    unique_inputs = sorted(
+        {path.expanduser().resolve(strict=False).as_posix(): path for path in inputs}
+    )
+    payload = {
+        "schema": DEPLOY_STAGE_CACHE_SCHEMA,
+        "stage": stage_name,
+        "cmd": cmd,
+        "cwd": cwd.expanduser().resolve(strict=False).as_posix(),
+        "platform": platform.system(),
+        "machine": platform.machine(),
+        "os_name": os.name,
+        "inputs": [
+            _deploy_stage_file_fingerprint(Path(path)) for path in unique_inputs
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+async def _run_cached_deploy_stage(
+    *,
+    stage_name: str,
+    cmd: str,
+    cwd: Path,
+    run_fn: Callable[..., Any],
+    cache_enabled: bool,
+    cache_state: dict[str, Any],
+    cache_path: Path,
+    inputs: list[Path],
+    output_probe: Callable[[], bool],
+    log: logging.Logger | Any,
+) -> None:
+    if not cache_enabled:
+        await run_fn(cmd, cwd)
+        return
+
+    digest = _deploy_stage_digest(stage_name, cmd, cwd, inputs=inputs)
+    stages = cache_state.setdefault("stages", {})
+    cached = stages.get(stage_name) if isinstance(stages, dict) else None
+    if isinstance(cached, dict) and cached.get("digest") == digest and output_probe():
+        log.info("Skipping cached deploy stage: %s", stage_name)
+        return
+
+    await run_fn(cmd, cwd)
+    if output_probe() and isinstance(stages, dict):
+        stages[stage_name] = {
+            "digest": _deploy_stage_digest(stage_name, cmd, cwd, inputs=inputs)
+        }
+        _write_deploy_stage_cache(cache_path, cache_state)
+
+
 def _file_fingerprint(path: Path) -> dict[str, Any]:
     try:
         return {
@@ -300,8 +471,12 @@ def _shared_worker_venv_cache_key(
         "app_uv_config": _file_fingerprint(active_app / "uv_config.toml"),
         "worker_core_add_specs": sorted(str(spec) for spec in worker_core_add_specs),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
-    py_label = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(python_version)).strip("._-") or "python"
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    py_label = (
+        re.sub(r"[^A-Za-z0-9_.-]+", "_", str(python_version)).strip("._-") or "python"
+    )
     platform_label = re.sub(
         r"[^A-Za-z0-9_.-]+",
         "_",
@@ -370,7 +545,9 @@ async def _ensure_project_venv(
     await run_fn(cmd, project)
 
 
-def _copy_package_resources(resources_src: Path, resources_dest: Path, *, env_logger: Any | None = None) -> None:
+def _copy_package_resources(
+    resources_src: Path, resources_dest: Path, *, env_logger: Any | None = None
+) -> None:
     if not resources_src.exists():
         return
     resources_dest.parent.mkdir(parents=True, exist_ok=True)
@@ -379,7 +556,9 @@ def _copy_package_resources(resources_src: Path, resources_dest: Path, *, env_lo
     shutil.copytree(resources_src, resources_dest, dirs_exist_ok=True)
 
 
-def _remove_legacy_app_resource_copy(app_path: Path, *, env_logger: Any | None = None) -> None:
+def _remove_legacy_app_resource_copy(
+    app_path: Path, *, env_logger: Any | None = None
+) -> None:
     legacy_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
     if not legacy_resources.exists():
         return
@@ -451,8 +630,7 @@ async def _install_many_into_project_venv(
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
     package_specs = " ".join(
-        f'{editable_flag}"{str(package_ref)}"'
-        for package_ref in package_refs
+        f'{editable_flag}"{str(package_ref)}"' for package_ref in package_refs
     )
     cmd = f'{uv_cmd} pip install --python "{venv_python}" --upgrade {no_deps_flag}{package_specs}'
     await run_fn(cmd, project)
@@ -571,7 +749,10 @@ def _write_manager_sync_overlay(
 
     if isinstance(project_name, str):
         existing_self_source = sources.get(project_name)
-        if isinstance(existing_self_source, dict) and existing_self_source.get("workspace") is True:
+        if (
+            isinstance(existing_self_source, dict)
+            and existing_self_source.get("workspace") is True
+        ):
             del sources[project_name]
 
     for source_name in list(sources):
@@ -607,7 +788,9 @@ def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) 
     if not env_overrides:
         return ""
     if os_name == "nt":
-        return "".join(f'set "{key}={value}" && ' for key, value in env_overrides.items())
+        return "".join(
+            f'set "{key}={value}" && ' for key, value in env_overrides.items()
+        )
     return "".join(f"{key}={quote(value)} " for key, value in env_overrides.items())
 
 
@@ -631,7 +814,9 @@ def _uv_offline_flag(envars: Any) -> str:
     return "" if normalized in {"1", "true", "yes", "on"} else "--offline "
 
 
-def _local_worker_post_install_env_prefix(agi_cls: Any, *, os_name: str = os.name) -> str:
+def _local_worker_post_install_env_prefix(
+    agi_cls: Any, *, os_name: str = os.name
+) -> str:
     mode = int(getattr(agi_cls, "_mode", 0) or 0)
     dask_mode = int(getattr(agi_cls, "DASK_MODE", 0) or 0)
     if dask_mode and (mode & dask_mode):
@@ -676,7 +861,11 @@ def _update_pyproject_dependencies(
         existing_keys.add((req.name.lower(), tuple(sorted(req.extras))))
 
     for key, meta in dependency_info.items():
-        if filter_to_worker and worker_pyprojects and not (meta["sources"] & worker_pyprojects):
+        if (
+            filter_to_worker
+            and worker_pyprojects
+            and not (meta["sources"] & worker_pyprojects)
+        ):
             continue
         dep_key = (key, tuple(sorted(meta["extras"])))
         if dep_key in existing_keys:
@@ -703,7 +892,9 @@ def _update_pyproject_dependencies(
     pyproject_file.write_text(tomlkit.dumps(data))
 
 
-def _gather_dependency_specs(projects: list[Path | None]) -> tuple[dict[str, dict[str, Any]], set[str]]:
+def _gather_dependency_specs(
+    projects: list[Path | None],
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
     dependency_info: dict[str, dict[str, Any]] = {}
     worker_pyprojects: set[str] = set()
     seen_pyprojects: set[Path] = set()
@@ -782,7 +973,12 @@ async def deploy_local_worker(
 ) -> None:
     env = agi_cls.env
     run_type = agi_cls._run_type
-    if (not env.is_source_env) and (not env.is_worker_env) and isinstance(run_type, str) and "--dev" in run_type:
+    if (
+        (not env.is_source_env)
+        and (not env.is_worker_env)
+        and isinstance(run_type, str)
+        and "--dev" in run_type
+    ):
         run_type = " ".join(part for part in run_type.split() if part != "--dev")
     ip = "127.0.0.1"
     hw_rapids_capable = agi_cls._hardware_supports_rapids() and agi_cls._rapids_enabled
@@ -812,13 +1008,29 @@ async def deploy_local_worker(
             except IndexError:
                 repo_agilab_root = None
 
-        env_project = repo_env_project if repo_env_project and repo_env_project.exists() else env.agi_env
-        node_project = repo_node_project if repo_node_project and repo_node_project.exists() else env.agi_node
-        core_project = repo_core_project if repo_core_project and repo_core_project.exists() else None
-        cluster_project = (
-            repo_cluster_project if repo_cluster_project and repo_cluster_project.exists() else None
+        env_project = (
+            repo_env_project
+            if repo_env_project and repo_env_project.exists()
+            else env.agi_env
         )
-        agilab_project = repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
+        node_project = (
+            repo_node_project
+            if repo_node_project and repo_node_project.exists()
+            else env.agi_node
+        )
+        core_project = (
+            repo_core_project
+            if repo_core_project and repo_core_project.exists()
+            else None
+        )
+        cluster_project = (
+            repo_cluster_project
+            if repo_cluster_project and repo_cluster_project.exists()
+            else None
+        )
+        agilab_project = (
+            repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
+        )
 
         projects_for_specs = [
             agilab_project,
@@ -827,12 +1039,16 @@ async def deploy_local_worker(
             core_project,
             cluster_project,
         ]
-        dependency_info, worker_pyprojects = _gather_dependency_specs(projects_for_specs)
+        dependency_info, worker_pyprojects = _gather_dependency_specs(
+            projects_for_specs
+        )
     else:
         env_project = env.agi_env
         node_project = env.agi_node
         core_project = getattr(env, "agi_core", None) if env.is_source_env else None
-        cluster_project = getattr(env, "agi_cluster", None) if env.is_source_env else None
+        cluster_project = (
+            getattr(env, "agi_cluster", None) if env.is_source_env else None
+        )
         if env.is_source_env:
             repo_root = _read_agilab_repo_root()
             if repo_root is None:
@@ -842,13 +1058,22 @@ async def deploy_local_worker(
                     repo_agilab_root = repo_root.parents[1]
                 except IndexError:
                     repo_agilab_root = None
-        agilab_project = repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
+        agilab_project = (
+            repo_agilab_root if repo_agilab_root and repo_agilab_root.exists() else None
+        )
 
     wenv_abs = env.wenv_abs
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     uv = cmd_prefix + env.uv
     offline_flag = _uv_offline_flag(getattr(env, "envars", {}))
     pyvers = env.python_version
+    stage_cache_enabled = _deploy_stage_cache_enabled(getattr(env, "envars", {}))
+    stage_cache_path = _deploy_stage_cache_path(wenv_abs)
+    stage_cache_state = (
+        _load_deploy_stage_cache(stage_cache_path)
+        if stage_cache_enabled
+        else {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": {}}
+    )
 
     if hw_rapids_capable:
         set_env_var_fn(ip, "hw_rapids_capable")
@@ -891,11 +1116,17 @@ async def deploy_local_worker(
     manager_sync_uses_overlay = False
     manager_overlay_sources: dict[str, str] = {}
     if offline_flag and (not env.is_worker_env):
-        manager_overlay_sources = _manager_overlay_core_sources(manager_pyproject, manager_core_paths)
+        manager_overlay_sources = _manager_overlay_core_sources(
+            manager_pyproject, manager_core_paths
+        )
         manager_sync_uses_overlay = bool(manager_overlay_sources)
 
     extra_indexes = ""
-    if (not offline_flag) and str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(app_path):
+    if (
+        (not offline_flag)
+        and str(run_type).strip().startswith("sync")
+        and agi_version_missing_on_pypi_fn(app_path)
+    ):
         extra_indexes = (
             "PIP_INDEX_URL=https://test.pypi.org/simple "
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
@@ -934,14 +1165,25 @@ async def deploy_local_worker(
             await run_fn(cmd_manager, app_path)
     else:
         if hw_rapids_capable:
-            cmd_manager = (
-                f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
-            )
+            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
         else:
-            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
+            cmd_manager = (
+                f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
+            )
         if env.verbose > 0:
             log.info(f"Installing manager: {cmd_manager}")
-        await run_fn(cmd_manager, app_path)
+        await _run_cached_deploy_stage(
+            stage_name="manager-sync",
+            cmd=cmd_manager,
+            cwd=app_path,
+            run_fn=run_fn,
+            cache_enabled=stage_cache_enabled,
+            cache_state=stage_cache_state,
+            cache_path=stage_cache_path,
+            inputs=_deploy_stage_project_inputs(app_path, *manager_core_paths.values()),
+            output_probe=lambda: _project_venv_matches(app_path, python_version=pyvers),
+            log=log,
+        )
 
     source_worker_app_installed = False
     if (not env.is_source_env) and (not env.is_worker_env):
@@ -962,7 +1204,10 @@ async def deploy_local_worker(
         )
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
-                if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
+                if (
+                    repo_agilab_root
+                    and project_path.resolve() == repo_agilab_root.resolve()
+                ):
                     continue
             install_spec = _resolve_install_spec(project_path, package_name)
             if install_spec:
@@ -977,9 +1222,13 @@ async def deploy_local_worker(
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
             resources_src = env.env_pck / "resources"
-        _remove_legacy_app_resource_copy(app_path, env_logger=getattr(env, "logger", None))
+        _remove_legacy_app_resource_copy(
+            app_path, env_logger=getattr(env, "logger", None)
+        )
         manager_resources = (
-            worker_site_packages_dir_fn(app_path, env.python_version, windows=(os.name == "nt"))
+            worker_site_packages_dir_fn(
+                app_path, env.python_version, windows=(os.name == "nt")
+            )
             / "agi_env"
             / "resources"
         )
@@ -999,7 +1248,10 @@ async def deploy_local_worker(
                 try:
                     dep_versions[key] = pkg_version(meta["name"])
                 except PackageNotFoundError:
-                    log.debug("Dependency %s not installed in manager environment", meta["name"])
+                    log.debug(
+                        "Dependency %s not installed in manager environment",
+                        meta["name"],
+                    )
 
     if env.is_source_env:
         cmd = (
@@ -1014,7 +1266,11 @@ async def deploy_local_worker(
     pyvers_worker = env.pyvers_worker
 
     worker_extra_indexes = ""
-    if (not offline_flag) and str(run_type).strip().startswith("sync") and agi_version_missing_on_pypi_fn(wenv_abs):
+    if (
+        (not offline_flag)
+        and str(run_type).strip().startswith("sync")
+        and agi_version_missing_on_pypi_fn(wenv_abs)
+    ):
         worker_extra_indexes = (
             "PIP_INDEX_URL=https://test.pypi.org/simple; "
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; "
@@ -1057,11 +1313,16 @@ async def deploy_local_worker(
         _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
         uv_worker = (
             cmd_prefix
-            + _shell_env_prefix({"UV_PROJECT_ENVIRONMENT": str(_project_venv_root(worker_venv_project))})
+            + _shell_env_prefix(
+                {"UV_PROJECT_ENVIRONMENT": str(_project_venv_root(worker_venv_project))}
+            )
             + env.uv_worker
         )
         if env.verbose > 0:
-            log.info("Using shared worker venv cache at %s", _project_venv_root(worker_venv_project))
+            log.info(
+                "Using shared worker venv cache at %s",
+                _project_venv_root(worker_venv_project),
+            )
 
     if (
         (not env.is_source_env)
@@ -1084,34 +1345,113 @@ async def deploy_local_worker(
     )
 
     if worker_core_add_specs:
-        for cmd_worker in _build_worker_core_add_commands(
+        worker_stage_inputs = _deploy_stage_project_inputs(
+            wenv_abs,
+            app_path,
+            env_project,
+            node_project,
+            core_project,
+            cluster_project,
+            agilab_project,
+        ) + _deploy_stage_inputs_for_specs(worker_core_add_specs)
+        worker_core_add_commands = _build_worker_core_add_commands(
             uv_worker,
             wenv_abs,
             worker_core_add_specs,
             offline_flag=offline_flag,
             prefix=worker_extra_indexes,
-        ):
-            await run_fn(cmd_worker, wenv_abs)
+        )
+        for index, cmd_worker in enumerate(worker_core_add_commands):
+            await _run_cached_deploy_stage(
+                stage_name=f"worker-core-add-{index}",
+                cmd=cmd_worker,
+                cwd=wenv_abs,
+                run_fn=run_fn,
+                cache_enabled=stage_cache_enabled,
+                cache_state=stage_cache_state,
+                cache_path=stage_cache_path,
+                inputs=worker_stage_inputs,
+                output_probe=lambda: _project_venv_matches(
+                    worker_venv_project,
+                    python_version=pyvers_worker,
+                ),
+                log=log,
+            )
     else:
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
-        await run_fn(cmd_worker, wenv_abs)
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-node"
-        await run_fn(cmd_worker, wenv_abs)
+        worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
+        cmd_worker = (
+            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
+        )
+        await _run_cached_deploy_stage(
+            stage_name="worker-add-agi-env",
+            cmd=cmd_worker,
+            cwd=wenv_abs,
+            run_fn=run_fn,
+            cache_enabled=stage_cache_enabled,
+            cache_state=stage_cache_state,
+            cache_path=stage_cache_path,
+            inputs=worker_stage_inputs,
+            output_probe=lambda: _project_venv_matches(
+                worker_venv_project,
+                python_version=pyvers_worker,
+            ),
+            log=log,
+        )
+        cmd_worker = (
+            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-node"
+        )
+        await _run_cached_deploy_stage(
+            stage_name="worker-add-agi-node",
+            cmd=cmd_worker,
+            cwd=wenv_abs,
+            run_fn=run_fn,
+            cache_enabled=stage_cache_enabled,
+            cache_state=stage_cache_state,
+            cache_path=stage_cache_path,
+            inputs=worker_stage_inputs,
+            output_probe=lambda: _project_venv_matches(
+                worker_venv_project,
+                python_version=pyvers_worker,
+            ),
+            log=log,
+        )
 
     if hw_rapids_capable:
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} --python {pyvers_worker} "
-            f"--config-file uv_config.toml --project \"{wenv_abs}\""
+            f'--config-file uv_config.toml --project "{wenv_abs}"'
         )
     else:
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} {options_worker} "
-            f"--python {pyvers_worker} --project \"{wenv_abs}\""
+            f'--python {pyvers_worker} --project "{wenv_abs}"'
         )
 
     if env.verbose > 0:
         log.info(f"Installing workers: {cmd_worker}")
-    await run_fn(cmd_worker, wenv_abs)
+    await _run_cached_deploy_stage(
+        stage_name="worker-sync",
+        cmd=cmd_worker,
+        cwd=wenv_abs,
+        run_fn=run_fn,
+        cache_enabled=stage_cache_enabled,
+        cache_state=stage_cache_state,
+        cache_path=stage_cache_path,
+        inputs=_deploy_stage_project_inputs(
+            wenv_abs,
+            app_path,
+            env_project,
+            node_project,
+            core_project,
+            cluster_project,
+            agilab_project,
+        ),
+        output_probe=lambda: _project_venv_matches(
+            worker_venv_project,
+            python_version=pyvers_worker,
+        ),
+        log=log,
+    )
 
     if deployment_dask_support.dask_mode_enabled(agi_cls):
         cmd_worker = deployment_dask_support.dask_runtime_install_command(
@@ -1121,10 +1461,26 @@ async def deploy_local_worker(
         )
         if env.verbose > 0:
             log.info(f"Installing Dask worker runtime: {cmd_worker}")
-        await run_fn(cmd_worker, wenv_abs)
+        await _run_cached_deploy_stage(
+            stage_name="worker-dask-runtime",
+            cmd=cmd_worker,
+            cwd=wenv_abs,
+            run_fn=run_fn,
+            cache_enabled=stage_cache_enabled,
+            cache_state=stage_cache_state,
+            cache_path=stage_cache_path,
+            inputs=_deploy_stage_project_inputs(wenv_abs),
+            output_probe=lambda: _project_venv_matches(
+                worker_venv_project,
+                python_version=pyvers_worker,
+            ),
+            log=log,
+        )
 
     write_staged_uv_sources_pth_fn(
-        worker_site_packages_dir_fn(worker_venv_project, env.pyvers_worker, windows=(os.name == "nt")),
+        worker_site_packages_dir_fn(
+            worker_venv_project, env.pyvers_worker, windows=(os.name == "nt")
+        ),
         wenv_abs / "_uv_sources",
     )
 
@@ -1149,7 +1505,10 @@ async def deploy_local_worker(
         )
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
-                if repo_agilab_root and project_path.resolve() == repo_agilab_root.resolve():
+                if (
+                    repo_agilab_root
+                    and project_path.resolve() == repo_agilab_root.resolve()
+                ):
                     continue
             install_spec = _resolve_install_spec(project_path, package_name)
             if install_spec:
@@ -1167,13 +1526,17 @@ async def deploy_local_worker(
         else:
             python_dir = f"{python_dirs[0]}.{python_dirs[1]}"
         site_packages_worker = (
-            worker_venv_project / ".venv" / "lib" / f"python{python_dir}" / "site-packages"
+            worker_venv_project
+            / ".venv"
+            / "lib"
+            / f"python{python_dir}"
+            / "site-packages"
         )
         _cleanup_editable(site_packages_worker)
     else:
         editable_flags = "--no-deps " if env.is_source_env else ""
         menv = env.agi_env
-        cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
+        cmd = f'{uv} {offline_flag}--project "{menv}" build --wheel'
         await run_fn(cmd, menv)
         src = menv / "dist"
         env_whl = _latest_glob_match(src, "agi_env*.whl")
@@ -1181,7 +1544,7 @@ async def deploy_local_worker(
             raise RuntimeError(cmd)
 
         menv = env.agi_node
-        cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
+        cmd = f'{uv} {offline_flag}--project "{menv}" build --wheel'
         await run_fn(cmd, menv)
         src = menv / "dist"
         whl = _latest_glob_match(src, "agi_node*.whl")
@@ -1248,7 +1611,9 @@ async def deploy_local_worker(
     try:
         active_src = Path(env.active_app) / "src"
         if active_src.exists():
-            for candidate in sorted(active_src.rglob("Trajectory.7z"), key=lambda path: path.as_posix()):
+            for candidate in sorted(
+                active_src.rglob("Trajectory.7z"), key=lambda path: path.as_posix()
+            ):
                 if candidate.is_file():
                     archives.append(candidate)
     except OSError:
@@ -1265,7 +1630,9 @@ async def deploy_local_worker(
             for archive_path in sorted(archives, key=lambda path: path.as_posix()):
                 if archive_path.name == "Trajectory.7z":
                     try:
-                        sat_trajectory_root = (Path(share_root) / "sat_trajectory").resolve(strict=False)
+                        sat_trajectory_root = (
+                            Path(share_root) / "sat_trajectory"
+                        ).resolve(strict=False)
                         candidates = (
                             sat_trajectory_root / "dataframe" / "Trajectory",
                             sat_trajectory_root / "dataset" / "Trajectory",
@@ -1299,22 +1666,27 @@ async def deploy_local_worker(
         except (FileNotFoundError, PermissionError, RuntimeError) as exc:
             log.warning(
                 "Skipping dataset archive copy to %s: %s",
-                install_dataset_dir if "install_dataset_dir" in locals() else "<share root>",
+                install_dataset_dir
+                if "install_dataset_dir" in locals()
+                else "<share root>",
                 exc,
             )
 
     post_install_cmd = (
         f"{_local_worker_post_install_env_prefix(agi_cls)}"
-        f"{uv_worker} run --no-sync --project \"{wenv_abs}\" "
+        f'{uv_worker} run --no-sync --project "{wenv_abs}" '
         f"--python {pyvers_worker} python -m {env.post_install_rel} "
-        f"\"{env.active_app}\""
+        f'"{env.active_app}"'
     )
 
     if env.user and env.user != getpass.getuser():
         try:
             await agi_cls.exec_ssh("127.0.0.1", post_install_cmd)
         except ConnectionError as exc:
-            log.warning("SSH execution failed on localhost (%s), falling back to local run.", exc)
+            log.warning(
+                "SSH execution failed on localhost (%s), falling back to local run.",
+                exc,
+            )
             await run_fn(post_install_cmd, wenv_abs)
     else:
         await run_fn(post_install_cmd, wenv_abs)
@@ -1329,5 +1701,5 @@ async def deploy_local_worker(
         except FileNotFoundError as exc:
             log.error("Missing cli.py for local worker: %s", exc)
             raise
-    cmd = f"{uv_worker} run --no-sync --project \"{wenv_abs}\" python \"{cli}\" threaded"
+    cmd = f'{uv_worker} run --no-sync --project "{wenv_abs}" python "{cli}" threaded'
     await run_fn(cmd, wenv_abs)
