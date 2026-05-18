@@ -43,6 +43,10 @@ class RobotScenario:
     browser_history_check: bool = False
     keyboard_focus_check: bool = False
     layout_integrity_check: bool = False
+    accessibility_check: bool = False
+    browser_error_check: bool = False
+    above_fold_check: bool = False
+    visual_mask_dynamic_regions: bool = False
     viewport_width: int | None = None
     viewport_height: int | None = None
     fresh_browser_context_per_page: bool = False
@@ -308,10 +312,10 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-keyboard-focus-core-pages": RobotScenario(
         name="isolated-keyboard-focus-core-pages",
         description=(
-            "Tab through HOME, PROJECT, ORCHESTRATE, ANALYSIS, and SETTINGS "
+            "Tab through HOME, PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, and SETTINGS "
             "to catch focus traps and off-screen keyboard targets."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -326,7 +330,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages at desktop width and fail on obvious overflow, "
             "zero-size controls, or major visible control overlaps."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -341,7 +345,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages at mobile width and fail on obvious overflow, "
             "zero-size controls, or major visible control overlaps."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -351,6 +355,102 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         layout_integrity_check=True,
         viewport_width=390,
         viewport_height=844,
+    ),
+    "isolated-accessibility-core-pages": RobotScenario(
+        name="isolated-accessibility-core-pages",
+        description=(
+            "Sweep core pages and fail on missing accessible names, broken ARIA "
+            "references, heading-order jumps, missing main landmarks, or severe contrast risks."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        accessibility_check=True,
+    ),
+    "isolated-browser-error-core-pages": RobotScenario(
+        name="isolated-browser-error-core-pages",
+        description=(
+            "Sweep core pages with explicit console, pageerror, requestfailed, "
+            "and HTTP error capture evidence."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        browser_error_check=True,
+    ),
+    "isolated-cross-browser-core-pages": RobotScenario(
+        name="isolated-cross-browser-core-pages",
+        description=(
+            "Smoke core pages in non-Chromium Playwright browsers with explicit "
+            "browser console/network error evidence."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        browser_error_check=True,
+    ),
+    "isolated-above-fold-core-pages": RobotScenario(
+        name="isolated-above-fold-core-pages",
+        description=(
+            "Sweep core pages and fail when expected page headings or primary "
+            "controls are not visible above the initial viewport fold."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        above_fold_check=True,
+    ),
+    "isolated-visual-baseline-core-pages": RobotScenario(
+        name="isolated-visual-baseline-core-pages",
+        description=(
+            "Capture masked success screenshots for core pages so a separate "
+            "visual-baseline report can compare them with committed docs baselines."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        success_screenshot=True,
+        visual_mask_dynamic_regions=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    ),
+    "hf-flight-telemetry-visual-smoke": RobotScenario(
+        name="hf-flight-telemetry-visual-smoke",
+        description=(
+            "Capture hosted Hugging Face screenshots for entry, ORCHESTRATE, "
+            "WORKFLOW, and ANALYSIS without firing install/run actions."
+        ),
+        pages="HOME,ORCHESTRATE,WORKFLOW,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        success_screenshot=True,
+        visual_mask_dynamic_regions=True,
+        above_fold_check=True,
+        browser_error_check=True,
     ),
     "current-home-first-proof-golden-path": RobotScenario(
         name="current-home-first-proof-golden-path",
@@ -526,6 +626,14 @@ def build_robot_command(
         argv.append("--keyboard-focus-check")
     if scenario.layout_integrity_check:
         argv.append("--layout-integrity-check")
+    if scenario.accessibility_check:
+        argv.append("--accessibility-check")
+    if scenario.browser_error_check:
+        argv.append("--browser-error-check")
+    if scenario.above_fold_check:
+        argv.append("--above-fold-check")
+    if scenario.visual_mask_dynamic_regions:
+        argv.append("--visual-mask-dynamic-regions")
     if scenario.viewport_width is not None:
         argv.extend(["--viewport-width", str(scenario.viewport_width)])
     if scenario.viewport_height is not None:

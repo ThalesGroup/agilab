@@ -212,6 +212,14 @@ PAGE_EXPECTED_TEXT = {
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
 PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
+    "HOME": ("AGILAB", "Start here"),
+    "PROJECT": ("PROJECT", "Active app", "Project"),
+    "SETTINGS": ("SETTINGS", "Runtime diagnostics", "Environment variables"),
+    "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
+    "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
+    "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
+}
 
 WIDGET_COLLECTOR_JS = r"""
 () => {
@@ -543,6 +551,276 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
     }
   }
   return issues.slice(0, 20);
+}
+"""
+
+ACCESSIBILITY_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && Number(style.opacity || "1") > 0.2;
+  };
+  const textFor = (el) => clean(el.innerText || el.textContent || el.value || "");
+  const labelFor = (el) => {
+    const direct = clean(el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder"));
+    if (direct) return direct;
+    const labelledBy = clean(el.getAttribute("aria-labelledby"));
+    if (labelledBy) {
+      const parts = labelledBy.split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean).map(textFor).filter(Boolean);
+      if (parts.length) return clean(parts.join(" "));
+    }
+    const id = clean(el.getAttribute("id"));
+    if (id) {
+      const explicit = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+      if (explicit && textFor(explicit)) return textFor(explicit);
+    }
+    const implicit = el.closest("label");
+    if (implicit && textFor(implicit)) return textFor(implicit);
+    const container = el.closest("[data-testid]");
+    return clean(textFor(container || el)).slice(0, 160);
+  };
+  const issues = [];
+  const push = (kind, el, detail) => {
+    issues.push({
+      kind,
+      label: clean(labelFor(el) || el.getAttribute("data-testid") || el.tagName).slice(0, 120),
+      detail: clean(detail).slice(0, 260),
+    });
+  };
+  const interactiveSelector = [
+    "button",
+    "a[href]",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[role='checkbox']",
+    "[role='combobox']",
+    "[tabindex]:not([tabindex='-1'])",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+    "[data-testid='stFileUploader']",
+  ].join(", ");
+  const interactive = Array.from(document.querySelectorAll(interactiveSelector)).filter(visible);
+  for (const el of interactive) {
+    if (el.disabled || el.getAttribute("aria-hidden") === "true") continue;
+    if (!labelFor(el)) {
+      push("missing_accessible_name", el, "visible interactive control has no accessible name");
+    }
+  }
+  const referenceAttrs = ["aria-labelledby", "aria-describedby", "aria-controls"];
+  for (const attr of referenceAttrs) {
+    for (const el of Array.from(document.querySelectorAll(`[${attr}]`)).filter(visible)) {
+      const missing = clean(el.getAttribute(attr)).split(/\s+/).filter(Boolean).filter((id) => !document.getElementById(id));
+      if (missing.length) {
+        push("broken_aria_reference", el, `${attr} references missing id(s): ${missing.join(", ")}`);
+      }
+    }
+  }
+  const booleanAttrs = ["aria-expanded", "aria-selected", "aria-disabled"];
+  for (const attr of booleanAttrs) {
+    for (const el of Array.from(document.querySelectorAll(`[${attr}]`)).filter(visible)) {
+      const value = clean(el.getAttribute(attr)).toLowerCase();
+      if (value !== "true" && value !== "false") {
+        push("invalid_aria_state", el, `${attr} must be true or false, got ${value || "<empty>"}`);
+      }
+    }
+  }
+  for (const el of Array.from(document.querySelectorAll("[aria-checked]")).filter(visible)) {
+    const value = clean(el.getAttribute("aria-checked")).toLowerCase();
+    if (!["true", "false", "mixed"].includes(value)) {
+      push("invalid_aria_state", el, `aria-checked must be true, false, or mixed, got ${value || "<empty>"}`);
+    }
+  }
+  const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6")).filter((el) => visible(el) && textFor(el));
+  let previousLevel = 0;
+  let h1Count = 0;
+  for (const heading of headings) {
+    const level = Number(heading.tagName.slice(1));
+    if (level === 1) h1Count += 1;
+    if (previousLevel && level > previousLevel + 1) {
+      push("heading_level_jump", heading, `heading jumps from h${previousLevel} to h${level}`);
+    }
+    previousLevel = level;
+  }
+  if (h1Count > 1) {
+    push("multiple_h1", headings.find((el) => el.tagName.toLowerCase() === "h1") || document.body, `${h1Count} visible h1 headings found`);
+  }
+  const mainLandmark = document.querySelector("main,[role='main'],[data-testid='stMain'],[data-testid='stAppViewContainer']");
+  if (!mainLandmark || !visible(mainLandmark)) {
+    push("missing_main_landmark", document.body, "no visible main landmark or Streamlit main container was found");
+  }
+
+  const parseColor = (value) => {
+    const match = String(value || "").match(/rgba?\(([^)]+)\)/i);
+    if (!match) return null;
+    const parts = match[1].split(",").map((part) => Number(part.trim()));
+    if (parts.length < 3 || parts.slice(0, 3).some((part) => Number.isNaN(part))) return null;
+    return {r: parts[0], g: parts[1], b: parts[2], a: parts.length >= 4 && !Number.isNaN(parts[3]) ? parts[3] : 1};
+  };
+  const relativeLuminance = (color) => {
+    const convert = (channel) => {
+      const value = channel / 255;
+      return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * convert(color.r) + 0.7152 * convert(color.g) + 0.0722 * convert(color.b);
+  };
+  const contrastRatio = (a, b) => {
+    const first = relativeLuminance(a);
+    const second = relativeLuminance(b);
+    const light = Math.max(first, second);
+    const dark = Math.min(first, second);
+    return (light + 0.05) / (dark + 0.05);
+  };
+  const backgroundFor = (el) => {
+    let current = el;
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      const bg = parseColor(window.getComputedStyle(current).backgroundColor);
+      if (bg && bg.a > 0.15) return bg;
+      current = current.parentElement;
+    }
+    return parseColor(window.getComputedStyle(document.body).backgroundColor) || {r: 255, g: 255, b: 255, a: 1};
+  };
+  const textSelector = [
+    "button",
+    "a[href]",
+    "label",
+    "[role='button']",
+    "[role='tab']",
+    "[data-testid='stMarkdownContainer'] p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+  ].join(", ");
+  for (const el of Array.from(document.querySelectorAll(textSelector)).filter((candidate) => visible(candidate) && textFor(candidate))) {
+    const style = window.getComputedStyle(el);
+    const fg = parseColor(style.color);
+    const bg = backgroundFor(el);
+    if (!fg || fg.a < 0.5 || !bg) continue;
+    const ratio = contrastRatio(fg, bg);
+    const fontSize = Number(String(style.fontSize || "0").replace("px", ""));
+    const threshold = fontSize >= 24 ? 2.0 : 2.2;
+    if (ratio < threshold) {
+      push("contrast_risk", el, `text/background contrast ratio ${ratio.toFixed(2)} is below robot threshold ${threshold.toFixed(1)}`);
+    }
+  }
+  return issues.slice(0, 30);
+}
+"""
+
+ABOVE_FOLD_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && Number(style.opacity || "1") > 0.2;
+  };
+  const labelFor = (el) => clean(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).slice(0, 180);
+  const selector = [
+    "h1",
+    "h2",
+    "h3",
+    "button",
+    "a[href]",
+    "label",
+    "input",
+    "textarea",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+    "[data-testid='stFileUploader']",
+    "[data-testid='stMarkdownContainer'] p",
+  ].join(", ");
+  const fold = Math.max(240, Math.min(window.innerHeight || 1000, 900));
+  const targets = [];
+  const seen = new Set();
+  for (const el of Array.from(document.querySelectorAll(selector)).filter(visible)) {
+    const label = labelFor(el);
+    if (!label) continue;
+    const rect = el.getBoundingClientRect();
+    const key = `${label}|${Math.round(rect.top)}|${Math.round(rect.left)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({
+      label,
+      tag: String(el.tagName || "").toLowerCase(),
+      role: clean(el.getAttribute("role")),
+      top: rect.top,
+      bottom: rect.bottom,
+      inFold: rect.top >= -2 && rect.top <= fold,
+    });
+  }
+  return {
+    fold,
+    viewportHeight: window.innerHeight || 0,
+    targets: targets.slice(0, 80),
+  };
+}
+"""
+
+VISUAL_MASK_DYNAMIC_REGIONS_JS = r"""
+() => {
+  const selectors = [
+    "[data-testid='stStatusWidget']",
+    "[data-testid='stSpinner']",
+    "[data-testid='stProgress']",
+    "[data-testid='stToast']",
+    "[data-testid='stNotification']",
+    "[data-testid='stCodeBlock']",
+    "[data-testid='stExpander'] pre",
+    "textarea",
+  ];
+  const styleId = "agilab-visual-baseline-mask-style";
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      [data-agilab-visual-mask='1'] {
+        color: transparent !important;
+        text-shadow: none !important;
+      }
+      [data-agilab-visual-mask='1'] * {
+        color: transparent !important;
+        text-shadow: none !important;
+      }
+      [data-agilab-visual-mask='1']::before {
+        content: "masked";
+        color: #777 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  let masked = 0;
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll(selector)) {
+      el.setAttribute("data-agilab-visual-mask", "1");
+      masked += 1;
+    }
+  }
+  return masked;
 }
 """
 
@@ -1856,6 +2134,7 @@ def _capture_success_screenshot_probe(
     app_name: str,
     display: str,
     screenshot_dir: Path | None,
+    visual_mask_dynamic_regions: bool = False,
 ) -> WidgetProbe | None:
     if screenshot_dir is None:
         return None
@@ -1871,6 +2150,8 @@ def _capture_success_screenshot_probe(
             getattr(page, "url", ""),
         )
     try:
+        if visual_mask_dynamic_regions:
+            page.evaluate(VISUAL_MASK_DYNAMIC_REGIONS_JS)
         screenshot = screenshot_fn(page, screenshot_dir, f"{app_name}-{display}-success")
     except Exception as exc:
         return WidgetProbe(
@@ -4215,6 +4496,10 @@ def sweep_page(
     browser_history_check: bool = False,
     keyboard_focus_check: bool = False,
     layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
@@ -4324,6 +4609,10 @@ def sweep_page(
                     restore_view()
             if layout_integrity_check and not any(probe.status == "failed" for probe in probes):
                 probes.append(_layout_integrity_probe(page, app_name=app_name, display=display))
+            if accessibility_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_accessibility_probe(page, app_name=app_name, display=display))
+            if above_fold_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_above_fold_probe(page, app_name=app_name, display=display))
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
             preflight_detail = current_home_action_preflight_blocker(
                 app_name=app_name,
@@ -4524,15 +4813,28 @@ def sweep_page(
         page_status = "failed"
         probes.append(WidgetProbe(app_name, display, "page", "", "failed", str(exc), target_url))
 
-    if _append_browser_issue_probes(
+    browser_issue_failed = _append_browser_issue_probes(
         probes,
         app_name=app_name,
         display=display,
         url=getattr(page, "url", target_url),
         browser_issues=browser_issues,
         start_index=browser_issue_start_index,
-    ):
+    )
+    if browser_issue_failed:
         page_status = "failed"
+    if browser_error_check:
+        browser_error_probe = _browser_error_check_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", target_url),
+            browser_issues=browser_issues,
+            start_index=browser_issue_start_index,
+        )
+        if browser_error_probe is not None:
+            probes.append(browser_error_probe)
+            if browser_error_probe.status == "failed":
+                page_status = "failed"
 
     if success_screenshot and page_status == "passed" and not any(probe.status == "failed" for probe in probes):
         screenshot_probe = _capture_success_screenshot_probe(
@@ -4541,6 +4843,7 @@ def sweep_page(
             app_name=app_name,
             display=display,
             screenshot_dir=screenshot_dir,
+            visual_mask_dynamic_regions=visual_mask_dynamic_regions,
         )
         if screenshot_probe is not None:
             probes.append(screenshot_probe)
@@ -4924,6 +5227,151 @@ def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> Widget
     )
 
 
+def _accessibility_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    issues: Sequence[dict[str, Any]],
+) -> WidgetProbe:
+    if issues:
+        first = issues[0]
+        detail = f"{len(issues)} accessibility issue(s); first={first.get('kind')}: {first.get('label')} - {first.get('detail')}"
+        return WidgetProbe(app_name, display, "accessibility", "semantics", "failed", _short_detail(detail), url)
+    return WidgetProbe(
+        app_name,
+        display,
+        "accessibility",
+        "semantics",
+        "interacted",
+        "interactive names, ARIA references, heading order, landmarks, and contrast heuristics passed",
+        url,
+    )
+
+
+def _accessibility_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    try:
+        issues = page.evaluate(ACCESSIBILITY_COLLECTOR_JS)
+    except Exception as exc:
+        issues = [{"kind": "collector_error", "label": "", "detail": str(exc)}]
+    if not isinstance(issues, list):
+        issues = [{"kind": "collector_error", "label": "", "detail": "accessibility collector returned no issue list"}]
+    normalized = [dict(item) for item in issues if isinstance(item, dict)]
+    return _accessibility_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        issues=normalized,
+    )
+
+
+def _browser_error_check_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    browser_issues: Sequence[dict[str, str]] | None,
+    start_index: int,
+) -> WidgetProbe | None:
+    if browser_issues is None:
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_error",
+            "console/network",
+            "failed",
+            "browser console/network capture was not attached",
+            url,
+        )
+    relevant = [
+        issue
+        for issue in list(browser_issues)[start_index:]
+        if _browser_issue_is_relevant(str(issue.get("kind") or ""), str(issue.get("detail") or ""))
+    ]
+    if relevant:
+        return None
+    return WidgetProbe(
+        app_name,
+        display,
+        "browser_error",
+        "console/network",
+        "interacted",
+        "no relevant console, pageerror, requestfailed, or HTTP error events recorded",
+        url,
+    )
+
+
+def _above_fold_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    expected_labels: Sequence[str],
+    seen_labels: Sequence[str],
+    fold: float,
+    failure: str | None = None,
+) -> WidgetProbe:
+    if failure:
+        return WidgetProbe(app_name, display, "above_fold", "primary_targets", "failed", _short_detail(failure), url)
+    normalized_seen = [_normalized_label(label) for label in seen_labels if _normalized_label(label)]
+    missing = [
+        label
+        for label in expected_labels
+        if not any(_normalized_label(label) in seen or seen in _normalized_label(label) for seen in normalized_seen)
+    ]
+    if missing:
+        detail = f"primary target(s) missing above fold {fold:.0f}px: {missing}; seen={list(seen_labels)[:12]}"
+        return WidgetProbe(app_name, display, "above_fold", "primary_targets", "failed", _short_detail(detail), url)
+    detail = f"primary targets visible above fold {fold:.0f}px: {list(expected_labels)}"
+    return WidgetProbe(app_name, display, "above_fold", "primary_targets", "interacted", _short_detail(detail), url)
+
+
+def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    expected = PAGE_ABOVE_FOLD_EXPECTED_LABELS.get(display, (display,))
+    try:
+        payload = page.evaluate(ABOVE_FOLD_COLLECTOR_JS)
+    except Exception as exc:
+        return _above_fold_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            expected_labels=expected,
+            seen_labels=[],
+            fold=0,
+            failure=f"above-fold collector failed: {exc}",
+        )
+    if not isinstance(payload, dict):
+        return _above_fold_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            expected_labels=expected,
+            seen_labels=[],
+            fold=0,
+            failure="above-fold collector returned no payload",
+        )
+    targets = payload.get("targets")
+    if not isinstance(targets, list):
+        targets = []
+    seen_labels = [
+        str(item.get("label") or "")
+        for item in targets
+        if isinstance(item, dict) and bool(item.get("inFold"))
+    ]
+    try:
+        fold = float(payload.get("fold") or 0)
+    except (TypeError, ValueError):
+        fold = 0.0
+    return _above_fold_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        expected_labels=expected,
+        seen_labels=seen_labels,
+        fold=fold,
+    )
+
+
 def sweep_direct_apps_page(
     *,
     web_robot: Any,
@@ -4952,6 +5400,10 @@ def sweep_direct_apps_page(
     success_screenshot: bool = False,
     keyboard_focus_check: bool = False,
     layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
     command_argv: Sequence[str] | None = None,
@@ -5060,6 +5512,10 @@ def sweep_direct_apps_page(
                         success_screenshot=success_screenshot,
                         keyboard_focus_check=keyboard_focus_check,
                         layout_integrity_check=layout_integrity_check,
+                        accessibility_check=accessibility_check,
+                        browser_error_check=browser_error_check,
+                        above_fold_check=above_fold_check,
+                        visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
                         command_argv=command_argv,
@@ -5105,6 +5561,10 @@ def sweep_app(
     browser_history_check: bool = False,
     keyboard_focus_check: bool = False,
     layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
@@ -5201,6 +5661,10 @@ def sweep_app(
                                 browser_history_check=browser_history_check,
                                 keyboard_focus_check=keyboard_focus_check,
                                 layout_integrity_check=layout_integrity_check,
+                                accessibility_check=accessibility_check,
+                                browser_error_check=browser_error_check,
+                                above_fold_check=above_fold_check,
+                                visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                                 success_screenshot=success_screenshot,
                                 failure_bundle_dir=failure_bundle_dir,
                                 progress_log=progress_log,
@@ -5291,6 +5755,10 @@ def sweep_app(
                     success_screenshot=success_screenshot,
                     keyboard_focus_check=keyboard_focus_check,
                     layout_integrity_check=layout_integrity_check,
+                    accessibility_check=accessibility_check,
+                    browser_error_check=browser_error_check,
+                    above_fold_check=above_fold_check,
+                    visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
                     progress_log=progress_log,
                     command_argv=command_argv,
@@ -5335,6 +5803,10 @@ def sweep_remote_app(
     browser_history_check: bool = False,
     keyboard_focus_check: bool = False,
     layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
@@ -5409,6 +5881,10 @@ def sweep_remote_app(
                         browser_history_check=browser_history_check,
                         keyboard_focus_check=keyboard_focus_check,
                         layout_integrity_check=layout_integrity_check,
+                        accessibility_check=accessibility_check,
+                        browser_error_check=browser_error_check,
+                        above_fold_check=above_fold_check,
+                        visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         success_screenshot=success_screenshot,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
@@ -5510,6 +5986,10 @@ def sweep_remote_app(
                             success_screenshot=success_screenshot,
                             keyboard_focus_check=keyboard_focus_check,
                             layout_integrity_check=layout_integrity_check,
+                            accessibility_check=accessibility_check,
+                            browser_error_check=browser_error_check,
+                            above_fold_check=above_fold_check,
+                            visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                             failure_bundle_dir=failure_bundle_dir,
                             progress_log=progress_log,
                             command_argv=command_argv,
@@ -5634,6 +6114,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--keyboard-focus-check", action="store_true", help="Tab through visible controls and fail on focus traps or off-screen focus targets.")
     parser.add_argument("--layout-integrity-check", action="store_true", help="Fail on obvious visible control overflow, zero-size controls, and major control overlaps.")
+    parser.add_argument("--accessibility-check", action="store_true", help="Fail on missing accessible names, broken ARIA references, heading jumps, missing landmarks, or severe contrast risks.")
+    parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
+    parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
+    parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
     parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
     parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
@@ -5756,6 +6240,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 browser_history_check=args.browser_history_check,
                 keyboard_focus_check=args.keyboard_focus_check,
                 layout_integrity_check=args.layout_integrity_check,
+                accessibility_check=args.accessibility_check,
+                browser_error_check=args.browser_error_check,
+                above_fold_check=args.above_fold_check,
+                visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,
@@ -5800,6 +6288,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 browser_history_check=args.browser_history_check,
                 keyboard_focus_check=args.keyboard_focus_check,
                 layout_integrity_check=args.layout_integrity_check,
+                accessibility_check=args.accessibility_check,
+                browser_error_check=args.browser_error_check,
+                above_fold_check=args.above_fold_check,
+                visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,

@@ -90,7 +90,13 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "isolated-keyboard-focus-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-layout-integrity-desktop" not in [scenario.name for scenario in scenarios]
     assert "isolated-layout-integrity-mobile" not in [scenario.name for scenario in scenarios]
+    assert "isolated-accessibility-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-browser-error-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-above-fold-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-visual-baseline-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-cross-browser-core-pages" not in [scenario.name for scenario in scenarios]
     assert "hf-flight-telemetry-install" not in [scenario.name for scenario in scenarios]
+    assert "hf-flight-telemetry-visual-smoke" not in [scenario.name for scenario in scenarios]
 
 
 def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
@@ -135,6 +141,12 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     keyboard = module.resolve_scenarios(["isolated-keyboard-focus-core-pages"])[0]
     layout_desktop = module.resolve_scenarios(["isolated-layout-integrity-desktop"])[0]
     layout_mobile = module.resolve_scenarios(["isolated-layout-integrity-mobile"])[0]
+    accessibility = module.resolve_scenarios(["isolated-accessibility-core-pages"])[0]
+    browser_error = module.resolve_scenarios(["isolated-browser-error-core-pages"])[0]
+    above_fold = module.resolve_scenarios(["isolated-above-fold-core-pages"])[0]
+    visual_baseline = module.resolve_scenarios(["isolated-visual-baseline-core-pages"])[0]
+    hf_visual_smoke = module.resolve_scenarios(["hf-flight-telemetry-visual-smoke"])[0]
+    cross_browser = module.resolve_scenarios(["isolated-cross-browser-core-pages"])[0]
 
     assert mobile.name not in default_names
     assert evidence.name not in default_names
@@ -143,6 +155,12 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert keyboard.name not in default_names
     assert layout_desktop.name not in default_names
     assert layout_mobile.name not in default_names
+    assert accessibility.name not in default_names
+    assert browser_error.name not in default_names
+    assert above_fold.name not in default_names
+    assert visual_baseline.name not in default_names
+    assert hf_visual_smoke.name not in default_names
+    assert cross_browser.name not in default_names
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
     assert evidence.success_screenshot is True
@@ -158,6 +176,18 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert layout_mobile.layout_integrity_check is True
     assert layout_mobile.viewport_width == 390
     assert layout_mobile.viewport_height == 844
+    assert accessibility.accessibility_check is True
+    assert browser_error.browser_error_check is True
+    assert above_fold.above_fold_check is True
+    assert visual_baseline.success_screenshot is True
+    assert visual_baseline.visual_mask_dynamic_regions is True
+    assert visual_baseline.above_fold_check is True
+    assert visual_baseline.browser_error_check is True
+    assert hf_visual_smoke.success_screenshot is True
+    assert hf_visual_smoke.visual_mask_dynamic_regions is True
+    assert hf_visual_smoke.above_fold_check is True
+    assert hf_visual_smoke.browser_error_check is True
+    assert cross_browser.browser_error_check is True
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -326,7 +356,7 @@ def test_build_robot_command_enables_keyboard_focus_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--keyboard-focus-check" in argv
 
 
@@ -348,6 +378,117 @@ def test_build_robot_command_enables_layout_integrity_mobile_viewport(tmp_path) 
     assert "--layout-integrity-check" in argv
     assert argv[argv.index("--viewport-width") + 1] == "390"
     assert argv[argv.index("--viewport-height") + 1] == "844"
+
+
+def test_build_robot_command_enables_accessibility_check(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-accessibility-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert "--accessibility-check" in argv
+
+
+def test_build_robot_command_enables_browser_error_check(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-browser-error-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert "--browser-error-check" in argv
+
+
+def test_build_robot_command_enables_above_fold_check(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-above-fold-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert "--above-fold-check" in argv
+
+
+def test_build_robot_command_enables_visual_baseline_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-visual-baseline-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert "--success-screenshot" in argv
+    assert "--visual-mask-dynamic-regions" in argv
+    assert "--above-fold-check" in argv
+    assert "--browser-error-check" in argv
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-visual-baseline-core-pages"
+    )
+    assert summary_path == tmp_path / "isolated-visual-baseline-core-pages.json"
+    assert progress_path == tmp_path / "isolated-visual-baseline-core-pages.ndjson"
+
+
+def test_build_robot_command_enables_hf_visual_smoke_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["hf-flight-telemetry-visual-smoke"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        url="https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
+        active_app="flight_telemetry_project",
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,ORCHESTRATE,WORKFLOW,ANALYSIS"
+    assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project"
+    assert "--success-screenshot" in argv
+    assert "--visual-mask-dynamic-regions" in argv
+    assert "--above-fold-check" in argv
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "hf-flight-telemetry-visual-smoke.json"
+    assert progress_path == tmp_path / "hf-flight-telemetry-visual-smoke.ndjson"
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:

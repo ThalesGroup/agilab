@@ -127,6 +127,10 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.fresh_browser_context_per_page is False
     assert args.keyboard_focus_check is False
     assert args.layout_integrity_check is False
+    assert args.accessibility_check is False
+    assert args.browser_error_check is False
+    assert args.above_fold_check is False
+    assert args.visual_mask_dynamic_regions is False
     assert args.success_screenshot is False
     assert args.failure_bundle_dir is None
     assert args.max_first_render_seconds == 0.0
@@ -260,6 +264,175 @@ def test_layout_integrity_result_probe_accepts_clean_geometry() -> None:
 
     assert probe.status == "interacted"
     assert "no obvious overflow" in probe.detail
+
+
+def test_accessibility_result_probe_reports_first_issue() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[{"kind": "missing_accessible_name", "label": "button", "detail": "visible control has no name"}],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "accessibility"
+    assert "missing_accessible_name" in probe.detail
+
+
+def test_accessibility_result_probe_accepts_clean_semantics() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[],
+    )
+
+    assert probe.status == "interacted"
+    assert "ARIA references" in probe.detail
+
+
+def test_browser_error_check_probe_records_clean_capture() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=[
+            {"kind": "console.warning", "detail": "favicon failed to load resource"},
+            {"kind": "console.error", "detail": "ignored earlier traceback"},
+        ],
+        start_index=2,
+    )
+
+    assert probe is not None
+    assert probe.status == "interacted"
+    assert probe.kind == "browser_error"
+    assert "no relevant console" in probe.detail
+
+
+def test_browser_error_check_probe_skips_when_existing_failure_probe_handles_issue() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=[{"kind": "pageerror", "detail": "TypeError: broken callback"}],
+        start_index=0,
+    )
+
+    assert probe is None
+
+
+def test_browser_error_check_probe_fails_when_capture_is_missing() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=None,
+        start_index=0,
+    )
+
+    assert probe is not None
+    assert probe.status == "failed"
+    assert "capture was not attached" in probe.detail
+
+
+def test_accessibility_probe_wraps_collector_shape_errors() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/PROJECT"
+
+        @staticmethod
+        def evaluate(_script: str) -> dict[str, str]:
+            return {"unexpected": "payload"}
+
+    probe = module._accessibility_probe(_Page(), app_name="flight_telemetry_project", display="PROJECT")
+
+    assert probe.status == "failed"
+    assert probe.kind == "accessibility"
+    assert "collector_error" in probe.detail
+
+
+def test_above_fold_result_probe_reports_missing_primary_target() -> None:
+    module = _load_module()
+
+    probe = module._above_fold_result_probe(
+        app_name="flight_telemetry_project",
+        display="ORCHESTRATE",
+        url="http://demo/ORCHESTRATE",
+        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
+        seen_labels=("ORCHESTRATE", "INSTALL"),
+        fold=900,
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "above_fold"
+    assert "EXECUTE" in probe.detail
+
+
+def test_above_fold_result_probe_accepts_primary_targets() -> None:
+    module = _load_module()
+
+    probe = module._above_fold_result_probe(
+        app_name="flight_telemetry_project",
+        display="ORCHESTRATE",
+        url="http://demo/ORCHESTRATE",
+        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
+        seen_labels=("ORCHESTRATE", "INSTALL action", "EXECUTE action"),
+        fold=900,
+    )
+
+    assert probe.status == "interacted"
+    assert "primary targets visible" in probe.detail
+
+
+def test_above_fold_probe_reports_collector_exception() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+
+        @staticmethod
+        def evaluate(_script: str) -> None:
+            raise RuntimeError("js disabled")
+
+    probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
+
+    assert probe.status == "failed"
+    assert probe.kind == "above_fold"
+    assert "collector failed" in probe.detail
+
+
+def test_above_fold_probe_filters_targets_by_initial_fold() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+
+        @staticmethod
+        def evaluate(_script: str) -> dict[str, object]:
+            return {
+                "fold": 800,
+                "targets": [
+                    {"label": "ORCHESTRATE", "inFold": True},
+                    {"label": "INSTALL", "inFold": True},
+                    {"label": "EXECUTE", "inFold": False},
+                ],
+            }
+
+    probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
+
+    assert probe.status == "failed"
+    assert "EXECUTE" in probe.detail
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -2501,6 +2674,42 @@ def test_success_screenshot_probe_records_evidence(tmp_path) -> None:
     assert probe.kind == "screenshot"
     assert probe.status == "probed"
     assert "success screenshot=" in probe.detail
+
+
+def test_success_screenshot_probe_masks_dynamic_regions_when_requested(tmp_path) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+        def __init__(self) -> None:
+            self.evaluated_scripts = []
+
+        def evaluate(self, script):
+            self.evaluated_scripts.append(script)
+            return 1
+
+    class _WebRobot:
+        @staticmethod
+        def _screenshot(page, screenshot_dir, label):
+            path = screenshot_dir / f"{label}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"png")
+            return str(path)
+
+    page = _Page()
+    probe = module._capture_success_screenshot_probe(
+        page,
+        web_robot=_WebRobot(),
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        screenshot_dir=tmp_path,
+        visual_mask_dynamic_regions=True,
+    )
+
+    assert probe is not None
+    assert probe.status == "probed"
+    assert page.evaluated_scripts == [module.VISUAL_MASK_DYNAMIC_REGIONS_JS]
 
 
 def test_browser_history_probe_checks_back_forward_and_active_app_route() -> None:
