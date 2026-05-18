@@ -1,5 +1,9 @@
 import ast
+import importlib.util
+import shlex
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 WORKFLOW_PATH = Path(".github/workflows/ci.yml")
@@ -9,6 +13,7 @@ DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
 ENSURE_ROADMAP_LABEL_WORKFLOW_PATH = Path(".github/workflows/ensure-roadmap-label.yaml")
 UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
+WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
 
 VALIDATION_WORKFLOW_PATHS = (
     WORKFLOW_PATH,
@@ -21,6 +26,68 @@ VALIDATION_CONCURRENCY_GROUP = (
     "group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || "
     "github.repository }}-${{ github.head_ref || github.ref_name }}"
 )
+
+
+def _load_workflow_parity_module():
+    spec = importlib.util.spec_from_file_location("ci_workflow_parity_test_module", WORKFLOW_PARITY_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _ui_robot_matrix_workflow_argv() -> list[str]:
+    lines = UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8").splitlines()
+    start = next(index for index, line in enumerate(lines) if "tools/agilab_widget_robot_matrix.py" in line)
+    fragments: list[str] = []
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped.startswith("| tee "):
+            break
+        fragments.append(stripped.removesuffix("\\").strip())
+    return shlex.split(" ".join(fragments))
+
+
+def _ui_robot_matrix_parity_argv() -> list[str]:
+    module = _load_workflow_parity_module()
+    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+    return list(module._profile_commands(args)["ui-robot-matrix"][0].argv)
+
+
+def _option_values(argv: list[str], option: str) -> list[str]:
+    return [argv[index + 1] for index, arg in enumerate(argv[:-1]) if arg == option]
+
+
+def _single_option(argv: list[str], option: str) -> str:
+    values = _option_values(argv, option)
+    assert len(values) == 1
+    return values[0]
+
+
+def _ui_robot_matrix_option(argv: list[str], option: str) -> str:
+    value = _single_option(argv, option)
+    workflow_defaults = {
+        "--apps": {"${robot_apps}": "all"},
+        "--timeout": {"${robot_timeout}": "90"},
+        "--widget-timeout": {"${robot_widget_timeout}": "3"},
+    }
+    return workflow_defaults.get(option, {}).get(value, value)
+
+
+def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
+    return {
+        "script": "tools/agilab_widget_robot_matrix.py" in argv,
+        "scenarios": _option_values(argv, "--scenario"),
+        "apps": _ui_robot_matrix_option(argv, "--apps"),
+        "timeout": _ui_robot_matrix_option(argv, "--timeout"),
+        "widget_timeout": _ui_robot_matrix_option(argv, "--widget-timeout"),
+        "json": "--json" in argv,
+        "quiet_progress": "--quiet-progress" in argv,
+        "output_dir": _single_option(argv, "--output-dir"),
+        "screenshot_dir": _single_option(argv, "--screenshot-dir"),
+        "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
+    }
 
 
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
@@ -99,13 +166,24 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--failure-bundle-dir test-results/ui-robot-matrix/failure-bundles" in text
     assert "tools/ui_robot_trend_report.py" in text
     assert '--glob "test-results/ui-robot-matrix/*.ndjson"' in text
+    assert "--strict" in text
+    assert "--strict-budget" in text
     assert "--output test-results/ui-robot-matrix/trend-report.json" in text
     assert "test-results/ui-robot-matrix/trend-report.txt" in text
+    assert 'trend_status="${PIPESTATUS[0]}"' in text
+    assert 'exit "${trend_status}"' in text
     assert "## UI robot trend" in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
     assert "AGILAB_DISABLE_BACKGROUND_SERVICES: \"1\"" in text
+
+
+def test_ui_robot_matrix_workflow_command_matches_local_workflow_parity() -> None:
+    workflow_contract = _ui_robot_matrix_command_contract(_ui_robot_matrix_workflow_argv())
+    parity_contract = _ui_robot_matrix_command_contract(_ui_robot_matrix_parity_argv())
+
+    assert workflow_contract == parity_contract
 
 
 def test_root_conftest_keeps_streamlit_testing_import_lazy() -> None:

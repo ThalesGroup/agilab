@@ -36,6 +36,17 @@ _NETWORKX_ERROR_TYPE = getattr(nx, "NetworkXError", RuntimeError) if nx is not N
 _PREVIEW_LOAD_EXCEPTIONS = (OSError, RuntimeError, TypeError, ValueError, _NETWORKX_ERROR_TYPE)
 
 
+@dataclass(frozen=True)
+class _PreviewCandidate:
+    path: Path
+    stat_result: os.stat_result
+    suffix_rank: int
+
+    @property
+    def mtime(self) -> float:
+        return self.stat_result.st_mtime
+
+
 def _networkx_unavailable_message() -> str:
     return (
         f"networkx unavailable: {_NETWORKX_IMPORT_ERROR}. "
@@ -224,30 +235,74 @@ def _run_stderr_indicates_failure(stderr: Any) -> bool:
     return bool(text.strip()) and any(pattern in text for pattern in RUN_FATAL_STDERR_PATTERNS)
 
 
-def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
-    search_files: list[Path] = []
+def _preview_suffix_rank() -> dict[str, int]:
+    return {
+        Path(pattern).suffix.lower(): index
+        for index, pattern in enumerate(PREVIEW_FILE_PATTERNS)
+        if Path(pattern).suffix
+    }
+
+
+def _preview_candidate_records(candidate_roots: list[Path]) -> list[_PreviewCandidate]:
+    suffix_rank = _preview_suffix_rank()
+    records: list[_PreviewCandidate] = []
     seen_files: set[str] = set()
 
-    def _append_candidate(candidate: Path) -> bool:
-        if len(search_files) >= PREVIEW_MAX_SEARCH_FILES:
-            return False
+    def _append_candidate(bucket: list[_PreviewCandidate], candidate: Path, stat_result: os.stat_result) -> None:
+        suffix = candidate.suffix.lower()
+        rank = suffix_rank.get(suffix)
+        if rank is None:
+            return
         key = str(candidate)
         if key in seen_files:
-            return True
+            return
         seen_files.add(key)
-        search_files.append(candidate)
-        return True
+        bucket.append(_PreviewCandidate(path=candidate, stat_result=stat_result, suffix_rank=rank))
+
+    def _walk_directory(root: Path, bucket: list[_PreviewCandidate]) -> None:
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as entries:
+                    dirs: list[Path] = []
+                    for entry in entries:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                dirs.append(Path(entry.path))
+                                continue
+                            if not entry.is_file(follow_symlinks=False):
+                                continue
+                            path = Path(entry.path)
+                            if path.suffix.lower() not in suffix_rank:
+                                continue
+                            _append_candidate(bucket, path, entry.stat(follow_symlinks=False))
+                        except OSError:
+                            continue
+                    stack.extend(sorted(dirs, key=lambda path: str(path), reverse=True))
+            except OSError:
+                continue
 
     for root in candidate_roots:
-        if root.is_dir():
-            for pattern in PREVIEW_FILE_PATTERNS:
-                for candidate in sorted(root.rglob(pattern), key=lambda path: str(path)):
-                    if not _append_candidate(candidate):
-                        return search_files
-        elif root.is_file():
-            if not _append_candidate(root):
-                return search_files
-    return search_files
+        root_records: list[_PreviewCandidate] = []
+        try:
+            root_stat = root.stat()
+        except (FileNotFoundError, OSError):
+            continue
+        if stat.S_ISDIR(root_stat.st_mode):
+            _walk_directory(root, root_records)
+            root_records.sort(key=lambda record: (record.suffix_rank, str(record.path)))
+        elif stat.S_ISREG(root_stat.st_mode):
+            _append_candidate(root_records, root, root_stat)
+        for record in root_records:
+            if len(records) >= PREVIEW_MAX_SEARCH_FILES:
+                return records
+            records.append(record)
+    return records
+
+
+def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
+    return [record.path for record in _preview_candidate_records(candidate_roots)]
 
 
 def _is_preview_metadata_file(file_path: Path) -> bool:
@@ -256,27 +311,25 @@ def _is_preview_metadata_file(file_path: Path) -> bool:
 
 
 def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
-    search_files = _preview_candidate_paths(candidate_roots)
+    search_records = _preview_candidate_records(candidate_roots)
 
-    filtered_records: list[tuple[Path, float]] = []
-    for file_path in search_files:
+    filtered_records: list[_PreviewCandidate] = []
+    for record in search_records:
+        file_path = record.path
         if _is_preview_metadata_file(file_path):
             continue
-        try:
-            file_stat = file_path.stat()
-        except (FileNotFoundError, OSError):
-            continue
+        file_stat = record.stat_result
         if not stat.S_ISREG(file_stat.st_mode):
             continue
         if file_stat.st_size <= 0 or file_stat.st_size > PREVIEW_MAX_FILE_BYTES:
             continue
-        filtered_records.append((file_path, file_stat.st_mtime))
+        filtered_records.append(record)
 
     if not filtered_records:
         return None, []
 
-    filtered_files = [file_path for file_path, _mtime in filtered_records]
-    target_file = max(filtered_records, key=lambda item: (item[1], str(item[0])))[0]
+    filtered_files = [record.path for record in filtered_records]
+    target_file = max(filtered_records, key=lambda record: (record.mtime, str(record.path))).path
     try:
         target_file.stat()
     except (FileNotFoundError, OSError):

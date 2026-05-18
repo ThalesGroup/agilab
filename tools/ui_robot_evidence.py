@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "source" / "data" / "ui_robot_evidence.json"
 SCHEMA = "agilab.ui_robot_evidence.v1"
+TREND_REPORT_SCHEMA = "agilab.ui_robot_trend_report.v1"
 WORKFLOW_NAME = "ui-robot-matrix"
 DEFAULT_BRANCH = "main"
 DEFAULT_REPO = "ThalesGroup/agilab"
@@ -38,6 +39,7 @@ REQUIRED_ARTIFACT_FILES = {
     "matrix_summary": "summary.json",
     "scenario_summary": "isolated-core-pages.json",
     "progress_log": "isolated-core-pages.ndjson",
+    "trend_report": "trend-report.json",
     "exit_code": "exit-code.txt",
 }
 
@@ -211,7 +213,7 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     paths = {
         key: _find_artifact_file(artifact_dir, filename)
         for key, filename in REQUIRED_ARTIFACT_FILES.items()
@@ -224,6 +226,9 @@ def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str
 
     matrix_summary = _load_json(paths["matrix_summary"])  # type: ignore[arg-type]
     scenario_summary = _load_json(paths["scenario_summary"])  # type: ignore[arg-type]
+    trend_report = _load_json(paths["trend_report"])  # type: ignore[arg-type]
+    if trend_report.get("schema") != TREND_REPORT_SCHEMA:
+        raise ValueError(f"{paths['trend_report']} must use schema {TREND_REPORT_SCHEMA}")
     exit_code_text = paths["exit_code"].read_text(encoding="utf-8").strip()  # type: ignore[union-attr]
     progress_path = paths["progress_log"]  # type: ignore[assignment]
     screenshot_count = sum(1 for path in artifact_dir.rglob("*.png") if path.is_file())
@@ -244,8 +249,10 @@ def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str
         "matrix_summary_file": _relative(paths["matrix_summary"]),
         "scenario_summary_file": _relative(paths["scenario_summary"]),
         "progress_log_file": _relative(progress_path),
+        "trend_report_file": _relative(paths["trend_report"]),
+        "trend_report_schema": str(trend_report.get("schema", "") or ""),
     }
-    return matrix_summary, scenario_summary, artifact_checks
+    return matrix_summary, scenario_summary, trend_report, artifact_checks
 
 
 def _int_value(payload: Mapping[str, Any], key: str) -> int:
@@ -256,21 +263,43 @@ def _float_value(payload: Mapping[str, Any], key: str) -> float:
     return float(payload.get(key) or 0.0)
 
 
+def _trend_summary(trend_report: Mapping[str, Any]) -> Mapping[str, Any]:
+    summary = trend_report.get("summary")
+    return summary if isinstance(summary, Mapping) else {}
+
+
+def _trend_health_ok(trend_summary: Mapping[str, Any]) -> bool:
+    return (
+        _int_value(trend_summary, "failed_page_count") == 0
+        and _int_value(trend_summary, "flaky_page_count") == 0
+        and _int_value(trend_summary, "parse_error_count") == 0
+        and _int_value(trend_summary, "budget_violation_count") == 0
+    )
+
+
 def build_evidence(
     *,
     run: Mapping[str, Any],
     artifact: Mapping[str, Any],
     matrix_summary: Mapping[str, Any],
     scenario_summary: Mapping[str, Any],
+    trend_report: Mapping[str, Any],
     artifact_checks: Mapping[str, Any],
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     failed_count = _int_value(scenario_summary, "failed_count")
     skipped_count = _int_value(scenario_summary, "skipped_count")
+    trend_summary = _trend_summary(trend_report)
+    trend_valid = (
+        trend_report.get("schema") == TREND_REPORT_SCHEMA
+        and trend_report.get("success") is True
+        and _trend_health_ok(trend_summary)
+    )
     success = (
         is_successful_ui_robot_run(run)
         and matrix_summary.get("success") is True
         and scenario_summary.get("success") is True
+        and trend_valid
         and failed_count == 0
         and str(artifact_checks.get("exit_code", "")) == "0"
         and not bool(artifact.get("expired"))
@@ -312,6 +341,18 @@ def build_evidence(
             "within_target": bool(scenario_summary.get("within_target")),
             "failed_scenarios": list(matrix_summary.get("failed_scenarios") or []),
             "failure_samples": list(matrix_summary.get("failure_samples") or []),
+            "trend": {
+                "schema": str(trend_report.get("schema", "") or ""),
+                "success": bool(trend_report.get("success")),
+                "page_count": _int_value(trend_summary, "page_count"),
+                "failed_page_count": _int_value(trend_summary, "failed_page_count"),
+                "flaky_page_count": _int_value(trend_summary, "flaky_page_count"),
+                "slow_page_count": _int_value(trend_summary, "slow_page_count"),
+                "parse_error_count": _int_value(trend_summary, "parse_error_count"),
+                "budget_violation_count": _int_value(trend_summary, "budget_violation_count"),
+                "total_duration_seconds": _float_value(trend_summary, "total_duration_seconds"),
+                "mean_page_duration_seconds": _float_value(trend_summary, "mean_page_duration_seconds"),
+            },
         },
     }
 
@@ -324,6 +365,7 @@ def validate_evidence(evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
     source = evidence.get("source") if isinstance(evidence.get("source"), Mapping) else {}
     artifact = evidence.get("artifact") if isinstance(evidence.get("artifact"), Mapping) else {}
     result = evidence.get("result") if isinstance(evidence.get("result"), Mapping) else {}
+    trend = result.get("trend") if isinstance(result.get("trend"), Mapping) else {}
     checks = [
         {
             "id": "schema",
@@ -358,10 +400,25 @@ def validate_evidence(evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
                 if artifact.get("name")
                 and artifact.get("required_files_present") is True
                 and artifact.get("exit_code") == "0"
+                and artifact.get("trend_report_schema") == TREND_REPORT_SCHEMA
                 and artifact.get("expired") is False
                 else "fail"
             ),
-            "summary": "robot artifact includes summary, progress log, and zero exit code",
+            "summary": "robot artifact includes summary, progress log, trend report, and zero exit code",
+        },
+        {
+            "id": "trend_report",
+            "status": (
+                "pass"
+                if trend.get("schema") == TREND_REPORT_SCHEMA
+                and trend.get("success") is True
+                and trend.get("failed_page_count") == 0
+                and trend.get("flaky_page_count") == 0
+                and trend.get("parse_error_count") == 0
+                and trend.get("budget_violation_count") == 0
+                else "fail"
+            ),
+            "summary": "UI robot trend report is present, valid, parse-error free, and within health budgets",
         },
         {
             "id": "robot_result",
@@ -403,7 +460,7 @@ def refresh_evidence(
 
     if artifact_dir is not None:
         work_dir = artifact_dir
-        matrix_summary, scenario_summary, artifact_checks = load_artifact_payloads(work_dir)
+        matrix_summary, scenario_summary, trend_report, artifact_checks = load_artifact_payloads(work_dir)
     else:
         with tempfile.TemporaryDirectory(prefix="agilab-ui-robot-evidence-") as tmp:
             work_dir = download_artifact(
@@ -413,12 +470,13 @@ def refresh_evidence(
                 destination=Path(tmp),
                 repo_root=repo_root,
             )
-            matrix_summary, scenario_summary, artifact_checks = load_artifact_payloads(work_dir)
+            matrix_summary, scenario_summary, trend_report, artifact_checks = load_artifact_payloads(work_dir)
     return build_evidence(
         run=run,
         artifact=artifact,
         matrix_summary=matrix_summary,
         scenario_summary=scenario_summary,
+        trend_report=trend_report,
         artifact_checks=artifact_checks,
     )
 

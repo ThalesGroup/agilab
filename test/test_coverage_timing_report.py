@@ -115,3 +115,61 @@ def test_missing_junit_files_emit_empty_report(capsys) -> None:
 
     assert exit_code == 0
     assert "No AGI-GUI JUnit timing files were found." in capsys.readouterr().out
+
+
+def test_expand_paths_deduplicates_and_skips_non_files(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    results = tmp_path / "test-results"
+    results.mkdir()
+    junit = results / "junit-agi-gui-support.xml"
+    junit.write_text("<testsuites />", encoding="utf-8")
+    directory_match = results / "junit-agi-gui-directory.xml"
+    directory_match.mkdir()
+
+    paths = module._expand_paths(
+        [
+            "test-results/junit-agi-gui-*.xml",
+            "test-results/junit-agi-gui-support.xml",
+        ]
+    )
+
+    assert paths == [junit]
+
+
+def test_load_records_handles_artifact_directory_chunks_and_bad_junit(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    artifact_dir = tmp_path / "coverage-gui-junit-custom"
+    artifact_dir.mkdir()
+    junit = artifact_dir / "results.xml"
+    bad_junit = artifact_dir / "bad.xml"
+    _write_junit(
+        junit,
+        [
+            ("", "missing_classname", "not-a-number"),
+            ("test_lonely_module", "top_level", -3.0),
+            ("package.test_nested", "nested", 0.5),
+        ],
+    )
+    bad_junit.write_text("<testsuites>", encoding="utf-8")
+
+    records = module.load_records([str(junit), str(bad_junit)])
+
+    assert [record.chunk for record in records] == ["custom", "custom", "custom"]
+    assert [record.test_path for record in records] == [
+        "unknown",
+        "test/test_lonely_module.py",
+        "package/test_nested.py",
+    ]
+    assert [record.seconds for record in records] == [0.0, 0.0, 0.5]
+    assert "ignoring unreadable JUnit" in capsys.readouterr().err
+
+
+def test_unknown_chunks_sort_after_known_chunks_when_tied() -> None:
+    module = _load_module()
+
+    known = module.ChunkTiming(chunk="support", files=1, tests=1, seconds=1.0, percentage=50.0)
+    unknown = module.ChunkTiming(chunk="custom", files=1, tests=1, seconds=1.0, percentage=50.0)
+
+    assert sorted([unknown, known], key=module._chunk_sort_key) == [known, unknown]
+    assert module._chunk_from_path(Path("plain-results.xml")) == "unknown"

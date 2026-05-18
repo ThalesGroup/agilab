@@ -90,17 +90,23 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          set +e
           uv --preview-features extra-build-dependencies run python tools/ui_robot_trend_report.py \
             --glob "test-results/ui-robot-matrix/*.ndjson" \
             --max-total-seconds 5400 \
             --max-mean-page-seconds 180 \
+            --strict \
+            --strict-budget \
             --output test-results/ui-robot-matrix/trend-report.json \
             | tee test-results/ui-robot-matrix/trend-report.txt
+          trend_status="${PIPESTATUS[0]}"
+          set -e
           {
             echo ""
             echo "## UI robot trend"
             cat test-results/ui-robot-matrix/trend-report.txt
           } >> "$GITHUB_STEP_SUMMARY"
+          exit "${trend_status}"
 
       - name: Summarize UI robot matrix
         if: always()
