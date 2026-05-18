@@ -113,6 +113,7 @@ jobs:
             --widget-timeout "${robot_widget_timeout}" \
             --json \
             --quiet-progress \
+            --no-result-cache \
             --output-dir "${result_dir}" \
             --screenshot-dir "${screenshot_dir}" \
             --failure-bundle-dir "${failure_bundle_dir}" \

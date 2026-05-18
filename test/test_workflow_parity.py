@@ -382,6 +382,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         assert expected_matrix_scenarios[shard] == set(_option_values(command.argv, "--scenario"))
         assert "--quiet-progress" in command.argv
         assert "--json" in command.argv
+        assert "--no-result-cache" in command.argv
         assert "--screenshot-dir" in command.argv
         assert f"screenshots/ui-robot-matrix/{shard}" in command.argv
         assert f"test-results/ui-robot-matrix/{shard}/failure-bundles" in command.argv
@@ -424,6 +425,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert "isolated-release-evidence" in ui_release_evidence_robot.argv
     assert "isolated-fresh-session-core-pages" in ui_release_evidence_robot.argv
+    assert "--no-result-cache" in ui_release_evidence_robot.argv
     assert "screenshots/ui-release-evidence-robot" in ui_release_evidence_robot.argv
     assert "test-results/ui-release-evidence-robot/failure-bundles" in ui_release_evidence_robot.argv
     assert _has_with_dependency(ui_release_evidence_robot.argv, "playwright")

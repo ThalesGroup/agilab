@@ -94,6 +94,7 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "widget_timeout": _ui_robot_matrix_option(argv, "--widget-timeout"),
         "json": "--json" in argv,
         "quiet_progress": "--quiet-progress" in argv,
+        "no_result_cache": "--no-result-cache" in argv,
         "output_dir": _single_option(argv, "--output-dir"),
         "screenshot_dir": _single_option(argv, "--screenshot-dir"),
         "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
@@ -110,6 +111,7 @@ def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
             "widget_timeout": "3",
             "json": True,
             "quiet_progress": True,
+            "no_result_cache": True,
             "output_dir": f"test-results/ui-robot-matrix/{shard}",
             "screenshot_dir": f"screenshots/ui-robot-matrix/{shard}",
             "failure_bundle_dir": f"test-results/ui-robot-matrix/{shard}/failure-bundles",
@@ -204,6 +206,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
     assert "--quiet-progress" in text
+    assert "--no-result-cache" in text
     assert 'result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'failure_bundle_dir="${result_dir}/failure-bundles"' in text

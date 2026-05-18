@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -20,6 +21,18 @@ SCHEMA = "agilab.widget_robot_matrix.v1"
 FAILURE_BUNDLE_SCHEMA = "agilab.widget_robot_matrix_failure_bundle.v1"
 FAILURE_BUNDLE_TAIL_LINES = 120
 FAILURE_BUNDLE_TEXT_LIMIT = 30_000
+RESULT_CACHE_SCHEMA = "agilab.widget_robot_matrix_result_cache.v1"
+DEFAULT_RESULT_CACHE_PATH = REPO_ROOT / ".pytest_cache" / "agilab" / "ui_robot_matrix_results.json"
+RESULT_CACHE_MAX_ENTRIES = 256
+RESULT_CACHE_HASH_LIMIT_BYTES = 5_000_000
+RESULT_CACHE_PROGRESS_LOG_LIMIT_BYTES = 5_000_000
+RESULT_CACHE_WATCHED_PATHS = (
+    "src/agilab",
+    "tools/agilab_widget_robot.py",
+    "tools/agilab_widget_robot_matrix.py",
+    "pyproject.toml",
+    "uv.lock",
+)
 
 
 @dataclass(frozen=True)
@@ -74,6 +87,7 @@ class MatrixOptions:
     trace_dir: Path | None = None
     har_dir: Path | None = None
     video_dir: Path | None = None
+    result_cache_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +100,7 @@ class ScenarioResult:
     progress_path: Path
     summary: dict
     output: str
+    cached: bool = False
 
 
 def _run_robot_command_streaming(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -519,6 +534,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--trace-dir", type=Path, help="Directory for Playwright trace ZIP artifacts.")
     parser.add_argument("--har-dir", type=Path, help="Directory for Playwright HAR artifacts.")
     parser.add_argument("--video-dir", type=Path, help="Directory for Playwright video artifacts.")
+    parser.add_argument(
+        "--result-cache-path",
+        type=Path,
+        default=DEFAULT_RESULT_CACHE_PATH,
+        help="Path for the successful scenario result cache. Defaults under .pytest_cache.",
+    )
+    parser.add_argument(
+        "--no-result-cache",
+        action="store_true",
+        help="Disable reuse of previously passing scenario summaries.",
+    )
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--widget-timeout", type=float, default=3.0)
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
@@ -566,6 +592,7 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         trace_dir=args.trace_dir,
         har_dir=args.har_dir,
         video_dir=args.video_dir,
+        result_cache_path=None if args.no_result_cache else args.result_cache_path,
     )
 
 
@@ -752,6 +779,293 @@ def _write_matrix_failure_bundle(result: ScenarioResult, *, options: MatrixOptio
     return bundle_dir
 
 
+def _repo_relative_or_absolute(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_signature(path_name: Path | str) -> dict[str, object]:
+    path = Path(path_name)
+    target = path if path.is_absolute() else REPO_ROOT / path
+    label = _repo_relative_or_absolute(target) if target.is_absolute() else path.as_posix()
+    try:
+        stat = target.stat()
+    except OSError as exc:
+        return {"path": label, "state": "missing", "error": exc.__class__.__name__}
+    signature: dict[str, object] = {
+        "path": label,
+        "state": "directory" if target.is_dir() else "file",
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+    if target.is_file() and stat.st_size <= RESULT_CACHE_HASH_LIMIT_BYTES:
+        try:
+            signature["sha256"] = _file_sha256(target)
+        except OSError as exc:
+            signature["sha256_error"] = exc.__class__.__name__
+    return signature
+
+
+def _git_head() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _git_text(argv: Sequence[str]) -> str:
+    completed = subprocess.run(
+        list(argv),
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return f"git-error:{completed.returncode}:{completed.stderr.strip()}"
+    return completed.stdout
+
+
+def _git_output_sha256(argv: Sequence[str]) -> str:
+    completed = subprocess.run(
+        list(argv),
+        cwd=REPO_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return f"git-error:{completed.returncode}"
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
+def _status_paths(status_text: str) -> list[str]:
+    paths: list[str] = []
+    seen: set[str] = set()
+    for line in status_text.splitlines():
+        if len(line) < 4:
+            continue
+        path_name = line[3:]
+        if " -> " in path_name:
+            path_name = path_name.split(" -> ", 1)[1]
+        path_name = path_name.strip().strip('"')
+        if path_name and path_name not in seen:
+            paths.append(path_name)
+            seen.add(path_name)
+    return paths
+
+
+def _git_watched_state() -> dict[str, object]:
+    paths = list(RESULT_CACHE_WATCHED_PATHS)
+    status_text = _git_text(["git", "status", "--porcelain=v1", "--untracked-files=all", "--", *paths])
+    return {
+        "head": _git_head(),
+        "status": status_text.splitlines(),
+        "diff_sha256": _git_output_sha256(["git", "diff", "--", *paths]),
+        "cached_diff_sha256": _git_output_sha256(["git", "diff", "--cached", "--", *paths]),
+        "dirty_inputs": [_file_signature(path) for path in _status_paths(status_text)],
+    }
+
+
+def _result_cache_run_fingerprint() -> dict[str, object]:
+    return {
+        "python": {"executable": sys.executable, "version": sys.version},
+        "inputs": [
+            _file_signature(ROBOT_PATH),
+            _file_signature(Path(__file__).resolve()),
+        ],
+        "source_state": _git_watched_state(),
+    }
+
+
+def _scenario_cache_options(options: MatrixOptions) -> dict[str, object]:
+    return {
+        "apps": options.apps,
+        "timeout_seconds": options.timeout_seconds,
+        "widget_timeout_seconds": options.widget_timeout_seconds,
+        "quiet_progress": options.quiet_progress,
+        "no_seed_demo_artifacts": options.no_seed_demo_artifacts,
+        "browser": options.browser,
+        "active_app": options.active_app,
+        "remote_app_root": options.remote_app_root,
+    }
+
+
+def _scenario_result_cache_key(
+    scenario: RobotScenario,
+    *,
+    options: MatrixOptions,
+    run_fingerprint: dict[str, object],
+) -> str:
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "scenario": asdict(scenario),
+        "options": _scenario_cache_options(options),
+        "run_fingerprint": run_fingerprint,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _empty_result_cache() -> dict[str, object]:
+    return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+
+
+def _load_result_cache(cache_path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return _empty_result_cache()
+    if not isinstance(payload, dict) or payload.get("schema") != RESULT_CACHE_SCHEMA:
+        return _empty_result_cache()
+    if not isinstance(payload.get("entries"), dict):
+        return _empty_result_cache()
+    return payload
+
+
+def _prune_result_cache(entries: dict[str, object]) -> None:
+    if len(entries) <= RESULT_CACHE_MAX_ENTRIES:
+        return
+
+    def _stored_at(item: tuple[str, object]) -> float:
+        value = item[1]
+        if not isinstance(value, dict):
+            return 0.0
+        stored_at = value.get("stored_at", 0.0)
+        return float(stored_at) if isinstance(stored_at, (int, float)) else 0.0
+
+    keep = {
+        key
+        for key, _value in sorted(entries.items(), key=_stored_at, reverse=True)[:RESULT_CACHE_MAX_ENTRIES]
+    }
+    for key in list(entries):
+        if key not in keep:
+            entries.pop(key, None)
+
+
+def _write_result_cache(cache_path: Path, cache_state: dict[str, object]) -> None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return
+    _prune_result_cache(entries)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = cache_path.with_name(f"{cache_path.name}.tmp")
+    temp_path.write_text(json.dumps(cache_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.replace(cache_path)
+
+
+def _scenario_cache_supported(scenario: RobotScenario, options: MatrixOptions) -> bool:
+    if options.result_cache_path is None:
+        return False
+    if options.url or options.headful:
+        return False
+    if options.trace_dir is not None or options.har_dir is not None or options.video_dir is not None:
+        return False
+    if scenario.success_screenshot:
+        return False
+    return True
+
+
+def _scenario_result_from_cache(
+    payload: object,
+    scenario: RobotScenario,
+    *,
+    options: MatrixOptions,
+) -> ScenarioResult | None:
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("scenario") != scenario.name or payload.get("returncode") != 0:
+        return None
+    summary = payload.get("summary")
+    if not isinstance(summary, dict) or summary.get("success") is not True:
+        return None
+    argv, summary_path, progress_path = build_robot_command(scenario, options=options)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    progress_log = payload.get("progress_log")
+    if isinstance(progress_log, str) and progress_log.strip():
+        progress_path.write_text(progress_log, encoding="utf-8")
+    else:
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "event": "cached_result",
+                    "scenario": scenario.name,
+                    "stored_at": payload.get("stored_at"),
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    return ScenarioResult(
+        scenario=scenario,
+        argv=argv,
+        returncode=0,
+        duration_seconds=0.0,
+        summary_path=summary_path,
+        progress_path=progress_path,
+        summary=dict(summary),
+        output="ui-robot-matrix: reused cached successful scenario result\n",
+        cached=True,
+    )
+
+
+def _cacheable_progress_log(path: Path) -> str | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    if stat.st_size > RESULT_CACHE_PROGRESS_LOG_LIMIT_BYTES:
+        return None
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return content if content.strip() else None
+
+
+def _store_scenario_result_cache(
+    cache_state: dict[str, object],
+    key: str,
+    result: ScenarioResult,
+) -> bool:
+    progress_log = _cacheable_progress_log(result.progress_path)
+    if progress_log is None:
+        return False
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        entries = {}
+        cache_state["entries"] = entries
+    entries[key] = {
+        "scenario": result.scenario.name,
+        "stored_at": time.time(),
+        "returncode": result.returncode,
+        "summary": result.summary,
+        "progress_log": progress_log,
+    }
+    return True
+
+
 def run_scenario(
     scenario: RobotScenario,
     *,
@@ -795,11 +1109,36 @@ def run_matrix(
     keep_going: bool = False,
 ) -> list[ScenarioResult]:
     results: list[ScenarioResult] = []
+    cache_path = options.result_cache_path
+    cache_state = _load_result_cache(cache_path) if cache_path is not None else None
+    run_fingerprint = _result_cache_run_fingerprint() if cache_state is not None else {}
+    cache_changed = False
     for scenario in scenarios:
-        result = run_scenario(scenario, options=options, runner=runner)
+        cache_key = ""
+        result: ScenarioResult | None = None
+        if cache_state is not None and _scenario_cache_supported(scenario, options):
+            cache_key = _scenario_result_cache_key(
+                scenario,
+                options=options,
+                run_fingerprint=run_fingerprint,
+            )
+            entries = cache_state.get("entries")
+            if isinstance(entries, dict):
+                result = _scenario_result_from_cache(entries.get(cache_key), scenario, options=options)
+        if result is None:
+            result = run_scenario(scenario, options=options, runner=runner)
+            if (
+                cache_state is not None
+                and cache_key
+                and result.returncode == 0
+                and result.summary.get("success") is True
+            ):
+                cache_changed = _store_scenario_result_cache(cache_state, cache_key, result) or cache_changed
         results.append(result)
         if result.returncode != 0 and not keep_going:
             break
+    if cache_path is not None and cache_state is not None and cache_changed:
+        _write_result_cache(cache_path, cache_state)
     return results
 
 
@@ -820,6 +1159,7 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
         "skipped_count": sum(int(summary.get("skipped_count") or 0) for summary in summaries),
         "failed_count": sum(int(summary.get("failed_count") or 0) for summary in summaries),
         "duration_seconds": sum(result.duration_seconds for result in results),
+        "cached_count": sum(1 for result in results if result.cached),
         "failed_scenarios": [
             result.scenario.name
             for result in results
@@ -833,6 +1173,7 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
                 "success": result.returncode == 0 and result.summary.get("success") is True,
                 "returncode": result.returncode,
                 "duration_seconds": result.duration_seconds,
+                "cached": result.cached,
                 "summary_path": str(result.summary_path),
                 "progress_path": str(result.progress_path),
                 "page_count": int(result.summary.get("page_count") or 0),
@@ -878,14 +1219,16 @@ def render_human(summary: dict) -> str:
             f"[{status}] widget robot matrix: scenarios={summary['scenario_count']} "
             f"pages={summary['page_count']} widgets={summary['widget_count']} "
             f"interacted={summary['interacted_count']} probed={summary['probed_count']} "
-            f"skipped={summary['skipped_count']} failed={summary['failed_count']}"
+            f"skipped={summary['skipped_count']} failed={summary['failed_count']} "
+            f"cached={summary['cached_count']}"
         )
     ]
     for scenario in summary["scenarios"]:
         scenario_status = "PASS" if scenario["success"] else "FAIL"
+        cached = " cached" if scenario.get("cached") else ""
         lines.append(
             (
-                f"- [{scenario_status}] {scenario['name']}: pages={scenario['page_count']} "
+                f"- [{scenario_status}] {scenario['name']}{cached}: pages={scenario['page_count']} "
                 f"widgets={scenario['widget_count']} failed={scenario['failed_count']} "
                 f"summary={scenario['summary_path']}"
             )
