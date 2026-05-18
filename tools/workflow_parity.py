@@ -102,7 +102,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "ui-first-proof-robot",
             "ui-keyboard-robot",
             "ui-layout-robot",
+            "ui-accessibility-robot",
+            "ui-browser-error-robot",
+            "ui-above-fold-robot",
+            "ui-visual-baseline-robot",
+            "ui-trend-robot",
+            "ui-cross-browser-robot",
             "hf-install-robot",
+            "hf-visual-smoke-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -178,7 +185,14 @@ def _profile_descriptions() -> dict[str, str]:
         "ui-first-proof-robot": "Run the opt-in local first-proof golden-path widget robot for flight telemetry.",
         "ui-keyboard-robot": "Run the opt-in keyboard focus widget robot scenario.",
         "ui-layout-robot": "Run the opt-in desktop and mobile layout-integrity widget robot scenarios.",
+        "ui-accessibility-robot": "Run the opt-in UI accessibility semantics widget robot scenario.",
+        "ui-browser-error-robot": "Run the opt-in console, pageerror, requestfailed, and HTTP error widget robot scenario.",
+        "ui-above-fold-robot": "Run the opt-in above-the-fold primary-target widget robot scenario.",
+        "ui-visual-baseline-robot": "Capture masked UI screenshots and compare them with screenshot baselines.",
+        "ui-trend-robot": "Summarize widget robot NDJSON progress logs for failures, flakes, and slow pages.",
+        "ui-cross-browser-robot": "Run the opt-in Firefox and WebKit widget robot smoke scenarios.",
         "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
+        "hf-visual-smoke-robot": "Capture hosted Hugging Face visual smoke screenshots without firing install actions.",
     }
 
 
@@ -207,7 +221,14 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "ui-first-proof-robot": _ui_first_proof_robot_profile(),
         "ui-keyboard-robot": _ui_keyboard_robot_profile(),
         "ui-layout-robot": _ui_layout_robot_profile(),
+        "ui-accessibility-robot": _ui_accessibility_robot_profile(),
+        "ui-browser-error-robot": _ui_browser_error_robot_profile(),
+        "ui-above-fold-robot": _ui_above_fold_robot_profile(),
+        "ui-visual-baseline-robot": _ui_visual_baseline_robot_profile(),
+        "ui-trend-robot": _ui_trend_robot_profile(),
+        "ui-cross-browser-robot": _ui_cross_browser_robot_profile(),
         "hf-install-robot": _hf_install_robot_profile(),
+        "hf-visual-smoke-robot": _hf_visual_smoke_robot_profile(),
     }
 
 
@@ -302,6 +323,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_screenshot_manifest.py",
                 "test/test_ui_robot_coverage_contract.py",
                 "test/test_ui_robot_failure_replay.py",
+                "test/test_ui_robot_trend_report.py",
+                "test/test_ui_visual_baseline_report.py",
             ],
         ),
         _agi_gui_coverage_chunk(
@@ -1119,6 +1142,42 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
     ]
 
 
+def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="hf flight telemetry visual smoke robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "hf-flight-telemetry-visual-smoke",
+                "--apps",
+                "flight_telemetry_project",
+                "--url",
+                "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
+                "--active-app",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/hf-visual-smoke-robot",
+                "--screenshot-dir",
+                "screenshots/hf-visual-smoke-robot",
+                "--failure-bundle-dir",
+                "test-results/hf-visual-smoke-robot/failure-bundles",
+            ],
+            timeout_seconds=25 * 60,
+            remove_paths=["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"],
+        )
+    ]
+
+
 def _ui_keyboard_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -1178,6 +1237,249 @@ def _ui_layout_robot_profile() -> list[CommandSpec]:
             timeout_seconds=45 * 60,
             remove_paths=["test-results/ui-layout-robot", "screenshots/ui-layout-robot"],
         )
+    ]
+
+
+def _ui_accessibility_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui accessibility semantics robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-accessibility-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-accessibility-robot",
+                "--screenshot-dir",
+                "screenshots/ui-accessibility-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-accessibility-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-accessibility-robot", "screenshots/ui-accessibility-robot"],
+        )
+    ]
+
+
+def _ui_browser_error_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui browser error robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-browser-error-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-browser-error-robot",
+                "--screenshot-dir",
+                "screenshots/ui-browser-error-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-browser-error-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-browser-error-robot", "screenshots/ui-browser-error-robot"],
+        )
+    ]
+
+
+def _ui_above_fold_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui above-fold primary targets robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-above-fold-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-above-fold-robot",
+                "--screenshot-dir",
+                "screenshots/ui-above-fold-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-above-fold-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-above-fold-robot", "screenshots/ui-above-fold-robot"],
+        )
+    ]
+
+
+def _ui_visual_baseline_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui visual baseline screenshot capture",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-visual-baseline-core-pages",
+                "--apps",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-visual-baseline-robot/current",
+                "--screenshot-dir",
+                "screenshots/ui-visual-baseline-robot/current",
+                "--failure-bundle-dir",
+                "test-results/ui-visual-baseline-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-visual-baseline-robot", "screenshots/ui-visual-baseline-robot"],
+        ),
+        CommandSpec(
+            label="ui visual baseline report",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "pillow",
+                "python",
+                "tools/ui_visual_baseline_report.py",
+                "--current",
+                "screenshots/ui-visual-baseline-robot/current/isolated-visual-baseline-core-pages",
+                "--baseline",
+                "docs/source/_static/page-shots",
+                "--allow-missing-baseline",
+                "--advisory",
+                "--output",
+                "test-results/ui-visual-baseline-robot/visual-baseline.json",
+                "--json",
+            ],
+            timeout_seconds=5 * 60,
+        ),
+    ]
+
+
+def _ui_trend_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot trend report",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_trend_report.py",
+                "--glob",
+                "test-results/**/*.ndjson",
+                "--output",
+                "test-results/ui-robot-trend-report.json",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        )
+    ]
+
+
+def _ui_cross_browser_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui cross-browser playwright browsers",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "-m",
+                "playwright",
+                "install",
+                "firefox",
+                "webkit",
+            ],
+            timeout_seconds=10 * 60,
+            remove_paths=["test-results/ui-cross-browser-robot", "screenshots/ui-cross-browser-robot"],
+        ),
+        CommandSpec(
+            label="ui cross-browser robot (firefox)",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-cross-browser-core-pages",
+                "--browser",
+                "firefox",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-cross-browser-robot/firefox",
+                "--screenshot-dir",
+                "screenshots/ui-cross-browser-robot/firefox",
+                "--failure-bundle-dir",
+                "test-results/ui-cross-browser-robot/firefox/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+        ),
+        CommandSpec(
+            label="ui cross-browser robot (webkit)",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-cross-browser-core-pages",
+                "--browser",
+                "webkit",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-cross-browser-robot/webkit",
+                "--screenshot-dir",
+                "screenshots/ui-cross-browser-robot/webkit",
+                "--failure-bundle-dir",
+                "test-results/ui-cross-browser-robot/webkit/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+        ),
     ]
 
 
@@ -1322,7 +1624,14 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "ui-first-proof-robot",
         "ui-keyboard-robot",
         "ui-layout-robot",
+        "ui-accessibility-robot",
+        "ui-browser-error-robot",
+        "ui-above-fold-robot",
+        "ui-visual-baseline-robot",
+        "ui-trend-robot",
+        "ui-cross-browser-robot",
         "hf-install-robot",
+        "hf-visual-smoke-robot",
     }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 

@@ -125,7 +125,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_first_proof_robot = profiles["ui-first-proof-robot"][0]
     ui_keyboard_robot = profiles["ui-keyboard-robot"][0]
     ui_layout_robot = profiles["ui-layout-robot"][0]
+    ui_accessibility_robot = profiles["ui-accessibility-robot"][0]
+    ui_browser_error_robot = profiles["ui-browser-error-robot"][0]
+    ui_above_fold_robot = profiles["ui-above-fold-robot"][0]
+    ui_visual_baseline_robot = profiles["ui-visual-baseline-robot"]
+    ui_trend_robot = profiles["ui-trend-robot"][0]
+    ui_cross_browser_robot = profiles["ui-cross-browser-robot"]
     hf_install_robot = profiles["hf-install-robot"][0]
+    hf_visual_smoke_robot = profiles["hf-visual-smoke-robot"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -354,6 +361,57 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-layout-integrity-mobile" in ui_layout_robot.argv
     assert "test-results/ui-layout-robot/failure-bundles" in ui_layout_robot.argv
     assert _has_with_dependency(ui_layout_robot.argv, "playwright")
+    assert ui_accessibility_robot.label == "ui accessibility semantics robot"
+    assert ui_accessibility_robot.timeout_seconds == 30 * 60
+    assert ui_accessibility_robot.remove_paths == ["test-results/ui-accessibility-robot", "screenshots/ui-accessibility-robot"]
+    assert "isolated-accessibility-core-pages" in ui_accessibility_robot.argv
+    assert "test-results/ui-accessibility-robot/failure-bundles" in ui_accessibility_robot.argv
+    assert _has_with_dependency(ui_accessibility_robot.argv, "playwright")
+    assert ui_browser_error_robot.label == "ui browser error robot"
+    assert ui_browser_error_robot.timeout_seconds == 30 * 60
+    assert ui_browser_error_robot.remove_paths == ["test-results/ui-browser-error-robot", "screenshots/ui-browser-error-robot"]
+    assert "isolated-browser-error-core-pages" in ui_browser_error_robot.argv
+    assert "test-results/ui-browser-error-robot/failure-bundles" in ui_browser_error_robot.argv
+    assert _has_with_dependency(ui_browser_error_robot.argv, "playwright")
+    assert ui_above_fold_robot.label == "ui above-fold primary targets robot"
+    assert ui_above_fold_robot.timeout_seconds == 30 * 60
+    assert ui_above_fold_robot.remove_paths == ["test-results/ui-above-fold-robot", "screenshots/ui-above-fold-robot"]
+    assert "isolated-above-fold-core-pages" in ui_above_fold_robot.argv
+    assert "test-results/ui-above-fold-robot/failure-bundles" in ui_above_fold_robot.argv
+    assert _has_with_dependency(ui_above_fold_robot.argv, "playwright")
+    assert [command.label for command in ui_visual_baseline_robot] == [
+        "ui visual baseline screenshot capture",
+        "ui visual baseline report",
+    ]
+    assert ui_visual_baseline_robot[0].remove_paths == [
+        "test-results/ui-visual-baseline-robot",
+        "screenshots/ui-visual-baseline-robot",
+    ]
+    assert "isolated-visual-baseline-core-pages" in ui_visual_baseline_robot[0].argv
+    assert "flight_telemetry_project" in ui_visual_baseline_robot[0].argv
+    assert "screenshots/ui-visual-baseline-robot/current" in ui_visual_baseline_robot[0].argv
+    assert "tools/ui_visual_baseline_report.py" in ui_visual_baseline_robot[1].argv
+    assert "--advisory" in ui_visual_baseline_robot[1].argv
+    assert _has_with_dependency(ui_visual_baseline_robot[0].argv, "playwright")
+    assert _has_with_dependency(ui_visual_baseline_robot[1].argv, "pillow")
+    assert ui_trend_robot.label == "ui robot trend report"
+    assert "tools/ui_robot_trend_report.py" in ui_trend_robot.argv
+    assert "test-results/ui-robot-trend-report.json" in ui_trend_robot.argv
+    assert [command.label for command in ui_cross_browser_robot] == [
+        "ui cross-browser playwright browsers",
+        "ui cross-browser robot (firefox)",
+        "ui cross-browser robot (webkit)",
+    ]
+    assert ui_cross_browser_robot[0].remove_paths == [
+        "test-results/ui-cross-browser-robot",
+        "screenshots/ui-cross-browser-robot",
+    ]
+    assert ui_cross_browser_robot[0].argv[-4:] == ["playwright", "install", "firefox", "webkit"]
+    assert "isolated-cross-browser-core-pages" in ui_cross_browser_robot[1].argv
+    assert ui_cross_browser_robot[1].argv[ui_cross_browser_robot[1].argv.index("--browser") + 1] == "firefox"
+    assert "isolated-cross-browser-core-pages" in ui_cross_browser_robot[2].argv
+    assert ui_cross_browser_robot[2].argv[ui_cross_browser_robot[2].argv.index("--browser") + 1] == "webkit"
+    assert all(_has_with_dependency(command.argv, "playwright") for command in ui_cross_browser_robot)
     assert hf_install_robot.label == "hf flight telemetry install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
@@ -364,6 +422,12 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
     assert "test-results/hf-install-robot/failure-bundles" in hf_install_robot.argv
     assert _has_with_dependency(hf_install_robot.argv, "playwright")
+    assert hf_visual_smoke_robot.label == "hf flight telemetry visual smoke robot"
+    assert hf_visual_smoke_robot.timeout_seconds == 25 * 60
+    assert hf_visual_smoke_robot.remove_paths == ["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"]
+    assert "hf-flight-telemetry-visual-smoke" in hf_visual_smoke_robot.argv
+    assert "screenshots/hf-visual-smoke-robot" in hf_visual_smoke_robot.argv
+    assert _has_with_dependency(hf_visual_smoke_robot.argv, "playwright")
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
@@ -387,7 +451,14 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "ui-first-proof-robot" not in selected
     assert "ui-keyboard-robot" not in selected
     assert "ui-layout-robot" not in selected
+    assert "ui-accessibility-robot" not in selected
+    assert "ui-browser-error-robot" not in selected
+    assert "ui-above-fold-robot" not in selected
+    assert "ui-visual-baseline-robot" not in selected
+    assert "ui-trend-robot" not in selected
+    assert "ui-cross-browser-robot" not in selected
     assert "hf-install-robot" not in selected
+    assert "hf-visual-smoke-robot" not in selected
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:
