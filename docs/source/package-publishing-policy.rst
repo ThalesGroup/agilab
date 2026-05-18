@@ -197,7 +197,9 @@ package version, but it must not rewrite versions or dependency metadata during
 the upload job. If a package needs a different version, choose it explicitly,
 regenerate the release commit, rerun preflight, and publish from that committed
 state. TestPyPI rehearsals may still use retry-oriented ``.postN`` versions,
-but those rehearsals are not the source of truth for a real release.
+and release-candidate versions such as ``YYYY.MM.DDrc1`` are acceptable for
+preview validation, but those rehearsals are not the source of truth for a real
+final release.
 
 After PyPI provenance passes, the release workflow attempts to keep one retained
 PyPI release per selected PyPI project. ``tools/pypi_release_retention.py`` first
@@ -480,14 +482,24 @@ to a deliberate new version. Real PyPI publication must not silently auto-create
 ``.postN`` releases when a version collision is detected; the release tool is
 expected to stop and require an explicit version choice instead.
 
-``.postN`` releases are reserved for bounded packaging, publication, provenance,
-or evidence refreshes on an already published date-based version. The dense
-April-May 2026 ``.postN`` history records public-beta hardening of the split
-package release pipeline and is kept visible for auditability. It is not the
-target steady-state release rhythm: normal feature or behavior changes should
-advance to a deliberate new date-based release. TestPyPI rehearsals are the
-exception: retry-oriented ``.postN`` bumps are allowed there because TestPyPI is
-often reused during dry runs.
+``.postN`` releases are reserved for critical hotfixes to bounded packaging,
+publication, provenance, or evidence refreshes on an already published
+date-based version. The ``pypi-publish`` workflow enforces this with
+``tools/pypi_release_version_policy.py``: a selected public package version that
+contains ``.postN`` fails unless the workflow dispatch explicitly sets
+``allow_post_release=true`` and provides ``post_release_reason``. Tag-triggered
+releases cannot bypass that gate.
+
+The dense April-May 2026 ``.postN`` history records public-beta hardening of the
+split package release pipeline and is kept visible for auditability. It is not
+the target steady-state release rhythm: normal feature or behavior changes
+should advance to a deliberate new date-based release, and
+multiple same-day post releases should be treated as release
+process debt. TestPyPI rehearsals are the exception: retry-oriented ``.postN``
+bumps are allowed there because TestPyPI is often reused during dry runs.
+Release-candidate versions such as
+``YYYY.MM.DDrc1`` are also acceptable for rehearsal when a public pre-release is
+useful before the final date-based version.
 
 Typing policy
 -------------

@@ -203,6 +203,22 @@ def test_pypi_releases_uses_simple_index_when_json_is_stale(monkeypatch) -> None
     assert module.pypi_releases("agilab", "pypi") == {"2026.4.18", "2026.4.19"}
 
 
+def test_pypi_releases_parses_release_candidate_versions_from_simple_index(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    monkeypatch.setattr(module, "fetch_url_json", lambda *_args, **_kwargs: {"releases": {}})
+    monkeypatch.setattr(
+        module,
+        "fetch_url_text",
+        lambda *_args, **_kwargs: (
+            '<a href="https://files.pythonhosted.org/packages/x/agilab-2026.5.18rc1.tar.gz">'
+            "agilab-2026.5.18rc1.tar.gz</a>"
+        ),
+    )
+
+    assert module.pypi_releases("agilab", "pypi") == {"2026.5.18rc1"}
+
+
 def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
@@ -404,6 +420,48 @@ def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:
         raise AssertionError("require_safe_pypi_release() should reject skipping real release preflight")
 
 
+def test_public_post_release_policy_requires_documented_hotfix(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.delenv(module.ALLOW_PYPI_POST_RELEASE_ENV, raising=False)
+    monkeypatch.delenv(module.PYPI_POST_RELEASE_REASON_ENV, raising=False)
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.require_public_post_release_policy(
+            _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
+            {"agilab": "2026.05.18.post1"},
+        )
+
+    message = str(excinfo.value)
+    assert "critical hotfixes" in message
+    assert "release candidate or TestPyPI" in message
+    assert module.ALLOW_PYPI_POST_RELEASE_ENV in message
+    assert module.PYPI_POST_RELEASE_REASON_ENV in message
+
+
+def test_public_post_release_policy_allows_documented_hotfix(monkeypatch, capsys) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setenv(module.ALLOW_PYPI_POST_RELEASE_ENV, "1")
+    monkeypatch.setenv(module.PYPI_POST_RELEASE_REASON_ENV, "critical provenance attestation repair")
+
+    module.require_public_post_release_policy(
+        _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
+        {"agilab": "2026.05.18.post1"},
+    )
+
+    assert "Allowing documented public PyPI post-release hotfix" in capsys.readouterr().out
+
+
+def test_public_post_release_policy_warns_only_for_dry_run(capsys) -> None:
+    module = _load_pypi_publish()
+
+    module.require_public_post_release_policy(
+        _base_cfg(module, repo="pypi", dry_run=True),
+        {"agilab": "2026.05.18.post1"},
+    )
+
+    assert "Publication would require" in capsys.readouterr().out
+
+
 def test_release_preflight_profiles_only_for_real_pypi() -> None:
     module = _load_pypi_publish()
 
@@ -582,6 +640,21 @@ def test_compute_unified_version_uses_today_base_without_post_on_pypi(monkeypatc
 
     assert chosen == "2026.04.29"
     assert collisions == {"agi-env": [], "agi-node": [], "agilab": []}
+
+
+def test_compute_unified_version_accepts_explicit_release_candidate_on_pypi(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: set())
+
+    chosen, collisions = module.compute_unified_version(
+        ["agi-env", "agilab"],
+        "pypi",
+        "2026.05.18rc1",
+    )
+
+    assert chosen == "2026.05.18rc1"
+    assert collisions == {"agi-env": [], "agilab": []}
 
 
 def test_compute_unified_version_handles_testpypi_canonicalized_date_posts(monkeypatch) -> None:

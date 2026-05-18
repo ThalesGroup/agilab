@@ -78,6 +78,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "--check-workflow",
                 ".github/workflows/pypi-publish.yaml",
             ),
+            _uv_python("tools/pypi_release_version_policy.py"),
             _uv_python(
                 "tools/pypi_trusted_publisher_contract.py",
                 "--check-workflow",
@@ -138,7 +139,7 @@ High-frequency mappings:
   test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
-  release   -> Run local release guards: impact, generated PyPI plan, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
+  release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.

@@ -272,6 +272,13 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "pypi-provenance-evidence.tar.gz": (
             "workflow must attach PyPI provenance evidence to GitHub release assets"
         ),
+        "allow_post_release:": "workflow must require an explicit public .postN hotfix override",
+        "post_release_reason:": "workflow must capture the public .postN hotfix justification",
+        "tools/pypi_release_version_policy.py": (
+            "workflow must validate public release cadence before publishing"
+        ),
+        "--allow-post-release": "workflow must pass the explicit .postN override to the policy gate",
+        "POST_RELEASE_REASON": "workflow must pass the .postN hotfix justification to the policy gate",
         "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
         "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
         "PYPI_RELEASE_PRUNE_PASSWORD": (
