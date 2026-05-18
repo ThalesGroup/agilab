@@ -19,10 +19,10 @@ def _create_forecast_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
     project_dir = apps_dir / "weather_forecast_project"
-    (project_dir / "src" / "meteo_forecast").mkdir(parents=True)
+    (project_dir / "src" / "weather_forecast").mkdir(parents=True)
     (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
     (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "meteo_forecast" / "__init__.py").write_text("", encoding="utf-8")
+    (project_dir / "src" / "weather_forecast" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
 
 
@@ -58,7 +58,7 @@ def _load_forecast_helpers() -> ModuleType:
 def test_view_forecast_analysis_renders_exported_artifacts(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
 
-    artifact_dir = tmp_path / "export" / "meteo_forecast" / "forecast_analysis"
+    artifact_dir = tmp_path / "export" / "weather_forecast" / "forecast_analysis"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "forecast_metrics.json").write_text(
         json.dumps(
@@ -103,7 +103,7 @@ def test_view_forecast_analysis_warns_when_artifact_directory_is_missing(tmp_pat
 
 def test_view_forecast_analysis_warns_when_predictions_are_missing(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    artifact_dir = tmp_path / "export" / "meteo_forecast" / "forecast_analysis"
+    artifact_dir = tmp_path / "export" / "weather_forecast" / "forecast_analysis"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "forecast_metrics.json").write_text(
         json.dumps({"scenario": "pilot", "mae": 0.5}),
@@ -159,7 +159,7 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
     project_dir = _create_forecast_project(tmp_path)
     env = SimpleNamespace(
         app="weather_forecast_project",
-        target="meteo_forecast",
+        target="weather_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         st_resources=tmp_path,
     )
@@ -179,7 +179,7 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
 
 def test_view_forecast_analysis_warns_when_metrics_are_missing(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    artifact_dir = tmp_path / "export" / "meteo_forecast" / "forecast_analysis"
+    artifact_dir = tmp_path / "export" / "weather_forecast" / "forecast_analysis"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "forecast_predictions.csv").write_text(
         "date,y_true,y_pred\n2025-01-01,1.0,1.1\n",
