@@ -8,6 +8,7 @@ import re
 import shutil
 import stat
 import subprocess
+from dataclasses import dataclass
 from shlex import quote
 from importlib.metadata import (
     PackageNotFoundError,
@@ -415,17 +416,17 @@ async def _run_cached_deploy_stage(
     inputs: list[Path],
     output_probe: Callable[[], bool],
     log: logging.Logger | Any,
-) -> None:
+) -> bool:
     if not cache_enabled:
         await run_fn(cmd, cwd)
-        return
+        return True
 
     digest = _deploy_stage_digest(stage_name, cmd, cwd, inputs=inputs)
     stages = cache_state.setdefault("stages", {})
     cached = stages.get(stage_name) if isinstance(stages, dict) else None
     if isinstance(cached, dict) and cached.get("digest") == digest and output_probe():
         log.info("Skipping cached deploy stage: %s", stage_name)
-        return
+        return False
 
     await run_fn(cmd, cwd)
     if output_probe() and isinstance(stages, dict):
@@ -433,6 +434,64 @@ async def _run_cached_deploy_stage(
             "digest": _deploy_stage_digest(stage_name, cmd, cwd, inputs=inputs)
         }
         _write_deploy_stage_cache(cache_path, cache_state)
+    return True
+
+
+@dataclass(frozen=True)
+class _DeployPlanNode:
+    name: str
+    cmd: str
+    cwd: Path
+    inputs: list[Path]
+    output_probe: Callable[[], bool]
+    dependencies: tuple[str, ...] = ()
+
+
+class _DeployPlan:
+    def __init__(
+        self,
+        *,
+        run_fn: Callable[..., Any],
+        cache_enabled: bool,
+        cache_state: dict[str, Any],
+        cache_path: Path,
+        log: logging.Logger | Any,
+    ) -> None:
+        self._run_fn = run_fn
+        self._cache_enabled = cache_enabled
+        self._cache_state = cache_state
+        self._cache_path = cache_path
+        self._log = log
+        self._completed: set[str] = set()
+        self.results: dict[str, str] = {}
+
+    async def run(self, node: _DeployPlanNode) -> str:
+        missing = [
+            dependency
+            for dependency in node.dependencies
+            if dependency not in self._completed
+        ]
+        if missing:
+            raise RuntimeError(
+                f"Deploy plan stage {node.name!r} is missing dependencies: {', '.join(missing)}"
+            )
+
+        ran = await _run_cached_deploy_stage(
+            stage_name=node.name,
+            cmd=node.cmd,
+            cwd=node.cwd,
+            run_fn=self._run_fn,
+            cache_enabled=self._cache_enabled,
+            cache_state=self._cache_state,
+            cache_path=self._cache_path,
+            inputs=node.inputs,
+            output_probe=node.output_probe,
+            log=self._log,
+        )
+        result = "ran" if ran else "skipped"
+        self.results[node.name] = result
+        self._completed.add(node.name)
+        return result
 
 
 def _file_fingerprint(path: Path) -> dict[str, Any]:
@@ -1074,6 +1133,13 @@ async def deploy_local_worker(
         if stage_cache_enabled
         else {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": {}}
     )
+    deploy_plan = _DeployPlan(
+        run_fn=run_fn,
+        cache_enabled=stage_cache_enabled,
+        cache_state=stage_cache_state,
+        cache_path=stage_cache_path,
+        log=log,
+    )
 
     if hw_rapids_capable:
         set_env_var_fn(ip, "hw_rapids_capable")
@@ -1172,17 +1238,18 @@ async def deploy_local_worker(
             )
         if env.verbose > 0:
             log.info(f"Installing manager: {cmd_manager}")
-        await _run_cached_deploy_stage(
-            stage_name="manager-sync",
-            cmd=cmd_manager,
-            cwd=app_path,
-            run_fn=run_fn,
-            cache_enabled=stage_cache_enabled,
-            cache_state=stage_cache_state,
-            cache_path=stage_cache_path,
-            inputs=_deploy_stage_project_inputs(app_path, *manager_core_paths.values()),
-            output_probe=lambda: _project_venv_matches(app_path, python_version=pyvers),
-            log=log,
+        await deploy_plan.run(
+            _DeployPlanNode(
+                name="manager-sync",
+                cmd=cmd_manager,
+                cwd=app_path,
+                inputs=_deploy_stage_project_inputs(
+                    app_path, *manager_core_paths.values()
+                ),
+                output_probe=lambda: _project_venv_matches(
+                    app_path, python_version=pyvers
+                ),
+            )
         )
 
     source_worker_app_installed = False
@@ -1345,6 +1412,7 @@ async def deploy_local_worker(
     )
 
     if worker_core_add_specs:
+        worker_dependency_names: list[str] = []
         worker_stage_inputs = _deploy_stage_project_inputs(
             wenv_abs,
             app_path,
@@ -1362,58 +1430,60 @@ async def deploy_local_worker(
             prefix=worker_extra_indexes,
         )
         for index, cmd_worker in enumerate(worker_core_add_commands):
-            await _run_cached_deploy_stage(
-                stage_name=f"worker-core-add-{index}",
+            stage_name = f"worker-core-add-{index}"
+            stage_dependencies = (
+                (worker_dependency_names[-1],)
+                if worker_dependency_names
+                else (() if manager_sync_uses_overlay else ("manager-sync",))
+            )
+            await deploy_plan.run(
+                _DeployPlanNode(
+                    name=stage_name,
+                    cmd=cmd_worker,
+                    cwd=wenv_abs,
+                    inputs=worker_stage_inputs,
+                    output_probe=lambda: _project_venv_matches(
+                        worker_venv_project,
+                        python_version=pyvers_worker,
+                    ),
+                    dependencies=stage_dependencies,
+                )
+            )
+            worker_dependency_names.append(stage_name)
+    else:
+        worker_dependency_names = ["worker-add-agi-env", "worker-add-agi-node"]
+        worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
+        cmd_worker = (
+            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
+        )
+        await deploy_plan.run(
+            _DeployPlanNode(
+                name="worker-add-agi-env",
                 cmd=cmd_worker,
                 cwd=wenv_abs,
-                run_fn=run_fn,
-                cache_enabled=stage_cache_enabled,
-                cache_state=stage_cache_state,
-                cache_path=stage_cache_path,
                 inputs=worker_stage_inputs,
                 output_probe=lambda: _project_venv_matches(
                     worker_venv_project,
                     python_version=pyvers_worker,
                 ),
-                log=log,
+                dependencies=() if manager_sync_uses_overlay else ("manager-sync",),
             )
-    else:
-        worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
-        cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
-        )
-        await _run_cached_deploy_stage(
-            stage_name="worker-add-agi-env",
-            cmd=cmd_worker,
-            cwd=wenv_abs,
-            run_fn=run_fn,
-            cache_enabled=stage_cache_enabled,
-            cache_state=stage_cache_state,
-            cache_path=stage_cache_path,
-            inputs=worker_stage_inputs,
-            output_probe=lambda: _project_venv_matches(
-                worker_venv_project,
-                python_version=pyvers_worker,
-            ),
-            log=log,
         )
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-node"
         )
-        await _run_cached_deploy_stage(
-            stage_name="worker-add-agi-node",
-            cmd=cmd_worker,
-            cwd=wenv_abs,
-            run_fn=run_fn,
-            cache_enabled=stage_cache_enabled,
-            cache_state=stage_cache_state,
-            cache_path=stage_cache_path,
-            inputs=worker_stage_inputs,
-            output_probe=lambda: _project_venv_matches(
-                worker_venv_project,
-                python_version=pyvers_worker,
-            ),
-            log=log,
+        await deploy_plan.run(
+            _DeployPlanNode(
+                name="worker-add-agi-node",
+                cmd=cmd_worker,
+                cwd=wenv_abs,
+                inputs=worker_stage_inputs,
+                output_probe=lambda: _project_venv_matches(
+                    worker_venv_project,
+                    python_version=pyvers_worker,
+                ),
+                dependencies=("worker-add-agi-env",),
+            )
         )
 
     if hw_rapids_capable:
@@ -1429,28 +1499,26 @@ async def deploy_local_worker(
 
     if env.verbose > 0:
         log.info(f"Installing workers: {cmd_worker}")
-    await _run_cached_deploy_stage(
-        stage_name="worker-sync",
-        cmd=cmd_worker,
-        cwd=wenv_abs,
-        run_fn=run_fn,
-        cache_enabled=stage_cache_enabled,
-        cache_state=stage_cache_state,
-        cache_path=stage_cache_path,
-        inputs=_deploy_stage_project_inputs(
-            wenv_abs,
-            app_path,
-            env_project,
-            node_project,
-            core_project,
-            cluster_project,
-            agilab_project,
-        ),
-        output_probe=lambda: _project_venv_matches(
-            worker_venv_project,
-            python_version=pyvers_worker,
-        ),
-        log=log,
+    await deploy_plan.run(
+        _DeployPlanNode(
+            name="worker-sync",
+            cmd=cmd_worker,
+            cwd=wenv_abs,
+            inputs=_deploy_stage_project_inputs(
+                wenv_abs,
+                app_path,
+                env_project,
+                node_project,
+                core_project,
+                cluster_project,
+                agilab_project,
+            ),
+            output_probe=lambda: _project_venv_matches(
+                worker_venv_project,
+                python_version=pyvers_worker,
+            ),
+            dependencies=tuple(worker_dependency_names),
+        )
     )
 
     if deployment_dask_support.dask_mode_enabled(agi_cls):
@@ -1461,20 +1529,18 @@ async def deploy_local_worker(
         )
         if env.verbose > 0:
             log.info(f"Installing Dask worker runtime: {cmd_worker}")
-        await _run_cached_deploy_stage(
-            stage_name="worker-dask-runtime",
-            cmd=cmd_worker,
-            cwd=wenv_abs,
-            run_fn=run_fn,
-            cache_enabled=stage_cache_enabled,
-            cache_state=stage_cache_state,
-            cache_path=stage_cache_path,
-            inputs=_deploy_stage_project_inputs(wenv_abs),
-            output_probe=lambda: _project_venv_matches(
-                worker_venv_project,
-                python_version=pyvers_worker,
-            ),
-            log=log,
+        await deploy_plan.run(
+            _DeployPlanNode(
+                name="worker-dask-runtime",
+                cmd=cmd_worker,
+                cwd=wenv_abs,
+                inputs=_deploy_stage_project_inputs(wenv_abs),
+                output_probe=lambda: _project_venv_matches(
+                    worker_venv_project,
+                    python_version=pyvers_worker,
+                ),
+                dependencies=("worker-sync",),
+            )
         )
 
     write_staged_uv_sources_pth_fn(
