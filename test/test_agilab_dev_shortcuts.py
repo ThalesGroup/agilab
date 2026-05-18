@@ -86,6 +86,8 @@ def test_test_shortcut_keeps_pytest_arguments():
             "run",
             "pytest",
             "-q",
+            "-o",
+            "addopts=",
             "test/test_cluster_lan_discovery.py",
             "-k",
             "windows",

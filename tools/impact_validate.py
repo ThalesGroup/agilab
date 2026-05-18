@@ -445,7 +445,7 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
                 key="targeted-pytest",
                 summary="Run the narrow pytest slice inferred from the touched modules.",
                 commands=[
-                    "uv --preview-features extra-build-dependencies run pytest -q "
+                    "uv --preview-features extra-build-dependencies run pytest -q -o addopts='' "
                     + " ".join(guessed_tests[:8])
                 ],
             )

@@ -23,7 +23,7 @@ Use this runbook whenever you:
   ship with AGILab.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
-  GA-selected regression run, `test` for targeted `pytest -q`,
+  GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
   `regress` for GA-selected fast regression subsets, `flow` for one or more workflow parity
   profiles, `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the

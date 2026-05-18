@@ -158,13 +158,14 @@ async def test_prepare_local_env_online_handles_python_download_warning(tmp_path
         log=mock.Mock(),
     )
 
-    assert any("self update" in cmd for cmd in run_calls)
+    assert not any("self update" in cmd for cmd in run_calls)
     assert any("python install 3.13" in cmd for cmd in run_calls)
 
 
 @pytest.mark.asyncio
 async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False)
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     run_calls = []
 
@@ -194,6 +195,7 @@ async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path)
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_missing(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="uv --quiet")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
@@ -229,6 +231,7 @@ async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_mi
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="uv --quiet")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
@@ -263,6 +266,7 @@ async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monke
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_handles_empty_uv_and_self_update_failure(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
@@ -357,7 +361,7 @@ async def test_prepare_cluster_env_happy_path_sends_files(tmp_path):
         log=mock.Mock(),
     )
 
-    assert any("self update" in cmd for _, cmd in remote_cmds)
+    assert not any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(file["name"] == "cli.py" for file in items) for _, items, _ in sent)
 
@@ -490,6 +494,7 @@ ilp_worker = { path = "../deps/ilp_worker" }
 @pytest.mark.asyncio
 async def test_prepare_cluster_env_ignores_uv_self_update_failure(tmp_path):
     env = _build_cluster_env(tmp_path)
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env)
     sent = []
     remote_cmds = []
