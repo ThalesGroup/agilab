@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -23,11 +25,14 @@ def _load_module(path: Path, name: str):
 @pytest.fixture(scope="module")
 def repository_knowledge_artifacts(tmp_path_factory):
     module = _load_module(REPORT_PATH, "repository_knowledge_report_test_module")
-    json_path = tmp_path_factory.mktemp("repository-knowledge") / "repository_knowledge_index.json"
+    artifact_dir = tmp_path_factory.mktemp("repository-knowledge")
+    json_path = artifact_dir / "repository_knowledge_index.json"
+    cache_path = artifact_dir / "repository_knowledge_records.json"
 
     report = module.build_report(
         repo_root=Path.cwd(),
         output_path=json_path,
+        record_cache_path=cache_path,
     )
     payload = module.json.loads(json_path.read_text(encoding="utf-8"))
     return report, payload
@@ -66,6 +71,64 @@ def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> N
         "repository_knowledge_persistence",
         "repository_knowledge_docs_reference",
     }
+
+
+def test_repository_knowledge_report_path_setup_handles_package_paths(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module(REPORT_PATH, "repository_knowledge_report_path_setup_test_module")
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    package_root = src_root / "agilab"
+    package_root.mkdir(parents=True)
+    monkeypatch.setattr(sys, "path", [entry for entry in sys.path if entry not in {str(repo_root), str(src_root)}])
+
+    list_package = SimpleNamespace(__path__=[])
+    monkeypatch.setitem(sys.modules, "agilab", list_package)
+    module._ensure_repo_on_path(repo_root)
+
+    assert sys.path[:2] == [str(repo_root), str(src_root)]
+    assert list_package.__path__ == [str(package_root)]
+
+    tuple_package = SimpleNamespace(__path__=())
+    monkeypatch.setitem(sys.modules, "agilab", tuple_package)
+    module._ensure_repo_on_path(repo_root)
+
+    assert tuple_package.__path__ == [str(package_root)]
+
+
+def test_repository_knowledge_report_docs_failure_and_temporary_output(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "repository_knowledge_report_docs_failure_test_module")
+    docs_check = module._docs_check(tmp_path / "missing-repo")
+
+    assert docs_check["status"] == "fail"
+    assert "error" in docs_check["details"]
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        record_cache_path=tmp_path / "repository-knowledge-cache.json",
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["round_trip_ok"] is True
+
+
+def test_repository_knowledge_report_cli_modes(tmp_path: Path, capsys) -> None:
+    module = _load_module(REPORT_PATH, "repository_knowledge_report_cli_test_module")
+    compact_output = tmp_path / "repository_knowledge_compact.json"
+    cache_path = tmp_path / "repository-knowledge-cache.json"
+
+    assert module.main(["--output", str(compact_output), "--cache-path", str(cache_path), "--compact"]) == 0
+    compact = capsys.readouterr().out
+    assert "\n" not in compact.strip()
+    assert module.json.loads(compact)["status"] == "pass"
+    assert compact_output.is_file()
+    assert cache_path.is_file()
+
+    pretty_output = tmp_path / "repository_knowledge_pretty.json"
+    assert module.main(["--output", str(pretty_output), "--no-cache"]) == 0
+    pretty = capsys.readouterr().out
+    assert "\n  " in pretty
+    assert module.json.loads(pretty)["status"] == "pass"
+    assert pretty_output.is_file()
 
 
 def test_repository_knowledge_index_excludes_generated_paths(repository_knowledge_artifacts) -> None:
@@ -142,7 +205,7 @@ def test_repository_knowledge_core_reports_excluded_index_hits(
     monkeypatch.setattr(
         module,
         "_records",
-        lambda _repo_root: [{"path": ".venv/generated.py", "kind": "package_source"}],
+        lambda _repo_root, **_kwargs: [{"path": ".venv/generated.py", "kind": "package_source"}],
     )
 
     state = module.build_repository_knowledge_index(repo_root=repo_root)
@@ -169,3 +232,219 @@ def test_repository_knowledge_records_skip_duplicate_scan_hits(
     assert len(records) == 1
     assert records[0]["path"] == "shared.py"
     assert records[0]["kind"] == "package_source"
+
+
+def test_repository_knowledge_record_cache_reuses_unchanged_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_module")
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True)
+    (repo_root / "tools").mkdir()
+    (repo_root / "docs" / "source").mkdir(parents=True)
+    (repo_root / "src" / "agilab" / "module.py").write_text('"""Cached."""\nVALUE = 1\n', encoding="utf-8")
+    (repo_root / "tools" / "tool.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (repo_root / "docs" / "source" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (repo_root / "README.md").write_text("# Demo\n", encoding="utf-8")
+    cache_path = tmp_path / "record-cache.json"
+
+    first_records = module._records(repo_root, record_cache_path=cache_path)
+
+    assert cache_path.is_file()
+
+    def _fail_file_record(*_args, **_kwargs):
+        raise AssertionError("unchanged records should be loaded from cache")
+
+    monkeypatch.setattr(module, "_file_record", _fail_file_record)
+
+    assert module._records(repo_root, record_cache_path=cache_path) == first_records
+
+
+def test_repository_knowledge_record_cache_preserves_index_output(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_output_module")
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True)
+    (repo_root / "tools").mkdir()
+    (repo_root / "docs" / "source").mkdir(parents=True)
+    (repo_root / "src" / "agilab" / "module.py").write_text('"""Cached."""\nVALUE = 1\n', encoding="utf-8")
+    (repo_root / "tools" / "tool.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (repo_root / "docs" / "source" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (repo_root / "README.md").write_text("# Demo\n", encoding="utf-8")
+    cache_path = tmp_path / "record-cache.json"
+
+    uncached = module.build_repository_knowledge_index(repo_root=repo_root)
+    cached = module.build_repository_knowledge_index(repo_root=repo_root, record_cache_path=cache_path)
+    cached_again = module.build_repository_knowledge_index(repo_root=repo_root, record_cache_path=cache_path)
+
+    assert cached == uncached
+    assert cached_again == uncached
+
+
+def test_repository_knowledge_record_cache_invalidates_changed_files(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_invalidation_module")
+    repo_root = tmp_path / "repo"
+    module_path = repo_root / "src" / "agilab" / "module.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text('"""One."""\nVALUE = 1\n', encoding="utf-8")
+    cache_path = tmp_path / "record-cache.json"
+
+    first_records = module._records(repo_root, record_cache_path=cache_path)
+    first_record = next(record for record in first_records if record["path"] == "src/agilab/module.py")
+
+    module_path.write_text('"""Two."""\nVALUE = 1\n', encoding="utf-8")
+    stat_result = module_path.stat()
+    os.utime(module_path, ns=(stat_result.st_atime_ns + 1_000_000, stat_result.st_mtime_ns + 1_000_000))
+
+    second_records = module._records(repo_root, record_cache_path=cache_path)
+    second_record = next(record for record in second_records if record["path"] == "src/agilab/module.py")
+
+    assert first_record["docstring"] == "One."
+    assert second_record["docstring"] == "Two."
+    assert second_record["sha256"] != first_record["sha256"]
+
+
+def test_repository_knowledge_record_cache_helpers_reject_bad_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_helpers_module")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    default_cache_path = module.default_record_cache_path(repo_root)
+
+    assert str(default_cache_path).startswith(str(tmp_path / "xdg-cache"))
+    assert not str(default_cache_path).startswith(str(repo_root))
+
+    cache_path = tmp_path / "bad-cache.json"
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+    cache_path.write_text("{bad json", encoding="utf-8")
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+    cache_path.write_text(module.json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8")
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+
+    signature = {
+        "repo_root": str(repo_root),
+        "path": "src/agilab/module.py",
+        "kind": "package_source",
+        "suffix": ".py",
+        "size": 10,
+        "mtime_ns": 1,
+    }
+    assert module._cached_record({"entries": {"src/agilab/module.py": {"signature": signature, "record": []}}}, signature) is None
+    assert module._cached_record(
+        {
+            "entries": {
+                "src/agilab/module.py": {
+                    "signature": {**signature, "mtime_ns": 2},
+                    "record": {"path": "src/agilab/module.py"},
+                }
+            }
+        },
+        signature,
+    ) is None
+
+
+def test_repository_knowledge_record_cache_round_trips_records(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_module")
+    repo_root = tmp_path / "repo"
+    source = repo_root / "src" / "agilab" / "module.py"
+    docs = repo_root / "docs" / "source" / "index.rst"
+    source.parent.mkdir(parents=True)
+    docs.parent.mkdir(parents=True)
+    source.write_text('"""Module."""\nVALUE = 1\n', encoding="utf-8")
+    docs.write_text("Docs\n====\n", encoding="utf-8")
+    (repo_root / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    cache_path = tmp_path / "records-cache.json"
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
+
+    state = module.build_repository_knowledge_index(repo_root=repo_root, record_cache_path=cache_path)
+
+    assert state["summary"]["indexed_file_count"] == 4
+    assert module.default_record_cache_path(repo_root).parent == tmp_path / "xdg-cache" / "agilab" / "repository_knowledge"
+    cache = module._load_record_cache(cache_path)
+    assert cache["schema"] == module.RECORD_CACHE_SCHEMA
+    assert sorted(cache["entries"]) == ["README.md", "docs/source/index.rst", "pyproject.toml", "src/agilab/module.py"]
+
+    monkeypatch.setattr(
+        module,
+        "_file_record",
+        lambda *_args, **_kwargs: pytest.fail("cached records should avoid rebuilding file records"),
+    )
+    cached_state = module.build_repository_knowledge_index(repo_root=repo_root, record_cache_path=cache_path)
+
+    assert cached_state["summary"] == state["summary"]
+
+
+def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_record_cache_invalid_module")
+    cache_path = tmp_path / "records-cache.json"
+
+    assert module._load_record_cache(None) == module._empty_record_cache()
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+    cache_path.write_text("{bad json", encoding="utf-8")
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+    cache_path.write_text(module.json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8")
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+    cache_path.write_text(module.json.dumps({"schema": module.RECORD_CACHE_SCHEMA, "entries": []}), encoding="utf-8")
+    assert module._load_record_cache(cache_path) == module._empty_record_cache()
+
+    module._write_record_cache(None, {"entries": {}})
+    module._write_record_cache(tmp_path / "bad-state.json", {"entries": []})
+    assert not (tmp_path / "bad-state.json").exists()
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a directory", encoding="utf-8")
+    module._write_record_cache(blocker / "records-cache.json", {"entries": {}})
+    assert blocker.read_text(encoding="utf-8") == "not a directory"
+
+    signature = {
+        "path": "src/agilab/module.py",
+        "kind": "package_source",
+        "suffix": ".py",
+        "size": 12,
+    }
+    valid_record = {
+        "path": "src/agilab/module.py",
+        "kind": "package_source",
+        "suffix": ".py",
+        "size_bytes": 12,
+        "sha256": "abc",
+    }
+    assert module._cached_record({"entries": []}, signature) is None
+    assert module._cached_record({"entries": {}}, signature) is None
+    assert module._cached_record({"entries": {"src/agilab/module.py": {"signature": {}, "record": valid_record}}}, signature) is None
+    assert module._cached_record({"entries": {"src/agilab/module.py": {"signature": signature, "record": []}}}, signature) is None
+    assert (
+        module._cached_record(
+            {"entries": {"src/agilab/module.py": {"signature": signature, "record": {**valid_record, "sha256": 3}}}},
+            signature,
+        )
+        is None
+    )
+    cached = module._cached_record(
+        {"entries": {"src/agilab/module.py": {"signature": signature, "record": valid_record}}},
+        signature,
+    )
+
+    assert cached == valid_record
+    assert cached is not valid_record
+
+
+def test_repository_knowledge_excluded_existing_handles_unreadable_root(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_unreadable_root_module")
+
+    class _UnreadableRoot:
+        def iterdir(self):
+            raise OSError("denied")
+
+        def __truediv__(self, child: str) -> Path:
+            return tmp_path / child
+
+    assert module._excluded_existing(_UnreadableRoot()) == []
