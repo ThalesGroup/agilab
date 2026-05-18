@@ -128,10 +128,12 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     mobile = module.resolve_scenarios(["isolated-mobile-core-pages"])[0]
     evidence = module.resolve_scenarios(["isolated-release-evidence"])[0]
     fresh = module.resolve_scenarios(["isolated-fresh-session-core-pages"])[0]
+    first_proof = module.resolve_scenarios(["current-home-first-proof-golden-path"])[0]
 
     assert mobile.name not in default_names
     assert evidence.name not in default_names
     assert fresh.name not in default_names
+    assert first_proof.name not in default_names
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
     assert evidence.success_screenshot is True
@@ -139,6 +141,8 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert evidence.max_widgets_ready_seconds == 30.0
     assert evidence.max_action_settle_seconds == 30.0
     assert fresh.fresh_browser_context_per_page is True
+    assert first_proof.assert_orchestrate_artifacts is True
+    assert first_proof.assert_analysis_artifacts is True
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -326,6 +330,76 @@ def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
     assert "--assert-workflow-artifacts" in argv
+
+
+def test_build_robot_command_enables_first_proof_failure_evidence(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["current-home-first-proof-golden-path"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "ORCHESTRATE,ANALYSIS"
+    assert "--assert-orchestrate-artifacts" in argv
+    assert "--assert-analysis-artifacts" in argv
+    assert "--success-screenshot" in argv
+    assert argv[argv.index("--failure-bundle-dir") + 1] == str(
+        tmp_path / "failure-bundles" / "current-home-first-proof-golden-path"
+    )
+
+
+def test_write_matrix_failure_bundle_records_scenario_evidence(tmp_path) -> None:
+    module = _load_module()
+    progress_path = tmp_path / "progress.ndjson"
+    progress_path.write_text('{"event": "page_start"}\n{"event": "page_done"}\n', encoding="utf-8")
+    scenario = module.RobotScenario(
+        name="demo",
+        description="demo",
+        pages="HOME",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot", "--json"],
+        returncode=1,
+        duration_seconds=3.0,
+        summary_path=tmp_path / "summary.json",
+        progress_path=progress_path,
+        summary={"success": False, "failed_count": 1},
+        output="robot failed\n",
+    )
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    bundle = module._write_matrix_failure_bundle(result, options=options)
+
+    assert bundle == tmp_path / "failure-bundles" / "demo" / "_scenario"
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == module.FAILURE_BUNDLE_SCHEMA
+    assert manifest["scenario"] == "demo"
+    assert manifest["returncode"] == 1
+    assert manifest["command"] == ["robot", "--json"]
+    assert (bundle / "summary.json").is_file()
+    assert (bundle / "progress-tail.ndjson").read_text(encoding="utf-8").endswith('{"event": "page_done"}\n')
 
 
 def test_build_robot_command_covers_entry_shell_and_configured_app_pages(tmp_path) -> None:

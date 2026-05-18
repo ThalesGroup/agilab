@@ -98,6 +98,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "ui-history-robot",
             "ui-mobile-robot",
             "ui-release-evidence-robot",
+            "ui-first-proof-robot",
             "hf-install-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
@@ -170,6 +171,7 @@ def _profile_descriptions() -> dict[str, str]:
         "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
         "ui-mobile-robot": "Run the opt-in mobile viewport widget robot scenario.",
         "ui-release-evidence-robot": "Run opt-in success-screenshot, fresh-session, and performance-budget widget robot scenarios.",
+        "ui-first-proof-robot": "Run the opt-in local first-proof golden-path widget robot for flight telemetry.",
         "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
     }
 
@@ -195,6 +197,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "ui-history-robot": _ui_history_robot_profile(),
         "ui-mobile-robot": _ui_mobile_robot_profile(),
         "ui-release-evidence-robot": _ui_release_evidence_robot_profile(),
+        "ui-first-proof-robot": _ui_first_proof_robot_profile(),
         "hf-install-robot": _hf_install_robot_profile(),
     }
 
@@ -1031,6 +1034,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "test-results/ui-robot-matrix",
                 "--screenshot-dir",
                 "screenshots/ui-robot-matrix",
+                "--failure-bundle-dir",
+                "test-results/ui-robot-matrix/failure-bundles",
             ],
             timeout_seconds=60 * 60,
             remove_paths=["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"],
@@ -1065,6 +1070,8 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
                 "test-results/hf-install-robot",
                 "--screenshot-dir",
                 "screenshots/hf-install-robot",
+                "--failure-bundle-dir",
+                "test-results/hf-install-robot/failure-bundles",
             ],
             timeout_seconds=25 * 60,
             remove_paths=["test-results/hf-install-robot", "screenshots/hf-install-robot"],
@@ -1093,6 +1100,8 @@ def _ui_history_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-history-robot",
                 "--screenshot-dir",
                 "screenshots/ui-history-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-history-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
             remove_paths=["test-results/ui-history-robot", "screenshots/ui-history-robot"],
@@ -1121,6 +1130,8 @@ def _ui_mobile_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-mobile-robot",
                 "--screenshot-dir",
                 "screenshots/ui-mobile-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-mobile-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
             remove_paths=["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"],
@@ -1151,9 +1162,43 @@ def _ui_release_evidence_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-release-evidence-robot",
                 "--screenshot-dir",
                 "screenshots/ui-release-evidence-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-release-evidence-robot/failure-bundles",
             ],
             timeout_seconds=45 * 60,
             remove_paths=["test-results/ui-release-evidence-robot", "screenshots/ui-release-evidence-robot"],
+        )
+    ]
+
+
+def _ui_first_proof_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui first-proof golden path robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "current-home-first-proof-golden-path",
+                "--apps",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-first-proof-robot",
+                "--screenshot-dir",
+                "screenshots/ui-first-proof-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-first-proof-robot/failure-bundles",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-first-proof-robot", "screenshots/ui-first-proof-robot"],
         )
     ]
 
@@ -1171,6 +1216,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "ui-history-robot",
         "ui-mobile-robot",
         "ui-release-evidence-robot",
+        "ui-first-proof-robot",
         "hf-install-robot",
     }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
