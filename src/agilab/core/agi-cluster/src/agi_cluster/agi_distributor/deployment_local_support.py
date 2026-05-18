@@ -628,7 +628,21 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
 
 
 def _editable_install_cache_path(venv_project: Path) -> Path:
-    return _project_venv_root(venv_project) / ".agilab-editable-install-cache.json"
+    resolved_project = venv_project.expanduser().resolve(strict=False)
+    cache_key = hashlib.sha256(
+        json.dumps(
+            {
+                "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
+                "venv_project": resolved_project.as_posix(),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    return (
+        resolved_project.parent
+        / ".agilab-editable-install-cache"
+        / f"{resolved_project.name}-{cache_key}.json"
+    )
 
 
 def _load_editable_install_cache(path: Path) -> dict[str, Any]:
@@ -1149,12 +1163,17 @@ async def _install_many_into_project_venv(
         if editable
         else []
     )
+    package_refs_to_install = package_refs
+    package_projects_to_record = package_projects
     if (
         install_cache_enabled
         and package_projects
         and all(package_project is not None for package_project in package_projects)
-        and all(
-            _editable_install_cache_hit(
+    ):
+        uncached_refs: list[str | Path] = []
+        uncached_projects: list[Path | None] = []
+        for package_ref, package_project in zip(package_refs, package_projects):
+            cache_hit = package_project is not None and _editable_install_cache_hit(
                 uv_cmd=uv_cmd,
                 package_project=package_project,
                 venv_project=effective_venv_project,
@@ -1163,22 +1182,25 @@ async def _install_many_into_project_venv(
                 python_version=python_version,
                 os_name=os_name,
             )
-            for package_project in package_projects
-            if package_project is not None
-        )
-    ):
-        return
+            if cache_hit:
+                continue
+            uncached_refs.append(package_ref)
+            uncached_projects.append(package_project)
+        if not uncached_refs:
+            return
+        package_refs_to_install = uncached_refs
+        package_projects_to_record = uncached_projects
 
     venv_python = _project_venv_python(effective_venv_project, os_name=os_name)
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
     package_specs = " ".join(
-        f'{editable_flag}"{str(package_ref)}"' for package_ref in package_refs
+        f'{editable_flag}"{str(package_ref)}"' for package_ref in package_refs_to_install
     )
     cmd = f'{uv_cmd} pip install --python "{venv_python}" --upgrade {no_deps_flag}{package_specs}'
     await run_fn(cmd, project)
     if install_cache_enabled:
-        for package_project in package_projects:
+        for package_project in package_projects_to_record:
             if package_project is None:
                 continue
             _record_editable_install_cache(
