@@ -50,13 +50,16 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
 
     assert plan.mode == "static"
     assert list(chunks) == list(module.AGI_GUI_CHUNKS)
-    assert "src/agilab/lib/agi-gui/test" in chunks["support"]
+    assert "src/agilab/lib/agi-gui/test/test_agi_gui_package.py" in chunks["support"]
     assert chunks["pages-flow"] == [
         "test/test_ui_pages.py",
         "-k",
         "execute_page or experiment_page or pipeline_page_project_selectbox",
     ]
-    assert "test/test_*_report.py" in chunks["reports"]
+    assert "test/test_*_report.py" not in chunks["reports"]
+    assert "test/test_adoption_report.py" in chunks["reports"]
+    assert "test/test_view*.py" not in chunks["views"]
+    assert "test/test_view_maps.py" in chunks["views"]
 
 
 def test_timing_balanced_plan_greedily_spreads_slow_files(tmp_path) -> None:
@@ -118,4 +121,9 @@ def test_write_plan_files_and_print_args_round_trip(tmp_path, capsys) -> None:
     assert module.main(["print-args", "--plan", str(plan_path), "--chunk", "reports"]) == 0
 
     printed = capsys.readouterr().out.splitlines()
-    assert printed == ["test/test_ci_provider_artifacts.py", "test/test_*_report.py"]
+    assert printed[:3] == [
+        "test/test_ci_provider_artifacts.py",
+        "test/test_adoption_report.py",
+        "test/test_ci_artifact_harvest_report.py",
+    ]
+    assert "test/test_*_report.py" not in printed
