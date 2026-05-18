@@ -20,10 +20,10 @@ def _create_forecast_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
     project_dir = apps_dir / "weather_forecast_project"
-    (project_dir / "src" / "meteo_forecast").mkdir(parents=True)
+    (project_dir / "src" / "weather_forecast").mkdir(parents=True)
     (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
     (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "meteo_forecast" / "__init__.py").write_text("", encoding="utf-8")
+    (project_dir / "src" / "weather_forecast" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
 
 
@@ -375,7 +375,7 @@ def _load_release_helpers() -> ModuleType:
 
 def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_2026_04_16"
     candidate_root = export_root / "run_2026_04_17"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
@@ -421,7 +421,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
 
 def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_2026_04_16"
     candidate_root = export_root / "run_2026_04_17"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
@@ -503,7 +503,7 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
 
 def test_view_release_decision_imports_ci_artifact_harvest_for_export(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_2026_04_16"
     candidate_root = export_root / "run_2026_04_17"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
@@ -556,7 +556,7 @@ def test_view_release_decision_imports_ci_artifact_harvest_for_export(tmp_path, 
 
 def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_2026_04_16"
     candidate_root = export_root / "run_2026_04_17"
     prior_root = export_root / "run_2026_04_15"
@@ -688,7 +688,7 @@ def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeyp
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_a"
     candidate_root = export_root / "run_b"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
@@ -777,8 +777,8 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
         "release_decision_app_scope": f"weather_forecast_project:{tmp_path / 'weather_forecast_project'}",
     }
     normalized_env = SimpleNamespace(
-        app="meteo_forecast",
-        target="meteo_forecast",
+        app="weather_forecast",
+        target="weather_forecast",
         active_app=tmp_path / "weather_forecast_project",
     )
     assert module._default_metrics_glob(normalized_env) == "**/forecast_metrics.json"
@@ -1445,7 +1445,7 @@ def test_view_release_decision_surfaces_reduce_artifacts_without_metrics(tmp_pat
 
 def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
-    export_root = tmp_path / "export" / "meteo_forecast"
+    export_root = tmp_path / "export" / "weather_forecast"
     baseline_root = export_root / "run_a"
     candidate_root = export_root / "run_b"
     _write_bundle(baseline_root, mae=1.1, rmse=1.2, mape=6.2)
@@ -1454,7 +1454,7 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
 
     env = SimpleNamespace(
         app="weather_forecast_project",
-        target="meteo_forecast",
+        target="weather_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path,
