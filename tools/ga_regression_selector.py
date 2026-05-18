@@ -221,33 +221,72 @@ def _test_file_signature(test_path: str) -> dict[str, int] | None:
     return {"size": stat_result.st_size, "mtime_ns": stat_result.st_mtime_ns}
 
 
+def _timing_file_signature(path: Path) -> dict[str, int] | None:
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return None
+    if not path.is_file():
+        return None
+    return {"size": stat_result.st_size, "mtime_ns": stat_result.st_mtime_ns}
+
+
+def _timing_cache_key(path: Path) -> str:
+    resolved = path if path.is_absolute() else REPO_ROOT / path
+    try:
+        return resolved.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        return resolved.resolve().as_posix()
+
+
 def _load_test_index_cache(path: Path) -> dict[str, object]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+        return {
+            "schema": TEST_INDEX_CACHE_SCHEMA,
+            "entries": {},
+            "test_files": {},
+            "timings": {},
+        }
     if not isinstance(data, dict):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+        return {
+            "schema": TEST_INDEX_CACHE_SCHEMA,
+            "entries": {},
+            "test_files": {},
+            "timings": {},
+        }
     entries = data.get("entries")
     if data.get("schema") != TEST_INDEX_CACHE_SCHEMA or not isinstance(entries, dict):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+        return {
+            "schema": TEST_INDEX_CACHE_SCHEMA,
+            "entries": {},
+            "test_files": {},
+            "timings": {},
+        }
     test_files = data.get("test_files")
     if not isinstance(test_files, dict):
         test_files = {}
+    timings = data.get("timings")
+    if not isinstance(timings, dict):
+        timings = {}
     return {
         "schema": TEST_INDEX_CACHE_SCHEMA,
         "entries": entries,
         "test_files": test_files,
+        "timings": timings,
     }
 
 
 def _write_test_index_cache(path: Path, state: dict[str, object]) -> None:
     entries = state.get("entries")
     test_files = state.get("test_files")
+    timings = state.get("timings")
     payload = {
         "schema": TEST_INDEX_CACHE_SCHEMA,
         "entries": entries if isinstance(entries, dict) else {},
         "test_files": test_files if isinstance(test_files, dict) else {},
+        "timings": timings if isinstance(timings, dict) else {},
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -437,20 +476,86 @@ def _load_timing_file(path: Path) -> dict[str, float]:
         return {}
 
 
-def load_timings(paths: Sequence[str] = ()) -> dict[str, float]:
+def _float_mapping(value: object) -> dict[str, float] | None:
+    if not isinstance(value, dict):
+        return None
+    timings: dict[str, float] = {}
+    for key, seconds in value.items():
+        if not isinstance(key, str) or not isinstance(seconds, (int, float)):
+            return None
+        timings[key] = float(seconds)
+    return timings
+
+
+def _cached_timing_file(
+    cache_state: dict[str, object], cache_key: str, signature: dict[str, int]
+) -> dict[str, float] | None:
+    timings_cache = cache_state.get("timings")
+    if not isinstance(timings_cache, dict):
+        return None
+    entry = timings_cache.get(cache_key)
+    if not isinstance(entry, dict) or entry.get("signature") != signature:
+        return None
+    return _float_mapping(entry.get("tests"))
+
+
+def _load_timing_file_cached(
+    path: Path,
+    *,
+    cache_state: dict[str, object],
+    next_timings_cache: dict[str, object],
+) -> dict[str, float]:
+    signature = _timing_file_signature(path)
+    cache_key = _timing_cache_key(path)
+    if signature is not None:
+        cached = _cached_timing_file(cache_state, cache_key, signature)
+        if cached is not None:
+            next_timings_cache[cache_key] = {
+                "signature": signature,
+                "tests": cached,
+            }
+            return cached
+    loaded = _load_timing_file(path)
+    if signature is not None:
+        next_timings_cache[cache_key] = {
+            "signature": signature,
+            "tests": loaded,
+        }
+    return loaded
+
+
+def load_timings(
+    paths: Sequence[str] = (),
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> dict[str, float]:
     timing_paths: list[Path] = []
     if paths:
         timing_paths.extend(Path(path) for path in paths)
     else:
         timing_paths.extend(sorted((REPO_ROOT / "test-results").glob("junit-*.xml")))
+    cache_state = _load_test_index_cache(cache_path) if use_cache else {}
+    next_timings_cache: dict[str, object] = {}
     timings: dict[str, float] = {}
     for raw_path in timing_paths:
         path = raw_path if raw_path.is_absolute() else REPO_ROOT / raw_path
         if not path.exists():
             continue
-        loaded = _load_timing_file(path)
+        loaded = (
+            _load_timing_file_cached(
+                path,
+                cache_state=cache_state,
+                next_timings_cache=next_timings_cache,
+            )
+            if use_cache
+            else _load_timing_file(path)
+        )
         for test_path, seconds in loaded.items():
             timings[test_path] = timings.get(test_path, 0.0) + seconds
+    if use_cache and next_timings_cache != cache_state.get("timings"):
+        cache_state["timings"] = next_timings_cache
+        _write_test_index_cache(cache_path, cache_state)
     return timings
 
 
@@ -852,7 +957,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as exc:
         parser.exit(2, f"ga_regression_selector: {exc}\n")
 
-    timings = load_timings(args.timings)
+    timings = load_timings(
+        args.timings,
+        cache_path=Path(args.cache_path),
+        use_cache=not args.no_cache,
+    )
     result = build_selection(
         files,
         timings=timings,

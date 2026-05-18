@@ -262,6 +262,10 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - the compatibility matrix marks which public paths are validated versus only
   documented
 - service health gates expose JSON and Prometheus-compatible operator checks
+- ``tools/controlled_pilot_readiness_report.py --compact`` turns the
+  controlled-pilot boundary into an executable proof for service health,
+  persisted artifacts, public-bind controls, secret redaction, and explicit
+  failure modes
 - the release-decision page gates on the first-proof ``run_manifest.json``,
   resolves artifact/log/export roots through the shared connector path registry,
   imports external manifest evidence, applies artifact and KPI gates, and
@@ -278,7 +282,7 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
-That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+That supports a ``Production readiness`` score of ``3.2 / 5``. It is not scored
 higher because AGILab still does not provide production model serving, feature
 stores, online monitoring, drift detection, enterprise governance, or broad
 remote-topology certification.

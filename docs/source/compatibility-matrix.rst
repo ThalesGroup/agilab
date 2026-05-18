@@ -30,6 +30,7 @@ commands with:
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
    uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json
    uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/controlled_pilot_readiness_report.py --compact
 
 Current public matrix
 ---------------------
@@ -66,6 +67,13 @@ Current public matrix
      - ORCHESTRATE service controls and health gate
      - Start / status / health / stop operator flow and SLA thresholds
      - Does not certify every remote topology or deployment policy
+   * - Controlled-pilot readiness gate
+     - validated
+     - ``uv run python tools/controlled_pilot_readiness_report.py --compact``
+     - Service health, persisted artifacts, public-bind controls, secret
+       redaction, and explicit health failure modes for controlled pilots
+     - Not production MLOps certification; no feature-store, online-monitoring,
+       drift-detection, enterprise-governance, or broad remote-topology claim
    * - Notebook quickstart
      - documented
      - ``src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb``

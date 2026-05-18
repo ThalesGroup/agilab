@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -220,16 +221,21 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert all("--append" not in command.argv for command in agi_gui_chunks)
     assert all("--parallel-mode" in command.argv for command in agi_gui_chunks)
     assert "test-results/coverage-agi-gui-support.db.*" in agi_gui_commands[0].remove_paths
+    assert "test-results/coverage-agi-gui-support.manifest.json" in agi_gui_commands[0].remove_paths
     assert "test-results/coverage-agi-gui-pipeline.db.*" in agi_gui_commands[1].remove_paths
+    assert "test-results/coverage-agi-gui-pipeline.manifest.json" in agi_gui_commands[1].remove_paths
     assert "--data-file=test-results/coverage-agi-gui-support.db" in agi_gui_commands[0].argv
+    assert "coverage_db_paths" in " ".join(agi_gui_commands[0].argv)
+    assert "test-results/coverage-agi-gui-support.manifest.json" in " ".join(agi_gui_commands[0].argv)
     agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
     assert "'coverage', 'combine'" in agi_gui_combine_argv
     assert "--keep" in agi_gui_combine_argv
     assert agi_gui_combine.env["COVERAGE_FILE"] == ".coverage.agi-gui"
-    assert "range(120)" in agi_gui_combine_argv
-    assert "parent.glob(base_path.name + '*')" in agi_gui_combine_argv
+    assert "Missing agi-gui coverage manifests" in agi_gui_combine_argv
+    assert "coverage_db_paths" in agi_gui_combine_argv
+    assert "range(120)" not in agi_gui_combine_argv
     assert "stat().st_size > 0" in agi_gui_combine_argv
-    assert "test-results/coverage-agi-gui-pipeline.db" in agi_gui_combine_argv
+    assert "test-results/coverage-agi-gui-pipeline.manifest.json" in agi_gui_combine_argv
     assert agi_gui_timing.timeout_seconds == 60
     assert "tools/coverage_timing_report.py" in agi_gui_timing.argv
     assert "test-results/junit-agi-gui-*.xml" in agi_gui_timing.argv
@@ -481,6 +487,40 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "hf-flight-telemetry-visual-smoke" in hf_visual_smoke_robot.argv
     assert "screenshots/hf-visual-smoke-robot" in hf_visual_smoke_robot.argv
     assert _has_with_dependency(hf_visual_smoke_robot.argv, "playwright")
+
+
+def test_agi_gui_coverage_chunk_wrapper_writes_manifest(tmp_path) -> None:
+    module = _load_module()
+    data_file = tmp_path / "coverage-agi-gui-demo.db"
+    db_fragment = Path(f"{data_file}.worker")
+    junit_path = tmp_path / "junit-agi-gui-demo.xml"
+    manifest_path = tmp_path / "coverage-agi-gui-demo.manifest.json"
+    chunk_code = module._agi_gui_coverage_chunk_code(
+        "demo",
+        data_file.as_posix(),
+        junit_path.as_posix(),
+        manifest_path.as_posix(),
+    )
+    inner_code = (
+        "from pathlib import Path\n"
+        f"Path({db_fragment.as_posix()!r}).write_text('coverage fragment', encoding='utf-8')\n"
+        f"Path({junit_path.as_posix()!r}).write_text('<testsuite/>', encoding='utf-8')\n"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", chunk_code, "-c", inner_code],
+        check=False,
+        cwd=tmp_path,
+    )
+
+    assert completed.returncode == 0
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema"] == module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA
+    assert manifest["chunk"] == "demo"
+    assert manifest["returncode"] == 0
+    assert manifest["data_file"] == data_file.as_posix()
+    assert manifest["junit_path"] == junit_path.as_posix()
+    assert manifest["coverage_db_paths"] == [db_fragment.as_posix()]
 
 
 def test_badges_profile_accepts_component_filter() -> None:

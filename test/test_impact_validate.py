@@ -208,6 +208,47 @@ def test_build_test_index_matches_exact_and_prefix_tests(tmp_path: Path) -> None
     ]
 
 
+def test_test_index_signature_ignores_test_content_changes(tmp_path: Path) -> None:
+    module = _load_module()
+    (tmp_path / "test").mkdir()
+    test_path = tmp_path / "test" / "test_demo.py"
+    test_path.write_text("def test_demo():\n    assert True\n", encoding="utf-8")
+
+    first = module._test_index_signature(repo=tmp_path)
+
+    test_path.write_text("def test_demo():\n    assert 1 + 1 == 2\n", encoding="utf-8")
+    second = module._test_index_signature(repo=tmp_path)
+
+    assert second == first
+
+
+def test_cached_test_index_reuses_signature_paths_without_rescan(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    cache_path = tmp_path / "impact-cache.json"
+    signature = [
+        {"path": "test", "state": "root", "exists": True},
+        {"path": "test/test_demo.py", "state": "test-file"},
+        {"path": "test/test_demo_extra.py", "state": "test-file"},
+    ]
+
+    monkeypatch.setattr(
+        module,
+        "_discover_test_index_paths",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("signature paths should avoid rediscovery")
+        ),
+    )
+    index = module._build_cached_test_index(cache_path=cache_path, signature=signature)
+
+    assert index.tests_for_stem("demo") == [
+        "test/test_demo.py",
+        "test/test_demo_extra.py",
+    ]
+
+
 def test_cached_test_index_reuses_unchanged_signature(
     tmp_path: Path, monkeypatch
 ) -> None:

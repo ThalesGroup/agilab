@@ -72,6 +72,15 @@ jobs:
             --scenario isolated-project-import-sidebar \
             --scenario isolated-project-rename-sidebar \
             --scenario isolated-settings-page \
+            --scenario isolated-browser-error-core-pages \
+            --scenario isolated-above-fold-core-pages \
+            --scenario isolated-layout-integrity-desktop \
+            --scenario isolated-keyboard-focus-core-pages \
+            --scenario isolated-fresh-session-core-pages \
+            --scenario isolated-browser-history \
+            --scenario isolated-mobile-core-pages \
+            --scenario isolated-layout-integrity-mobile \
+            --scenario isolated-accessibility-core-pages \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \
             --widget-timeout "${robot_widget_timeout}" \

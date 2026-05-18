@@ -280,6 +280,7 @@ def test_cache_helpers_reject_invalid_shapes(tmp_path: Path) -> None:
         "schema": module.TEST_INDEX_CACHE_SCHEMA,
         "entries": {},
         "test_files": {},
+        "timings": {},
     }
 
     cache_path.write_text(
@@ -336,14 +337,15 @@ def test_module_to_test_path_handles_empty_and_classname_fallback(
 def test_load_json_timings_accepts_nested_tests_dict(tmp_path: Path) -> None:
     module = _load_module()
     json_path = tmp_path / "timings.json"
+    cache_path = tmp_path / "selector-cache.json"
     json_path.write_text(
         json.dumps({"tests": {"test/test_a.py": 1.5, "test/test_b.py": "slow"}}),
         encoding="utf-8",
     )
 
-    assert module.load_timings(["missing.xml", str(json_path)]) == {
-        "test/test_a.py": 1.5
-    }
+    assert module.load_timings(
+        ["missing.xml", str(json_path)], cache_path=cache_path
+    ) == {"test/test_a.py": 1.5}
 
 
 def test_filesystem_estimate_helpers_handle_missing_paths(
@@ -417,6 +419,7 @@ def test_load_timings_accepts_json_and_junit(tmp_path: Path) -> None:
     module = _load_module()
     json_path = tmp_path / "timings.json"
     junit_path = tmp_path / "junit.xml"
+    cache_path = tmp_path / "selector-cache.json"
     json_path.write_text(json.dumps({"test/test_pipeline_ai.py": 1.5}), encoding="utf-8")
     junit_path.write_text(
         """<?xml version="1.0" encoding="utf-8"?>
@@ -430,19 +433,68 @@ def test_load_timings_accepts_json_and_junit(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    timings = module.load_timings([str(json_path), str(junit_path)])
+    timings = module.load_timings(
+        [str(json_path), str(junit_path)], cache_path=cache_path
+    )
 
     assert timings["test/test_pipeline_ai.py"] == 2.25
+
+
+def test_load_timings_reuses_cached_file_parse(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    json_path = tmp_path / "timings.json"
+    cache_path = tmp_path / "selector-cache.json"
+    json_path.write_text(json.dumps({"test/test_pipeline_ai.py": 1.5}), encoding="utf-8")
+
+    first = module.load_timings([str(json_path)], cache_path=cache_path)
+
+    monkeypatch.setattr(
+        module,
+        "_load_timing_file",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("unchanged cached timing file should not be reparsed")
+        ),
+    )
+    second = module.load_timings([str(json_path)], cache_path=cache_path)
+
+    assert second == first == {"test/test_pipeline_ai.py": 1.5}
+
+
+def test_load_timings_invalidates_changed_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    json_path = tmp_path / "timings.json"
+    cache_path = tmp_path / "selector-cache.json"
+    json_path.write_text(json.dumps({"test/test_pipeline_ai.py": 1.5}), encoding="utf-8")
+
+    module.load_timings([str(json_path)], cache_path=cache_path)
+    json_path.write_text(
+        json.dumps({"test/test_pipeline_ai.py": 1.5, "test/test_pipeline_openai.py": 2.0}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_timing_file",
+        lambda _path: {"test/test_pipeline_openai.py": 2.75},
+    )
+
+    assert module.load_timings([str(json_path)], cache_path=cache_path) == {
+        "test/test_pipeline_openai.py": 2.75
+    }
 
 
 def test_load_timings_ignores_unreadable_files(tmp_path: Path, capsys) -> None:
     module = _load_module()
     json_path = tmp_path / "timings.json"
     bad_junit_path = tmp_path / "bad-junit.xml"
+    cache_path = tmp_path / "selector-cache.json"
     json_path.write_text(json.dumps({"test/test_pipeline_ai.py": 1.5}), encoding="utf-8")
     bad_junit_path.write_text("<testsuites></testsuites><junk>", encoding="utf-8")
 
-    timings = module.load_timings([str(json_path), str(bad_junit_path)])
+    timings = module.load_timings(
+        [str(json_path), str(bad_junit_path)], cache_path=cache_path
+    )
 
     assert timings == {"test/test_pipeline_ai.py": 1.5}
     assert "ignoring unreadable timings" in capsys.readouterr().err
@@ -672,7 +724,7 @@ def test_main_human_output_and_run_return_code(capsys, monkeypatch) -> None:
         command=("pytest", "test/test_pipeline_ai.py"),
         reasons={"test/test_pipeline_ai.py": ("token overlap",)},
     )
-    monkeypatch.setattr(module, "load_timings", lambda _paths: {})
+    monkeypatch.setattr(module, "load_timings", lambda _paths, **_kwargs: {})
     monkeypatch.setattr(module, "build_selection", lambda *_args, **_kwargs: result)
     monkeypatch.setattr(
         module.subprocess,

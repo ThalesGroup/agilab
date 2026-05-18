@@ -36,6 +36,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
         "production_readiness_workflow_profile",
         "compatibility_matrix_validated_paths",
         "service_health_json_prometheus",
+        "controlled_pilot_readiness_gate",
         "release_decision_promotion_export",
         "security_disclosure_hardening",
         "security_adoption_strict_gate",
@@ -57,12 +58,34 @@ def test_build_report_includes_shared_adoption_hardening_controls() -> None:
         "profile_supply_chain_scan_gate",
         "public_ui_bind_guard",
         "cluster_share_fail_fast",
+        "controlled_pilot_readiness_gate",
         "production_boundary_docs",
     }:
         check = checks[check_id]
         assert check["status"] == "pass"
         assert check["evidence"]
-        assert check["details"]["missing"] == {}
+        if "missing" in check["details"]:
+            assert check["details"]["missing"] == {}
+
+
+def test_controlled_pilot_readiness_gate_supports_score_movement() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(
+        check for check in report["checks"] if check["id"] == "controlled_pilot_readiness_gate"
+    )
+
+    assert report["supported_score"] == "3.2 / 5"
+    assert check["status"] == "pass"
+    assert check["details"]["supported_score"] == "3.2 / 5"
+    assert set(check["details"]["check_ids"]) >= {
+        "service_health_execution",
+        "service_failure_modes",
+        "persisted_artifact_contract",
+        "public_bind_and_secret_boundary",
+        "compatibility_matrix_entry",
+    }
 
 
 def test_docs_workflow_profile_check_reports_expected_sphinx_command() -> None:

@@ -1,6 +1,6 @@
 [metadata]
 version = 1
-updated = "2026-05-01"
+updated = "2026-05-18"
 owner = "manual-public-docs"
 purpose = "Public compatibility and demo-tour slice for AGILAB"
 notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, optional local/external run_manifest.json evidence ingestion, downloaded CI artifact-index ingestion, and the clean public package install smoke. Broader certification remains roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
@@ -48,6 +48,17 @@ python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
 scope = "start/status/health/stop actions, health gate thresholds, operator summary"
 limits = ["Does not certify every remote topology", "Does not replace deployment-specific ops validation"]
+
+[[entries]]
+id = "controlled-pilot-readiness-gate"
+label = "Controlled-pilot readiness gate"
+status = "validated"
+surface = "production-readiness evidence"
+primary_proof = "uv --preview-features extra-build-dependencies run python tools/controlled_pilot_readiness_report.py --compact"
+python = ["3.11+"]
+platforms = ["macOS", "Linux", "WSL2"]
+scope = "Controlled-pilot service health, persisted artifacts, public-bind controls, secret-redaction evidence, and explicit health failure modes"
+limits = ["Not production MLOps certification", "Does not provide feature stores, online monitoring, drift detection, enterprise governance, or broad remote-topology certification"]
 
 [[entries]]
 id = "notebook-quickstart"
