@@ -190,14 +190,22 @@ def resolve_auth_code(otp_code: str | None, totp_secret: str | None) -> str | No
     return None
 
 
+def _rotating_totp_secret(otp_code: str | None, totp_secret: str | None) -> str | None:
+    explicit = (otp_code or os.environ.get("PYPI_RELEASE_PRUNE_OTP") or "").strip()
+    if explicit:
+        return None
+    secret = (totp_secret or os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
+    return secret or None
+
+
 def _redact_auth_code(output: str, auth_code: str | None) -> str:
     if auth_code:
         output = output.replace(auth_code, "***")
     return output
 
 
-def _fresh_totp_code(previous: str | None) -> str | None:
-    secret = (os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
+def _fresh_totp_code(previous: str | None, *, secret: str | None = None) -> str | None:
+    secret = (secret or os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
     if not secret:
         return previous
     deadline = time.time() + 35
@@ -377,6 +385,7 @@ def delete_release_via_pypi_web(
     username: str,
     password: str,
     auth_code: str | None = None,
+    totp_secret: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
     session_factory: Callable[[], Any] | None = None,
 ) -> None:
@@ -412,7 +421,7 @@ def delete_release_via_pypi_web(
 
         two_factor_prefix = f"{base_url}/account/two-factor/"
         if response.url.startswith(two_factor_prefix):
-            auth_code = _fresh_totp_code(auth_code)
+            auth_code = _fresh_totp_code(auth_code, secret=totp_secret)
             if auth_code is None:
                 raise RuntimeError(
                     "PyPI requested 2FA but no non-interactive code was available"
@@ -490,6 +499,7 @@ def delete_release(
     username: str,
     password: str,
     auth_code: str | None = None,
+    totp_secret: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
     verbose: bool = False,
 ) -> None:
@@ -550,6 +560,7 @@ def delete_release(
                 username=username,
                 password=password,
                 auth_code=auth_code,
+                totp_secret=totp_secret,
                 confirm_login_url_provider=confirm_login_url_provider,
             )
         except Exception as exc:
@@ -746,8 +757,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
 
         delete_blocked = False
+        rotating_totp_secret = _rotating_totp_secret(args.otp_code, args.totp_secret)
+        previous_auth_code: str | None = None
         for package, version in pending_deletes:
             print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
+            if rotating_totp_secret:
+                auth_code = _fresh_totp_code(
+                    previous_auth_code,
+                    secret=rotating_totp_secret,
+                )
+            else:
+                auth_code = resolve_auth_code(args.otp_code, args.totp_secret)
             try:
                 delete_release(
                     package=package,
@@ -755,10 +775,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     repo=args.repo,
                     username=username,
                     password=password,
-                    auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+                    auth_code=auth_code,
+                    totp_secret=rotating_totp_secret,
                     confirm_login_url_provider=confirm_provider,
                     verbose=args.verbose,
                 )
+                if rotating_totp_secret:
+                    previous_auth_code = generate_totp(rotating_totp_secret)
+                else:
+                    previous_auth_code = auth_code
             except SystemExit as exc:
                 if not args.allow_delete_failure_warning:
                     raise

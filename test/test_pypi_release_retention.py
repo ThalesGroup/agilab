@@ -189,6 +189,7 @@ def test_delete_release_falls_back_when_pypi_cleanup_cannot_parse_delete_form(mo
             "username": "maintainer",
             "password": "secret",
             "auth_code": "123456",
+            "totp_secret": None,
             "confirm_login_url_provider": None,
         }
     ]
@@ -430,6 +431,7 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
         username,
         password,
         auth_code=None,
+        totp_secret=None,
         confirm_login_url_provider=None,
         verbose=False,
     ):
@@ -466,6 +468,60 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
         ("agi-core", "2026.04.16", "maintainer", "secret", "123456"),
     ]
     assert '"success": true' in capsys.readouterr().out
+
+
+def test_main_rotates_totp_between_package_deletions(monkeypatch) -> None:
+    module = _load_module()
+    releases = {
+        "agilab": ["2026.04.16", "2026.05.17"],
+        "agi-core": ["2026.04.16", "2026.05.17"],
+    }
+    generated_codes = iter(["111111", "111111", "111111", "222222", "222222"])
+    deletes: list[tuple[str, str | None, str | None]] = []
+    sleeps = []
+
+    def fake_delete_release(
+        *,
+        package,
+        version,
+        repo,
+        username,
+        password,
+        auth_code=None,
+        totp_secret=None,
+        confirm_login_url_provider=None,
+        verbose=False,
+    ):
+        deletes.append((package, auth_code, totp_secret))
+        releases[package] = [item for item in releases[package] if item != version]
+
+    monkeypatch.setenv("PYPI_RELEASE_PRUNE_TOTP_SECRET", "seed")
+    monkeypatch.setattr(module, "generate_totp", lambda secret: next(generated_codes))
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
+    monkeypatch.setattr(module, "delete_release", fake_delete_release)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--package",
+            "agi-core",
+            "--protect-version",
+            "2026.05.17",
+            "--username",
+            "maintainer",
+            "--password",
+            "secret",
+            "--confirm-delete",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    assert status == 0
+    assert deletes == [("agilab", "111111", "seed"), ("agi-core", "222222", "seed")]
+    assert sleeps == [1]
 
 
 def test_main_blocks_when_cleanup_failure_remains(monkeypatch) -> None:
