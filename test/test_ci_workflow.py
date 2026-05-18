@@ -1,6 +1,5 @@
 import ast
 import importlib.util
-import shlex
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,22 +36,33 @@ def _load_workflow_parity_module():
     return module
 
 
-def _ui_robot_matrix_workflow_argv() -> list[str]:
-    lines = UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8").splitlines()
-    start = next(index for index, line in enumerate(lines) if "tools/agilab_widget_robot_matrix.py" in line)
-    fragments: list[str] = []
-    for line in lines[start:]:
+def _ui_robot_matrix_workflow_shards() -> dict[str, list[str]]:
+    shards: dict[str, list[str]] = {}
+    current_shard = ""
+    collecting = False
+    for line in UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        if stripped.startswith("| tee "):
-            break
-        fragments.append(stripped.removesuffix("\\").strip())
-    return shlex.split(" ".join(fragments))
+        if stripped.startswith("- shard:"):
+            current_shard = stripped.split(":", 1)[1].strip()
+            shards[current_shard] = []
+            collecting = False
+            continue
+        if current_shard and stripped == "scenarios: >-":
+            collecting = True
+            continue
+        if collecting:
+            if line.startswith("              ") and stripped:
+                shards[current_shard].append(stripped)
+                continue
+            collecting = False
+    assert shards
+    return shards
 
 
-def _ui_robot_matrix_parity_argv() -> list[str]:
+def _ui_robot_matrix_parity_commands():
     module = _load_workflow_parity_module()
     args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
-    return list(module._profile_commands(args)["ui-robot-matrix"][0].argv)
+    return list(module._profile_commands(args)["ui-robot-matrix"])
 
 
 def _option_values(argv: list[str], option: str) -> list[str]:
@@ -84,10 +94,39 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "widget_timeout": _ui_robot_matrix_option(argv, "--widget-timeout"),
         "json": "--json" in argv,
         "quiet_progress": "--quiet-progress" in argv,
+        "no_result_cache": "--no-result-cache" in argv,
         "output_dir": _single_option(argv, "--output-dir"),
         "screenshot_dir": _single_option(argv, "--screenshot-dir"),
         "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
     }
+
+
+def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
+    return {
+        shard: {
+            "script": True,
+            "scenarios": scenarios,
+            "apps": "all",
+            "timeout": "90",
+            "widget_timeout": "3",
+            "json": True,
+            "quiet_progress": True,
+            "no_result_cache": True,
+            "output_dir": f"test-results/ui-robot-matrix/{shard}",
+            "screenshot_dir": f"screenshots/ui-robot-matrix/{shard}",
+            "failure_bundle_dir": f"test-results/ui-robot-matrix/{shard}/failure-bundles",
+        }
+        for shard, scenarios in _ui_robot_matrix_workflow_shards().items()
+    }
+
+
+def _ui_robot_matrix_parity_contracts() -> dict[str, dict[str, object]]:
+    contracts: dict[str, dict[str, object]] = {}
+    for command in _ui_robot_matrix_parity_commands():
+        contract = _ui_robot_matrix_command_contract(list(command.argv))
+        shard = Path(str(contract["output_dir"])).name
+        contracts[shard] = contract
+    return contracts
 
 
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
@@ -149,50 +188,52 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "schedule:" in text
     assert "pull_request:" not in text
     assert "\n  push:" not in text
-    assert "all-builtin-isolated-core-pages:" in text
+    assert "ui-robot-matrix:" in text
+    assert "strategy:" in text
+    assert "fail-fast: false" in text
+    assert "- shard: core" in text
+    assert "- shard: state" in text
+    assert "- shard: quality" in text
+    assert "- shard: layout" in text
     assert "tools/agilab_widget_robot_matrix.py" in text
-    assert "--scenario isolated-core-pages" in text
-    assert "--scenario isolated-entry-and-app-pages" in text
-    assert "--scenario isolated-project-page" in text
-    assert "--scenario isolated-project-notebook-import" in text
-    assert "--scenario isolated-project-import-sidebar" in text
-    assert "--scenario isolated-project-rename-sidebar" in text
-    assert "--scenario isolated-settings-page" in text
-    assert "--scenario isolated-browser-error-core-pages" in text
-    assert "--scenario isolated-above-fold-core-pages" in text
-    assert "--scenario isolated-layout-integrity-desktop" in text
-    assert "--scenario isolated-keyboard-focus-core-pages" in text
-    assert "--scenario isolated-fresh-session-core-pages" in text
-    assert "--scenario isolated-browser-history" in text
-    assert "--scenario isolated-mobile-core-pages" in text
-    assert "--scenario isolated-layout-integrity-mobile" in text
-    assert "--scenario isolated-accessibility-core-pages" in text
+    for scenario in {
+        scenario
+        for scenarios in _ui_robot_matrix_workflow_shards().values()
+        for scenario in scenarios
+    }:
+        assert scenario in text
+    assert '"${scenario_args[@]}"' in text
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
     assert "--quiet-progress" in text
-    assert "--output-dir test-results/ui-robot-matrix" in text
-    assert "--screenshot-dir screenshots/ui-robot-matrix" in text
-    assert "--failure-bundle-dir test-results/ui-robot-matrix/failure-bundles" in text
+    assert "--no-result-cache" in text
+    assert 'result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"' in text
+    assert 'screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"' in text
+    assert 'failure_bundle_dir="${result_dir}/failure-bundles"' in text
+    assert '--output-dir "${result_dir}"' in text
+    assert '--screenshot-dir "${screenshot_dir}"' in text
+    assert '--failure-bundle-dir "${failure_bundle_dir}"' in text
     assert "tools/ui_robot_trend_report.py" in text
-    assert '--glob "test-results/ui-robot-matrix/*.ndjson"' in text
+    assert '--glob "${result_dir}/*.ndjson"' in text
+    assert "--max-total-seconds 2700" in text
     assert "--strict" in text
     assert "--strict-budget" in text
-    assert "--output test-results/ui-robot-matrix/trend-report.json" in text
-    assert "test-results/ui-robot-matrix/trend-report.txt" in text
+    assert '--output "${result_dir}/trend-report.json"' in text
+    assert '${result_dir}/trend-report.txt' in text
     assert 'trend_status="${PIPESTATUS[0]}"' in text
     assert 'exit "${trend_status}"' in text
-    assert "## UI robot trend" in text
+    assert "## UI robot trend (${ROBOT_SHARD})" in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
+    assert "ui-robot-matrix-${{ matrix.shard }}-${{ github.run_attempt }}" in text
+    assert "test-results/ui-robot-matrix/${{ matrix.shard }}/**" in text
+    assert "screenshots/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "AGILAB_DISABLE_BACKGROUND_SERVICES: \"1\"" in text
 
 
 def test_ui_robot_matrix_workflow_command_matches_local_workflow_parity() -> None:
-    workflow_contract = _ui_robot_matrix_command_contract(_ui_robot_matrix_workflow_argv())
-    parity_contract = _ui_robot_matrix_command_contract(_ui_robot_matrix_parity_argv())
-
-    assert workflow_contract == parity_contract
+    assert _ui_robot_matrix_workflow_contracts() == _ui_robot_matrix_parity_contracts()
 
 
 def test_root_conftest_keeps_streamlit_testing_import_lazy() -> None:
