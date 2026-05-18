@@ -96,6 +96,12 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--quiet-progress" in text
     assert "--output-dir test-results/ui-robot-matrix" in text
     assert "--screenshot-dir screenshots/ui-robot-matrix" in text
+    assert "--failure-bundle-dir test-results/ui-robot-matrix/failure-bundles" in text
+    assert "tools/ui_robot_trend_report.py" in text
+    assert '--glob "test-results/ui-robot-matrix/*.ndjson"' in text
+    assert "--output test-results/ui-robot-matrix/trend-report.json" in text
+    assert "test-results/ui-robot-matrix/trend-report.txt" in text
+    assert "## UI robot trend" in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text

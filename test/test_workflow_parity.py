@@ -35,6 +35,22 @@ def _load_module():
     return module
 
 
+def _cache_args(cache_path: Path, *, no_result_cache: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        profile=["skills"],
+        components=None,
+        skills=None,
+        app_path=None,
+        worker_copy=None,
+        keep_going=False,
+        result_cache_path=str(cache_path),
+        no_result_cache=no_result_cache,
+        select_ui_robot_profiles=False,
+        changed_file=[],
+        changed_base="",
+    )
+
+
 def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
     chunks: dict[str, list[str]] = {}
     current_chunk: str | None = None
@@ -466,6 +482,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(hf_visual_smoke_robot.argv, "playwright")
 
 
+def test_badges_profile_accepts_component_filter() -> None:
+    module = _load_module()
+
+    badges = module._badges_profile(["agilab", "agi-env"])
+
+    assert badges[0].argv[-3:] == ["--components", "agilab", "agi-env"]
+
+
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     module = _load_module()
     args = SimpleNamespace(profile=None)
@@ -689,6 +713,160 @@ def test_run_command_executes_with_env_and_cwd(tmp_path, monkeypatch) -> None:
     assert (workdir / "out.txt").read_text(encoding="utf-8") == "ok"
 
 
+def test_run_profiles_reuses_cached_success_without_executing(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+    spec = module.CommandSpec(
+        label="cached success",
+        argv=[sys.executable, "-c", "raise SystemExit(9)"],
+        timeout_seconds=10,
+    )
+    commands_by_profile = {"skills": [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
+    monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
+    args = _cache_args(cache_path)
+    descriptions = module._profile_descriptions()
+    cache_key = module._run_result_cache_key(
+        ["skills"],
+        commands_by_profile,
+        descriptions,
+        changed_files=[],
+        cache_path=cache_path,
+    )
+    cached_result = module.ProfileResult(
+        profile="skills",
+        description=descriptions["skills"],
+        success=True,
+        commands=[
+            module.CommandResult(
+                label=spec.label,
+                argv=spec.argv,
+                returncode=0,
+                duration_seconds=12.0,
+                cwd=str(module.REPO_ROOT),
+                env={},
+            )
+        ],
+    )
+    module._store_run_results(
+        cache_path,
+        module._empty_result_cache(),
+        cache_key,
+        ["skills"],
+        [cached_result],
+    )
+
+    results = module.run_profiles(["skills"], args=args)
+
+    assert results[0].success is True
+    assert results[0].commands[0].returncode == 0
+    assert results[0].commands[0].duration_seconds == 0.0
+
+
+def test_run_profiles_records_successful_result_cache(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+    spec = module.CommandSpec(
+        label="quick success",
+        argv=[sys.executable, "-c", "pass"],
+        timeout_seconds=10,
+    )
+    commands_by_profile = {"skills": [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
+    monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
+    args = _cache_args(cache_path)
+
+    results = module.run_profiles(["skills"], args=args)
+
+    assert results[0].success is True
+    cache_key = module._run_result_cache_key(
+        ["skills"],
+        commands_by_profile,
+        module._profile_descriptions(),
+        changed_files=[],
+        cache_path=cache_path,
+    )
+    cached = module._cached_run_results(module._load_result_cache(cache_path), cache_key, ["skills"])
+    assert cached is not None
+    assert cached[0].commands[0].label == "quick success"
+
+
+def test_run_profiles_does_not_cache_failures(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+    spec = module.CommandSpec(
+        label="quick failure",
+        argv=[sys.executable, "-c", "raise SystemExit(7)"],
+        timeout_seconds=10,
+    )
+    commands_by_profile = {"skills": [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
+    monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
+    args = _cache_args(cache_path)
+
+    results = module.run_profiles(["skills"], args=args)
+
+    assert results[0].success is False
+    cache_key = module._run_result_cache_key(
+        ["skills"],
+        commands_by_profile,
+        module._profile_descriptions(),
+        changed_files=[],
+        cache_path=cache_path,
+    )
+    cached = module._cached_run_results(module._load_result_cache(cache_path), cache_key, ["skills"])
+    assert cached is None
+
+
+def test_run_profiles_no_result_cache_bypasses_cached_success(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+    spec = module.CommandSpec(
+        label="uncached failure",
+        argv=[sys.executable, "-c", "raise SystemExit(5)"],
+        timeout_seconds=10,
+    )
+    commands_by_profile = {"skills": [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
+    monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
+    descriptions = module._profile_descriptions()
+    cache_key = module._run_result_cache_key(
+        ["skills"],
+        commands_by_profile,
+        descriptions,
+        changed_files=[],
+        cache_path=cache_path,
+    )
+    module._store_run_results(
+        cache_path,
+        module._empty_result_cache(),
+        cache_key,
+        ["skills"],
+        [
+            module.ProfileResult(
+                profile="skills",
+                description=descriptions["skills"],
+                success=True,
+                commands=[
+                    module.CommandResult(
+                        label=spec.label,
+                        argv=spec.argv,
+                        returncode=0,
+                        duration_seconds=0.1,
+                        cwd=str(module.REPO_ROOT),
+                        env={},
+                    )
+                ],
+            )
+        ],
+    )
+
+    results = module.run_profiles(["skills"], args=_cache_args(cache_path, no_result_cache=True))
+
+    assert results[0].success is False
+    assert results[0].commands[0].returncode == 5
+
+
 def test_run_profiles_stops_on_first_failure_by_default() -> None:
     module = _load_module()
     args = SimpleNamespace(
@@ -717,6 +895,128 @@ def test_run_profiles_stops_on_first_failure_by_default() -> None:
     assert [result.profile for result in results] == ["skills"]
     assert seen == ["validate codex skills"]
     assert results[0].success is False
+
+
+def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "RESULT_CACHE_INPUT_GLOBS", ("present.txt", "*.yml", "missing.txt"))
+    monkeypatch.setattr(module, "RESULT_CACHE_HASH_LIMIT_BYTES", 128)
+    (tmp_path / "present.txt").write_text("present", encoding="utf-8")
+    (tmp_path / "workflow.yml").write_text("workflow", encoding="utf-8")
+    changed = tmp_path / "changed.txt"
+    changed.write_text("changed", encoding="utf-8")
+    outside = tmp_path.parent / "outside-workflow-parity.txt"
+    outside.write_text("outside", encoding="utf-8")
+    cache_path = tmp_path / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
+    args = SimpleNamespace(
+        no_result_cache=False,
+        result_cache_path=str(cache_path),
+        changed_file=[changed.as_posix()],
+        changed_base="origin/main",
+        select_ui_robot_profiles=True,
+    )
+
+    assert module._result_cache_enabled(args, module._run_command) is True
+    assert module._result_cache_enabled(SimpleNamespace(no_result_cache=True), module._run_command) is False
+    assert module._result_cache_enabled(args, lambda _spec: None) is False
+    assert module._result_cache_path(args) == cache_path
+    assert module._result_cache_changed_files(args) == [changed.as_posix()]
+    assert module._repo_relative_or_absolute(tmp_path / "present.txt") == "present.txt"
+    assert module._repo_relative_or_absolute(outside) == outside.as_posix()
+
+    input_paths = module._result_cache_input_paths([changed.as_posix(), cache_path.as_posix()], cache_path)
+
+    assert input_paths == ["present.txt", "workflow.yml", "missing.txt", "changed.txt"]
+    signatures = module._result_cache_fingerprints([changed.as_posix()], cache_path)
+    signatures_by_path = {signature["path"]: signature for signature in signatures}
+    assert signatures_by_path["present.txt"]["state"] == "file"
+    assert "sha256" in signatures_by_path["present.txt"]
+    assert signatures_by_path["missing.txt"]["state"] == "missing"
+    assert module._file_sha256(tmp_path / "present.txt") == signatures_by_path["present.txt"]["sha256"]
+
+    command_spec = module.CommandSpec(label="cacheable", argv=["python", "-V"], env={"DEMO": "1"})
+    commands_by_profile = {"skills": [command_spec]}
+    descriptions = {"skills": "Validate skills"}
+    monkeypatch.setattr(module, "_git_head", lambda: "abc123")
+    monkeypatch.setenv("CI", "true")
+
+    key = module._run_result_cache_key(
+        ["skills"],
+        commands_by_profile,
+        descriptions,
+        changed_files=[changed.as_posix()],
+        cache_path=cache_path,
+    )
+
+    assert len(key) == 64
+    result = module.ProfileResult(
+        profile="skills",
+        description="Validate skills",
+        success=True,
+        commands=[
+            module.CommandResult(
+                label="cacheable",
+                argv=["python", "-V"],
+                returncode=0,
+                duration_seconds=3.5,
+                cwd=str(tmp_path),
+                env={"DEMO": "1"},
+            )
+        ],
+    )
+    state = module._empty_result_cache()
+    module._store_run_results(cache_path, state, key, ["skills"], [result])
+
+    loaded = module._load_result_cache(cache_path)
+    cached = module._cached_run_results(loaded, key, ["skills"])
+
+    assert loaded["schema"] == module.RESULT_CACHE_SCHEMA
+    assert cached is not None
+    assert cached[0].profile == "skills"
+    assert cached[0].success is True
+    assert cached[0].commands[0].duration_seconds == 0.0
+    assert cached[0].commands[0].env == {"DEMO": "1"}
+
+
+def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "RESULT_CACHE_MAX_ENTRIES", 2)
+    cache_path = tmp_path / "workflow_parity_results.json"
+
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text("{bad json", encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text(json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text(json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}), encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+
+    assert module._command_result_from_cache(None) is None
+    assert module._command_result_from_cache({"label": "bad", "argv": [1], "env": {}, "returncode": 0, "cwd": "."}) is None
+    assert module._command_result_from_cache({"label": "bad", "argv": [], "env": [], "returncode": 0, "cwd": "."}) is None
+    assert module._command_result_from_cache({"label": "bad", "argv": [], "env": {}, "returncode": "0", "cwd": "."}) is None
+    assert module._profile_result_from_cache(None) is None
+    assert module._profile_result_from_cache({"profile": "skills", "description": "desc", "success": True, "commands": {}}) is None
+    assert module._profile_result_from_cache(
+        {"profile": "skills", "description": "desc", "success": True, "commands": [{"label": "bad"}]}
+    ) is None
+    assert module._cached_run_results({"entries": []}, "key", ["skills"]) is None
+    assert module._cached_run_results({"entries": {"key": {"profiles": ["docs"], "results": []}}}, "key", ["skills"]) is None
+    assert module._cached_run_results({"entries": {"key": {"profiles": ["skills"], "results": {}}}}, "key", ["skills"]) is None
+
+    entries = {
+        "old": {"stored_at": 1.0},
+        "middle": {"stored_at": 2.0},
+        "new": {"stored_at": 3.0},
+    }
+    module._prune_result_cache(entries)
+
+    assert set(entries) == {"middle", "new"}
+
+    bad_state = {"schema": module.RESULT_CACHE_SCHEMA, "entries": []}
+    module._write_result_cache(cache_path, bad_state)
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["entries"] == []
 
 
 def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:

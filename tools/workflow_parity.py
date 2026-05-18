@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -16,6 +17,28 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+RESULT_CACHE_SCHEMA = "agilab-workflow-parity-result-cache-v1"
+DEFAULT_RESULT_CACHE_PATH = REPO_ROOT / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
+RESULT_CACHE_MAX_ENTRIES = 256
+RESULT_CACHE_HASH_LIMIT_BYTES = 10 * 1024 * 1024
+RESULT_CACHE_INPUT_GLOBS = (
+    "pyproject.toml",
+    "uv.lock",
+    "tools/workflow_parity.py",
+    "tools/agilab_dev.py",
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+)
+RESULT_CACHE_ENV_KEYS = (
+    "AGILAB_DEFAULT_OPENAI_MODEL",
+    "AGILAB_FORCE_APP_PAGE_SOURCE",
+    "APPS_REPOSITORY",
+    "CI",
+    "PYTHONPATH",
+    "UV_PROJECT_ENVIRONMENT",
+    "UV_RUN_RECURSION_DEPTH",
+    "VIRTUAL_ENV",
+)
 AGI_GUI_COVERAGE_CHUNKS = (
     "support",
     "pipeline",
@@ -152,6 +175,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--keep-going",
         action="store_true",
         help="Continue running later profiles even if one command fails.",
+    )
+    parser.add_argument(
+        "--result-cache-path",
+        default=str(DEFAULT_RESULT_CACHE_PATH),
+        help=(
+            "Path for the local successful-result cache. The cache is keyed by "
+            "selected profiles, command specs, workflow/tool fingerprints, and the dirty tree."
+        ),
+    )
+    parser.add_argument(
+        "--no-result-cache",
+        action="store_true",
+        help="Disable reuse and storage of successful workflow parity results.",
     )
     parser.add_argument(
         "--select-ui-robot-profiles",
@@ -1892,6 +1928,264 @@ def _run_command(spec: CommandSpec) -> CommandResult:
     )
 
 
+def _result_cache_enabled(args: argparse.Namespace, runner: Callable[[CommandSpec], CommandResult]) -> bool:
+    return runner is _run_command and not bool(getattr(args, "no_result_cache", False))
+
+
+def _result_cache_path(args: argparse.Namespace) -> Path:
+    configured = getattr(args, "result_cache_path", None) or DEFAULT_RESULT_CACHE_PATH
+    return Path(configured).expanduser()
+
+
+def _git_head() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _result_cache_changed_files(args: argparse.Namespace) -> list[str]:
+    explicit = list(getattr(args, "changed_file", []) or [])
+    if explicit:
+        return explicit
+    base = str(getattr(args, "changed_base", "") or "") if getattr(args, "select_ui_robot_profiles", False) else ""
+    return _git_changed_files(base)
+
+
+def _repo_relative_or_absolute(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _result_cache_input_paths(changed_files: Sequence[str], cache_path: Path) -> list[str]:
+    paths: list[str] = []
+    seen: set[str] = set()
+    cache_marker = _repo_relative_or_absolute(cache_path)
+    for pattern in RESULT_CACHE_INPUT_GLOBS:
+        if any(token in pattern for token in "*?["):
+            expanded = [path.relative_to(REPO_ROOT).as_posix() for path in sorted(REPO_ROOT.glob(pattern))]
+            candidates = expanded or [pattern]
+        else:
+            candidates = [pattern]
+        for candidate in candidates:
+            if candidate not in seen:
+                paths.append(candidate)
+                seen.add(candidate)
+    for changed_file in sorted(changed_files):
+        path = Path(changed_file)
+        candidate = _repo_relative_or_absolute(path) if path.is_absolute() else path.as_posix()
+        if candidate == cache_marker or candidate in seen:
+            continue
+        paths.append(candidate)
+        seen.add(candidate)
+    return paths
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_signature(path_name: str) -> dict[str, object]:
+    path = Path(path_name)
+    target = path if path.is_absolute() else REPO_ROOT / path
+    label = _repo_relative_or_absolute(target) if target.is_absolute() else path.as_posix()
+    try:
+        stat = target.stat()
+    except OSError as exc:
+        return {"path": label, "state": "missing", "error": exc.__class__.__name__}
+    signature: dict[str, object] = {
+        "path": label,
+        "state": "directory" if target.is_dir() else "file",
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+    if target.is_file() and stat.st_size <= RESULT_CACHE_HASH_LIMIT_BYTES:
+        try:
+            signature["sha256"] = _file_sha256(target)
+        except OSError as exc:
+            signature["sha256_error"] = exc.__class__.__name__
+    return signature
+
+
+def _result_cache_fingerprints(changed_files: Sequence[str], cache_path: Path) -> list[dict[str, object]]:
+    return [_file_signature(path) for path in _result_cache_input_paths(changed_files, cache_path)]
+
+
+def _run_result_cache_key(
+    profile_names: Sequence[str],
+    commands_by_profile: dict[str, list[CommandSpec]],
+    descriptions: dict[str, str],
+    *,
+    changed_files: Sequence[str],
+    cache_path: Path,
+) -> str:
+    selected = list(profile_names)
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "git_head": _git_head(),
+        "profiles": selected,
+        "descriptions": {profile: descriptions[profile] for profile in selected},
+        "commands": {
+            profile: [asdict(spec) for spec in commands_by_profile[profile]]
+            for profile in selected
+        },
+        "inputs": _result_cache_fingerprints(changed_files, cache_path),
+        "python": {
+            "executable": sys.executable,
+            "version": sys.version,
+        },
+        "env": {key: os.environ[key] for key in RESULT_CACHE_ENV_KEYS if key in os.environ},
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _empty_result_cache() -> dict[str, object]:
+    return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+
+
+def _load_result_cache(cache_path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return _empty_result_cache()
+    if not isinstance(payload, dict) or payload.get("schema") != RESULT_CACHE_SCHEMA:
+        return _empty_result_cache()
+    if not isinstance(payload.get("entries"), dict):
+        return _empty_result_cache()
+    return payload
+
+
+def _command_result_from_cache(payload: object) -> CommandResult | None:
+    if not isinstance(payload, dict):
+        return None
+    argv = payload.get("argv")
+    env = payload.get("env")
+    if not isinstance(payload.get("label"), str) or not isinstance(argv, list) or not isinstance(env, dict):
+        return None
+    if not all(isinstance(arg, str) for arg in argv) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in env.items()
+    ):
+        return None
+    returncode = payload.get("returncode")
+    cwd = payload.get("cwd")
+    if not isinstance(returncode, int) or not isinstance(cwd, str):
+        return None
+    return CommandResult(
+        label=payload["label"],
+        argv=list(argv),
+        returncode=returncode,
+        duration_seconds=0.0,
+        cwd=cwd,
+        env=dict(env),
+    )
+
+
+def _profile_result_from_cache(payload: object) -> ProfileResult | None:
+    if not isinstance(payload, dict):
+        return None
+    profile = payload.get("profile")
+    description = payload.get("description")
+    success = payload.get("success")
+    commands_payload = payload.get("commands")
+    if not isinstance(profile, str) or not isinstance(description, str) or not isinstance(success, bool):
+        return None
+    if not isinstance(commands_payload, list):
+        return None
+    commands: list[CommandResult] = []
+    for command_payload in commands_payload:
+        command = _command_result_from_cache(command_payload)
+        if command is None:
+            return None
+        commands.append(command)
+    return ProfileResult(profile=profile, description=description, success=success, commands=commands)
+
+
+def _cached_run_results(
+    cache_state: dict[str, object],
+    cache_key: str,
+    profile_names: Sequence[str],
+) -> list[ProfileResult] | None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return None
+    entry = entries.get(cache_key)
+    if not isinstance(entry, dict) or entry.get("profiles") != list(profile_names):
+        return None
+    results_payload = entry.get("results")
+    if not isinstance(results_payload, list):
+        return None
+    results: list[ProfileResult] = []
+    for result_payload in results_payload:
+        result = _profile_result_from_cache(result_payload)
+        if result is None:
+            return None
+        results.append(result)
+    return results
+
+
+def _prune_result_cache(entries: dict[str, object]) -> None:
+    if len(entries) <= RESULT_CACHE_MAX_ENTRIES:
+        return
+
+    def _stored_at(item: tuple[str, object]) -> float:
+        value = item[1]
+        if not isinstance(value, dict):
+            return 0.0
+        stored_at = value.get("stored_at", 0.0)
+        return float(stored_at) if isinstance(stored_at, (int, float)) else 0.0
+
+    keep = {
+        key
+        for key, _value in sorted(entries.items(), key=_stored_at, reverse=True)[:RESULT_CACHE_MAX_ENTRIES]
+    }
+    for key in list(entries):
+        if key not in keep:
+            entries.pop(key, None)
+
+
+def _write_result_cache(cache_path: Path, cache_state: dict[str, object]) -> None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return
+    _prune_result_cache(entries)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = cache_path.with_name(f"{cache_path.name}.tmp")
+    temp_path.write_text(json.dumps(cache_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.replace(cache_path)
+
+
+def _store_run_results(
+    cache_path: Path,
+    cache_state: dict[str, object],
+    cache_key: str,
+    profile_names: Sequence[str],
+    results: Sequence[ProfileResult],
+) -> None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return
+    entries[cache_key] = {
+        "profiles": list(profile_names),
+        "stored_at": time.time(),
+        "results": [asdict(result) for result in results],
+    }
+    _write_result_cache(cache_path, cache_state)
+
+
 def run_profiles(
     profile_names: Sequence[str],
     *,
@@ -1900,6 +2194,28 @@ def run_profiles(
 ) -> list[ProfileResult]:
     commands_by_profile = _profile_commands(args)
     descriptions = _profile_descriptions()
+    cache_path: Path | None = None
+    cache_state: dict[str, object] | None = None
+    cache_key = ""
+    cache_enabled = _result_cache_enabled(args, runner)
+    if cache_enabled:
+        cache_path = _result_cache_path(args)
+        cache_state = _load_result_cache(cache_path)
+        cache_key = _run_result_cache_key(
+            profile_names,
+            commands_by_profile,
+            descriptions,
+            changed_files=_result_cache_changed_files(args),
+            cache_path=cache_path,
+        )
+        cached_results = _cached_run_results(cache_state, cache_key, profile_names)
+        if cached_results is not None:
+            print(
+                f"[workflow-parity] reused cached successful result for: {', '.join(profile_names)}",
+                file=sys.stderr,
+            )
+            return cached_results
+
     results: list[ProfileResult] = []
 
     for profile in profile_names:
@@ -1921,6 +2237,8 @@ def run_profiles(
         )
         if not success and not args.keep_going:
             break
+    if cache_enabled and cache_path is not None and cache_state is not None and all(result.success for result in results):
+        _store_run_results(cache_path, cache_state, cache_key, profile_names, results)
     return results
 
 
