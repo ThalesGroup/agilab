@@ -293,10 +293,10 @@ def test_repository_knowledge_record_cache_invalidates_changed_files(tmp_path: P
 
     first_records = module._records(repo_root, record_cache_path=cache_path)
     first_record = next(record for record in first_records if record["path"] == "src/agilab/module.py")
+    original_stat = module_path.stat()
 
     module_path.write_text('"""Two."""\nVALUE = 1\n', encoding="utf-8")
-    stat_result = module_path.stat()
-    os.utime(module_path, ns=(stat_result.st_atime_ns + 1_000_000, stat_result.st_mtime_ns + 1_000_000))
+    os.utime(module_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
 
     second_records = module._records(repo_root, record_cache_path=cache_path)
     second_record = next(record for record in second_records if record["path"] == "src/agilab/module.py")
@@ -304,6 +304,23 @@ def test_repository_knowledge_record_cache_invalidates_changed_files(tmp_path: P
     assert first_record["docstring"] == "One."
     assert second_record["docstring"] == "Two."
     assert second_record["sha256"] != first_record["sha256"]
+
+
+def test_repository_knowledge_relative_paths_accept_symlinked_repo_root(tmp_path: Path) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_symlink_root_module")
+    repo_root = tmp_path / "repo"
+    module_path = repo_root / "src" / "agilab" / "module.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.write_text('"""Linked."""\nVALUE = 1\n', encoding="utf-8")
+    link_root = tmp_path / "repo-link"
+    try:
+        link_root.symlink_to(repo_root, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks are not available: {exc}")
+
+    records = module._records(link_root, record_cache_path=tmp_path / "record-cache.json")
+
+    assert any(record["path"] == "src/agilab/module.py" for record in records)
 
 
 def test_repository_knowledge_record_cache_helpers_reject_bad_payloads(
@@ -409,6 +426,7 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
         "kind": "package_source",
         "suffix": ".py",
         "size": 12,
+        "sha256": "abc",
     }
     valid_record = {
         "path": "src/agilab/module.py",
@@ -424,6 +442,13 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
     assert (
         module._cached_record(
             {"entries": {"src/agilab/module.py": {"signature": signature, "record": {**valid_record, "sha256": 3}}}},
+            signature,
+        )
+        is None
+    )
+    assert (
+        module._cached_record(
+            {"entries": {"src/agilab/module.py": {"signature": signature, "record": {**valid_record, "sha256": "def"}}}},
             signature,
         )
         is None

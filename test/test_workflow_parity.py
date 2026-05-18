@@ -43,6 +43,7 @@ def _cache_args(cache_path: Path, *, no_result_cache: bool = False) -> SimpleNam
         app_path=None,
         worker_copy=None,
         keep_going=False,
+        result_cache=True,
         result_cache_path=str(cache_path),
         no_result_cache=no_result_cache,
         select_ui_robot_profiles=False,
@@ -910,6 +911,7 @@ def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatc
     outside.write_text("outside", encoding="utf-8")
     cache_path = tmp_path / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
     args = SimpleNamespace(
+        result_cache=True,
         no_result_cache=False,
         result_cache_path=str(cache_path),
         changed_file=[changed.as_posix()],
@@ -918,6 +920,7 @@ def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatc
     )
 
     assert module._result_cache_enabled(args, module._run_command) is True
+    assert module._result_cache_enabled(SimpleNamespace(result_cache=False, no_result_cache=False), module._run_command) is False
     assert module._result_cache_enabled(SimpleNamespace(no_result_cache=True), module._run_command) is False
     assert module._result_cache_enabled(args, lambda _spec: None) is False
     assert module._result_cache_path(args) == cache_path
@@ -997,6 +1000,7 @@ def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkey
     assert module._command_result_from_cache({"label": "bad", "argv": [], "env": [], "returncode": 0, "cwd": "."}) is None
     assert module._command_result_from_cache({"label": "bad", "argv": [], "env": {}, "returncode": "0", "cwd": "."}) is None
     assert module._profile_result_from_cache(None) is None
+    assert module._profile_result_from_cache({"profile": 3, "description": "desc", "success": True, "commands": []}) is None
     assert module._profile_result_from_cache({"profile": "skills", "description": "desc", "success": True, "commands": {}}) is None
     assert module._profile_result_from_cache(
         {"profile": "skills", "description": "desc", "success": True, "commands": [{"label": "bad"}]}
@@ -1004,8 +1008,17 @@ def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkey
     assert module._cached_run_results({"entries": []}, "key", ["skills"]) is None
     assert module._cached_run_results({"entries": {"key": {"profiles": ["docs"], "results": []}}}, "key", ["skills"]) is None
     assert module._cached_run_results({"entries": {"key": {"profiles": ["skills"], "results": {}}}}, "key", ["skills"]) is None
+    assert (
+        module._cached_run_results(
+            {"entries": {"key": {"profiles": ["skills"], "results": [{"profile": 3}]}}},
+            "key",
+            ["skills"],
+        )
+        is None
+    )
 
     entries = {
+        "invalid": "not-a-cache-entry",
         "old": {"stored_at": 1.0},
         "middle": {"stored_at": 2.0},
         "new": {"stored_at": 3.0},
@@ -1017,6 +1030,35 @@ def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkey
     bad_state = {"schema": module.RESULT_CACHE_SCHEMA, "entries": []}
     module._write_result_cache(cache_path, bad_state)
     assert json.loads(cache_path.read_text(encoding="utf-8"))["entries"] == []
+    missing_entries_path = tmp_path / "missing-entries.json"
+    module._store_run_results(
+        missing_entries_path,
+        {"schema": module.RESULT_CACHE_SCHEMA, "entries": []},
+        "key",
+        ["skills"],
+        [],
+    )
+    assert not missing_entries_path.exists()
+
+
+def test_result_cache_helpers_cover_git_and_signature_failures(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    def _failing_git_run(_argv, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="fatal")
+
+    monkeypatch.setattr(module.subprocess, "run", _failing_git_run)
+    assert module._git_head() == ""
+
+    target = tmp_path / "hash-error.txt"
+    target.write_text("content", encoding="utf-8")
+    monkeypatch.setattr(module, "_file_sha256", lambda _path: (_ for _ in ()).throw(OSError("denied")))
+
+    signature = module._file_signature("hash-error.txt")
+
+    assert signature["state"] == "file"
+    assert signature["sha256_error"] == "OSError"
 
 
 def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
