@@ -12,37 +12,38 @@ compact Python/runtime API, and the remaining packages are published so
 releases can install only the pieces they need. See
 :doc:`package-publishing-policy` for the release and versioning contract.
 
-.. list-table::
+.. list-table:: AGILab component packages
    :header-rows: 1
-   :widths: 22 48 30
+   :widths: 26 42 32
+   :class: agilab-components-table
 
    * - Package
      - Role
      - Typical installer
    * - `agilab on PyPI <https://pypi.org/project/agilab/>`_
-     - Product package, CLI entry point, Streamlit page shell, and public extras.
-     - ``pip install agilab`` or ``pip install "agilab[ui]"``
+     - Product CLI, UI shell, and public extras.
+     - ``pip install "agilab[ui]"``
    * - `agi-core on PyPI <https://pypi.org/project/agi-core/>`_
-     - Compact API package that pins the matching runtime stack for notebooks and programmatic runs.
+     - Compact Python API and matched runtime stack.
      - ``pip install agi-core``
    * - `agi-env on PyPI <https://pypi.org/project/agi-env/>`_
-     - Headless environment, app settings, runtime path, and artifact helpers.
-     - Pulled by ``agi-core`` and worker/runtime installs.
+     - Environment, settings, paths, and artifacts.
+     - Pulled by runtime installs.
    * - `agi-node on PyPI <https://pypi.org/project/agi-node/>`_
-     - Worker base classes, dispatcher utilities, build hooks, and packaged runtime helpers.
-     - Pulled by ``agi-core`` and app worker environments.
+     - Worker classes, dispatch, and build hooks.
+     - Pulled by worker installs.
    * - `agi-cluster on PyPI <https://pypi.org/project/agi-cluster/>`_
-     - Local/distributed execution, Dask/SSH orchestration, and install/run APIs.
+     - Local, Dask, SSH, and install/run APIs.
      - Pulled by ``agi-core``.
    * - `agi-gui on PyPI <https://pypi.org/project/agi-gui/>`_
-     - Streamlit helper package for UI pages and page widgets.
+     - Streamlit page and widget helpers.
      - Pulled by ``agilab[ui]``.
    * - `agi-pages on PyPI <https://pypi.org/project/agi-pages/>`_
-     - Umbrella for public analysis page bundles and page-bundle discovery helpers.
-     - Pulled by ``agilab[ui]`` or ``agilab[pages]``.
+     - Umbrella for public analysis page bundles.
+     - Pulled by ``agilab[pages]``.
    * - `agi-apps on PyPI <https://pypi.org/project/agi-apps/>`_
-     - Umbrella for public app packages, app catalog metadata, and example assets.
-     - Pulled by ``agilab[ui]`` or ``agilab[examples]``.
+     - Umbrella for public app packages and catalog metadata.
+     - Pulled by ``agilab[examples]``.
 
 Per-app packages such as ``agi-app-flight-telemetry`` and page bundles such as
 ``agi-page-geospatial-map`` are payload packages behind the ``agi-apps`` and ``agi-pages``

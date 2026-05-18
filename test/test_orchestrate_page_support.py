@@ -804,6 +804,15 @@ def test_log_indicates_install_failure():
             "Process finished",
         ]
     )
+    assert not orchestrate_page_support.log_indicates_install_failure(
+        [
+            "error: Self-update is only available for uv binaries installed via the standalone installation scripts.",
+            "Command failed with exit code 2: uv --quiet self update",
+            "Failed to update uv (skipping self update): Command failed with exit code 2",
+            "Installing manager: uv --quiet sync --dev --project flight_telemetry_project",
+            "Process finished",
+        ]
+    )
     assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
     assert orchestrate_page_support.log_indicates_install_failure(
         ["worker deploy failed: Process exited with non-zero exit status 2"]

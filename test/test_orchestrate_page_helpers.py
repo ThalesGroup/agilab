@@ -732,6 +732,15 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
             "Process finished",
         ]
     )
+    assert not orchestrate_page_support.log_indicates_install_failure(
+        [
+            "error: Self-update is only available for uv binaries installed via the standalone installation scripts.",
+            "app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update",
+            "app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2",
+            "app.deployment_orchestration_support.deploy_application Installing flight_telemetry_project",
+            "Process finished",
+        ]
+    )
     assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
     assert orchestrate_page_support.log_indicates_install_failure(
         ["worker deploy failed: Process exited with non-zero exit status 2"]
@@ -1451,6 +1460,36 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
         "Failed to update uv on 192.168.20.15 (skipping self update): "
         "Process exited with non-zero exit status 2",
         "done",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_allows_recovered_local_uv_self_update_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("error: Self-update is only available for uv binaries installed via the standalone installation scripts.")
+        log_callback("app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update")
+        log_callback("app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2")
+        return "None\nProcess finished", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert result.detail is None
+    assert result.data["install_log"][-3:] == (
+        "None",
+        "Process finished",
         "✅ Install complete.",
     )
 

@@ -95,7 +95,7 @@
     <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
     <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py navigation pages</text>
     <text class="card-note" x="160" y="86" text-anchor="middle">
-      <tspan x="160" dy="0">ABOUT · SETTINGS · PROJECT</tspan>
+      <tspan x="160" dy="0">LANDING · SETTINGS · PROJECT</tspan>
       <tspan x="160" dy="18">ORCHESTRATE · WORKFLOW · ANALYSIS</tspan>
     </text>
   </g>

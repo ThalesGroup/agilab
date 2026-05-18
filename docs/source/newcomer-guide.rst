@@ -3,11 +3,12 @@ Newcomer Guide
 
 If you are new to AGILab, optimize for one outcome only: one successful local
 proof from the web UI. The default lane is the built-in
-``flight_telemetry_project`` through ABOUT -> ``1. INSTALL demo`` ->
-``2. EXECUTE demo`` -> ``3. OPEN ANALYSIS``. If you want to prove notebook
-import first, use the ABOUT wizard's ``Create from built-in notebook`` button
-for AGILAB's packaged sample; there is no file to find or upload. Use PROJECT
--> ``Create`` -> ``From notebook`` later when the notebook is on your machine.
+``flight_telemetry_project`` from the web UI landing page: click
+``1. INSTALL demo`` -> ``2. EXECUTE demo`` -> ``3. OPEN ANALYSIS``. If you
+want to prove notebook import first, use the landing page's
+``Create from built-in notebook`` button for AGILAB's packaged sample; there is
+no file to find or upload. Use PROJECT -> ``Create`` -> ``From notebook`` later
+when the notebook is on your machine.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
@@ -59,7 +60,8 @@ Choose one route
      - :doc:`quick-start`
      - You want the real source-checkout path. Default target: pass the
        ``flight_telemetry_project`` proof in 10 minutes. Alternative: import
-       the included notebook example or your own notebook from the ABOUT wizard.
+       the included notebook example from the landing page, or your own
+       notebook from PROJECT.
    * - Use the API/notebook
      - :doc:`notebook-quickstart`
      - You want the smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the
@@ -82,8 +84,8 @@ exported from WORKFLOW as ``lab_stages.ipynb``. That exported notebook is the
 handoff and exit-path artifact: if the team later decides not to keep AGILAB for
 that project, the validated workflow is still reusable outside the UI.
 
-Use the ABOUT adoption gate before widening the audience. Stay local until one
-proof has a passing ``run_manifest.json`` and a project-local
+Use the landing-page adoption gate before widening the audience. Stay local
+until one proof has a passing ``run_manifest.json`` and a project-local
 ``notebooks/lab_stages.ipynb`` export exists. Only then move to a controlled
 team trial, and still treat secrets, UI exposure, quotas, repository pinning,
 cluster shares, and service mode as separate hardening decisions.

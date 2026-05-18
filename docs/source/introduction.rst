@@ -9,7 +9,11 @@ and :doc:`quick-start`.
 What AGILab is
 --------------
 
-AGILab is a framework and web UI for running Python data, ML, and RL projects
+AGILab turns experimental AI/ML notebooks and scripts into reproducible
+applications that can run locally or on distributed workers, while keeping a
+handoff path to runnable notebooks and MLflow tracking evidence.
+
+It is a framework and web UI for running Python data, ML, and RL projects
 through one visible workflow.
 
 It has two main user interfaces:

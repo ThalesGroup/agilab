@@ -71,6 +71,8 @@ _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
 
 _INSTALL_LOG_NON_FATAL_LINE_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("failed to update uv", "skipping self update"),
+    ("command failed with exit code", "self update"),
+    ("process exited with non-zero exit status", "self update"),
     ("remote command stderr:", "error: permission denied", "os error 13"),
 )
 

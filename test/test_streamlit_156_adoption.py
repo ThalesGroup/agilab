@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
 from pathlib import Path
 import tomllib
+
+THEME_ENV_PATH = Path("src/agilab/streamlit_theme_env.py").resolve()
+THEME_ENV_SPEC = importlib.util.spec_from_file_location("agilab_streamlit_theme_env_test", THEME_ENV_PATH)
+assert THEME_ENV_SPEC and THEME_ENV_SPEC.loader
+streamlit_theme_env = importlib.util.module_from_spec(THEME_ENV_SPEC)
+sys.modules[THEME_ENV_SPEC.name] = streamlit_theme_env
+THEME_ENV_SPEC.loader.exec_module(streamlit_theme_env)
 
 
 FIRST_PARTY_STREAMLIT_MANIFESTS = [
@@ -25,8 +34,14 @@ def test_first_party_streamlit_manifests_require_156_when_pinned() -> None:
 def test_new_choice_widgets_use_agilab_blue_theme() -> None:
     theme_css = Path("src/agilab/resources/theme.css").read_text(encoding="utf-8")
     theme_config = tomllib.loads(Path("src/agilab/resources/config.toml").read_text(encoding="utf-8"))
+    source_launch_config = tomllib.loads(Path(".streamlit/config.toml").read_text(encoding="utf-8"))
 
+    assert theme_config["theme"]["base"] == "dark"
     assert theme_config["theme"]["primaryColor"] == "#4A90E2"
+    assert theme_config["theme"]["backgroundColor"] == "#08111F"
+    assert theme_config["theme"]["secondaryBackgroundColor"] == "#102334"
+    assert theme_config["theme"]["textColor"] == "#F7F2E8"
+    assert source_launch_config["theme"] == theme_config["theme"]
     assert "--agilab-primary: #4A90E2;" in theme_css
     assert "--agilab-value-ready: #72d6b4;" in theme_css
     assert "--agilab-value-incomplete: #ffbe5e;" in theme_css
@@ -48,6 +63,43 @@ def test_new_choice_widgets_use_agilab_blue_theme() -> None:
     assert "var(--agilab-primary)" in theme_css
     assert "#ff4b4b" not in theme_css.lower()
     assert "255, 75, 75" not in theme_css
+
+
+def test_agilab_theme_config_maps_to_streamlit_environment(monkeypatch) -> None:
+    for env_key in [
+        "STREAMLIT_CONFIG_FILE",
+        "STREAMLIT_THEME_BASE",
+        "STREAMLIT_THEME_PRIMARY_COLOR",
+        "STREAMLIT_THEME_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_TEXT_COLOR",
+    ]:
+        monkeypatch.delenv(env_key, raising=False)
+
+    env: dict[str, str] = {}
+    config_path = Path("src/agilab/resources/config.toml")
+    streamlit_theme_env.apply_streamlit_theme_environment(config_path, environ=env)
+
+    assert streamlit_theme_env.load_streamlit_theme_values(config_path) == {
+        "base": "dark",
+        "primaryColor": "#4A90E2",
+        "backgroundColor": "#08111F",
+        "secondaryBackgroundColor": "#102334",
+        "textColor": "#F7F2E8",
+    }
+    assert env["STREAMLIT_CONFIG_FILE"] == str(config_path)
+    assert env["STREAMLIT_THEME_BASE"] == "dark"
+    assert env["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
+    assert env["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
+    assert env["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
+    assert env["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
+
+
+def test_source_checkout_streamlit_config_matches_packaged_theme() -> None:
+    source_config = tomllib.loads(Path(".streamlit/config.toml").read_text(encoding="utf-8"))
+    theme_config = tomllib.loads(Path("src/agilab/resources/config.toml").read_text(encoding="utf-8"))
+
+    assert source_config["theme"] == theme_config["theme"]
 
 
 def test_first_party_streamlit_code_uses_width_api() -> None:

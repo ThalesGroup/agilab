@@ -104,7 +104,7 @@ Goal:
 
 Concrete items:
 
-- keep ABOUT focused on the first proof and remove redundant call-to-action
+- keep the landing page focused on the first proof and remove redundant call-to-action
   clutter
 - make every wizard action direct: install really installs, execute really runs,
   analysis opens the right result page, notebook import creates the project

@@ -19,6 +19,21 @@ import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
+try:
+    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+except ModuleNotFoundError:
+    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
+        "agilab_streamlit_theme_env_local",
+        _streamlit_theme_env_path,
+    )
+    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
+    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
+    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
+    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
+
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 _PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
 _PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
@@ -31,6 +46,14 @@ _PUBLIC_BIND_GUARD_MODULE = importlib.util.module_from_spec(_PUBLIC_BIND_GUARD_S
 _PUBLIC_BIND_GUARD_SPEC.loader.exec_module(_PUBLIC_BIND_GUARD_MODULE)
 PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
 enforce_public_bind_policy = _PUBLIC_BIND_GUARD_MODULE.enforce_public_bind_policy
+
+
+def _streamlit_config_path() -> Path:
+    return packaged_streamlit_config_path(__file__)
+
+
+def _ensure_streamlit_config_file(environ=os.environ) -> None:
+    apply_streamlit_theme_environment(_streamlit_config_path(), environ=environ)
 
 
 def _detect_repo_root(start: Path) -> Path | None:
@@ -229,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         new_argv.append("--")
         new_argv.extend(custom_args)
 
+    _ensure_streamlit_config_file()
     sys.argv = new_argv
     stcli = _load_streamlit_cli()
     return stcli.main()
