@@ -64,6 +64,17 @@ def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
 
 
+def _create_mock_project_root(apps_dir: Path, project_name: str) -> Path:
+    project_dir = apps_dir / project_name
+    (project_dir / "src").mkdir(parents=True, exist_ok=True)
+    (project_dir / "pyproject.toml").write_text(
+        f"[project]\nname = '{project_name.replace('_', '-')}'\n",
+        encoding="utf-8",
+    )
+    (project_dir / "src" / "app_settings.toml").write_text("", encoding="utf-8")
+    return project_dir
+
+
 def _load_project_page_module():
     module_path = Path(__file__).resolve().parents[1] / "src" / "agilab" / "pages" / "1_PROJECT.py"
     module_name = "agilab_project_page_for_tests"
@@ -2037,6 +2048,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
+    trainer_project = _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
@@ -2099,12 +2111,15 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert Path(at.session_state["stages_file"]).parent.name == target_lab
         assert Path(str(at.session_state["index_page"])).parts[0] == target_lab
         assert at.text_area(key=f"{target_lab}_lab_stages.toml_q_stage_0").value == expected_prompt
+        if target_lab == "sb3_trainer_project":
+            assert (trainer_project / "notebooks" / "lab_stages.ipynb").is_file()
 
 
 def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
+    _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
@@ -2147,6 +2162,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
+    _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
@@ -2183,6 +2199,7 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
+    trainer_project = _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
@@ -2213,6 +2230,7 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
         assert project_select.value == "sb3_trainer_project"
         assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
         assert Path(at.session_state["stages_file"]).parent.name == "sb3_trainer_project"
+        assert (trainer_project / "notebooks" / "lab_stages.ipynb").is_file()
 
 
 def test_experiment_page_save_stage_persists_prompt(mock_ui_env, tmp_path):

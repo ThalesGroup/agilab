@@ -50,6 +50,44 @@ AGI_GUI_COVERAGE_CHUNKS = (
 )
 AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
 AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 10.0
+UI_ROBOT_MATRIX_SHARDS = (
+    (
+        "core",
+        (
+            "isolated-core-pages",
+            "isolated-entry-and-app-pages",
+            "isolated-project-page",
+            "isolated-project-notebook-import",
+            "isolated-project-import-sidebar",
+            "isolated-project-rename-sidebar",
+            "isolated-settings-page",
+        ),
+    ),
+    (
+        "state",
+        (
+            "isolated-fresh-session-core-pages",
+            "isolated-browser-history",
+        ),
+    ),
+    (
+        "quality",
+        (
+            "isolated-browser-error-core-pages",
+            "isolated-above-fold-core-pages",
+            "isolated-keyboard-focus-core-pages",
+            "isolated-accessibility-core-pages",
+        ),
+    ),
+    (
+        "layout",
+        (
+            "isolated-layout-integrity-desktop",
+            "isolated-mobile-core-pages",
+            "isolated-layout-integrity-mobile",
+        ),
+    ),
+)
 
 
 @dataclass
@@ -1306,50 +1344,24 @@ def _cloud_emulators_profile() -> list[CommandSpec]:
 
 
 def _ui_robot_matrix_profile() -> list[CommandSpec]:
-    return [
-        CommandSpec(
-            label="ui robot matrix",
-            argv=[
-                "uv",
-                "--preview-features",
-                "extra-build-dependencies",
-                "run",
-                "--with",
-                "playwright",
-                "python",
-                "tools/agilab_widget_robot_matrix.py",
-                "--scenario",
-                "isolated-core-pages",
-                "--scenario",
-                "isolated-entry-and-app-pages",
-                "--scenario",
-                "isolated-project-page",
-                "--scenario",
-                "isolated-project-notebook-import",
-                "--scenario",
-                "isolated-project-import-sidebar",
-                "--scenario",
-                "isolated-project-rename-sidebar",
-                "--scenario",
-                "isolated-settings-page",
-                "--scenario",
-                "isolated-browser-error-core-pages",
-                "--scenario",
-                "isolated-above-fold-core-pages",
-                "--scenario",
-                "isolated-layout-integrity-desktop",
-                "--scenario",
-                "isolated-keyboard-focus-core-pages",
-                "--scenario",
-                "isolated-fresh-session-core-pages",
-                "--scenario",
-                "isolated-browser-history",
-                "--scenario",
-                "isolated-mobile-core-pages",
-                "--scenario",
-                "isolated-layout-integrity-mobile",
-                "--scenario",
-                "isolated-accessibility-core-pages",
+    commands: list[CommandSpec] = []
+    for shard, scenarios in UI_ROBOT_MATRIX_SHARDS:
+        result_dir = f"test-results/ui-robot-matrix/{shard}"
+        screenshot_dir = f"screenshots/ui-robot-matrix/{shard}"
+        argv = [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--with",
+            "playwright",
+            "python",
+            "tools/agilab_widget_robot_matrix.py",
+        ]
+        for scenario in scenarios:
+            argv.extend(["--scenario", scenario])
+        argv.extend(
+            [
                 "--apps",
                 "all",
                 "--timeout",
@@ -1359,16 +1371,22 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
-                "test-results/ui-robot-matrix",
+                result_dir,
                 "--screenshot-dir",
-                "screenshots/ui-robot-matrix",
+                screenshot_dir,
                 "--failure-bundle-dir",
-                "test-results/ui-robot-matrix/failure-bundles",
-            ],
-            timeout_seconds=60 * 60,
-            remove_paths=["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"],
+                f"{result_dir}/failure-bundles",
+            ]
         )
-    ]
+        commands.append(
+            CommandSpec(
+                label=f"ui robot matrix ({shard})",
+                argv=argv,
+                timeout_seconds=50 * 60,
+                remove_paths=[result_dir, screenshot_dir],
+            )
+        )
+    return commands
 
 
 def _ui_robot_contract_profile() -> list[CommandSpec]:

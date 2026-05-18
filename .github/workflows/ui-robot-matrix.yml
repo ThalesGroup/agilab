@@ -26,9 +26,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  all-builtin-isolated-core-pages:
+  ui-robot-matrix:
+    name: ui-robot-matrix (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: core
+            scenarios: >-
+              isolated-core-pages
+              isolated-entry-and-app-pages
+              isolated-project-page
+              isolated-project-notebook-import
+              isolated-project-import-sidebar
+              isolated-project-rename-sidebar
+              isolated-settings-page
+          - shard: state
+            scenarios: >-
+              isolated-fresh-session-core-pages
+              isolated-browser-history
+          - shard: quality
+            scenarios: >-
+              isolated-browser-error-core-pages
+              isolated-above-fold-core-pages
+              isolated-keyboard-focus-core-pages
+              isolated-accessibility-core-pages
+          - shard: layout
+            scenarios: >-
+              isolated-layout-integrity-desktop
+              isolated-mobile-core-pages
+              isolated-layout-integrity-mobile
     env:
       AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
       OPENAI_API_KEY: "sk-test-ui-robot-000000000000"
@@ -52,73 +81,77 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
 
-      - name: Run all-builtin UI robot matrix
+      - name: Run UI robot matrix shard
         env:
           INPUT_APPS: ${{ github.event.inputs.apps }}
           INPUT_TIMEOUT: ${{ github.event.inputs.timeout }}
           INPUT_WIDGET_TIMEOUT: ${{ github.event.inputs.widget_timeout }}
+          ROBOT_SCENARIOS: ${{ matrix.scenarios }}
+          ROBOT_SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
-          mkdir -p test-results/ui-robot-matrix/failure-bundles screenshots/ui-robot-matrix
+          result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"
+          screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"
+          failure_bundle_dir="${result_dir}/failure-bundles"
+          mkdir -p "${failure_bundle_dir}" "${screenshot_dir}"
           robot_apps="${INPUT_APPS:-all}"
           robot_timeout="${INPUT_TIMEOUT:-90}"
           robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
+          scenario_args=()
+          for scenario in ${ROBOT_SCENARIOS}; do
+            scenario_args+=(--scenario "${scenario}")
+          done
+          if [ "${#scenario_args[@]}" -eq 0 ]; then
+            echo "No UI robot scenarios configured for shard ${ROBOT_SHARD}" >&2
+            exit 2
+          fi
           set +e
           uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
-            --scenario isolated-core-pages \
-            --scenario isolated-entry-and-app-pages \
-            --scenario isolated-project-page \
-            --scenario isolated-project-notebook-import \
-            --scenario isolated-project-import-sidebar \
-            --scenario isolated-project-rename-sidebar \
-            --scenario isolated-settings-page \
-            --scenario isolated-browser-error-core-pages \
-            --scenario isolated-above-fold-core-pages \
-            --scenario isolated-layout-integrity-desktop \
-            --scenario isolated-keyboard-focus-core-pages \
-            --scenario isolated-fresh-session-core-pages \
-            --scenario isolated-browser-history \
-            --scenario isolated-mobile-core-pages \
-            --scenario isolated-layout-integrity-mobile \
-            --scenario isolated-accessibility-core-pages \
+            "${scenario_args[@]}" \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \
             --widget-timeout "${robot_widget_timeout}" \
             --json \
             --quiet-progress \
-            --output-dir test-results/ui-robot-matrix \
-            --screenshot-dir screenshots/ui-robot-matrix \
-            --failure-bundle-dir test-results/ui-robot-matrix/failure-bundles \
-            | tee test-results/ui-robot-matrix/summary.json
+            --output-dir "${result_dir}" \
+            --screenshot-dir "${screenshot_dir}" \
+            --failure-bundle-dir "${failure_bundle_dir}" \
+            | tee "${result_dir}/summary.json"
           status="${PIPESTATUS[0]}"
           set -e
-          echo "${status}" > test-results/ui-robot-matrix/exit-code.txt
+          echo "${status}" > "${result_dir}/exit-code.txt"
           exit "${status}"
 
       - name: Write UI robot trend report
         if: always()
+        env:
+          ROBOT_SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
+          result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"
           set +e
           uv --preview-features extra-build-dependencies run python tools/ui_robot_trend_report.py \
-            --glob "test-results/ui-robot-matrix/*.ndjson" \
-            --max-total-seconds 5400 \
+            --glob "${result_dir}/*.ndjson" \
+            --max-total-seconds 2700 \
             --max-mean-page-seconds 180 \
             --strict \
             --strict-budget \
-            --output test-results/ui-robot-matrix/trend-report.json \
-            | tee test-results/ui-robot-matrix/trend-report.txt
+            --output "${result_dir}/trend-report.json" \
+            | tee "${result_dir}/trend-report.txt"
           trend_status="${PIPESTATUS[0]}"
           set -e
           {
             echo ""
-            echo "## UI robot trend"
-            cat test-results/ui-robot-matrix/trend-report.txt
+            echo "## UI robot trend (${ROBOT_SHARD})"
+            cat "${result_dir}/trend-report.txt"
           } >> "$GITHUB_STEP_SUMMARY"
           exit "${trend_status}"
 
       - name: Summarize UI robot matrix
         if: always()
+        env:
+          RESULT_DIR: test-results/ui-robot-matrix/${{ matrix.shard }}
+          ROBOT_SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -126,14 +159,15 @@ jobs:
           import os
           from pathlib import Path
 
-          summary_path = Path("test-results/ui-robot-matrix/summary.json")
+          summary_path = Path(os.environ["RESULT_DIR"]) / "summary.json"
           summary_file = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          robot_shard = os.environ["ROBOT_SHARD"]
 
           def cell(value: object, *, limit: int = 200) -> str:
               text = str(value if value is not None else "")
               return text.replace("\n", " ").replace("|", "\\|")[:limit]
 
-          lines = ["## UI robot matrix"]
+          lines = [f"## UI robot matrix ({robot_shard})"]
           if not summary_path.is_file():
               lines.append("")
               lines.append("No JSON summary was produced. Check the uploaded progress log and screenshots.")
@@ -203,9 +237,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
-          name: ui-robot-matrix-${{ github.run_attempt }}
+          name: ui-robot-matrix-${{ matrix.shard }}-${{ github.run_attempt }}
           path: |
-            test-results/ui-robot-matrix/**
-            screenshots/ui-robot-matrix/**
+            test-results/ui-robot-matrix/${{ matrix.shard }}/**
+            screenshots/ui-robot-matrix/${{ matrix.shard }}/**
           if-no-files-found: ignore
           retention-days: 14

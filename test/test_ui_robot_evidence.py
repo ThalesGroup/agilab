@@ -174,6 +174,46 @@ def test_github_cli_fetchers_and_artifact_metadata(monkeypatch, tmp_path: Path) 
     assert "databaseId" in module._github_fields()
 
 
+def test_fetch_artifact_metadata_prefers_core_shard_artifact(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "_run_gh_json",
+        lambda *_args, **_kwargs: {
+            "artifacts": [
+                {
+                    "name": "ui-robot-matrix-layout-1",
+                    "expired": False,
+                    "size_in_bytes": 10,
+                    "archive_download_url": "https://example.invalid/layout.zip",
+                },
+                {
+                    "name": "ui-robot-matrix-1",
+                    "expired": False,
+                    "size_in_bytes": 20,
+                    "archive_download_url": "https://example.invalid/legacy.zip",
+                },
+                {
+                    "name": "ui-robot-matrix-core-1",
+                    "expired": False,
+                    "size_in_bytes": 30,
+                    "archive_download_url": "https://example.invalid/core.zip",
+                },
+            ]
+        },
+    )
+
+    artifact = module.fetch_artifact_metadata("25577485125", repo="ThalesGroup/agilab", repo_root=tmp_path)
+
+    assert artifact == {
+        "name": "ui-robot-matrix-core-1",
+        "expired": False,
+        "size_bytes": 30,
+        "archive_download_url": "https://example.invalid/core.zip",
+    }
+
+
 def test_github_cli_errors_and_bad_payloads(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
