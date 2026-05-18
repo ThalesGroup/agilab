@@ -311,6 +311,17 @@ def _interpret_registration_response(
             registered=False,
             already_registered=True,
         )
+    if (
+        publisher.project_name in text
+        and f"GitHub Repository: {publisher.owner}/{publisher.repository}" in text
+        and f"Workflow: {publisher.workflow_filename}" in text
+        and f"Environment name: {publisher.environment}" in text
+    ):
+        return RegistrationResult(
+            publisher=publisher,
+            registered=False,
+            already_registered=True,
+        )
     if MAX_PENDING_FRAGMENT in text:
         raise RuntimeError(
             "PyPI refused the pending publisher because the account already has "
