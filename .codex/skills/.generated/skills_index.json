@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-05-17T21:18:35Z",
+  "generated_at_utc": "2026-05-18T07:41:37Z",
   "tool": "tools/codex_skills.py",
-  "count": 27,
+  "count": 28,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -66,6 +66,14 @@
       "updated": "2026-05-07",
       "path": ".codex/skills/agilab-product-reels/SKILL.md",
       "body_preview": "# Product Reels Skill (AGILAB)\nUse this skill when the user wants a short AGILAB teaser, technical benchmark reel,\nlive-demo plan, or YouTube-ready demo package.\n## Pick The Right Demo Type"
+    },
+    {
+      "name": "agilab-pypi-release-maintenance",
+      "description": "Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-18",
+      "path": ".codex/skills/agilab-pypi-release-maintenance/SKILL.md",
+      "body_preview": "# AGILAB PyPI Release Maintenance\nUse this skill only for AGILAB PyPI release cleanup and retention work. PyPI\nrelease deletion is destructive and cannot be undone from the repository.\n## Scope"
     },
     {
       "name": "agilab-release-verification",
