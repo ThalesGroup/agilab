@@ -17,6 +17,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ROBOT_PATH = REPO_ROOT / "tools" / "agilab_widget_robot.py"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "test-results" / "ui-robot-matrix"
 SCHEMA = "agilab.widget_robot_matrix.v1"
+FAILURE_BUNDLE_SCHEMA = "agilab.widget_robot_matrix_failure_bundle.v1"
+FAILURE_BUNDLE_TAIL_LINES = 120
+FAILURE_BUNDLE_TEXT_LIMIT = 30_000
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,7 @@ class RobotScenario:
     target_seconds: float = 1800.0
     assert_orchestrate_artifacts: bool = False
     assert_workflow_artifacts: bool = False
+    assert_analysis_artifacts: bool = False
     browser_history_check: bool = False
     viewport_width: int | None = None
     viewport_height: int | None = None
@@ -60,6 +64,7 @@ class MatrixOptions:
     url: str | None = None
     active_app: str | None = None
     remote_app_root: str | None = None
+    failure_bundle_dir: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -298,6 +303,26 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=1200.0,
         fresh_browser_context_per_page=True,
     ),
+    "current-home-first-proof-golden-path": RobotScenario(
+        name="current-home-first-proof-golden-path",
+        description=(
+            "Exercise the local first-proof path through INSTALL, CHECK, RUN/LOAD/EXPORT, "
+            "then reopen ANALYSIS and assert first-proof artifacts are available."
+        ),
+        pages="ORCHESTRATE,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="current-home",
+        action_button_policy="click-selected",
+        click_action_labels="INSTALL,CHECK distribute,Run -> Load -> Export,Load output,EXPORT dataframe",
+        preselect_labels="Run now",
+        missing_selected_action_policy="ignore-absent",
+        action_timeout_seconds=600.0,
+        page_timeout_seconds=1200.0,
+        target_seconds=1800.0,
+        assert_orchestrate_artifacts=True,
+        assert_analysis_artifacts=True,
+        success_screenshot=True,
+    ),
     "hf-flight-telemetry-install": RobotScenario(
         name="hf-flight-telemetry-install",
         description=(
@@ -338,6 +363,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apps", default="all", help="Built-in apps or app paths to pass to the widget robot.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--screenshot-dir", type=Path, help="Directory for failure screenshots and manifest files.")
+    parser.add_argument("--failure-bundle-dir", type=Path, help="Directory for failure evidence bundles.")
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--widget-timeout", type=float, default=3.0)
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
@@ -372,6 +398,7 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         apps=args.apps,
         output_dir=args.output_dir,
         screenshot_dir=args.screenshot_dir,
+        failure_bundle_dir=args.failure_bundle_dir,
         timeout_seconds=args.timeout,
         widget_timeout_seconds=args.widget_timeout,
         quiet_progress=args.quiet_progress,
@@ -442,6 +469,8 @@ def build_robot_command(
         argv.append("--assert-orchestrate-artifacts")
     if scenario.assert_workflow_artifacts:
         argv.append("--assert-workflow-artifacts")
+    if scenario.assert_analysis_artifacts:
+        argv.append("--assert-analysis-artifacts")
     if scenario.browser_history_check:
         argv.append("--browser-history-check")
     if scenario.viewport_width is not None:
@@ -472,6 +501,8 @@ def build_robot_command(
         argv.append("--quiet-progress")
     if options.screenshot_dir is not None:
         argv.extend(["--screenshot-dir", str(options.screenshot_dir / scenario.name)])
+    if options.failure_bundle_dir is not None:
+        argv.extend(["--failure-bundle-dir", str(options.failure_bundle_dir / scenario.name)])
     return argv, summary_path, progress_path
 
 
@@ -491,6 +522,58 @@ def _load_summary(path: Path, output: str) -> dict:
             "probed_count": 0,
             "error": "robot did not emit a JSON summary",
         }
+
+
+def _tail_text_file(path: Path | None, *, lines: int = FAILURE_BUNDLE_TAIL_LINES) -> str:
+    if path is None or not path.is_file():
+        return ""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(content[-lines:]) + ("\n" if content else "")
+
+
+def _limited_text(value: str, *, limit: int = FAILURE_BUNDLE_TEXT_LIMIT) -> str:
+    if len(value) <= limit:
+        return value
+    return value[-limit:] + "\n...[tail truncated]\n"
+
+
+def _write_matrix_failure_bundle(result: ScenarioResult, *, options: MatrixOptions) -> Path | None:
+    if options.failure_bundle_dir is None:
+        return None
+    if result.returncode == 0 and bool(result.summary.get("success", False)):
+        return None
+    bundle_dir = options.failure_bundle_dir / result.scenario.name / "_scenario"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    (bundle_dir / "summary.json").write_text(json.dumps(result.summary, indent=2) + "\n", encoding="utf-8")
+    (bundle_dir / "command.json").write_text(json.dumps(result.argv, indent=2) + "\n", encoding="utf-8")
+    output_tail = _limited_text(result.output or "")
+    if output_tail:
+        (bundle_dir / "output-tail.txt").write_text(output_tail, encoding="utf-8")
+    progress_tail = _tail_text_file(result.progress_path)
+    if progress_tail:
+        (bundle_dir / "progress-tail.ndjson").write_text(progress_tail, encoding="utf-8")
+    screenshot_root = options.screenshot_dir / result.scenario.name if options.screenshot_dir is not None else None
+    screenshots = (
+        sorted(str(path) for path in screenshot_root.rglob("*.png"))
+        if screenshot_root is not None and screenshot_root.exists()
+        else []
+    )
+    manifest = {
+        "schema": FAILURE_BUNDLE_SCHEMA,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "scenario": result.scenario.name,
+        "returncode": result.returncode,
+        "duration_seconds": result.duration_seconds,
+        "summary_path": str(result.summary_path),
+        "progress_path": str(result.progress_path),
+        "screenshots": screenshots,
+        "command": result.argv,
+    }
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return bundle_dir
 
 
 def run_scenario(
@@ -514,7 +597,7 @@ def run_scenario(
             check=False,
         )
     output = completed.stdout or ""
-    return ScenarioResult(
+    result = ScenarioResult(
         scenario=scenario,
         argv=argv,
         returncode=completed.returncode,
@@ -524,6 +607,8 @@ def run_scenario(
         summary=_load_summary(summary_path, output),
         output=output,
     )
+    _write_matrix_failure_bundle(result, options=options)
+    return result
 
 
 def run_matrix(

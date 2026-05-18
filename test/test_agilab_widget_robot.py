@@ -121,10 +121,12 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.missing_selected_action_policy == "fail"
     assert args.assert_orchestrate_artifacts is False
     assert args.assert_workflow_artifacts is False
+    assert args.assert_analysis_artifacts is False
     assert args.viewport_width == module.DEFAULT_VIEWPORT_WIDTH
     assert args.viewport_height == module.DEFAULT_VIEWPORT_HEIGHT
     assert args.fresh_browser_context_per_page is False
     assert args.success_screenshot is False
+    assert args.failure_bundle_dir is None
     assert args.max_first_render_seconds == 0.0
     assert args.max_widgets_ready_seconds == 0.0
     assert args.max_action_settle_seconds == 0.0
@@ -155,13 +157,47 @@ def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None
 def test_widget_robot_main_rejects_remote_artifact_assertions() -> None:
     module = _load_module()
 
-    for flag in ("--assert-orchestrate-artifacts", "--assert-workflow-artifacts"):
+    for flag in ("--assert-orchestrate-artifacts", "--assert-workflow-artifacts", "--assert-analysis-artifacts"):
         try:
             module.main(["--url", "http://localhost:8501", flag])
         except SystemExit as exc:
             assert exc.code == 2
         else:
             raise AssertionError(f"expected parser rejection for remote artifact assertions with {flag}")
+
+
+def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> None:
+    module = _load_module()
+    failure = module.WidgetProbe(
+        "flight_telemetry_project",
+        "ANALYSIS",
+        "browser_error",
+        "pageerror",
+        "failed",
+        "broken callback",
+        "http://demo",
+    )
+
+    bundle = module._write_failure_bundle(
+        root=tmp_path,
+        page=None,
+        web_robot=None,
+        app_name="flight/telemetry project",
+        display="ANALYSIS:widgets",
+        status="failed",
+        target_url="http://demo/analysis",
+        failures=[failure],
+        skips=[],
+        browser_issues=[{"kind": "pageerror", "detail": "broken callback"}],
+        command_argv=["agilab_widget_robot.py", "--json"],
+    )
+
+    assert bundle == tmp_path / "flight-telemetry-project" / "ANALYSIS-widgets"
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == module.FAILURE_BUNDLE_SCHEMA
+    assert manifest["status"] == "failed"
+    assert manifest["failures"][0]["detail"] == "broken callback"
+    assert manifest["command"] == ["agilab_widget_robot.py", "--json"]
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:

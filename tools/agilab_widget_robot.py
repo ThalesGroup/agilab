@@ -1747,6 +1747,132 @@ def _capture_success_screenshot_probe(
     )
 
 
+def _safe_evidence_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-._")[:96] or "item"
+
+
+def _limited_text(value: str, *, limit: int = FAILURE_BUNDLE_TEXT_LIMIT) -> str:
+    normalized = str(value or "").replace("\r\n", "\n")
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit] + "\n...[truncated]\n"
+
+
+def _tail_text_file(path: Path | None, *, lines: int = FAILURE_BUNDLE_TAIL_LINES) -> str:
+    if path is None or not path.is_file():
+        return ""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(content[-lines:]) + ("\n" if content else "")
+
+
+def _unique_evidence_dir(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in itertools.count(2):
+        candidate = path.with_name(f"{path.name}-{index}")
+        if not candidate.exists():
+            return candidate
+
+
+def _capture_failure_bundle_screenshot(
+    page: Any,
+    *,
+    web_robot: Any,
+    bundle_dir: Path,
+) -> tuple[str | None, str | None]:
+    screenshot_fn = getattr(web_robot, "_screenshot", None)
+    try:
+        if callable(screenshot_fn):
+            screenshot = screenshot_fn(page, bundle_dir, "failure")
+            return Path(str(screenshot)).name if screenshot else None, None
+        screenshot_path = bundle_dir / "failure.png"
+        page.screenshot(path=str(screenshot_path), full_page=True)
+        return screenshot_path.name, None
+    except Exception as exc:
+        return None, _short_detail(str(exc))
+
+
+def _page_text_snapshot(page: Any) -> tuple[str, str | None]:
+    try:
+        text = page.locator("body").inner_text(timeout=1000)
+    except Exception as exc:
+        return "", _short_detail(str(exc))
+    return _limited_text(text), None
+
+
+def _write_failure_bundle(
+    *,
+    root: Path,
+    page: Any | None,
+    web_robot: Any | None,
+    app_name: str,
+    display: str,
+    status: str,
+    target_url: str,
+    failures: Sequence[WidgetProbe],
+    skips: Sequence[WidgetProbe],
+    browser_issues: Sequence[dict[str, str]] | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+) -> Path:
+    bundle_dir = _unique_evidence_dir(root / _safe_evidence_name(app_name) / _safe_evidence_name(display))
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    screenshot_name = None
+    screenshot_error = None
+    visible_issue = None
+    page_text_name = None
+    page_text_error = None
+
+    if page is not None:
+        screenshot_name, screenshot_error = _capture_failure_bundle_screenshot(
+            page,
+            web_robot=web_robot,
+            bundle_dir=bundle_dir,
+        )
+        page_text, page_text_error = _page_text_snapshot(page)
+        if page_text:
+            page_text_name = "page.txt"
+            (bundle_dir / page_text_name).write_text(page_text, encoding="utf-8")
+        try:
+            visible_issue = _visible_streamlit_issue_detail(page)
+        except Exception as exc:
+            visible_issue = f"visible issue collection failed: {_short_detail(str(exc))}"
+
+    progress_tail = _tail_text_file(progress_log)
+    progress_tail_name = None
+    if progress_tail:
+        progress_tail_name = "progress-tail.ndjson"
+        (bundle_dir / progress_tail_name).write_text(progress_tail, encoding="utf-8")
+
+    command = list(command_argv or sys.argv)
+    (bundle_dir / "command.json").write_text(json.dumps(command, indent=2) + "\n", encoding="utf-8")
+    (bundle_dir / "browser-issues.json").write_text(json.dumps(list(browser_issues or []), indent=2) + "\n", encoding="utf-8")
+    manifest = {
+        "schema": FAILURE_BUNDLE_SCHEMA,
+        "created_at": datetime.now(UTC).isoformat(),
+        "app": app_name,
+        "page": display,
+        "status": status,
+        "url": getattr(page, "url", target_url) if page is not None else target_url,
+        "target_url": target_url,
+        "screenshot": screenshot_name,
+        "screenshot_error": screenshot_error,
+        "page_text": page_text_name,
+        "page_text_error": page_text_error,
+        "progress_tail": progress_tail_name,
+        "visible_issue": visible_issue,
+        "browser_issues": list(browser_issues or []),
+        "failures": [asdict(probe) for probe in failures],
+        "skips": [asdict(probe) for probe in skips],
+        "command": command,
+    }
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return bundle_dir
+
+
 def _new_robot_context(browser: Any, *, viewport_width: int, viewport_height: int) -> Any:
     return browser.new_context(viewport={"width": viewport_width, "height": viewport_height})
 
@@ -2037,7 +2163,8 @@ def current_home_action_preflight_blocker(
                 f"{home / '.agilab' / 'apps' / app_name / 'app_settings.toml'} before rerunning the UI robot. "
                 f"env={env_file}"
             )
-    if _current_home_worker_import_preflight_requested(click_action_labels):
+    install_requested = any(_is_install_action_label(label) for label in click_action_labels)
+    if _current_home_worker_import_preflight_requested(click_action_labels) and not install_requested:
         worker_issue = _current_home_worker_import_issue(app_name=app_name, home_root=home)
         if worker_issue is not None:
             return (
@@ -2361,6 +2488,43 @@ def validate_workflow_page_artifacts(
             label=WORKFLOW_STAGE_CONTRACT_FILENAME,
             status="interacted",
             detail=f"workflow stage contract restored and versioned at {target}",
+            url=url,
+        )
+    ]
+
+
+def validate_analysis_artifacts(
+    *,
+    context: OrchestrateArtifactContext,
+    display: str,
+    url: str,
+) -> list[WidgetProbe]:
+    output_roots = _orchestrate_output_roots(context)
+    export_roots = _orchestrate_export_roots(context)
+    output_snapshot = _snapshot_artifact_files(output_roots)
+    export_snapshot = _snapshot_artifact_files(export_roots)
+    if output_snapshot.files or export_snapshot.files:
+        return [
+            _artifact_probe(
+                context,
+                display=display,
+                label="first-proof artifacts",
+                status="interacted",
+                detail=(
+                    "first-proof artifacts available for ANALYSIS "
+                    f"({len(output_snapshot.files)} output file(s), {len(export_snapshot.files)} export file(s))"
+                ),
+                url=url,
+            )
+        ]
+    checked = ", ".join(str(path) for path in [*output_roots[:4], *export_roots[:4]])
+    return [
+        _artifact_probe(
+            context,
+            display=display,
+            label="first-proof artifacts",
+            status="failed",
+            detail=f"no first-proof output/export artifacts were available for ANALYSIS; checked {checked}",
             url=url,
         )
     ]
@@ -3901,8 +4065,12 @@ def sweep_page(
     route_query: str = "",
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    assert_analysis_artifacts: bool = False,
     browser_history_check: bool = False,
     success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
     max_action_settle_seconds: float = 0.0,
@@ -4020,6 +4188,20 @@ def sweep_page(
                 probes.extend(
                     validate_workflow_page_artifacts(
                         context=workflow_artifact_context,
+                        display=display,
+                        url=page.url,
+                    )
+                )
+            if assert_analysis_artifacts and page_label(page_name) == "ANALYSIS" and not preflight_detail:
+                analysis_artifact_context = build_orchestrate_artifact_context(
+                    app_name=app_name,
+                    active_app_query=active_app_query,
+                    home_root=home_root,
+                    server_env=server_env,
+                )
+                probes.extend(
+                    validate_analysis_artifacts(
+                        context=analysis_artifact_context,
                         display=display,
                         url=page.url,
                     )
@@ -4203,6 +4385,46 @@ def sweep_page(
             probes.append(screenshot_probe)
             if screenshot_probe.status == "failed":
                 page_status = "failed"
+
+    if failure_bundle_dir is not None and (page_status != "passed" or any(probe.status == "failed" for probe in probes)):
+        try:
+            bundle_path = _write_failure_bundle(
+                root=failure_bundle_dir,
+                page=page,
+                web_robot=web_robot,
+                app_name=app_name,
+                display=display,
+                status=page_status,
+                target_url=target_url,
+                failures=[probe for probe in probes if probe.status == "failed"],
+                skips=[probe for probe in probes if probe.status == "skipped"],
+                browser_issues=list(browser_issues or [])[browser_issue_start_index:],
+                progress_log=progress_log,
+                command_argv=command_argv,
+            )
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    display,
+                    "failure_evidence",
+                    "bundle",
+                    "interacted",
+                    f"failure bundle={bundle_path}",
+                    getattr(page, "url", target_url),
+                )
+            )
+        except Exception as exc:
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    display,
+                    "failure_evidence",
+                    "bundle",
+                    "failed",
+                    _short_detail(f"failure bundle could not be written: {exc}"),
+                    getattr(page, "url", target_url),
+                )
+            )
 
     failed = [probe for probe in probes if probe.status == "failed"]
     skipped = [probe for probe in probes if probe.status == "skipped"]
@@ -4421,6 +4643,9 @@ def sweep_direct_apps_page(
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
     max_action_settle_seconds: float = 0.0,
@@ -4524,6 +4749,9 @@ def sweep_direct_apps_page(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         success_screenshot=success_screenshot,
+                        failure_bundle_dir=failure_bundle_dir,
+                        progress_log=progress_log,
+                        command_argv=command_argv,
                         max_first_render_seconds=max_first_render_seconds,
                         max_widgets_ready_seconds=max_widgets_ready_seconds,
                         max_action_settle_seconds=max_action_settle_seconds,
@@ -4562,11 +4790,15 @@ def sweep_app(
     runtime_isolation: str,
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    assert_analysis_artifacts: bool = False,
     browser_history_check: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
     success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
     max_action_settle_seconds: float = 0.0,
@@ -4652,8 +4884,12 @@ def sweep_app(
                                 route_query=route_query,
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                                 assert_workflow_artifacts=assert_workflow_artifacts,
+                                assert_analysis_artifacts=assert_analysis_artifacts,
                                 browser_history_check=browser_history_check,
                                 success_screenshot=success_screenshot,
+                                failure_bundle_dir=failure_bundle_dir,
+                                progress_log=progress_log,
+                                command_argv=command_argv,
                                 max_first_render_seconds=max_first_render_seconds,
                                 max_widgets_ready_seconds=max_widgets_ready_seconds,
                                 max_action_settle_seconds=max_action_settle_seconds,
@@ -4738,6 +4974,9 @@ def sweep_app(
                     viewport_width=viewport_width,
                     viewport_height=viewport_height,
                     success_screenshot=success_screenshot,
+                    failure_bundle_dir=failure_bundle_dir,
+                    progress_log=progress_log,
+                    command_argv=command_argv,
                     max_first_render_seconds=max_first_render_seconds,
                     max_widgets_ready_seconds=max_widgets_ready_seconds,
                     max_action_settle_seconds=max_action_settle_seconds,
@@ -4781,6 +5020,9 @@ def sweep_remote_app(
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
     success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
     max_action_settle_seconds: float = 0.0,
@@ -4847,6 +5089,9 @@ def sweep_remote_app(
                         route_query=route_query,
                         browser_history_check=browser_history_check,
                         success_screenshot=success_screenshot,
+                        failure_bundle_dir=failure_bundle_dir,
+                        progress_log=progress_log,
+                        command_argv=command_argv,
                         max_first_render_seconds=max_first_render_seconds,
                         max_widgets_ready_seconds=max_widgets_ready_seconds,
                         max_action_settle_seconds=max_action_settle_seconds,
@@ -4942,6 +5187,9 @@ def sweep_remote_app(
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                             success_screenshot=success_screenshot,
+                            failure_bundle_dir=failure_bundle_dir,
+                            progress_log=progress_log,
+                            command_argv=command_argv,
                             max_first_render_seconds=max_first_render_seconds,
                             max_widgets_ready_seconds=max_widgets_ready_seconds,
                             max_action_settle_seconds=max_action_settle_seconds,
@@ -5045,6 +5293,11 @@ def build_parser() -> argparse.ArgumentParser:
             "when a selected run action is fired, that a workflow run log changed."
         ),
     )
+    parser.add_argument(
+        "--assert-analysis-artifacts",
+        action="store_true",
+        help="For local ANALYSIS sweeps, assert first-proof output/export artifacts exist before probing the page.",
+    )
     parser.add_argument("--combination-mode", choices=("off", "exhaustive"), default="exhaustive", help="Explore finite checkbox/toggle/radio/selectbox state combinations. Default: exhaustive.")
     parser.add_argument("--max-combinations", type=int, default=512, help="Maximum widget state combinations to execute per page view before failing the sweep as capped.")
     parser.add_argument("--max-options-per-widget", type=int, default=8, help="Maximum selectbox options included in combination coverage per widget.")
@@ -5057,6 +5310,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Navigate PROJECT -> ORCHESTRATE -> ANALYSIS, then browser back/forward, and assert page health plus active_app routing.",
     )
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
+    parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
     parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
     parser.add_argument("--max-widgets-ready-seconds", type=float, default=0.0, help="Fail a page when widget readiness after render exceeds this budget. Use 0 to disable.")
     parser.add_argument("--max-action-settle-seconds", type=float, default=0.0, help="Fail a clicked action when its UI settle time exceeds this budget. Use 0 to disable.")
@@ -5096,7 +5350,9 @@ def render_human(summary: WidgetSweepSummary) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    raw_argv = list(argv) if argv is not None else None
+    args = parser.parse_args(raw_argv)
+    command_argv = [sys.argv[0], *(raw_argv if raw_argv is not None else sys.argv[1:])]
     if args.timeout <= 0:
         parser.error("--timeout must be greater than 0")
     if args.widget_timeout <= 0:
@@ -5119,7 +5375,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     preselect_labels = parse_csv(args.preselect_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
-    if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts):
+    if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts or args.assert_analysis_artifacts):
         parser.error("--assert-*artifacts options require a local robot-launched Streamlit server")
     if args.discovery_passes <= 0:
         parser.error("--discovery-passes must be greater than 0")
@@ -5129,6 +5385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
     screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
+    failure_bundle_dir = Path(args.failure_bundle_dir).expanduser().resolve() if args.failure_bundle_dir else None
     progress_log = Path(args.progress_log).expanduser().resolve() if args.progress_log else None
     resume_progress_log = Path(args.resume_from_progress).expanduser().resolve() if args.resume_from_progress else None
     json_output = Path(args.json_output).expanduser().resolve() if args.json_output else None
@@ -5176,6 +5433,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,
                 success_screenshot=args.success_screenshot,
+                failure_bundle_dir=failure_bundle_dir,
+                progress_log=progress_log,
+                command_argv=command_argv,
                 max_first_render_seconds=args.max_first_render_seconds,
                 max_widgets_ready_seconds=args.max_widgets_ready_seconds,
                 max_action_settle_seconds=args.max_action_settle_seconds,
@@ -5209,11 +5469,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_isolation=args.runtime_isolation,
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
+                assert_analysis_artifacts=args.assert_analysis_artifacts,
                 browser_history_check=args.browser_history_check,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,
                 success_screenshot=args.success_screenshot,
+                failure_bundle_dir=failure_bundle_dir,
+                progress_log=progress_log,
+                command_argv=command_argv,
                 max_first_render_seconds=args.max_first_render_seconds,
                 max_widgets_ready_seconds=args.max_widgets_ready_seconds,
                 max_action_settle_seconds=args.max_action_settle_seconds,
