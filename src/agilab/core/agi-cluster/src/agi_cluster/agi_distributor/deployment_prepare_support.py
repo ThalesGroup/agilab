@@ -30,6 +30,35 @@ def _uv_self_update_enabled(
     return envar_truthy_fn(envars, UV_SELF_UPDATE_ENV)
 
 
+async def _local_uv_python_available(
+    uv: str,
+    pyvers: str,
+    cwd: Path,
+    *,
+    run_fn: Callable[..., Any],
+) -> bool:
+    try:
+        await run_fn(f"{uv} python find {pyvers}", cwd)
+    except RuntimeError:
+        return False
+    return True
+
+
+async def _remote_uv_python_available(
+    ip: str,
+    uv: str,
+    pyvers: str,
+    *,
+    run_exec_ssh_fn: Callable[..., Any],
+    remote_command_failures: tuple[type[BaseException], ...],
+) -> bool:
+    try:
+        await run_exec_ssh_fn(ip, f"{uv} python find {pyvers}")
+    except remote_command_failures:
+        return False
+    return True
+
+
 def _exception_types(*exc_types: type[BaseException]) -> tuple[type[BaseException], ...]:
     return tuple(dict.fromkeys(exc_types))
 
@@ -133,16 +162,19 @@ async def prepare_local_env(
             except RuntimeError as exc:
                 log.warning("Failed to update uv (skipping self update): %s", exc)
 
-        try:
-            await run_fn(f"{uv} python install {pyvers}", wenv_abs.parent)
-        except RuntimeError as exc:
-            if "No download found for request" in str(exc):
-                log.warning(
-                    "uv could not download interpreter '%s'; assuming a system interpreter is available",
-                    pyvers,
-                )
-            else:
-                raise
+        if await _local_uv_python_available(uv, pyvers, wenv_abs.parent, run_fn=run_fn):
+            log.info("Python interpreter '%s' is already available to uv; skipping install.", pyvers)
+        else:
+            try:
+                await run_fn(f"{uv} python install {pyvers}", wenv_abs.parent)
+            except RuntimeError as exc:
+                if "No download found for request" in str(exc):
+                    log.warning(
+                        "uv could not download interpreter '%s'; assuming a system interpreter is available",
+                        pyvers,
+                    )
+                else:
+                    raise
     else:
         log.warning("No internet connection detected; skipping uv update and assuming a system interpreter is available")
 
@@ -273,17 +305,26 @@ async def prepare_cluster_env(
         cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
         await run_exec_ssh_fn(ip, cmd)
 
-        try:
-            await run_exec_ssh_fn(ip, f"{uv} python install {pyvers_worker}")
-        except process_error_type as exc:
-            if "No download found for request" in str(exc):
-                log.warning(
-                    "[%s] uv could not download interpreter '%s'; assuming a system interpreter is available",
-                    ip,
-                    pyvers_worker,
-                )
-            else:
-                raise
+        if await _remote_uv_python_available(
+            ip,
+            uv,
+            pyvers_worker,
+            run_exec_ssh_fn=run_exec_ssh_fn,
+            remote_command_failures=remote_command_failures,
+        ):
+            log.info("[%s] Python interpreter '%s' is already available to uv; skipping install.", ip, pyvers_worker)
+        else:
+            try:
+                await run_exec_ssh_fn(ip, f"{uv} python install {pyvers_worker}")
+            except process_error_type as exc:
+                if "No download found for request" in str(exc):
+                    log.warning(
+                        "[%s] uv could not download interpreter '%s'; assuming a system interpreter is available",
+                        ip,
+                        pyvers_worker,
+                    )
+                else:
+                    raise
 
         await send_files_fn(env, ip, [env.cluster_pck / "agi_distributor/cli.py"], wenv_rel.parent)
 

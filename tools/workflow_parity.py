@@ -758,7 +758,7 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
     commands = [
         CommandSpec(
             label="installer shell syntax",
-            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh"],
+            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh", "src/agilab/core/install.sh"],
         ),
         CommandSpec(
             label="installer discovery tests",

@@ -343,6 +343,41 @@ def test_installers_default_to_uv_hardlink_mode_with_explicit_override() -> None
         assert '"clone", "copy", "hardlink", "symlink"' in script_text
 
 
+def test_core_installers_link_compatible_venvs_by_default() -> None:
+    shell_text = CORE_INSTALL_SH.read_text(encoding="utf-8")
+    ps1_text = CORE_INSTALL_PS1.read_text(encoding="utf-8")
+
+    assert 'LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"' in shell_text
+    assert "link_compatible_core_venvs()" in shell_text
+    assert 'local linker="$CORE_DIR/../venv_linker.py"' in shell_text
+    assert '--root "$CORE_DIR"' in shell_text
+    assert 'echo -e "${BLUE}Installing agi-core...${NC}"' in shell_text
+    assert 'pushd "$CORE_DIR/agi-core"' in shell_text
+    assert "link_compatible_core_venvs" in shell_text
+
+    assert '$LinkCompatibleVenvs = if ($env:AGILAB_LINK_COMPATIBLE_VENVS)' in ps1_text
+    assert "function Invoke-CompatibleCoreVenvLinking" in ps1_text
+    assert 'Join-Path (Split-Path -Parent $coreDir) "venv_linker.py"' in ps1_text
+    assert '"--root", $coreDir' in ps1_text
+    assert 'Install-ModulePath "agi-core" @("../agi-env", "../agi-node", "../agi-cluster")' in ps1_text
+    assert "Invoke-CompatibleCoreVenvLinking" in ps1_text
+
+
+def test_root_installer_installs_local_core_packages_without_dependency_resolution() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+
+    assert "$UV pip install --upgrade --no-deps \\" in root_text
+    for editable in (
+        "-e src/agilab/core/agi-env",
+        "-e src/agilab/core/agi-node",
+        "-e src/agilab/core/agi-cluster",
+        "-e src/agilab/core/agi-core",
+        "-e .",
+    ):
+        assert editable in root_text
+    assert "$UV pip install -e src/agilab/core/agi-env" not in root_text
+
+
 def test_shell_installers_stage_remote_scripts_before_execution() -> None:
     root_text = INSTALL_SH.read_text(encoding="utf-8")
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
