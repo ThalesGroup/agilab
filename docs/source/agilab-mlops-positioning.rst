@@ -515,8 +515,10 @@ This is a handoff sketch, not a roadmap.
 2. Once an approach stabilises, prepare the project artefacts for your target
    environment and integrate it with your organisation’s deployment toolchain
    (MLflow, Kubeflow, internal devops stack). In a source checkout, this commonly
-   uses ``tools/run_configs`` and ``src/agilab/apps/<app>``; in packaged
-   installs, use the generated app package artifacts available from your installer.
+   uses ``tools/run_configs`` and an app project under
+   ``src/agilab/apps/builtin/<project>`` or an external apps repository; in
+   packaged installs, use the installed ``agi-app-*`` payload artifacts available
+   from your installer.
 3. Track long-running metrics and governance artifacts using your preferred
    MLOps platform; AGILab does not replace those systems.
 

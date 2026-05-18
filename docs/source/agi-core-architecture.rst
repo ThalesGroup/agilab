@@ -28,8 +28,8 @@ Modules at a glance
 
 ``agi_core.apps``
     Helper mixins for app metadata, dataset manifests, and path helpers that
-    every ``<app>_project`` imports. If you add a new manager or need an app to
-    opt-in to common validation, start here.
+    app managers can import from their project root. If you add a new manager or
+    need an app to opt in to common validation, start here.
 ``agi_core.streamlit``
     Shared web interface widgets (status panels, history view, deploy dialogs) used
     by PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS. Keeping them here avoids circular imports from the
@@ -100,8 +100,11 @@ Directory      Purpose
 Tips for contributions
 ----------------------
 
-- Keep business logic for a specific app inside ``src/agilab/apps/<app>``—only
-  move code into ``agi_core`` when *multiple* apps/pages need the abstraction.
+- Keep business logic for a specific app inside its app project root: source
+  built-ins use ``src/agilab/apps/builtin/<project>``, packaged payloads use
+  ``src/agilab/lib/agi-app-*``, and external apps stay in their app repository.
+  Only move code into ``agi_core`` when *multiple* apps/pages need the
+  abstraction.
 - When adding a new web widget, place it under ``agi_core/streamlit`` and
   export it through a small ``__all__``. That keeps import graphs manageable.
 - ``agi_core`` has no hard dependency on ``agi_env`` or ``agi_cluster``. If your
