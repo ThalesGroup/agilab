@@ -27,6 +27,10 @@ def _has_extra(argv: list[str], extra: str) -> bool:
     )
 
 
+def _option_values(argv: list[str], option: str) -> list[str]:
+    return [argv[index + 1] for index, arg in enumerate(argv[:-1]) if arg == option]
+
+
 def _load_module():
     spec = importlib.util.spec_from_file_location("workflow_parity_test_module", MODULE_PATH)
     assert spec and spec.loader
@@ -139,7 +143,11 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_robot_coverage_contract = ui_robot_contract[0]
     ui_robot_action_contract = ui_robot_contract[1]
     ui_robot_canary = profiles["ui-robot-canary"][0]
-    ui_robot_matrix = profiles["ui-robot-matrix"][0]
+    ui_robot_matrix_commands = profiles["ui-robot-matrix"]
+    ui_robot_matrix = {
+        command.label.removeprefix("ui robot matrix (").removesuffix(")"): command
+        for command in ui_robot_matrix_commands
+    }
     ui_artifact_capture_robot = profiles["ui-artifact-capture-robot"][0]
     ui_history_robot = profiles["ui-history-robot"][0]
     ui_mobile_robot = profiles["ui-mobile-robot"][0]
@@ -336,23 +344,49 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test-results/ui-robot-canary.json" in ui_robot_canary.argv
     assert _has_with_dependency(ui_robot_canary.argv, "playwright")
     assert _has_with_dependency(ui_robot_canary.argv, "pillow")
-    assert ui_robot_matrix.label == "ui robot matrix"
-    assert ui_robot_matrix.timeout_seconds == 60 * 60
-    assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"]
-    assert "tools/agilab_widget_robot_matrix.py" in ui_robot_matrix.argv
-    assert "isolated-core-pages" in ui_robot_matrix.argv
-    assert "isolated-entry-and-app-pages" in ui_robot_matrix.argv
-    assert "isolated-project-page" in ui_robot_matrix.argv
-    assert "isolated-project-notebook-import" in ui_robot_matrix.argv
-    assert "isolated-project-import-sidebar" in ui_robot_matrix.argv
-    assert "isolated-project-rename-sidebar" in ui_robot_matrix.argv
-    assert "isolated-settings-page" in ui_robot_matrix.argv
-    assert "--quiet-progress" in ui_robot_matrix.argv
-    assert "--json" in ui_robot_matrix.argv
-    assert "--screenshot-dir" in ui_robot_matrix.argv
-    assert "screenshots/ui-robot-matrix" in ui_robot_matrix.argv
-    assert "test-results/ui-robot-matrix/failure-bundles" in ui_robot_matrix.argv
-    assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
+    assert set(ui_robot_matrix) == {"core", "state", "quality", "layout"}
+    expected_matrix_scenarios = {
+        "core": {
+            "isolated-core-pages",
+            "isolated-entry-and-app-pages",
+            "isolated-project-page",
+            "isolated-project-notebook-import",
+            "isolated-project-import-sidebar",
+            "isolated-project-rename-sidebar",
+            "isolated-settings-page",
+        },
+        "state": {
+            "isolated-fresh-session-core-pages",
+            "isolated-browser-history",
+        },
+        "quality": {
+            "isolated-browser-error-core-pages",
+            "isolated-above-fold-core-pages",
+            "isolated-keyboard-focus-core-pages",
+            "isolated-accessibility-core-pages",
+        },
+        "layout": {
+            "isolated-layout-integrity-desktop",
+            "isolated-mobile-core-pages",
+            "isolated-layout-integrity-mobile",
+        },
+    }
+    for shard, command in ui_robot_matrix.items():
+        assert command.label == f"ui robot matrix ({shard})"
+        assert command.timeout_seconds == 50 * 60
+        assert command.remove_paths == [
+            f"test-results/ui-robot-matrix/{shard}",
+            f"screenshots/ui-robot-matrix/{shard}",
+        ]
+        assert "tools/agilab_widget_robot_matrix.py" in command.argv
+        assert expected_matrix_scenarios[shard] == set(_option_values(command.argv, "--scenario"))
+        assert "--quiet-progress" in command.argv
+        assert "--json" in command.argv
+        assert "--no-result-cache" in command.argv
+        assert "--screenshot-dir" in command.argv
+        assert f"screenshots/ui-robot-matrix/{shard}" in command.argv
+        assert f"test-results/ui-robot-matrix/{shard}/failure-bundles" in command.argv
+        assert _has_with_dependency(command.argv, "playwright")
     assert ui_artifact_capture_robot.label == "ui artifact capture robot"
     assert ui_artifact_capture_robot.timeout_seconds == 15 * 60
     assert "isolated-project-page" in ui_artifact_capture_robot.argv
@@ -391,6 +425,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert "isolated-release-evidence" in ui_release_evidence_robot.argv
     assert "isolated-fresh-session-core-pages" in ui_release_evidence_robot.argv
+    assert "--no-result-cache" in ui_release_evidence_robot.argv
     assert "screenshots/ui-release-evidence-robot" in ui_release_evidence_robot.argv
     assert "test-results/ui-release-evidence-robot/failure-bundles" in ui_release_evidence_robot.argv
     assert _has_with_dependency(ui_release_evidence_robot.argv, "playwright")

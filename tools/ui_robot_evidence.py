@@ -148,6 +148,20 @@ def fetch_run(run_id: str, *, repo: str, repo_root: Path = REPO_ROOT) -> dict[st
     return normalize_run(raw)
 
 
+def _ui_robot_artifact_priority(name: str) -> int:
+    if name.startswith(f"{WORKFLOW_NAME}-core-"):
+        return 0
+    if name == WORKFLOW_NAME:
+        return 1
+    prefix = f"{WORKFLOW_NAME}-"
+    if name.startswith(prefix):
+        first_suffix_part = name[len(prefix):].split("-", 1)[0]
+        if first_suffix_part.isdigit():
+            return 1
+        return 2
+    return 3
+
+
 def fetch_artifact_metadata(run_id: str, *, repo: str, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     raw = _run_gh_json(
         [
@@ -159,16 +173,21 @@ def fetch_artifact_metadata(run_id: str, *, repo: str, repo_root: Path = REPO_RO
     artifacts = raw.get("artifacts") if isinstance(raw, Mapping) else None
     if not isinstance(artifacts, list):
         raise RuntimeError("GitHub artifacts response did not contain an artifacts list")
-    for artifact in artifacts:
+    candidates: list[tuple[int, int, Mapping[str, Any]]] = []
+    for index, artifact in enumerate(artifacts):
         if not isinstance(artifact, Mapping):
             continue
-        if str(artifact.get("name", "") or "").startswith(WORKFLOW_NAME):
-            return {
-                "name": str(artifact.get("name", "") or ""),
-                "expired": bool(artifact.get("expired")),
-                "size_bytes": int(artifact.get("size_in_bytes") or 0),
-                "archive_download_url": str(artifact.get("archive_download_url", "") or ""),
-            }
+        name = str(artifact.get("name", "") or "")
+        if name == WORKFLOW_NAME or name.startswith(f"{WORKFLOW_NAME}-"):
+            candidates.append((_ui_robot_artifact_priority(name), index, artifact))
+    if candidates:
+        _, _, selected = min(candidates, key=lambda candidate: (candidate[0], candidate[1]))
+        return {
+            "name": str(selected.get("name", "") or ""),
+            "expired": bool(selected.get("expired")),
+            "size_bytes": int(selected.get("size_in_bytes") or 0),
+            "archive_download_url": str(selected.get("archive_download_url", "") or ""),
+        }
     raise RuntimeError(f"no {WORKFLOW_NAME!r} artifact found for run {run_id}")
 
 

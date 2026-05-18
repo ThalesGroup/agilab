@@ -259,6 +259,18 @@ def test_build_robot_command_passes_optional_browser_artifact_dirs(tmp_path) -> 
     assert argv[argv.index("--video-dir") + 1] == str(tmp_path / "video" / "isolated-project-page")
 
 
+def test_options_from_args_controls_result_cache(tmp_path) -> None:
+    module = _load_module()
+    parser = module._build_parser()
+    cache_path = tmp_path / "matrix-cache.json"
+
+    enabled = module.options_from_args(parser.parse_args(["--result-cache-path", str(cache_path)]))
+    disabled = module.options_from_args(parser.parse_args(["--no-result-cache"]))
+
+    assert enabled.result_cache_path == cache_path
+    assert disabled.result_cache_path is None
+
+
 def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:
     module = _load_module()
     scenario = module.ALL_SCENARIOS["hf-flight-telemetry-install"]
@@ -843,6 +855,12 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
             ),
             encoding="utf-8",
         )
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.write_text(
+            json.dumps({"event": "scenario_complete", "scenario": scenario_name}) + "\n",
+            encoding="utf-8",
+        )
         return subprocess.CompletedProcess(argv, 0, stdout="")
 
     results = module.run_matrix(scenarios, options=options, runner=_fake_runner, keep_going=True)
@@ -867,6 +885,124 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     assert summary["probed_count"] == 18
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
+
+
+def test_run_matrix_reuses_cached_successful_scenario(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: {"fingerprint": "stable"})
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "first",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=tmp_path / "matrix-cache.json",
+    )
+    seen: list[str] = []
+
+    def _fake_runner(argv, **_kwargs):
+        scenario_name = Path(argv[argv.index("--json-output") + 1]).stem
+        seen.append(scenario_name)
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "page_count": 1,
+                    "widget_count": 2,
+                    "interacted_count": 1,
+                    "probed_count": 1,
+                    "skipped_count": 0,
+                    "failed_count": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.write_text(
+            json.dumps({"event": "scenario_complete", "scenario": scenario_name}) + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    first_results = module.run_matrix([scenario], options=options, runner=_fake_runner, keep_going=True)
+    cached_options = module.MatrixOptions(
+        apps=options.apps,
+        output_dir=tmp_path / "second",
+        screenshot_dir=None,
+        timeout_seconds=options.timeout_seconds,
+        widget_timeout_seconds=options.widget_timeout_seconds,
+        quiet_progress=options.quiet_progress,
+        no_seed_demo_artifacts=options.no_seed_demo_artifacts,
+        result_cache_path=options.result_cache_path,
+    )
+
+    def _unexpected_runner(argv, **_kwargs):
+        raise AssertionError(f"cached scenario should not invoke runner: {argv}")
+
+    cached_results = module.run_matrix([scenario], options=cached_options, runner=_unexpected_runner, keep_going=True)
+    cached_summary = module.summarize_matrix(cached_results)
+
+    assert seen == ["isolated-project-page"]
+    assert first_results[0].cached is False
+    assert cached_results[0].cached is True
+    assert cached_results[0].duration_seconds == 0.0
+    assert cached_summary["success"] is True
+    assert cached_summary["cached_count"] == 1
+    assert json.loads(cached_results[0].summary_path.read_text(encoding="utf-8"))["success"] is True
+    progress_event = json.loads(cached_results[0].progress_path.read_text(encoding="utf-8"))
+    assert progress_event["event"] == "scenario_complete"
+    assert progress_event["scenario"] == "isolated-project-page"
+
+
+def test_run_matrix_does_not_cache_failed_scenario(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=tmp_path / "matrix-cache.json",
+    )
+    calls = 0
+
+    def _failing_runner(argv, **_kwargs):
+        nonlocal calls
+        calls += 1
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": False,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 0,
+                    "probed_count": 0,
+                    "skipped_count": 0,
+                    "failed_count": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 1, stdout="")
+
+    first_results = module.run_matrix([scenario], options=options, runner=_failing_runner, keep_going=True)
+    second_results = module.run_matrix([scenario], options=options, runner=_failing_runner, keep_going=True)
+
+    assert calls == 2
+    assert first_results[0].cached is False
+    assert second_results[0].cached is False
+    assert not options.result_cache_path.exists()
 
 
 def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
@@ -910,6 +1046,202 @@ def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
     assert seen == ["isolated-core-pages"]
     assert summary["success"] is False
     assert summary["failed_scenarios"] == ["isolated-core-pages"]
+
+
+def test_run_matrix_reuses_cached_successful_result_with_progress_log(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    cache_path = tmp_path / "cache.json"
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+    progress_log = (
+        '{"event":"page_done","app":"flight_telemetry_project","page":"ORCHESTRATE",'
+        '"status":"passed","success":true,"duration_seconds":1.0}\n'
+    )
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: {"fingerprint": "stable"})
+    seen: list[str] = []
+
+    def _fake_runner(argv, **_kwargs):
+        seen.append("run")
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "app_count": 1,
+                    "page_count": 1,
+                    "widget_count": 2,
+                    "interacted_count": 1,
+                    "probed_count": 1,
+                    "skipped_count": 0,
+                    "failed_count": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path.write_text(progress_log, encoding="utf-8")
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    first = module.run_matrix([scenario], options=options, runner=_fake_runner, keep_going=True)
+    second = module.run_matrix(
+        [scenario],
+        options=options,
+        runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("cache miss")),
+        keep_going=True,
+    )
+    summary = module.summarize_matrix(second)
+
+    assert seen == ["run"]
+    assert first[0].cached is False
+    assert second[0].cached is True
+    assert second[0].progress_path.read_text(encoding="utf-8") == progress_log
+    assert summary["cached_count"] == 1
+    assert summary["scenarios"][0]["cached"] is True
+
+
+def test_run_matrix_cache_key_invalidates_when_source_fingerprint_changes(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    cache_path = tmp_path / "cache.json"
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+    fingerprints = iter([{"fingerprint": "a"}, {"fingerprint": "b"}])
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: next(fingerprints))
+    seen: list[str] = []
+
+    def _fake_runner(argv, **_kwargs):
+        seen.append(Path(argv[argv.index("--json-output") + 1]).stem)
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 1,
+                    "probed_count": 0,
+                    "skipped_count": 0,
+                    "failed_count": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path.write_text(
+            '{"event":"page_done","app":"flight_telemetry_project","page":"ORCHESTRATE",'
+            '"status":"passed","success":true,"duration_seconds":1.0}\n',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    first = module.run_matrix([scenario], options=options, runner=_fake_runner, keep_going=True)
+    second = module.run_matrix([scenario], options=options, runner=_fake_runner, keep_going=True)
+
+    assert seen == ["isolated-core-pages", "isolated-core-pages"]
+    assert first[0].cached is False
+    assert second[0].cached is False
+
+
+def test_run_matrix_does_not_cache_failed_or_progressless_results(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    cache_path = tmp_path / "cache.json"
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: {"fingerprint": "stable"})
+
+    def _failed_runner(argv, **_kwargs):
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": False,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 0,
+                    "probed_count": 1,
+                    "skipped_count": 0,
+                    "failed_count": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path.write_text(
+            '{"event":"page_done","app":"flight_telemetry_project","page":"ORCHESTRATE",'
+            '"status":"failed","success":false,"duration_seconds":1.0}\n',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 1, stdout="")
+
+    module.run_matrix([scenario], options=options, runner=_failed_runner, keep_going=True)
+
+    assert not cache_path.exists()
+
+    progressless_options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out-progressless",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+
+    def _progressless_runner(argv, **_kwargs):
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 1,
+                    "probed_count": 0,
+                    "skipped_count": 0,
+                    "failed_count": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    module.run_matrix([scenario], options=progressless_options, runner=_progressless_runner, keep_going=True)
+
+    assert not cache_path.exists()
 
 
 def test_summarize_matrix_reports_failure_samples(tmp_path) -> None:
