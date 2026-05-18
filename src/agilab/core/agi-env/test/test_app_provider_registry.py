@@ -69,14 +69,14 @@ def test_resolve_app_runtime_target_uses_explicit_project_metadata(tmp_path: Pat
     else:  # pragma: no cover - defensive assertion
         raise AssertionError("invalid runtime target should fail")
 
-    aliased_project = tmp_path / "weather_forecast_project"
-    (aliased_project / "src" / "meteo_forecast").mkdir(parents=True)
-    (aliased_project / "src" / "meteo_forecast" / "__init__.py").write_text("", encoding="utf-8")
-    (aliased_project / "pyproject.toml").write_text(
+    conventional_project = tmp_path / "weather_forecast_project"
+    (conventional_project / "src" / "weather_forecast").mkdir(parents=True)
+    (conventional_project / "src" / "weather_forecast" / "__init__.py").write_text("", encoding="utf-8")
+    (conventional_project / "pyproject.toml").write_text(
         "[project]\nname='weather-forecast-project'\n",
         encoding="utf-8",
     )
-    assert resolve_app_runtime_target(aliased_project, "weather_forecast_project") == "meteo_forecast"
+    assert resolve_app_runtime_target(conventional_project, "weather_forecast_project") == "weather_forecast"
 
 
 def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path) -> None:

@@ -89,7 +89,7 @@ def _sorted_strings(values: set[str]) -> list[str]:
     return sorted(value for value in values if value)
 
 
-def _merge_meteo_forecast_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
+def _merge_weather_forecast_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
     stations: set[str] = set()
     targets: set[str] = set()
     model_names: set[str] = set()
@@ -152,7 +152,7 @@ def _merge_meteo_forecast_partials(partials: Sequence[ReducePartial]) -> dict[st
     }
 
 
-def _validate_meteo_forecast_artifact(artifact: ReduceArtifact) -> None:
+def _validate_weather_forecast_artifact(artifact: ReduceArtifact) -> None:
     payload = artifact.payload
     if int(payload["forecast_run_count"]) <= 0:
         raise ValueError("weather_forecast reducer produced no forecast runs")
@@ -162,12 +162,12 @@ def _validate_meteo_forecast_artifact(artifact: ReduceArtifact) -> None:
         raise ValueError("weather_forecast reducer produced no station metadata")
 
 
-METEO_FORECAST_REDUCE_CONTRACT = ReduceContract(
+WEATHER_FORECAST_REDUCE_CONTRACT = ReduceContract(
     name=REDUCER_NAME,
     artifact_name=REDUCE_ARTIFACT_NAME,
-    merge=_merge_meteo_forecast_partials,
+    merge=_merge_weather_forecast_partials,
     validate_partial=require_payload_keys(*_REQUIRED_PAYLOAD_KEYS),
-    validate_artifact=_validate_meteo_forecast_artifact,
+    validate_artifact=_validate_weather_forecast_artifact,
     metadata={
         "app": "weather_forecast_project",
         "domain": "weather-forecast",
@@ -191,7 +191,7 @@ def partial_from_forecast_metrics(
     missing = [key for key in _REQUIRED_METRIC_KEYS if key not in metrics]
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(f"meteo_forecast metrics missing columns: {missing_text}")
+        raise ValueError(f"weather_forecast metrics missing columns: {missing_text}")
 
     backtest_rows = _as_int(metrics, "backtest_rows")
     rmse = _as_float(metrics, "rmse")
@@ -225,7 +225,7 @@ def partial_from_forecast_metrics(
 
 
 def build_reduce_artifact(partials: Sequence[ReducePartial]) -> ReduceArtifact:
-    return METEO_FORECAST_REDUCE_CONTRACT.build_artifact(partials)
+    return WEATHER_FORECAST_REDUCE_CONTRACT.build_artifact(partials)
 
 
 def write_reduce_artifact(
@@ -250,7 +250,7 @@ def write_reduce_artifact(
 
 
 __all__ = [
-    "METEO_FORECAST_REDUCE_CONTRACT",
+    "WEATHER_FORECAST_REDUCE_CONTRACT",
     "REDUCE_ARTIFACT_FILENAME_TEMPLATE",
     "REDUCE_ARTIFACT_NAME",
     "REDUCER_NAME",

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_model_data
 
 
-class MeteoForecastArgs(BaseModel):
+class WeatherForecastArgs(BaseModel):
     """Runtime parameters for the notebook-to-AGILAB forecast example."""
 
     model_config = ConfigDict(extra="forbid")
@@ -29,7 +29,7 @@ class MeteoForecastArgs(BaseModel):
     reset_target: bool = False
 
     @model_validator(mode="after")
-    def _validate_consistency(self) -> "MeteoForecastArgs":
+    def _validate_consistency(self) -> "WeatherForecastArgs":
         self.station = self.station.strip()
         if not self.station:
             raise ValueError("station must not be empty")
@@ -38,7 +38,7 @@ class MeteoForecastArgs(BaseModel):
         return self
 
 
-class MeteoForecastArgsTD(TypedDict, total=False):
+class WeatherForecastArgsTD(TypedDict, total=False):
     data_in: str
     data_out: str
     files: str
@@ -53,23 +53,23 @@ class MeteoForecastArgsTD(TypedDict, total=False):
     reset_target: bool
 
 
-ArgsModel = MeteoForecastArgs
-ArgsOverrides = MeteoForecastArgsTD
+ArgsModel = WeatherForecastArgs
+ArgsOverrides = WeatherForecastArgsTD
 
 
-def load_args(settings_path: str | Path, *, section: str = "args") -> MeteoForecastArgs:
-    return load_model_from_toml(MeteoForecastArgs, settings_path, section=section)
+def load_args(settings_path: str | Path, *, section: str = "args") -> WeatherForecastArgs:
+    return load_model_from_toml(WeatherForecastArgs, settings_path, section=section)
 
 
 def merge_args(
-    base: MeteoForecastArgs,
-    overrides: MeteoForecastArgsTD | None = None,
-) -> MeteoForecastArgs:
+    base: WeatherForecastArgs,
+    overrides: WeatherForecastArgsTD | None = None,
+) -> WeatherForecastArgs:
     return merge_model_data(base, overrides)
 
 
 def dump_args(
-    args: MeteoForecastArgs,
+    args: WeatherForecastArgs,
     settings_path: str | Path,
     *,
     section: str = "args",
@@ -78,15 +78,15 @@ def dump_args(
     dump_model_to_toml(args, settings_path, section=section, create_missing=create_missing)
 
 
-def ensure_defaults(args: MeteoForecastArgs, **_: Any) -> MeteoForecastArgs:
+def ensure_defaults(args: WeatherForecastArgs, **_: Any) -> WeatherForecastArgs:
     return args
 
 
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
-    "MeteoForecastArgs",
-    "MeteoForecastArgsTD",
+    "WeatherForecastArgs",
+    "WeatherForecastArgsTD",
     "dump_args",
     "ensure_defaults",
     "load_args",

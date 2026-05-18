@@ -14,15 +14,15 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from meteo_forecast import MeteoForecast, MeteoForecastArgs
-from meteo_forecast.reduction import (
+from weather_forecast import WeatherForecast, WeatherForecastArgs
+from weather_forecast.reduction import (
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
     build_reduce_artifact,
     partial_from_forecast_metrics,
     reduce_artifact_path,
 )
-from meteo_forecast_worker import MeteoForecastWorker
+from weather_forecast_worker import WeatherForecastWorker
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -42,19 +42,19 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
         _is_managed_pc=False,
         AGI_LOCAL_SHARE=str(share_root),
         AGILAB_EXPORT_ABS=export_root,
-        target="meteo_forecast",
+        target="weather_forecast",
     )
 
 
-def test_meteo_forecast_manager_seeds_dataset_and_distribution(tmp_path: Path) -> None:
+def test_weather_forecast_manager_seeds_dataset_and_distribution(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
-    args = MeteoForecastArgs()
-    manager = MeteoForecast(env, args=args)
+    args = WeatherForecastArgs()
+    manager = WeatherForecast(env, args=args)
 
     files = sorted(manager.args.data_in.glob("*.csv"))
     assert len(files) == 1
     assert files[0].name == "meteo_fr_daily_sample.csv"
-    assert manager.analysis_artifact_dir == env.AGILAB_EXPORT_ABS / "meteo_forecast" / "forecast_analysis"
+    assert manager.analysis_artifact_dir == env.AGILAB_EXPORT_ABS / "weather_forecast" / "forecast_analysis"
 
     workers = {"127.0.0.1": 1}
     work_plan, metadata, partition_key, weights_key, unit = manager.build_distribution(workers)
@@ -70,11 +70,11 @@ def test_meteo_forecast_manager_seeds_dataset_and_distribution(tmp_path: Path) -
 
 def test_weather_forecast_worker_exports_analysis_artifacts(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
-    args = MeteoForecastArgs(reset_target=True)
-    manager = MeteoForecast(env, args=args)
+    args = WeatherForecastArgs(reset_target=True)
+    manager = WeatherForecast(env, args=args)
     source = sorted(manager.args.data_in.glob("*.csv"))[0]
 
-    worker = MeteoForecastWorker()
+    worker = WeatherForecastWorker()
     worker.env = env
     worker.args = manager.args.model_dump(mode="json")
     worker._worker_id = 0
@@ -120,12 +120,12 @@ def test_weather_forecast_worker_exports_analysis_artifacts(tmp_path: Path) -> N
 
 def test_weather_forecast_worker_uses_share_path_without_export_attr(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
-    args = MeteoForecastArgs(reset_target=True)
-    manager = MeteoForecast(env, args=args)
+    args = WeatherForecastArgs(reset_target=True)
+    manager = WeatherForecast(env, args=args)
 
     worker_env = SimpleNamespace(**vars(env))
     delattr(worker_env, "AGILAB_EXPORT_ABS")
-    worker = MeteoForecastWorker()
+    worker = WeatherForecastWorker()
     worker.env = worker_env
     worker.args = manager.args.model_dump(mode="json")
     worker._worker_id = 0
@@ -137,7 +137,7 @@ def test_weather_forecast_worker_uses_share_path_without_export_attr(tmp_path: P
     assert worker.artifact_dir == Path(worker_env.AGI_LOCAL_SHARE) / worker_env.target / "forecast_analysis"
 
 
-def test_meteo_forecast_reduce_contract_merges_forecast_partials() -> None:
+def test_weather_forecast_reduce_contract_merges_forecast_partials() -> None:
     base_metrics = {
         "scenario": "Notebook migration builtin weather forecast",
         "station": "Paris-Montsouris",

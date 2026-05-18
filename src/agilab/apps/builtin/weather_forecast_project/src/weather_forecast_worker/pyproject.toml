@@ -10,7 +10,7 @@ agi-env = { path = "../../../../../core/agi-env", editable = true }
 agi-node = { path = "../../../../../core/agi-node", editable = true }
 
 [tool.setuptools.package-data]
-meteo_forecast = ["sample_data/*.csv"]
+weather_forecast = ["sample_data/*.csv"]
 
 [build-system]
 requires = ["setuptools"]

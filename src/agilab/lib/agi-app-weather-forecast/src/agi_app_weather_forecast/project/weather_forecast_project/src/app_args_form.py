@@ -11,7 +11,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from meteo_forecast import MeteoForecastArgs, dump_args, load_args
+from weather_forecast import WeatherForecastArgs, dump_args, load_args
 
 
 PAGE_ID = "weather_forecast_project:app_args_form"
@@ -29,12 +29,12 @@ def _get_env():
     return env
 
 
-def _load_current_args(settings_path: Path) -> MeteoForecastArgs:
+def _load_current_args(settings_path: Path) -> WeatherForecastArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
         st.warning(f"Unable to load Weather Forecast args from `{settings_path}`: {exc}")
-        return MeteoForecastArgs()
+        return WeatherForecastArgs()
 
 
 env = _get_env()
@@ -121,7 +121,7 @@ if data_out_raw:
     candidate["data_out"] = data_out_raw
 
 try:
-    validated = MeteoForecastArgs(**candidate)
+    validated = WeatherForecastArgs(**candidate)
 except ValidationError as exc:
     st.error("Invalid Weather Forecast parameters:")
     if hasattr(env, "humanize_validation_errors"):

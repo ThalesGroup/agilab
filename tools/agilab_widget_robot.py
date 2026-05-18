@@ -91,7 +91,13 @@ RISKY_ACTION_LABEL_TOKENS = {
     "update",
     "upload",
 }
-PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {
+    "flight",
+    "weather_forecast",
+    "meteo_forecast",
+    "uav_queue",
+    "uav_relay_queue",
+}
 NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS = {"mycode_project"}
 ORCHESTRATE_OUTPUT_ACTION_LABELS = {
     "run -> load -> export",
@@ -1225,8 +1231,8 @@ def _seed_queue_artifacts(export_root: Path, target: str) -> None:
         _write_queue_pipeline(run_root, scenario="uav_queue_hotspot")
 
 
-def _seed_forecast_artifacts(export_root: Path) -> None:
-    target_root = export_root / "meteo_forecast" / "forecast_analysis"
+def _seed_forecast_artifacts(export_root: Path, target: str) -> None:
+    target_root = export_root / target / "forecast_analysis"
     for name, mae, rmse, mape, notes in [
         ("baseline", 3.4, 4.2, 7.5, "Baseline notebook export"),
         ("candidate", 2.9, 3.8, 6.4, "Candidate notebook export"),
@@ -1259,8 +1265,8 @@ def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: 
         _seed_flight_artifacts(export_root, share_root)
     elif target in {"uav_queue", "uav_relay_queue"}:
         _seed_queue_artifacts(export_root, target)
-    elif target == "meteo_forecast":
-        _seed_forecast_artifacts(export_root)
+    elif target in {"weather_forecast", "meteo_forecast"}:
+        _seed_forecast_artifacts(export_root, target)
 
 
 def build_seeded_server_env(

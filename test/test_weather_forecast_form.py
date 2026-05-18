@@ -43,12 +43,12 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
         resolve_share_path=_resolve_share_path,
         share_root_path=lambda: share_root,
         AGILAB_EXPORT_ABS=export_root,
-        target="meteo_forecast",
+        target="weather_forecast",
         humanize_validation_errors=lambda exc: [str(item) for item in exc.errors()],
     )
 
 
-def test_meteo_forecast_form_renders_and_persists_args(tmp_path: Path) -> None:
+def test_weather_forecast_form_renders_and_persists_args(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
     at = AppTest.from_file(APP_FORM, default_timeout=20)
     at.session_state["env"] = env

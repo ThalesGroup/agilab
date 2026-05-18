@@ -3,24 +3,24 @@
 from .app_args import (
     ArgsModel,
     ArgsOverrides,
-    MeteoForecastArgs,
-    MeteoForecastArgsTD,
+    WeatherForecastArgs,
+    WeatherForecastArgsTD,
     dump_args,
     ensure_defaults,
     load_args,
     merge_args,
 )
-from .meteo_forecast import MeteoForecast, MeteoForecastApp
-from .reduction import METEO_FORECAST_REDUCE_CONTRACT
+from .weather_forecast import WeatherForecast, WeatherForecastApp
+from .reduction import WEATHER_FORECAST_REDUCE_CONTRACT
 
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
-    "METEO_FORECAST_REDUCE_CONTRACT",
-    "MeteoForecastArgs",
-    "MeteoForecastArgsTD",
-    "MeteoForecast",
-    "MeteoForecastApp",
+    "WEATHER_FORECAST_REDUCE_CONTRACT",
+    "WeatherForecastArgs",
+    "WeatherForecastArgsTD",
+    "WeatherForecast",
+    "WeatherForecastApp",
     "dump_args",
     "ensure_defaults",
     "load_args",

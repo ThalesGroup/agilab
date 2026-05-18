@@ -33,13 +33,13 @@ max_restart_rate = 0.25
 path = "connectors/data_connectors.toml"
 
 [connector_refs]
-training_sql = "meteo_training_sql"
-operator_events = "meteo_ops_opensearch"
-artifact_store = "meteo_artifact_store"
+training_sql = "weather_training_sql"
+operator_events = "weather_ops_opensearch"
+artifact_store = "weather_artifact_store"
 
 [page_connector_refs.release_decision]
-evidence_index = "meteo_ops_opensearch"
-artifact_store = "meteo_artifact_store"
+evidence_index = "weather_ops_opensearch"
+artifact_store = "weather_artifact_store"
 
 [legacy_paths]
 data_in = "weather_forecast/dataset"

@@ -6,7 +6,7 @@ description = "App-owned notebook import view declarations for weather forecast 
 id = "forecast_analysis_artifacts"
 module = "view_forecast_analysis"
 label = "Forecast analysis"
-description = "Inspect forecast metrics and observed-vs-predicted series exported by notebook migrations or meteo runs."
+description = "Inspect forecast metrics and observed-vs-predicted series exported by notebook migrations or weather runs."
 priority = 10
 required_artifacts = [
   "*forecast_metrics.json",
