@@ -61,6 +61,12 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
+- **PR-first publishing**: For normal code, docs, tests, workflow, and badge changes,
+  work on a short branch, push it, open a GitHub PR, merge through the PR, and delete
+  the branch after merge. Keep one coherent change per PR and stage only the files
+  that belong to that scope. Direct pushes to `main` are reserved for explicit
+  emergency fixes or release-maintenance operations where the user asks for that
+  exception.
 - **Current-code planning guardrail**: Before answering "next move", "ready for release",
   "release it", "sync HF", or any operational sequencing question, inspect the current
   repository state and the authoritative workflow/tooling files instead of relying on memory.
