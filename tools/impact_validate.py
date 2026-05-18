@@ -51,6 +51,12 @@ TEST_PREFIXES = (
     "src/agilab/core/test/",
     "src/agilab/core/agi-env/test/",
 )
+TEST_GUESS_ROOTS = (
+    "test",
+    "src/agilab/test",
+    "src/agilab/core/test",
+    "src/agilab/core/agi-env/test",
+)
 NON_GUI_ROOT_TESTS = {
     "test/conftest.py",
     "test/test_coverage_badge_guard.py",
@@ -95,6 +101,29 @@ class ImpactReport:
             "required_validations": [asdict(action) for action in self.required_validations],
             "guessed_tests": self.guessed_tests,
         }
+
+
+@dataclass(frozen=True)
+class TestIndex:
+    roots: tuple[str, ...]
+    exact_by_root: tuple[dict[str, tuple[str, ...]], ...]
+    prefix_by_root: tuple[dict[str, tuple[str, ...]], ...]
+    paths: frozenset[str]
+
+    def contains(self, path: str) -> bool:
+        return path in self.paths
+
+    def tests_for_stem(
+        self, stem: str, *, roots: Sequence[str] | None = None
+    ) -> list[str]:
+        selected_roots = set(roots) if roots is not None else None
+        matches: list[str] = []
+        for index, root in enumerate(self.roots):
+            if selected_roots is not None and root not in selected_roots:
+                continue
+            matches.extend(self.exact_by_root[index].get(stem, ()))
+            matches.extend(self.prefix_by_root[index].get(stem, ()))
+        return matches
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -192,6 +221,61 @@ def _is_non_gui_root_test(path: str) -> bool:
     return path in NON_GUI_ROOT_TESTS or _is_workflow_policy_test(path)
 
 
+def _append_mapping_value(
+    mapping: dict[str, list[str]], key: str, value: str
+) -> None:
+    current = mapping.setdefault(key, [])
+    if value not in current:
+        current.append(value)
+
+
+def _build_test_index(
+    repo: Path | None = None, roots: Sequence[str] = TEST_GUESS_ROOTS
+) -> TestIndex:
+    effective_repo = repo or REPO_ROOT
+    normalized_roots = tuple(root.strip("/") for root in roots if root.strip("/"))
+    exact_by_root: list[dict[str, tuple[str, ...]]] = []
+    prefix_by_root: list[dict[str, tuple[str, ...]]] = []
+    indexed_paths: set[str] = set()
+
+    for root in normalized_roots:
+        root_path = effective_repo / root
+        root_exact: dict[str, list[str]] = {}
+        root_prefix: dict[str, list[str]] = {}
+        if root_path.exists():
+            for path in sorted(root_path.glob("test_*.py")):
+                if not path.is_file():
+                    continue
+                relative = path.relative_to(effective_repo).as_posix()
+                indexed_paths.add(relative)
+                stem = path.stem.removeprefix("test_")
+                if not stem:
+                    continue
+                _append_mapping_value(root_exact, stem, relative)
+                parts = stem.split("_")
+                for index in range(1, len(parts)):
+                    _append_mapping_value(
+                        root_prefix, "_".join(parts[:index]), relative
+                    )
+        exact_by_root.append(
+            {key: tuple(values) for key, values in root_exact.items()}
+        )
+        prefix_by_root.append(
+            {key: tuple(values) for key, values in root_prefix.items()}
+        )
+
+    return TestIndex(
+        roots=normalized_roots,
+        exact_by_root=tuple(exact_by_root),
+        prefix_by_root=tuple(prefix_by_root),
+        paths=frozenset(indexed_paths),
+    )
+
+
+def _test_path_exists(path: str, test_index: TestIndex, *, repo: Path) -> bool:
+    return test_index.contains(path) or (repo / path).exists()
+
+
 def _risk_zones(paths: list[str]) -> list[RiskZone]:
     zones: list[RiskZone] = []
     builders = (
@@ -216,8 +300,11 @@ def _risk_zones(paths: list[str]) -> list[RiskZone]:
     return zones
 
 
-def _guess_tests_for_file(path: str) -> list[str]:
+def _guess_tests_for_file(
+    path: str, *, test_index: TestIndex | None = None
+) -> list[str]:
     repo = REPO_ROOT
+    index = test_index or _build_test_index()
     workflow_tests = {
         ".github/workflows/ci.yml": "test/test_ci_workflow.py",
         ".github/workflows/coverage.yml": "test/test_coverage_workflow.py",
@@ -239,7 +326,7 @@ def _guess_tests_for_file(path: str) -> list[str]:
     stem = rel.stem
 
     if _matches_prefix(path, TEST_PREFIXES):
-        if (repo / path).exists():
+        if _test_path_exists(path, index, repo=repo):
             return [path]
         return []
 
@@ -247,52 +334,55 @@ def _guess_tests_for_file(path: str) -> list[str]:
         parts = rel.parts
         if len(parts) >= 4:
             page_name = parts[3]
-            candidate_tests.extend(sorted((repo / "test").glob(f"test_{page_name}.py")))
-            candidate_tests.extend(sorted((repo / "test").glob(f"test_{page_name}_*.py")))
+            candidate_tests.extend(
+                Path(candidate)
+                for candidate in index.tests_for_stem(page_name, roots=("test",))
+            )
 
     if path.startswith("src/agilab/pages/"):
         ui_pages = repo / "test" / "test_ui_pages.py"
-        if ui_pages.exists():
+        if _test_path_exists("test/test_ui_pages.py", index, repo=repo):
             candidate_tests.append(ui_pages)
 
     if path.startswith("src/agilab/apps/"):
         parts = rel.parts
         project_root: Path | None = None
-        for index, part in enumerate(parts):
+        for part_index, part in enumerate(parts):
             if part.endswith("_project"):
-                project_root = Path(*parts[: index + 1])
+                project_root = Path(*parts[: part_index + 1])
                 break
         if project_root is not None:
             app_test = repo / project_root / "app_test.py"
             if app_test.exists():
                 candidate_tests.append(app_test)
 
-    for root in (
-        repo / "test",
-        repo / "src" / "agilab" / "test",
-        repo / "src" / "agilab" / "core" / "test",
-        repo / "src" / "agilab" / "core" / "agi-env" / "test",
-    ):
-        candidate_tests.extend(sorted(root.glob(f"test_{stem}.py")))
-        candidate_tests.extend(sorted(root.glob(f"test_{stem}_*.py")))
+    candidate_tests.extend(Path(candidate) for candidate in index.tests_for_stem(stem))
 
     normalized = []
     seen: set[str] = set()
     for candidate in candidate_tests:
-        if not candidate.exists():
+        if candidate.is_absolute():
+            if not candidate.exists():
+                continue
+            relative = candidate.relative_to(repo).as_posix()
+        else:
+            relative = candidate.as_posix()
+        if not _test_path_exists(relative, index, repo=repo):
             continue
-        relative = str(candidate.relative_to(repo))
         if relative not in seen:
             normalized.append(relative)
             seen.add(relative)
     return normalized
 
 
-def _guess_targeted_tests(paths: list[str]) -> list[str]:
+def _guess_targeted_tests(
+    paths: list[str], *, test_index: TestIndex | None = None
+) -> list[str]:
+    index = test_index or _build_test_index()
     guessed: list[str] = []
     seen: set[str] = set()
     for path in paths:
-        for candidate in _guess_tests_for_file(path):
+        for candidate in _guess_tests_for_file(path, test_index=index):
             if candidate not in seen:
                 guessed.append(candidate)
                 seen.add(candidate)
@@ -357,7 +447,8 @@ def _dedupe_actions(actions: Iterable[Action]) -> list[Action]:
 
 def analyze_paths(paths: list[str]) -> ImpactReport:
     zones = _risk_zones(paths)
-    guessed_tests = _guess_targeted_tests(paths)
+    test_index = _build_test_index()
+    guessed_tests = _guess_targeted_tests(paths, test_index=test_index)
     actions: list[Action] = []
     artifacts: list[Action] = []
     push_gates: list[Action] = []
