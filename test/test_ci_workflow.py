@@ -158,6 +158,15 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--scenario isolated-project-import-sidebar" in text
     assert "--scenario isolated-project-rename-sidebar" in text
     assert "--scenario isolated-settings-page" in text
+    assert "--scenario isolated-browser-error-core-pages" in text
+    assert "--scenario isolated-above-fold-core-pages" in text
+    assert "--scenario isolated-layout-integrity-desktop" in text
+    assert "--scenario isolated-keyboard-focus-core-pages" in text
+    assert "--scenario isolated-fresh-session-core-pages" in text
+    assert "--scenario isolated-browser-history" in text
+    assert "--scenario isolated-mobile-core-pages" in text
+    assert "--scenario isolated-layout-integrity-mobile" in text
+    assert "--scenario isolated-accessibility-core-pages" in text
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
     assert "--quiet-progress" in text

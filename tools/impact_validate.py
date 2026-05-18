@@ -252,34 +252,101 @@ def _normalized_roots(roots: Sequence[str]) -> tuple[str, ...]:
     return tuple(root.strip("/") for root in roots if root.strip("/"))
 
 
+def _is_direct_test_path(path: str, roots: Sequence[str]) -> bool:
+    normalized = path.replace("\\", "/").strip("/")
+    if not normalized.endswith(".py") or not Path(normalized).name.startswith("test_"):
+        return False
+    return any(Path(normalized).parent.as_posix() == root for root in roots)
+
+
+def _filesystem_test_index_paths(repo: Path, roots: Sequence[str]) -> list[str]:
+    test_paths: list[str] = []
+    seen: set[str] = set()
+    for root in roots:
+        root_path = repo / root
+        if not root_path.exists():
+            continue
+        for path in sorted(root_path.glob("test_*.py")):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(repo).as_posix()
+            if relative not in seen:
+                test_paths.append(relative)
+                seen.add(relative)
+    return test_paths
+
+
+def _git_test_index_paths(repo: Path, roots: Sequence[str]) -> list[str] | None:
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--",
+                *roots,
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return sorted(
+        {
+            line.strip()
+            for line in proc.stdout.splitlines()
+            if line.strip() and _is_direct_test_path(line.strip(), roots)
+        }
+    )
+
+
+def _discover_test_index_paths(repo: Path, roots: Sequence[str]) -> list[str]:
+    git_paths = _git_test_index_paths(repo, roots)
+    if git_paths is not None:
+        return git_paths
+    return _filesystem_test_index_paths(repo, roots)
+
+
 def _build_test_index(
-    repo: Path | None = None, roots: Sequence[str] = TEST_GUESS_ROOTS
+    repo: Path | None = None,
+    roots: Sequence[str] = TEST_GUESS_ROOTS,
+    test_paths: Sequence[str] | None = None,
 ) -> TestIndex:
     effective_repo = repo or REPO_ROOT
     normalized_roots = _normalized_roots(roots)
     exact_by_root: list[dict[str, tuple[str, ...]]] = []
     prefix_by_root: list[dict[str, tuple[str, ...]]] = []
     indexed_paths: set[str] = set()
+    discovered_paths = (
+        sorted(test_paths)
+        if test_paths is not None
+        else _discover_test_index_paths(effective_repo, normalized_roots)
+    )
 
     for root in normalized_roots:
-        root_path = effective_repo / root
         root_exact: dict[str, list[str]] = {}
         root_prefix: dict[str, list[str]] = {}
-        if root_path.exists():
-            for path in sorted(root_path.glob("test_*.py")):
-                if not path.is_file():
-                    continue
-                relative = path.relative_to(effective_repo).as_posix()
-                indexed_paths.add(relative)
-                stem = path.stem.removeprefix("test_")
-                if not stem:
-                    continue
-                _append_mapping_value(root_exact, stem, relative)
-                parts = stem.split("_")
-                for index in range(1, len(parts)):
-                    _append_mapping_value(
-                        root_prefix, "_".join(parts[:index]), relative
-                    )
+        for relative in discovered_paths:
+            if Path(relative).parent.as_posix() != root:
+                continue
+            indexed_paths.add(relative)
+            stem = Path(relative).stem.removeprefix("test_")
+            if not stem:
+                continue
+            _append_mapping_value(root_exact, stem, relative)
+            parts = stem.split("_")
+            for index in range(1, len(parts)):
+                _append_mapping_value(
+                    root_prefix, "_".join(parts[:index]), relative
+                )
         exact_by_root.append(
             {key: tuple(values) for key, values in root_exact.items()}
         )
@@ -357,22 +424,28 @@ def _test_index_signature(
     repo: Path | None = None, roots: Sequence[str] = TEST_GUESS_ROOTS
 ) -> list[dict[str, object]]:
     effective_repo = repo or REPO_ROOT
-    signature: list[dict[str, object]] = []
-    for root in _normalized_roots(roots):
-        root_path = effective_repo / root
-        if not root_path.exists():
-            signature.append({"path": root, "state": "missing-root"})
+    normalized_roots = _normalized_roots(roots)
+    return [
+        {"path": root, "state": "root", "exists": (effective_repo / root).exists()}
+        for root in normalized_roots
+    ] + [
+        {"path": path, "state": "test-file"}
+        for path in _discover_test_index_paths(effective_repo, normalized_roots)
+    ]
+
+
+def _test_paths_from_signature(signature: Sequence[dict[str, object]]) -> list[str] | None:
+    paths: list[str] = []
+    for entry in signature:
+        path = entry.get("path")
+        state = entry.get("state")
+        if not isinstance(path, str):
             continue
-        for path in sorted(root_path.glob("test_*.py")):
-            if not path.is_file():
-                continue
-            signature.append(
-                _file_signature(
-                    effective_repo,
-                    path.relative_to(effective_repo).as_posix(),
-                )
-            )
-    return signature
+        if state == "test-file" or (
+            state == "file" and Path(path).name.startswith("test_")
+        ):
+            paths.append(path)
+    return paths
 
 
 def _static_input_signature(repo: Path | None = None) -> list[dict[str, object]]:
@@ -465,7 +538,9 @@ def _build_cached_test_index(
         if index is not None:
             return index
 
-    index = _build_test_index()
+    index = _build_test_index(
+        test_paths=_test_paths_from_signature(effective_signature)
+    )
     state["test_index"] = {
         "roots": list(roots),
         "signature": effective_signature,

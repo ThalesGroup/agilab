@@ -24,7 +24,7 @@ KPI_COMPONENT_SCORES = {
     "Ease of adoption": Decimal("4.0"),
     "Research experimentation": Decimal("4.0"),
     "Engineering prototyping": Decimal("4.0"),
-    "Production readiness": Decimal("3.0"),
+    "Production readiness": Decimal("3.2"),
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
@@ -375,10 +375,10 @@ def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any
             report.get("status") == "pass"
             and summary.get("schema") == "agilab.public_certification_profile.v1"
             and summary.get("certification_profile") == "bounded_public_evidence"
-            and summary.get("path_count") == 6
-            and summary.get("certified_public_evidence_count") == 5
+            and summary.get("path_count") == 7
+            and summary.get("certified_public_evidence_count") == 6
             and summary.get("documented_not_certified_count") == 1
-            and summary.get("certified_beyond_newcomer_operator_count") == 3
+            and summary.get("certified_beyond_newcomer_operator_count") == 4
             and summary.get("production_certification_claimed") is False
             and summary.get("formal_third_party_certification") is False
             and summary.get("command_execution_count") == 0
@@ -2292,7 +2292,7 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
     try:
         production_readiness_report = _load_tool_module(repo_root, "production_readiness_report")
         report = production_readiness_report.build_report(repo_root=repo_root, run_docs_profile=False)
-        ok = report.get("status") == "pass" and report.get("supported_score") == "3.0 / 5"
+        ok = report.get("status") == "pass" and report.get("supported_score") == "3.2 / 5"
         details = {
             "status": report.get("status"),
             "supported_score": report.get("supported_score"),
@@ -2307,7 +2307,7 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
         "Production-readiness report contract",
         ok,
         (
-            "production-readiness evidence report passes and preserves the 3.0 / 5 scope limit"
+            "production-readiness evidence report passes and supports the controlled-pilot 3.2 / 5 boundary"
             if ok
             else "production-readiness evidence report is failing or overclaiming"
         ),
