@@ -291,6 +291,33 @@ def test_register_treats_existing_same_pending_publisher_as_success() -> None:
     assert result.already_registered is True
 
 
+def test_register_treats_visible_pending_publisher_row_as_success() -> None:
+    module = _load_module()
+    publisher = module.PendingGitHubPublisher(
+        project_name="agi-page-scenario-cockpit",
+        owner="ThalesGroup",
+        repository="agilab",
+        workflow_filename="pypi-publish.yaml",
+        environment="pypi-agi-page-scenario-cockpit",
+    )
+
+    result = module._interpret_registration_response(
+        """
+        <h2>Pending publishers</h2>
+        <dt>Pending project name</dt>
+        <dd>agi-page-scenario-cockpit</dd>
+        <dt>Publisher Details</dt>
+        <dd>GitHub Repository: ThalesGroup/agilab</dd>
+        <dd>Workflow: pypi-publish.yaml</dd>
+        <dd>Environment name: pypi-agi-page-scenario-cockpit</dd>
+        """,
+        publisher,
+    )
+
+    assert result.registered is False
+    assert result.already_registered is True
+
+
 def test_register_rejects_pending_publisher_for_different_project() -> None:
     module = _load_module()
     publisher = module.PendingGitHubPublisher(
