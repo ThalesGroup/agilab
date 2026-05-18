@@ -12,6 +12,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -19,6 +20,10 @@ import impact_validate
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TEST_INDEX_CACHE_SCHEMA = "agilab-ga-regression-selector-cache-v1"
+DEFAULT_TEST_INDEX_CACHE_PATH = (
+    REPO_ROOT / ".pytest_cache" / "agilab" / "ga_regression_selector.json"
+)
 DEFAULT_TEST_ROOTS = (
     "test",
     "src/agilab/test",
@@ -102,6 +107,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--generations", type=int, default=80)
     parser.add_argument("--seed", type=int, default=20260505)
     parser.add_argument("--max-candidates", type=int, default=96)
+    parser.add_argument(
+        "--cache-path",
+        default=str(DEFAULT_TEST_INDEX_CACHE_PATH),
+        help="Path for cached test discovery metadata and duration estimates.",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Bypass the selector's local test metadata cache.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
     parser.add_argument("--print-command", action="store_true", help="Print only the selected pytest command.")
     parser.add_argument("--run", action="store_true", help="Run the selected pytest command.")
@@ -134,12 +149,13 @@ def collect_changed_files(args: argparse.Namespace) -> list[str]:
     return impact_validate._normalize_paths([*tracked, *untracked])
 
 
-def _tokens(value: str) -> set[str]:
-    return {
+@lru_cache(maxsize=None)
+def _tokens(value: str) -> frozenset[str]:
+    return frozenset(
         token
         for token in re.split(r"[^a-z0-9]+", value.lower())
         if len(token) >= 3 and token not in COMMON_TOKENS
-    }
+    )
 
 
 def _discover_test_files(test_roots: Sequence[str] = DEFAULT_TEST_ROOTS) -> list[str]:
@@ -155,6 +171,95 @@ def _discover_test_files(test_roots: Sequence[str] = DEFAULT_TEST_ROOTS) -> list
                 tests.append(rel)
                 seen.add(rel)
     return tests
+
+
+def _test_file_signature(test_path: str) -> dict[str, int] | None:
+    path = REPO_ROOT / test_path
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return None
+    if not path.is_file():
+        return None
+    return {"size": stat_result.st_size, "mtime_ns": stat_result.st_mtime_ns}
+
+
+def _load_test_index_cache(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
+    if not isinstance(data, dict):
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
+    entries = data.get("entries")
+    if data.get("schema") != TEST_INDEX_CACHE_SCHEMA or not isinstance(entries, dict):
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
+    return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": entries}
+
+
+def _write_test_index_cache(path: Path, entries: dict[str, dict[str, object]]) -> None:
+    payload = {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": entries}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
+def _cached_default_estimates(
+    test_paths: Sequence[str],
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> dict[str, float]:
+    if not use_cache:
+        return {path: _default_estimate(path) for path in test_paths}
+
+    cache = _load_test_index_cache(cache_path)
+    raw_entries = cache.get("entries")
+    cached_entries = raw_entries if isinstance(raw_entries, dict) else {}
+    next_entries: dict[str, dict[str, object]] = {}
+    estimates: dict[str, float] = {}
+    changed = False
+
+    for test_path in test_paths:
+        signature = _test_file_signature(test_path)
+        cached = cached_entries.get(test_path)
+        if (
+            signature is not None
+            and isinstance(cached, dict)
+            and cached.get("signature") == signature
+            and isinstance(cached.get("estimated_seconds"), (int, float))
+        ):
+            estimate = max(0.05, float(cached["estimated_seconds"]))
+            estimates[test_path] = estimate
+            next_entries[test_path] = {
+                "signature": signature,
+                "estimated_seconds": estimate,
+            }
+            continue
+
+        estimate = _default_estimate(test_path)
+        estimates[test_path] = estimate
+        changed = True
+        if signature is not None:
+            next_entries[test_path] = {
+                "signature": signature,
+                "estimated_seconds": estimate,
+            }
+
+    if set(next_entries) != set(cached_entries):
+        changed = True
+    elif any(cached_entries.get(path) != entry for path, entry in next_entries.items()):
+        changed = True
+    if changed:
+        _write_test_index_cache(cache_path, next_entries)
+    return estimates
 
 
 def _is_shared_core_change(path: str) -> bool:
@@ -268,7 +373,13 @@ def _default_estimate(test_path: str) -> float:
     return max(0.25, 0.35 + (test_count + async_count) * 0.08)
 
 
-def _score_test(path: str, changed_files: Sequence[str], guessed_tests: set[str]) -> tuple[float, list[str]]:
+def _score_test(
+    path: str,
+    changed_files: Sequence[str],
+    guessed_tests: set[str],
+    *,
+    changed_tokens: frozenset[str] | None = None,
+) -> tuple[float, list[str]]:
     reasons: list[str] = []
     score = 0.0
     path_tokens = _tokens(path)
@@ -277,7 +388,12 @@ def _score_test(path: str, changed_files: Sequence[str], guessed_tests: set[str]
         score += 120.0
         reasons.append("direct impact match")
 
-    changed_tokens = set().union(*(_tokens(changed) for changed in changed_files)) if changed_files else set()
+    if changed_tokens is None:
+        changed_tokens = (
+            frozenset().union(*(_tokens(changed) for changed in changed_files))
+            if changed_files
+            else frozenset()
+        )
     overlap = sorted(path_tokens & changed_tokens)
     if overlap:
         score += min(60.0, len(overlap) * 12.0)
@@ -330,17 +446,42 @@ def _score_test(path: str, changed_files: Sequence[str], guessed_tests: set[str]
     return score, reasons
 
 
-def build_candidates(changed_files: Sequence[str], timings: dict[str, float]) -> list[TestCandidate]:
+def build_candidates(
+    changed_files: Sequence[str],
+    timings: dict[str, float],
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> list[TestCandidate]:
     impact = impact_validate.analyze_paths(list(changed_files))
     guessed_tests = set(impact.guessed_tests)
     candidates: list[TestCandidate] = []
-    for path in _discover_test_files():
+    test_files = _discover_test_files()
+    default_estimates = _cached_default_estimates(
+        test_files, cache_path=cache_path, use_cache=use_cache
+    )
+    changed_tokens = (
+        frozenset().union(*(_tokens(changed) for changed in changed_files))
+        if changed_files
+        else frozenset()
+    )
+    for path in test_files:
         if not _is_allowed_candidate(path, changed_files, guessed_tests):
             continue
-        score, reasons = _score_test(path, changed_files, guessed_tests)
+        score, reasons = _score_test(
+            path,
+            changed_files,
+            guessed_tests,
+            changed_tokens=changed_tokens,
+        )
         if score <= 1.0 and path not in guessed_tests:
             continue
-        estimate = timings.get(path, _default_estimate(path))
+        if path in timings:
+            estimate = timings[path]
+        else:
+            estimate = default_estimates.get(path)
+            if estimate is None:
+                estimate = _default_estimate(path)
         candidates.append(
             TestCandidate(
                 path=path,
@@ -473,9 +614,13 @@ def build_selection(
     generations: int = 80,
     seed: int = 20260505,
     max_candidates: int = 96,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
 ) -> SelectionResult:
     timing_map = timings or {}
-    candidates = build_candidates(files, timing_map)
+    candidates = build_candidates(
+        files, timing_map, cache_path=cache_path, use_cache=use_cache
+    )
     selected = select_tests(
         candidates,
         budget_seconds=budget_seconds,
@@ -547,6 +692,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         generations=args.generations,
         seed=args.seed,
         max_candidates=args.max_candidates,
+        cache_path=Path(args.cache_path),
+        use_cache=not args.no_cache,
     )
     if args.json:
         print(json.dumps(result.to_dict(), indent=2), flush=True)
