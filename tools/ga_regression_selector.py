@@ -31,6 +31,8 @@ DEFAULT_TEST_ROOTS = (
     "src/agilab/core/test",
     "src/agilab/core/agi-env/test",
 )
+EXACT_FAST_PATH_MAX_OPTIONAL = 12
+GA_STAGNATION_GENERATIONS = 12
 COMMON_TOKENS = {
     "src",
     "agilab",
@@ -614,6 +616,62 @@ def _tournament(
     return list(population[winner])
 
 
+def _greedy_genome(
+    optional: Sequence[TestCandidate],
+    required: Sequence[TestCandidate],
+    budget_seconds: float,
+) -> list[bool]:
+    greedy = [False] * len(optional)
+    remaining = max(
+        0.0,
+        budget_seconds - sum(candidate.estimated_seconds for candidate in required),
+    )
+    for index, candidate in sorted(
+        enumerate(optional),
+        key=lambda pair: (
+            -(pair[1].score / max(pair[1].estimated_seconds, 0.05)),
+            pair[1].path,
+        ),
+    ):
+        if candidate.estimated_seconds <= remaining:
+            greedy[index] = True
+            remaining -= candidate.estimated_seconds
+    return greedy
+
+
+def _exact_genome(
+    optional: Sequence[TestCandidate],
+    required: Sequence[TestCandidate],
+    budget_seconds: float,
+) -> list[bool]:
+    best = [False] * len(optional)
+    best_fitness = _fitness(best, optional, required, budget_seconds)
+    for mask in range(1, 1 << len(optional)):
+        genome = [bool(mask & (1 << index)) for index in range(len(optional))]
+        fitness = _fitness(genome, optional, required, budget_seconds)
+        if fitness > best_fitness:
+            best = genome
+            best_fitness = fitness
+    return best
+
+
+def _selected_from_genome(
+    genome: Sequence[bool],
+    optional: Sequence[TestCandidate],
+    required: Sequence[TestCandidate],
+    budget_seconds: float,
+) -> list[TestCandidate]:
+    selected = [
+        *required,
+        *(candidate for bit, candidate in zip(genome, optional) if bit),
+    ]
+    selected = _prune_to_budget(selected, budget_seconds)
+    return sorted(
+        selected,
+        key=lambda candidate: (-candidate.required, -candidate.score, candidate.path),
+    )
+
+
 def select_tests(
     candidates: Sequence[TestCandidate],
     *,
@@ -632,28 +690,43 @@ def select_tests(
     population_size = max(8, population_size)
     generations = max(1, generations)
     length = len(optional)
-    greedy = [False] * length
-    remaining = max(0.0, budget_seconds - sum(candidate.estimated_seconds for candidate in required))
-    for index, candidate in sorted(
-        enumerate(optional),
-        key=lambda pair: (-(pair[1].score / max(pair[1].estimated_seconds, 0.05)), pair[1].path),
-    ):
-        if candidate.estimated_seconds <= remaining:
-            greedy[index] = True
-            remaining -= candidate.estimated_seconds
-
-    population: list[list[bool]] = [
+    greedy = _greedy_genome(optional, required, budget_seconds)
+    baseline_genomes = [
         [False] * length,
         greedy,
         [index < min(8, length) for index in range(length)],
     ]
+    if length <= EXACT_FAST_PATH_MAX_OPTIONAL:
+        return _selected_from_genome(
+            _exact_genome(optional, required, budget_seconds),
+            optional,
+            required,
+            budget_seconds,
+        )
+
+    population: list[list[bool]] = [list(genome) for genome in baseline_genomes]
     while len(population) < population_size:
         density = rng.choice((0.08, 0.16, 0.24, 0.32))
         population.append(_random_genome(length, rng, density))
 
+    best: list[bool] = list(greedy)
+    best_fitness = _fitness(best, optional, required, budget_seconds)
+    stagnant_generations = 0
+
     for _ in range(generations):
         fitnesses = [_fitness(genome, optional, required, budget_seconds) for genome in population]
         ranked = sorted(range(len(population)), key=lambda index: fitnesses[index], reverse=True)
+        current_best = population[ranked[0]]
+        current_fitness = fitnesses[ranked[0]]
+        if current_fitness > best_fitness:
+            best = list(current_best)
+            best_fitness = current_fitness
+            stagnant_generations = 0
+        else:
+            stagnant_generations += 1
+            if stagnant_generations >= GA_STAGNATION_GENERATIONS:
+                break
+
         next_population = [list(population[ranked[0]]), list(population[ranked[1]])]
         while len(next_population) < population_size:
             left = _tournament(population, fitnesses, rng)
@@ -668,10 +741,10 @@ def select_tests(
         population = next_population
 
     fitnesses = [_fitness(genome, optional, required, budget_seconds) for genome in population]
-    best = population[max(range(len(population)), key=lambda index: fitnesses[index])]
-    selected = [*required, *(candidate for bit, candidate in zip(best, optional) if bit)]
-    selected = _prune_to_budget(selected, budget_seconds)
-    return sorted(selected, key=lambda candidate: (-candidate.required, -candidate.score, candidate.path))
+    final_best_index = max(range(len(population)), key=lambda index: fitnesses[index])
+    if fitnesses[final_best_index] > best_fitness:
+        best = list(population[final_best_index])
+    return _selected_from_genome(best, optional, required, budget_seconds)
 
 
 def _prune_to_budget(selected: Sequence[TestCandidate], budget_seconds: float) -> list[TestCandidate]:
