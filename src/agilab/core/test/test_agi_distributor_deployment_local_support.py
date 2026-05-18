@@ -541,6 +541,96 @@ async def test_run_cached_deploy_stage_requires_output_probe(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_deploy_plan_enforces_dependencies_and_records_results(tmp_path):
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=False,
+        cache_state={
+            "schema": deployment_local_support.DEPLOY_STAGE_CACHE_SCHEMA,
+            "stages": {},
+        },
+        cache_path=tmp_path / "cache.json",
+        log=mock.Mock(),
+    )
+    first = deployment_local_support._DeployPlanNode(
+        name="manager-sync",
+        cmd="uv sync --project manager",
+        cwd=tmp_path,
+        inputs=[],
+        output_probe=lambda: True,
+    )
+    second = deployment_local_support._DeployPlanNode(
+        name="worker-sync",
+        cmd="uv sync --project worker",
+        cwd=tmp_path,
+        inputs=[],
+        output_probe=lambda: True,
+        dependencies=("manager-sync",),
+    )
+
+    with pytest.raises(RuntimeError, match="missing dependencies: manager-sync"):
+        await plan.run(second)
+
+    assert await plan.run(first) == "ran"
+    assert await plan.run(second) == "ran"
+    assert calls == [
+        ("uv sync --project manager", tmp_path),
+        ("uv sync --project worker", tmp_path),
+    ]
+    assert plan.results == {"manager-sync": "ran", "worker-sync": "ran"}
+
+
+@pytest.mark.asyncio
+async def test_deploy_plan_records_cached_skips(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    input_file = project / "pyproject.toml"
+    input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
+    output_file = project / ".venv" / "bin" / "python"
+    cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text("", encoding="utf-8")
+
+    node = deployment_local_support._DeployPlanNode(
+        name="manager-sync",
+        cmd="uv sync --project manager",
+        cwd=project,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+    )
+    first_plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        log=mock.Mock(),
+    )
+
+    assert await first_plan.run(node) == "ran"
+
+    second_plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        log=mock.Mock(),
+    )
+
+    assert await second_plan.run(node) == "skipped"
+    assert calls == [("uv sync --project manager", project)]
+    assert second_plan.results == {"manager-sync": "skipped"}
+
+
+@pytest.mark.asyncio
 async def test_install_into_project_venv_can_resolve_dependencies_with_worker_python(
     tmp_path,
 ):
