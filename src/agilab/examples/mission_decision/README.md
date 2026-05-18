@@ -53,4 +53,5 @@ After the default run works, change only `failure_kind` or `objective`. Keep
 
 - If the run has no scenario input, verify `mission_decision/scenarios`.
 - If the decision page looks stale, rerun with `reset_target=True`.
-- If you need a simpler example first, run `flight` before this decision demo.
+- If you need a simpler example first, run `flight_telemetry` before this
+  decision demo.
