@@ -56,6 +56,8 @@ DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
 DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
 DEFAULT_TARGET_SECONDS = 1800.0
+DEFAULT_VIEWPORT_WIDTH = 1440
+DEFAULT_VIEWPORT_HEIGHT = 1000
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
 CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
@@ -1679,6 +1681,73 @@ def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
 
+def _performance_budget_probe(
+    *,
+    app_name: str,
+    display: str,
+    label: str,
+    seconds: float,
+    budget_seconds: float,
+    url: str,
+) -> WidgetProbe:
+    detail = f"{label}={seconds:.2f}s"
+    status = "probed"
+    if budget_seconds > 0:
+        detail += f" budget<={budget_seconds:.2f}s"
+        if seconds > budget_seconds:
+            status = "failed"
+            detail += " exceeded"
+    return WidgetProbe(app_name, display, "performance", label, status, detail, url)
+
+
+def _capture_success_screenshot_probe(
+    page: Any,
+    *,
+    web_robot: Any,
+    app_name: str,
+    display: str,
+    screenshot_dir: Path | None,
+) -> WidgetProbe | None:
+    if screenshot_dir is None:
+        return None
+    screenshot_fn = getattr(web_robot, "_screenshot", None)
+    if not callable(screenshot_fn):
+        return WidgetProbe(
+            app_name,
+            display,
+            "screenshot",
+            "success",
+            "failed",
+            "success screenshot requested but web robot screenshot helper is unavailable",
+            getattr(page, "url", ""),
+        )
+    try:
+        screenshot = screenshot_fn(page, screenshot_dir, f"{app_name}-{display}-success")
+    except Exception as exc:
+        return WidgetProbe(
+            app_name,
+            display,
+            "screenshot",
+            "success",
+            "failed",
+            _short_detail(f"success screenshot failed: {exc}"),
+            getattr(page, "url", ""),
+        )
+    return WidgetProbe(
+        app_name,
+        display,
+        "screenshot",
+        "success",
+        "probed",
+        f"success screenshot={screenshot}",
+        getattr(page, "url", ""),
+    )
+
+
+def _new_robot_context(browser: Any, *, viewport_width: int, viewport_height: int) -> Any:
+    return browser.new_context(viewport={"width": viewport_width, "height": viewport_height})
+
+
 def _rgb_brightness(value: str) -> float | None:
     match = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", value)
     if not match:
@@ -2481,6 +2550,8 @@ def _browser_issue_is_relevant(kind: str, detail: str) -> bool:
     lower = f"{kind} {detail}".lower()
     if any(needle in lower for needle in BROWSER_ISSUE_IGNORE_NEEDLES):
         return False
+    if kind == "requestfailed" or kind.startswith("http."):
+        return True
     if kind == "pageerror":
         return True
     return any(needle in lower for needle in BROWSER_ISSUE_FATAL_NEEDLES)
@@ -2512,6 +2583,32 @@ def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
     def _on_page_error(error: Any) -> None:
         _record_browser_issue(issues, kind="pageerror", detail=str(error))
 
+    def _on_request_failed(request: Any) -> None:
+        failure = getattr(request, "failure", None)
+        failure_detail = ""
+        try:
+            if callable(failure):
+                failure = failure()
+        except Exception:
+            failure = None
+        if isinstance(failure, dict):
+            failure_detail = str(failure.get("errorText") or failure.get("error_text") or "")
+        elif failure is not None:
+            failure_detail = _callable_or_value(failure, "error_text", "") or str(failure)
+        url = _callable_or_value(request, "url", "")
+        _record_browser_issue(issues, kind="requestfailed", detail=f"{url} {failure_detail}".strip())
+
+    def _on_response(response: Any) -> None:
+        status_value = getattr(response, "status", None)
+        try:
+            status = int(status_value() if callable(status_value) else status_value)
+        except Exception:
+            return
+        if status < 400:
+            return
+        url = _callable_or_value(response, "url", "")
+        _record_browser_issue(issues, kind=f"http.{status}", detail=f"HTTP {status} {url}".strip())
+
     try:
         page.on("console", _on_console)
     except Exception:
@@ -2520,6 +2617,14 @@ def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
         page.on("pageerror", _on_page_error)
     except Exception:
         logger.debug("Unable to attach pageerror issue capture", exc_info=True)
+    try:
+        page.on("requestfailed", _on_request_failed)
+    except Exception:
+        logger.debug("Unable to attach requestfailed issue capture", exc_info=True)
+    try:
+        page.on("response", _on_response)
+    except Exception:
+        logger.debug("Unable to attach response issue capture", exc_info=True)
     return issues
 
 
@@ -2912,6 +3017,7 @@ def _probe_selected_actions_first(
     upload_file: Path,
     orchestrate_artifact_context: OrchestrateArtifactContext | None = None,
     workflow_artifact_context: WorkflowArtifactContext | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> list[WidgetProbe]:
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
@@ -3010,6 +3116,7 @@ def _probe_selected_actions_first(
             restore_view=None,
             settle_action_labels=next_settle_labels[:1],
             allow_idle_settle=allow_idle_settle,
+            max_action_settle_seconds=max_action_settle_seconds,
         )
         if (
             app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
@@ -3328,6 +3435,7 @@ def _probe_widget(
     settle_action_labels: Sequence[str] = (),
     allow_idle_settle: bool = False,
     action_click_budget: list[int] | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
@@ -3421,6 +3529,7 @@ def _probe_widget(
                         role_locator.click(timeout=click_timeout_ms)
                 else:
                     _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                settle_started = time.perf_counter()
                 error, settled = _wait_for_action_outcome(
                     page,
                     timeout_ms=action_timeout_ms,
@@ -3429,6 +3538,7 @@ def _probe_widget(
                     settle_action_labels=settle_action_labels,
                     allow_idle_settle=allow_idle_settle,
                 )
+                settle_seconds = time.perf_counter() - settle_started
                 if error:
                     detail = f"button click rendered Streamlit error: {error}"
                     feedback_tail = _visible_action_feedback_tail(page)
@@ -3441,16 +3551,22 @@ def _probe_widget(
                         "timeout",
                         f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s",
                     )
+                if max_action_settle_seconds > 0 and settle_seconds > max_action_settle_seconds:
+                    return "failed", _action_status_detail(
+                        action_label,
+                        "slow",
+                        f"action settled in {settle_seconds:.2f}s; budget<={max_action_settle_seconds:.2f}s",
+                    )
                 if action_button_policy == "safe-click":
-                    return "interacted", f"clicked guarded safe action button: {safe_click_reason}"
+                    return "interacted", f"clicked guarded safe action button in {settle_seconds:.2f}s: {safe_click_reason}"
                 if action_button_policy == "click-selected":
                     if _is_install_action_label(action_label):
                         install_ok, install_detail = _install_postcondition_status(page)
                         if not install_ok:
                             return "failed", _action_status_detail(action_label, "error", install_detail)
-                        return "interacted", _action_status_detail(action_label, "success", install_detail)
-                    return "interacted", _action_status_detail(action_label, "success", "selected action completed")
-                return "interacted", "clicked action button"
+                        return "interacted", _action_status_detail(action_label, "success", f"{install_detail}; settled={settle_seconds:.2f}s")
+                    return "interacted", _action_status_detail(action_label, "success", f"selected action completed; settled={settle_seconds:.2f}s")
+                return "interacted", f"clicked action button in {settle_seconds:.2f}s"
             if action_button_policy == "safe-click":
                 return _probe_action_button_trial(
                     locator,
@@ -3549,6 +3665,7 @@ def _collect_and_probe_current_view(
     page_deadline: float | None = None,
     discovery_passes: int = 1,
     action_click_budget: list[int] | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> list[WidgetProbe]:
     probes: list[WidgetProbe] = []
     for _ in range(max(1, discovery_passes)):
@@ -3575,6 +3692,7 @@ def _collect_and_probe_current_view(
                 upload_file=upload_file,
                 restore_view=restore_view,
                 action_click_budget=action_click_budget,
+                max_action_settle_seconds=max_action_settle_seconds,
             )
             if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
                 try:
@@ -3592,6 +3710,7 @@ def _collect_and_probe_current_view(
                         upload_file=upload_file,
                         restore_view=restore_view,
                         action_click_budget=action_click_budget,
+                        max_action_settle_seconds=max_action_settle_seconds,
                     )
                 except Exception as exc:
                     status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
@@ -3630,6 +3749,7 @@ def _exercise_widget_combinations(
     max_options_per_widget: int,
     discovery_passes: int,
     action_click_budget: list[int] | None,
+    max_action_settle_seconds: float = 0.0,
 ) -> tuple[int, int, int, int, list[WidgetProbe]]:
     probes: list[WidgetProbe] = []
     try:
@@ -3723,6 +3843,7 @@ def _exercise_widget_combinations(
                     known=known,
                     discovery_passes=discovery_passes,
                     action_click_budget=action_click_budget,
+                    max_action_settle_seconds=max_action_settle_seconds,
                 )
             )
             executed_count += 1
@@ -3778,6 +3899,10 @@ def sweep_page(
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
     browser_history_check: bool = False,
+    success_screenshot: bool = False,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -3796,19 +3921,48 @@ def sweep_page(
     combination_failed_count = 0
     combination_skipped_count = 0
     action_click_budget = [max_action_clicks_per_page]
+    performance_probe_enabled = max_first_render_seconds > 0 or max_widgets_ready_seconds > 0
+    performance_recorded = False
 
     def restore_view() -> None:
+        nonlocal performance_recorded
         _enforce_page_deadline(page_deadline, "page watchdog expired before navigation")
+        render_started = time.perf_counter()
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
         _enforce_page_deadline(page_deadline, "page watchdog expired before health check")
         health = web_robot.assert_page_healthy(page, label=f"{app_name}:{display}:restore", expect_any=expect_any, timeout_ms=timeout_ms, screenshot_dir=screenshot_dir)
         if not health.success:
             raise RuntimeError(health.detail)
+        first_render_seconds = time.perf_counter() - render_started
         page.wait_for_timeout(1000)
         _enforce_page_deadline(page_deadline, "page watchdog expired before readiness wait")
         wait_for_page_ready(page, timeout_ms=timeout_ms)
         _enforce_page_deadline(page_deadline, "page watchdog expired before widget readiness wait")
+        widgets_started = time.perf_counter()
         wait_for_widgets_ready(page, page_name=page_name, timeout_ms=timeout_ms)
+        widgets_ready_seconds = time.perf_counter() - widgets_started
+        if performance_probe_enabled and not performance_recorded:
+            probes.extend(
+                [
+                    _performance_budget_probe(
+                        app_name=app_name,
+                        display=display,
+                        label="first_render",
+                        seconds=first_render_seconds,
+                        budget_seconds=max_first_render_seconds,
+                        url=getattr(page, "url", target_url),
+                    ),
+                    _performance_budget_probe(
+                        app_name=app_name,
+                        display=display,
+                        label="widgets_ready",
+                        seconds=widgets_ready_seconds,
+                        budget_seconds=max_widgets_ready_seconds,
+                        url=getattr(page, "url", target_url),
+                    ),
+                ]
+            )
+            performance_recorded = True
         _enforce_page_deadline(page_deadline, "page watchdog expired before expander open")
         page.evaluate(OPEN_EXPANDERS_JS)
 
@@ -3889,6 +4043,7 @@ def sweep_page(
                         upload_file=upload_file,
                         orchestrate_artifact_context=orchestrate_artifact_context,
                         workflow_artifact_context=workflow_artifact_context,
+                        max_action_settle_seconds=max_action_settle_seconds,
                     )
                 )
                 if not any(probe.status == "failed" for probe in probes):
@@ -3917,6 +4072,7 @@ def sweep_page(
                             page_deadline=page_deadline,
                             discovery_passes=discovery_passes,
                             action_click_budget=action_click_budget,
+                            max_action_settle_seconds=max_action_settle_seconds,
                         )
                     )
                 if combination_mode == "exhaustive":
@@ -3934,6 +4090,7 @@ def sweep_page(
                         max_options_per_widget=max_options_per_widget,
                         discovery_passes=discovery_passes,
                         action_click_budget=action_click_budget,
+                        max_action_settle_seconds=max_action_settle_seconds,
                     )
                     combination_space_count += space
                     combination_count += count
@@ -3970,6 +4127,7 @@ def sweep_page(
                                         page_deadline=page_deadline,
                                         discovery_passes=discovery_passes,
                                         action_click_budget=action_click_budget,
+                                        max_action_settle_seconds=max_action_settle_seconds,
                                     )
                                 )
                             if combination_mode == "exhaustive":
@@ -3995,6 +4153,7 @@ def sweep_page(
                                     max_options_per_widget=max_options_per_widget,
                                     discovery_passes=discovery_passes,
                                     action_click_budget=action_click_budget,
+                                    max_action_settle_seconds=max_action_settle_seconds,
                                 )
                                 combination_space_count += space
                                 combination_count += count
@@ -4028,6 +4187,19 @@ def sweep_page(
         start_index=browser_issue_start_index,
     ):
         page_status = "failed"
+
+    if success_screenshot and page_status == "passed" and not any(probe.status == "failed" for probe in probes):
+        screenshot_probe = _capture_success_screenshot_probe(
+            page,
+            web_robot=web_robot,
+            app_name=app_name,
+            display=display,
+            screenshot_dir=screenshot_dir,
+        )
+        if screenshot_probe is not None:
+            probes.append(screenshot_probe)
+            if screenshot_probe.status == "failed":
+                page_status = "failed"
 
     failed = [probe for probe in probes if probe.status == "failed"]
     skipped = [probe for probe in probes if probe.status == "skipped"]
@@ -4243,6 +4415,12 @@ def sweep_direct_apps_page(
     headless: bool,
     screenshot_dir: Path | None,
     server_env: dict[str, str],
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    success_screenshot: bool = False,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -4310,7 +4488,7 @@ def sweep_direct_apps_page(
         _, _, sync_playwright = web_robot._load_playwright()
         with sync_playwright() as playwright:
             browser = getattr(playwright, browser_name).launch(headless=headless)
-            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
             try:
                 page = context.new_page()
                 browser_issues = _attach_browser_issue_capture(page)
@@ -4342,6 +4520,10 @@ def sweep_direct_apps_page(
                         max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
+                        success_screenshot=success_screenshot,
+                        max_first_render_seconds=max_first_render_seconds,
+                        max_widgets_ready_seconds=max_widgets_ready_seconds,
+                        max_action_settle_seconds=max_action_settle_seconds,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
@@ -4378,6 +4560,13 @@ def sweep_app(
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
     browser_history_check: bool = False,
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    fresh_browser_context_per_page: bool = False,
+    success_screenshot: bool = False,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
     route_query: str = "",
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
@@ -4423,27 +4612,13 @@ def sweep_app(
             _, _, sync_playwright = web_robot._load_playwright()
             with sync_playwright() as playwright:
                 browser = getattr(playwright, browser_name).launch(headless=headless)
-                context = browser.new_context(viewport={"width": 1440, "height": 1000})
                 try:
-                    page = context.new_page()
-                    browser_issues = _attach_browser_issue_capture(page)
                     with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                         upload_file = Path(tmp_dir) / "upload-fixture.txt"
                         upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
-                        for page_name in pages:
+
+                        def run_page(page_name: str, page: Any, browser_issues: list[dict[str, str]]) -> PageSweep | None:
                             display = page_label(page_name)
-                            resumed = _resume_page_if_available(
-                                app_name=app_name,
-                                page_name=display,
-                                resume_page_results=resume_page_results,
-                                progress=progress,
-                                on_page_result=on_page_result,
-                            )
-                            if resumed is not None:
-                                results.append(resumed)
-                                continue
-                            if progress is not None:
-                                progress.emit("page_start", app=app_name, page=display)
                             result = sweep_page(
                                 page,
                                 web_robot=web_robot,
@@ -4475,11 +4650,64 @@ def sweep_app(
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                                 assert_workflow_artifacts=assert_workflow_artifacts,
                                 browser_history_check=browser_history_check,
+                                success_screenshot=success_screenshot,
+                                max_first_render_seconds=max_first_render_seconds,
+                                max_widgets_ready_seconds=max_widgets_ready_seconds,
+                                max_action_settle_seconds=max_action_settle_seconds,
                             )
-                            results.append(result)
-                            _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                            return result
+
+                        if fresh_browser_context_per_page:
+                            for page_name in pages:
+                                display = page_label(page_name)
+                                resumed = _resume_page_if_available(
+                                    app_name=app_name,
+                                    page_name=display,
+                                    resume_page_results=resume_page_results,
+                                    progress=progress,
+                                    on_page_result=on_page_result,
+                                )
+                                if resumed is not None:
+                                    results.append(resumed)
+                                    continue
+                                if progress is not None:
+                                    progress.emit("page_start", app=app_name, page=display)
+                                context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                                try:
+                                    page = context.new_page()
+                                    browser_issues = _attach_browser_issue_capture(page)
+                                    result = run_page(page_name, page, browser_issues)
+                                finally:
+                                    context.close()
+                                assert result is not None
+                                results.append(result)
+                                _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                        else:
+                            context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                            try:
+                                page = context.new_page()
+                                browser_issues = _attach_browser_issue_capture(page)
+                                for page_name in pages:
+                                    display = page_label(page_name)
+                                    resumed = _resume_page_if_available(
+                                        app_name=app_name,
+                                        page_name=display,
+                                        resume_page_results=resume_page_results,
+                                        progress=progress,
+                                        on_page_result=on_page_result,
+                                    )
+                                    if resumed is not None:
+                                        results.append(resumed)
+                                        continue
+                                    if progress is not None:
+                                        progress.emit("page_start", app=app_name, page=display)
+                                    result = run_page(page_name, page, browser_issues)
+                                    assert result is not None
+                                    results.append(result)
+                                    _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                            finally:
+                                context.close()
                 finally:
-                    context.close()
                     browser.close()
         for route in apps_pages:
             results.append(
@@ -4504,6 +4732,12 @@ def sweep_app(
                     browser_name=browser_name,
                     headless=headless,
                     screenshot_dir=screenshot_dir,
+                    viewport_width=viewport_width,
+                    viewport_height=viewport_height,
+                    success_screenshot=success_screenshot,
+                    max_first_render_seconds=max_first_render_seconds,
+                    max_widgets_ready_seconds=max_widgets_ready_seconds,
+                    max_action_settle_seconds=max_action_settle_seconds,
                     server_env=seeded_runtime.env,
                     page_timeout=page_timeout,
                     progress=progress,
@@ -4540,6 +4774,13 @@ def sweep_remote_app(
     screenshot_dir: Path | None,
     route_query: str = "",
     browser_history_check: bool = False,
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    fresh_browser_context_per_page: bool = False,
+    success_screenshot: bool = False,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -4572,28 +4813,13 @@ def sweep_remote_app(
     results: list[PageSweep] = []
     with sync_playwright() as playwright:
         browser = getattr(playwright, browser_name).launch(headless=headless)
-        context = browser.new_context(viewport={"width": 1440, "height": 1000})
         try:
-            page = context.new_page()
-            browser_issues = _attach_browser_issue_capture(page)
             with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                 upload_file = Path(tmp_dir) / "upload-fixture.txt"
                 upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
-                for page_name in pages:
-                    display = page_label(page_name)
-                    resumed = _resume_page_if_available(
-                        app_name=app_name,
-                        page_name=display,
-                        resume_page_results=resume_page_results,
-                        progress=progress,
-                        on_page_result=on_page_result,
-                    )
-                    if resumed is not None:
-                        results.append(resumed)
-                        continue
-                    if progress is not None:
-                        progress.emit("page_start", app=app_name, page=display)
-                    result = sweep_page(
+
+                def run_top_level_page(page_name: str, page: Any, browser_issues: list[dict[str, str]]) -> PageSweep:
+                    return sweep_page(
                         page,
                         web_robot=web_robot,
                         base_url=base_url,
@@ -4617,9 +4843,46 @@ def sweep_remote_app(
                         screenshot_dir=screenshot_dir,
                         route_query=route_query,
                         browser_history_check=browser_history_check,
+                        success_screenshot=success_screenshot,
+                        max_first_render_seconds=max_first_render_seconds,
+                        max_widgets_ready_seconds=max_widgets_ready_seconds,
+                        max_action_settle_seconds=max_action_settle_seconds,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
+
+                if fresh_browser_context_per_page:
+                    shared_page: Any | None = None
+                    shared_browser_issues: list[dict[str, str]] | None = None
+                else:
+                    context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                    shared_page = context.new_page()
+                    shared_browser_issues = _attach_browser_issue_capture(shared_page)
+                for page_name in pages:
+                    display = page_label(page_name)
+                    resumed = _resume_page_if_available(
+                        app_name=app_name,
+                        page_name=display,
+                        resume_page_results=resume_page_results,
+                        progress=progress,
+                        on_page_result=on_page_result,
+                    )
+                    if resumed is not None:
+                        results.append(resumed)
+                        continue
+                    if progress is not None:
+                        progress.emit("page_start", app=app_name, page=display)
+                    if fresh_browser_context_per_page:
+                        context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                        try:
+                            page = context.new_page()
+                            browser_issues = _attach_browser_issue_capture(page)
+                            result = run_top_level_page(page_name, page, browser_issues)
+                        finally:
+                            context.close()
+                    else:
+                        assert shared_page is not None and shared_browser_issues is not None
+                        result = run_top_level_page(page_name, shared_page, shared_browser_issues)
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                 for route in apps_pages:
@@ -4636,39 +4899,56 @@ def sweep_remote_app(
                         continue
                     if progress is not None:
                         progress.emit("page_start", app=app_name, page=display)
-                    result = sweep_page(
-                        page,
-                        web_robot=web_robot,
-                        base_url=base_url,
-                        active_app_query=active_app_query,
-                        app_name=app_name,
-                        page_name="ANALYSIS",
-                        display_page=display,
-                        current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
-                        expected_text=(),
-                        check_active_app_route=False,
-                        timeout=timeout,
-                        widget_timeout=widget_timeout,
-                        interaction_mode=interaction_mode,
-                        action_button_policy=action_button_policy,
-                        click_action_labels=click_action_labels,
-                        preselect_labels=preselect_labels,
-                        missing_selected_action_policy=missing_selected_action_policy,
-                        action_timeout=action_timeout,
-                        combination_mode=combination_mode,
-                        max_combinations=max_combinations,
-                        max_options_per_widget=max_options_per_widget,
-                        discovery_passes=discovery_passes,
-                        max_action_clicks_per_page=max_action_clicks_per_page,
-                        upload_file=upload_file,
-                        screenshot_dir=screenshot_dir,
-                        page_timeout=page_timeout,
-                        browser_issues=browser_issues,
-                    )
+                    if fresh_browser_context_per_page:
+                        context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                        page = context.new_page()
+                        browser_issues = _attach_browser_issue_capture(page)
+                    else:
+                        assert shared_page is not None and shared_browser_issues is not None
+                        page = shared_page
+                        browser_issues = shared_browser_issues
+                    try:
+                        result = sweep_page(
+                            page,
+                            web_robot=web_robot,
+                            base_url=base_url,
+                            active_app_query=active_app_query,
+                            app_name=app_name,
+                            page_name="ANALYSIS",
+                            display_page=display,
+                            current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
+                            expected_text=(),
+                            check_active_app_route=False,
+                            timeout=timeout,
+                            widget_timeout=widget_timeout,
+                            interaction_mode=interaction_mode,
+                            action_button_policy=action_button_policy,
+                            click_action_labels=click_action_labels,
+                            preselect_labels=preselect_labels,
+                            missing_selected_action_policy=missing_selected_action_policy,
+                            action_timeout=action_timeout,
+                            combination_mode=combination_mode,
+                            max_combinations=max_combinations,
+                            max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
+                            upload_file=upload_file,
+                            screenshot_dir=screenshot_dir,
+                            success_screenshot=success_screenshot,
+                            max_first_render_seconds=max_first_render_seconds,
+                            max_widgets_ready_seconds=max_widgets_ready_seconds,
+                            max_action_settle_seconds=max_action_settle_seconds,
+                            page_timeout=page_timeout,
+                            browser_issues=browser_issues,
+                        )
+                    finally:
+                        if fresh_browser_context_per_page:
+                            context.close()
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                if not fresh_browser_context_per_page:
+                    context.close()
         finally:
-            context.close()
             browser.close()
     return results
 
@@ -4710,6 +4990,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apps-pages", default="configured", help="Apps-pages to test: 'configured' per app, 'all', 'none', or comma-separated names/paths. Default: configured.")
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
     parser.add_argument("--headful", action="store_true")
+    parser.add_argument("--viewport-width", type=int, default=DEFAULT_VIEWPORT_WIDTH, help=f"Browser viewport width in pixels. Default: {DEFAULT_VIEWPORT_WIDTH}.")
+    parser.add_argument("--viewport-height", type=int, default=DEFAULT_VIEWPORT_HEIGHT, help=f"Browser viewport height in pixels. Default: {DEFAULT_VIEWPORT_HEIGHT}.")
+    parser.add_argument("--fresh-browser-context-per-page", action="store_true", help="Open each top-level page in a fresh browser context to catch session/localStorage assumptions.")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
     parser.add_argument("--page-timeout", type=float, default=DEFAULT_PAGE_TIMEOUT_SECONDS, help="Whole-page watchdog timeout in seconds. Use 0 to disable.")
@@ -4766,6 +5049,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Navigate PROJECT -> ORCHESTRATE -> ANALYSIS, then browser back/forward, and assert page health plus active_app routing.",
     )
+    parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
+    parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
+    parser.add_argument("--max-widgets-ready-seconds", type=float, default=0.0, help="Fail a page when widget readiness after render exceeds this budget. Use 0 to disable.")
+    parser.add_argument("--max-action-settle-seconds", type=float, default=0.0, help="Fail a clicked action when its UI settle time exceeds this budget. Use 0 to disable.")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -4809,8 +5096,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--widget-timeout must be greater than 0")
     if args.page_timeout < 0:
         parser.error("--page-timeout must be greater than or equal to 0")
+    if args.viewport_width <= 0 or args.viewport_height <= 0:
+        parser.error("--viewport-width and --viewport-height must be greater than 0")
     if args.action_timeout <= 0:
         parser.error("--action-timeout must be greater than 0")
+    if args.max_first_render_seconds < 0 or args.max_widgets_ready_seconds < 0 or args.max_action_settle_seconds < 0:
+        parser.error("--max-* budget options must be greater than or equal to 0")
     if args.max_combinations <= 0:
         parser.error("--max-combinations must be greater than 0")
     if args.max_options_per_widget <= 0:
@@ -4874,6 +5165,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 screenshot_dir=screenshot_dir,
                 route_query=args.route_query,
                 browser_history_check=args.browser_history_check,
+                viewport_width=args.viewport_width,
+                viewport_height=args.viewport_height,
+                fresh_browser_context_per_page=args.fresh_browser_context_per_page,
+                success_screenshot=args.success_screenshot,
+                max_first_render_seconds=args.max_first_render_seconds,
+                max_widgets_ready_seconds=args.max_widgets_ready_seconds,
+                max_action_settle_seconds=args.max_action_settle_seconds,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
@@ -4905,6 +5203,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
                 browser_history_check=args.browser_history_check,
+                viewport_width=args.viewport_width,
+                viewport_height=args.viewport_height,
+                fresh_browser_context_per_page=args.fresh_browser_context_per_page,
+                success_screenshot=args.success_screenshot,
+                max_first_render_seconds=args.max_first_render_seconds,
+                max_widgets_ready_seconds=args.max_widgets_ready_seconds,
+                max_action_settle_seconds=args.max_action_settle_seconds,
                 route_query=args.route_query,
                 page_timeout=args.page_timeout,
                 progress=progress,

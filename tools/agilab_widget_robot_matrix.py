@@ -37,6 +37,13 @@ class RobotScenario:
     assert_orchestrate_artifacts: bool = False
     assert_workflow_artifacts: bool = False
     browser_history_check: bool = False
+    viewport_width: int | None = None
+    viewport_height: int | None = None
+    fresh_browser_context_per_page: bool = False
+    success_screenshot: bool = False
+    max_first_render_seconds: float = 0.0
+    max_widgets_ready_seconds: float = 0.0
+    max_action_settle_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -242,6 +249,55 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=900.0,
         browser_history_check=True,
     ),
+    "isolated-mobile-core-pages": RobotScenario(
+        name="isolated-mobile-core-pages",
+        description=(
+            "Sweep PROJECT, ORCHESTRATE, and ANALYSIS through a mobile viewport "
+            "to catch responsive layout and overflow regressions."
+        ),
+        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        viewport_width=390,
+        viewport_height=844,
+    ),
+    "isolated-release-evidence": RobotScenario(
+        name="isolated-release-evidence",
+        description=(
+            "Sweep core pages with success screenshots and coarse render/widget "
+            "budgets for release evidence."
+        ),
+        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        success_screenshot=True,
+        max_first_render_seconds=90.0,
+        max_widgets_ready_seconds=30.0,
+        max_action_settle_seconds=30.0,
+    ),
+    "isolated-fresh-session-core-pages": RobotScenario(
+        name="isolated-fresh-session-core-pages",
+        description=(
+            "Open each core page in a fresh browser context to catch localStorage "
+            "and session-state assumptions."
+        ),
+        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        fresh_browser_context_per_page=True,
+    ),
     "hf-flight-telemetry-install": RobotScenario(
         name="hf-flight-telemetry-install",
         description=(
@@ -388,6 +444,20 @@ def build_robot_command(
         argv.append("--assert-workflow-artifacts")
     if scenario.browser_history_check:
         argv.append("--browser-history-check")
+    if scenario.viewport_width is not None:
+        argv.extend(["--viewport-width", str(scenario.viewport_width)])
+    if scenario.viewport_height is not None:
+        argv.extend(["--viewport-height", str(scenario.viewport_height)])
+    if scenario.fresh_browser_context_per_page:
+        argv.append("--fresh-browser-context-per-page")
+    if scenario.success_screenshot:
+        argv.append("--success-screenshot")
+    if scenario.max_first_render_seconds > 0:
+        argv.extend(["--max-first-render-seconds", str(scenario.max_first_render_seconds)])
+    if scenario.max_widgets_ready_seconds > 0:
+        argv.extend(["--max-widgets-ready-seconds", str(scenario.max_widgets_ready_seconds)])
+    if scenario.max_action_settle_seconds > 0:
+        argv.extend(["--max-action-settle-seconds", str(scenario.max_action_settle_seconds)])
     if options.url:
         argv.extend(["--url", options.url])
     if options.active_app:
