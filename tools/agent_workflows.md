@@ -17,7 +17,7 @@ Use `agilab agent-run` when a coding-agent action should leave product-style
 evidence instead of only a tool-specific log:
 
 ```bash
-agilab agent-run --agent codex --label "Review current diff" -- codex review
+agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review
 ```
 
 The command writes a redacted `agilab.agent_run.v1` manifest plus local
@@ -26,6 +26,21 @@ Command arguments are redacted by default and represented by an argv hash;
 environment override values passed with `--env KEY=VALUE` are also redacted
 from the manifest. Pass `--include-command-args` only when the prompt/arguments
 are safe to store.
+
+Use `--tag` and `--metadata KEY=VALUE` for structured, non-secret context that
+other tools can query later. Read previous run evidence from the CLI:
+
+```bash
+agilab agent-run list --agent codex --json
+```
+
+or from Python:
+
+```python
+from agilab.agent_run import list_agent_runs
+
+runs = list_agent_runs(agent="codex", limit=5)
+```
 
 ## CLI-first references
 

@@ -17,8 +17,13 @@ from pathlib import Path
 from typing import Callable, Sequence
 from uuid import uuid4
 
+from agilab.secret_uri import redact_text
+
 
 TRACE_KIND = "agilab.agent_run.v1"
+MANIFEST_FILENAME = "agent_run_manifest.json"
+STDOUT_FILENAME = "stdout.txt"
+STDERR_FILENAME = "stderr.txt"
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 SECRET_NAME_RE = re.compile(r"(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH)", re.IGNORECASE)
 SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -40,6 +45,8 @@ class AgentRunConfig:
     json_output: bool = False
     allow_failure: bool = False
     include_command_args: bool = False
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -48,6 +55,23 @@ class AgentRunResult:
 
     manifest: dict[str, object]
     returncode: int
+
+
+@dataclass(frozen=True)
+class AgentRunSummary:
+    """Compact read-side view of an agent-run manifest."""
+
+    run_id: str
+    agent: str
+    label: str
+    status: str
+    returncode: int | None
+    manifest_path: Path
+    stdout_path: Path | None
+    stderr_path: Path | None
+    duration_seconds: float
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 def _utc_now() -> str:
@@ -79,17 +103,37 @@ def _detect_repo_root(start: Path) -> Path | None:
     return None
 
 
-def _parse_env_overrides(raw_values: Sequence[str]) -> dict[str, str]:
+def _parse_key_values(raw_values: Sequence[str], *, option_name: str) -> dict[str, str]:
     env: dict[str, str] = {}
     for raw in raw_values:
         if "=" not in raw:
-            raise ValueError(f"Invalid --env value {raw!r}; expected KEY=VALUE")
+            raise ValueError(f"Invalid {option_name} value {raw!r}; expected KEY=VALUE")
         key, value = raw.split("=", 1)
         key = key.strip()
         if not key:
-            raise ValueError(f"Invalid --env value {raw!r}; KEY cannot be empty")
+            raise ValueError(f"Invalid {option_name} value {raw!r}; KEY cannot be empty")
         env[key] = value
     return env
+
+
+def _parse_env_overrides(raw_values: Sequence[str]) -> dict[str, str]:
+    return _parse_key_values(raw_values, option_name="--env")
+
+
+def _parse_metadata(raw_values: Sequence[str]) -> dict[str, str]:
+    return _parse_key_values(raw_values, option_name="--metadata")
+
+
+def _normalize_tags(raw_values: Sequence[str]) -> tuple[str, ...]:
+    tags: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_values:
+        clean = _slug(raw, "")
+        key = clean.casefold()
+        if clean and key not in seen:
+            tags.append(clean)
+            seen.add(key)
+    return tuple(tags)
 
 
 def _redacted_env_payload(env_overrides: dict[str, str]) -> dict[str, object]:
@@ -97,6 +141,26 @@ def _redacted_env_payload(env_overrides: dict[str, str]) -> dict[str, object]:
         "keys": sorted(env_overrides),
         "value_redacted": {key: True for key in sorted(env_overrides)},
         "secret_like": {key: bool(SECRET_NAME_RE.search(key)) for key in sorted(env_overrides)},
+    }
+
+
+def _context_payload(config: AgentRunConfig) -> dict[str, object]:
+    keys = sorted(config.metadata)
+    metadata: dict[str, str] = {}
+    metadata_redacted: dict[str, bool] = {}
+    for key in keys:
+        value = config.metadata[key]
+        if SECRET_NAME_RE.search(key):
+            metadata[key] = "<redacted>"
+            metadata_redacted[key] = True
+            continue
+        redacted_value = redact_text(value)
+        metadata[key] = redacted_value
+        metadata_redacted[key] = redacted_value != value
+    return {
+        "tags": list(config.tags),
+        "metadata": metadata,
+        "metadata_redacted": metadata_redacted,
     }
 
 
@@ -149,8 +213,17 @@ def _environment_payload(cwd: Path) -> dict[str, object]:
     }
 
 
+def _artifact_paths(output_dir: Path) -> dict[str, Path]:
+    return {
+        "manifest": output_dir / MANIFEST_FILENAME,
+        "stdout": output_dir / STDOUT_FILENAME,
+        "stderr": output_dir / STDERR_FILENAME,
+    }
+
+
 def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
     """Build a trace manifest without executing the command."""
+    artifacts = _artifact_paths(config.output_dir)
     return {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -160,6 +233,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
         "status": "planned",
         "returncode": None,
         "command": _command_payload(config),
+        "context": _context_payload(config),
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": None,
@@ -168,9 +242,9 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
             "timeout_seconds": config.timeout_seconds,
         },
         "artifacts": {
-            "manifest": str(config.output_dir / "agent_run_manifest.json"),
-            "stdout": str(config.output_dir / "stdout.txt"),
-            "stderr": str(config.output_dir / "stderr.txt"),
+            "manifest": str(artifacts["manifest"]),
+            "stdout": str(artifacts["stdout"]),
+            "stderr": str(artifacts["stderr"]),
         },
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
@@ -188,9 +262,10 @@ def run_agent_command(
 ) -> AgentRunResult:
     """Execute an agent command and write a local trace manifest."""
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    stdout_path = config.output_dir / "stdout.txt"
-    stderr_path = config.output_dir / "stderr.txt"
-    manifest_path = config.output_dir / "agent_run_manifest.json"
+    artifacts = _artifact_paths(config.output_dir)
+    stdout_path = artifacts["stdout"]
+    stderr_path = artifacts["stderr"]
+    manifest_path = artifacts["manifest"]
 
     env = os.environ.copy()
     env.update(config.env_overrides)
@@ -234,6 +309,7 @@ def run_agent_command(
         "status": status,
         "returncode": returncode,
         "command": _command_payload(config),
+        "context": _context_payload(config),
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": started_at,
@@ -256,6 +332,118 @@ def run_agent_command(
     return AgentRunResult(manifest=manifest, returncode=returncode)
 
 
+def load_agent_run_manifest(path: Path | str) -> dict[str, object]:
+    """Load an agent-run manifest from a manifest file or run directory."""
+
+    candidate = Path(path).expanduser()
+    manifest_path = candidate / MANIFEST_FILENAME if candidate.is_dir() else candidate
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Agent run manifest must be a JSON object: {manifest_path}")
+    if payload.get("kind") != TRACE_KIND:
+        raise ValueError(f"Unsupported agent run manifest kind in {manifest_path}: {payload.get('kind')!r}")
+    return payload
+
+
+def _path_from_artifact(value: object) -> Path | None:
+    if isinstance(value, str) and value:
+        return Path(value)
+    if isinstance(value, dict):
+        raw_path = value.get("path")
+        if isinstance(raw_path, str) and raw_path:
+            return Path(raw_path)
+    return None
+
+
+def summarize_agent_run(manifest_or_path: dict[str, object] | Path | str) -> AgentRunSummary:
+    """Return a compact, typed summary for an agent-run manifest."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+
+    artifacts = manifest.get("artifacts", {})
+    artifact_map = artifacts if isinstance(artifacts, dict) else {}
+    context = manifest.get("context", {})
+    context_map = context if isinstance(context, dict) else {}
+    timing = manifest.get("timing", {})
+    timing_map = timing if isinstance(timing, dict) else {}
+    raw_tags = context_map.get("tags", [])
+    raw_metadata = context_map.get("metadata", {})
+
+    manifest_path = _path_from_artifact(artifact_map.get("manifest")) or Path("")
+    return AgentRunSummary(
+        run_id=str(manifest.get("run_id") or ""),
+        agent=str(manifest.get("agent") or ""),
+        label=str(manifest.get("label") or ""),
+        status=str(manifest.get("status") or ""),
+        returncode=manifest.get("returncode") if isinstance(manifest.get("returncode"), int) else None,
+        manifest_path=manifest_path,
+        stdout_path=_path_from_artifact(artifact_map.get("stdout")),
+        stderr_path=_path_from_artifact(artifact_map.get("stderr")),
+        duration_seconds=float(timing_map.get("duration_seconds") or 0.0),
+        tags=tuple(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else (),
+        metadata=dict(raw_metadata) if isinstance(raw_metadata, dict) else {},
+    )
+
+
+def find_agent_run_manifests(
+    root: Path | str | None = None,
+    *,
+    agent: str | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[Path]:
+    """Find agent-run manifest files, newest first."""
+
+    explicit_root = root is not None
+    search_root = Path(root).expanduser() if explicit_root else _default_log_root() / "agents"
+    if agent and not explicit_root:
+        search_root = search_root / _slug(agent, "agent")
+    if not search_root.exists():
+        return []
+    candidates = [
+        path
+        for path in search_root.rglob(MANIFEST_FILENAME)
+        if path.is_file()
+    ]
+    candidates.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    if agent or status:
+        filtered: list[Path] = []
+        for path in candidates:
+            try:
+                manifest = load_agent_run_manifest(path)
+            except (OSError, json.JSONDecodeError, ValueError):
+                continue
+            if agent and manifest.get("agent") != agent:
+                continue
+            if manifest.get("status") == status:
+                filtered.append(path)
+            elif not status:
+                filtered.append(path)
+        candidates = filtered
+    return candidates[:limit] if limit is not None else candidates
+
+
+def list_agent_runs(
+    root: Path | str | None = None,
+    *,
+    agent: str | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+) -> list[AgentRunSummary]:
+    """Return compact summaries for agent-run manifests, newest first."""
+
+    summaries: list[AgentRunSummary] = []
+    for path in find_agent_run_manifests(root, agent=agent, status=status, limit=limit):
+        try:
+            summaries.append(summarize_agent_run(load_agent_run_manifest(path)))
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+    return summaries
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -270,6 +458,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cwd", default="", help="Working directory for the command. Defaults to the current directory.")
     parser.add_argument("--timeout", type=float, default=float(DEFAULT_TIMEOUT_SECONDS), help="Command timeout in seconds.")
     parser.add_argument("--env", action="append", default=[], help="Environment override passed to the command as KEY=VALUE.")
+    parser.add_argument("--metadata", action="append", default=[], help="Structured manifest context as KEY=VALUE.")
+    parser.add_argument("--tag", action="append", default=[], help="Tag stored in the manifest context. May be repeated.")
     parser.add_argument("--json", action="store_true", help="Print the trace manifest JSON.")
     parser.add_argument("--print-only", action="store_true", help="Print the planned trace without executing the command.")
     parser.add_argument("--allow-failure", action="store_true", help="Return 0 even if the traced command fails.")
@@ -297,6 +487,7 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
     if not cwd.is_dir():
         parser.error(f"--cwd is not a directory: {cwd}")
     env_overrides = _parse_env_overrides(args.env)
+    metadata = _parse_metadata(args.metadata)
     run_id = _slug(args.run_id, "agent-run") if args.run_id.strip() else _new_run_id(args.agent)
     output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else _default_output_dir(args.agent, run_id)
     return AgentRunConfig(
@@ -312,7 +503,64 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
         json_output=bool(args.json),
         allow_failure=bool(args.allow_failure),
         include_command_args=bool(args.include_command_args),
+        tags=_normalize_tags(args.tag),
+        metadata=metadata,
     )
+
+
+def _build_list_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="List AGILAB agent-run evidence manifests.")
+    parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
+    parser.add_argument("--agent", default="", help="Only list runs for this agent.")
+    parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout"], help="Only list runs with this status.")
+    parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to list.")
+    parser.add_argument("--json", action="store_true", help="Print summaries as JSON.")
+    return parser
+
+
+def _summary_payload(summary: AgentRunSummary) -> dict[str, object]:
+    return {
+        "run_id": summary.run_id,
+        "agent": summary.agent,
+        "label": summary.label,
+        "status": summary.status,
+        "returncode": summary.returncode,
+        "manifest": str(summary.manifest_path),
+        "stdout": str(summary.stdout_path) if summary.stdout_path else None,
+        "stderr": str(summary.stderr_path) if summary.stderr_path else None,
+        "duration_seconds": summary.duration_seconds,
+        "tags": list(summary.tags),
+        "metadata": summary.metadata,
+    }
+
+
+def _render_summary_table(summaries: Sequence[AgentRunSummary]) -> str:
+    if not summaries:
+        return "No AGILAB agent runs found."
+    lines = ["status  agent  run_id  label"]
+    for summary in summaries:
+        lines.append(
+            f"{summary.status or '-':<7} {summary.agent or '-':<6} {summary.run_id or '-'}  {summary.label}"
+        )
+    return "\n".join(lines)
+
+
+def _main_list(argv: Sequence[str]) -> int:
+    parser = _build_list_parser()
+    args = parser.parse_args(list(argv))
+    if args.limit < 0:
+        parser.error("--limit must be >= 0")
+    summaries = list_agent_runs(
+        Path(args.root).expanduser() if args.root else None,
+        agent=args.agent or None,
+        status=args.status or None,
+        limit=args.limit,
+    )
+    if args.json:
+        print(json.dumps([_summary_payload(summary) for summary in summaries], indent=2, sort_keys=True))
+    else:
+        print(_render_summary_table(summaries))
+    return 0
 
 
 def render_human(manifest: dict[str, object]) -> str:
@@ -331,7 +579,11 @@ def render_human(manifest: dict[str, object]) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    config = parse_args(sys.argv[1:] if argv is None else argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if raw_argv[:1] == ["list"]:
+        return _main_list(raw_argv[1:])
+
+    config = parse_args(raw_argv)
     if config.print_only:
         manifest = build_planned_manifest(config)
         print(json.dumps(manifest, indent=2, sort_keys=True) if config.json_output else render_human(manifest))

@@ -144,12 +144,13 @@ what they need:
 | `dev` extra | Contributor test/build/audit tooling only. | Validating a source checkout or release candidate; avoid it for runtime installs. |
 
 Agent workflows can now produce AGILAB evidence directly. Use
-`agilab agent-run --agent codex --label "Review current diff" -- codex review`
+`agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review`
 to execute a local coding-agent command and write a redacted
 `agilab.agent_run.v1` manifest plus local stdout/stderr artifacts under
 `~/log/agents/`. Command arguments are redacted by default and represented by
 an argv hash; pass `--include-command-args` only when the prompt/arguments are
-safe to store.
+safe to store. Use `agilab agent-run list --agent codex --json` or
+`agilab.agent_run.list_agent_runs()` to consume previous run evidence.
 
 Cluster/Dask support is intentionally part of the base runtime through
 `agi-core`. AGILAB keeps local, pool, and distributed back planes behind the
