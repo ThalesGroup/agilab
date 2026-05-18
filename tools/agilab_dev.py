@@ -46,14 +46,10 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
 
     if command in {"bugfix", "fix"}:
         forwarded = args or ["--staged"]
-        selector_args = list(forwarded)
-        if "--run" not in selector_args:
-            selector_args.append("--run")
-        impact_args = [item for item in forwarded if item != "--run"]
-        return [
-            _uv_python("tools/impact_validate.py", *impact_args),
-            _uv_python("tools/ga_regression_selector.py", *selector_args),
-        ]
+        helper_args = list(forwarded)
+        if "--run" not in helper_args:
+            helper_args.append("--run")
+        return [_uv_python("tools/bugfix_validate.py", *helper_args)]
 
     if command == "test":
         return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", *args]]

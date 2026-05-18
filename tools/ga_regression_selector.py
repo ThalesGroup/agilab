@@ -542,8 +542,9 @@ def build_candidates(
     *,
     cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
     use_cache: bool = True,
+    impact_report: impact_validate.ImpactReport | None = None,
 ) -> list[TestCandidate]:
-    impact = impact_validate.analyze_paths(list(changed_files))
+    impact = impact_report or impact_validate.analyze_paths(list(changed_files))
     guessed_tests = set(impact.guessed_tests)
     candidates: list[TestCandidate] = []
     test_files = _discover_test_files(cache_path=cache_path, use_cache=use_cache)
@@ -706,10 +707,15 @@ def build_selection(
     max_candidates: int = 96,
     cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
     use_cache: bool = True,
+    impact_report: impact_validate.ImpactReport | None = None,
 ) -> SelectionResult:
     timing_map = timings or {}
     candidates = build_candidates(
-        files, timing_map, cache_path=cache_path, use_cache=use_cache
+        files,
+        timing_map,
+        cache_path=cache_path,
+        use_cache=use_cache,
+        impact_report=impact_report,
     )
     selected = select_tests(
         candidates,
