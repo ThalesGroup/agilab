@@ -176,3 +176,56 @@ def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
 
     artifact = next(action for action in report.artifact_actions if action.key == "workflow-parity-docs")
     assert "tools/workflow_parity.py --profile docs" in artifact.commands[0]
+
+
+def test_build_test_index_matches_exact_and_prefix_tests(tmp_path: Path) -> None:
+    module = _load_module()
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_demo.py").write_text("def test_demo():\n    pass\n")
+    (tmp_path / "test" / "test_demo_extra.py").write_text(
+        "def test_demo_extra():\n    pass\n",
+        encoding="utf-8",
+    )
+    core_test_root = tmp_path / "src" / "agilab" / "core" / "test"
+    core_test_root.mkdir(parents=True)
+    (core_test_root / "test_demo_core.py").write_text(
+        "def test_demo_core():\n    pass\n",
+        encoding="utf-8",
+    )
+
+    index = module._build_test_index(repo=tmp_path)
+
+    assert index.tests_for_stem("demo") == [
+        "test/test_demo.py",
+        "test/test_demo_extra.py",
+        "src/agilab/core/test/test_demo_core.py",
+    ]
+    assert index.tests_for_stem("demo", roots=("test",)) == [
+        "test/test_demo.py",
+        "test/test_demo_extra.py",
+    ]
+
+
+def test_analyze_paths_builds_test_index_once(monkeypatch) -> None:
+    module = _load_module()
+    real_build_test_index = module._build_test_index
+    calls = []
+
+    def _wrapped_build_test_index(*args, **kwargs):
+        calls.append((args, kwargs))
+        return real_build_test_index(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_build_test_index", _wrapped_build_test_index)
+
+    report = module.analyze_paths(
+        [
+            "src/agilab/pipeline_ai.py",
+            "src/agilab/pipeline_openai.py",
+            "src/agilab/orchestrate_execute.py",
+        ]
+    )
+
+    assert len(calls) == 1
+    assert "test/test_pipeline_ai.py" in report.guessed_tests
+    assert "test/test_pipeline_openai.py" in report.guessed_tests
+    assert "test/test_orchestrate_execute.py" in report.guessed_tests
