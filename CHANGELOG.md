@@ -4,6 +4,17 @@ All notable public AGILAB changes are summarized here. GitHub Releases remain
 the publication surface for tagged release artifacts; this file gives reviewers
 and adopters a versioned, repository-local upgrade trail.
 
+## Release Cadence Note
+
+AGILAB uses date-based public versions. During the April-May 2026 public-beta
+packaging hardening, several `.postN` releases were published in short
+succession to refresh package metadata, supply-chain evidence, provenance, and
+multi-package dependency pins from committed release snapshots. Those post
+releases are preserved for auditability; they are not the intended steady-state
+delivery rhythm. Normal feature or behavior changes should use a deliberate new
+date-based release, while `.postN` remains reserved for bounded packaging,
+publication, or evidence refreshes on an already published date version.
+
 ## Unreleased
 
 ### Added

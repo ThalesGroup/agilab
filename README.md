@@ -183,9 +183,11 @@ to execute a local coding-agent command and write a redacted
 an argv hash; pass `--include-command-args` only when the prompt/arguments are
 safe to store.
 
-Cluster/Dask dependencies are currently part of the base package through
-`agi-core`; a smaller cluster-specific package split is a packaging roadmap item,
-not a current release claim.
+Cluster/Dask support is intentionally part of the base runtime through
+`agi-core`. AGILAB keeps local, pool, and distributed back planes behind the
+same reproducible execution contract; moving `agi-cluster` behind an extra would
+be only an install-footprint optimization if measured adoption data ever
+justifies the added conditional paths.
 
 Release and adoption supply-chain evidence is explicit: Dependabot watches
 Python and GitHub Actions manifests, release workflows publish per-profile
@@ -255,8 +257,9 @@ Current packaging policy is conservative:
   in by the `ui` and `pages` extras.
 - Larger optional stacks must stay behind extras, and release evidence must
   include SBOM / `pip-audit` data for the actual enabled profile.
-- Further cluster/runtime splitting is a roadmap item; it is not claimed as
-  complete in the current release.
+- `agi-cluster` remains in the base runtime by design. A separate minimal
+  runtime profile should only be considered if measured install-footprint or
+  adoption data justifies the new conditional package contract.
 
 ## Choose Your Path
 
@@ -283,6 +286,13 @@ role:
 
 For development, use `main`. For reproducible release validation, use the
 release tag or the PyPI package version recorded in the release proof.
+
+AGILAB uses date-based public versions. The dense `.postN` history in
+April-May 2026 records public-beta packaging hardening, provenance refreshes,
+and dependency-pin alignment across the split package set. It is kept visible
+for auditability, but it is not the target steady-state release rhythm; normal
+feature or behavior changes should advance to a deliberate new date-based
+release.
 
 ## Source Checkout
 

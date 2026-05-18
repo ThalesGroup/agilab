@@ -480,10 +480,12 @@ to a deliberate new version. Real PyPI publication must not silently auto-create
 ``.postN`` releases when a version collision is detected; the release tool is
 expected to stop and require an explicit version choice instead.
 
-``.postN`` releases are acceptable only as corrective packaging releases for an
-already published date-based version. They are not the standard delivery
-cadence, and multiple same-day post releases should be treated as release
-process debt to review, not as a velocity metric. TestPyPI rehearsals are the
+``.postN`` releases are reserved for bounded packaging, publication, provenance,
+or evidence refreshes on an already published date-based version. The dense
+April-May 2026 ``.postN`` history records public-beta hardening of the split
+package release pipeline and is kept visible for auditability. It is not the
+target steady-state release rhythm: normal feature or behavior changes should
+advance to a deliberate new date-based release. TestPyPI rehearsals are the
 exception: retry-oriented ``.postN`` bumps are allowed there because TestPyPI is
 often reused during dry runs.
 
