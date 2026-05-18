@@ -277,7 +277,7 @@ def test_seed_public_demo_artifacts_creates_forecast_evidence(tmp_path) -> None:
         share_root=share_root,
     )
 
-    forecast_root = export_root / "meteo_forecast" / "forecast_analysis"
+    forecast_root = export_root / "weather_forecast" / "forecast_analysis"
     assert sorted(path.name for path in forecast_root.iterdir()) == ["baseline", "candidate"]
     assert (forecast_root / "baseline" / "forecast_metrics.json").is_file()
     assert (forecast_root / "candidate" / "forecast_predictions.csv").is_file()
@@ -712,7 +712,7 @@ def test_current_home_action_preflight_allows_disabled_cluster_with_missing_shar
 def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path, monkeypatch) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    worker_root = fake_home / "wenv" / "meteo_forecast_worker"
+    worker_root = fake_home / "wenv" / "weather_forecast_worker"
     worker_root.mkdir(parents=True)
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
@@ -751,13 +751,13 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
     assert detail is not None
     assert "environment_blocked" in detail
     assert "weather_forecast_project" in detail
-    assert "meteo_forecast_worker" in detail
+    assert "weather_forecast_worker" in detail
     assert "skforecast" in detail
     assert "Run INSTALL" in detail
     assert calls
     argv = calls[0]["argv"]
     assert argv[:6] == ["/usr/bin/uv", "--quiet", "run", "--no-sync", "--project", str(worker_root)]
-    assert argv[-1] == "meteo_forecast_worker"
+    assert argv[-1] == "weather_forecast_worker"
     assert calls[0]["cwd"] == worker_root
 
 

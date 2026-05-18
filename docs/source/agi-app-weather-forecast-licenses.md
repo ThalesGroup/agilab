@@ -7,7 +7,7 @@ Resolver: `licensecheck 2025.1.0`.
 Source manifests:
 - `src/agilab/lib/agi-app-weather-forecast/pyproject.toml`
 - `src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/pyproject.toml`
-- `src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/src/meteo_forecast_worker/pyproject.toml`
+- `src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/src/weather_forecast_worker/pyproject.toml`
 
 Extras included: none.
 

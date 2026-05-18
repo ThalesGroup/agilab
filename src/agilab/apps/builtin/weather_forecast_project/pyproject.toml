@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = ["agi-env>=2026.05.17.post2", "agi-node>=2026.05.17.post2", "agi-cluster>=2026.05.17.post2", "pandas>=2.3.0", "pydantic", "scikit-learn", "skforecast>=0.19,<0.20", "streamlit>=1.56.0"]
 
 [tool.agilab]
-runtime_target = "meteo_forecast"
+runtime_target = "weather_forecast"
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
@@ -14,7 +14,7 @@ agi-node = { path = "../../../core/agi-node", editable = true }
 agi-cluster = { path = "../../../core/agi-cluster", editable = true }
 
 [tool.setuptools.package-data]
-meteo_forecast = ["sample_data/*.csv"]
+weather_forecast = ["sample_data/*.csv"]
 
 [build-system]
 requires = ["setuptools"]

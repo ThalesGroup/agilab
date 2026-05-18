@@ -13,7 +13,7 @@ from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .app_args import (
     ArgsOverrides,
-    MeteoForecastArgs,
+    WeatherForecastArgs,
     dump_args,
     ensure_defaults,
     load_args,
@@ -23,7 +23,7 @@ from .app_args import (
 logger = logging.getLogger(__name__)
 
 
-class MeteoForecast(BaseWorker):
+class WeatherForecast(BaseWorker):
     """Manager that turns the forecast notebook pilot into a runnable AGILAB app."""
 
     worker_vars: dict[str, Any] = {}
@@ -31,7 +31,7 @@ class MeteoForecast(BaseWorker):
     def __init__(
         self,
         env,
-        args: MeteoForecastArgs | None = None,
+        args: WeatherForecastArgs | None = None,
         **kwargs: ArgsOverrides,
     ) -> None:
         self.env = env
@@ -40,9 +40,9 @@ class MeteoForecast(BaseWorker):
 
         if args is None:
             try:
-                args = MeteoForecastArgs(**kwargs)
+                args = WeatherForecastArgs(**kwargs)
             except ValidationError as exc:
-                raise ValueError(f"Invalid MeteoForecast arguments: {exc}") from exc
+                raise ValueError(f"Invalid WeatherForecast arguments: {exc}") from exc
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
@@ -86,7 +86,7 @@ class MeteoForecast(BaseWorker):
         settings_path: str | Path = "app_settings.toml",
         section: str = "args",
         **overrides: ArgsOverrides,
-    ) -> "MeteoForecast":
+    ) -> "WeatherForecast":
         base = load_args(settings_path, section=section)
         merged = ensure_defaults(merge_args(base, overrides or None), env=env)
         return cls(env, args=merged)
@@ -135,8 +135,8 @@ class MeteoForecast(BaseWorker):
         return work_plan, metadata, "file", "size_kb", "KB"
 
 
-class MeteoForecastApp(MeteoForecast):
-    """Compatibility alias retaining the historical *App suffix."""
+class WeatherForecastApp(WeatherForecast):
+    """App-suffixed manager class for launch helpers."""
 
 
-__all__ = ["MeteoForecast", "MeteoForecastApp"]
+__all__ = ["WeatherForecast", "WeatherForecastApp"]

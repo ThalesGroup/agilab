@@ -15,7 +15,6 @@ _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {
     "flight_telemetry": "flight",
     "mission_decision": "data_io_2026",
-    "weather_forecast": "meteo_forecast",
 }
 
 

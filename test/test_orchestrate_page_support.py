@@ -1010,7 +1010,7 @@ def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) 
 
 def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
     active_app = tmp_path / "weather_forecast_project"
-    worker_root = tmp_path / "wenv" / "meteo_forecast_worker"
+    worker_root = tmp_path / "wenv" / "weather_forecast_worker"
     manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
     stale_distributor = manager_site / "agi_cluster" / "agi_distributor"

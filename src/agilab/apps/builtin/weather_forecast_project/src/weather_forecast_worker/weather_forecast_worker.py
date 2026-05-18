@@ -14,7 +14,7 @@ from skforecast.model_selection import TimeSeriesFold, backtesting_forecaster
 from skforecast.recursive import ForecasterRecursive
 
 from agi_node.pandas_worker import PandasWorker
-from meteo_forecast.reduction import write_reduce_artifact
+from weather_forecast.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -32,7 +32,7 @@ def _artifact_dir(env: object, leaf: str) -> Path:
     return Path.home() / "export" / relative
 
 
-class MeteoForecastWorker(PandasWorker):
+class WeatherForecastWorker(PandasWorker):
     """Execute the weather forecasting workflow and export stable analysis artifacts."""
 
     pool_vars: dict[str, object] = {}
