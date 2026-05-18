@@ -84,6 +84,9 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "Confirm delete" in journey.click_action_labels
     assert journey.assert_orchestrate_artifacts is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
+    assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-release-evidence" not in [scenario.name for scenario in scenarios]
+    assert "isolated-fresh-session-core-pages" not in [scenario.name for scenario in scenarios]
     assert "hf-flight-telemetry-install" not in [scenario.name for scenario in scenarios]
 
 
@@ -116,6 +119,26 @@ def test_opt_in_hf_install_scenario_is_not_part_of_default_all() -> None:
     assert hf_scenario.click_action_labels == "INSTALL"
     assert hf_scenario.missing_selected_action_policy == "fail"
     assert hf_scenario.action_timeout_seconds == 600.0
+
+
+def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_all() -> None:
+    module = _load_module()
+
+    default_names = [scenario.name for scenario in module.resolve_scenarios(["all"])]
+    mobile = module.resolve_scenarios(["isolated-mobile-core-pages"])[0]
+    evidence = module.resolve_scenarios(["isolated-release-evidence"])[0]
+    fresh = module.resolve_scenarios(["isolated-fresh-session-core-pages"])[0]
+
+    assert mobile.name not in default_names
+    assert evidence.name not in default_names
+    assert fresh.name not in default_names
+    assert mobile.viewport_width == 390
+    assert mobile.viewport_height == 844
+    assert evidence.success_screenshot is True
+    assert evidence.max_first_render_seconds == 90.0
+    assert evidence.max_widgets_ready_seconds == 30.0
+    assert evidence.max_action_settle_seconds == 30.0
+    assert fresh.fresh_browser_context_per_page is True
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -206,6 +229,67 @@ def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "isolated-browser-history")
     assert summary_path == tmp_path / "isolated-browser-history.json"
     assert progress_path == tmp_path / "isolated-browser-history.ndjson"
+
+
+def test_build_robot_command_enables_mobile_viewport(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-mobile-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT,ORCHESTRATE,ANALYSIS"
+    assert argv[argv.index("--viewport-width") + 1] == "390"
+    assert argv[argv.index("--viewport-height") + 1] == "844"
+    assert summary_path == tmp_path / "isolated-mobile-core-pages.json"
+    assert progress_path == tmp_path / "isolated-mobile-core-pages.ndjson"
+
+
+def test_build_robot_command_enables_release_evidence_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-release-evidence"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert "--success-screenshot" in argv
+    assert argv[argv.index("--max-first-render-seconds") + 1] == "90.0"
+    assert argv[argv.index("--max-widgets-ready-seconds") + 1] == "30.0"
+    assert argv[argv.index("--max-action-settle-seconds") + 1] == "30.0"
+
+
+def test_build_robot_command_enables_fresh_browser_context(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-fresh-session-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert "--fresh-browser-context-per-page" in argv
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:

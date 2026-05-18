@@ -96,6 +96,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "cloud-emulators",
             "ui-robot-matrix",
             "ui-history-robot",
+            "ui-mobile-robot",
+            "ui-release-evidence-robot",
             "hf-install-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
@@ -166,6 +168,8 @@ def _profile_descriptions() -> dict[str, str]:
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
         "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
+        "ui-mobile-robot": "Run the opt-in mobile viewport widget robot scenario.",
+        "ui-release-evidence-robot": "Run opt-in success-screenshot, fresh-session, and performance-budget widget robot scenarios.",
         "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
     }
 
@@ -189,6 +193,8 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
         "ui-history-robot": _ui_history_robot_profile(),
+        "ui-mobile-robot": _ui_mobile_robot_profile(),
+        "ui-release-evidence-robot": _ui_release_evidence_robot_profile(),
         "hf-install-robot": _hf_install_robot_profile(),
     }
 
@@ -1094,6 +1100,64 @@ def _ui_history_robot_profile() -> list[CommandSpec]:
     ]
 
 
+def _ui_mobile_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui mobile viewport robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-mobile-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-mobile-robot",
+                "--screenshot-dir",
+                "screenshots/ui-mobile-robot",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"],
+        )
+    ]
+
+
+def _ui_release_evidence_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui release evidence robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-release-evidence",
+                "--scenario",
+                "isolated-fresh-session-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-release-evidence-robot",
+                "--screenshot-dir",
+                "screenshots/ui-release-evidence-robot",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-release-evidence-robot", "screenshots/ui-release-evidence-robot"],
+        )
+    ]
+
+
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
@@ -1105,6 +1169,8 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "production-readiness",
         "ui-robot-matrix",
         "ui-history-robot",
+        "ui-mobile-robot",
+        "ui-release-evidence-robot",
         "hf-install-robot",
     }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]

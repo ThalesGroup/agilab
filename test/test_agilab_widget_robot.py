@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 
@@ -120,6 +121,13 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.missing_selected_action_policy == "fail"
     assert args.assert_orchestrate_artifacts is False
     assert args.assert_workflow_artifacts is False
+    assert args.viewport_width == module.DEFAULT_VIEWPORT_WIDTH
+    assert args.viewport_height == module.DEFAULT_VIEWPORT_HEIGHT
+    assert args.fresh_browser_context_per_page is False
+    assert args.success_screenshot is False
+    assert args.max_first_render_seconds == 0.0
+    assert args.max_widgets_ready_seconds == 0.0
+    assert args.max_action_settle_seconds == 0.0
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -1281,11 +1289,49 @@ def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None
         kind="pageerror",
         detail="TypeError: broken widget callback",
     )
+    module._record_browser_issue(
+        issues,
+        kind="requestfailed",
+        detail="https://demo/agilab.js net::ERR_FAILED",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="http.500",
+        detail="HTTP 500 https://demo/api/run",
+    )
 
     assert issues == [
         {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
         {"kind": "pageerror", "detail": "TypeError: broken widget callback"},
+        {"kind": "requestfailed", "detail": "https://demo/agilab.js net::ERR_FAILED"},
+        {"kind": "http.500", "detail": "HTTP 500 https://demo/api/run"},
     ]
+
+
+def test_browser_issue_capture_hooks_network_events() -> None:
+    module = _load_module()
+    callbacks = {}
+
+    class _Page:
+        def on(self, event, callback):
+            callbacks[event] = callback
+
+    class _Request:
+        url = "https://demo/api/data"
+
+        def failure(self):
+            return {"errorText": "net::ERR_FAILED"}
+
+    class _Response:
+        status = 503
+        url = "https://demo/api/run"
+
+    issues = module._attach_browser_issue_capture(_Page())
+    callbacks["requestfailed"](_Request())
+    callbacks["response"](_Response())
+
+    assert {"kind": "requestfailed", "detail": "https://demo/api/data net::ERR_FAILED"} in issues
+    assert {"kind": "http.503", "detail": "HTTP 503 https://demo/api/run"} in issues
 
 
 def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
@@ -2262,6 +2308,51 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
     assert result.failures[0].kind == "browser_error"
     assert result.failures[0].label == "pageerror"
     assert "broken widget callback" in result.failures[0].detail
+
+
+def test_performance_budget_probe_fails_when_budget_is_exceeded() -> None:
+    module = _load_module()
+
+    probe = module._performance_budget_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        label="widgets_ready",
+        seconds=2.5,
+        budget_seconds=1.0,
+        url="http://demo",
+    )
+
+    assert probe.kind == "performance"
+    assert probe.status == "failed"
+    assert "exceeded" in probe.detail
+
+
+def test_success_screenshot_probe_records_evidence(tmp_path) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+    class _WebRobot:
+        @staticmethod
+        def _screenshot(page, screenshot_dir, label):
+            path = screenshot_dir / f"{label}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"png")
+            return str(path)
+
+    probe = module._capture_success_screenshot_probe(
+        _Page(),
+        web_robot=_WebRobot(),
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        screenshot_dir=tmp_path,
+    )
+
+    assert probe is not None
+    assert probe.kind == "screenshot"
+    assert probe.status == "probed"
+    assert "success screenshot=" in probe.detail
 
 
 def test_browser_history_probe_checks_back_forward_and_active_app_route() -> None:
@@ -3314,6 +3405,75 @@ def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> No
     assert status == "interacted"
     assert "action='INSTALL' status=success" in detail
     assert "enabled follow-up action 'CHECK distribute'" in detail
+
+
+def test_selected_action_fails_when_settle_budget_is_exceeded(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            pass
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+
+    def slow_success(page, **_kwargs):
+        time.sleep(0.002)
+        return None, True
+
+    module._wait_for_action_outcome = slow_success
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "run", "kind": "button", "label": "Run -> Load -> Export"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+            max_action_settle_seconds=0.0001,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "failed"
+    assert "status=slow" in detail
+    assert "budget<=" in detail
 
 
 def test_selected_action_baseline_includes_stale_action_log_feedback() -> None:

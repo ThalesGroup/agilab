@@ -118,6 +118,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
     ui_history_robot = profiles["ui-history-robot"][0]
+    ui_mobile_robot = profiles["ui-mobile-robot"][0]
+    ui_release_evidence_robot = profiles["ui-release-evidence-robot"][0]
     hf_install_robot = profiles["hf-install-robot"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
@@ -296,6 +298,22 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-browser-history" in ui_history_robot.argv
     assert "screenshots/ui-history-robot" in ui_history_robot.argv
     assert _has_with_dependency(ui_history_robot.argv, "playwright")
+    assert ui_mobile_robot.label == "ui mobile viewport robot"
+    assert ui_mobile_robot.timeout_seconds == 30 * 60
+    assert ui_mobile_robot.remove_paths == ["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"]
+    assert "isolated-mobile-core-pages" in ui_mobile_robot.argv
+    assert "screenshots/ui-mobile-robot" in ui_mobile_robot.argv
+    assert _has_with_dependency(ui_mobile_robot.argv, "playwright")
+    assert ui_release_evidence_robot.label == "ui release evidence robot"
+    assert ui_release_evidence_robot.timeout_seconds == 45 * 60
+    assert ui_release_evidence_robot.remove_paths == [
+        "test-results/ui-release-evidence-robot",
+        "screenshots/ui-release-evidence-robot",
+    ]
+    assert "isolated-release-evidence" in ui_release_evidence_robot.argv
+    assert "isolated-fresh-session-core-pages" in ui_release_evidence_robot.argv
+    assert "screenshots/ui-release-evidence-robot" in ui_release_evidence_robot.argv
+    assert _has_with_dependency(ui_release_evidence_robot.argv, "playwright")
     assert hf_install_robot.label == "hf flight telemetry install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
@@ -322,6 +340,8 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "production-readiness" not in selected
     assert "ui-robot-matrix" not in selected
     assert "ui-history-robot" not in selected
+    assert "ui-mobile-robot" not in selected
+    assert "ui-release-evidence-robot" not in selected
     assert "hf-install-robot" not in selected
 
 
