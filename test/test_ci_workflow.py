@@ -98,6 +98,10 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "output_dir": _single_option(argv, "--output-dir"),
         "screenshot_dir": _single_option(argv, "--screenshot-dir"),
         "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
+        "retry_failed_with_artifacts": "--retry-failed-with-artifacts" in argv,
+        "retry_trace_dir": _single_option(argv, "--retry-trace-dir"),
+        "retry_har_dir": _single_option(argv, "--retry-har-dir"),
+        "retry_video_dir": _single_option(argv, "--retry-video-dir"),
     }
 
 
@@ -115,6 +119,10 @@ def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
             "output_dir": f"test-results/ui-robot-matrix/{shard}",
             "screenshot_dir": f"screenshots/ui-robot-matrix/{shard}",
             "failure_bundle_dir": f"test-results/ui-robot-matrix/{shard}/failure-bundles",
+            "retry_failed_with_artifacts": True,
+            "retry_trace_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces",
+            "retry_har_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/har",
+            "retry_video_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/video",
         }
         for shard, scenarios in _ui_robot_matrix_workflow_shards().items()
     }
@@ -150,6 +158,7 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "python tools/install_release_proof_package.py --retries 20 --delay-seconds 15" in text
     assert "python -m pip install agilab" not in text
     assert "agilab first-proof --json --no-manifest --max-seconds 60" in text
+    assert "tools/ui_robot_matrix_aggregate.py" in text
 
 
 def test_validation_workflows_cancel_superseded_branch_runs() -> None:
@@ -210,9 +219,14 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert 'result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'failure_bundle_dir="${result_dir}/failure-bundles"' in text
+    assert 'failure_artifact_dir="${result_dir}/failure-artifacts"' in text
     assert '--output-dir "${result_dir}"' in text
     assert '--screenshot-dir "${screenshot_dir}"' in text
     assert '--failure-bundle-dir "${failure_bundle_dir}"' in text
+    assert "--retry-failed-with-artifacts" in text
+    assert '--retry-trace-dir "${failure_artifact_dir}/traces"' in text
+    assert '--retry-har-dir "${failure_artifact_dir}/har"' in text
+    assert '--retry-video-dir "${failure_artifact_dir}/video"' in text
     assert "tools/ui_robot_trend_report.py" in text
     assert '--glob "${result_dir}/*.ndjson"' in text
     assert "--max-total-seconds 2700" in text
@@ -223,12 +237,25 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert 'trend_status="${PIPESTATUS[0]}"' in text
     assert 'exit "${trend_status}"' in text
     assert "## UI robot trend (${ROBOT_SHARD})" in text
+    assert "--write-shard-manifest" in text
+    assert '--result-dir "${RESULT_DIR}"' in text
+    assert '--screenshot-dir "${SCREENSHOT_DIR}"' in text
+    assert '--shard "${ROBOT_SHARD}"' in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
     assert "ui-robot-matrix-${{ matrix.shard }}-${{ github.run_attempt }}" in text
     assert "test-results/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "screenshots/ui-robot-matrix/${{ matrix.shard }}/**" in text
+    assert "aggregate-ui-robot-matrix:" in text
+    assert "needs: ui-robot-matrix" in text
+    assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1" in text
+    assert "pattern: ui-robot-matrix-*-${{ github.run_attempt }}" in text
+    assert "uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py" in text
+    assert "--expected-shards core,state,quality,layout" in text
+    assert "--output test-results/ui-robot-matrix-aggregate/aggregate.json" in text
+    assert "--summary-markdown test-results/ui-robot-matrix-aggregate/summary.md" in text
+    assert "ui-robot-matrix-aggregate-${{ github.run_attempt }}" in text
     assert "AGILAB_DISABLE_BACKGROUND_SERVICES: \"1\"" in text
 
 

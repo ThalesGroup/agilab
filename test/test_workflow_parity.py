@@ -371,6 +371,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         assert "--screenshot-dir" in command.argv
         assert f"screenshots/ui-robot-matrix/{shard}" in command.argv
         assert f"test-results/ui-robot-matrix/{shard}/failure-bundles" in command.argv
+        assert "--retry-failed-with-artifacts" in command.argv
+        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces" in command.argv
+        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/har" in command.argv
+        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/video" in command.argv
         assert _has_with_dependency(command.argv, "playwright")
     assert ui_artifact_capture_robot.label == "ui artifact capture robot"
     assert ui_artifact_capture_robot.timeout_seconds == 15 * 60

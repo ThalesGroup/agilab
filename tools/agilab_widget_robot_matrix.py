@@ -9,7 +9,7 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -88,6 +88,24 @@ class MatrixOptions:
     har_dir: Path | None = None
     video_dir: Path | None = None
     result_cache_path: Path | None = None
+    retry_failed_with_artifacts: bool = False
+    retry_trace_dir: Path | None = None
+    retry_har_dir: Path | None = None
+    retry_video_dir: Path | None = None
+
+
+@dataclass(frozen=True)
+class FailureArtifactRetry:
+    argv: list[str]
+    returncode: int
+    duration_seconds: float
+    summary_path: Path
+    progress_path: Path
+    summary: dict
+    output: str
+    trace_dir: Path | None
+    har_dir: Path | None
+    video_dir: Path | None
 
 
 @dataclass(frozen=True)
@@ -101,6 +119,7 @@ class ScenarioResult:
     summary: dict
     output: str
     cached: bool = False
+    artifact_retry: FailureArtifactRetry | None = None
 
 
 def _run_robot_command_streaming(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -535,6 +554,29 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--har-dir", type=Path, help="Directory for Playwright HAR artifacts.")
     parser.add_argument("--video-dir", type=Path, help="Directory for Playwright video artifacts.")
     parser.add_argument(
+        "--retry-failed-with-artifacts",
+        action="store_true",
+        help=(
+            "When a scenario fails, rerun only that scenario once with trace, "
+            "HAR, and video artifact directories enabled."
+        ),
+    )
+    parser.add_argument(
+        "--retry-trace-dir",
+        type=Path,
+        help="Directory for failure-retry Playwright trace artifacts.",
+    )
+    parser.add_argument(
+        "--retry-har-dir",
+        type=Path,
+        help="Directory for failure-retry Playwright HAR artifacts.",
+    )
+    parser.add_argument(
+        "--retry-video-dir",
+        type=Path,
+        help="Directory for failure-retry Playwright video artifacts.",
+    )
+    parser.add_argument(
         "--result-cache-path",
         type=Path,
         default=DEFAULT_RESULT_CACHE_PATH,
@@ -593,6 +635,10 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         har_dir=args.har_dir,
         video_dir=args.video_dir,
         result_cache_path=None if args.no_result_cache else args.result_cache_path,
+        retry_failed_with_artifacts=args.retry_failed_with_artifacts,
+        retry_trace_dir=args.retry_trace_dir,
+        retry_har_dir=args.retry_har_dir,
+        retry_video_dir=args.retry_video_dir,
     )
 
 
@@ -709,6 +755,70 @@ def build_robot_command(
     return argv, summary_path, progress_path
 
 
+def _scenario_failed(result: ScenarioResult) -> bool:
+    return result.returncode != 0 or result.summary.get("success") is not True
+
+
+def _failure_artifact_retry_options(options: MatrixOptions) -> MatrixOptions:
+    retry_output_dir = options.output_dir / "failure-retry"
+    retry_artifact_root = options.output_dir / "failure-artifacts"
+    retry_screenshot_dir = (
+        options.screenshot_dir / "failure-retry"
+        if options.screenshot_dir is not None
+        else retry_artifact_root / "screenshots"
+    )
+    return replace(
+        options,
+        output_dir=retry_output_dir,
+        screenshot_dir=retry_screenshot_dir,
+        failure_bundle_dir=None,
+        trace_dir=options.retry_trace_dir or retry_artifact_root / "traces",
+        har_dir=options.retry_har_dir or retry_artifact_root / "har",
+        video_dir=options.retry_video_dir or retry_artifact_root / "video",
+        result_cache_path=None,
+        retry_failed_with_artifacts=False,
+        retry_trace_dir=None,
+        retry_har_dir=None,
+        retry_video_dir=None,
+    )
+
+
+def run_failure_artifact_retry(
+    scenario: RobotScenario,
+    *,
+    options: MatrixOptions,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> FailureArtifactRetry:
+    retry_options = _failure_artifact_retry_options(options)
+    retry_options.output_dir.mkdir(parents=True, exist_ok=True)
+    argv, summary_path, progress_path = build_robot_command(scenario, options=retry_options)
+    started = time.perf_counter()
+    if runner is subprocess.run:
+        completed = _run_robot_command_streaming(argv)
+    else:
+        completed = runner(
+            argv,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    output = completed.stdout or ""
+    return FailureArtifactRetry(
+        argv=argv,
+        returncode=completed.returncode,
+        duration_seconds=time.perf_counter() - started,
+        summary_path=summary_path,
+        progress_path=progress_path,
+        summary=_load_summary(summary_path, output),
+        output=output,
+        trace_dir=retry_options.trace_dir / scenario.name if retry_options.trace_dir is not None else None,
+        har_dir=retry_options.har_dir / scenario.name if retry_options.har_dir is not None else None,
+        video_dir=retry_options.video_dir / scenario.name if retry_options.video_dir is not None else None,
+    )
+
+
 def _load_summary(path: Path, output: str) -> dict:
     if path.is_file():
         return json.loads(path.read_text(encoding="utf-8"))
@@ -758,6 +868,30 @@ def _write_matrix_failure_bundle(result: ScenarioResult, *, options: MatrixOptio
     progress_tail = _tail_text_file(result.progress_path)
     if progress_tail:
         (bundle_dir / "progress-tail.ndjson").write_text(progress_tail, encoding="utf-8")
+    retry_payload: dict[str, object] | None = None
+    if result.artifact_retry is not None:
+        retry = result.artifact_retry
+        (bundle_dir / "retry-summary.json").write_text(
+            json.dumps(retry.summary, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        retry_output_tail = _limited_text(retry.output or "")
+        if retry_output_tail:
+            (bundle_dir / "retry-output-tail.txt").write_text(retry_output_tail, encoding="utf-8")
+        retry_progress_tail = _tail_text_file(retry.progress_path)
+        if retry_progress_tail:
+            (bundle_dir / "retry-progress-tail.ndjson").write_text(retry_progress_tail, encoding="utf-8")
+        retry_payload = {
+            "success": retry.returncode == 0 and retry.summary.get("success") is True,
+            "returncode": retry.returncode,
+            "duration_seconds": retry.duration_seconds,
+            "summary_path": str(retry.summary_path),
+            "progress_path": str(retry.progress_path),
+            "trace_dir": str(retry.trace_dir) if retry.trace_dir is not None else "",
+            "har_dir": str(retry.har_dir) if retry.har_dir is not None else "",
+            "video_dir": str(retry.video_dir) if retry.video_dir is not None else "",
+            "command": retry.argv,
+        }
     screenshot_root = options.screenshot_dir / result.scenario.name if options.screenshot_dir is not None else None
     screenshots = (
         sorted(str(path) for path in screenshot_root.rglob("*.png"))
@@ -775,6 +909,8 @@ def _write_matrix_failure_bundle(result: ScenarioResult, *, options: MatrixOptio
         "screenshots": screenshots,
         "command": result.argv,
     }
+    if retry_payload is not None:
+        manifest["failure_artifact_retry"] = retry_payload
     (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return bundle_dir
 
@@ -1097,6 +1233,11 @@ def run_scenario(
         summary=_load_summary(summary_path, output),
         output=output,
     )
+    if options.retry_failed_with_artifacts and _scenario_failed(result):
+        result = replace(
+            result,
+            artifact_retry=run_failure_artifact_retry(scenario, options=options, runner=runner),
+        )
     _write_matrix_failure_bundle(result, options=options)
     return result
 
@@ -1160,6 +1301,14 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
         "failed_count": sum(int(summary.get("failed_count") or 0) for summary in summaries),
         "duration_seconds": sum(result.duration_seconds for result in results),
         "cached_count": sum(1 for result in results if result.cached),
+        "failure_artifact_retry_count": sum(1 for result in results if result.artifact_retry is not None),
+        "failure_artifact_retry_passed_count": sum(
+            1
+            for result in results
+            if result.artifact_retry is not None
+            and result.artifact_retry.returncode == 0
+            and result.artifact_retry.summary.get("success") is True
+        ),
         "failed_scenarios": [
             result.scenario.name
             for result in results
@@ -1182,9 +1331,26 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
                 "probed_count": int(result.summary.get("probed_count") or 0),
                 "skipped_count": int(result.summary.get("skipped_count") or 0),
                 "failed_count": int(result.summary.get("failed_count") or 0),
+                "failure_artifact_retry": _failure_artifact_retry_summary(result.artifact_retry),
             }
             for result in results
         ],
+    }
+
+
+def _failure_artifact_retry_summary(retry: FailureArtifactRetry | None) -> dict[str, object] | None:
+    if retry is None:
+        return None
+    return {
+        "success": retry.returncode == 0 and retry.summary.get("success") is True,
+        "returncode": retry.returncode,
+        "duration_seconds": retry.duration_seconds,
+        "summary_path": str(retry.summary_path),
+        "progress_path": str(retry.progress_path),
+        "trace_dir": str(retry.trace_dir) if retry.trace_dir is not None else "",
+        "har_dir": str(retry.har_dir) if retry.har_dir is not None else "",
+        "video_dir": str(retry.video_dir) if retry.video_dir is not None else "",
+        "command": retry.argv,
     }
 
 
@@ -1220,15 +1386,20 @@ def render_human(summary: dict) -> str:
             f"pages={summary['page_count']} widgets={summary['widget_count']} "
             f"interacted={summary['interacted_count']} probed={summary['probed_count']} "
             f"skipped={summary['skipped_count']} failed={summary['failed_count']} "
-            f"cached={summary['cached_count']}"
+            f"cached={summary['cached_count']} "
+            f"artifact_retries={summary['failure_artifact_retry_count']}"
         )
     ]
     for scenario in summary["scenarios"]:
         scenario_status = "PASS" if scenario["success"] else "FAIL"
         cached = " cached" if scenario.get("cached") else ""
+        retry = scenario.get("failure_artifact_retry") or {}
+        retry_status = ""
+        if retry:
+            retry_status = " artifact-retry=PASS" if retry.get("success") is True else " artifact-retry=FAIL"
         lines.append(
             (
-                f"- [{scenario_status}] {scenario['name']}{cached}: pages={scenario['page_count']} "
+                f"- [{scenario_status}] {scenario['name']}{cached}{retry_status}: pages={scenario['page_count']} "
                 f"widgets={scenario['widget_count']} failed={scenario['failed_count']} "
                 f"summary={scenario['summary_path']}"
             )

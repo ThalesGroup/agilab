@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "source" / "data" / "ui_robot_evidence.json"
 SCHEMA = "agilab.ui_robot_evidence.v1"
 TREND_REPORT_SCHEMA = "agilab.ui_robot_trend_report.v1"
+AGGREGATE_REPORT_SCHEMA = "agilab.ui_robot_matrix_aggregate.v1"
 WORKFLOW_NAME = "ui-robot-matrix"
 DEFAULT_BRANCH = "main"
 DEFAULT_REPO = "ThalesGroup/agilab"
@@ -42,6 +43,7 @@ REQUIRED_ARTIFACT_FILES = {
     "trend_report": "trend-report.json",
     "exit_code": "exit-code.txt",
 }
+AGGREGATE_REPORT_FILENAME = "aggregate.json"
 
 
 def utc_now_iso() -> str:
@@ -149,17 +151,19 @@ def fetch_run(run_id: str, *, repo: str, repo_root: Path = REPO_ROOT) -> dict[st
 
 
 def _ui_robot_artifact_priority(name: str) -> int:
-    if name.startswith(f"{WORKFLOW_NAME}-core-"):
+    if name.startswith(f"{WORKFLOW_NAME}-aggregate-"):
         return 0
-    if name == WORKFLOW_NAME:
+    if name.startswith(f"{WORKFLOW_NAME}-core-"):
         return 1
+    if name == WORKFLOW_NAME:
+        return 2
     prefix = f"{WORKFLOW_NAME}-"
     if name.startswith(prefix):
         first_suffix_part = name[len(prefix):].split("-", 1)[0]
         if first_suffix_part.isdigit():
-            return 1
-        return 2
-    return 3
+            return 2
+        return 3
+    return 4
 
 
 def fetch_artifact_metadata(run_id: str, *, repo: str, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
@@ -232,7 +236,112 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _relative_to_root(path: Path | None, root: Path) -> str:
+    if path is None:
+        return ""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return path.name
+
+
+def _aggregate_summary_as_matrix_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    summary = report.get("summary") if isinstance(report.get("summary"), Mapping) else {}
+    return {
+        "schema": "agilab.widget_robot_matrix.aggregate_projection.v1",
+        "success": bool(report.get("success")),
+        "scenario_count": _int_value(summary, "scenario_count"),
+        "app_count": _int_value(summary, "app_count"),
+        "page_count": _int_value(summary, "page_count"),
+        "widget_count": _int_value(summary, "widget_count"),
+        "interacted_count": _int_value(summary, "interacted_count"),
+        "probed_count": _int_value(summary, "probed_count"),
+        "skipped_count": _int_value(summary, "skipped_count"),
+        "failed_count": _int_value(summary, "failed_count"),
+        "cached_count": _int_value(summary, "cached_count"),
+        "duration_seconds": _float_value(summary, "duration_seconds"),
+        "failed_scenarios": list(report.get("failed_scenarios") or []),
+        "failure_samples": list(report.get("failure_samples") or []),
+    }
+
+
+def _aggregate_summary_as_scenario_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    summary = report.get("summary") if isinstance(report.get("summary"), Mapping) else {}
+    trend = summary.get("trend") if isinstance(summary.get("trend"), Mapping) else {}
+    return {
+        "success": bool(report.get("success")),
+        "app_count": _int_value(summary, "app_count"),
+        "page_count": _int_value(summary, "page_count"),
+        "widget_count": _int_value(summary, "widget_count"),
+        "interacted_count": _int_value(summary, "interacted_count"),
+        "probed_count": _int_value(summary, "probed_count"),
+        "skipped_count": _int_value(summary, "skipped_count"),
+        "failed_count": _int_value(summary, "failed_count"),
+        "total_duration_seconds": _float_value(summary, "duration_seconds"),
+        "within_target": _int_value(trend, "budget_violation_count") == 0,
+    }
+
+
+def _aggregate_summary_as_trend_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    summary = report.get("summary") if isinstance(report.get("summary"), Mapping) else {}
+    trend = dict(summary.get("trend") or {}) if isinstance(summary.get("trend"), Mapping) else {}
+    trend["schema"] = TREND_REPORT_SCHEMA
+    return {
+        "schema": TREND_REPORT_SCHEMA,
+        "success": bool(trend.get("success")),
+        "summary": trend,
+    }
+
+
+def _load_aggregate_artifact_payloads(
+    artifact_dir: Path,
+    aggregate_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    aggregate_report = _load_json(aggregate_path)
+    if aggregate_report.get("schema") != AGGREGATE_REPORT_SCHEMA:
+        raise ValueError(f"{aggregate_path} must use schema {AGGREGATE_REPORT_SCHEMA}")
+    matrix_summary = _aggregate_summary_as_matrix_summary(aggregate_report)
+    scenario_summary = _aggregate_summary_as_scenario_summary(aggregate_report)
+    trend_report = _aggregate_summary_as_trend_report(aggregate_report)
+    exit_code_path = _find_artifact_file(artifact_dir, "exit-code.txt")
+    exit_code = (
+        exit_code_path.read_text(encoding="utf-8").strip()
+        if exit_code_path is not None
+        else ("0" if aggregate_report.get("success") is True else "1")
+    )
+    aggregate_summary = (
+        aggregate_report.get("summary")
+        if isinstance(aggregate_report.get("summary"), Mapping)
+        else {}
+    )
+    screenshot_count = (
+        _int_value(aggregate_summary, "screenshot_count")
+        if "screenshot_count" in aggregate_summary
+        else sum(1 for path in artifact_dir.rglob("*.png") if path.is_file())
+    )
+    artifact_checks = {
+        "required_files_present": True,
+        "exit_code": exit_code,
+        "progress_log_bytes": 0,
+        "screenshot_count": screenshot_count,
+        "aggregate_report_file": _relative_to_root(aggregate_path, artifact_dir),
+        "exit_code_file": _relative_to_root(exit_code_path, artifact_dir),
+        "matrix_summary_file": _relative_to_root(aggregate_path, artifact_dir),
+        "scenario_summary_file": _relative_to_root(aggregate_path, artifact_dir),
+        "progress_log_file": "",
+        "trend_report_file": _relative_to_root(aggregate_path, artifact_dir),
+        "trend_report_schema": str(trend_report.get("schema", "") or ""),
+        "aggregate_report_schema": str(aggregate_report.get("schema", "") or ""),
+        "shard_count": _int_value(aggregate_summary, "shard_count"),
+    }
+    return matrix_summary, scenario_summary, trend_report, artifact_checks
+
+
 def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    aggregate_path = _find_artifact_file(artifact_dir, AGGREGATE_REPORT_FILENAME)
+    if aggregate_path is not None:
+        return _load_aggregate_artifact_payloads(artifact_dir, aggregate_path)
+
     paths = {
         key: _find_artifact_file(artifact_dir, filename)
         for key, filename in REQUIRED_ARTIFACT_FILES.items()
@@ -252,23 +361,15 @@ def load_artifact_payloads(artifact_dir: Path) -> tuple[dict[str, Any], dict[str
     progress_path = paths["progress_log"]  # type: ignore[assignment]
     screenshot_count = sum(1 for path in artifact_dir.rglob("*.png") if path.is_file())
 
-    def _relative(path: Path | None) -> str:
-        if path is None:
-            return ""
-        try:
-            return str(path.relative_to(artifact_dir))
-        except ValueError:
-            return path.name
-
     artifact_checks = {
         "required_files_present": True,
         "exit_code": exit_code_text,
         "progress_log_bytes": progress_path.stat().st_size,
         "screenshot_count": screenshot_count,
-        "matrix_summary_file": _relative(paths["matrix_summary"]),
-        "scenario_summary_file": _relative(paths["scenario_summary"]),
-        "progress_log_file": _relative(progress_path),
-        "trend_report_file": _relative(paths["trend_report"]),
+        "matrix_summary_file": _relative_to_root(paths["matrix_summary"], artifact_dir),
+        "scenario_summary_file": _relative_to_root(paths["scenario_summary"], artifact_dir),
+        "progress_log_file": _relative_to_root(progress_path, artifact_dir),
+        "trend_report_file": _relative_to_root(paths["trend_report"], artifact_dir),
         "trend_report_schema": str(trend_report.get("schema", "") or ""),
     }
     return matrix_summary, scenario_summary, trend_report, artifact_checks
