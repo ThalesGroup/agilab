@@ -38,6 +38,15 @@ def _write_editable_direct_url(
     )
 
 
+def test_editable_install_cache_path_lives_outside_project_venv(tmp_path):
+    cache_path = deployment_local_support._editable_install_cache_path(tmp_path)
+
+    assert cache_path.parent == tmp_path.parent / ".agilab-editable-install-cache"
+    assert cache_path.name.startswith(f"{tmp_path.name}-")
+    assert cache_path.name.endswith(".json")
+    assert tmp_path / ".venv" not in cache_path.parents
+
+
 async def _call_deploy_local_worker(
     agi_cls,
     src: Path,
@@ -483,6 +492,76 @@ async def test_install_many_into_project_venv_skips_cached_editables(tmp_path):
             f'-e "{package_a}" -e "{package_b}"',
             tmp_path,
         )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_many_into_project_venv_reinstalls_only_missing_editable_proofs(
+    tmp_path,
+):
+    calls = []
+    package_a = tmp_path / "pkg_a"
+    package_b = tmp_path / "pkg_b"
+    for package_path in (package_a, package_b):
+        package_path.mkdir()
+        (package_path / "pyproject.toml").write_text(
+            f"[project]\nname='{package_path.name}'\n",
+            encoding="utf-8",
+        )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n",
+        encoding="utf-8",
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        if str(package_a) in cmd:
+            _write_editable_direct_url(tmp_path, package_a)
+        if str(package_b) in cmd:
+            _write_editable_direct_url(tmp_path, package_b)
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+    stale_direct_url = (
+        deployment_local_support._project_site_packages_dir(
+            tmp_path,
+            python_version="3.13",
+        )
+        / "pkg_b-0.0.dist-info"
+        / "direct_url.json"
+    )
+    stale_direct_url.unlink()
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_a}" -e "{package_b}"',
+            tmp_path,
+        ),
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_b}"',
+            tmp_path,
+        ),
     ]
 
 
