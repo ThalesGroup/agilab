@@ -149,3 +149,23 @@ def test_repository_knowledge_core_reports_excluded_index_hits(
 
     assert state["run_status"] == "invalid"
     assert any(issue["location"] == "exclusion_guardrail" for issue in state["issues"])
+
+
+def test_repository_knowledge_records_skip_duplicate_scan_hits(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_duplicate_scan_module")
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    shared = repo_root / "shared.py"
+    shared.write_text("VALUE = 1\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_iter_files", lambda _root: [shared])
+    monkeypatch.setattr(module, "_iter_named_files", lambda _root, _filename: [shared])
+
+    records = module._records(repo_root)
+
+    assert len(records) == 1
+    assert records[0]["path"] == "shared.py"
+    assert records[0]["kind"] == "package_source"
