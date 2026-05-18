@@ -158,7 +158,26 @@ def _tokens(value: str) -> frozenset[str]:
     )
 
 
-def _discover_test_files(test_roots: Sequence[str] = DEFAULT_TEST_ROOTS) -> list[str]:
+def _normalized_test_roots(test_roots: Sequence[str]) -> tuple[str, ...]:
+    roots: list[str] = []
+    seen: set[str] = set()
+    for raw_root in test_roots:
+        root = str(raw_root).replace("\\", "/").strip("/")
+        if not root or root in seen:
+            continue
+        roots.append(root)
+        seen.add(root)
+    return tuple(roots)
+
+
+def _is_test_file_under_roots(path: str, test_roots: Sequence[str]) -> bool:
+    normalized = path.replace("\\", "/").strip("/")
+    if not normalized.endswith(".py") or not Path(normalized).name.startswith("test_"):
+        return False
+    return any(normalized.startswith(f"{root}/") for root in test_roots)
+
+
+def _discover_test_files_with_rglob(test_roots: Sequence[str]) -> list[str]:
     tests: list[str] = []
     seen: set[str] = set()
     for root in test_roots:
@@ -171,6 +190,22 @@ def _discover_test_files(test_roots: Sequence[str] = DEFAULT_TEST_ROOTS) -> list
                 tests.append(rel)
                 seen.add(rel)
     return tests
+
+
+def _discover_test_files_with_git(test_roots: Sequence[str]) -> list[str]:
+    roots = _normalized_test_roots(test_roots)
+    if not roots:
+        return []
+    paths = _git_lines(
+        ["ls-files", "--cached", "--others", "--exclude-standard", "--", *roots]
+    )
+    return sorted(
+        {
+            path
+            for path in paths
+            if _is_test_file_under_roots(path, roots)
+        }
+    )
 
 
 def _test_file_signature(test_path: str) -> dict[str, int] | None:
@@ -188,17 +223,30 @@ def _load_test_index_cache(path: Path) -> dict[str, object]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
     if not isinstance(data, dict):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
     entries = data.get("entries")
     if data.get("schema") != TEST_INDEX_CACHE_SCHEMA or not isinstance(entries, dict):
-        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}}
-    return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": entries}
+        return {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+    test_files = data.get("test_files")
+    if not isinstance(test_files, dict):
+        test_files = {}
+    return {
+        "schema": TEST_INDEX_CACHE_SCHEMA,
+        "entries": entries,
+        "test_files": test_files,
+    }
 
 
-def _write_test_index_cache(path: Path, entries: dict[str, dict[str, object]]) -> None:
-    payload = {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": entries}
+def _write_test_index_cache(path: Path, state: dict[str, object]) -> None:
+    entries = state.get("entries")
+    test_files = state.get("test_files")
+    payload = {
+        "schema": TEST_INDEX_CACHE_SCHEMA,
+        "entries": entries if isinstance(entries, dict) else {},
+        "test_files": test_files if isinstance(test_files, dict) else {},
+    }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_name(f"{path.name}.tmp")
@@ -209,6 +257,47 @@ def _write_test_index_cache(path: Path, entries: dict[str, dict[str, object]]) -
         tmp_path.replace(path)
     except OSError:
         return
+
+
+def _cached_test_files(
+    cache_state: dict[str, object], test_roots: Sequence[str]
+) -> list[str] | None:
+    test_files = cache_state.get("test_files")
+    if not isinstance(test_files, dict):
+        return None
+    roots = test_files.get("roots")
+    files = test_files.get("files")
+    if roots != list(test_roots) or not isinstance(files, list):
+        return None
+    if not all(isinstance(path, str) for path in files):
+        return None
+    return list(files)
+
+
+def _discover_test_files(
+    test_roots: Sequence[str] = DEFAULT_TEST_ROOTS,
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> list[str]:
+    roots = _normalized_test_roots(test_roots)
+    cache_state = (
+        _load_test_index_cache(cache_path)
+        if use_cache
+        else {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+    )
+    try:
+        tests = _discover_test_files_with_git(roots)
+    except RuntimeError:
+        cached = _cached_test_files(cache_state, roots) if use_cache else None
+        if cached is not None:
+            return cached
+        return _discover_test_files_with_rglob(roots)
+
+    if use_cache:
+        cache_state["test_files"] = {"roots": list(roots), "files": tests}
+        _write_test_index_cache(cache_path, cache_state)
+    return tests
 
 
 def _cached_default_estimates(
@@ -258,7 +347,8 @@ def _cached_default_estimates(
     elif any(cached_entries.get(path) != entry for path, entry in next_entries.items()):
         changed = True
     if changed:
-        _write_test_index_cache(cache_path, next_entries)
+        cache["entries"] = next_entries
+        _write_test_index_cache(cache_path, cache)
     return estimates
 
 
@@ -456,7 +546,7 @@ def build_candidates(
     impact = impact_validate.analyze_paths(list(changed_files))
     guessed_tests = set(impact.guessed_tests)
     candidates: list[TestCandidate] = []
-    test_files = _discover_test_files()
+    test_files = _discover_test_files(cache_path=cache_path, use_cache=use_cache)
     default_estimates = _cached_default_estimates(
         test_files, cache_path=cache_path, use_cache=use_cache
     )

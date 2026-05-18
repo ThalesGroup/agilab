@@ -154,6 +154,101 @@ def test_load_timings_ignores_unreadable_files(tmp_path: Path, capsys) -> None:
     assert "ignoring unreadable timings" in capsys.readouterr().err
 
 
+def test_discover_test_files_uses_git_and_caches_result(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "selector-cache.json"
+    calls: list[list[str]] = []
+
+    def _fake_git_lines(args):
+        calls.append(list(args))
+        return [
+            "test/test_alpha.py",
+            "test/helper.py",
+            "src/agilab/core/test/test_core.py",
+            "src/agilab/core/test/fixture.py",
+            "docs/test_docs.py",
+        ]
+
+    monkeypatch.setattr(module, "_git_lines", _fake_git_lines)
+
+    files = module._discover_test_files(cache_path=cache_path)
+
+    assert files == ["src/agilab/core/test/test_core.py", "test/test_alpha.py"]
+    assert calls == [
+        [
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            *module.DEFAULT_TEST_ROOTS,
+        ]
+    ]
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert cache["test_files"]["roots"] == list(module.DEFAULT_TEST_ROOTS)
+    assert cache["test_files"]["files"] == files
+
+
+def test_discover_test_files_uses_cached_list_when_git_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "selector-cache.json"
+    files = ["test/test_cached.py"]
+    cache_path.write_text(
+        json.dumps(
+            {
+                "schema": module.TEST_INDEX_CACHE_SCHEMA,
+                "entries": {},
+                "test_files": {
+                    "roots": list(module.DEFAULT_TEST_ROOTS),
+                    "files": files,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        module,
+        "_git_lines",
+        lambda _args: (_ for _ in ()).throw(RuntimeError("git unavailable")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_discover_test_files_with_rglob",
+        lambda _roots: (_ for _ in ()).throw(
+            AssertionError("cached discovery should avoid rglob fallback")
+        ),
+    )
+
+    assert module._discover_test_files(cache_path=cache_path) == files
+
+
+def test_discover_test_files_falls_back_to_rglob_without_git_or_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_alpha.py").write_text("def test_alpha():\n    pass\n")
+    (tmp_path / "test" / "helper.py").write_text("HELPER = True\n")
+    (tmp_path / "src" / "agilab" / "core" / "test").mkdir(parents=True)
+    (tmp_path / "src" / "agilab" / "core" / "test" / "test_core.py").write_text(
+        "def test_core():\n    pass\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        module,
+        "_git_lines",
+        lambda _args: (_ for _ in ()).throw(RuntimeError("git unavailable")),
+    )
+
+    files = module._discover_test_files(cache_path=tmp_path / "missing-cache.json")
+
+    assert files == ["test/test_alpha.py", "src/agilab/core/test/test_core.py"]
+
+
 def test_cached_default_estimates_reuses_unchanged_file_metadata(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -242,7 +337,7 @@ def test_main_json_output_for_explicit_files(capsys, tmp_path: Path) -> None:
 
 def test_empty_selection_has_no_broad_pytest_command(capsys, monkeypatch) -> None:
     module = _load_module()
-    monkeypatch.setattr(module, "_discover_test_files", lambda: [])
+    monkeypatch.setattr(module, "_discover_test_files", lambda **_kwargs: [])
 
     exit_code = module.main(["--files", "README.md", "--print-command"])
 
