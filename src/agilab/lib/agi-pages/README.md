@@ -35,5 +35,6 @@ print(agi_pages.bundles_root())
 `agilab` install remains CLI/core-only and does not require this package.
 
 The default umbrella covers the shared AGILAB UI runtime. Specialized views
-with narrower runtime constraints are built as release artifacts and can be
-installed independently once their PyPI publishers are configured.
+with narrower runtime constraints are published independently as `agi-page-*`
+wheel/sdist payload packages. Install the page package you need alongside
+`agi-pages` when a notebook or app depends on that view.

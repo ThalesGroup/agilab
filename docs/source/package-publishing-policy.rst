@@ -44,9 +44,9 @@ to render UI.
 Published page-bundle packages
 ------------------------------
 
-The public analysis pages are built as self-contained page-bundle package
-artifacts. Each package carries one generic analysis page bundle and is
-published to PyPI once its PyPI Trusted Publisher entry is configured:
+The public analysis pages are built and published as self-contained
+page-bundle package artifacts. Each package carries one generic analysis page
+bundle and is distributed on PyPI as both a wheel and source distribution:
 
 - ``agi-page-simplex-map``
 - ``agi-page-decision-evidence``
@@ -158,7 +158,7 @@ dependency graph changed. AGILAB uses independent version tracks:
 - payload packages such as ``agi-page-*`` and ``agi-app-*`` version the page or
   app payload they carry; ``agi-page-*`` payloads and explicitly promoted
   ``agi-app-*`` payloads are published to PyPI, while unpromoted app payloads
-  remain release artifacts until their publishers are enabled.
+  remain release artifacts until publication is enabled.
 
 Bundle packages should exact-pin the component versions they curate for
 reproducible installs. Payload packages should declare compatible AGILAB runtime
