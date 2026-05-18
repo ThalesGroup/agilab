@@ -159,6 +159,25 @@ def test_pipeline_runtime_and_support_raise_when_local_fallback_specs_are_missin
         )
 
 
+def test_pipeline_runtime_support_raises_when_import_guard_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _missing_import_guard_spec(name, location, *args, **kwargs):
+        if name == "agilab_import_guard_local":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _missing_import_guard_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="import_guard.py"):
+        _load_module_with_import_failures(
+            "agilab_pipeline_runtime_support_missing_import_guard",
+            "src/agilab/pipeline_runtime_support.py",
+            monkeypatch,
+            set(),
+        )
+
+
 def test_safe_service_start_template_tolerates_invalid_settings_and_verbose(monkeypatch, tmp_path):
     settings = tmp_path / "app_settings.toml"
     settings.write_text(

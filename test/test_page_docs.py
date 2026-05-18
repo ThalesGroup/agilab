@@ -57,6 +57,21 @@ def test_docs_menu_items_merge_about_content_and_page_help():
     assert menu_items["Get help"] == "https://thalesgroup.github.io/agilab/execute-help.html#cluster"
 
 
+def test_get_docs_menu_items_uses_about_payload(monkeypatch):
+    fake_agi_env = types.ModuleType("agi_env")
+    fake_resource_support = types.ModuleType("agi_env.pagelib_resource_support")
+    fake_resource_support.about_content_payload = lambda: {"About": "AGILAB"}
+    monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env)
+    monkeypatch.setitem(sys.modules, "agi_env.pagelib_resource_support", fake_resource_support)
+
+    menu_items = page_docs.get_docs_menu_items(html_file="execute-help.html", anchor="#cluster")
+
+    assert menu_items == {
+        "About": "AGILAB",
+        "Get help": "https://thalesgroup.github.io/agilab/execute-help.html#cluster",
+    }
+
+
 def test_docs_candidates_and_open_remote_docs(monkeypatch):
     opened: list[str] = []
 
@@ -75,6 +90,15 @@ def test_docs_candidates_and_open_remote_docs(monkeypatch):
 
 def test_open_remote_docs_reports_unavailable_browser(monkeypatch):
     monkeypatch.setattr(page_docs.webbrowser, "open_new_tab", lambda _url: False)
+
+    assert page_docs._open_remote_docs("execute-help.html", "#cluster") is False
+
+
+def test_open_remote_docs_handles_browser_exceptions(monkeypatch):
+    def _raise_browser_error(_url):
+        raise page_docs.webbrowser.Error("browser unavailable")
+
+    monkeypatch.setattr(page_docs.webbrowser, "open_new_tab", _raise_browser_error)
 
     assert page_docs._open_remote_docs("execute-help.html", "#cluster") is False
 
@@ -152,6 +176,20 @@ def test_resolve_local_page_docs_path_supports_recursive_docs_matches(tmp_path, 
     monkeypatch.setattr(page_docs, "__file__", str(module_file))
 
     assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == nested_doc
+
+
+def test_resolve_local_page_docs_path_skips_empty_recursive_docs_root(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    package_root = repo_root / "src"
+    module_file = package_root / "agilab" / "page_docs.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("pass\n", encoding="utf-8")
+    (module_file.parent / "docs").mkdir()
+
+    env = types.SimpleNamespace(agilab_pck=package_root)
+    monkeypatch.setattr(page_docs, "__file__", str(module_file))
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") is None
 
 
 def test_open_local_page_docs_raises_when_no_candidate_exists(monkeypatch):
