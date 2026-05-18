@@ -110,6 +110,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "github.event.inputs.version" not in text
     assert "packages:" in text
     assert "roles:" in text
+    assert "allow_post_release:" in text
+    assert "post_release_reason:" in text
     assert "RELEASE_PACKAGES" in text
     assert "RELEASE_ROLES" in text
     assert "--packages \"$RELEASE_PACKAGES\"" in text
@@ -120,6 +122,10 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "trusted-publisher-contract:" not in text
     assert "Render PyPI trusted publisher contract" in text
     assert "tools/pypi_trusted_publisher_contract.py" in text
+    assert "Validate public release cadence policy" in text
+    assert "tools/pypi_release_version_policy.py" in text
+    assert "--allow-post-release" in text
+    assert "POST_RELEASE_REASON" in text
     assert "--check-workflow .github/workflows/pypi-publish.yaml" in text
     assert "release-plan:" in text
     assert "Render release package plan" in text
@@ -266,6 +272,8 @@ def test_test_pypi_publish_delegates_to_the_package_release_tool() -> None:
     assert "--dist both" in text
     assert "--git-reset-on-failure" in text
     assert "--no-pypirc-check" in text
+    assert "2026.05.12rc1" in text
+    assert "TestPyPI may auto-create .postN retries" in text
     assert "TWINE_USERNAME: __token__" in text
     assert "TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
 

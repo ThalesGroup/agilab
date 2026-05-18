@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Optional base version, for example 2026.05.12 or v2026.05.12. If omitted, the release tool computes a date-based TestPyPI version."
+        description: "Optional rehearsal version, for example 2026.05.12, 2026.05.12rc1, or v2026.05.12. TestPyPI may auto-create .postN retries."
         required: false
 
 concurrency:

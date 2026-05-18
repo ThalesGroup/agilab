@@ -12,6 +12,14 @@ on:
       roles:
         description: "Optional comma- or space-separated package roles to publish. Default: all."
         required: false
+      allow_post_release:
+        description: "Allow committed .postN versions on public PyPI only for a critical hotfix. Prefer TestPyPI or rc versions before final release."
+        required: false
+        type: boolean
+        default: false
+      post_release_reason:
+        description: "Critical hotfix justification required when allow_post_release is true."
+        required: false
   push:
     tags:
       - "v*.*.*"
@@ -225,6 +233,26 @@ jobs:
           python tools/pypi_trusted_publisher_contract.py \
             --check-workflow .github/workflows/pypi-publish.yaml \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate public release cadence policy
+        env:
+          RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
+          RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          ALLOW_POST_RELEASE: ${{ github.event.inputs.allow_post_release || 'false' }}
+          POST_RELEASE_REASON: ${{ github.event.inputs.post_release_reason || '' }}
+        run: |
+          set -euxo pipefail
+          args=(--github-step-summary "$GITHUB_STEP_SUMMARY")
+          if [ -n "${RELEASE_PACKAGES:-}" ]; then
+            args+=(--packages "$RELEASE_PACKAGES")
+          fi
+          if [ -n "${RELEASE_ROLES:-}" ]; then
+            args+=(--roles "$RELEASE_ROLES")
+          fi
+          if [ "${ALLOW_POST_RELEASE:-false}" = "true" ]; then
+            args+=(--allow-post-release --post-release-reason "$POST_RELEASE_REASON")
+          fi
+          python tools/pypi_release_version_policy.py "${args[@]}"
 
   publish-library-packages:
     needs:

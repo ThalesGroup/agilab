@@ -292,7 +292,10 @@ April-May 2026 records public-beta packaging hardening, provenance refreshes,
 and dependency-pin alignment across the split package set. It is kept visible
 for auditability, but it is not the target steady-state release rhythm; normal
 feature or behavior changes should advance to a deliberate new date-based
-release.
+release. The `pypi-publish` workflow now rejects committed public `.postN`
+versions unless a maintainer explicitly marks the dispatch as a critical hotfix
+and records the reason; release candidates or TestPyPI should be used before a
+final public release.
 
 ## Source Checkout
 

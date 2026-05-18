@@ -8,7 +8,9 @@ Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
 - Per-package versions for published AGI components, bundles, and payload packages.
   Real PyPI never auto-bumps to .postN; choose an explicit new version instead.
-  TestPyPI may auto-bump for retries.
+  Public .postN releases are reserved for documented critical hotfixes. Use
+  release-candidate versions or TestPyPI for release rehearsals; TestPyPI may
+  auto-bump .postN for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -102,6 +104,10 @@ UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
 UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
 ALLOW_LOCAL_PYPI_TWINE_ENV = "AGILAB_ALLOW_LOCAL_PYPI_TWINE"
+ALLOW_PYPI_POST_RELEASE_ENV = "AGILAB_ALLOW_PYPI_POST_RELEASE"
+PYPI_POST_RELEASE_REASON_ENV = "AGILAB_PYPI_POST_RELEASE_REASON"
+VERSION_PATTERN = r"\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
+VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$", re.IGNORECASE)
 
 
 # ---------- CLI ----------
@@ -130,8 +136,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--version",
         help=(
-            "Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD. "
-            "Real PyPI refuses automatic .postN bumps when that version is already used."
+            "Explicit version 'X.Y.Z[rcN][.postN]'. If omitted, base=UTC YYYY.MM.DD. "
+            "Real PyPI refuses automatic .postN bumps when that version is already used; "
+            ".postN is reserved for documented critical hotfixes."
         ),
     )
 
@@ -514,7 +521,7 @@ class _SimpleVersionParser(HTMLParser):
         self.versions: set[str] = set()
 
     def handle_data(self, data: str) -> None:
-        self.versions |= set(re.findall(r"\d+\.\d+\.\d+(?:\.post\d+)?", data or ""))
+        self.versions |= set(re.findall(VERSION_PATTERN, data or "", flags=re.IGNORECASE))
 
 
 def pypi_releases(name: str, repo_target: str) -> set[str]:
@@ -576,6 +583,51 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
             "ERROR: Real PyPI releases must keep the local release preflight enabled. "
             "Do not use --skip-release-preflight for a real PyPI publish."
         )
+
+
+def is_post_release_version(version: str) -> bool:
+    try:
+        return Version(version).post is not None
+    except InvalidVersion:
+        return bool(re.search(r"(?:^|[._-])post\d+\Z", version, flags=re.IGNORECASE))
+
+
+def _env_flag(name: str) -> bool:
+    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str]) -> None:
+    """Require an explicit critical-hotfix decision for public PyPI .postN releases."""
+
+    if cfg.repo != "pypi" or cfg.cleanup_only:
+        return
+    post_versions = {
+        package: version
+        for package, version in sorted(package_versions.items())
+        if is_post_release_version(version)
+    }
+    if not post_versions:
+        return
+
+    formatted = ", ".join(f"{package}={version}" for package, version in post_versions.items())
+    reason = os.environ.get(PYPI_POST_RELEASE_REASON_ENV, "").strip()
+    if cfg.dry_run:
+        print(
+            "[policy] Public PyPI .postN release detected in dry-run. "
+            f"Publication would require {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
+            f"{PYPI_POST_RELEASE_REASON_ENV}: {formatted}"
+        )
+        return
+    if _env_flag(ALLOW_PYPI_POST_RELEASE_ENV) and reason:
+        print(f"[policy] Allowing documented public PyPI post-release hotfix: {reason}")
+        return
+    raise SystemExit(
+        "ERROR: Public PyPI .postN releases are reserved for documented critical hotfixes. "
+        f"Selected post-release versions: {formatted}. Use a release candidate or TestPyPI for "
+        "rehearsal, then publish a deliberate new date-based final release. "
+        f"Break-glass post-release publication requires {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
+        f"{PYPI_POST_RELEASE_REASON_ENV} with the hotfix justification."
+    )
 
 
 def release_preflight_profiles(cfg: Cfg) -> list[str]:
@@ -2430,8 +2482,8 @@ def main():
             docs_repo_ready = True
 
     # Validate explicit version if provided
-    if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
-        raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z or X.Y.Z.postN")
+    if cfg.version is not None and not VERSION_RE.fullmatch(cfg.version):
+        raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z, X.Y.ZrcN, or X.Y.Z.postN")
 
     selected_packages = set(cfg.packages or ALL_PACKAGE_NAMES)
     unknown = selected_packages - set(ALL_PACKAGE_NAMES)
@@ -2469,6 +2521,7 @@ def main():
 
         package_versions, collisions = compute_package_versions(build_entries, cfg.repo, cfg.version)
         chosen = primary_release_version(package_versions)
+        require_public_post_release_policy(cfg, package_versions)
 
         print("[plan] Package versions:")
         for name in version_targets:
