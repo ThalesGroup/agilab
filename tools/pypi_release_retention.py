@@ -208,6 +208,73 @@ def _fresh_totp_code(previous: str | None) -> str | None:
     return code
 
 
+def _confirm_login_url_is_safe(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "pypi.org"
+        and parsed.path == "/account/confirm-login/"
+        and bool(parsed.query)
+    )
+
+
+def _consume_confirm_login_url(session: Any, url: str) -> None:
+    if not _confirm_login_url_is_safe(url):
+        raise RuntimeError("refusing to open a non-PyPI login confirmation URL")
+    response = session.get(url)
+    response.raise_for_status()
+
+
+def _fetch_github_actions_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> str | None:
+    api_url = f"https://api.github.com/repos/{repository}/actions/variables/{variable}"
+    request = urllib.request.Request(
+        api_url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "agilab-pypi-release-retention/1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise RuntimeError(
+            f"GitHub Actions variable lookup failed with HTTP {exc.code}"
+        ) from exc
+    value = str(payload.get("value") or "").strip()
+    return value or None
+
+
+def _wait_for_github_confirm_login_url(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+    timeout: float,
+    poll_delay: float,
+) -> str | None:
+    deadline = time.monotonic() + max(0.0, timeout)
+    while time.monotonic() <= deadline:
+        value = _fetch_github_actions_variable(
+            repository=repository,
+            variable=variable,
+            token=token,
+        )
+        if value:
+            return value
+        time.sleep(max(1.0, poll_delay))
+    return None
+
+
 def _form_action_matches(action: str | None, target_path: str) -> bool:
     if not action:
         return True
@@ -310,6 +377,7 @@ def delete_release_via_pypi_web(
     username: str,
     password: str,
     auth_code: str | None = None,
+    confirm_login_url_provider: Callable[[], str | None] | None = None,
     session_factory: Callable[[], Any] | None = None,
 ) -> None:
     import requests
@@ -364,23 +432,33 @@ def delete_release_via_pypi_web(
 
         delete_path = f"/manage/project/{package}/release/{version}/"
         delete_url = f"{base_url}{delete_path}"
-        response = session.get(delete_url)
-        response.raise_for_status()
-        response = _submit_reauthentication_if_needed(
-            session,
-            response=response,
-            base_url=base_url,
-            username=username,
-            password=password,
-        )
-        if urlparse(response.url).path.rstrip("/") == "/account/login":
-            raise RuntimeError(
-                "PyPI redirected back to login while opening the release delete "
-                "page after password/TOTP authentication. PyPI likely requires "
-                "unrecognized-login email confirmation from the same runner IP; "
-                "use a self-hosted/static-IP runner for automatic deletion or "
-                "run the cleanup manually from a confirmed device."
+
+        def open_delete_page() -> Any:
+            page_response = session.get(delete_url)
+            page_response.raise_for_status()
+            return _submit_reauthentication_if_needed(
+                session,
+                response=page_response,
+                base_url=base_url,
+                username=username,
+                password=password,
             )
+
+        response = open_delete_page()
+        if urlparse(response.url).path.rstrip("/") == "/account/login":
+            if confirm_login_url_provider is not None:
+                confirm_url = confirm_login_url_provider()
+                if confirm_url:
+                    _consume_confirm_login_url(session, confirm_url)
+                    response = open_delete_page()
+            if urlparse(response.url).path.rstrip("/") == "/account/login":
+                raise RuntimeError(
+                    "PyPI redirected back to login while opening the release delete "
+                    "page after password/TOTP authentication. PyPI likely requires "
+                    "unrecognized-login email confirmation from the same runner IP; "
+                    "use a self-hosted/static-IP runner for automatic deletion or "
+                    "run the cleanup manually from a confirmed device."
+                )
         try:
             delete_form = _find_form(
                 response.text,
@@ -412,6 +490,7 @@ def delete_release(
     username: str,
     password: str,
     auth_code: str | None = None,
+    confirm_login_url_provider: Callable[[], str | None] | None = None,
     verbose: bool = False,
 ) -> None:
     cmd = [
@@ -471,6 +550,7 @@ def delete_release(
                 username=username,
                 password=password,
                 auth_code=auth_code,
+                confirm_login_url_provider=confirm_login_url_provider,
             )
         except Exception as exc:
             raise SystemExit(
@@ -585,6 +665,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--verify-attempts", type=int, default=6)
     parser.add_argument("--retry-delay", type=float, default=10.0)
     parser.add_argument(
+        "--github-confirm-login-repository",
+        default=os.environ.get("GITHUB_REPOSITORY"),
+        help="GitHub repository whose Actions variable carries a temporary PyPI confirmation URL.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-variable",
+        help="GitHub Actions variable name containing the temporary PyPI confirmation URL.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-timeout",
+        type=float,
+        default=0.0,
+        help="Seconds to wait for the temporary PyPI confirmation URL variable.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-poll-delay",
+        type=float,
+        default=5.0,
+    )
+    parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
+    parser.add_argument(
         "--github-step-summary",
         nargs="?",
         const=os.environ.get("GITHUB_STEP_SUMMARY"),
@@ -622,6 +723,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.confirm_delete:
             raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
         username, password = require_credentials(args.username, args.password)
+        confirm_provider = None
+        if args.github_confirm_login_variable and args.github_confirm_login_timeout > 0:
+            if not args.github_confirm_login_repository or not args.github_token:
+                raise SystemExit(
+                    "ERROR: GitHub confirmation polling needs GITHUB_REPOSITORY "
+                    "and GITHUB_TOKEN."
+                )
+
+            def confirm_provider() -> str | None:
+                print(
+                    "Waiting for PyPI login confirmation URL in GitHub Actions "
+                    f"variable {args.github_confirm_login_variable!r}...",
+                    file=sys.stderr,
+                )
+                return _wait_for_github_confirm_login_url(
+                    repository=args.github_confirm_login_repository,
+                    variable=args.github_confirm_login_variable,
+                    token=args.github_token,
+                    timeout=args.github_confirm_login_timeout,
+                    poll_delay=args.github_confirm_login_poll_delay,
+                )
+
         delete_blocked = False
         for package, version in pending_deletes:
             print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
@@ -633,6 +756,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     username=username,
                     password=password,
                     auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+                    confirm_login_url_provider=confirm_provider,
                     verbose=args.verbose,
                 )
             except SystemExit as exc:

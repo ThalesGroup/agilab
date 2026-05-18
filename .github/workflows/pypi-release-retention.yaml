@@ -1,0 +1,63 @@
+name: pypi-release-retention
+
+on:
+  workflow_dispatch:
+    inputs:
+      protect_version:
+        description: "PyPI release version to keep. Older releases are deleted."
+        required: true
+      packages:
+        description: "Optional comma- or space-separated package names. Default: release provenance package set."
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    env:
+      PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
+      PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+      PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
+      PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+      PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install PyPI retention dependencies
+        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests
+
+      - name: Delete older PyPI releases and keep the protected release only
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          packages="${{ inputs.packages }}"
+          if [[ -z "$packages" ]]; then
+            packages="$(python - <<'PY'
+          from tools.release_plan import release_plan
+
+          print(" ".join(release_plan()["provenance_packages"]))
+          PY
+          )"
+          fi
+          python tools/pypi_release_retention.py \
+            --repo pypi \
+            --packages "$packages" \
+            --protect-version "${{ inputs.protect_version }}" \
+            --confirm-delete \
+            --json \
+            --github-step-summary "$GITHUB_STEP_SUMMARY" \
+            --github-confirm-login-repository "$GITHUB_REPOSITORY" \
+            --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
+            --github-confirm-login-timeout 300 \
+            --github-confirm-login-poll-delay 5 \
+            --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}"
