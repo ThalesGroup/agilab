@@ -202,5 +202,55 @@ def test_classify_runtime_failure_reports_dependency_and_scheduler() -> None:
     assert "execute action" in scheduler.detail
 
 
+def test_classify_runtime_failure_handles_empty_sequence_and_object_payloads() -> None:
+    class _Payload:
+        def __str__(self) -> str:
+            return 'ModuleNotFoundError: "custom_worker"'
+
+    sequence_dependency = runtime_failure_diagnostics.classify_runtime_failure(
+        ["worker startup", 'No module named "numpy"']
+    )
+    object_dependency = runtime_failure_diagnostics.classify_runtime_failure(_Payload())
+
+    assert runtime_failure_diagnostics.classify_runtime_failure(None) is None
+    assert runtime_failure_diagnostics.classify_runtime_failure("   ") is None
+    assert sequence_dependency is not None
+    assert sequence_dependency.category == "dependency"
+    assert "`numpy`" in sequence_dependency.detail
+    assert object_dependency is not None
+    assert object_dependency.category == "dependency"
+    assert "`custom_worker`" in object_dependency.detail
+
+
+def test_classify_runtime_failure_reports_install_state_path_and_share_issues() -> None:
+    cluster_share = runtime_failure_diagnostics.classify_runtime_failure(
+        "cluster mode requires AGI_CLUSTER_SHARE",
+        phase="install",
+    )
+    project_state = runtime_failure_diagnostics.classify_runtime_failure(
+        "installation is incomplete because .venv is missing"
+    )
+    worker_copy = runtime_failure_diagnostics.classify_runtime_failure(
+        "worker copy /tmp/wenv/demo_worker/pyproject.toml is unsatisfiable"
+    )
+    missing_path = runtime_failure_diagnostics.classify_runtime_failure(
+        "project path /tmp/demo/input does not exist"
+    )
+
+    assert cluster_share is not None
+    assert cluster_share.category == "cluster-share"
+    assert "AGI_CLUSTER_SHARE" in cluster_share.detail
+    assert project_state is not None
+    assert project_state.category == "project-state"
+    assert worker_copy is not None
+    assert worker_copy.category == "worker-copy"
+    assert missing_path is not None
+    assert missing_path.category == "path"
+
+
+def test_archive_display_name_falls_back_to_generic_dataset_name() -> None:
+    assert runtime_failure_diagnostics._archive_display_name("bad archive marker") == "dataset.7z"
+
+
 def test_classify_runtime_failure_returns_none_for_unknown_text() -> None:
     assert runtime_failure_diagnostics.classify_runtime_failure("Command failed with exit code 1") is None
