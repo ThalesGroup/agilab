@@ -222,7 +222,8 @@ jobs:
           - support
           - pipeline
           - robots
-          - pages
+          - pages-flow
+          - pages-rest
           - views
           - reports
     steps:
@@ -363,9 +364,15 @@ jobs:
                 test/test_first_launch_robot.py \
                 test/test_screenshot_manifest.py
               ;;
-            pages)
-              run_gui_chunk pages \
+            pages-flow)
+              run_gui_chunk pages-flow \
                 test/test_ui_pages.py \
+                -k "execute_page or experiment_page or pipeline_page_project_selectbox"
+              ;;
+            pages-rest)
+              run_gui_chunk pages-rest \
+                test/test_ui_pages.py \
+                -k "not (execute_page or experiment_page or pipeline_page_project_selectbox)" \
                 test/test_apps_pages_launcher.py \
                 test/test_app_args.py \
                 test/test_streamlit_args.py \
@@ -455,7 +462,7 @@ jobs:
           import subprocess
           import sys
 
-          chunks = ("support", "pipeline", "robots", "pages", "views", "reports")
+          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports")
           paths: list[str] = []
           missing: list[str] = []
           for chunk in chunks:

@@ -37,7 +37,7 @@ def _write_junit(path: Path, cases: list[tuple[str, str, float]]) -> None:
 
 def test_build_report_summarizes_chunks_files_and_slowest_tests(tmp_path: Path) -> None:
     module = _load_module()
-    pages = tmp_path / "junit-agi-gui-pages.xml"
+    pages = tmp_path / "junit-agi-gui-pages-flow.xml"
     views = tmp_path / "junit-agi-gui-views.xml"
     _write_junit(
         pages,
@@ -59,8 +59,8 @@ def test_build_report_summarizes_chunks_files_and_slowest_tests(tmp_path: Path) 
 
     assert report.total_tests == 5
     assert report.total_seconds == 8.0
-    assert report.slowest_chunk == "pages"
-    assert report.chunks[0].chunk == "pages"
+    assert report.slowest_chunk == "pages-flow"
+    assert report.chunks[0].chunk == "pages-flow"
     assert report.chunks[0].tests == 3
     assert report.chunks[0].files == 2
     assert report.files[0].test_path == "test/test_ui_pages.py"
@@ -70,13 +70,13 @@ def test_build_report_summarizes_chunks_files_and_slowest_tests(tmp_path: Path) 
 
 def test_render_markdown_highlights_slowest_chunk_and_files(tmp_path: Path) -> None:
     module = _load_module()
-    junit = tmp_path / "junit-agi-gui-pages.xml"
+    junit = tmp_path / "junit-agi-gui-pages-flow.xml"
     _write_junit(junit, [("test.test_ui_pages", "test_sidebar", 61.25)])
 
     markdown = module.render_markdown(module.build_report([str(junit)]))
 
     assert "# AGI-GUI Coverage Timing" in markdown
-    assert "Slowest chunk: `pages`" in markdown
+    assert "Slowest chunk: `pages-flow`" in markdown
     assert "`test/test_ui_pages.py`" in markdown
     assert "1m 1.2s" in markdown
 

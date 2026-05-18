@@ -40,7 +40,7 @@ def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
     current_chunk: str | None = None
     for line in WORKFLOW_PATH.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        match = re.fullmatch(r"run_gui_chunk ([a-z]+) \\", stripped)
+        match = re.fullmatch(r"run_gui_chunk ([a-z-]+) \\", stripped)
         if match:
             current_chunk = match.group(1)
             chunks[current_chunk] = []
@@ -53,16 +53,18 @@ def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
         if stripped.startswith(("test/", "src/agilab/")):
             chunks[current_chunk].append(stripped.removesuffix("\\").strip())
             continue
+        if stripped.startswith("-"):
+            continue
         current_chunk = None
     return chunks
 
 
 def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
     args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
-    commands = module._profile_commands(args)["agi-gui"][:6]
+    commands = module._profile_commands(args)["agi-gui"][: len(module.AGI_GUI_COVERAGE_CHUNKS)]
     targets_by_chunk: dict[str, list[str]] = {}
     for command in commands:
-        match = re.fullmatch(r"agi-gui coverage \(([a-z]+)\)", command.label)
+        match = re.fullmatch(r"agi-gui coverage \(([a-z-]+)\)", command.label)
         assert match is not None
         targets_by_chunk[match.group(1)] = [
             arg for arg in command.argv if arg.startswith(("test/", "src/agilab/"))
@@ -98,7 +100,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
     agi_gui_commands = profiles["agi-gui"]
-    agi_gui_chunks = agi_gui_commands[:6]
+    agi_gui_chunk_count = len(module.AGI_GUI_COVERAGE_CHUNKS)
+    agi_gui_chunks = agi_gui_commands[:agi_gui_chunk_count]
     agi_gui_combine = agi_gui_commands[-3]
     agi_gui_timing = agi_gui_commands[-2]
     agi_gui_xml = agi_gui_commands[-1]
@@ -163,7 +166,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui coverage (support)",
         "agi-gui coverage (pipeline)",
         "agi-gui coverage (robots)",
-        "agi-gui coverage (pages)",
+        "agi-gui coverage (pages-flow)",
+        "agi-gui coverage (pages-rest)",
         "agi-gui coverage (views)",
         "agi-gui coverage (reports)",
         "agi-gui coverage combine",
@@ -214,6 +218,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_first_launch_robot.py" in agi_gui_argv
     assert "test/test_screenshot_manifest.py" in agi_gui_argv
     assert "test/test_ui_pages.py" in agi_gui_argv
+    assert "--data-file=test-results/coverage-agi-gui-pages-flow.db" in agi_gui_argv
+    assert "--data-file=test-results/coverage-agi-gui-pages-rest.db" in agi_gui_argv
+    assert "execute_page or experiment_page or pipeline_page_project_selectbox" in agi_gui_argv
+    assert "not (execute_page or experiment_page or pipeline_page_project_selectbox)" in agi_gui_argv
     assert "test/test_view*.py" not in agi_gui_argv
     assert "test/test_view_maps.py" in agi_gui_argv
     assert "test/test_ci_provider_artifacts.py" in agi_gui_argv
