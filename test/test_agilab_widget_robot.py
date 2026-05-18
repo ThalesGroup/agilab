@@ -125,6 +125,8 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.viewport_width == module.DEFAULT_VIEWPORT_WIDTH
     assert args.viewport_height == module.DEFAULT_VIEWPORT_HEIGHT
     assert args.fresh_browser_context_per_page is False
+    assert args.keyboard_focus_check is False
+    assert args.layout_integrity_check is False
     assert args.success_screenshot is False
     assert args.failure_bundle_dir is None
     assert args.max_first_render_seconds == 0.0
@@ -198,6 +200,66 @@ def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> 
     assert manifest["status"] == "failed"
     assert manifest["failures"][0]["detail"] == "broken callback"
     assert manifest["command"] == ["agilab_widget_robot.py", "--json"]
+
+
+def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
+    module = _load_module()
+
+    probe = module._keyboard_focus_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        focusable_count=5,
+        visited_labels=["INSTALL", "INSTALL", "INSTALL"],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "keyboard_focus"
+    assert "expected at least" in probe.detail
+
+
+def test_keyboard_focus_result_probe_accepts_unique_visible_targets() -> None:
+    module = _load_module()
+
+    probe = module._keyboard_focus_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        focusable_count=5,
+        visited_labels=["PROJECT", "ORCHESTRATE", "ANALYSIS"],
+    )
+
+    assert probe.status == "interacted"
+    assert "unique visible focus" in probe.detail
+
+
+def test_layout_integrity_result_probe_reports_first_issue() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+        issues=[{"kind": "text_overflow", "label": "Run", "detail": "text width exceeds container"}],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "layout_integrity"
+    assert "text_overflow" in probe.detail
+
+
+def test_layout_integrity_result_probe_accepts_clean_geometry() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+        issues=[],
+    )
+
+    assert probe.status == "interacted"
+    assert "no obvious overflow" in probe.detail
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:

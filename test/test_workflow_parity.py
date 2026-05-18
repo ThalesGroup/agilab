@@ -116,11 +116,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     security_adoption = profiles["security-adoption"][0]
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
+    ui_robot_contract = profiles["ui-robot-contract"][0]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
     ui_history_robot = profiles["ui-history-robot"][0]
     ui_mobile_robot = profiles["ui-mobile-robot"][0]
     ui_release_evidence_robot = profiles["ui-release-evidence-robot"][0]
     ui_first_proof_robot = profiles["ui-first-proof-robot"][0]
+    ui_keyboard_robot = profiles["ui-keyboard-robot"][0]
+    ui_layout_robot = profiles["ui-layout-robot"][0]
     hf_install_robot = profiles["hf-install-robot"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
@@ -222,6 +225,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_agilab_widget_robot.py" in agi_gui_argv
     assert "test/test_first_launch_robot.py" in agi_gui_argv
     assert "test/test_screenshot_manifest.py" in agi_gui_argv
+    assert "test/test_ui_robot_coverage_contract.py" in agi_gui_argv
+    assert "test/test_ui_robot_failure_replay.py" in agi_gui_argv
     assert "test/test_ui_pages.py" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-flow.db" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-rest.db" in agi_gui_argv
@@ -276,6 +281,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "--compact",
     ]
     assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
+    assert ui_robot_contract.label == "ui robot coverage contract"
+    assert ui_robot_contract.timeout_seconds == 2 * 60
+    assert ui_robot_contract.argv[-2:] == ["tools/ui_robot_coverage_contract.py", "--json"]
     assert ui_robot_matrix.label == "ui robot matrix"
     assert ui_robot_matrix.timeout_seconds == 60 * 60
     assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"]
@@ -330,6 +338,19 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "screenshots/ui-first-proof-robot" in ui_first_proof_robot.argv
     assert "test-results/ui-first-proof-robot/failure-bundles" in ui_first_proof_robot.argv
     assert _has_with_dependency(ui_first_proof_robot.argv, "playwright")
+    assert ui_keyboard_robot.label == "ui keyboard focus robot"
+    assert ui_keyboard_robot.timeout_seconds == 30 * 60
+    assert ui_keyboard_robot.remove_paths == ["test-results/ui-keyboard-robot", "screenshots/ui-keyboard-robot"]
+    assert "isolated-keyboard-focus-core-pages" in ui_keyboard_robot.argv
+    assert "test-results/ui-keyboard-robot/failure-bundles" in ui_keyboard_robot.argv
+    assert _has_with_dependency(ui_keyboard_robot.argv, "playwright")
+    assert ui_layout_robot.label == "ui layout integrity robot"
+    assert ui_layout_robot.timeout_seconds == 45 * 60
+    assert ui_layout_robot.remove_paths == ["test-results/ui-layout-robot", "screenshots/ui-layout-robot"]
+    assert "isolated-layout-integrity-desktop" in ui_layout_robot.argv
+    assert "isolated-layout-integrity-mobile" in ui_layout_robot.argv
+    assert "test-results/ui-layout-robot/failure-bundles" in ui_layout_robot.argv
+    assert _has_with_dependency(ui_layout_robot.argv, "playwright")
     assert hf_install_robot.label == "hf flight telemetry install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
@@ -355,11 +376,14 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "release-proof" not in selected
     assert "security-adoption" not in selected
     assert "production-readiness" not in selected
+    assert "ui-robot-contract" not in selected
     assert "ui-robot-matrix" not in selected
     assert "ui-history-robot" not in selected
     assert "ui-mobile-robot" not in selected
     assert "ui-release-evidence-robot" not in selected
     assert "ui-first-proof-robot" not in selected
+    assert "ui-keyboard-robot" not in selected
+    assert "ui-layout-robot" not in selected
     assert "hf-install-robot" not in selected
 
 

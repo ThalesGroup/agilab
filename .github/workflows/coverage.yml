@@ -362,7 +362,9 @@ jobs:
                 test/test_agilab_widget_robot_matrix.py \
                 test/test_agilab_widget_robot.py \
                 test/test_first_launch_robot.py \
-                test/test_screenshot_manifest.py
+                test/test_screenshot_manifest.py \
+                test/test_ui_robot_coverage_contract.py \
+                test/test_ui_robot_failure_replay.py
               ;;
             pages-flow)
               run_gui_chunk pages-flow \

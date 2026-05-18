@@ -400,6 +400,152 @@ SCROLL_WIDGET_TO_CENTER_JS = r"""
 }
 """
 
+KEYBOARD_FOCUSABLE_COUNT_JS = r"""
+() => {
+  const selector = [
+    "button",
+    "a[href]",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[tabindex]:not([tabindex='-1'])",
+  ].join(", ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  return Array.from(document.querySelectorAll(selector)).filter((el) => {
+    return visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true";
+  }).length;
+}
+"""
+
+ACTIVE_FOCUS_STATE_JS = r"""
+() => {
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) {
+    return {kind: "document", label: "", visible: true, inViewport: true};
+  }
+  const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
+  const text = String(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).trim().replace(/\s+/g, " ").slice(0, 120);
+  const visible = rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  const inViewport = rect.bottom >= 0 && rect.right >= 0 && rect.top <= window.innerHeight && rect.left <= window.innerWidth;
+  return {
+    kind: String(el.getAttribute("role") || el.tagName || "").toLowerCase(),
+    label: text,
+    visible,
+    inViewport,
+    width: rect.width,
+    height: rect.height,
+    top: rect.top,
+    left: rect.left,
+  };
+}
+"""
+
+LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const labelFor = (el) => clean(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).slice(0, 120);
+  const issues = [];
+  const push = (kind, el, detail) => {
+    issues.push({
+      kind,
+      label: labelFor(el),
+      detail: clean(detail).slice(0, 260),
+    });
+  };
+  const controlSelector = [
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+  ].join(", ");
+  const controls = Array.from(document.querySelectorAll(controlSelector)).filter(visible);
+  for (const el of controls) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      push("zero_size_control", el, `control rendered at ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`);
+    }
+    if (rect.left < -4 || rect.right > window.innerWidth + 4) {
+      push("horizontal_overflow", el, `control spans x=${rect.left.toFixed(1)}..${rect.right.toFixed(1)} viewport=${window.innerWidth}`);
+    }
+  }
+  const textSelector = [
+    "button",
+    "[role='tab']",
+    "label",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "[data-testid='stMarkdownContainer'] p",
+  ].join(", ");
+  for (const el of Array.from(document.querySelectorAll(textSelector)).filter(visible)) {
+    if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 4 && clean(el.innerText || el.textContent)) {
+      push("text_overflow", el, `text width ${el.scrollWidth}px exceeds container ${el.clientWidth}px`);
+    }
+  }
+  const intersection = (a, b) => {
+    const x = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return x * y;
+  };
+  const rects = controls.map((el) => ({el, rect: el.getBoundingClientRect(), label: labelFor(el)}));
+  for (let i = 0; i < rects.length; i += 1) {
+    for (let j = i + 1; j < rects.length; j += 1) {
+      const a = rects[i];
+      const b = rects[j];
+      if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const areaA = Math.max(1, a.rect.width * a.rect.height);
+      const areaB = Math.max(1, b.rect.width * b.rect.height);
+      const overlap = intersection(a.rect, b.rect);
+      if (overlap > Math.min(areaA, areaB) * 0.65) {
+        push("control_overlap", a.el, `overlaps ${b.label || b.el.tagName} by ${overlap.toFixed(1)}px2`);
+      }
+    }
+  }
+  return issues.slice(0, 20);
+}
+"""
+
 VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
 () => {
   const visible = (el) => {
@@ -4067,6 +4213,8 @@ def sweep_page(
     assert_workflow_artifacts: bool = False,
     assert_analysis_artifacts: bool = False,
     browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
@@ -4163,6 +4311,19 @@ def sweep_page(
                 )
                 if not any(probe.status == "failed" for probe in probes):
                     restore_view()
+            if keyboard_focus_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _keyboard_focus_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        widget_timeout_ms=widget_timeout_ms,
+                    )
+                )
+                if not any(probe.status == "failed" for probe in probes):
+                    restore_view()
+            if layout_integrity_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_layout_integrity_probe(page, app_name=app_name, display=display))
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
             preflight_detail = current_home_action_preflight_blocker(
                 app_name=app_name,
@@ -4617,6 +4778,152 @@ def _browser_history_probe(
         )
 
 
+def _keyboard_focus_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    focusable_count: int,
+    visited_labels: Sequence[str],
+    failure: str | None = None,
+) -> WidgetProbe:
+    if failure:
+        return WidgetProbe(app_name, display, "keyboard_focus", "tab_order", "failed", _short_detail(failure), url)
+    minimum_unique = min(3, max(1, focusable_count))
+    unique_labels = {label for label in visited_labels if label}
+    if len(unique_labels) < minimum_unique:
+        return WidgetProbe(
+            app_name,
+            display,
+            "keyboard_focus",
+            "tab_order",
+            "failed",
+            _short_detail(
+                f"keyboard focus visited {len(unique_labels)} unique target(s), expected at least {minimum_unique}; "
+                f"visited={list(unique_labels)[:5]}"
+            ),
+            url,
+        )
+    return WidgetProbe(
+        app_name,
+        display,
+        "keyboard_focus",
+        "tab_order",
+        "interacted",
+        f"keyboard Tab reached {len(unique_labels)} unique visible focus target(s) out of {focusable_count}",
+        url,
+    )
+
+
+def _keyboard_focus_probe(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    widget_timeout_ms: float,
+    max_tabs: int = 16,
+) -> WidgetProbe:
+    try:
+        focusable_count = int(page.evaluate(KEYBOARD_FOCUSABLE_COUNT_JS) or 0)
+    except Exception as exc:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=0,
+            visited_labels=[],
+            failure=f"focusable controls could not be collected: {exc}",
+        )
+    if focusable_count <= 0:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=0,
+            visited_labels=[],
+            failure="no visible keyboard-focusable controls were found",
+        )
+    visited: list[str] = []
+    try:
+        page.keyboard.press("Escape")
+        for _ in range(min(max_tabs, focusable_count + 4)):
+            page.keyboard.press("Tab")
+            _wait_for_timeout(page, min(widget_timeout_ms, 250))
+            state = page.evaluate(ACTIVE_FOCUS_STATE_JS)
+            if not isinstance(state, dict):
+                continue
+            label = str(state.get("label") or state.get("kind") or "focus-target").strip()
+            if not bool(state.get("visible", False)):
+                return _keyboard_focus_result_probe(
+                    app_name=app_name,
+                    display=display,
+                    url=getattr(page, "url", ""),
+                    focusable_count=focusable_count,
+                    visited_labels=visited,
+                    failure=f"keyboard focus reached invisible target {label!r}",
+                )
+            if not bool(state.get("inViewport", False)):
+                return _keyboard_focus_result_probe(
+                    app_name=app_name,
+                    display=display,
+                    url=getattr(page, "url", ""),
+                    focusable_count=focusable_count,
+                    visited_labels=visited,
+                    failure=f"keyboard focus reached off-screen target {label!r}",
+                )
+            if label:
+                visited.append(label)
+            if len({item for item in visited if item}) >= min(3, focusable_count):
+                break
+        page.keyboard.press("Escape")
+    except Exception as exc:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=focusable_count,
+            visited_labels=visited,
+            failure=f"keyboard focus check failed: {exc}",
+        )
+    return _keyboard_focus_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        focusable_count=focusable_count,
+        visited_labels=visited,
+    )
+
+
+def _layout_integrity_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    issues: Sequence[dict[str, Any]],
+) -> WidgetProbe:
+    if issues:
+        first = issues[0]
+        detail = f"{len(issues)} layout issue(s); first={first.get('kind')}: {first.get('label')} - {first.get('detail')}"
+        return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "failed", _short_detail(detail), url)
+    return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "interacted", "no obvious overflow, zero-size, or overlapping controls detected", url)
+
+
+def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    try:
+        issues = page.evaluate(LAYOUT_INTEGRITY_COLLECTOR_JS)
+    except Exception as exc:
+        issues = [{"kind": "collector_error", "label": "", "detail": str(exc)}]
+    if not isinstance(issues, list):
+        issues = [{"kind": "collector_error", "label": "", "detail": "layout collector returned no issue list"}]
+    normalized = [dict(item) for item in issues if isinstance(item, dict)]
+    return _layout_integrity_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        issues=normalized,
+    )
+
+
 def sweep_direct_apps_page(
     *,
     web_robot: Any,
@@ -4643,6 +4950,8 @@ def sweep_direct_apps_page(
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     success_screenshot: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
     command_argv: Sequence[str] | None = None,
@@ -4749,6 +5058,8 @@ def sweep_direct_apps_page(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         success_screenshot=success_screenshot,
+                        keyboard_focus_check=keyboard_focus_check,
+                        layout_integrity_check=layout_integrity_check,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
                         command_argv=command_argv,
@@ -4792,6 +5103,8 @@ def sweep_app(
     assert_workflow_artifacts: bool = False,
     assert_analysis_artifacts: bool = False,
     browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
@@ -4886,6 +5199,8 @@ def sweep_app(
                                 assert_workflow_artifacts=assert_workflow_artifacts,
                                 assert_analysis_artifacts=assert_analysis_artifacts,
                                 browser_history_check=browser_history_check,
+                                keyboard_focus_check=keyboard_focus_check,
+                                layout_integrity_check=layout_integrity_check,
                                 success_screenshot=success_screenshot,
                                 failure_bundle_dir=failure_bundle_dir,
                                 progress_log=progress_log,
@@ -4974,6 +5289,8 @@ def sweep_app(
                     viewport_width=viewport_width,
                     viewport_height=viewport_height,
                     success_screenshot=success_screenshot,
+                    keyboard_focus_check=keyboard_focus_check,
+                    layout_integrity_check=layout_integrity_check,
                     failure_bundle_dir=failure_bundle_dir,
                     progress_log=progress_log,
                     command_argv=command_argv,
@@ -5016,6 +5333,8 @@ def sweep_remote_app(
     screenshot_dir: Path | None,
     route_query: str = "",
     browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
     fresh_browser_context_per_page: bool = False,
@@ -5088,6 +5407,8 @@ def sweep_remote_app(
                         screenshot_dir=screenshot_dir,
                         route_query=route_query,
                         browser_history_check=browser_history_check,
+                        keyboard_focus_check=keyboard_focus_check,
+                        layout_integrity_check=layout_integrity_check,
                         success_screenshot=success_screenshot,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
@@ -5187,6 +5508,8 @@ def sweep_remote_app(
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                             success_screenshot=success_screenshot,
+                            keyboard_focus_check=keyboard_focus_check,
+                            layout_integrity_check=layout_integrity_check,
                             failure_bundle_dir=failure_bundle_dir,
                             progress_log=progress_log,
                             command_argv=command_argv,
@@ -5309,6 +5632,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Navigate PROJECT -> ORCHESTRATE -> ANALYSIS, then browser back/forward, and assert page health plus active_app routing.",
     )
+    parser.add_argument("--keyboard-focus-check", action="store_true", help="Tab through visible controls and fail on focus traps or off-screen focus targets.")
+    parser.add_argument("--layout-integrity-check", action="store_true", help="Fail on obvious visible control overflow, zero-size controls, and major control overlaps.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
     parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
     parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
@@ -5429,6 +5754,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 screenshot_dir=screenshot_dir,
                 route_query=args.route_query,
                 browser_history_check=args.browser_history_check,
+                keyboard_focus_check=args.keyboard_focus_check,
+                layout_integrity_check=args.layout_integrity_check,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,
@@ -5471,6 +5798,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
                 assert_analysis_artifacts=args.assert_analysis_artifacts,
                 browser_history_check=args.browser_history_check,
+                keyboard_focus_check=args.keyboard_focus_check,
+                layout_integrity_check=args.layout_integrity_check,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
                 fresh_browser_context_per_page=args.fresh_browser_context_per_page,
