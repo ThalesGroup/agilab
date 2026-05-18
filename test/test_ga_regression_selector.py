@@ -154,7 +154,61 @@ def test_load_timings_ignores_unreadable_files(tmp_path: Path, capsys) -> None:
     assert "ignoring unreadable timings" in capsys.readouterr().err
 
 
-def test_main_json_output_for_explicit_files(capsys) -> None:
+def test_cached_default_estimates_reuses_unchanged_file_metadata(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    test_file = tmp_path / "test" / "test_cached.py"
+    test_file.parent.mkdir()
+    test_file.write_text(
+        "def test_one():\n    assert True\n"
+        "async def test_two():\n    assert True\n",
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "selector-cache.json"
+
+    first = module._cached_default_estimates(
+        ["test/test_cached.py"], cache_path=cache_path
+    )
+
+    def _unexpected_estimate(_path: str) -> float:
+        raise AssertionError("unchanged cached test file should not be reread")
+
+    monkeypatch.setattr(module, "_default_estimate", _unexpected_estimate)
+    second = module._cached_default_estimates(
+        ["test/test_cached.py"], cache_path=cache_path
+    )
+
+    assert second == first
+
+
+def test_cached_default_estimates_invalidates_changed_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    test_file = tmp_path / "test" / "test_cached.py"
+    test_file.parent.mkdir()
+    test_file.write_text("def test_one():\n    assert True\n", encoding="utf-8")
+    cache_path = tmp_path / "selector-cache.json"
+
+    module._cached_default_estimates(["test/test_cached.py"], cache_path=cache_path)
+    test_file.write_text(
+        "def test_one():\n    assert True\n"
+        "def test_two():\n    assert True\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "_default_estimate", lambda _path: 9.5)
+
+    estimates = module._cached_default_estimates(
+        ["test/test_cached.py"], cache_path=cache_path
+    )
+
+    assert estimates == {"test/test_cached.py": 9.5}
+
+
+def test_main_json_output_for_explicit_files(capsys, tmp_path: Path) -> None:
     module = _load_module()
 
     exit_code = module.main(
@@ -167,6 +221,8 @@ def test_main_json_output_for_explicit_files(capsys) -> None:
             "12",
             "--generations",
             "4",
+            "--cache-path",
+            str(tmp_path / "selector-cache.json"),
             "--json",
         ]
     )
