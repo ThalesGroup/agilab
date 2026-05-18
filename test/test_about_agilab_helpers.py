@@ -145,6 +145,15 @@ class _FakeStreamlit:
         key = _kwargs.get("key")
         return bool(self.button_values.get(label, self.button_values.get(key, False)))
 
+    def link_button(self, label: str, url: str, **_kwargs):
+        self.events.append(("link_button", label))
+        self.events.append(("link_url", f"{label}:{url}"))
+        if "disabled" in _kwargs:
+            self.events.append(("link_disabled", f"{label}:{_kwargs['disabled']}"))
+        if "type" in _kwargs:
+            self.events.append(("link_type", f"{label}:{_kwargs['type']}"))
+        return False
+
     def text_input(self, label: str, **kwargs):
         self.events.append(("text_input", label))
         key = kwargs.get("key")
@@ -4175,11 +4184,11 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     proof_column = _event_index(fake_st.events, "enter_column", "0")
     separator_column = _event_index(fake_st.events, "enter_column", "1")
     notebook_column = _event_index(fake_st.events, "enter_column", "2")
-    install_button = _event_index(fake_st.events, "button", "1. INSTALL demo")
+    install_button = _event_index(fake_st.events, "link_button", "1. INSTALL demo")
     install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `INSTALL`")
-    run_button = _event_index(fake_st.events, "button", "2. EXECUTE demo")
+    run_button = _event_index(fake_st.events, "link_button", "2. EXECUTE demo")
     run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `EXECUTE`")
-    open_analysis = _event_index(fake_st.events, "button", "3. OPEN ANALYSIS")
+    open_analysis = _event_index(fake_st.events, "link_button", "3. OPEN ANALYSIS")
     analysis_hint = next(
         index
         for index in range(open_analysis + 1, len(fake_st.events))
@@ -4191,7 +4200,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         for index, (kind, body) in enumerate(fake_st.events)
         if kind == "markdown" and body == "or"
     )
-    notebook_start = _event_index(fake_st.events, "button", "Create from built-in notebook")
+    notebook_start = _event_index(fake_st.events, "link_button", "Create from built-in notebook")
     notebook_hint = _event_index(
         fake_st.events,
         "caption",
@@ -4265,6 +4274,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         if kind == "markdown"
     )
     assert ("button", "1. Select demo") not in fake_st.events
+    assert ("link_button", "1. Select demo") not in fake_st.events
     assert wizard < proof_column < install_button < install_hint < run_button < run_hint < open_analysis
     assert open_analysis < analysis_hint < separator_column < separator < notebook_column
     assert notebook_column < notebook_start < notebook_hint < proof_details
@@ -4500,81 +4510,14 @@ def test_first_proof_wizard_omits_redundant_select_demo_step(
 
     assert activated == []
     assert ("button", "1. Select demo") not in fake_st.events
-    assert ("button", "1. INSTALL demo") in fake_st.events
-    assert ("button", "2. EXECUTE demo") in fake_st.events
-    assert ("button", "3. OPEN ANALYSIS") in fake_st.events
+    assert ("link_button", "1. Select demo") not in fake_st.events
+    assert ("link_button", "1. INSTALL demo") in fake_st.events
+    assert ("link_button", "2. EXECUTE demo") in fake_st.events
+    assert ("link_button", "3. OPEN ANALYSIS") in fake_st.events
     assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
-def test_first_proof_wizard_project_action_selects_demo_and_reruns(
-    tmp_path,
-    monkeypatch,
-):
-    apps_path = tmp_path / "apps"
-    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
-    flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit()
-    env = SimpleNamespace(app="mycode_project")
-    state = {
-        "project_available": True,
-        "project_path": flight_telemetry_project.resolve(),
-        "current_app_matches": False,
-    }
-    activated: list[Path] = []
-
-    def activate_project(target_env, project_path):
-        activated.append(project_path)
-        target_env.app = "flight_telemetry_project"
-        return True
-
-    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
-
-    about_agilab._about_onboarding._handle_first_proof_wizard_action(
-        "project",
-        env,
-        state,
-        activate_project,
-        page_routes=None,
-    )
-
-    assert activated == [flight_telemetry_project.resolve()]
-    assert fake_st.session_state["first_proof_feedback"] == (
-        "`flight_telemetry_project` selected. Next: open the run page."
-    )
-    assert ("rerun", "") in fake_st.events
-    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
-
-
-def test_first_proof_wizard_install_missing_project_does_not_queue_action(
-    monkeypatch,
-):
-    fake_st = _FakeStreamlit(button_values={"1. INSTALL demo": True})
-    env = SimpleNamespace(app="mycode_project")
-    state = {
-        "project_available": False,
-        "project_path": None,
-        "current_app_matches": False,
-    }
-
-    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
-
-    about_agilab._about_onboarding._handle_first_proof_wizard_action(
-        "install",
-        env,
-        state,
-        activate_project=lambda _env, _path: pytest.fail("missing project must not activate"),
-        page_routes=None,
-    )
-
-    assert any(
-        kind == "error" and "built-in flight-telemetry project is missing" in body
-        for kind, body in fake_st.events
-    )
-    assert "_orchestrate_pending_install_action" not in fake_st.session_state
-    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
-
-
-def test_first_proof_wizard_install_click_selects_demo_and_queues_install(
+def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     tmp_path,
     monkeypatch,
 ):
@@ -4588,28 +4531,30 @@ def test_first_proof_wizard_install_click_selects_demo_and_queues_install(
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
-    activated: list[Path] = []
-
-    def activate_project(target_env, project_path):
-        activated.append(project_path)
-        target_env.app = "flight_telemetry_project"
-        return True
-
     monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=activate_project,
+        activate_project=lambda _env, _path: pytest.fail("link must not mutate current page"),
         display_landing_page=lambda _path: None,
     )
 
-    assert activated == [flight_telemetry_project.resolve()]
-    assert fake_st.session_state["_orchestrate_pending_install_action"] == "install"
-    assert fake_st.session_state["show_install"] is True
-    assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
+    install_url = next(
+        body.split(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_url" and body.startswith("1. INSTALL demo:")
+    )
+    parsed_url = urlparse(install_url)
+    query = parse_qs(parsed_url.query)
+
+    assert parsed_url.path == "/ORCHESTRATE"
+    assert query["active_app"] == ["flight_telemetry_project"]
+    assert query["first_proof_action"] == ["install"]
+    assert "_orchestrate_pending_install_action" not in fake_st.session_state
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
-def test_first_proof_wizard_run_click_selects_demo_and_queues_run(
+def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     tmp_path,
     monkeypatch,
 ):
@@ -4623,28 +4568,30 @@ def test_first_proof_wizard_run_click_selects_demo_and_queues_run(
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
-    activated: list[Path] = []
-
-    def activate_project(target_env, project_path):
-        activated.append(project_path)
-        target_env.app = "flight_telemetry_project"
-        return True
-
     monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=activate_project,
+        activate_project=lambda _env, _path: pytest.fail("link must not mutate current page"),
         display_landing_page=lambda _path: None,
     )
 
-    assert activated == [flight_telemetry_project.resolve()]
-    assert fake_st.session_state["_orchestrate_pending_action"] == "run"
-    assert fake_st.session_state["show_run"] is True
-    assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
+    run_url = next(
+        body.split(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_url" and body.startswith("2. EXECUTE demo:")
+    )
+    parsed_url = urlparse(run_url)
+    query = parse_qs(parsed_url.query)
+
+    assert parsed_url.path == "/ORCHESTRATE"
+    assert query["active_app"] == ["flight_telemetry_project"]
+    assert query["first_proof_action"] == ["run"]
+    assert "_orchestrate_pending_action" not in fake_st.session_state
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
-def test_first_proof_wizard_uses_registered_navigation_page_object(
+def test_first_proof_wizard_links_do_not_replace_current_page(
     tmp_path,
     monkeypatch,
 ):
@@ -4681,10 +4628,10 @@ def test_first_proof_wizard_uses_registered_navigation_page_object(
     about_agilab.render_newcomer_first_proof(env)
 
     assert ("button", "1. Demo selected") not in fake_st.events
-    assert ("button", "1. INSTALL demo") in fake_st.events
-    assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") in fake_st.events
+    assert ("link_button", "1. INSTALL demo") in fake_st.events
+    assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
-    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
+    assert fake_st.query_params == {}
 
 
 def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
@@ -4715,16 +4662,26 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
         page_routes={"project": PageRoute()},
     )
 
-    assert fake_st.session_state["sidebar_selection"] == "Create"
-    assert fake_st.session_state["create_mode"] == "From notebook"
-    assert fake_st.session_state[
-        about_agilab._about_onboarding._notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
-    ] is True
-    assert fake_st.query_params == {
-        "start": "notebook-import",
-        "active_app": "mycode_project",
+    notebook_url = next(
+        body.split(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_url" and body.startswith("Create from built-in notebook:")
+    )
+    parsed_url = urlparse(notebook_url)
+    query = parse_qs(parsed_url.query)
+
+    assert parsed_url.path == "/PROJECT"
+    assert query == {
+        "start": ["notebook-import"],
+        "sample": ["agilab-first-proof"],
+        "active_app": ["mycode_project"],
     }
-    assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
+    assert "sidebar_selection" not in fake_st.session_state
+    assert "create_mode" not in fake_st.session_state
+    assert (
+        "_agilab_use_packaged_notebook_import_sample" not in fake_st.session_state
+    )
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
 def test_first_proof_wizard_does_not_render_direct_notebook_upload(
@@ -4782,8 +4739,18 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
         display_landing_page=lambda _path: None,
     )
 
-    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
-    assert ("switch_page", "pages/4_ANALYSIS.py") in fake_st.events
+    analysis_url = next(
+        body.split(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_url" and body.startswith("3. OPEN ANALYSIS:")
+    )
+    parsed_url = urlparse(analysis_url)
+    query = parse_qs(parsed_url.query)
+
+    assert parsed_url.path == "/ANALYSIS"
+    assert query["active_app"] == ["flight_telemetry_project"]
+    assert query["current_page"][0].endswith("view_maps.py")
+    assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
 
@@ -4813,8 +4780,18 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
         display_landing_page=lambda _path: None,
     )
 
-    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
-    assert ("switch_page", "pages/4_ANALYSIS.py") in fake_st.events
+    analysis_url = next(
+        body.split(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_url" and body.startswith("3. OPEN ANALYSIS:")
+    )
+    parsed_url = urlparse(analysis_url)
+    query = parse_qs(parsed_url.query)
+
+    assert parsed_url.path == "/ANALYSIS"
+    assert query["active_app"] == ["flight_telemetry_project"]
+    assert query["current_page"][0].endswith("view_maps.py")
+    assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
 
@@ -4837,57 +4814,14 @@ def test_first_proof_onboarding_wrappers_and_action_edge_branches(tmp_path, monk
     assert onboarding._notebook_to_validated_app_project_path(SimpleNamespace()) is None
     assert onboarding._first_proof_export_notebook_candidates(SimpleNamespace(), {}) == []
     assert onboarding._first_proof_notebook_query_params(SimpleNamespace(app=""), {}) == {
-        "start": "notebook-import"
+        "start": "notebook-import",
+        "sample": "agilab-first-proof",
     }
     assert onboarding._first_proof_notebook_query_params(SimpleNamespace(app="env_app"), {}) == {
         "start": "notebook-import",
+        "sample": "agilab-first-proof",
         "active_app": "env_app",
     }
-
-    class BrokenQueryParams(dict):
-        def __setitem__(self, key, value):
-            raise RuntimeError("query locked")
-
-    fake_st.query_params = BrokenQueryParams()
-    assert onboarding._first_proof_prepare_project(
-        SimpleNamespace(),
-        {"project_available": True, "project_path": tmp_path, "current_app_matches": True},
-        activate_project=None,
-    ) is True
-
-    assert onboarding._first_proof_prepare_project(
-        SimpleNamespace(),
-        {"project_available": True, "project_path": tmp_path, "current_app_matches": False},
-        activate_project=None,
-    ) is False
-    assert any("Unable to select" in body for kind, body in fake_st.events if kind == "error")
-
-    selected = onboarding._first_proof_prepare_project(
-        SimpleNamespace(),
-        {"project_available": True, "project_path": tmp_path, "current_app_matches": False},
-        activate_project=lambda _env, _path: False,
-    )
-    assert selected is False
-
-    onboarding._handle_first_proof_wizard_action(
-        "analysis",
-        SimpleNamespace(),
-        {"project_available": False, "project_path": None, "current_app_matches": False},
-        activate_project=None,
-        page_routes=None,
-    )
-    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
-
-    onboarding._handle_first_proof_wizard_action(
-        "notebook",
-        SimpleNamespace(app="custom_project"),
-        {"active_app_name": "custom_project", "project_available": True, "project_path": tmp_path, "current_app_matches": False},
-        activate_project=None,
-        page_routes={"project": "PROJECT_ROUTE"},
-    )
-    assert fake_st.session_state["sidebar_selection"] == "Create"
-    assert fake_st.query_params == {"active_app": "custom_project"}
-    assert ("switch_page", "PROJECT_ROUTE") in fake_st.events
 
     fake_st.events.clear()
     onboarding._render_first_proof_next_action(

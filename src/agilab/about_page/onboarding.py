@@ -9,7 +9,6 @@ from typing import Any, Callable, Dict, List
 from urllib.parse import urlencode
 
 import streamlit as st
-from streamlit.errors import StreamlitAPIException
 
 
 _IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "import_guard.py"
@@ -30,28 +29,9 @@ _first_proof_wizard_module = import_agilab_module(
     fallback_path=_AGILAB_ROOT / "first_proof_wizard.py",
     fallback_name="agilab_first_proof_wizard_onboarding_fallback",
 )
-_pending_actions_module = import_agilab_module(
-    "agilab.orchestrate_pending_actions",
-    current_file=__file__,
-    fallback_path=_AGILAB_ROOT / "orchestrate_pending_actions.py",
-    fallback_name="agilab_orchestrate_pending_actions_onboarding_fallback",
-)
-_notebook_import_sample_module = import_agilab_module(
-    "agilab.notebook_import_sample",
-    current_file=__file__,
-    fallback_path=_AGILAB_ROOT / "notebook_import_sample.py",
-    fallback_name="agilab_notebook_import_sample_onboarding_fallback",
-)
-
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
-NOTEBOOK_START_CREATE_MODE = "From notebook"
-FIRST_PROOF_PAGE_ROUTES = {
-    "project": Path("pages/1_PROJECT.py"),
-    "orchestrate": Path("pages/2_ORCHESTRATE.py"),
-    "analysis": Path("pages/4_ANALYSIS.py"),
-}
 FIRST_PROOF_NOTEBOOK_BUTTON = "Create from built-in notebook"
 FIRST_PROOF_NOTEBOOK_HINT = (
     "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
@@ -63,6 +43,9 @@ FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
 )
 FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
+FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
+FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
+FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
     / "apps-pages"
@@ -289,6 +272,26 @@ def _first_proof_analysis_view_maps_url() -> str:
             "current_page": str(FIRST_PROOF_VIEW_MAPS_PATH.resolve(strict=False)),
         },
     )
+
+
+def _first_proof_orchestrate_action_url(action_id: str) -> str:
+    """Return an ORCHESTRATE URL carrying a one-shot first-proof action."""
+    return _first_proof_page_url(
+        "ORCHESTRATE",
+        {
+            "active_app": FIRST_PROOF_PROJECT,
+            FIRST_PROOF_ACTION_QUERY_KEY: action_id,
+        },
+    )
+
+
+def _first_proof_action_url(action_id: str) -> str:
+    """Return the new-tab URL for a first-proof wizard action."""
+    if action_id in {"install", "run"}:
+        return _first_proof_orchestrate_action_url(action_id)
+    if action_id == "analysis":
+        return _first_proof_analysis_view_maps_url()
+    return _first_proof_page_url("PROJECT", {"active_app": FIRST_PROOF_PROJECT})
 
 
 def _first_proof_visible_text_length(text: str) -> int:
@@ -563,147 +566,42 @@ def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
     return "install"
 
 
-def _first_proof_page_route(action_id: str, page_routes: Dict[str, Any] | None) -> Any:
-    """Return the registered Streamlit page object or a legacy file-path fallback."""
-    if page_routes and action_id in page_routes:
-        return page_routes[action_id]
-    return FIRST_PROOF_PAGE_ROUTES[action_id]
-
-
 def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
     """Return query params that open PROJECT on the notebook-import create path."""
     query_params = dict(FIRST_PROOF_NOTEBOOK_QUERY_PARAMS)
+    query_params[FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY] = FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE
     active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
     if active_app:
         query_params["active_app"] = active_app
     return query_params
 
 
-def _open_project_with_packaged_sample_notebook(
-    env: Any,
-    state: Dict[str, Any],
-    page_routes: Dict[str, Any] | None,
-) -> None:
-    """Open PROJECT with the packaged notebook sample selected as source."""
-    st.session_state["sidebar_selection"] = "Create"
-    st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
-    st.session_state[
-        _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
-    ] = True
-    st.session_state["first_proof_feedback"] = (
-        "AGILAB's built-in notebook is selected. PROJECT is open in Create mode; click Create to build "
-        "`flight_telemetry_from_notebook_project`, then run ORCHESTRATE INSTALL and EXECUTE."
-    )
-    _first_proof_open_page(
-        _first_proof_page_route("project", page_routes),
-        "PROJECT",
-        query_params=_first_proof_notebook_query_params(env, state),
-    )
-
-
-def _first_proof_open_page(
-    page: Any,
+def _first_proof_link_button(
     label: str,
+    url: str,
     *,
-    query_params: Dict[str, str] | None = None,
+    key: str,
+    button_type: str = "secondary",
+    disabled: bool = False,
 ) -> None:
-    """Open a Streamlit page, or explain the fallback when switch_page is unavailable."""
-    switch_page = getattr(st, "switch_page", None)
-    if not callable(switch_page):
-        st.info(f"Open `{label}` from the sidebar to continue.")
-        return
-    try:
-        switch_page(page, query_params=query_params)
-    except StreamlitAPIException as exc:
-        st.info(f"Open `{label}` from the sidebar to continue.")
-        st.caption(str(exc))
-
-
-def _first_proof_prepare_project(
-    env: Any,
-    state: Dict[str, Any],
-    activate_project: Callable[[Any, Path], bool] | None,
-) -> bool:
-    """Select the first-proof project before moving to another wizard stage."""
-    project_path = state.get("project_path")
-    if not state["project_available"] or project_path is None:
-        st.error("The built-in flight-telemetry project is missing. Restore it before continuing.")
-        return False
-    if state["current_app_matches"]:
-        try:
-            st.query_params["active_app"] = FIRST_PROOF_PROJECT
-        except (AttributeError, RuntimeError, TypeError):
-            pass
-        return True
-    if activate_project is None:
-        st.error("Unable to select the built-in flight-telemetry project from this page.")
-        return False
-    selected = activate_project(env, Path(project_path))
-    if selected:
-        st.session_state["first_proof_feedback"] = "`flight_telemetry_project` selected."
-    return selected
-
-
-def _handle_first_proof_wizard_action(
-    action_id: str,
-    env: Any,
-    state: Dict[str, Any],
-    activate_project: Callable[[Any, Path], bool] | None,
-    page_routes: Dict[str, Any] | None,
-) -> None:
-    """Run the action behind a first-proof wizard step."""
-    query_params = {"active_app": FIRST_PROOF_PROJECT}
-    if action_id == "project":
-        if _first_proof_prepare_project(env, state, activate_project):
-            st.session_state["first_proof_feedback"] = (
-                "`flight_telemetry_project` selected. Next: open the run page."
-            )
-            rerun = getattr(st, "rerun", None)
-            if callable(rerun):
-                rerun()
-        return
-    if action_id == "install":
-        if _first_proof_prepare_project(env, state, activate_project):
-            _pending_actions_module.queue_pending_install_action(st.session_state)
-            st.session_state["show_install"] = True
-            _first_proof_open_page(
-                _first_proof_page_route("orchestrate", page_routes),
-                "ORCHESTRATE",
-                query_params=query_params,
-            )
-        return
-    if action_id == "run":
-        if _first_proof_prepare_project(env, state, activate_project):
-            _pending_actions_module.queue_pending_execute_action(st.session_state, "run")
-            st.session_state["show_run"] = True
-            _first_proof_open_page(
-                _first_proof_page_route("orchestrate", page_routes),
-                "ORCHESTRATE",
-                query_params=query_params,
-            )
-        return
-    if action_id == "analysis":
-        if not _first_proof_prepare_project(env, state, activate_project):
-            return
-        _first_proof_open_page(
-            _first_proof_page_route("analysis", page_routes),
-            "ANALYSIS",
-            query_params=query_params,
+    """Render a first-proof action that opens a new browser tab/session."""
+    link_button = getattr(st, "link_button", None)
+    if callable(link_button):
+        link_button(
+            label,
+            url,
+            key=key,
+            type=button_type,
+            disabled=disabled,
+            help="Opens in a new browser tab.",
+            width="content",
         )
         return
-    if action_id == "notebook":
-        active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "")
-        st.session_state["sidebar_selection"] = "Create"
-        st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
-        st.session_state["first_proof_feedback"] = (
-            "PROJECT is open in Create mode. Use AGILAB's bundled notebook, or use PROJECT "
-            "Create later for your own local notebook file."
-        )
-        _first_proof_open_page(
-            _first_proof_page_route("project", page_routes),
-            "PROJECT",
-            query_params={"active_app": active_app} if active_app else None,
-        )
+
+    if disabled:
+        st.caption(f"{label}: unavailable.")
+        return
+    st.markdown(f"[{label}]({url})")
 
 
 def _render_first_proof_wizard_actions(
@@ -737,35 +635,24 @@ def _render_first_proof_wizard_actions(
     )
     with proof_column:
         for action in proof_actions:
-            if st.button(
+            _first_proof_link_button(
                 action["button"],
+                _first_proof_action_url(action["id"]),
                 key=f"first_proof:wizard:{action['id']}",
-                type=action["type"],
-                width="content",
-            ):
-                _handle_first_proof_wizard_action(
-                    action["id"],
-                    env,
-                    state,
-                    activate_project,
-                    page_routes,
-                )
+                button_type=action["type"],
+                disabled=not state["project_available"],
+            )
             st.caption(action["hint"])
     with separator_column:
         st.markdown("or")
     with notebook_column:
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
-        if st.button(
+        _first_proof_link_button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
+            _first_proof_page_url("PROJECT", _first_proof_notebook_query_params(env, state)),
             key="first_proof:wizard:sample_notebook",
-            type="secondary",
-            width="content",
-        ):
-            _open_project_with_packaged_sample_notebook(
-                env,
-                state,
-                page_routes,
-            )
+            button_type="secondary",
+        )
         st.caption(FIRST_PROOF_NOTEBOOK_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
