@@ -79,6 +79,8 @@ jobs:
             --scenario isolated-fresh-session-core-pages \
             --scenario isolated-browser-history \
             --scenario isolated-mobile-core-pages \
+            --scenario isolated-layout-integrity-mobile \
+            --scenario isolated-accessibility-core-pages \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \
             --widget-timeout "${robot_widget_timeout}" \
