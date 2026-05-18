@@ -235,6 +235,36 @@ def test_cached_test_index_reuses_unchanged_signature(
     assert second.tests_for_stem("demo") == ["test/test_demo.py"]
 
 
+def test_cached_test_index_accepts_empty_signature(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    for root in module.TEST_GUESS_ROOTS:
+        (tmp_path / root).mkdir(parents=True)
+    cache_path = tmp_path / "impact-cache.json"
+
+    first = module._build_cached_test_index(cache_path=cache_path, signature=[])
+
+    monkeypatch.setattr(
+        module,
+        "_test_index_signature",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("explicit empty signature should be reused")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_build_test_index",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("matching empty signature should avoid rebuild")
+        ),
+    )
+    second = module._build_cached_test_index(cache_path=cache_path, signature=[])
+
+    assert second.paths == first.paths == frozenset()
+
+
 def test_analyze_paths_reuses_cached_report(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)

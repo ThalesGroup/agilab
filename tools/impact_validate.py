@@ -452,7 +452,7 @@ def _build_cached_test_index(
         return _build_test_index()
 
     roots = _normalized_roots(TEST_GUESS_ROOTS)
-    effective_signature = signature or _test_index_signature()
+    effective_signature = signature if signature is not None else _test_index_signature()
     state = _load_impact_cache(cache_path)
     cached = state.get("test_index")
     if (
