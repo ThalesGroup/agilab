@@ -859,13 +859,32 @@ def test_main_reports_collect_changed_files_errors(monkeypatch) -> None:
 
 def test_empty_selection_has_no_broad_pytest_command(capsys, monkeypatch) -> None:
     module = _load_module()
-    monkeypatch.setattr(module, "_discover_test_files", lambda **_kwargs: [])
+    context = module.ValidationContext(
+        files=("README.md",),
+        impact_report=module.impact_validate.ImpactReport(
+            files=["README.md"],
+            overall_risk="low",
+            risk_zones=[],
+            push_gates=[],
+            artifact_actions=[],
+            required_validations=[],
+            guessed_tests=[],
+        ),
+        timings={},
+        test_files=(),
+        default_estimates={},
+    )
+    monkeypatch.setattr(
+        module,
+        "build_validation_context",
+        lambda *_args, **_kwargs: context,
+    )
 
     exit_code = module.main(["--files", "README.md", "--print-command"])
 
     assert exit_code == 0
     assert capsys.readouterr().out == "\n"
-    result = module.build_selection(["README.md"])
+    result = module.build_selection(context.files, context=context)
     assert result.selected_tests == ()
     assert result.command == ()
 
