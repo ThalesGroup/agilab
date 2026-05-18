@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   register:
@@ -42,6 +43,7 @@ jobs:
 
       - name: Register pending trusted publisher
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
           PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
           PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
@@ -55,5 +57,8 @@ jobs:
             --repository "${{ inputs.repository }}" \
             --workflow-filename "${{ inputs.workflow_filename }}" \
             --environment "${{ inputs.pypi_environment }}" \
+            --github-confirm-login-repository "$GITHUB_REPOSITORY" \
+            --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
+            --github-confirm-login-timeout 180 \
             --json \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
