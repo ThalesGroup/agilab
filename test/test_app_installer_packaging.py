@@ -54,6 +54,11 @@ EXAMPLE_PREVIEWS = {
     "service_mode": ("preview_service_mode.py",),
     "train_then_serve": ("preview_train_then_serve.py",),
 }
+DEPRECATED_EXAMPLE_DIR_NAMES = {
+    "data_io_2026",
+    "flight",
+    "meteo_forecast",
+}
 BUILTIN_EXAMPLE_PAYLOADS = {
     "inter_project_dag": (
         BUILTIN_APPS_ROOT
@@ -350,6 +355,12 @@ def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
     scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
 
     assert scripts == _expected_script_paths()
+
+
+def test_packaged_example_catalog_has_no_deprecated_alias_dirs() -> None:
+    existing = {path.name for path in EXAMPLES_ROOT.iterdir() if path.is_dir()}
+
+    assert DEPRECATED_EXAMPLE_DIR_NAMES.isdisjoint(existing)
 
 
 def test_packaged_example_catalog_is_documented() -> None:
