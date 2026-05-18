@@ -59,7 +59,7 @@ jobs:
           INPUT_WIDGET_TIMEOUT: ${{ github.event.inputs.widget_timeout }}
         run: |
           set -euo pipefail
-          mkdir -p test-results/ui-robot-matrix screenshots/ui-robot-matrix
+          mkdir -p test-results/ui-robot-matrix/failure-bundles screenshots/ui-robot-matrix
           robot_apps="${INPUT_APPS:-all}"
           robot_timeout="${INPUT_TIMEOUT:-90}"
           robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
@@ -79,11 +79,28 @@ jobs:
             --quiet-progress \
             --output-dir test-results/ui-robot-matrix \
             --screenshot-dir screenshots/ui-robot-matrix \
+            --failure-bundle-dir test-results/ui-robot-matrix/failure-bundles \
             | tee test-results/ui-robot-matrix/summary.json
           status="${PIPESTATUS[0]}"
           set -e
           echo "${status}" > test-results/ui-robot-matrix/exit-code.txt
           exit "${status}"
+
+      - name: Write UI robot trend report
+        if: always()
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/ui_robot_trend_report.py \
+            --glob "test-results/ui-robot-matrix/*.ndjson" \
+            --max-total-seconds 5400 \
+            --max-mean-page-seconds 180 \
+            --output test-results/ui-robot-matrix/trend-report.json \
+            | tee test-results/ui-robot-matrix/trend-report.txt
+          {
+            echo ""
+            echo "## UI robot trend"
+            cat test-results/ui-robot-matrix/trend-report.txt
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize UI robot matrix
         if: always()
