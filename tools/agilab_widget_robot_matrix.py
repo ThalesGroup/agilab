@@ -41,6 +41,8 @@ class RobotScenario:
     assert_workflow_artifacts: bool = False
     assert_analysis_artifacts: bool = False
     browser_history_check: bool = False
+    keyboard_focus_check: bool = False
+    layout_integrity_check: bool = False
     viewport_width: int | None = None
     viewport_height: int | None = None
     fresh_browser_context_per_page: bool = False
@@ -303,6 +305,53 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=1200.0,
         fresh_browser_context_per_page=True,
     ),
+    "isolated-keyboard-focus-core-pages": RobotScenario(
+        name="isolated-keyboard-focus-core-pages",
+        description=(
+            "Tab through HOME, PROJECT, ORCHESTRATE, ANALYSIS, and SETTINGS "
+            "to catch focus traps and off-screen keyboard targets."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        keyboard_focus_check=True,
+    ),
+    "isolated-layout-integrity-desktop": RobotScenario(
+        name="isolated-layout-integrity-desktop",
+        description=(
+            "Sweep core pages at desktop width and fail on obvious overflow, "
+            "zero-size controls, or major visible control overlaps."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        layout_integrity_check=True,
+    ),
+    "isolated-layout-integrity-mobile": RobotScenario(
+        name="isolated-layout-integrity-mobile",
+        description=(
+            "Sweep core pages at mobile width and fail on obvious overflow, "
+            "zero-size controls, or major visible control overlaps."
+        ),
+        pages="HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        layout_integrity_check=True,
+        viewport_width=390,
+        viewport_height=844,
+    ),
     "current-home-first-proof-golden-path": RobotScenario(
         name="current-home-first-proof-golden-path",
         description=(
@@ -473,6 +522,10 @@ def build_robot_command(
         argv.append("--assert-analysis-artifacts")
     if scenario.browser_history_check:
         argv.append("--browser-history-check")
+    if scenario.keyboard_focus_check:
+        argv.append("--keyboard-focus-check")
+    if scenario.layout_integrity_check:
+        argv.append("--layout-integrity-check")
     if scenario.viewport_width is not None:
         argv.extend(["--viewport-width", str(scenario.viewport_width)])
     if scenario.viewport_height is not None:

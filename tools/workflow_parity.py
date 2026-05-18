@@ -94,11 +94,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "security-adoption",
             "production-readiness",
             "cloud-emulators",
+            "ui-robot-contract",
             "ui-robot-matrix",
             "ui-history-robot",
             "ui-mobile-robot",
             "ui-release-evidence-robot",
             "ui-first-proof-robot",
+            "ui-keyboard-robot",
+            "ui-layout-robot",
             "hf-install-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
@@ -167,11 +170,14 @@ def _profile_descriptions() -> dict[str, str]:
             "evidence, hardening guardrails, and docs parity."
         ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
+        "ui-robot-contract": "Validate deterministic UI robot coverage contracts.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
         "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
         "ui-mobile-robot": "Run the opt-in mobile viewport widget robot scenario.",
         "ui-release-evidence-robot": "Run opt-in success-screenshot, fresh-session, and performance-budget widget robot scenarios.",
         "ui-first-proof-robot": "Run the opt-in local first-proof golden-path widget robot for flight telemetry.",
+        "ui-keyboard-robot": "Run the opt-in keyboard focus widget robot scenario.",
+        "ui-layout-robot": "Run the opt-in desktop and mobile layout-integrity widget robot scenarios.",
         "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
     }
 
@@ -193,11 +199,14 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "security-adoption": _security_adoption_profile(),
         "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
+        "ui-robot-contract": _ui_robot_contract_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
         "ui-history-robot": _ui_history_robot_profile(),
         "ui-mobile-robot": _ui_mobile_robot_profile(),
         "ui-release-evidence-robot": _ui_release_evidence_robot_profile(),
         "ui-first-proof-robot": _ui_first_proof_robot_profile(),
+        "ui-keyboard-robot": _ui_keyboard_robot_profile(),
+        "ui-layout-robot": _ui_layout_robot_profile(),
         "hf-install-robot": _hf_install_robot_profile(),
     }
 
@@ -291,6 +300,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_agilab_widget_robot.py",
                 "test/test_first_launch_robot.py",
                 "test/test_screenshot_manifest.py",
+                "test/test_ui_robot_coverage_contract.py",
+                "test/test_ui_robot_failure_replay.py",
             ],
         ),
         _agi_gui_coverage_chunk(
@@ -1043,6 +1054,24 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
     ]
 
 
+def _ui_robot_contract_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot coverage contract",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_coverage_contract.py",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        )
+    ]
+
+
 def _hf_install_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -1075,6 +1104,68 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
             ],
             timeout_seconds=25 * 60,
             remove_paths=["test-results/hf-install-robot", "screenshots/hf-install-robot"],
+        )
+    ]
+
+
+def _ui_keyboard_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui keyboard focus robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-keyboard-focus-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-keyboard-robot",
+                "--screenshot-dir",
+                "screenshots/ui-keyboard-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-keyboard-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-keyboard-robot", "screenshots/ui-keyboard-robot"],
+        )
+    ]
+
+
+def _ui_layout_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui layout integrity robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-layout-integrity-desktop",
+                "--scenario",
+                "isolated-layout-integrity-mobile",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-layout-robot",
+                "--screenshot-dir",
+                "screenshots/ui-layout-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-layout-robot/failure-bundles",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-layout-robot", "screenshots/ui-layout-robot"],
         )
     ]
 
@@ -1213,10 +1304,13 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "security-adoption",
         "production-readiness",
         "ui-robot-matrix",
+        "ui-robot-contract",
         "ui-history-robot",
         "ui-mobile-robot",
         "ui-release-evidence-robot",
         "ui-first-proof-robot",
+        "ui-keyboard-robot",
+        "ui-layout-robot",
         "hf-install-robot",
     }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]

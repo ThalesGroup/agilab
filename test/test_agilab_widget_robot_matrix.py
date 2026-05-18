@@ -87,6 +87,9 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-release-evidence" not in [scenario.name for scenario in scenarios]
     assert "isolated-fresh-session-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-keyboard-focus-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-layout-integrity-desktop" not in [scenario.name for scenario in scenarios]
+    assert "isolated-layout-integrity-mobile" not in [scenario.name for scenario in scenarios]
     assert "hf-flight-telemetry-install" not in [scenario.name for scenario in scenarios]
 
 
@@ -129,11 +132,17 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     evidence = module.resolve_scenarios(["isolated-release-evidence"])[0]
     fresh = module.resolve_scenarios(["isolated-fresh-session-core-pages"])[0]
     first_proof = module.resolve_scenarios(["current-home-first-proof-golden-path"])[0]
+    keyboard = module.resolve_scenarios(["isolated-keyboard-focus-core-pages"])[0]
+    layout_desktop = module.resolve_scenarios(["isolated-layout-integrity-desktop"])[0]
+    layout_mobile = module.resolve_scenarios(["isolated-layout-integrity-mobile"])[0]
 
     assert mobile.name not in default_names
     assert evidence.name not in default_names
     assert fresh.name not in default_names
     assert first_proof.name not in default_names
+    assert keyboard.name not in default_names
+    assert layout_desktop.name not in default_names
+    assert layout_mobile.name not in default_names
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
     assert evidence.success_screenshot is True
@@ -143,6 +152,12 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert fresh.fresh_browser_context_per_page is True
     assert first_proof.assert_orchestrate_artifacts is True
     assert first_proof.assert_analysis_artifacts is True
+    assert keyboard.keyboard_focus_check is True
+    assert layout_desktop.layout_integrity_check is True
+    assert layout_desktop.viewport_width is None
+    assert layout_mobile.layout_integrity_check is True
+    assert layout_mobile.viewport_width == 390
+    assert layout_mobile.viewport_height == 844
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -294,6 +309,45 @@ def test_build_robot_command_enables_fresh_browser_context(tmp_path) -> None:
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
     assert "--fresh-browser-context-per-page" in argv
+
+
+def test_build_robot_command_enables_keyboard_focus_check(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-keyboard-focus-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,ANALYSIS,SETTINGS"
+    assert "--keyboard-focus-check" in argv
+
+
+def test_build_robot_command_enables_layout_integrity_mobile_viewport(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-layout-integrity-mobile"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert "--layout-integrity-check" in argv
+    assert argv[argv.index("--viewport-width") + 1] == "390"
+    assert argv[argv.index("--viewport-height") + 1] == "844"
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:
