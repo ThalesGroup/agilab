@@ -3942,6 +3942,73 @@ async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(
     assert copied_archives == [second_archive, first_archive]
 
 
+def test_copy_package_resources_uses_stamp_for_unchanged_inputs(monkeypatch, tmp_path):
+    resources_src = tmp_path / "resources_src"
+    resources_src.mkdir()
+    (resources_src / "nested").mkdir()
+    (resources_src / "nested" / "sample.txt").write_text("first", encoding="utf-8")
+    resources_dest = tmp_path / "dest" / "resources"
+
+    deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    assert (resources_dest / "nested" / "sample.txt").read_text(
+        encoding="utf-8"
+    ) == "first"
+    assert (
+        resources_dest / deployment_local_support.DEPLOY_COPY_STAMP_FILENAME
+    ).exists()
+
+    def _unexpected_copytree(*_args, **_kwargs):
+        raise AssertionError("unchanged resources should not be copied")
+
+    with monkeypatch.context() as blocked:
+        blocked.setattr(
+            deployment_local_support.shutil, "copytree", _unexpected_copytree
+        )
+        deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    (resources_src / "nested" / "sample.txt").write_text("second", encoding="utf-8")
+    deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    assert (resources_dest / "nested" / "sample.txt").read_text(
+        encoding="utf-8"
+    ) == "second"
+
+
+def test_copy_archive_with_stamp_uses_stamp_for_unchanged_inputs(monkeypatch, tmp_path):
+    archive_path = tmp_path / "dataset.7z"
+    archive_path.write_text("first", encoding="utf-8")
+    destination = tmp_path / "worker" / "dataset.7z"
+
+    assert (
+        deployment_local_support._copy_archive_with_stamp(archive_path, destination)
+        is True
+    )
+    assert destination.read_text(encoding="utf-8") == "first"
+    assert (
+        destination.with_name(f".{destination.name}.agilab-copy-stamp.json")
+    ).exists()
+
+    def _unexpected_copy2(*_args, **_kwargs):
+        raise AssertionError("unchanged archive should not be copied")
+
+    with monkeypatch.context() as blocked:
+        blocked.setattr(deployment_local_support.shutil, "copy2", _unexpected_copy2)
+        assert (
+            deployment_local_support._copy_archive_with_stamp(
+                archive_path, destination
+            )
+            is False
+        )
+
+    archive_path.write_text("second", encoding="utf-8")
+    assert (
+        deployment_local_support._copy_archive_with_stamp(archive_path, destination)
+        is True
+    )
+    assert destination.read_text(encoding="utf-8") == "second"
+
+
 def test_deployment_local_small_helper_edges(monkeypatch, tmp_path):
     assert deployment_local_support._python_version_tuple(None) is None
     assert deployment_local_support._python_version_tuple("python") is None

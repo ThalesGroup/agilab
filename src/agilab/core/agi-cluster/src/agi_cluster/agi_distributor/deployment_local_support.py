@@ -38,6 +38,8 @@ REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
 DISABLE_DEPLOY_STAGE_CACHE_ENV = "AGILAB_DISABLE_DEPLOY_STAGE_CACHE"
 DEPLOY_STAGE_CACHE_SCHEMA = "agilab-deploy-stage-cache-v1"
 DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
+DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
+DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
 EDITABLE_INSTALL_CACHE_SCHEMA = "agilab-editable-install-cache-v1"
 
 
@@ -327,8 +329,18 @@ def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
         return
 
 
+def _deploy_path_key(path: Path) -> str:
+    try:
+        return path.expanduser().resolve(strict=False).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        return path.expanduser().as_posix()
+
+
 def _deploy_stage_file_fingerprint(path: Path) -> dict[str, Any]:
-    resolved = path.expanduser().resolve(strict=False)
+    try:
+        resolved = path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return {"path": _deploy_path_key(path), "missing": True}
     fingerprint: dict[str, Any] = {"path": resolved.as_posix()}
     try:
         stat_result = resolved.stat()
@@ -351,6 +363,116 @@ def _deploy_stage_file_fingerprint(path: Path) -> dict[str, Any]:
     except OSError:
         fingerprint["mtime_ns"] = stat_result.st_mtime_ns
     return fingerprint
+
+
+def _deploy_stage_directory_fingerprint(root: Path) -> dict[str, Any]:
+    try:
+        resolved = root.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return {"path": _deploy_path_key(root), "missing": True}
+
+    fingerprint: dict[str, Any] = {"path": resolved.as_posix()}
+    try:
+        stat_result = resolved.stat()
+    except OSError:
+        fingerprint["missing"] = True
+        return fingerprint
+
+    if not resolved.is_dir():
+        return _deploy_stage_file_fingerprint(resolved)
+
+    fingerprint["kind"] = "directory"
+    fingerprint["mtime_ns"] = stat_result.st_mtime_ns
+    entries: list[dict[str, Any]] = []
+    try:
+        children = sorted(
+            resolved.rglob("*"), key=lambda candidate: candidate.as_posix()
+        )
+    except OSError:
+        fingerprint["unreadable"] = True
+        return fingerprint
+
+    for child in children:
+        try:
+            relative_path = child.relative_to(resolved).as_posix()
+        except ValueError:
+            relative_path = child.name
+        try:
+            if child.is_dir():
+                entries.append({"path": relative_path, "kind": "directory"})
+            elif child.is_file():
+                entries.append(
+                    {
+                        "path": relative_path,
+                        "kind": "file",
+                        "fingerprint": _deploy_stage_file_fingerprint(child),
+                    }
+                )
+            else:
+                entries.append(
+                    {
+                        "path": relative_path,
+                        "kind": "other",
+                        "fingerprint": _deploy_stage_file_fingerprint(child),
+                    }
+                )
+        except OSError:
+            entries.append({"path": relative_path, "unreadable": True})
+    fingerprint["entries"] = entries
+    return fingerprint
+
+
+def _deploy_copy_stamp_path(output_path: Path, *, directory: bool) -> Path:
+    if directory:
+        return output_path / DEPLOY_COPY_STAMP_FILENAME
+    return output_path.with_name(f".{output_path.name}.agilab-copy-stamp.json")
+
+
+def _deploy_copy_stamp_payload(
+    *,
+    kind: str,
+    source: Path,
+    destination: Path,
+    source_fingerprint: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema": DEPLOY_COPY_STAMP_SCHEMA,
+        "kind": kind,
+        "source": _deploy_path_key(source),
+        "destination": _deploy_path_key(destination),
+        "source_fingerprint": source_fingerprint,
+    }
+
+
+def _deploy_copy_stamp_matches(
+    stamp_path: Path,
+    payload: dict[str, Any],
+    *,
+    output_probe: Callable[[], bool],
+) -> bool:
+    try:
+        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if stamp != payload:
+        return False
+    try:
+        return output_probe()
+    except OSError:
+        return False
+
+
+def _write_deploy_copy_stamp(stamp_path: Path, payload: dict[str, Any]) -> None:
+    try:
+        stamp_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = stamp_path.with_name(f"{stamp_path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(stamp_path)
+    except OSError:
+        return
 
 
 def _deploy_stage_project_inputs(*projects: Path | None) -> list[Path]:
@@ -870,14 +992,56 @@ async def _ensure_project_venv(
 
 
 def _copy_package_resources(
-    resources_src: Path, resources_dest: Path, *, env_logger: Any | None = None
+    resources_src: Path,
+    resources_dest: Path,
+    *,
+    env_logger: Any | None = None,
+    copy_cache_enabled: bool = True,
 ) -> None:
     if not resources_src.exists():
+        return
+    stamp_path = _deploy_copy_stamp_path(resources_dest, directory=True)
+    stamp_payload = _deploy_copy_stamp_payload(
+        kind="package-resources",
+        source=resources_src,
+        destination=resources_dest,
+        source_fingerprint=_deploy_stage_directory_fingerprint(resources_src),
+    )
+    if copy_cache_enabled and _deploy_copy_stamp_matches(
+        stamp_path,
+        stamp_payload,
+        output_probe=resources_dest.is_dir,
+    ):
         return
     resources_dest.parent.mkdir(parents=True, exist_ok=True)
     if resources_dest.exists():
         _force_remove(resources_dest, env_logger=env_logger)
     shutil.copytree(resources_src, resources_dest, dirs_exist_ok=True)
+    if copy_cache_enabled and resources_dest.is_dir():
+        _write_deploy_copy_stamp(stamp_path, stamp_payload)
+
+
+def _copy_archive_with_stamp(
+    archive_path: Path, destination: Path, *, copy_cache_enabled: bool = True
+) -> bool:
+    stamp_path = _deploy_copy_stamp_path(destination, directory=False)
+    stamp_payload = _deploy_copy_stamp_payload(
+        kind="dataset-archive",
+        source=archive_path,
+        destination=destination,
+        source_fingerprint=_deploy_stage_file_fingerprint(archive_path),
+    )
+    if copy_cache_enabled and _deploy_copy_stamp_matches(
+        stamp_path,
+        stamp_payload,
+        output_probe=destination.is_file,
+    ):
+        return False
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(archive_path, destination)
+    if copy_cache_enabled and destination.is_file():
+        _write_deploy_copy_stamp(stamp_path, stamp_payload)
+    return True
 
 
 def _remove_legacy_app_resource_copy(
@@ -1639,6 +1803,7 @@ async def deploy_local_worker(
             resources_src,
             manager_resources,
             env_logger=getattr(env, "logger", None),
+            copy_cache_enabled=stage_cache_enabled,
         )
 
         site_packages_manager = env.env_pck.parent
@@ -1895,6 +2060,7 @@ async def deploy_local_worker(
             worker_resources_src,
             resources_dest,
             env_logger=getattr(env, "logger", None),
+            copy_cache_enabled=stage_cache_enabled,
         )
 
         install_targets = (
@@ -2068,7 +2234,11 @@ async def deploy_local_worker(
                 if key in seen_archives:
                     continue
                 seen_archives.add(key)
-                shutil.copy2(archive_path, dest / archive_path.name)
+                _copy_archive_with_stamp(
+                    archive_path,
+                    dest / archive_path.name,
+                    copy_cache_enabled=stage_cache_enabled,
+                )
         except (FileNotFoundError, PermissionError, RuntimeError) as exc:
             log.warning(
                 "Skipping dataset archive copy to %s: %s",
