@@ -57,7 +57,7 @@ agilab.py navigation
    :alt: agilab.py web interface entry showing core pages vs page bundles
    :width: 90%
 
-   agilab.py exposes the ABOUT and SETTINGS entry points plus core workflow pages
+   agilab.py exposes the landing and SETTINGS entry points plus core workflow pages
    (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles, all routed
    into ``agi_core`` for orchestration.
 

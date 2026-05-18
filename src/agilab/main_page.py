@@ -17,9 +17,24 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
 
+try:
+    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+except ModuleNotFoundError:
+    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
+        "agilab_streamlit_theme_env_local",
+        _streamlit_theme_env_path,
+    )
+    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
+    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
+    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
+    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
+
 logger = AgiLogger.get_logger(__name__)
 
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
+apply_streamlit_theme_environment(packaged_streamlit_config_path(__file__))
 
 import streamlit as st
 _public_bind_guard_path = Path(__file__).resolve().parent / "ui_public_bind_guard.py"

@@ -62,9 +62,9 @@ What should I run first?
 
 Run one local first-proof lane before branching out:
 
-- built-in lane: ABOUT -> ``1. INSTALL demo`` -> ``2. EXECUTE demo`` ->
+- built-in lane: landing page -> ``1. INSTALL demo`` -> ``2. EXECUTE demo`` ->
   ``3. OPEN ANALYSIS`` for ``flight_telemetry_project``
-- notebook lane: ABOUT -> ``Create from built-in notebook`` to create
+- notebook lane: landing page -> ``Create from built-in notebook`` to create
   ``flight-telemetry-from-notebook-project``, then prove it with ORCHESTRATE
   ``INSTALL`` and ``EXECUTE``
 
@@ -98,7 +98,7 @@ First proof and notebooks
 Can I start from a notebook instead of the built-in app?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes. The ABOUT wizard has a ``Create from built-in notebook`` lane. AGILAB
+Yes. The landing page has a ``Create from built-in notebook`` lane. AGILAB
 loads the packaged sample notebook directly, so there is no file to locate on
 disk and no manual upload step for that sample. The created project is named
 ``flight-telemetry-from-notebook-project`` and is intended to be installed and

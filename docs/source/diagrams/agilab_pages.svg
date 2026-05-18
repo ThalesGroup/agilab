@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="430" viewBox="0 0 1120 430" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB web interface page routing</title>
-  <desc id="desc">Diagram showing agilab.py routing to ABOUT, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS and optional analysis page bundles through agi_core.</desc>
+  <desc id="desc">Diagram showing agilab.py routing to the landing page, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS and optional analysis page bundles through agi_core.</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #10223d; }
@@ -28,7 +28,7 @@
 
   <g transform="translate(44,38)">
     <text class="title" x="0" y="0">AGILAB web interface routing</text>
-    <text class="subtitle" x="0" y="28">Current code path: main_page.py registers ABOUT, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS.</text>
+    <text class="subtitle" x="0" y="28">Current code path: main_page.py registers the landing page, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS.</text>
   </g>
 
   <g id="entry" transform="translate(44,144)">
@@ -47,7 +47,7 @@
 
     <text class="note" x="246" y="86" text-anchor="middle">entry + operations</text>
     <rect class="pill" x="82" y="98" width="102" height="28" fill="#ffffff"/>
-    <text class="pill-text" x="133" y="117" text-anchor="middle">ABOUT</text>
+    <text class="pill-text" x="133" y="117" text-anchor="middle">LANDING</text>
     <rect class="pill" x="196" y="98" width="112" height="28" fill="#ffffff"/>
     <text class="pill-text" x="252" y="117" text-anchor="middle">SETTINGS</text>
     <rect class="pill" x="320" y="98" width="106" height="28" fill="#ffffff"/>

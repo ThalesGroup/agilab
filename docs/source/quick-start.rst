@@ -169,7 +169,7 @@ machine-readable proof record.
 
 4. **Use the landing-page first-proof wizard**
 
-   The ABOUT landing page exposes the current first-proof path directly:
+   The web UI landing page exposes the current first-proof path directly:
 
    - click ``1. INSTALL demo`` to select ``flight_telemetry_project`` and run
      the ORCHESTRATE install
@@ -195,7 +195,7 @@ machine-readable proof record.
    ``lab_stages.ipynb`` if AGILAB is no longer the right runtime for the
    project.
 
-   The ABOUT page also shows an adoption gate. Treat it as a go/no-go for
+   The landing page also shows an adoption gate. Treat it as a go/no-go for
    widening from one user to a controlled team trial: one first proof must have a
    passing ``run_manifest.json`` and the project must have an exported
    ``notebooks/lab_stages.ipynb``. This gate does not certify production,

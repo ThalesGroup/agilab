@@ -9,6 +9,12 @@
       <env name="PYTHONUNBUFFERED" value="1" />
       <env name="UV_NO_SYNC" value="1" />
       <env name="IS_SOURCE_ENV" value="1" />
+      <env name="STREAMLIT_CONFIG_FILE" value="$PROJECT_DIR$/src/agilab/resources/config.toml" />
+      <env name="STREAMLIT_THEME_BASE" value="dark" />
+      <env name="STREAMLIT_THEME_PRIMARY_COLOR" value="#4A90E2" />
+      <env name="STREAMLIT_THEME_BACKGROUND_COLOR" value="#08111F" />
+      <env name="STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR" value="#102334" />
+      <env name="STREAMLIT_THEME_TEXT_COLOR" value="#F7F2E8" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />

@@ -34,6 +34,15 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
 def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    for env_key in [
+        "STREAMLIT_CONFIG_FILE",
+        "STREAMLIT_THEME_BASE",
+        "STREAMLIT_THEME_PRIMARY_COLOR",
+        "STREAMLIT_THEME_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_TEXT_COLOR",
+    ]:
+        monkeypatch.delenv(env_key, raising=False)
 
     captured: list[list[str]] = []
 
@@ -58,6 +67,14 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
         "--server.headless",
         "true",
     ]]
+    assert lab_run.os.environ["STREAMLIT_CONFIG_FILE"] == str(
+        Path(lab_run.__file__).resolve().parent / "resources" / "config.toml"
+    )
+    assert lab_run.os.environ["STREAMLIT_THEME_BASE"] == "dark"
+    assert lab_run.os.environ["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
+    assert lab_run.os.environ["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
+    assert lab_run.os.environ["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
+    assert lab_run.os.environ["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
 def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):

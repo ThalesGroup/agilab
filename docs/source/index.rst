@@ -1,16 +1,17 @@
 AGILab Documentation
 =====================
 
-AGILAB's core value is controlled AI/ML experimentation without lock-in:
-build workflows in the UI or API, keep reproducibility evidence, and export
-the work back to runnable notebooks when you need to reuse it outside AGILAB.
+AGILAB turns experimental AI/ML notebooks and scripts into reproducible
+applications that can run locally or on distributed workers. Workflows stay
+portable: export them back to runnable notebooks, keep reproducibility evidence,
+and hand off tracking evidence to MLflow when that integration is enabled.
 
 If you are new to AGILab, choose one route first:
 
 - **See the UI now**: open :doc:`agilab-demo` for the public Hugging Face Space.
 - **Prove it locally**: follow :doc:`quick-start` with the built-in
-  ``flight_telemetry_project`` or start from your own notebook through the
-  ABOUT wizard. Default target: pass the flight first proof in 10 minutes.
+  ``flight_telemetry_project`` or start from a notebook through PROJECT.
+  Default target: pass the flight first proof in 10 minutes.
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
 

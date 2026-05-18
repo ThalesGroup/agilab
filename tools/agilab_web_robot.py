@@ -30,6 +30,20 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+try:
+    from agilab.streamlit_theme_env import apply_streamlit_theme_environment  # noqa: E402
+except ModuleNotFoundError:
+    _streamlit_theme_env_path = SRC_ROOT / "agilab" / "streamlit_theme_env.py"
+    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
+        "agilab_streamlit_theme_env_local",
+        _streamlit_theme_env_path,
+    )
+    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
+    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
+    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
+
 def _load_screenshot_manifest_helpers():
     try:
         from agilab.screenshot_manifest import (  # noqa: E402
@@ -82,6 +96,8 @@ DEFAULT_REJECT_PATTERNS = (
     "could not determine the active app",
     "provided active app path does not exist",
     "failed to render view:",
+    "install finished with errors",
+    "cluster installation failed",
 )
 ANALYSIS_VIEW_RELATIVE_PATHS = {
     "view_maps": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
@@ -287,6 +303,7 @@ def build_server_env() -> dict[str, str]:
     env.setdefault("AGILAB_DISABLE_BACKGROUND_SERVICES", "1")
     env.setdefault("OPENAI_API_KEY", "sk-test-agilab-web-robot-000000000000")
     env.setdefault("PYTHONUNBUFFERED", "1")
+    apply_streamlit_theme_environment(REPO_ROOT / "src/agilab/resources/config.toml", environ=env)
     return env
 
 

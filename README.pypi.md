@@ -8,9 +8,10 @@
 # AGILAB
 
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
-It turns notebooks and scripts into controlled, executable apps while preserving
-an exit path: the same workflow can be exported back to a runnable notebook, so
-you do not lose your work if AGILAB is no longer the right runtime.
+It turns experimental notebooks and scripts into reproducible applications that
+can run locally or on distributed workers. The workflow stays portable: export
+it back to a runnable notebook, and hand off tracking evidence to MLflow when
+that integration is enabled.
 
 Use it to keep experimental AI work:
 

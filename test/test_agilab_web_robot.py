@@ -54,12 +54,27 @@ def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None
     monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
     monkeypatch.setenv("VIRTUAL_ENV", "/tmp/uv-build-env")
     monkeypatch.setenv("PATH", os.environ.get("PATH", ""))
+    for env_key in [
+        "STREAMLIT_CONFIG_FILE",
+        "STREAMLIT_THEME_BASE",
+        "STREAMLIT_THEME_PRIMARY_COLOR",
+        "STREAMLIT_THEME_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_TEXT_COLOR",
+    ]:
+        monkeypatch.delenv(env_key, raising=False)
 
     env = module.build_server_env()
 
     assert "UV_RUN_RECURSION_DEPTH" not in env
     assert "VIRTUAL_ENV" not in env
     assert env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
+    assert env["STREAMLIT_CONFIG_FILE"] == str(module.REPO_ROOT / "src/agilab/resources/config.toml")
+    assert env["STREAMLIT_THEME_BASE"] == "dark"
+    assert env["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
+    assert env["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
+    assert env["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
+    assert env["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
 def test_streamlit_server_output_tail_is_available_while_process_runs() -> None:
@@ -156,6 +171,7 @@ def test_find_rejected_pattern_flags_browser_connection_errors() -> None:
     module = _load_module()
 
     assert module._find_rejected_pattern("iframe refused to connect to 127.0.0.1")
+    assert module._find_rejected_pattern("❌ Install finished with errors. Check logs above.")
     assert module._find_rejected_pattern("plain healthy page") is None
 
 
