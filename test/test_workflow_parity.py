@@ -117,6 +117,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
+    hf_install_robot = profiles["hf-install-robot"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -287,6 +288,15 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "--screenshot-dir" in ui_robot_matrix.argv
     assert "screenshots/ui-robot-matrix" in ui_robot_matrix.argv
     assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
+    assert hf_install_robot.label == "hf flight telemetry install robot"
+    assert hf_install_robot.timeout_seconds == 25 * 60
+    assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
+    assert "tools/agilab_widget_robot_matrix.py" in hf_install_robot.argv
+    assert "hf-flight-telemetry-install" in hf_install_robot.argv
+    assert "flight_telemetry_project" in hf_install_robot.argv
+    assert "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project" in hf_install_robot.argv
+    assert "screenshots/hf-install-robot" in hf_install_robot.argv
+    assert _has_with_dependency(hf_install_robot.argv, "playwright")
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
@@ -303,6 +313,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "security-adoption" not in selected
     assert "production-readiness" not in selected
     assert "ui-robot-matrix" not in selected
+    assert "hf-install-robot" not in selected
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:
