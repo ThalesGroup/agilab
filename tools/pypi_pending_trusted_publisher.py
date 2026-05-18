@@ -9,8 +9,11 @@ import html
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Sequence
+import urllib.error
+import urllib.request
 from urllib.parse import urljoin, urlparse
 
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -142,6 +145,117 @@ def _publisher_form_data(
     return data
 
 
+def _confirm_login_url_is_safe(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "pypi.org"
+        and parsed.path == "/account/confirm-login/"
+        and bool(parsed.query)
+    )
+
+
+def _consume_confirm_login_url(session: Any, url: str) -> None:
+    if not _confirm_login_url_is_safe(url):
+        raise RuntimeError("refusing to open a non-PyPI login confirmation URL")
+    response = session.get(url)
+    response.raise_for_status()
+
+
+def _fetch_github_actions_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> str | None:
+    api_url = f"https://api.github.com/repos/{repository}/actions/variables/{variable}"
+    request = urllib.request.Request(
+        api_url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "agilab-pypi-pending-trusted-publisher/1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise RuntimeError(
+            f"GitHub Actions variable lookup failed with HTTP {exc.code}"
+        ) from exc
+    value = str(payload.get("value") or "").strip()
+    return value or None
+
+
+def _wait_for_github_confirm_login_url(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+    timeout: float,
+    poll_delay: float,
+) -> str | None:
+    deadline = time.monotonic() + max(0.0, timeout)
+    while time.monotonic() <= deadline:
+        value = _fetch_github_actions_variable(
+            repository=repository,
+            variable=variable,
+            token=token,
+        )
+        if value:
+            return value
+        time.sleep(max(1.0, poll_delay))
+    return None
+
+
+def _open_publishing_settings(
+    session: Any,
+    *,
+    base_url: str,
+    username: str,
+    password: str,
+    confirm_login_url_provider: Callable[[], str | None] | None,
+) -> Any:
+    publishing_url = f"{base_url}{PUBLISHING_PATH}"
+    response = session.get(publishing_url)
+    response.raise_for_status()
+    response = _submit_reauthentication_if_needed(
+        session,
+        response=response,
+        base_url=base_url,
+        username=username,
+        password=password,
+    )
+    if urlparse(response.url).path.rstrip("/") != "/account/login":
+        return response
+
+    if confirm_login_url_provider is not None:
+        confirm_url = confirm_login_url_provider()
+        if confirm_url:
+            _consume_confirm_login_url(session, confirm_url)
+            response = session.get(publishing_url)
+            response.raise_for_status()
+            response = _submit_reauthentication_if_needed(
+                session,
+                response=response,
+                base_url=base_url,
+                username=username,
+                password=password,
+            )
+            if urlparse(response.url).path.rstrip("/") != "/account/login":
+                return response
+
+    raise RuntimeError(
+        "PyPI redirected back to login while opening account publishing "
+        "settings after password/TOTP authentication. PyPI likely requires "
+        "unrecognized-login email confirmation from the same runner IP."
+    )
+
+
 def _interpret_registration_response(
     response_text: str,
     publisher: PendingGitHubPublisher,
@@ -186,6 +300,7 @@ def register_pending_github_publisher(
     username: str,
     password: str,
     auth_code: str | None = None,
+    confirm_login_url_provider: Callable[[], str | None] | None = None,
     session_factory: Callable[[], Any] | None = None,
 ) -> RegistrationResult:
     import requests
@@ -209,22 +324,13 @@ def register_pending_github_publisher(
             auth_code=auth_code,
         )
 
-        publishing_url = f"{base_url}{PUBLISHING_PATH}"
-        response = session.get(publishing_url)
-        response.raise_for_status()
-        response = _submit_reauthentication_if_needed(
+        response = _open_publishing_settings(
             session,
-            response=response,
             base_url=base_url,
             username=username,
             password=password,
+            confirm_login_url_provider=confirm_login_url_provider,
         )
-        if urlparse(response.url).path.rstrip("/") == "/account/login":
-            raise RuntimeError(
-                "PyPI redirected back to login while opening account publishing "
-                "settings after password/TOTP authentication. PyPI likely requires "
-                "unrecognized-login email confirmation from the same runner IP."
-            )
 
         form = _find_form(
             response.text,
@@ -235,7 +341,7 @@ def register_pending_github_publisher(
         response = session.post(
             urljoin(base_url, form.action or PUBLISHING_PATH),
             data=registration_data,
-            headers={"referer": publishing_url},
+            headers={"referer": f"{base_url}{PUBLISHING_PATH}"},
         )
         response.raise_for_status()
         return _interpret_registration_response(response.text, publisher)
@@ -290,6 +396,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--password")
     parser.add_argument("--otp-code")
     parser.add_argument("--totp-secret")
+    parser.add_argument(
+        "--github-confirm-login-repository",
+        default=os.environ.get("GITHUB_REPOSITORY"),
+        help="GitHub repository whose Actions variable carries a temporary PyPI confirmation URL.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-variable",
+        help="GitHub Actions variable name containing the temporary PyPI confirmation URL.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-timeout",
+        type=float,
+        default=0.0,
+        help="Seconds to wait for the temporary PyPI confirmation URL variable.",
+    )
+    parser.add_argument(
+        "--github-confirm-login-poll-delay",
+        type=float,
+        default=5.0,
+    )
+    parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(
@@ -319,12 +446,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     else:
         username, password = require_credentials(args.username, args.password)
+        confirm_provider = None
+        if args.github_confirm_login_variable and args.github_confirm_login_timeout > 0:
+            if not args.github_confirm_login_repository or not args.github_token:
+                raise SystemExit(
+                    "ERROR: GitHub confirmation polling needs GITHUB_REPOSITORY "
+                    "and GITHUB_TOKEN."
+                )
+
+            def confirm_provider() -> str | None:
+                print(
+                    "Waiting for PyPI login confirmation URL in GitHub Actions "
+                    f"variable {args.github_confirm_login_variable!r}...",
+                    file=sys.stderr,
+                )
+                return _wait_for_github_confirm_login_url(
+                    repository=args.github_confirm_login_repository,
+                    variable=args.github_confirm_login_variable,
+                    token=args.github_token,
+                    timeout=args.github_confirm_login_timeout,
+                    poll_delay=args.github_confirm_login_poll_delay,
+                )
+
         result = register_pending_github_publisher(
             publisher=publisher,
             repo=args.repo,
             username=username,
             password=password,
             auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+            confirm_login_url_provider=confirm_provider,
         )
 
     summary = render_summary(result)

@@ -25,9 +25,10 @@ def _load_module():
 
 
 class FakeResponse:
-    def __init__(self, *, text: str, url: str) -> None:
+    def __init__(self, *, text: str, url: str, preserve_url: bool = False) -> None:
         self.text = text
         self.url = url
+        self.preserve_url = preserve_url
 
     def raise_for_status(self) -> None:
         return None
@@ -50,7 +51,8 @@ class FakeSession:
     def get(self, url):
         self.get_calls.append(url)
         response = self.get_responses.pop(0)
-        response.url = url
+        if not response.preserve_url:
+            response.url = url
         return response
 
     def post(self, url, **kwargs):
@@ -221,6 +223,55 @@ def test_register_handles_totp_when_login_requires_two_factor() -> None:
     }
 
 
+def test_register_consumes_same_runner_confirmation_url_before_retrying() -> None:
+    module = _load_module()
+    publisher = module.PendingGitHubPublisher(
+        project_name="agi-page-scenario-cockpit",
+        owner="ThalesGroup",
+        repository="agilab",
+        workflow_filename="pypi-publish.yaml",
+        environment="pypi-agi-page-scenario-cockpit",
+    )
+    confirm_url = "https://pypi.org/account/confirm-login/?token=token"
+    session = FakeSession(
+        gets=[
+            FakeResponse(url="https://pypi.org/account/login/", text=_login_form()),
+            FakeResponse(
+                url="https://pypi.org/account/login/",
+                text="<html>login required</html>",
+                preserve_url=True,
+            ),
+            FakeResponse(url=confirm_url, text="<html>confirmed</html>"),
+            FakeResponse(
+                url="https://pypi.org/manage/account/publishing/",
+                text=_publisher_form(),
+            ),
+        ],
+        posts=[
+            FakeResponse(url="https://pypi.org/manage/projects/", text="<html></html>"),
+            FakeResponse(
+                url="https://pypi.org/manage/account/publishing/",
+                text=(
+                    "Registered a new pending publisher to create "
+                    "the project 'agi-page-scenario-cockpit'."
+                ),
+            ),
+        ],
+    )
+
+    result = module.register_pending_github_publisher(
+        publisher=publisher,
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        confirm_login_url_provider=lambda: confirm_url,
+        session_factory=lambda: session,
+    )
+
+    assert result.registered is True
+    assert confirm_url in session.get_calls
+
+
 def test_register_treats_existing_same_pending_publisher_as_success() -> None:
     module = _load_module()
     publisher = module.PendingGitHubPublisher(
@@ -266,5 +317,7 @@ def test_pending_trusted_publisher_workflow_uses_release_web_credentials() -> No
     assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
     assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
     assert "--project-name \"${{ inputs.project_name }}\"" in text
     assert "--environment \"${{ inputs.pypi_environment }}\"" in text
+    assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
