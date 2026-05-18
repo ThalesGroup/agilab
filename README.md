@@ -2,6 +2,7 @@
   <a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a>
   <a href="https://thalesgroup.github.io/agilab/release-proof.html"><img src="https://img.shields.io/badge/version%20alignment-release%20proof-0F766E" alt="Version alignment release proof" /></a>
   <a href="https://thalesgroup.github.io/agilab/release-proof.html"><img src="https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E" alt="Supply chain: SBOM, audit, provenance" /></a>
+  <a href="https://thalesgroup.github.io/agilab/release-proof.html"><img src="https://img.shields.io/badge/first%20proof-passing-0F766E" alt="First proof: passing" /></a>
   <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a>
   <a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Documentation-online-brightgreen.svg" alt="Documentation" /></a>
   <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab?style=flat&label=stars" alt="GitHub stars" /></a>

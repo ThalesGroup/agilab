@@ -293,6 +293,19 @@ def test_readmes_expose_supply_chain_evidence_badge() -> None:
     )
 
 
+def test_readmes_expose_first_proof_evidence_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    badge = "https://img.shields.io/badge/first%20proof-passing-0F766E"
+    release_proof = "https://thalesgroup.github.io/agilab/release-proof.html"
+
+    assert (
+        f'<a href="{release_proof}"><img src="{badge}" '
+        'alt="First proof: passing" /></a>'
+    ) in readme
+    assert f"[![First proof: passing]({badge})]({release_proof})" in pypi_readme
+
+
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
     local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
