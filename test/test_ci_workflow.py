@@ -170,6 +170,8 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--strict-budget" in text
     assert "--output test-results/ui-robot-matrix/trend-report.json" in text
     assert "test-results/ui-robot-matrix/trend-report.txt" in text
+    assert 'trend_status="${PIPESTATUS[0]}"' in text
+    assert 'exit "${trend_status}"' in text
     assert "## UI robot trend" in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
