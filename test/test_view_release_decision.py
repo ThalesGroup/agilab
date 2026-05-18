@@ -22,7 +22,19 @@ def _create_forecast_project(tmp_path: Path) -> Path:
     project_dir = apps_dir / "weather_forecast_project"
     (project_dir / "src" / "weather_forecast").mkdir(parents=True)
     (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
-    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
+    (project_dir / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[args]",
+                "",
+                "[pages.view_release_decision]",
+                'metrics_glob = "**/forecast_metrics.json"',
+                'required_patterns = ["forecast_metrics.json", "forecast_predictions.csv"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (project_dir / "src" / "weather_forecast" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
 
@@ -776,16 +788,32 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert fake_st.session_state == {
         "release_decision_app_scope": f"weather_forecast_project:{tmp_path / 'weather_forecast_project'}",
     }
+    settings_root = tmp_path / "weather_forecast_project"
+    (settings_root / "src").mkdir(parents=True)
+    (settings_root / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[pages.view_release_decision]",
+                'metrics_glob = "**/forecast_metrics.json"',
+                'required_patterns = ["forecast_metrics.json", "forecast_predictions.csv"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     normalized_env = SimpleNamespace(
         app="weather_forecast",
         target="weather_forecast",
-        active_app=tmp_path / "weather_forecast_project",
+        active_app=settings_root,
     )
     assert module._default_metrics_glob(normalized_env) == "**/forecast_metrics.json"
     assert module._default_required_patterns(normalized_env) == [
         "forecast_metrics.json",
         "forecast_predictions.csv",
     ]
+    generic_env = SimpleNamespace(app="demo", target="demo", active_app=tmp_path / "missing_project")
+    assert module._default_metrics_glob(generic_env) == "**/*metrics*.json"
+    assert module._default_required_patterns(generic_env) == ["*.json"]
 
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []

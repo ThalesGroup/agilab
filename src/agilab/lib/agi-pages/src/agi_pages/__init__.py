@@ -19,6 +19,7 @@ PUBLIC_PAGE_MODULES = (
     "view_maps_network",
     "view_queue_resilience",
     "view_relay_resilience",
+    "view_scenario_cockpit",
     "view_release_decision",
     "view_shap_explanation",
     "view_training_analysis",

@@ -1,4 +1,4 @@
-"""Mission Decision analysis page."""
+"""Generic decision-evidence analysis page."""
 
 from pathlib import Path
 

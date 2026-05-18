@@ -28,7 +28,19 @@ root when available. Those connector rows are shown in the page and exported in
 `connector_registry_summary`, so downstream tools can reason about portable
 artifact and log paths instead of reconstructing local path glue.
 
-For `weather_forecast_project`, the page defaults to:
+By default, the page searches for `**/*metrics*.json` and requires at least one
+JSON artifact. A producer can override those defaults in its app settings:
+
+```toml
+[pages.view_release_decision]
+metrics_glob = "**/forecast_metrics.json"
+required_patterns = [
+  "forecast_metrics.json",
+  "forecast_predictions.csv",
+]
+```
+
+For example, the weather-forecast producer configures:
 
 - metrics glob: `**/forecast_metrics.json`
 - required artifact patterns:

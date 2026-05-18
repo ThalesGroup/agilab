@@ -56,6 +56,7 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-page-network-map", "src/agilab/apps-pages/view_maps_network"),
     ("agi-page-queue-health", "src/agilab/apps-pages/view_queue_resilience"),
     ("agi-page-relay-health", "src/agilab/apps-pages/view_relay_resilience"),
+    ("agi-page-scenario-cockpit", "src/agilab/apps-pages/view_scenario_cockpit"),
     ("agi-page-promotion-gate", "src/agilab/apps-pages/view_release_decision"),
     ("agi-page-feature-attribution", "src/agilab/apps-pages/view_shap_explanation"),
     ("agi-page-training-report", "src/agilab/apps-pages/view_training_analysis"),

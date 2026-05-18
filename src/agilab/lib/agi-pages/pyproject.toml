@@ -99,6 +99,10 @@ dev = [
     path = "../../apps-pages/view_relay_resilience"
     editable = true
 
+[tool.uv.sources.agi-page-scenario-cockpit]
+    path = "../../apps-pages/view_scenario_cockpit"
+    editable = true
+
 [tool.uv.sources.agi-page-promotion-gate]
     path = "../../apps-pages/view_release_decision"
     editable = true
