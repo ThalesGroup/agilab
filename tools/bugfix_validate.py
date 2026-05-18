@@ -28,6 +28,7 @@ RESULT_CACHE_STATIC_INPUTS = (
     "uv.lock",
     "pytest.ini",
     "test/conftest.py",
+    "tools/agilab_dev.py",
     "tools/bugfix_validate.py",
     "tools/ga_regression_selector.py",
     "tools/impact_validate.py",
@@ -185,6 +186,68 @@ def _unique_paths(paths: Sequence[str]) -> list[str]:
     return sorted(dict.fromkeys(paths))
 
 
+def _git_head() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return "unknown"
+    return completed.stdout.strip() or "unknown"
+
+
+def _timing_inputs(args: argparse.Namespace) -> list[str]:
+    if args.timings:
+        return [str(path) for path in args.timings]
+    timing_root = REPO_ROOT / "test-results"
+    return [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in sorted(timing_root.glob("junit-*.xml"))
+    ]
+
+
+def _frontdoor_cache_enabled(args: argparse.Namespace) -> bool:
+    return (
+        bool(args.run)
+        and not args.no_result_cache
+        and not args.json
+        and not args.print_command
+    )
+
+
+def _frontdoor_cache_key(files: Sequence[str], args: argparse.Namespace) -> str:
+    hasher = hashlib.sha256()
+    timing_inputs = _timing_inputs(args)
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "kind": "frontdoor",
+        "python": list(sys.version_info[:3]),
+        "git_head": _git_head(),
+        "budget_seconds": args.budget_seconds,
+        "population": args.population,
+        "generations": args.generations,
+        "seed": args.seed,
+        "max_candidates": args.max_candidates,
+        "selector_cache_path": args.cache_path,
+        "selector_no_cache": bool(args.no_cache),
+        "timings": timing_inputs,
+    }
+    hasher.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
+    for group, paths in (
+        ("changed", files),
+        ("timings", timing_inputs),
+        ("static-inputs", RESULT_CACHE_STATIC_INPUTS),
+    ):
+        hasher.update(f"\n[{group}]\n".encode("utf-8"))
+        for path in _unique_paths(paths):
+            _hash_file(hasher, path)
+    return "frontdoor:" + hasher.hexdigest()
+
+
 def _result_cache_key(
     files: Sequence[str],
     selection: ga_regression_selector.SelectionResult,
@@ -218,6 +281,34 @@ def _has_cached_success(path: Path, key: str) -> bool:
     return isinstance(entry, dict) and entry.get("status") == "passed"
 
 
+def _cached_frontdoor_success(path: Path, key: str) -> dict[str, object] | None:
+    entries = _load_result_cache(path).get("entries")
+    if not isinstance(entries, dict):
+        return None
+    entry = entries.get(key)
+    if (
+        isinstance(entry, dict)
+        and entry.get("status") == "passed"
+        and entry.get("kind") == "frontdoor"
+    ):
+        return entry
+    return None
+
+
+def _trim_result_cache_entries(entries: dict[str, object]) -> None:
+    while len(entries) > RESULT_CACHE_MAX_ENTRIES:
+        oldest_key = min(
+            entries,
+            key=lambda entry_key: (
+                float(entries[entry_key]["stored_at"])
+                if isinstance(entries[entry_key], dict)
+                and isinstance(entries[entry_key].get("stored_at"), (int, float))
+                else 0.0
+            ),
+        )
+        entries.pop(oldest_key, None)
+
+
 def _record_cached_success(
     path: Path,
     key: str,
@@ -235,17 +326,32 @@ def _record_cached_success(
         "selected_tests": list(selection.selected_tests),
         "command": list(selection.command),
     }
-    while len(entries) > RESULT_CACHE_MAX_ENTRIES:
-        oldest_key = min(
-            entries,
-            key=lambda entry_key: (
-                float(entries[entry_key]["stored_at"])
-                if isinstance(entries[entry_key], dict)
-                and isinstance(entries[entry_key].get("stored_at"), (int, float))
-                else 0.0
-            ),
-        )
-        entries.pop(oldest_key, None)
+    _trim_result_cache_entries(entries)
+    state["entries"] = entries
+    _write_result_cache(path, state)
+
+
+def _record_frontdoor_success(
+    path: Path,
+    key: str,
+    files: Sequence[str],
+    selection: ga_regression_selector.SelectionResult,
+    stdout: str,
+) -> None:
+    state = _load_result_cache(path)
+    entries = state.get("entries")
+    if not isinstance(entries, dict):
+        entries = {}
+    entries[key] = {
+        "status": "passed",
+        "kind": "frontdoor",
+        "stored_at": round(time.time(), 3),
+        "files": list(files),
+        "selected_tests": list(selection.selected_tests),
+        "command": list(selection.command),
+        "stdout": stdout,
+    }
+    _trim_result_cache_entries(entries)
     state["entries"] = entries
     _write_result_cache(path, state)
 
@@ -258,28 +364,53 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as exc:
         parser.exit(2, f"bugfix_validate: {exc}\n")
 
+    cache_path = Path(args.result_cache_path)
+    frontdoor_key = (
+        _frontdoor_cache_key(files, args) if _frontdoor_cache_enabled(args) else ""
+    )
+    if frontdoor_key:
+        frontdoor_entry = _cached_frontdoor_success(cache_path, frontdoor_key)
+        if frontdoor_entry is not None:
+            cached_stdout = frontdoor_entry.get("stdout")
+            if isinstance(cached_stdout, str) and cached_stdout:
+                print(cached_stdout.rstrip("\n"), flush=True)
+            print(
+                "bugfix_validate: front-door cached pass; skipped impact, selection, and pytest",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 0
+
     impact_report = impact_validate.analyze_paths(files)
     selection = build_selection_for_args(files, args, impact_report=impact_report)
+    rendered_stdout = ""
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "impact": impact_report.to_dict(),
-                    "selection": selection.to_dict(),
-                },
-                indent=2,
-            ),
-            flush=True,
+        rendered_stdout = json.dumps(
+            {
+                "impact": impact_report.to_dict(),
+                "selection": selection.to_dict(),
+            },
+            indent=2,
         )
+        print(rendered_stdout, flush=True)
     elif args.print_command:
-        print(shlex.join(selection.command), flush=True)
+        rendered_stdout = shlex.join(selection.command)
+        print(rendered_stdout, flush=True)
     else:
-        print(_render_human(impact_report, selection), flush=True)
+        rendered_stdout = _render_human(impact_report, selection)
+        print(rendered_stdout, flush=True)
 
     if args.run and selection.selected_tests:
-        cache_path = Path(args.result_cache_path)
         cache_key = _result_cache_key(files, selection)
         if not args.no_result_cache and _has_cached_success(cache_path, cache_key):
+            if frontdoor_key:
+                _record_frontdoor_success(
+                    cache_path,
+                    frontdoor_key,
+                    files,
+                    selection,
+                    rendered_stdout,
+                )
             print(
                 "bugfix_validate: cached pass for selected pytest subset",
                 file=sys.stderr,
@@ -289,7 +420,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         completed = subprocess.run(selection.command, cwd=REPO_ROOT, check=False)
         if completed.returncode == 0 and not args.no_result_cache:
             _record_cached_success(cache_path, cache_key, files, selection)
+            if frontdoor_key:
+                _record_frontdoor_success(
+                    cache_path,
+                    frontdoor_key,
+                    files,
+                    selection,
+                    rendered_stdout,
+                )
         return completed.returncode
+    if args.run and not selection.selected_tests and frontdoor_key:
+        _record_frontdoor_success(
+            cache_path,
+            frontdoor_key,
+            files,
+            selection,
+            rendered_stdout,
+        )
     return 0
 
 

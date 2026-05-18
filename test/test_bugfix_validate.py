@@ -102,6 +102,127 @@ def test_json_output_combines_impact_and_selection(capsys, monkeypatch) -> None:
     assert payload["selection"]["selected_tests"] == ["test/test_demo.py"]
 
 
+def test_collect_changed_files_delegates_to_ga_selector(monkeypatch) -> None:
+    module = _load_module()
+    captured = {}
+
+    def _fake_collect(selector_args):
+        captured.update(vars(selector_args))
+        return ["src/agilab/demo.py"]
+
+    monkeypatch.setattr(
+        module.ga_regression_selector,
+        "collect_changed_files",
+        _fake_collect,
+    )
+    args = SimpleNamespace(files=["demo.py"], staged=False, base="HEAD~1")
+
+    assert module._collect_changed_files(args) == ["src/agilab/demo.py"]
+    assert captured == {"files": ["demo.py"], "staged": False, "base": "HEAD~1"}
+
+
+def test_result_cache_helpers_reject_invalid_shapes(tmp_path: Path) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "bugfix-cache.json"
+
+    cache_path.write_text("[]", encoding="utf-8")
+    assert module._load_result_cache(cache_path) == {
+        "schema": module.RESULT_CACHE_SCHEMA,
+        "entries": {},
+    }
+
+    cache_path.write_text(
+        json.dumps({"schema": "old", "entries": []}),
+        encoding="utf-8",
+    )
+    assert module._load_result_cache(cache_path) == {
+        "schema": module.RESULT_CACHE_SCHEMA,
+        "entries": {},
+    }
+
+    module._write_result_cache(
+        cache_path,
+        {"schema": module.RESULT_CACHE_SCHEMA, "entries": []},
+    )
+    assert module._has_cached_success(cache_path, "anything") is False
+    assert module._cached_frontdoor_success(cache_path, "anything") is None
+
+
+def test_repo_file_hash_and_git_head_edge_cases(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    directory = tmp_path / "src"
+    directory.mkdir()
+    external = tmp_path.parent / "external.txt"
+    external.write_text("external\n", encoding="utf-8")
+    updates: list[bytes] = []
+
+    class _Hasher:
+        @staticmethod
+        def update(data: bytes) -> None:
+            updates.append(data)
+
+    label, resolved = module._repo_file(str(external))
+    assert label == external.as_posix()
+    assert resolved == external
+
+    module._hash_file(_Hasher(), "src")
+    assert b"not-file\n" in updates
+
+    original_open = Path.open
+
+    def _blocked_open(self, *args, **kwargs):
+        if self.name == "blocked.py":
+            raise OSError("denied")
+        return original_open(self, *args, **kwargs)
+
+    (tmp_path / "blocked.py").write_text("blocked\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "open", _blocked_open)
+    module._hash_file(_Hasher(), "blocked.py")
+    assert any(chunk.startswith(b"unreadable:OSError") for chunk in updates)
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout=""),
+    )
+    assert module._git_head() == "unknown"
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="\n"),
+    )
+    assert module._git_head() == "unknown"
+
+
+def test_frontdoor_cache_helpers_cover_timing_and_enablement(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    timing_root = tmp_path / "test-results"
+    timing_root.mkdir()
+    (timing_root / "junit-b.xml").write_text("<testsuites />", encoding="utf-8")
+    (timing_root / "junit-a.xml").write_text("<testsuites />", encoding="utf-8")
+    args = module._build_parser().parse_args(["--files", "demo.py", "--run"])
+
+    assert module._timing_inputs(args) == [
+        "test-results/junit-a.xml",
+        "test-results/junit-b.xml",
+    ]
+    assert module._frontdoor_cache_enabled(args) is True
+    assert (
+        module._frontdoor_cache_enabled(
+            module._build_parser().parse_args(["--files", "demo.py", "--run", "--json"])
+        )
+        is False
+    )
+    explicit = module._build_parser().parse_args(
+        ["--files", "demo.py", "--run", "--timings", "custom.json"]
+    )
+    assert module._timing_inputs(explicit) == ["custom.json"]
+
+
 def test_run_returns_selected_command_status(monkeypatch) -> None:
     module = _load_module()
     files = ["src/agilab/demo.py"]
@@ -112,6 +233,7 @@ def test_run_returns_selected_command_status(monkeypatch) -> None:
     class Completed:
         returncode = 7
 
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
     monkeypatch.setattr(module, "_collect_changed_files", lambda _args: files)
     monkeypatch.setattr(module.impact_validate, "analyze_paths", lambda _paths: report)
     monkeypatch.setattr(
@@ -141,6 +263,7 @@ def test_run_records_successful_result_cache(tmp_path: Path, monkeypatch) -> Non
     class Completed:
         returncode = 0
 
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
     _patch_validation(monkeypatch, module, files, report, selection)
     monkeypatch.setattr(
         module.subprocess,
@@ -185,6 +308,7 @@ def test_run_uses_cached_success_without_subprocess(
         },
     )
 
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
     _patch_validation(monkeypatch, module, files, report, selection)
     monkeypatch.setattr(
         module.subprocess,
@@ -208,6 +332,17 @@ def test_run_uses_cached_success_without_subprocess(
     )
 
     assert "cached pass for selected pytest subset" in capsys.readouterr().err
+    args = module._build_parser().parse_args(
+        [
+            "--files",
+            "src/agilab/demo.py",
+            "--run",
+            "--result-cache-path",
+            str(cache_path),
+        ]
+    )
+    frontdoor_key = module._frontdoor_cache_key(files, args)
+    assert module._cached_frontdoor_success(cache_path, frontdoor_key) is not None
 
 
 def test_run_does_not_cache_failed_result(tmp_path: Path, monkeypatch) -> None:
@@ -287,6 +422,208 @@ def test_no_result_cache_bypasses_cached_success(tmp_path: Path, monkeypatch) ->
     assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
 
 
+def test_run_records_frontdoor_cache_after_success(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(module.subprocess, "run", lambda *_args, **_kwargs: Completed())
+
+    argv = [
+        "--files",
+        "src/agilab/demo.py",
+        "--run",
+        "--result-cache-path",
+        str(cache_path),
+    ]
+    assert module.main(argv) == 0
+
+    args = module._build_parser().parse_args(argv)
+    key = module._frontdoor_cache_key(files, args)
+    entry = module._cached_frontdoor_success(cache_path, key)
+    assert entry is not None
+    assert entry["selected_tests"] == ["test/test_demo.py"]
+    assert "GA regression selection" in entry["stdout"]
+
+
+def test_frontdoor_cache_skips_impact_selection_and_pytest(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+    argv = [
+        "--files",
+        "src/agilab/demo.py",
+        "--run",
+        "--result-cache-path",
+        str(cache_path),
+    ]
+    args = module._build_parser().parse_args(argv)
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
+    key = module._frontdoor_cache_key(files, args)
+    module._record_frontdoor_success(
+        cache_path,
+        key,
+        files,
+        selection,
+        "cached human output",
+    )
+    monkeypatch.setattr(module, "_collect_changed_files", lambda _args: files)
+    monkeypatch.setattr(
+        module.impact_validate,
+        "analyze_paths",
+        lambda _paths: (_ for _ in ()).throw(
+            AssertionError("front-door hit should skip impact analysis")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "build_selection_for_args",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("front-door hit should skip GA selection")
+        ),
+    )
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("front-door hit should skip pytest subprocess")
+        ),
+    )
+
+    assert module.main(argv) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "cached human output\n"
+    assert "front-door cached pass" in captured.err
+
+
+def test_run_records_frontdoor_cache_for_empty_selection(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    files = ["README.md"]
+    report = _impact_report(module, files)
+    selection = module.ga_regression_selector.SelectionResult(
+        files=tuple(files),
+        selected_tests=(),
+        required_tests=(),
+        estimated_seconds=0.0,
+        score=0.0,
+        budget_seconds=45.0,
+        command=(),
+        reasons={},
+    )
+    cache_path = tmp_path / "bugfix-cache.json"
+
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("empty selection should not invoke pytest")
+        ),
+    )
+
+    argv = [
+        "--files",
+        "README.md",
+        "--run",
+        "--result-cache-path",
+        str(cache_path),
+    ]
+    assert module.main(argv) == 0
+
+    args = module._build_parser().parse_args(argv)
+    entry = module._cached_frontdoor_success(
+        cache_path,
+        module._frontdoor_cache_key(files, args),
+    )
+    assert entry is not None
+    assert entry["selected_tests"] == []
+
+
+def test_main_reports_changed_file_collection_errors(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_collect_changed_files",
+        lambda _args: (_ for _ in ()).throw(RuntimeError("git failed")),
+    )
+
+    try:
+        module.main([])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser exit for changed-file collection error")
+
+
+def test_frontdoor_cache_key_changes_when_changed_file_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
+    changed = tmp_path / "src" / "agilab" / "demo.py"
+    changed.parent.mkdir(parents=True)
+    changed.write_text("VALUE = 1\n", encoding="utf-8")
+    args = module._build_parser().parse_args(
+        ["--files", "src/agilab/demo.py", "--run"]
+    )
+
+    first = module._frontdoor_cache_key(["src/agilab/demo.py"], args)
+    changed.write_text("VALUE = 2\n", encoding="utf-8")
+    second = module._frontdoor_cache_key(["src/agilab/demo.py"], args)
+
+    assert first != second
+
+
+def test_no_result_cache_bypasses_frontdoor_cache(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+    argv = [
+        "--files",
+        "src/agilab/demo.py",
+        "--run",
+        "--result-cache-path",
+        str(cache_path),
+    ]
+    monkeypatch.setattr(module, "_git_head", lambda: "test-head")
+    args = module._build_parser().parse_args(argv)
+    key = module._frontdoor_cache_key(files, args)
+    module._record_frontdoor_success(cache_path, key, files, selection, "cached")
+    subprocess_calls = []
+
+    class Completed:
+        returncode = 0
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, *, cwd, check: subprocess_calls.append((command, cwd, check))
+        or Completed(),
+    )
+
+    assert module.main([*argv, "--no-result-cache"]) == 0
+
+    assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
+
+
 def test_result_cache_eviction_uses_stored_timestamp(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
     files = ["src/agilab/demo.py"]
@@ -309,6 +646,27 @@ def test_result_cache_eviction_uses_stored_timestamp(tmp_path: Path, monkeypatch
 
     entries = module._load_result_cache(cache_path)["entries"]
     assert sorted(entries) == ["fresh", "newer"]
+
+
+def test_record_cache_helpers_repair_non_dict_entries(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    selection = _selection(module, files)
+    cache_path = tmp_path / "bugfix-cache.json"
+    cache_path.write_text(
+        json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module.time, "time", lambda: 12.0)
+
+    module._record_cached_success(cache_path, "selected", files, selection)
+    module._record_frontdoor_success(cache_path, "frontdoor", files, selection, "ok")
+
+    entries = module._load_result_cache(cache_path)["entries"]
+    assert entries["selected"]["status"] == "passed"
+    assert entries["frontdoor"]["kind"] == "frontdoor"
 
 
 def test_build_selection_for_args_passes_impact_report(monkeypatch) -> None:
