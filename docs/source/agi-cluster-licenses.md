@@ -17,8 +17,8 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-env | 2026.5.17.post2 | BSD-3-Clause |
-| agi-node | 2026.5.17.post2 | BSD-3-Clause |
+| agi-env | 2026.5.18 | BSD-3-Clause |
+| agi-node | 2026.5.18 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | astor | 0.8.1 | BSD LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |

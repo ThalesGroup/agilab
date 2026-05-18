@@ -16,7 +16,7 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-env | 2026.5.17.post2 | BSD-3-Clause |
-| agi-gui | 2026.5.17.post2 | BSD-3-Clause |
-| agi-node | 2026.5.17.post2 | BSD-3-Clause |
+| agi-env | 2026.5.18 | BSD-3-Clause |
+| agi-gui | 2026.5.18 | BSD-3-Clause |
+| agi-node | 2026.5.18 | BSD-3-Clause |
 | pandas | 2.3.3 | BSD LICENSE |

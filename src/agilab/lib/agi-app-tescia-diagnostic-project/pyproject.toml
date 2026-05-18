@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.17.post2"
+version = "2026.05.18"
 name = "agi-app-tescia-diagnostic-project"
 description = "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
 requires-python = ">=3.13"
@@ -42,6 +42,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 tescia_diagnostic = "agi_app_tescia_diagnostic_project:project_root"
 tescia_diagnostic_project = "agi_app_tescia_diagnostic_project:project_root"
+
 
 
 
