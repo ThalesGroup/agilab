@@ -35,6 +35,8 @@ PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 REGEX_OPERATION_EXCEPTIONS = (re.error, TypeError, ValueError)
 INLINE_EXPORT_EXCEPTIONS = (OSError, TypeError, ValueError)
 _HOST_PATH_CLS = type(Path("."))
+UV_LINK_MODE_VALUES = {"clone", "copy", "hardlink", "symlink"}
+DEFAULT_UV_LINK_MODE = "hardlink"
 
 
 def _is_virtualenv_path(path: Path) -> bool:
@@ -94,6 +96,16 @@ def is_packaging_cmd(cmd: str) -> bool:
     return text.startswith("uv ") or text.startswith("pip ") or "uv" in text or "pip" in text
 
 
+def normalize_uv_link_mode(env: Mapping[str, str]) -> str:
+    """Resolve AGILAB's uv link mode with explicit operator overrides."""
+
+    requested = env.get("AGILAB_UV_LINK_MODE") or env.get("UV_LINK_MODE") or DEFAULT_UV_LINK_MODE
+    if requested not in UV_LINK_MODE_VALUES:
+        allowed = ", ".join(sorted(UV_LINK_MODE_VALUES))
+        raise ValueError(f"Invalid uv link mode {requested!r}. Expected one of: {allowed}.")
+    return requested
+
+
 def build_subprocess_env(
     *,
     base_env: Mapping[str, str] | None = None,
@@ -105,6 +117,7 @@ def build_subprocess_env(
 
     process_env = dict(base_env or os.environ)
     process_env.pop("UV_RUN_RECURSION_DEPTH", None)
+    process_env["UV_LINK_MODE"] = normalize_uv_link_mode(process_env)
 
     venv_path = None
     if venv is not None:

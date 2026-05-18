@@ -75,6 +75,21 @@ START_TIME=$(date +%s)
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
+configure_uv_link_mode() {
+  local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
+  case "$requested" in
+    clone|copy|hardlink|symlink) ;;
+    *)
+      echo -e "${RED}Invalid uv link mode '${requested}'. Expected one of: clone, copy, hardlink, symlink.${NC}"
+      exit 1
+      ;;
+  esac
+  export UV_LINK_MODE="$requested"
+  echo -e "${BLUE}uv link mode: ${UV_LINK_MODE}${NC}"
+}
+
+configure_uv_link_mode
+
 DO_TEST_APPS=0
 LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"
 

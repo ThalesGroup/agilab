@@ -27,6 +27,23 @@ if (Test-Path $envFile) {
 $env:AGI_PYTHON_VERSION = $env:AGI_PYTHON_VERSION -replace '^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*','$1'
 
 $UvPreviewArgs = @("--preview-features", "extra-build-dependencies")
+function Set-UvLinkMode {
+    $requested = if ($env:AGILAB_UV_LINK_MODE) {
+        $env:AGILAB_UV_LINK_MODE
+    } elseif ($env:UV_LINK_MODE) {
+        $env:UV_LINK_MODE
+    } else {
+        "hardlink"
+    }
+    if ($requested -notin @("clone", "copy", "hardlink", "symlink")) {
+        throw "Invalid uv link mode '$requested'. Expected one of: clone, copy, hardlink, symlink."
+    }
+    $env:UV_LINK_MODE = $requested
+    Write-Host "uv link mode: $env:UV_LINK_MODE" -ForegroundColor Blue
+}
+
+Set-UvLinkMode
+
 function Invoke-UvPreview {
     param([string[]]$MoreArgs)
 
