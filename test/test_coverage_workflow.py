@@ -13,7 +13,11 @@ def _workflow_text() -> str:
 
 
 def _agi_gui_run_block() -> str:
-    return _run_block("Run agi-gui coverage", "Upload JUnit results")
+    return _run_block("Run agi-gui coverage chunk", "Archive agi-gui chunk coverage")
+
+
+def _agi_gui_combine_block() -> str:
+    return _run_block("Combine agi-gui coverage", "Write agi-gui coverage XML")
 
 
 def _agi_env_run_block() -> str:
@@ -140,8 +144,10 @@ def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
-def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
+def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     run_block = _agi_gui_run_block()
+    combine_block = _agi_gui_combine_block()
+    xml_step = _step_block("Write agi-gui coverage XML")
     junit_upload = _step_block("Upload JUnit results")
 
     assert "run_gui_chunk support" in run_block
@@ -149,17 +155,36 @@ def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
     assert "run_gui_chunk pages" in run_block
     assert "run_gui_chunk views" in run_block
     assert "run_gui_chunk reports" in run_block
-    assert "--append" in run_block
-    assert "python -m coverage xml" in run_block
+    assert "${{ matrix.chunk }}" in run_block
+    assert "--append" not in run_block
+    assert "--parallel-mode" in run_block
+    assert 'test-results/coverage-agi-gui-${label}.db' in run_block
+    assert '"coverage", "combine", "--keep"' in combine_block
+    assert "python -m coverage xml" in xml_step
     assert "--cov=src/agilab" not in run_block
     assert "test-results/junit-agi-gui-*.xml" in junit_upload
 
 
 def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
-    run_block = _agi_gui_run_block()
+    run_block = _agi_gui_run_block() + _step_block("Write agi-gui coverage XML")
 
     assert run_block.count("--extra ui") >= 2
     assert run_block.count("--extra viz") >= 2
+
+
+def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
+    workflow_text = _workflow_text()
+
+    assert "  agi-gui-combine:" in workflow_text
+    assert "strategy:" in workflow_text
+    assert "fail-fast: false" in workflow_text
+    for chunk in ("support", "pipeline", "robots", "pages", "views", "reports"):
+        assert f"          - {chunk}" in workflow_text
+    assert "coverage-agi-gui-chunk-${{ matrix.chunk }}" in workflow_text
+    assert "coverage-gui-junit-${{ matrix.chunk }}" in workflow_text
+    assert "pattern: coverage-agi-gui-chunk-*" in workflow_text
+    assert "pattern: coverage-gui-junit-*" in workflow_text
+    assert "      - agi-gui-combine" in workflow_text
 
 
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
@@ -330,6 +355,8 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
         "Archive agi-env coverage XML",
         "Archive agi-node coverage XML",
         "Archive agi-cluster coverage XML",
+        "Archive agi-gui chunk coverage",
+        "Upload agi-gui chunk JUnit",
         "Upload JUnit results",
         "Archive agi-gui coverage XML",
     ):
