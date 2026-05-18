@@ -54,7 +54,7 @@ Agent run evidence
 Use ``agilab agent-run`` when a coding-agent action should leave AGILAB
 evidence instead of only a tool-specific log::
 
-   agilab agent-run --agent codex --label "Review current diff" -- codex review
+   agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review
 
 The command writes a redacted ``agilab.agent_run.v1`` manifest plus local
 ``stdout.txt`` and ``stderr.txt`` artifacts under
@@ -64,6 +64,17 @@ redacted by default and represented by an argv hash; pass
 ``--include-command-args`` only when the prompt/arguments are safe to store. The
 stdout/stderr files stay local artifacts so tool output is not embedded in
 public JSON by default.
+
+Use ``--tag`` and ``--metadata KEY=VALUE`` for structured, non-secret context
+that other tools can query later. Read previous run evidence from the CLI::
+
+   agilab agent-run list --agent codex --json
+
+or from Python::
+
+   from agilab.agent_run import list_agent_runs
+
+   runs = list_agent_runs(agent="codex", limit=5)
 
 Supported agent paths
 ---------------------

@@ -101,6 +101,50 @@ def test_agent_run_can_include_full_command_args_when_requested(tmp_path: Path, 
     assert payload["command"]["argv_redacted"] is False
 
 
+def test_agent_run_manifest_context_supports_tags_and_metadata(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(
+        [
+            "--agent",
+            "codex",
+            "--run-id",
+            "agent-context",
+            "--output-dir",
+            str(tmp_path),
+            "--tag",
+            "review",
+            "--tag",
+            "Review",
+            "--tag",
+            "release candidate",
+            "--metadata",
+            "issue=123",
+            "--metadata",
+            "note=using env://OPENAI_API_KEY",
+            "--metadata",
+            "OPENAI_API_KEY=sk-secret",
+            "--json",
+            "--print-only",
+            "--",
+            "codex",
+            "review",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["context"]["tags"] == ["review", "release-candidate"]
+    assert payload["context"]["metadata"]["issue"] == "123"
+    assert payload["context"]["metadata"]["note"] == "using <secret-ref>"
+    assert payload["context"]["metadata"]["OPENAI_API_KEY"] == "<redacted>"
+    assert payload["context"]["metadata_redacted"]["issue"] is False
+    assert payload["context"]["metadata_redacted"]["note"] is True
+    assert payload["context"]["metadata_redacted"]["OPENAI_API_KEY"] is True
+    assert "sk-secret" not in json.dumps(payload)
+    assert "env://OPENAI_API_KEY" not in json.dumps(payload)
+
+
 def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, capsys) -> None:
     module = _load_module()
 
@@ -135,6 +179,73 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
     assert stdout_path.read_text(encoding="utf-8").strip() == "ok"
     assert stderr_path.read_text(encoding="utf-8").strip() == "warn"
     assert json.loads(manifest_path.read_text(encoding="utf-8"))["run_id"] == "agent-success"
+
+
+def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    run_root = tmp_path / "runs"
+    codex_dir = run_root / "codex-run"
+    aider_dir = run_root / "aider-run"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Codex run",
+            "--run-id",
+            "agent-codex",
+            "--output-dir",
+            str(codex_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--",
+            sys.executable,
+            "-c",
+            "print('ok')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "aider",
+            "--label",
+            "Aider run",
+            "--run-id",
+            "agent-aider",
+            "--output-dir",
+            str(aider_dir),
+            "--allow-failure",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(4)",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    manifest = module.load_agent_run_manifest(codex_dir)
+    summary = module.summarize_agent_run(manifest)
+
+    assert summary.run_id == "agent-codex"
+    assert summary.agent == "codex"
+    assert summary.status == "pass"
+    assert summary.returncode == 0
+    assert summary.manifest_path == codex_dir / module.MANIFEST_FILENAME
+    assert summary.stdout_path == codex_dir / module.STDOUT_FILENAME
+    assert summary.stderr_path == codex_dir / module.STDERR_FILENAME
+    assert summary.tags == ("review",)
+    assert summary.metadata == {"branch": "main"}
+
+    assert [path.parent.name for path in module.find_agent_run_manifests(run_root, status="fail")] == ["aider-run"]
+    assert [item.run_id for item in module.list_agent_runs(run_root, agent="codex")] == ["agent-codex"]
+
+    assert module.main(["list", "--root", str(run_root), "--agent", "codex", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert [item["run_id"] for item in listed] == ["agent-codex"]
+    assert listed[0]["metadata"] == {"branch": "main"}
 
 
 def test_agent_run_failure_returns_command_status_and_manifest(tmp_path: Path, capsys) -> None:
