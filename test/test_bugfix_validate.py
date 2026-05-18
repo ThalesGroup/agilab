@@ -47,6 +47,16 @@ def _selection(module, files: list[str], command=("python", "-c", "pass")):
     )
 
 
+def _patch_validation(monkeypatch, module, files, report, selection) -> None:
+    monkeypatch.setattr(module, "_collect_changed_files", lambda _args: files)
+    monkeypatch.setattr(module.impact_validate, "analyze_paths", lambda _paths: report)
+    monkeypatch.setattr(
+        module,
+        "build_selection_for_args",
+        lambda _files, _args, impact_report: selection,
+    )
+
+
 def test_main_reuses_single_impact_report_for_selection(capsys, monkeypatch) -> None:
     module = _load_module()
     files = ["src/agilab/demo.py"]
@@ -117,6 +127,163 @@ def test_run_returns_selected_command_status(monkeypatch) -> None:
     )
 
     assert module.main(["--files", "src/agilab/demo.py", "--run"]) == 7
+    assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
+
+
+def test_run_records_successful_result_cache(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+    subprocess_calls = []
+
+    class Completed:
+        returncode = 0
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, *, cwd, check: subprocess_calls.append((command, cwd, check))
+        or Completed(),
+    )
+
+    assert (
+        module.main(
+            [
+                "--files",
+                "src/agilab/demo.py",
+                "--run",
+                "--result-cache-path",
+                str(cache_path),
+            ]
+        )
+        == 0
+    )
+
+    key = module._result_cache_key(files, selection)
+    cache = module._load_result_cache(cache_path)
+    assert cache["entries"][key]["status"] == "passed"
+    assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
+
+
+def test_run_uses_cached_success_without_subprocess(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+    key = module._result_cache_key(files, selection)
+    module._write_result_cache(
+        cache_path,
+        {
+            "schema": module.RESULT_CACHE_SCHEMA,
+            "entries": {key: {"status": "passed"}},
+        },
+    )
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("cached pass should skip pytest subprocess")
+        ),
+    )
+
+    assert (
+        module.main(
+            [
+                "--files",
+                "src/agilab/demo.py",
+                "--run",
+                "--result-cache-path",
+                str(cache_path),
+            ]
+        )
+        == 0
+    )
+
+    assert "cached pass for selected pytest subset" in capsys.readouterr().err
+
+
+def test_run_does_not_cache_failed_result(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+
+    class Completed:
+        returncode = 7
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: Completed(),
+    )
+
+    assert (
+        module.main(
+            [
+                "--files",
+                "src/agilab/demo.py",
+                "--run",
+                "--result-cache-path",
+                str(cache_path),
+            ]
+        )
+        == 7
+    )
+
+    assert module._load_result_cache(cache_path)["entries"] == {}
+
+
+def test_no_result_cache_bypasses_cached_success(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+    cache_path = tmp_path / "bugfix-cache.json"
+    key = module._result_cache_key(files, selection)
+    module._write_result_cache(
+        cache_path,
+        {
+            "schema": module.RESULT_CACHE_SCHEMA,
+            "entries": {key: {"status": "passed"}},
+        },
+    )
+    subprocess_calls = []
+
+    class Completed:
+        returncode = 0
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, *, cwd, check: subprocess_calls.append((command, cwd, check))
+        or Completed(),
+    )
+
+    assert (
+        module.main(
+            [
+                "--files",
+                "src/agilab/demo.py",
+                "--run",
+                "--result-cache-path",
+                str(cache_path),
+                "--no-result-cache",
+            ]
+        )
+        == 0
+    )
+
     assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
 
 
