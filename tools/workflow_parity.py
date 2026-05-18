@@ -449,6 +449,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_first_launch_robot.py",
                 "test/test_screenshot_manifest.py",
                 "test/test_ui_robot_coverage_contract.py",
+                "test/test_ui_robot_action_contract.py",
                 "test/test_ui_robot_failure_replay.py",
                 "test/test_ui_robot_canary.py",
                 "test/test_ui_robot_trend_report.py",
@@ -1230,7 +1231,20 @@ def _ui_robot_contract_profile() -> list[CommandSpec]:
                 "--json",
             ],
             timeout_seconds=2 * 60,
-        )
+        ),
+        CommandSpec(
+            label="ui robot action contract",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_action_contract.py",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        ),
     ]
 
 

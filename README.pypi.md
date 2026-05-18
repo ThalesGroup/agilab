@@ -1,5 +1,6 @@
 [![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab/)
 [![Version alignment](https://img.shields.io/badge/version%20alignment-release%20proof-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
+[![Supply chain: SBOM, audit, provenance](https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)

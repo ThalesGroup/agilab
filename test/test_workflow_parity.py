@@ -117,7 +117,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     security_adoption = profiles["security-adoption"][0]
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
-    ui_robot_contract = profiles["ui-robot-contract"][0]
+    ui_robot_contract = profiles["ui-robot-contract"]
+    ui_robot_coverage_contract = ui_robot_contract[0]
+    ui_robot_action_contract = ui_robot_contract[1]
     ui_robot_canary = profiles["ui-robot-canary"][0]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
     ui_artifact_capture_robot = profiles["ui-artifact-capture-robot"][0]
@@ -236,6 +238,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_first_launch_robot.py" in agi_gui_argv
     assert "test/test_screenshot_manifest.py" in agi_gui_argv
     assert "test/test_ui_robot_coverage_contract.py" in agi_gui_argv
+    assert "test/test_ui_robot_action_contract.py" in agi_gui_argv
     assert "test/test_ui_robot_failure_replay.py" in agi_gui_argv
     assert "test/test_ui_robot_canary.py" in agi_gui_argv
     assert "test/test_ui_robot_trend_report.py" in agi_gui_argv
@@ -296,9 +299,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "--compact",
     ]
     assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
-    assert ui_robot_contract.label == "ui robot coverage contract"
-    assert ui_robot_contract.timeout_seconds == 2 * 60
-    assert ui_robot_contract.argv[-2:] == ["tools/ui_robot_coverage_contract.py", "--json"]
+    assert [command.label for command in ui_robot_contract] == [
+        "ui robot coverage contract",
+        "ui robot action contract",
+    ]
+    assert ui_robot_coverage_contract.timeout_seconds == 2 * 60
+    assert ui_robot_coverage_contract.argv[-2:] == ["tools/ui_robot_coverage_contract.py", "--json"]
+    assert ui_robot_action_contract.timeout_seconds == 2 * 60
+    assert ui_robot_action_contract.argv[-2:] == ["tools/ui_robot_action_contract.py", "--json"]
     assert ui_robot_canary.label == "ui robot fault-injection canary"
     assert ui_robot_canary.timeout_seconds == 5 * 60
     assert "tools/ui_robot_canary.py" in ui_robot_canary.argv
