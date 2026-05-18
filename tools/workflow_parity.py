@@ -1274,6 +1274,13 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 screenshot_dir,
                 "--failure-bundle-dir",
                 f"{result_dir}/failure-bundles",
+                "--retry-failed-with-artifacts",
+                "--retry-trace-dir",
+                f"{result_dir}/failure-artifacts/traces",
+                "--retry-har-dir",
+                f"{result_dir}/failure-artifacts/har",
+                "--retry-video-dir",
+                f"{result_dir}/failure-artifacts/video",
             ]
         )
         commands.append(

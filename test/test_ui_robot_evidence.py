@@ -96,6 +96,48 @@ def _trend_report() -> dict[str, object]:
     }
 
 
+def _aggregate_report() -> dict[str, object]:
+    return {
+        "schema": "agilab.ui_robot_matrix_aggregate.v1",
+        "success": True,
+        "expected_shards": ["core", "state", "quality", "layout"],
+        "missing_shards": [],
+        "failed_shards": [],
+        "failed_scenarios": [],
+        "failure_samples": [],
+        "summary": {
+            "expected_shard_count": 4,
+            "shard_count": 4,
+            "missing_shard_count": 0,
+            "failed_shard_count": 0,
+            "scenario_count": 16,
+            "app_count": 10,
+            "page_count": 60,
+            "widget_count": 900,
+            "interacted_count": 520,
+            "probed_count": 380,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "cached_count": 0,
+            "duration_seconds": 820.0,
+            "screenshot_count": 42,
+            "trend": {
+                "schema": "agilab.ui_robot_trend_report.v1",
+                "success": True,
+                "page_count": 60,
+                "failed_page_count": 0,
+                "flaky_page_count": 0,
+                "slow_page_count": 0,
+                "parse_error_count": 0,
+                "budget_violation_count": 0,
+                "total_duration_seconds": 780.0,
+                "mean_page_duration_seconds": 13.0,
+            },
+        },
+        "shards": [],
+    }
+
+
 def _write_artifact_payloads(root: Path, *, trend_report: dict[str, object] | None = None) -> Path:
     artifact_root = root / "ui-robot-matrix-1" / "test-results" / "ui-robot-matrix"
     artifact_root.mkdir(parents=True)
@@ -109,6 +151,14 @@ def _write_artifact_payloads(root: Path, *, trend_report: dict[str, object] | No
         json.dumps(_trend_report() if trend_report is None else trend_report),
         encoding="utf-8",
     )
+    (artifact_root / "exit-code.txt").write_text("0\n", encoding="utf-8")
+    return artifact_root
+
+
+def _write_aggregate_artifact_payloads(root: Path) -> Path:
+    artifact_root = root / "ui-robot-matrix-aggregate-1" / "test-results" / "ui-robot-matrix-aggregate"
+    artifact_root.mkdir(parents=True)
+    (artifact_root / "aggregate.json").write_text(json.dumps(_aggregate_report()), encoding="utf-8")
     (artifact_root / "exit-code.txt").write_text("0\n", encoding="utf-8")
     return artifact_root
 
@@ -131,7 +181,16 @@ def test_github_cli_fetchers_and_artifact_metadata(monkeypatch, tmp_path: Path) 
     def _fake_run(argv, **_kwargs):
         calls.append(list(argv))
         if argv[:3] == ["gh", "run", "list"]:
-            return SimpleNamespace(returncode=0, stdout=json.dumps([{**_successful_run(), "conclusion": "failure"}, _successful_run()]), stderr="")
+            return SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {**_successful_run(), "conclusion": "failure"},
+                        _successful_run(),
+                    ]
+                ),
+                stderr="",
+            )
         if argv[:3] == ["gh", "run", "view"]:
             return SimpleNamespace(returncode=0, stdout=json.dumps(_successful_run()), stderr="")
         if argv[:2] == ["gh", "api"]:
@@ -174,7 +233,7 @@ def test_github_cli_fetchers_and_artifact_metadata(monkeypatch, tmp_path: Path) 
     assert "databaseId" in module._github_fields()
 
 
-def test_fetch_artifact_metadata_prefers_core_shard_artifact(monkeypatch, tmp_path: Path) -> None:
+def test_fetch_artifact_metadata_prefers_aggregate_artifact(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
     monkeypatch.setattr(
@@ -200,6 +259,12 @@ def test_fetch_artifact_metadata_prefers_core_shard_artifact(monkeypatch, tmp_pa
                     "size_in_bytes": 30,
                     "archive_download_url": "https://example.invalid/core.zip",
                 },
+                {
+                    "name": "ui-robot-matrix-aggregate-1",
+                    "expired": False,
+                    "size_in_bytes": 40,
+                    "archive_download_url": "https://example.invalid/aggregate.zip",
+                },
             ]
         },
     )
@@ -207,11 +272,40 @@ def test_fetch_artifact_metadata_prefers_core_shard_artifact(monkeypatch, tmp_pa
     artifact = module.fetch_artifact_metadata("25577485125", repo="ThalesGroup/agilab", repo_root=tmp_path)
 
     assert artifact == {
-        "name": "ui-robot-matrix-core-1",
+        "name": "ui-robot-matrix-aggregate-1",
         "expired": False,
-        "size_bytes": 30,
-        "archive_download_url": "https://example.invalid/core.zip",
+        "size_bytes": 40,
+        "archive_download_url": "https://example.invalid/aggregate.zip",
     }
+
+
+def test_fetch_artifact_metadata_falls_back_to_core_shard_artifact(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "_run_gh_json",
+        lambda *_args, **_kwargs: {
+            "artifacts": [
+                {
+                    "name": "ui-robot-matrix-layout-1",
+                    "expired": False,
+                    "size_in_bytes": 10,
+                    "archive_download_url": "https://example.invalid/layout.zip",
+                },
+                {
+                    "name": "ui-robot-matrix-core-1",
+                    "expired": False,
+                    "size_in_bytes": 30,
+                    "archive_download_url": "https://example.invalid/core.zip",
+                },
+            ]
+        },
+    )
+
+    artifact = module.fetch_artifact_metadata("25577485125", repo="ThalesGroup/agilab", repo_root=tmp_path)
+
+    assert artifact["name"] == "ui-robot-matrix-core-1"
 
 
 def test_github_cli_errors_and_bad_payloads(monkeypatch, tmp_path: Path) -> None:
@@ -313,6 +407,92 @@ def test_load_artifact_payloads_and_build_evidence_contract(tmp_path: Path) -> N
     assert evidence["artifact"]["trend_report_file"].endswith("trend-report.json")
     assert evidence["artifact"]["required_files_present"] is True
     assert report["status"] == "pass"
+
+
+def test_load_aggregate_artifact_payloads_and_build_evidence_contract(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_aggregate_artifact_payloads(tmp_path)
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = module.load_artifact_payloads(tmp_path)
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+
+    assert matrix_summary["scenario_count"] == 16
+    assert scenario_summary["page_count"] == 60
+    assert trend_report["schema"] == module.TREND_REPORT_SCHEMA
+    assert artifact_checks["aggregate_report_schema"] == module.AGGREGATE_REPORT_SCHEMA
+    assert artifact_checks["screenshot_count"] == 42
+    assert evidence["result"]["status"] == "pass"
+    assert evidence["result"]["page_count"] == 60
+
+
+def test_load_aggregate_artifact_payloads_defaults_missing_exit_code_from_success(tmp_path: Path) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    (artifact_root / "exit-code.txt").unlink()
+
+    _, _, _, artifact_checks = module.load_artifact_payloads(tmp_path)
+
+    assert artifact_checks["exit_code"] == "0"
+    assert artifact_checks["exit_code_file"] == ""
+
+
+def test_load_aggregate_artifact_payloads_rejects_bad_schema(tmp_path: Path) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_path = artifact_root / "aggregate.json"
+    aggregate_path.write_text(json.dumps({"schema": "wrong.schema"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=module.AGGREGATE_REPORT_SCHEMA):
+        module.load_artifact_payloads(tmp_path)
+
+
+def test_failed_aggregate_artifact_projects_to_failed_evidence(tmp_path: Path) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_report = _aggregate_report()
+    aggregate_report["success"] = False
+    aggregate_report["failed_shards"] = ["layout"]
+    aggregate_report["failed_scenarios"] = ["layout:isolated-mobile-core-pages"]
+    aggregate_report["failure_samples"] = [{"shard": "layout", "scenario": "isolated-mobile-core-pages"}]
+    summary = dict(aggregate_report["summary"])
+    summary["failed_shard_count"] = 1
+    summary["failed_count"] = 2
+    summary["trend"] = {
+        **summary["trend"],
+        "success": False,
+        "failed_page_count": 2,
+    }
+    aggregate_report["summary"] = summary
+    (artifact_root / "aggregate.json").write_text(json.dumps(aggregate_report), encoding="utf-8")
+    (artifact_root / "exit-code.txt").unlink()
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = module.load_artifact_payloads(tmp_path)
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+    report = module.build_report(evidence)
+
+    assert artifact_checks["exit_code"] == "1"
+    assert matrix_summary["failed_scenarios"] == ["layout:isolated-mobile-core-pages"]
+    assert evidence["result"]["failure_samples"] == [{"shard": "layout", "scenario": "isolated-mobile-core-pages"}]
+    assert report["status"] == "fail"
+    assert {"artifact", "trend_report", "robot_result"}.issubset(
+        {check["id"] for check in report["checks"] if check["status"] == "fail"}
+    )
 
 
 def test_load_artifact_payloads_requires_trend_report(tmp_path: Path) -> None:
@@ -434,7 +614,11 @@ def test_refresh_evidence_uses_artifact_dir_and_download_paths(monkeypatch, tmp_
     module = _load_module()
     artifact_root = _write_artifact_payloads(tmp_path / "existing-artifact")
     monkeypatch.setattr(module, "fetch_run", lambda run_id, *, repo, repo_root: _successful_run())
-    monkeypatch.setattr(module, "fetch_latest_successful_run", lambda *, repo, branch, limit, repo_root: _successful_run())
+    monkeypatch.setattr(
+        module,
+        "fetch_latest_successful_run",
+        lambda *, repo, branch, limit, repo_root: _successful_run(),
+    )
     monkeypatch.setattr(module, "fetch_artifact_metadata", lambda run_id, *, repo, repo_root: _artifact())
 
     evidence = module.refresh_evidence(
@@ -468,7 +652,11 @@ def test_refresh_evidence_uses_artifact_dir_and_download_paths(monkeypatch, tmp_
 def test_refresh_evidence_rejects_expired_artifact(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "fetch_run", lambda run_id, *, repo, repo_root: _successful_run())
-    monkeypatch.setattr(module, "fetch_artifact_metadata", lambda run_id, *, repo, repo_root: {**_artifact(), "expired": True})
+    monkeypatch.setattr(
+        module,
+        "fetch_artifact_metadata",
+        lambda run_id, *, repo, repo_root: {**_artifact(), "expired": True},
+    )
 
     with pytest.raises(RuntimeError, match="expired"):
         module.refresh_evidence(
@@ -485,7 +673,11 @@ def test_main_refresh_quiet_writes_evidence(monkeypatch, tmp_path: Path, capsys)
     module = _load_module()
     artifact_root = _write_artifact_payloads(tmp_path / "artifact")
     output = tmp_path / "ui_robot_evidence.json"
-    monkeypatch.setattr(module, "fetch_latest_successful_run", lambda *, repo, branch, limit, repo_root: _successful_run())
+    monkeypatch.setattr(
+        module,
+        "fetch_latest_successful_run",
+        lambda *, repo, branch, limit, repo_root: _successful_run(),
+    )
     monkeypatch.setattr(module, "fetch_artifact_metadata", lambda run_id, *, repo, repo_root: _artifact())
 
     exit_code = module.main(["--artifact-dir", str(artifact_root), "--output", str(output), "--quiet"])
@@ -501,10 +693,9 @@ def test_load_artifact_payloads_reports_external_files_by_name(monkeypatch, tmp_
     artifact_dir.mkdir()
     external_artifact = _write_artifact_payloads(tmp_path / "external-artifact")
 
-    def _fake_find_artifact_file(_root: Path, filename: str) -> Path:
+    def _fake_find_artifact_file(_root: Path, filename: str) -> Path | None:
         matches = list(external_artifact.rglob(filename))
-        assert matches
-        return matches[0]
+        return matches[0] if matches else None
 
     monkeypatch.setattr(module, "_find_artifact_file", _fake_find_artifact_file)
 

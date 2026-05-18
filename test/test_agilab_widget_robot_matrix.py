@@ -642,6 +642,68 @@ def test_write_matrix_failure_bundle_records_scenario_evidence(tmp_path) -> None
     assert (bundle / "progress-tail.ndjson").read_text(encoding="utf-8").endswith('{"event": "page_done"}\n')
 
 
+def test_write_matrix_failure_bundle_records_artifact_retry_evidence(tmp_path) -> None:
+    module = _load_module()
+    progress_path = tmp_path / "progress.ndjson"
+    retry_progress_path = tmp_path / "retry-progress.ndjson"
+    progress_path.write_text('{"event": "page_done", "success": false}\n', encoding="utf-8")
+    retry_progress_path.write_text('{"event": "page_done", "success": false}\n', encoding="utf-8")
+    scenario = module.RobotScenario(
+        name="demo",
+        description="demo",
+        pages="HOME",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+    )
+    retry = module.FailureArtifactRetry(
+        argv=["robot", "--trace-dir", "traces/demo"],
+        returncode=1,
+        duration_seconds=2.0,
+        summary_path=tmp_path / "failure-retry" / "demo.json",
+        progress_path=retry_progress_path,
+        summary={"success": False, "failed_count": 1},
+        output="retry failed\n",
+        trace_dir=tmp_path / "failure-artifacts" / "traces" / "demo",
+        har_dir=tmp_path / "failure-artifacts" / "har" / "demo",
+        video_dir=tmp_path / "failure-artifacts" / "video" / "demo",
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot", "--json"],
+        returncode=1,
+        duration_seconds=3.0,
+        summary_path=tmp_path / "summary.json",
+        progress_path=progress_path,
+        summary={"success": False, "failed_count": 1},
+        output="robot failed\n",
+        artifact_retry=retry,
+    )
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    bundle = module._write_matrix_failure_bundle(result, options=options)
+
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    retry_payload = manifest["failure_artifact_retry"]
+    assert retry_payload["returncode"] == 1
+    assert retry_payload["success"] is False
+    assert retry_payload["trace_dir"].endswith("failure-artifacts/traces/demo")
+    assert retry_payload["har_dir"].endswith("failure-artifacts/har/demo")
+    assert retry_payload["video_dir"].endswith("failure-artifacts/video/demo")
+    assert retry_payload["command"] == ["robot", "--trace-dir", "traces/demo"]
+    assert (bundle / "retry-summary.json").is_file()
+    assert (bundle / "retry-progress-tail.ndjson").is_file()
+
+
 def test_build_robot_command_covers_entry_shell_and_configured_app_pages(tmp_path) -> None:
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["isolated-entry-and-app-pages"]
@@ -1005,6 +1067,96 @@ def test_run_matrix_does_not_cache_failed_scenario(tmp_path) -> None:
     assert not options.result_cache_path.exists()
 
 
+def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "results",
+        screenshot_dir=tmp_path / "screenshots",
+        failure_bundle_dir=tmp_path / "results" / "failure-bundles",
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        retry_failed_with_artifacts=True,
+        retry_trace_dir=tmp_path / "retry" / "traces",
+        retry_har_dir=tmp_path / "retry" / "har",
+        retry_video_dir=tmp_path / "retry" / "video",
+    )
+    calls: list[list[str]] = []
+
+    def _runner(argv, **_kwargs):
+        calls.append(list(argv))
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        is_retry = "failure-retry" in summary_path.parts
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": is_retry,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 0,
+                    "probed_count": 1,
+                    "skipped_count": 0,
+                    "failed_count": 0 if is_retry else 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "event": "page_done",
+                    "scenario": scenario.name,
+                    "success": is_retry,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0 if is_retry else 1, stdout="")
+
+    result = module.run_scenario(scenario, options=options, runner=_runner)
+    summary = module.summarize_matrix([result])
+
+    assert len(calls) == 2
+    retry_argv = calls[1]
+    assert retry_argv[retry_argv.index("--json-output") + 1].endswith(
+        "failure-retry/isolated-project-page.json"
+    )
+    assert retry_argv[retry_argv.index("--trace-dir") + 1] == str(
+        tmp_path / "retry" / "traces" / "isolated-project-page"
+    )
+    assert retry_argv[retry_argv.index("--har-dir") + 1] == str(
+        tmp_path / "retry" / "har" / "isolated-project-page"
+    )
+    assert retry_argv[retry_argv.index("--video-dir") + 1] == str(
+        tmp_path / "retry" / "video" / "isolated-project-page"
+    )
+    assert result.returncode == 1
+    assert result.artifact_retry is not None
+    assert result.artifact_retry.returncode == 0
+    assert summary["success"] is False
+    assert summary["failure_artifact_retry_count"] == 1
+    assert summary["failure_artifact_retry_passed_count"] == 1
+    assert summary["scenarios"][0]["failure_artifact_retry"]["success"] is True
+    manifest = json.loads(
+        (
+            tmp_path
+            / "results"
+            / "failure-bundles"
+            / "isolated-project-page"
+            / "_scenario"
+            / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["failure_artifact_retry"]["success"] is True
+
+
 def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
     module = _load_module()
     scenarios = module.resolve_scenarios(["all"])
@@ -1319,3 +1471,91 @@ def test_main_print_only_json_lists_commands(tmp_path, capsys) -> None:
     assert command["scenario"]["name"] == "current-home-actions"
     assert command["summary_path"] == str(tmp_path / "current-home-actions.json")
     assert command["argv"][command["argv"].index("--apps") + 1] == "flight_telemetry_project"
+
+
+def test_main_print_only_text_lists_commands(tmp_path, capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(
+        [
+            "--scenario",
+            "current-home-actions",
+            "--apps",
+            "flight_telemetry_project",
+            "--output-dir",
+            str(tmp_path),
+            "--print-only",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "current-home-actions:" in output
+    assert "flight_telemetry_project" in output
+
+
+def test_render_human_reports_artifact_retry_status() -> None:
+    module = _load_module()
+
+    output = module.render_human(
+        {
+            "success": False,
+            "scenario_count": 1,
+            "page_count": 1,
+            "widget_count": 2,
+            "interacted_count": 0,
+            "probed_count": 2,
+            "skipped_count": 0,
+            "failed_count": 1,
+            "cached_count": 0,
+            "failure_artifact_retry_count": 1,
+            "scenarios": [
+                {
+                    "name": "demo",
+                    "success": False,
+                    "cached": False,
+                    "page_count": 1,
+                    "widget_count": 2,
+                    "failed_count": 1,
+                    "summary_path": "demo.json",
+                    "failure_artifact_retry": {"success": False},
+                }
+            ],
+        }
+    )
+
+    assert "artifact_retries=1" in output
+    assert "artifact-retry=FAIL" in output
+
+
+def test_main_json_and_text_outputs_use_matrix_results(monkeypatch, tmp_path, capsys) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["current-home-actions"]
+
+    def _result(success: bool) -> module.ScenarioResult:
+        return module.ScenarioResult(
+            scenario=scenario,
+            argv=["robot"],
+            returncode=0 if success else 1,
+            duration_seconds=0.1,
+            summary_path=tmp_path / "summary.json",
+            progress_path=tmp_path / "progress.ndjson",
+            summary={
+                "success": success,
+                "page_count": 1,
+                "widget_count": 1,
+                "interacted_count": int(success),
+                "probed_count": 1,
+                "skipped_count": 0,
+                "failed_count": 0 if success else 1,
+            },
+            output="",
+        )
+
+    monkeypatch.setattr(module, "run_matrix", lambda *_args, **_kwargs: [_result(True)])
+    assert module.main(["--scenario", "current-home-actions", "--output-dir", str(tmp_path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["success"] is True
+
+    monkeypatch.setattr(module, "run_matrix", lambda *_args, **_kwargs: [_result(False)])
+    assert module.main(["--scenario", "current-home-actions", "--output-dir", str(tmp_path)]) == 1
+    assert "[FAIL] widget robot matrix" in capsys.readouterr().out
