@@ -57,6 +57,7 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-network-map``
 - ``agi-page-queue-health``
 - ``agi-page-relay-health``
+- ``agi-page-scenario-cockpit``
 - ``agi-page-promotion-gate``
 - ``agi-page-feature-attribution``
 - ``agi-page-training-report``
@@ -321,6 +322,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-relay-health``
+   * - ``agi-page-scenario-cockpit``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-scenario-cockpit``
    * - ``agi-page-promotion-gate``
      - ``ThalesGroup``
      - ``agilab``
@@ -451,6 +457,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-page-network-map``
 - ``pypi-agi-page-queue-health``
 - ``pypi-agi-page-relay-health``
+- ``pypi-agi-page-scenario-cockpit``
 - ``pypi-agi-page-promotion-gate``
 - ``pypi-agi-page-feature-attribution``
 - ``pypi-agi-page-training-report``

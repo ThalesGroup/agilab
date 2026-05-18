@@ -63,6 +63,7 @@ UI and page packages
    agi-page-network-map <agi-page-network-map-licenses>
    agi-page-queue-health <agi-page-queue-health-licenses>
    agi-page-relay-health <agi-page-relay-health-licenses>
+   agi-page-scenario-cockpit <agi-page-scenario-cockpit-licenses>
    agi-page-promotion-gate <agi-page-promotion-gate-licenses>
    agi-page-feature-attribution <agi-page-feature-attribution-licenses>
    agi-page-training-report <agi-page-training-report-licenses>

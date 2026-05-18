@@ -58,6 +58,9 @@ DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
 DEFAULT_TARGET_SECONDS = 1800.0
 DEFAULT_VIEWPORT_WIDTH = 1440
 DEFAULT_VIEWPORT_HEIGHT = 1000
+FAILURE_BUNDLE_SCHEMA = "agilab.widget_robot_failure_bundle.v1"
+FAILURE_BUNDLE_TEXT_LIMIT = 20_000
+FAILURE_BUNDLE_TAIL_LINES = 80
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
 CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
@@ -4901,8 +4904,12 @@ def sweep_remote_app(
                         progress.emit("page_start", app=app_name, page=display)
                     if fresh_browser_context_per_page:
                         context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
-                        page = context.new_page()
-                        browser_issues = _attach_browser_issue_capture(page)
+                        try:
+                            page = context.new_page()
+                            browser_issues = _attach_browser_issue_capture(page)
+                        except Exception:
+                            context.close()
+                            raise
                     else:
                         assert shared_page is not None and shared_browser_issues is not None
                         page = shared_page

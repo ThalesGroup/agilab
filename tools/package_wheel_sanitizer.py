@@ -33,6 +33,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-page-network-map",
         "agi-page-queue-health",
         "agi-page-relay-health",
+        "agi-page-scenario-cockpit",
         "agi-page-promotion-gate",
         "agi-page-feature-attribution",
         "agi-page-training-report",

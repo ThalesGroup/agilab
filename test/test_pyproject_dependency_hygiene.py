@@ -84,7 +84,15 @@ def _marker_excludes_python_below(requirement: Requirement, floor: tuple[int, in
 
 
 def _project_pyprojects() -> list[Path]:
-    return [REPO_ROOT / "pyproject.toml", *sorted(SRC_PACKAGE.rglob("pyproject.toml"))]
+    ignored_parts = {".venv", "build", "dist", "__pycache__"}
+    return [
+        REPO_ROOT / "pyproject.toml",
+        *[
+            path
+            for path in sorted(SRC_PACKAGE.rglob("pyproject.toml"))
+            if not ignored_parts.intersection(path.relative_to(SRC_PACKAGE).parts)
+        ],
+    ]
 
 
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:

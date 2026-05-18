@@ -20,11 +20,8 @@ Quick start (dev checkout):
 - view_barycentric
   - uv run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 
-- view_autoencoder_latentspace
-  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
-
 - view_forecast_analysis
-  - uv run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/mycode_project
+  - uv run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/weather_forecast_project
   - Designed for notebook-to-AGILAB forecasting migrations. Reads `forecast_metrics.json` and `forecast_predictions.csv` from the selected export directory.
 
 - view_release_decision
@@ -58,10 +55,16 @@ Quick start (dev checkout):
 
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_telemetry_project`).
-- Each page falls back to `APP_DEFAULT` env var, then tries a default `flight_telemetry_project` under the saved `~/.local/share/agilab/.agilab-path` if not provided.
+- Sidecar page launch commands require `--active-app`; AGILAB ANALYSIS passes it when opening a selected page from the UI.
 - Data directory defaults to the app’s export folder (e.g. `~/export/<app>`); adjust in the sidebar if needed.
 - AGILAB Analysis can scaffold new custom page bundles from the same panel:
   - Use **Create** to generate a minimal complete bundle.
+
+Experimental source-only views:
+
+- view_autoencoder_latentspace
+  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+  - TensorFlow-based latent-space exploration for Python 3.12 environments. It is intentionally not part of the public `agi-pages` umbrella because its runtime constraints are heavier than the generic page bundle set.
 
 ## Repository Pages (optional)
 

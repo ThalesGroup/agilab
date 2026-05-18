@@ -113,16 +113,16 @@ st.info(
 )
 
 default_root = _default_artifact_root(env)
+st.session_state.setdefault("queue_resilience_datadir", str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("queue_resilience_datadir", str(default_root)),
     key="queue_resilience_datadir",
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
+st.session_state.setdefault("queue_resilience_summary_glob", "**/*_summary_metrics.json")
 metrics_pattern = st.sidebar.text_input(
     "Summary glob",
-    value=st.session_state.setdefault("queue_resilience_summary_glob", "**/*_summary_metrics.json"),
     key="queue_resilience_summary_glob",
 )
 

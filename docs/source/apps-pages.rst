@@ -86,14 +86,6 @@ Included page bundles
 This section summarizes the public page bundles shipped with the repository.
 Use :doc:`explore-help` to discover, configure, and launch them from the UI.
 
-view_autoencoder_latentspace
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Autoencoder-powered dimensionality reduction.
-
-- Input: exported dataframe (typically created in Orchestrate).
-- Output: latent-space plots, with colouring and train/test controls.
-
 view_barycentric
 ^^^^^^^^^^^^^^^^
 
@@ -181,6 +173,14 @@ Producer example for distributed runs
   ``~/export/<app_target>/queue_analysis/<artifact_stem>/`` directory, so
   distributed runs with several workload files do not overwrite each other's
   ``pipeline/`` artifacts.
+
+Experimental source-only views
+------------------------------
+
+``view_autoencoder_latentspace`` is kept in the source checkout as a
+TensorFlow-based latent-space exploration page for Python 3.12 environments. It
+is intentionally not part of the public ``agi-pages`` umbrella because its
+runtime constraints are heavier than the generic page bundle set.
 
 See also
 --------
