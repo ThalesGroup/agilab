@@ -119,6 +119,39 @@ def test_selection_prunes_optional_tests_to_budget() -> None:
     assert result.estimated_seconds <= 4
 
 
+def test_build_selection_reuses_precomputed_impact_report(monkeypatch) -> None:
+    module = _load_module()
+    report = module.impact_validate.ImpactReport(
+        files=["src/agilab/pipeline_mistral.py"],
+        overall_risk="low",
+        risk_zones=[],
+        push_gates=[],
+        artifact_actions=[],
+        required_validations=[],
+        guessed_tests=["test/test_pipeline_mistral.py"],
+    )
+
+    monkeypatch.setattr(
+        module.impact_validate,
+        "analyze_paths",
+        lambda _paths: (_ for _ in ()).throw(
+            AssertionError("impact report should be reused")
+        ),
+    )
+
+    result = module.build_selection(
+        ["src/agilab/pipeline_mistral.py"],
+        timings={"test/test_pipeline_mistral.py": 0.5},
+        budget_seconds=4,
+        population=16,
+        generations=8,
+        seed=11,
+        impact_report=report,
+    )
+
+    assert "test/test_pipeline_mistral.py" in result.selected_tests
+
+
 def test_load_timings_accepts_json_and_junit(tmp_path: Path) -> None:
     module = _load_module()
     json_path = tmp_path / "timings.json"
