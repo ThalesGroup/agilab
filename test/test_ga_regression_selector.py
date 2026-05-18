@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 MODULE_PATH = Path("tools/ga_regression_selector.py").resolve()
 
@@ -227,6 +229,190 @@ def test_build_selection_reuses_precomputed_impact_report(monkeypatch) -> None:
     assert "test/test_pipeline_mistral.py" in result.selected_tests
 
 
+def test_git_lines_reports_stderr_on_failure(monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="fatal: bad revision\n",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="fatal: bad revision"):
+        module._git_lines(["diff", "--name-only", "missing"])
+
+
+def test_collect_changed_files_uses_unstaged_and_untracked(monkeypatch) -> None:
+    module = _load_module()
+    calls: list[list[str]] = []
+
+    def _fake_git_lines(args):
+        calls.append(list(args))
+        if args[0] == "diff":
+            return ["src/agilab/pipeline_ai.py"]
+        if args[:3] == ["ls-files", "--others", "--exclude-standard"]:
+            return ["test/test_new_selector.py"]
+        raise AssertionError(f"unexpected git args: {args}")
+
+    monkeypatch.setattr(module, "_git_lines", _fake_git_lines)
+
+    files = module.collect_changed_files(
+        SimpleNamespace(files=None, staged=False, base="HEAD~1")
+    )
+
+    assert files == ["src/agilab/pipeline_ai.py", "test/test_new_selector.py"]
+    assert calls == [
+        ["diff", "--name-only", "--diff-filter=ACMR", "HEAD~1"],
+        ["ls-files", "--others", "--exclude-standard"],
+    ]
+
+
+def test_cache_helpers_reject_invalid_shapes(tmp_path: Path) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "selector-cache.json"
+
+    cache_path.write_text("[]", encoding="utf-8")
+    assert module._load_test_index_cache(cache_path) == {
+        "schema": module.TEST_INDEX_CACHE_SCHEMA,
+        "entries": {},
+        "test_files": {},
+    }
+
+    cache_path.write_text(
+        json.dumps({"schema": "old", "entries": {}, "test_files": []}),
+        encoding="utf-8",
+    )
+    assert module._load_test_index_cache(cache_path)["entries"] == {}
+    assert module._cached_test_files({"test_files": []}, module.DEFAULT_TEST_ROOTS) is None
+    assert (
+        module._cached_test_files(
+            {
+                "test_files": {
+                    "roots": list(module.DEFAULT_TEST_ROOTS),
+                    "files": ["test/test_ok.py", 3],
+                }
+            },
+            module.DEFAULT_TEST_ROOTS,
+        )
+        is None
+    )
+
+
+def test_no_cache_default_estimates_reads_current_files(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_default_estimate",
+        lambda path: {"test/test_a.py": 1.25, "test/test_b.py": 2.5}[path],
+    )
+
+    assert module._cached_default_estimates(
+        ["test/test_a.py", "test/test_b.py"],
+        use_cache=False,
+    ) == {"test/test_a.py": 1.25, "test/test_b.py": 2.5}
+
+
+def test_module_to_test_path_handles_empty_and_classname_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    test_path = tmp_path / "test" / "test_selector.py"
+    test_path.parent.mkdir()
+    test_path.write_text("def test_selector():\n    pass\n", encoding="utf-8")
+
+    assert module._module_to_test_path("") is None
+    assert (
+        module._module_to_test_path("test.test_selector.TestSelector")
+        == "test/test_selector.py"
+    )
+    assert module._module_to_test_path("package.module") is None
+
+
+def test_load_json_timings_accepts_nested_tests_dict(tmp_path: Path) -> None:
+    module = _load_module()
+    json_path = tmp_path / "timings.json"
+    json_path.write_text(
+        json.dumps({"tests": {"test/test_a.py": 1.5, "test/test_b.py": "slow"}}),
+        encoding="utf-8",
+    )
+
+    assert module.load_timings(["missing.xml", str(json_path)]) == {
+        "test/test_a.py": 1.5
+    }
+
+
+def test_filesystem_estimate_helpers_handle_missing_paths(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+
+    assert module._test_file_signature("test/missing.py") is None
+    assert module._test_file_signature("test") is None
+    assert module._default_estimate("test/missing.py") == 1.0
+
+
+def test_score_test_covers_special_surfaces() -> None:
+    module = _load_module()
+    cases = [
+        ("test/test_about.py", ["src/agilab/main_page.py"], "about page surface"),
+        (
+            "test/test_fleet.py",
+            ["src/agilab/apps-pages/fleet/page.py"],
+            "apps-page match: fleet",
+        ),
+        ("test/test_docs_sync.py", ["docs/source/index.rst"], "docs surface"),
+        (
+            "test/test_coverage_workflow.py",
+            [".github/workflows/coverage.yml"],
+            "workflow surface",
+        ),
+        ("test/test_coverage_badges.py", ["badges/coverage-agilab.svg"], "coverage/badge surface"),
+        (
+            "src/agilab/core/agi-env/test/test_env.py",
+            ["src/agilab/core/agi-env/src/agi_env/agi_env.py"],
+            "agi-env core surface",
+        ),
+        (
+            "src/agilab/core/test/test_runtime.py",
+            ["src/agilab/core/agi-node/src/agi_node/runtime.py"],
+            "shared core surface",
+        ),
+    ]
+
+    for path, changed_files, expected_reason in cases:
+        _score, reasons = module._score_test(path, changed_files, set())
+        assert expected_reason in reasons
+
+
+def test_prune_to_budget_keeps_required_when_required_already_exceeds_budget() -> None:
+    module = _load_module()
+    required = module.TestCandidate(
+        "test/test_required.py",
+        score=100.0,
+        estimated_seconds=5.0,
+        reasons=("required",),
+        required=True,
+    )
+    optional = module.TestCandidate(
+        "test/test_optional.py",
+        score=1.0,
+        estimated_seconds=1.0,
+        reasons=("optional",),
+    )
+
+    assert module._prune_to_budget([required, optional], budget_seconds=3.0) == [
+        required,
+        optional,
+    ]
+
+
 def test_load_timings_accepts_json_and_junit(tmp_path: Path) -> None:
     module = _load_module()
     json_path = tmp_path / "timings.json"
@@ -441,6 +627,76 @@ def test_main_json_output_for_explicit_files(capsys, tmp_path: Path) -> None:
         "run",
         "pytest",
     ]
+
+
+def test_render_human_includes_selected_tests_and_empty_message() -> None:
+    module = _load_module()
+    result = module.SelectionResult(
+        files=("src/agilab/pipeline_ai.py",),
+        selected_tests=("test/test_pipeline_ai.py",),
+        required_tests=(),
+        estimated_seconds=1.25,
+        score=42.0,
+        budget_seconds=5.0,
+        command=("pytest", "test/test_pipeline_ai.py"),
+        reasons={"test/test_pipeline_ai.py": ("token overlap",)},
+    )
+
+    rendered = module._render_human(result)
+    assert "Changed files:" in rendered
+    assert "- test/test_pipeline_ai.py (token overlap)" in rendered
+    assert "pytest test/test_pipeline_ai.py" in rendered
+
+    empty = module.SelectionResult(
+        files=(),
+        selected_tests=(),
+        required_tests=(),
+        estimated_seconds=0.0,
+        score=0.0,
+        budget_seconds=5.0,
+        command=(),
+        reasons={},
+    )
+    assert "No matching regression tests found." in module._render_human(empty)
+
+
+def test_main_human_output_and_run_return_code(capsys, monkeypatch) -> None:
+    module = _load_module()
+    result = module.SelectionResult(
+        files=("src/agilab/pipeline_ai.py",),
+        selected_tests=("test/test_pipeline_ai.py",),
+        required_tests=(),
+        estimated_seconds=1.25,
+        score=42.0,
+        budget_seconds=5.0,
+        command=("pytest", "test/test_pipeline_ai.py"),
+        reasons={"test/test_pipeline_ai.py": ("token overlap",)},
+    )
+    monkeypatch.setattr(module, "load_timings", lambda _paths: {})
+    monkeypatch.setattr(module, "build_selection", lambda *_args, **_kwargs: result)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=7),
+    )
+
+    assert module.main(["--files", "src/agilab/pipeline_ai.py"]) == 0
+    assert "GA regression selection: 1 test file(s)" in capsys.readouterr().out
+    assert module.main(["--files", "src/agilab/pipeline_ai.py", "--run"]) == 7
+
+
+def test_main_reports_collect_changed_files_errors(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "collect_changed_files",
+        lambda _args: (_ for _ in ()).throw(RuntimeError("git unavailable")),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        module.main([])
+
+    assert exc_info.value.code == 2
 
 
 def test_empty_selection_has_no_broad_pytest_command(capsys, monkeypatch) -> None:

@@ -94,7 +94,13 @@ def _failure_detail(record: Mapping[str, Any]) -> str:
     return str(result.get("status") or record.get("status") or "failed")
 
 
-def build_report(*, progress_logs: Sequence[Path], slow_page_seconds: float) -> dict[str, Any]:
+def build_report(
+    *,
+    progress_logs: Sequence[Path],
+    slow_page_seconds: float,
+    max_total_seconds: float = 0.0,
+    max_mean_page_seconds: float = 0.0,
+) -> dict[str, Any]:
     trends: dict[tuple[str, str], PageTrend] = {}
     parse_errors: list[dict[str, str]] = []
     event_count = 0
@@ -129,6 +135,21 @@ def build_report(*, progress_logs: Sequence[Path], slow_page_seconds: float) -> 
     flaky = [item for item in page_reports if item["flaky"]]
     failed = [item for item in page_reports if item["failed"]]
     slow = [item for item in page_reports if item["max_duration_seconds"] > slow_page_seconds]
+    total_duration = sum(float(item["mean_duration_seconds"]) * int(item["runs"]) for item in page_reports)
+    mean_page_duration = total_duration / max(1, sum(int(item["runs"]) for item in page_reports))
+    pages_over_mean_budget = [
+        item
+        for item in page_reports
+        if max_mean_page_seconds > 0 and float(item["mean_duration_seconds"]) > max_mean_page_seconds
+    ]
+    budget = {
+        "total_duration_seconds": total_duration,
+        "mean_page_duration_seconds": mean_page_duration,
+        "max_total_seconds": max_total_seconds,
+        "max_mean_page_seconds": max_mean_page_seconds,
+        "within_total_budget": True if max_total_seconds <= 0 else total_duration <= max_total_seconds,
+        "pages_over_mean_budget": pages_over_mean_budget,
+    }
     return {
         "schema": SCHEMA,
         "success": not parse_errors,
@@ -140,7 +161,11 @@ def build_report(*, progress_logs: Sequence[Path], slow_page_seconds: float) -> 
             "flaky_page_count": len(flaky),
             "slow_page_count": len(slow),
             "parse_error_count": len(parse_errors),
+            "total_duration_seconds": total_duration,
+            "mean_page_duration_seconds": mean_page_duration,
+            "budget_violation_count": int(not budget["within_total_budget"]) + len(pages_over_mean_budget),
         },
+        "budget": budget,
         "failed_pages": failed,
         "flaky_pages": flaky,
         "slow_pages": slow,
@@ -156,9 +181,18 @@ def render_human(report: Mapping[str, Any]) -> str:
         f"verdict: {'PASS' if report.get('success') else 'FAIL'}",
         (
             f"pages={summary.get('page_count', 0)} failed={summary.get('failed_page_count', 0)} "
-            f"flaky={summary.get('flaky_page_count', 0)} slow={summary.get('slow_page_count', 0)}"
+            f"flaky={summary.get('flaky_page_count', 0)} slow={summary.get('slow_page_count', 0)} "
+            f"duration={float(summary.get('total_duration_seconds', 0.0)):.2f}s"
         ),
     ]
+    budget = report.get("budget", {})
+    if budget and (float(budget.get("max_total_seconds") or 0.0) > 0 or float(budget.get("max_mean_page_seconds") or 0.0) > 0):
+        lines.append(
+            "budget: "
+            f"total<={float(budget.get('max_total_seconds') or 0.0):.2f}s "
+            f"within_total={'yes' if budget.get('within_total_budget') else 'no'} "
+            f"mean_page={float(budget.get('mean_page_duration_seconds') or 0.0):.2f}s"
+        )
     for item in report.get("flaky_pages", [])[:10]:
         lines.append(f"- flaky: {item.get('app')}/{item.get('page')} passed={item.get('passed')} failed={item.get('failed')}")
     for item in report.get("failed_pages", [])[:10]:
@@ -171,13 +205,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--progress-log", action="append", type=Path, default=[])
     parser.add_argument("--glob", action="append", default=["test-results/**/*.ndjson"])
     parser.add_argument("--slow-page-seconds", type=float, default=120.0)
+    parser.add_argument("--max-total-seconds", type=float, default=0.0, help="Report a budget warning when total recorded page time exceeds this value. Use 0 to disable.")
+    parser.add_argument("--max-mean-page-seconds", type=float, default=0.0, help="Report pages whose mean duration exceeds this value. Use 0 to disable.")
     parser.add_argument("--strict", action="store_true", help="Fail when failed or flaky pages are found.")
+    parser.add_argument("--strict-budget", action="store_true", help="Fail when runtime budget limits are exceeded.")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(list(argv) if argv is not None else None)
     paths = [path.resolve(strict=False) for path in args.progress_log if path.exists()]
     paths.extend(path for path in discover_progress_logs(args.glob) if path not in paths)
-    report = build_report(progress_logs=paths, slow_page_seconds=args.slow_page_seconds)
+    report = build_report(
+        progress_logs=paths,
+        slow_page_seconds=args.slow_page_seconds,
+        max_total_seconds=args.max_total_seconds,
+        max_mean_page_seconds=args.max_mean_page_seconds,
+    )
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -186,6 +228,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     summary = report["summary"]
     if args.strict and (summary["failed_page_count"] or summary["flaky_page_count"]):
+        return 1
+    if args.strict_budget and summary["budget_violation_count"]:
         return 1
     return 0
 

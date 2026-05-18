@@ -2300,8 +2300,53 @@ def _write_failure_bundle(
     return bundle_dir
 
 
-def _new_robot_context(browser: Any, *, viewport_width: int, viewport_height: int) -> Any:
-    return browser.new_context(viewport={"width": viewport_width, "height": viewport_height})
+def _context_artifact_label(value: str) -> str:
+    return _safe_evidence_name(value or "context")
+
+
+def _new_robot_context(
+    browser: Any,
+    *,
+    viewport_width: int,
+    viewport_height: int,
+    artifact_label: str = "",
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
+) -> Any:
+    label = _context_artifact_label(artifact_label)
+    context_kwargs: dict[str, Any] = {
+        "viewport": {"width": viewport_width, "height": viewport_height}
+    }
+    if har_dir is not None:
+        har_dir.mkdir(parents=True, exist_ok=True)
+        context_kwargs["record_har_path"] = str(har_dir / f"{label}.har")
+    if video_dir is not None:
+        video_target = video_dir / label
+        video_target.mkdir(parents=True, exist_ok=True)
+        context_kwargs["record_video_dir"] = str(video_target)
+    context = browser.new_context(**context_kwargs)
+    if trace_dir is not None:
+        try:
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        except Exception:
+            logger.debug("Unable to start Playwright trace capture", exc_info=True)
+    return context
+
+
+def _close_robot_context(
+    context: Any, *, artifact_label: str = "", trace_dir: Path | None = None
+) -> None:
+    if trace_dir is not None:
+        try:
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            context.tracing.stop(
+                path=str(trace_dir / f"{_context_artifact_label(artifact_label)}.zip")
+            )
+        except Exception:
+            logger.debug("Unable to stop Playwright trace capture", exc_info=True)
+    context.close()
 
 
 def _rgb_brightness(value: str) -> float | None:
@@ -5406,6 +5451,9 @@ def sweep_direct_apps_page(
     visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
     command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
@@ -5477,7 +5525,16 @@ def sweep_direct_apps_page(
         _, _, sync_playwright = web_robot._load_playwright()
         with sync_playwright() as playwright:
             browser = getattr(playwright, browser_name).launch(headless=headless)
-            context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+            artifact_label = f"{app_name}-{display}"
+            context = _new_robot_context(
+                browser,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                artifact_label=artifact_label,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
+            )
             try:
                 page = context.new_page()
                 browser_issues = _attach_browser_issue_capture(page)
@@ -5528,7 +5585,7 @@ def sweep_direct_apps_page(
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                     return result
             finally:
-                context.close()
+                _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                 browser.close()
 
 
@@ -5571,6 +5628,9 @@ def sweep_app(
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
     command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
@@ -5690,18 +5750,36 @@ def sweep_app(
                                     continue
                                 if progress is not None:
                                     progress.emit("page_start", app=app_name, page=display)
-                                context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                                artifact_label = f"{app_name}-{display}"
+                                context = _new_robot_context(
+                                    browser,
+                                    viewport_width=viewport_width,
+                                    viewport_height=viewport_height,
+                                    artifact_label=artifact_label,
+                                    trace_dir=trace_dir,
+                                    har_dir=har_dir,
+                                    video_dir=video_dir,
+                                )
                                 try:
                                     page = context.new_page()
                                     browser_issues = _attach_browser_issue_capture(page)
                                     result = run_page(page_name, page, browser_issues)
                                 finally:
-                                    context.close()
+                                    _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                                 assert result is not None
                                 results.append(result)
                                 _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                         else:
-                            context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                            artifact_label = f"{app_name}-shared-top-level"
+                            context = _new_robot_context(
+                                browser,
+                                viewport_width=viewport_width,
+                                viewport_height=viewport_height,
+                                artifact_label=artifact_label,
+                                trace_dir=trace_dir,
+                                har_dir=har_dir,
+                                video_dir=video_dir,
+                            )
                             try:
                                 page = context.new_page()
                                 browser_issues = _attach_browser_issue_capture(page)
@@ -5724,7 +5802,7 @@ def sweep_app(
                                     results.append(result)
                                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                             finally:
-                                context.close()
+                                _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                 finally:
                     browser.close()
         for route in apps_pages:
@@ -5761,6 +5839,9 @@ def sweep_app(
                     visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
                     progress_log=progress_log,
+                    trace_dir=trace_dir,
+                    har_dir=har_dir,
+                    video_dir=video_dir,
                     command_argv=command_argv,
                     max_first_render_seconds=max_first_render_seconds,
                     max_widgets_ready_seconds=max_widgets_ready_seconds,
@@ -5813,6 +5894,9 @@ def sweep_remote_app(
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
     command_argv: Sequence[str] | None = None,
     max_first_render_seconds: float = 0.0,
     max_widgets_ready_seconds: float = 0.0,
@@ -5900,7 +5984,16 @@ def sweep_remote_app(
                     shared_page: Any | None = None
                     shared_browser_issues: list[dict[str, str]] | None = None
                 else:
-                    context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                    shared_artifact_label = f"{app_name}-remote-shared"
+                    context = _new_robot_context(
+                        browser,
+                        viewport_width=viewport_width,
+                        viewport_height=viewport_height,
+                        artifact_label=shared_artifact_label,
+                        trace_dir=trace_dir,
+                        har_dir=har_dir,
+                        video_dir=video_dir,
+                    )
                     shared_page = context.new_page()
                     shared_browser_issues = _attach_browser_issue_capture(shared_page)
                 for page_name in pages:
@@ -5918,13 +6011,22 @@ def sweep_remote_app(
                     if progress is not None:
                         progress.emit("page_start", app=app_name, page=display)
                     if fresh_browser_context_per_page:
-                        context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                        artifact_label = f"{app_name}-{display}"
+                        context = _new_robot_context(
+                            browser,
+                            viewport_width=viewport_width,
+                            viewport_height=viewport_height,
+                            artifact_label=artifact_label,
+                            trace_dir=trace_dir,
+                            har_dir=har_dir,
+                            video_dir=video_dir,
+                        )
                         try:
                             page = context.new_page()
                             browser_issues = _attach_browser_issue_capture(page)
                             result = run_top_level_page(page_name, page, browser_issues)
                         finally:
-                            context.close()
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                     else:
                         assert shared_page is not None and shared_browser_issues is not None
                         result = run_top_level_page(page_name, shared_page, shared_browser_issues)
@@ -5945,12 +6047,21 @@ def sweep_remote_app(
                     if progress is not None:
                         progress.emit("page_start", app=app_name, page=display)
                     if fresh_browser_context_per_page:
-                        context = _new_robot_context(browser, viewport_width=viewport_width, viewport_height=viewport_height)
+                        artifact_label = f"{app_name}-{display}"
+                        context = _new_robot_context(
+                            browser,
+                            viewport_width=viewport_width,
+                            viewport_height=viewport_height,
+                            artifact_label=artifact_label,
+                            trace_dir=trace_dir,
+                            har_dir=har_dir,
+                            video_dir=video_dir,
+                        )
                         try:
                             page = context.new_page()
                             browser_issues = _attach_browser_issue_capture(page)
                         except Exception:
-                            context.close()
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                             raise
                     else:
                         assert shared_page is not None and shared_browser_issues is not None
@@ -6001,11 +6112,11 @@ def sweep_remote_app(
                         )
                     finally:
                         if fresh_browser_context_per_page:
-                            context.close()
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                 if not fresh_browser_context_per_page:
-                    context.close()
+                    _close_robot_context(context, artifact_label=shared_artifact_label, trace_dir=trace_dir)
         finally:
             browser.close()
     return results
@@ -6120,6 +6231,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
     parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
+    parser.add_argument("--trace-dir", help="Optional directory for Playwright trace ZIP files, named by app/page context.")
+    parser.add_argument("--har-dir", help="Optional directory for Playwright HAR files, named by app/page context.")
+    parser.add_argument("--video-dir", help="Optional directory for Playwright video recordings, grouped by app/page context.")
     parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
     parser.add_argument("--max-widgets-ready-seconds", type=float, default=0.0, help="Fail a page when widget readiness after render exceeds this budget. Use 0 to disable.")
     parser.add_argument("--max-action-settle-seconds", type=float, default=0.0, help="Fail a clicked action when its UI settle time exceeds this budget. Use 0 to disable.")
@@ -6195,6 +6309,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
     screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
     failure_bundle_dir = Path(args.failure_bundle_dir).expanduser().resolve() if args.failure_bundle_dir else None
+    trace_dir = Path(args.trace_dir).expanduser().resolve() if args.trace_dir else None
+    har_dir = Path(args.har_dir).expanduser().resolve() if args.har_dir else None
+    video_dir = Path(args.video_dir).expanduser().resolve() if args.video_dir else None
     progress_log = Path(args.progress_log).expanduser().resolve() if args.progress_log else None
     resume_progress_log = Path(args.resume_from_progress).expanduser().resolve() if args.resume_from_progress else None
     json_output = Path(args.json_output).expanduser().resolve() if args.json_output else None
@@ -6250,6 +6367,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 success_screenshot=args.success_screenshot,
                 failure_bundle_dir=failure_bundle_dir,
                 progress_log=progress_log,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
                 command_argv=command_argv,
                 max_first_render_seconds=args.max_first_render_seconds,
                 max_widgets_ready_seconds=args.max_widgets_ready_seconds,
@@ -6298,6 +6418,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 success_screenshot=args.success_screenshot,
                 failure_bundle_dir=failure_bundle_dir,
                 progress_log=progress_log,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
                 command_argv=command_argv,
                 max_first_render_seconds=args.max_first_render_seconds,
                 max_widgets_ready_seconds=args.max_widgets_ready_seconds,

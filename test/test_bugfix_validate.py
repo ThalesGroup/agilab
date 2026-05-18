@@ -287,6 +287,30 @@ def test_no_result_cache_bypasses_cached_success(tmp_path: Path, monkeypatch) ->
     assert subprocess_calls == [(selection.command, module.REPO_ROOT, False)]
 
 
+def test_result_cache_eviction_uses_stored_timestamp(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    selection = _selection(module, files)
+    cache_path = tmp_path / "bugfix-cache.json"
+    module._write_result_cache(
+        cache_path,
+        {
+            "schema": module.RESULT_CACHE_SCHEMA,
+            "entries": {
+                "newer": {"status": "passed", "stored_at": 20.0},
+                "older": {"status": "passed", "stored_at": 10.0},
+            },
+        },
+    )
+    monkeypatch.setattr(module, "RESULT_CACHE_MAX_ENTRIES", 2)
+    monkeypatch.setattr(module.time, "time", lambda: 30.0)
+
+    module._record_cached_success(cache_path, "fresh", files, selection)
+
+    entries = module._load_result_cache(cache_path)["entries"]
+    assert sorted(entries) == ["fresh", "newer"]
+
+
 def test_build_selection_for_args_passes_impact_report(monkeypatch) -> None:
     module = _load_module()
     files = ["src/agilab/demo.py"]

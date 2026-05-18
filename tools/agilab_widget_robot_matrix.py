@@ -71,6 +71,9 @@ class MatrixOptions:
     active_app: str | None = None
     remote_app_root: str | None = None
     failure_bundle_dir: Path | None = None
+    trace_dir: Path | None = None
+    har_dir: Path | None = None
+    video_dir: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -513,6 +516,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--screenshot-dir", type=Path, help="Directory for failure screenshots and manifest files.")
     parser.add_argument("--failure-bundle-dir", type=Path, help="Directory for failure evidence bundles.")
+    parser.add_argument("--trace-dir", type=Path, help="Directory for Playwright trace ZIP artifacts.")
+    parser.add_argument("--har-dir", type=Path, help="Directory for Playwright HAR artifacts.")
+    parser.add_argument("--video-dir", type=Path, help="Directory for Playwright video artifacts.")
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--widget-timeout", type=float, default=3.0)
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
@@ -557,6 +563,9 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         url=args.url,
         active_app=args.active_app,
         remote_app_root=args.remote_app_root,
+        trace_dir=args.trace_dir,
+        har_dir=args.har_dir,
+        video_dir=args.video_dir,
     )
 
 
@@ -664,6 +673,12 @@ def build_robot_command(
         argv.extend(["--screenshot-dir", str(options.screenshot_dir / scenario.name)])
     if options.failure_bundle_dir is not None:
         argv.extend(["--failure-bundle-dir", str(options.failure_bundle_dir / scenario.name)])
+    if options.trace_dir is not None:
+        argv.extend(["--trace-dir", str(options.trace_dir / scenario.name)])
+    if options.har_dir is not None:
+        argv.extend(["--har-dir", str(options.har_dir / scenario.name)])
+    if options.video_dir is not None:
+        argv.extend(["--video-dir", str(options.video_dir / scenario.name)])
     return argv, summary_path, progress_path
 
 
