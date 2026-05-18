@@ -86,6 +86,15 @@ class SelectionResult:
         return payload
 
 
+@dataclass(frozen=True)
+class ValidationContext:
+    files: tuple[str, ...]
+    impact_report: impact_validate.ImpactReport
+    timings: dict[str, float]
+    test_files: tuple[str, ...]
+    default_estimates: dict[str, float]
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -278,6 +287,15 @@ def _load_test_index_cache(path: Path) -> dict[str, object]:
     }
 
 
+def _empty_test_index_cache() -> dict[str, object]:
+    return {
+        "schema": TEST_INDEX_CACHE_SCHEMA,
+        "entries": {},
+        "test_files": {},
+        "timings": {},
+    }
+
+
 def _write_test_index_cache(path: Path, state: dict[str, object]) -> None:
     entries = state.get("entries")
     test_files = state.get("test_files")
@@ -315,47 +333,62 @@ def _cached_test_files(
     return list(files)
 
 
+def _discover_test_files_from_state(
+    test_roots: Sequence[str],
+    cache_state: dict[str, object],
+    *,
+    use_cache: bool,
+) -> tuple[list[str], bool]:
+    roots = _normalized_test_roots(test_roots)
+    try:
+        tests = _discover_test_files_with_git(roots)
+    except RuntimeError:
+        cached = _cached_test_files(cache_state, roots) if use_cache else None
+        if cached is not None:
+            return cached, False
+        return _discover_test_files_with_rglob(roots), False
+
+    if not use_cache:
+        return tests, False
+    next_test_files = {"roots": list(roots), "files": tests}
+    changed = cache_state.get("test_files") != next_test_files
+    if changed:
+        cache_state["test_files"] = next_test_files
+    return tests, changed
+
+
 def _discover_test_files(
     test_roots: Sequence[str] = DEFAULT_TEST_ROOTS,
     *,
     cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
     use_cache: bool = True,
 ) -> list[str]:
-    roots = _normalized_test_roots(test_roots)
     cache_state = (
         _load_test_index_cache(cache_path)
         if use_cache
-        else {"schema": TEST_INDEX_CACHE_SCHEMA, "entries": {}, "test_files": {}}
+        else _empty_test_index_cache()
     )
-    try:
-        tests = _discover_test_files_with_git(roots)
-    except RuntimeError:
-        cached = _cached_test_files(cache_state, roots) if use_cache else None
-        if cached is not None:
-            return cached
-        return _discover_test_files_with_rglob(roots)
-
-    if use_cache:
-        cache_state["test_files"] = {"roots": list(roots), "files": tests}
+    tests, changed = _discover_test_files_from_state(
+        test_roots, cache_state, use_cache=use_cache
+    )
+    if use_cache and changed:
         _write_test_index_cache(cache_path, cache_state)
     return tests
 
 
-def _cached_default_estimates(
+def _cached_default_estimates_from_state(
     test_paths: Sequence[str],
+    cache_state: dict[str, object],
     *,
-    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
-    use_cache: bool = True,
-) -> dict[str, float]:
+    use_cache: bool,
+) -> tuple[dict[str, float], bool]:
     if not use_cache:
-        return {path: _default_estimate(path) for path in test_paths}
+        return {path: _default_estimate(path) for path in test_paths}, False
 
-    cache = _load_test_index_cache(cache_path)
-    raw_entries = cache.get("entries")
+    raw_entries = cache_state.get("entries")
     cached_entries = raw_entries if isinstance(raw_entries, dict) else {}
     next_entries: dict[str, dict[str, object]] = {}
     estimates: dict[str, float] = {}
-    changed = False
 
     for test_path in test_paths:
         signature = _test_file_signature(test_path)
@@ -376,19 +409,31 @@ def _cached_default_estimates(
 
         estimate = _default_estimate(test_path)
         estimates[test_path] = estimate
-        changed = True
         if signature is not None:
             next_entries[test_path] = {
                 "signature": signature,
                 "estimated_seconds": estimate,
             }
 
-    if set(next_entries) != set(cached_entries):
-        changed = True
-    elif any(cached_entries.get(path) != entry for path, entry in next_entries.items()):
-        changed = True
+    changed = set(next_entries) != set(cached_entries) or any(
+        cached_entries.get(path) != entry for path, entry in next_entries.items()
+    )
     if changed:
-        cache["entries"] = next_entries
+        cache_state["entries"] = next_entries
+    return estimates, changed
+
+
+def _cached_default_estimates(
+    test_paths: Sequence[str],
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> dict[str, float]:
+    cache = _load_test_index_cache(cache_path) if use_cache else _empty_test_index_cache()
+    estimates, changed = _cached_default_estimates_from_state(
+        test_paths, cache, use_cache=use_cache
+    )
+    if use_cache and changed:
         _write_test_index_cache(cache_path, cache)
     return estimates
 
@@ -524,18 +569,17 @@ def _load_timing_file_cached(
     return loaded
 
 
-def load_timings(
+def _load_timings_from_state(
     paths: Sequence[str] = (),
     *,
-    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    cache_state: dict[str, object],
     use_cache: bool = True,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], bool]:
     timing_paths: list[Path] = []
     if paths:
         timing_paths.extend(Path(path) for path in paths)
     else:
         timing_paths.extend(sorted((REPO_ROOT / "test-results").glob("junit-*.xml")))
-    cache_state = _load_test_index_cache(cache_path) if use_cache else {}
     next_timings_cache: dict[str, object] = {}
     timings: dict[str, float] = {}
     for raw_path in timing_paths:
@@ -553,8 +597,27 @@ def load_timings(
         )
         for test_path, seconds in loaded.items():
             timings[test_path] = timings.get(test_path, 0.0) + seconds
-    if use_cache and next_timings_cache != cache_state.get("timings"):
+    changed = bool(use_cache and next_timings_cache != cache_state.get("timings"))
+    if changed:
         cache_state["timings"] = next_timings_cache
+    return timings, changed
+
+
+def load_timings(
+    paths: Sequence[str] = (),
+    *,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+) -> dict[str, float]:
+    cache_state = (
+        _load_test_index_cache(cache_path)
+        if use_cache
+        else _empty_test_index_cache()
+    )
+    timings, changed = _load_timings_from_state(
+        paths, cache_state=cache_state, use_cache=use_cache
+    )
+    if use_cache and changed:
         _write_test_index_cache(cache_path, cache_state)
     return timings
 
@@ -643,6 +706,65 @@ def _score_test(
     return score, reasons
 
 
+def build_validation_context(
+    files: Sequence[str],
+    *,
+    timing_paths: Sequence[str] = (),
+    timings: dict[str, float] | None = None,
+    cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
+    use_cache: bool = True,
+    impact_report: impact_validate.ImpactReport | None = None,
+    impact_cache_path: Path = impact_validate.DEFAULT_IMPACT_CACHE_PATH,
+) -> ValidationContext:
+    normalized_files = tuple(impact_validate._normalize_paths(files))
+    impact = impact_report or impact_validate.analyze_paths(
+        list(normalized_files),
+        cache_path=impact_cache_path,
+        use_cache=use_cache,
+    )
+    cache_state = (
+        _load_test_index_cache(cache_path)
+        if use_cache
+        else _empty_test_index_cache()
+    )
+    cache_changed = False
+
+    if timings is None:
+        timing_map, changed = _load_timings_from_state(
+            timing_paths,
+            cache_state=cache_state,
+            use_cache=use_cache,
+        )
+        cache_changed = cache_changed or changed
+    else:
+        timing_map = dict(timings)
+
+    test_files, changed = _discover_test_files_from_state(
+        DEFAULT_TEST_ROOTS,
+        cache_state,
+        use_cache=use_cache,
+    )
+    cache_changed = cache_changed or changed
+
+    default_estimates, changed = _cached_default_estimates_from_state(
+        test_files,
+        cache_state,
+        use_cache=use_cache,
+    )
+    cache_changed = cache_changed or changed
+
+    if use_cache and cache_changed:
+        _write_test_index_cache(cache_path, cache_state)
+
+    return ValidationContext(
+        files=normalized_files,
+        impact_report=impact,
+        timings=timing_map,
+        test_files=tuple(test_files),
+        default_estimates=default_estimates,
+    )
+
+
 def build_candidates(
     changed_files: Sequence[str],
     timings: dict[str, float],
@@ -650,14 +772,21 @@ def build_candidates(
     cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
     use_cache: bool = True,
     impact_report: impact_validate.ImpactReport | None = None,
+    context: ValidationContext | None = None,
 ) -> list[TestCandidate]:
-    impact = impact_report or impact_validate.analyze_paths(list(changed_files))
+    if context is not None:
+        changed_files = context.files
+        impact = context.impact_report
+        test_files = list(context.test_files)
+        default_estimates = context.default_estimates
+    else:
+        impact = impact_report or impact_validate.analyze_paths(list(changed_files))
+        test_files = _discover_test_files(cache_path=cache_path, use_cache=use_cache)
+        default_estimates = _cached_default_estimates(
+            test_files, cache_path=cache_path, use_cache=use_cache
+        )
     guessed_tests = set(impact.guessed_tests)
     candidates: list[TestCandidate] = []
-    test_files = _discover_test_files(cache_path=cache_path, use_cache=use_cache)
-    default_estimates = _cached_default_estimates(
-        test_files, cache_path=cache_path, use_cache=use_cache
-    )
     changed_tokens = (
         frozenset().union(*(_tokens(changed) for changed in changed_files))
         if changed_files
@@ -886,14 +1015,17 @@ def build_selection(
     cache_path: Path = DEFAULT_TEST_INDEX_CACHE_PATH,
     use_cache: bool = True,
     impact_report: impact_validate.ImpactReport | None = None,
+    context: ValidationContext | None = None,
 ) -> SelectionResult:
-    timing_map = timings or {}
+    selection_files = context.files if context is not None else tuple(files)
+    timing_map = context.timings if context is not None else (timings or {})
     candidates = build_candidates(
-        files,
+        selection_files,
         timing_map,
         cache_path=cache_path,
         use_cache=use_cache,
         impact_report=impact_report,
+        context=context,
     )
     selected = select_tests(
         candidates,
@@ -918,7 +1050,7 @@ def build_selection(
             *selected_tests,
         )
     return SelectionResult(
-        files=tuple(files),
+        files=tuple(selection_files),
         selected_tests=selected_tests,
         required_tests=tuple(candidate.path for candidate in selected if candidate.required),
         estimated_seconds=round(sum(candidate.estimated_seconds for candidate in selected), 3),
@@ -957,21 +1089,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as exc:
         parser.exit(2, f"ga_regression_selector: {exc}\n")
 
-    timings = load_timings(
-        args.timings,
-        cache_path=Path(args.cache_path),
-        use_cache=not args.no_cache,
+    cache_path = Path(args.cache_path)
+    use_cache = not args.no_cache
+    context = build_validation_context(
+        files,
+        timing_paths=args.timings,
+        cache_path=cache_path,
+        use_cache=use_cache,
     )
     result = build_selection(
-        files,
-        timings=timings,
+        context.files,
+        context=context,
         budget_seconds=args.budget_seconds,
         population=args.population,
         generations=args.generations,
         seed=args.seed,
         max_candidates=args.max_candidates,
-        cache_path=Path(args.cache_path),
-        use_cache=not args.no_cache,
+        cache_path=cache_path,
+        use_cache=use_cache,
     )
     if args.json:
         print(json.dumps(result.to_dict(), indent=2), flush=True)

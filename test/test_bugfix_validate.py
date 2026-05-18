@@ -712,7 +712,24 @@ def test_build_selection_for_args_passes_impact_report(monkeypatch) -> None:
         no_cache=True,
     )
 
-    monkeypatch.setattr(module.ga_regression_selector, "load_timings", lambda _paths: {})
+    context = module.ga_regression_selector.ValidationContext(
+        files=tuple(files),
+        impact_report=report,
+        timings={},
+        test_files=("test/test_demo.py",),
+        default_estimates={"test/test_demo.py": 1.0},
+    )
+    captured_context = {}
+
+    def _build_validation_context(input_files, **kwargs):
+        captured_context.update({"files": tuple(input_files), **kwargs})
+        return context
+
+    monkeypatch.setattr(
+        module.ga_regression_selector,
+        "build_validation_context",
+        _build_validation_context,
+    )
 
     def _build_selection(input_files, **kwargs):
         captured.update({"files": tuple(input_files), **kwargs})
@@ -722,7 +739,11 @@ def test_build_selection_for_args_passes_impact_report(monkeypatch) -> None:
 
     module.build_selection_for_args(files, args, impact_report=report)
 
+    assert captured_context["files"] == tuple(files)
+    assert captured_context["impact_report"] is report
+    assert captured_context["use_cache"] is False
     assert captured["files"] == tuple(files)
+    assert captured["context"] is context
     assert captured["impact_report"] is report
     assert captured["budget_seconds"] == 5.0
     assert captured["use_cache"] is False

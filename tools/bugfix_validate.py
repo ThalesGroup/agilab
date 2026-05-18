@@ -94,17 +94,25 @@ def build_selection_for_args(
     *,
     impact_report: impact_validate.ImpactReport,
 ) -> ga_regression_selector.SelectionResult:
-    timings = ga_regression_selector.load_timings(args.timings)
-    return ga_regression_selector.build_selection(
+    cache_path = Path(args.cache_path)
+    use_cache = not args.no_cache
+    context = ga_regression_selector.build_validation_context(
         files,
-        timings=timings,
+        timing_paths=args.timings,
+        cache_path=cache_path,
+        use_cache=use_cache,
+        impact_report=impact_report,
+    )
+    return ga_regression_selector.build_selection(
+        context.files,
+        context=context,
         budget_seconds=args.budget_seconds,
         population=args.population,
         generations=args.generations,
         seed=args.seed,
         max_candidates=args.max_candidates,
-        cache_path=Path(args.cache_path),
-        use_cache=not args.no_cache,
+        cache_path=cache_path,
+        use_cache=use_cache,
         impact_report=impact_report,
     )
 

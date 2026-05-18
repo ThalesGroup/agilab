@@ -229,6 +229,93 @@ def test_build_selection_reuses_precomputed_impact_report(monkeypatch) -> None:
     assert "test/test_pipeline_mistral.py" in result.selected_tests
 
 
+def test_build_validation_context_batches_selector_cache_io(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    files = ["src/agilab/pipeline_mistral.py"]
+    report = module.impact_validate.ImpactReport(
+        files=files,
+        overall_risk="low",
+        risk_zones=[],
+        push_gates=[],
+        artifact_actions=[],
+        required_validations=[],
+        guessed_tests=["test/test_pipeline_mistral.py"],
+    )
+    cache_path = tmp_path / "selector-cache.json"
+    timing_path = tmp_path / "timings.json"
+    timing_path.write_text("{}", encoding="utf-8")
+    loads = []
+    writes = []
+
+    monkeypatch.setattr(module, "_load_test_index_cache", lambda path: loads.append(path) or module._empty_test_index_cache())
+    monkeypatch.setattr(module, "_write_test_index_cache", lambda path, state: writes.append((path, state)))
+    monkeypatch.setattr(module, "_discover_test_files_with_git", lambda _roots: ["test/test_pipeline_mistral.py"])
+    monkeypatch.setattr(module, "_test_file_signature", lambda _path: {"size": 11, "mtime_ns": 22})
+    monkeypatch.setattr(module, "_default_estimate", lambda _path: 1.25)
+    monkeypatch.setattr(module, "_timing_file_signature", lambda _path: {"size": 33, "mtime_ns": 44})
+    monkeypatch.setattr(module, "_timing_cache_key", lambda _path: "timings.json")
+    monkeypatch.setattr(module, "_load_timing_file", lambda _path: {"test/test_pipeline_mistral.py": 0.5})
+
+    context = module.build_validation_context(
+        files,
+        timing_paths=[str(timing_path)],
+        cache_path=cache_path,
+        impact_report=report,
+    )
+
+    assert loads == [cache_path]
+    assert len(writes) == 1
+    assert context.files == tuple(files)
+    assert context.impact_report is report
+    assert context.test_files == ("test/test_pipeline_mistral.py",)
+    assert context.timings == {"test/test_pipeline_mistral.py": 0.5}
+    assert context.default_estimates == {"test/test_pipeline_mistral.py": 1.25}
+
+
+def test_build_selection_uses_validation_context_without_recomputing(
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    report = module.impact_validate.ImpactReport(
+        files=["src/agilab/pipeline_mistral.py"],
+        overall_risk="low",
+        risk_zones=[],
+        push_gates=[],
+        artifact_actions=[],
+        required_validations=[],
+        guessed_tests=["test/test_pipeline_mistral.py"],
+    )
+    context = module.ValidationContext(
+        files=("src/agilab/pipeline_mistral.py",),
+        impact_report=report,
+        timings={"test/test_pipeline_mistral.py": 0.5},
+        test_files=("test/test_pipeline_mistral.py",),
+        default_estimates={"test/test_pipeline_mistral.py": 9.0},
+    )
+    monkeypatch.setattr(
+        module.impact_validate,
+        "analyze_paths",
+        lambda _paths: (_ for _ in ()).throw(AssertionError("context should reuse impact")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_discover_test_files",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("context should reuse test files")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cached_default_estimates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("context should reuse estimates")),
+    )
+
+    result = module.build_selection(context.files, context=context)
+
+    assert result.selected_tests == ("test/test_pipeline_mistral.py",)
+    assert result.estimated_seconds == 0.5
+
+
 def test_git_lines_reports_stderr_on_failure(monkeypatch) -> None:
     module = _load_module()
 
@@ -724,7 +811,26 @@ def test_main_human_output_and_run_return_code(capsys, monkeypatch) -> None:
         command=("pytest", "test/test_pipeline_ai.py"),
         reasons={"test/test_pipeline_ai.py": ("token overlap",)},
     )
-    monkeypatch.setattr(module, "load_timings", lambda _paths, **_kwargs: {})
+    context = module.ValidationContext(
+        files=("src/agilab/pipeline_ai.py",),
+        impact_report=module.impact_validate.ImpactReport(
+            files=["src/agilab/pipeline_ai.py"],
+            overall_risk="low",
+            risk_zones=[],
+            push_gates=[],
+            artifact_actions=[],
+            required_validations=[],
+            guessed_tests=[],
+        ),
+        timings={},
+        test_files=("test/test_pipeline_ai.py",),
+        default_estimates={"test/test_pipeline_ai.py": 1.25},
+    )
+    monkeypatch.setattr(
+        module,
+        "build_validation_context",
+        lambda *_args, **_kwargs: context,
+    )
     monkeypatch.setattr(module, "build_selection", lambda *_args, **_kwargs: result)
     monkeypatch.setattr(
         module.subprocess,
