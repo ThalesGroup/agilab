@@ -54,7 +54,7 @@ def _is_excluded(path: Path) -> bool:
 
 
 def _relative(repo_root: Path, path: Path) -> str:
-    return str(path.resolve().relative_to(repo_root)).replace("\\", "/")
+    return str(path.resolve().relative_to(repo_root.resolve())).replace("\\", "/")
 
 
 def _read_text(path: Path) -> str:
@@ -110,14 +110,16 @@ def _file_record(
     kind: str,
     *,
     stat_result: os.stat_result | None = None,
+    content_hash: str | None = None,
 ) -> dict[str, Any]:
     stat_result = stat_result or path.stat()
+    content_hash = content_hash or _sha256(path)
     record: dict[str, Any] = {
         "path": _relative(repo_root, path),
         "kind": kind,
         "suffix": path.suffix,
         "size_bytes": stat_result.st_size,
-        "sha256": _sha256(path),
+        "sha256": content_hash,
     }
     if path.suffix == ".py":
         record.update(_python_outline(path))
@@ -188,15 +190,18 @@ def _record_signature(
     path: Path,
     kind: str,
     stat_result: os.stat_result | None = None,
+    content_hash: str | None = None,
 ) -> dict[str, Any]:
     stat_result = stat_result or path.stat()
+    content_hash = content_hash or _sha256(path)
     return {
-        "repo_root": str(repo_root),
+        "repo_root": str(repo_root.resolve()),
         "path": _relative(repo_root, path),
         "kind": kind,
         "suffix": path.suffix,
         "size": stat_result.st_size,
         "mtime_ns": stat_result.st_mtime_ns,
+        "sha256": content_hash,
     }
 
 
@@ -216,7 +221,7 @@ def _cached_record(cache_state: Mapping[str, Any], signature: Mapping[str, Any])
         or record.get("kind") != signature.get("kind")
         or record.get("suffix") != signature.get("suffix")
         or record.get("size_bytes") != signature.get("size")
-        or not isinstance(record.get("sha256"), str)
+        or record.get("sha256") != signature.get("sha256")
     ):
         return None
     return dict(record)
@@ -231,10 +236,11 @@ def _record_with_cache(
     updated_entries: dict[str, Any] | None,
 ) -> dict[str, Any]:
     stat_result = path.stat()
-    signature = _record_signature(repo_root, path, kind, stat_result)
+    content_hash = _sha256(path)
+    signature = _record_signature(repo_root, path, kind, stat_result, content_hash)
     record = _cached_record(cache_state or {}, signature)
     if record is None:
-        record = _file_record(repo_root, path, kind, stat_result=stat_result)
+        record = _file_record(repo_root, path, kind, stat_result=stat_result, content_hash=content_hash)
     if updated_entries is not None:
         updated_entries[str(signature["path"])] = {"signature": signature, "record": record}
     return record

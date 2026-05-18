@@ -265,10 +265,25 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
             "total_duration_seconds": 411.6,
             "within_target": True,
         },
+        trend_report={
+            "schema": ui_robot_evidence.TREND_REPORT_SCHEMA,
+            "success": True,
+            "summary": {
+                "page_count": 30,
+                "failed_page_count": 0,
+                "flaky_page_count": 0,
+                "slow_page_count": 0,
+                "parse_error_count": 0,
+                "budget_violation_count": 0,
+                "total_duration_seconds": 411.6,
+                "mean_page_duration_seconds": 13.72,
+            },
+        },
         artifact_checks={
             "required_files_present": True,
             "exit_code": "0",
             "progress_log_bytes": 3,
+            "trend_report_schema": ui_robot_evidence.TREND_REPORT_SCHEMA,
         },
         generated_at="2026-05-08T20:30:00Z",
     )
