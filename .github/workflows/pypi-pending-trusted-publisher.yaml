@@ -44,6 +44,7 @@ jobs:
       - name: Register pending trusted publisher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
           PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
           PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
           PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
@@ -60,5 +61,6 @@ jobs:
             --github-confirm-login-repository "$GITHUB_REPOSITORY" \
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
             --github-confirm-login-timeout 180 \
+            --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}" \
             --json \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
