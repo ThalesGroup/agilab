@@ -387,6 +387,92 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert "frame-ancestors *;" in command
 
 
+def test_source_bootstrap_stamp_invalidates_when_core_path_changes(tmp_path: Path):
+    module = _load_analysis_module()
+    project_root = tmp_path / "page_project"
+    (project_root / ".venv" / "bin").mkdir(parents=True)
+    (project_root / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (project_root / "pyproject.toml").write_text("[project]\nname='page-project'\n", encoding="utf-8")
+
+    first_core = tmp_path / "core" / "agi-env"
+    second_core = tmp_path / "other-core" / "agi-env"
+    first_core.mkdir(parents=True)
+    second_core.mkdir(parents=True)
+    (first_core / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    (second_core / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+
+    assert module._source_bootstrap_is_fresh(project_root, first_core) is False
+
+    module._write_source_bootstrap_stamp(project_root, first_core)
+
+    assert module._source_bootstrap_is_fresh(project_root, first_core) is True
+    assert module._source_bootstrap_is_fresh(project_root, second_core) is False
+
+
+def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    project_root = tmp_path / "page_project"
+    (project_root / ".venv" / "bin").mkdir(parents=True)
+    (project_root / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (project_root / "pyproject.toml").write_text("[project]\nname='page-project'\n", encoding="utf-8")
+    view_path = project_root / "src" / "view_demo.py"
+    view_path.parent.mkdir()
+    view_path.write_text("", encoding="utf-8")
+
+    core_root = tmp_path / "core" / "agi-env"
+    env_package = core_root / "src" / "agi_env"
+    env_package.mkdir(parents=True)
+    (core_root / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    module._write_page_sync_stamp(project_root)
+    module._write_source_bootstrap_stamp(project_root, core_root)
+
+    commands: list[tuple[str, str]] = []
+    port_checks = iter([False, True])
+
+    class _FakeProcess:
+        returncode = None
+
+        def wait(self):
+            return 0
+
+        def poll(self):
+            return None
+
+    fake_logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+    )
+    fake_env = SimpleNamespace(
+        envars={},
+        uv="uv --quiet",
+        is_source_env=True,
+        env_pck=env_package,
+        AGILAB_LOG_ABS=tmp_path,
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(session_state={"env": fake_env})
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
+
+    def _fake_exec_bg(_env, cmd: str, cwd: str, process_env=None):
+        commands.append((cmd, cwd))
+        return _FakeProcess()
+
+    monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
+
+    assert module._ensure_sidecar("view-key", view_path, 8765, "flight_project") is True
+
+    assert len(commands) == 1
+    command, cwd = commands[0]
+    assert cwd == str(project_root.resolve())
+    assert "streamlit run" in command
+    assert "sync" not in command
+    assert "ensurepip" not in command
+    assert "pip install" not in command
+
+
 def test_resolve_default_view_accepts_named_view(tmp_path: Path):
     module = _load_analysis_module()
     view_path = tmp_path / "view_maps_network.py"
