@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -13,6 +14,11 @@ from typing import Iterable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+IMPACT_CACHE_SCHEMA = "agilab-impact-validate-cache-v1"
+DEFAULT_IMPACT_CACHE_PATH = (
+    REPO_ROOT / ".pytest_cache" / "agilab" / "impact_validate.json"
+)
+IMPACT_REPORT_CACHE_MAX_ENTRIES = 256
 
 SHARED_CORE_PREFIXES = (
     "src/agilab/core/agi-env/",
@@ -56,6 +62,9 @@ TEST_GUESS_ROOTS = (
     "src/agilab/test",
     "src/agilab/core/test",
     "src/agilab/core/agi-env/test",
+)
+IMPACT_STATIC_INPUTS = (
+    "tools/impact_validate.py",
 )
 NON_GUI_ROOT_TESTS = {
     "test/conftest.py",
@@ -153,6 +162,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit machine-readable JSON instead of the human summary.",
     )
+    parser.add_argument(
+        "--cache-path",
+        default=str(DEFAULT_IMPACT_CACHE_PATH),
+        help="Path for cached test index metadata and impact reports.",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Bypass cached test index metadata and impact reports.",
+    )
     return parser
 
 
@@ -229,11 +248,15 @@ def _append_mapping_value(
         current.append(value)
 
 
+def _normalized_roots(roots: Sequence[str]) -> tuple[str, ...]:
+    return tuple(root.strip("/") for root in roots if root.strip("/"))
+
+
 def _build_test_index(
     repo: Path | None = None, roots: Sequence[str] = TEST_GUESS_ROOTS
 ) -> TestIndex:
     effective_repo = repo or REPO_ROOT
-    normalized_roots = tuple(root.strip("/") for root in roots if root.strip("/"))
+    normalized_roots = _normalized_roots(roots)
     exact_by_root: list[dict[str, tuple[str, ...]]] = []
     prefix_by_root: list[dict[str, tuple[str, ...]]] = []
     indexed_paths: set[str] = set()
@@ -270,6 +293,187 @@ def _build_test_index(
         prefix_by_root=tuple(prefix_by_root),
         paths=frozenset(indexed_paths),
     )
+
+
+def _empty_impact_cache() -> dict[str, object]:
+    return {"schema": IMPACT_CACHE_SCHEMA, "test_index": {}, "reports": {}}
+
+
+def _load_impact_cache(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _empty_impact_cache()
+    if not isinstance(data, dict) or data.get("schema") != IMPACT_CACHE_SCHEMA:
+        return _empty_impact_cache()
+    test_index = data.get("test_index")
+    reports = data.get("reports")
+    return {
+        "schema": IMPACT_CACHE_SCHEMA,
+        "test_index": test_index if isinstance(test_index, dict) else {},
+        "reports": reports if isinstance(reports, dict) else {},
+    }
+
+
+def _write_impact_cache(path: Path, state: dict[str, object]) -> None:
+    payload = {
+        "schema": IMPACT_CACHE_SCHEMA,
+        "test_index": (
+            state.get("test_index") if isinstance(state.get("test_index"), dict) else {}
+        ),
+        "reports": (
+            state.get("reports") if isinstance(state.get("reports"), dict) else {}
+        ),
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
+def _file_signature(repo: Path, rel_path: str) -> dict[str, object]:
+    path = repo / rel_path
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return {"path": rel_path, "state": "missing"}
+    if not path.is_file():
+        return {"path": rel_path, "state": "not-file"}
+    return {
+        "path": rel_path,
+        "state": "file",
+        "size": stat_result.st_size,
+        "mtime_ns": stat_result.st_mtime_ns,
+    }
+
+
+def _test_index_signature(
+    repo: Path | None = None, roots: Sequence[str] = TEST_GUESS_ROOTS
+) -> list[dict[str, object]]:
+    effective_repo = repo or REPO_ROOT
+    signature: list[dict[str, object]] = []
+    for root in _normalized_roots(roots):
+        root_path = effective_repo / root
+        if not root_path.exists():
+            signature.append({"path": root, "state": "missing-root"})
+            continue
+        for path in sorted(root_path.glob("test_*.py")):
+            if not path.is_file():
+                continue
+            signature.append(
+                _file_signature(
+                    effective_repo,
+                    path.relative_to(effective_repo).as_posix(),
+                )
+            )
+    return signature
+
+
+def _static_input_signature(repo: Path | None = None) -> list[dict[str, object]]:
+    effective_repo = repo or REPO_ROOT
+    return [_file_signature(effective_repo, path) for path in IMPACT_STATIC_INPUTS]
+
+
+def _test_index_to_payload(index: TestIndex) -> dict[str, object]:
+    return {
+        "roots": list(index.roots),
+        "exact_by_root": [
+            {key: list(values) for key, values in root.items()}
+            for root in index.exact_by_root
+        ],
+        "prefix_by_root": [
+            {key: list(values) for key, values in root.items()}
+            for root in index.prefix_by_root
+        ],
+        "paths": sorted(index.paths),
+    }
+
+
+def _string_tuple_mapping(value: object) -> dict[str, tuple[str, ...]] | None:
+    if not isinstance(value, dict):
+        return None
+    converted: dict[str, tuple[str, ...]] = {}
+    for key, raw_values in value.items():
+        if not isinstance(key, str) or not isinstance(raw_values, list):
+            return None
+        if not all(isinstance(item, str) for item in raw_values):
+            return None
+        converted[key] = tuple(raw_values)
+    return converted
+
+
+def _test_index_from_payload(payload: object) -> TestIndex | None:
+    if not isinstance(payload, dict):
+        return None
+    roots = payload.get("roots")
+    exact_by_root = payload.get("exact_by_root")
+    prefix_by_root = payload.get("prefix_by_root")
+    paths = payload.get("paths")
+    if (
+        not isinstance(roots, list)
+        or not isinstance(exact_by_root, list)
+        or not isinstance(prefix_by_root, list)
+        or not isinstance(paths, list)
+    ):
+        return None
+    if not all(isinstance(root, str) for root in roots):
+        return None
+    if len(exact_by_root) != len(roots) or len(prefix_by_root) != len(roots):
+        return None
+    exact_maps = [_string_tuple_mapping(item) for item in exact_by_root]
+    prefix_maps = [_string_tuple_mapping(item) for item in prefix_by_root]
+    if any(item is None for item in exact_maps) or any(
+        item is None for item in prefix_maps
+    ):
+        return None
+    if not all(isinstance(path, str) for path in paths):
+        return None
+    return TestIndex(
+        roots=tuple(roots),
+        exact_by_root=tuple(item for item in exact_maps if item is not None),
+        prefix_by_root=tuple(item for item in prefix_maps if item is not None),
+        paths=frozenset(paths),
+    )
+
+
+def _build_cached_test_index(
+    *,
+    cache_path: Path = DEFAULT_IMPACT_CACHE_PATH,
+    use_cache: bool = True,
+    signature: list[dict[str, object]] | None = None,
+) -> TestIndex:
+    if not use_cache:
+        return _build_test_index()
+
+    roots = _normalized_roots(TEST_GUESS_ROOTS)
+    effective_signature = signature or _test_index_signature()
+    state = _load_impact_cache(cache_path)
+    cached = state.get("test_index")
+    if (
+        isinstance(cached, dict)
+        and cached.get("roots") == list(roots)
+        and cached.get("signature") == effective_signature
+        and cached.get("python") == list(sys.version_info[:3])
+    ):
+        index = _test_index_from_payload(cached.get("index"))
+        if index is not None:
+            return index
+
+    index = _build_test_index()
+    state["test_index"] = {
+        "roots": list(roots),
+        "signature": effective_signature,
+        "python": list(sys.version_info[:3]),
+        "index": _test_index_to_payload(index),
+    }
+    _write_impact_cache(cache_path, state)
+    return index
 
 
 def _test_path_exists(path: str, test_index: TestIndex, *, repo: Path) -> bool:
@@ -445,9 +649,127 @@ def _dedupe_actions(actions: Iterable[Action]) -> list[Action]:
     return list(merged.values())
 
 
-def analyze_paths(paths: list[str]) -> ImpactReport:
+def _strings(value: object) -> list[str] | None:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return None
+    return list(value)
+
+
+def _action_from_payload(payload: object) -> Action | None:
+    if not isinstance(payload, dict):
+        return None
+    key = payload.get("key")
+    summary = payload.get("summary")
+    commands = _strings(payload.get("commands"))
+    if not isinstance(key, str) or not isinstance(summary, str) or commands is None:
+        return None
+    return Action(key=key, summary=summary, commands=commands)
+
+
+def _risk_zone_from_payload(payload: object) -> RiskZone | None:
+    if not isinstance(payload, dict):
+        return None
+    key = payload.get("key")
+    summary = payload.get("summary")
+    files = _strings(payload.get("files"))
+    if not isinstance(key, str) or not isinstance(summary, str) or files is None:
+        return None
+    return RiskZone(key=key, summary=summary, files=files)
+
+
+def _impact_report_from_payload(payload: object) -> ImpactReport | None:
+    if not isinstance(payload, dict):
+        return None
+    files = _strings(payload.get("files"))
+    overall_risk = payload.get("overall_risk")
+    guessed_tests = _strings(payload.get("guessed_tests"))
+    raw_risk_zones = payload.get("risk_zones")
+    raw_push_gates = payload.get("push_gates")
+    raw_artifact_actions = payload.get("artifact_actions")
+    raw_required_validations = payload.get("required_validations")
+    if (
+        files is None
+        or not isinstance(overall_risk, str)
+        or guessed_tests is None
+        or not isinstance(raw_risk_zones, list)
+        or not isinstance(raw_push_gates, list)
+        or not isinstance(raw_artifact_actions, list)
+        or not isinstance(raw_required_validations, list)
+    ):
+        return None
+    risk_zones = [_risk_zone_from_payload(item) for item in raw_risk_zones]
+    push_gates = [_action_from_payload(item) for item in raw_push_gates]
+    artifact_actions = [_action_from_payload(item) for item in raw_artifact_actions]
+    required_validations = [
+        _action_from_payload(item) for item in raw_required_validations
+    ]
+    if (
+        any(item is None for item in risk_zones)
+        or any(item is None for item in push_gates)
+        or any(item is None for item in artifact_actions)
+        or any(item is None for item in required_validations)
+    ):
+        return None
+    return ImpactReport(
+        files=files,
+        overall_risk=overall_risk,
+        risk_zones=[item for item in risk_zones if item is not None],
+        push_gates=[item for item in push_gates if item is not None],
+        artifact_actions=[item for item in artifact_actions if item is not None],
+        required_validations=[
+            item for item in required_validations if item is not None
+        ],
+        guessed_tests=guessed_tests,
+    )
+
+
+def _impact_report_cache_key(
+    paths: Sequence[str],
+    *,
+    test_signature: list[dict[str, object]],
+    static_signature: list[dict[str, object]],
+) -> str:
+    payload = {
+        "schema": IMPACT_CACHE_SCHEMA,
+        "kind": "impact-report",
+        "python": list(sys.version_info[:3]),
+        "paths": list(paths),
+        "test_signature": test_signature,
+        "static_signature": static_signature,
+    }
+    encoded = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _cached_impact_report(cache_path: Path, key: str) -> ImpactReport | None:
+    reports = _load_impact_cache(cache_path).get("reports")
+    if not isinstance(reports, dict):
+        return None
+    entry = reports.get(key)
+    if not isinstance(entry, dict):
+        return None
+    return _impact_report_from_payload(entry.get("report"))
+
+
+def _trim_report_cache_entries(entries: dict[str, object]) -> None:
+    while len(entries) > IMPACT_REPORT_CACHE_MAX_ENTRIES:
+        oldest_key = next(iter(entries))
+        entries.pop(oldest_key, None)
+
+
+def _record_impact_report(cache_path: Path, key: str, report: ImpactReport) -> None:
+    state = _load_impact_cache(cache_path)
+    reports = state.get("reports")
+    if not isinstance(reports, dict):
+        reports = {}
+    reports[key] = {"report": report.to_dict()}
+    _trim_report_cache_entries(reports)
+    state["reports"] = reports
+    _write_impact_cache(cache_path, state)
+
+
+def _analyze_paths_uncached(paths: list[str], test_index: TestIndex) -> ImpactReport:
     zones = _risk_zones(paths)
-    test_index = _build_test_index()
     guessed_tests = _guess_targeted_tests(paths, test_index=test_index)
     actions: list[Action] = []
     artifacts: list[Action] = []
@@ -673,6 +995,36 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
     )
 
 
+def analyze_paths(
+    paths: list[str],
+    *,
+    cache_path: Path = DEFAULT_IMPACT_CACHE_PATH,
+    use_cache: bool = True,
+) -> ImpactReport:
+    if not use_cache:
+        return _analyze_paths_uncached(paths, _build_test_index())
+
+    test_signature = _test_index_signature()
+    static_signature = _static_input_signature()
+    cache_key = _impact_report_cache_key(
+        paths,
+        test_signature=test_signature,
+        static_signature=static_signature,
+    )
+    cached = _cached_impact_report(cache_path, cache_key)
+    if cached is not None:
+        return cached
+
+    test_index = _build_cached_test_index(
+        cache_path=cache_path,
+        use_cache=use_cache,
+        signature=test_signature,
+    )
+    report = _analyze_paths_uncached(paths, test_index)
+    _record_impact_report(cache_path, cache_key, report)
+    return report
+
+
 def _render_human(report: ImpactReport) -> str:
     lines = [
         f"Overall risk: {report.overall_risk}",
@@ -725,7 +1077,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as exc:
         parser.exit(2, f"impact_validate: {exc}\n")
 
-    report = analyze_paths(paths)
+    report = analyze_paths(
+        paths,
+        cache_path=Path(args.cache_path),
+        use_cache=not args.no_cache,
+    )
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:

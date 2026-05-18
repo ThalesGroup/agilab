@@ -120,7 +120,7 @@ def test_analyze_paths_keeps_workflow_policy_tests_out_of_gui_parity() -> None:
     ]
 
 
-def test_main_json_output_for_explicit_files(capsys) -> None:
+def test_main_json_output_for_explicit_files(capsys, tmp_path: Path) -> None:
     module = _load_module()
 
     exit_code = module.main(
@@ -128,6 +128,8 @@ def test_main_json_output_for_explicit_files(capsys) -> None:
             "--files",
             ".idea/runConfigurations/agilab_run_dev.xml",
             "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py",
+            "--cache-path",
+            str(tmp_path / "impact-cache.json"),
             "--json",
         ]
     )
@@ -206,6 +208,105 @@ def test_build_test_index_matches_exact_and_prefix_tests(tmp_path: Path) -> None
     ]
 
 
+def test_cached_test_index_reuses_unchanged_signature(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_demo.py").write_text(
+        "def test_demo():\n    pass\n",
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "impact-cache.json"
+
+    first = module._build_cached_test_index(cache_path=cache_path)
+
+    monkeypatch.setattr(
+        module,
+        "_build_test_index",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("unchanged cached test index should avoid rebuild")
+        ),
+    )
+    second = module._build_cached_test_index(cache_path=cache_path)
+
+    assert second.paths == first.paths
+    assert second.tests_for_stem("demo") == ["test/test_demo.py"]
+
+
+def test_analyze_paths_reuses_cached_report(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_demo.py").write_text(
+        "def test_demo():\n    pass\n",
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "impact-cache.json"
+
+    first = module.analyze_paths(
+        ["src/agilab/demo.py"],
+        cache_path=cache_path,
+    )
+
+    monkeypatch.setattr(
+        module,
+        "_analyze_paths_uncached",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("cached report should avoid impact recomputation")
+        ),
+    )
+    second = module.analyze_paths(
+        ["src/agilab/demo.py"],
+        cache_path=cache_path,
+    )
+
+    assert second.to_dict() == first.to_dict()
+
+
+def test_analyze_paths_invalidates_report_when_test_index_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_demo.py").write_text(
+        "def test_demo():\n    pass\n",
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "impact-cache.json"
+
+    first = module.analyze_paths(["src/agilab/demo.py"], cache_path=cache_path)
+    assert first.guessed_tests == ["test/test_demo.py"]
+
+    (tmp_path / "test" / "test_demo_extra.py").write_text(
+        "def test_demo_extra():\n    pass\n",
+        encoding="utf-8",
+    )
+    second = module.analyze_paths(["src/agilab/demo.py"], cache_path=cache_path)
+
+    assert second.guessed_tests == ["test/test_demo.py", "test/test_demo_extra.py"]
+
+
+def test_invalid_impact_cache_falls_back_to_rebuild(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_demo.py").write_text(
+        "def test_demo():\n    pass\n",
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "impact-cache.json"
+    cache_path.write_text("[]", encoding="utf-8")
+
+    report = module.analyze_paths(["src/agilab/demo.py"], cache_path=cache_path)
+
+    assert report.guessed_tests == ["test/test_demo.py"]
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert cache["schema"] == module.IMPACT_CACHE_SCHEMA
+
+
 def test_analyze_paths_builds_test_index_once(monkeypatch) -> None:
     module = _load_module()
     real_build_test_index = module._build_test_index
@@ -222,7 +323,8 @@ def test_analyze_paths_builds_test_index_once(monkeypatch) -> None:
             "src/agilab/pipeline_ai.py",
             "src/agilab/pipeline_openai.py",
             "src/agilab/orchestrate_execute.py",
-        ]
+        ],
+        use_cache=False,
     )
 
     assert len(calls) == 1
