@@ -420,15 +420,19 @@ def _flatten_items(items: Sequence[ShardItem]) -> tuple[str, ...]:
 
 
 def _static_plan() -> ShardPlan:
+    assignments: dict[str, list[ShardItem]] = {chunk: [] for chunk in AGI_GUI_CHUNKS}
+    for item in _timing_items():
+        assignments[item.fallback_chunk].append(item)
+
     shards = tuple(
         Shard(
             name=name,
-            pytest_args=args,
+            pytest_args=_flatten_items(assignments[name]),
             estimated_seconds=0.0,
-            item_count=len(args),
-            items=(),
+            item_count=len(assignments[name]),
+            items=tuple(_item_payload(item) for item in assignments[name]),
         )
-        for name, args in STATIC_AGI_GUI_CHUNKS
+        for name in AGI_GUI_CHUNKS
     )
     return ShardPlan(
         schema=SCHEMA,
