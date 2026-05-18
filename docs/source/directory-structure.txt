@@ -154,7 +154,7 @@ apps/
     install.py
     README.md
 apps-pages/
-    view_autoencoder_latenspace/
+    view_autoencoder_latentspace/
         .venv/ [excluded]
         src/
             view_autoencoder_latentspace/

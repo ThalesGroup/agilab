@@ -27,7 +27,7 @@ PAGES: Dict[str, str] = {
     "view_maps_network": "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py",
     "view_barycentric": "src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py",
     "view_autoencoder_latentspace": (
-        "src/agilab/apps-pages/view_autoencoder_latenspace/src/"
+        "src/agilab/apps-pages/view_autoencoder_latentspace/src/"
         "view_autoencoder_latentspace/view_autoencoder_latentspace.py"
     ),
 }

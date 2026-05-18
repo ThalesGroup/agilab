@@ -21,7 +21,7 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 
 - view_autoencoder_latentspace
-  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latenspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 
 - view_forecast_analysis
   - uv run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/mycode_project

@@ -12,7 +12,7 @@ import pytest
 
 
 MODULE_PATH = Path(
-    "src/agilab/apps-pages/view_autoencoder_latenspace/src/view_autoencoder_latentspace/autoencoder_latentspace.py"
+    "src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/autoencoder_latentspace.py"
 )
 
 BARVIZ_STUB = """
@@ -98,11 +98,20 @@ class _State(dict):
 def _load_module():
     fake_barviz = ModuleType("barviz")
     exec(BARVIZ_STUB, fake_barviz.__dict__)
+    fake_streamlit = ModuleType("streamlit")
+
+    def identity_decorator(func=None, **_kwargs):
+        return (lambda wrapped: wrapped) if func is None else func
+
+    fake_streamlit.session_state = _State()
+    fake_streamlit.title = lambda *args, **kwargs: None
+    fake_streamlit.cache_data = identity_decorator
+    fake_streamlit.cache_resource = identity_decorator
 
     spec = importlib.util.spec_from_file_location("view_autoencoder_latentspace_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    with patch.dict(sys.modules, {"barviz": fake_barviz}):
+    with patch.dict(sys.modules, {"barviz": fake_barviz, "streamlit": fake_streamlit}):
         spec.loader.exec_module(module)
     return module
 
