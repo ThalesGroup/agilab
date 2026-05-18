@@ -528,6 +528,56 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
     assert "restored and versioned" in probes[0].detail
 
 
+def test_analysis_artifact_validation_requires_first_proof_outputs(tmp_path) -> None:
+    module = _load_module()
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_analysis_artifacts(
+        context=context,
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "no first-proof output/export artifacts" in probes[0].detail
+
+
+def test_analysis_artifact_validation_accepts_existing_first_proof_outputs(tmp_path) -> None:
+    module = _load_module()
+    output_file = tmp_path / "localshare" / "flight" / "dataframe" / "proof.csv"
+    output_file.parent.mkdir(parents=True)
+    output_file.write_text("value\n1\n", encoding="utf-8")
+    export_file = tmp_path / "export" / "flight" / "proof.json"
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text('{"ok": true}\n', encoding="utf-8")
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_analysis_artifacts(
+        context=context,
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "first-proof artifacts available" in probes[0].detail
+
+
 def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -> None:
     module = _load_module()
     context = module.WorkflowArtifactContext(
