@@ -16,7 +16,15 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGI_GUI_COVERAGE_CHUNKS = ("support", "pipeline", "robots", "pages", "views", "reports")
+AGI_GUI_COVERAGE_CHUNKS = (
+    "support",
+    "pipeline",
+    "robots",
+    "pages-flow",
+    "pages-rest",
+    "views",
+    "reports",
+)
 
 
 @dataclass
@@ -271,9 +279,19 @@ def _agi_gui_profile() -> list[CommandSpec]:
             ],
         ),
         _agi_gui_coverage_chunk(
-            "pages",
+            "pages-flow",
             [
                 "test/test_ui_pages.py",
+                "-k",
+                "execute_page or experiment_page or pipeline_page_project_selectbox",
+            ],
+        ),
+        _agi_gui_coverage_chunk(
+            "pages-rest",
+            [
+                "test/test_ui_pages.py",
+                "-k",
+                "not (execute_page or experiment_page or pipeline_page_project_selectbox)",
                 "test/test_apps_pages_launcher.py",
                 "test/test_app_args.py",
                 "test/test_streamlit_args.py",

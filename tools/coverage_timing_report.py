@@ -16,7 +16,7 @@ from typing import Iterable, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PATTERN = "test-results/junit-agi-gui-*.xml"
 JUNIT_CHUNK_PREFIX = "junit-agi-gui-"
-KNOWN_CHUNKS = ("support", "pipeline", "robots", "pages", "views", "reports")
+KNOWN_CHUNKS = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports")
 
 
 @dataclass(frozen=True)

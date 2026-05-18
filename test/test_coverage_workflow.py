@@ -155,7 +155,10 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
 
     assert "run_gui_chunk support" in run_block
     assert "run_gui_chunk pipeline" in run_block
-    assert "run_gui_chunk pages" in run_block
+    assert "run_gui_chunk pages-flow" in run_block
+    assert "run_gui_chunk pages-rest" in run_block
+    assert "-k \"execute_page or experiment_page or pipeline_page_project_selectbox\"" in run_block
+    assert "-k \"not (execute_page or experiment_page or pipeline_page_project_selectbox)\"" in run_block
     assert "run_gui_chunk views" in run_block
     assert "run_gui_chunk reports" in run_block
     assert "${{ matrix.chunk }}" in run_block
@@ -187,7 +190,7 @@ def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
     assert "  agi-gui-combine:" in workflow_text
     assert "strategy:" in workflow_text
     assert "fail-fast: false" in workflow_text
-    for chunk in ("support", "pipeline", "robots", "pages", "views", "reports"):
+    for chunk in ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports"):
         assert f"          - {chunk}" in workflow_text
     assert "coverage-agi-gui-chunk-${{ matrix.chunk }}" in workflow_text
     assert "coverage-gui-junit-${{ matrix.chunk }}" in workflow_text
