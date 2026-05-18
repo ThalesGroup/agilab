@@ -131,7 +131,7 @@ Successful run indicators:
 
 Tracked companion card:
 
-![Mission Decision AGILAB demo card](diagrams/agilab_mission_decision_card.svg)
+![Decision Evidence AGILAB demo card](diagrams/agilab_mission_decision_card.svg)
 
 Use `docs/source/diagrams/agilab_mission_decision_card.svg` as the lightweight
 shareable poster or thumbnail. The MP4/GIF remain generated local artifacts

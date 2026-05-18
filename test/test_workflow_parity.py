@@ -108,7 +108,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
     docs_commands = profiles["docs"]
     release_proof_docs = docs_commands[0]
-    docs = docs_commands[1]
+    diagram_wording_docs = docs_commands[1]
+    docs = docs_commands[2]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
@@ -239,6 +240,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_*_workflow.py" not in agi_gui_argv
     assert release_proof_docs.label == "release proof manifest check"
     assert release_proof_docs.argv[-2:] == ["--check", "--compact"]
+    assert diagram_wording_docs.label == "docs diagram wording check"
+    assert diagram_wording_docs.argv[-1] == "tools/docs_diagram_wording_check.py"
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
     assert docs.remove_paths == ["docs/html"]
     assert badges[-1].label == "badge drift guard"

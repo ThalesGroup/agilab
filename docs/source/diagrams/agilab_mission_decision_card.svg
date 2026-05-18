@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
-  <title id="title">Mission Decision AGILAB demo card</title>
-  <desc id="desc">Autonomous mission data to decision engine demo summary for AGILAB.</desc>
+  <title id="title">Decision Evidence AGILAB demo card</title>
+  <desc id="desc">Autonomous mission data to decision evidence demo summary for AGILAB.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#081421"/>
@@ -33,12 +33,12 @@
     <rect x="70" y="70" width="1060" height="535" rx="30" class="panel"/>
   </g>
 
-  <text x="110" y="142" class="label" font-size="34" font-weight="700">Mission Decision Demo</text>
+  <text x="110" y="142" class="label" font-size="34" font-weight="700">Decision Evidence Demo</text>
   <rect x="865" y="110" width="205" height="44" rx="22" class="chip"/>
   <text x="890" y="139" class="label" font-size="20" font-weight="700">Public demo asset</text>
 
   <text x="110" y="232" class="label" font-size="66" font-weight="800">Autonomous Mission Data</text>
-  <text x="110" y="298" class="label" font-size="66" font-weight="800">to Decision Engine</text>
+  <text x="110" y="298" class="label" font-size="66" font-weight="800">to Decision Evidence</text>
   <rect x="110" y="326" width="560" height="8" rx="4" fill="url(#accent)"/>
   <text x="110" y="377" class="label muted" font-size="27">A reproducible AGILAB path from raw mission signals</text>
   <text x="110" y="414" class="label muted" font-size="27">to an optimized, explainable operational decision.</text>
