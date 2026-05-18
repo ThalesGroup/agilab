@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 import re
+import sys
 
 
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
+SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
 
 
 def _workflow_text() -> str:
@@ -13,7 +16,7 @@ def _workflow_text() -> str:
 
 
 def _agi_gui_run_block() -> str:
-    return _run_block("Run agi-gui coverage chunk", "Archive agi-gui chunk coverage")
+    return _run_block("Run agi-gui coverage chunk", "Archive agi-gui chunk coverage") + _agi_gui_static_args_text()
 
 
 def _agi_gui_combine_block() -> str:
@@ -35,6 +38,23 @@ def _run_block(start_name: str, end_name: str) -> str:
     start = workflow_text.index(start_marker)
     end = workflow_text.index(end_marker, start)
     return workflow_text[start:end]
+
+
+def _load_shard_plan_module():
+    spec = importlib.util.spec_from_file_location("coverage_shard_plan_workflow_test_module", SHARD_PLAN_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _agi_gui_static_args_text() -> str:
+    module = _load_shard_plan_module()
+    lines: list[str] = []
+    for args in module.static_chunk_args().values():
+        lines.extend(args)
+    return "\n" + "\n".join(lines) + "\n"
 
 
 def _step_block(step_name: str) -> str:
@@ -72,6 +92,7 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"src/**"',
         '"test/**"',
         '"tools/coverage_badge_guard.py"',
+        '"tools/coverage_shard_plan.py"',
         '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
@@ -154,14 +175,13 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     timing_step = _step_block("Write agi-gui timing report")
     timing_upload = _step_block("Upload agi-gui timing report")
 
-    assert "run_gui_chunk support" in run_block
-    assert "run_gui_chunk pipeline" in run_block
-    assert "run_gui_chunk pages-flow" in run_block
-    assert "run_gui_chunk pages-rest" in run_block
-    assert "-k \"execute_page or experiment_page or pipeline_page_project_selectbox\"" in run_block
-    assert "-k \"not (execute_page or experiment_page or pipeline_page_project_selectbox)\"" in run_block
-    assert "run_gui_chunk views" in run_block
-    assert "run_gui_chunk reports" in run_block
+    assert "tools/coverage_shard_plan.py write" in run_block
+    assert "tools/coverage_shard_plan.py print-args" in run_block
+    assert "test-results/coverage-agi-gui-shards/plan.json" in run_block
+    assert 'mapfile -t pytest_args < "$RUNNER_TEMP/agi-gui-${label}.args"' in run_block
+    assert 'run_gui_chunk "$label" "${pytest_args[@]}"' in run_block
+    assert "execute_page or experiment_page or pipeline_page_project_selectbox" in run_block
+    assert "not (execute_page or experiment_page or pipeline_page_project_selectbox)" in run_block
     assert "${{ matrix.chunk }}" in run_block
     assert "--append" not in run_block
     assert "--parallel-mode" in run_block

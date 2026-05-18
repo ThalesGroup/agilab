@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -25,6 +26,7 @@ RESULT_CACHE_INPUT_GLOBS = (
     "pyproject.toml",
     "uv.lock",
     "tools/workflow_parity.py",
+    "tools/coverage_shard_plan.py",
     "tools/agilab_dev.py",
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
@@ -88,6 +90,21 @@ UI_ROBOT_MATRIX_SHARDS = (
         ),
     ),
 )
+
+
+def _coverage_shard_plan_module():
+    module_path = REPO_ROOT / "tools" / "coverage_shard_plan.py"
+    spec = importlib.util.spec_from_file_location("agilab_coverage_shard_plan", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load coverage shard planner from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _agi_gui_static_chunk_args() -> dict[str, list[str]]:
+    return _coverage_shard_plan_module().static_chunk_args()
 
 
 @dataclass
@@ -446,134 +463,13 @@ def _selected_ui_robot_profiles(args: argparse.Namespace) -> list[str]:
 
 def _agi_gui_profile() -> list[CommandSpec]:
     commands = [
-        _agi_gui_coverage_chunk(
-            "support",
-            [
-                "src/agilab/test",
-                "src/agilab/lib/agi-gui/test",
-                "test/test_action_execution.py",
-                "test/test_agent_run.py",
-                "test/test_agent_tool_safety.py",
-                "test/test_orchestrate_cluster.py",
-                "test/test_orchestrate_distribution.py",
-                "test/test_orchestrate_execute.py",
-                "test/test_orchestrate_page_helpers.py",
-                "test/test_orchestrate_page_state.py",
-                "test/test_orchestrate_page_support.py",
-                "test/test_orchestrate_services.py",
-                "test/test_orchestrate_support.py",
-                "test/test_analysis_page_helpers.py",
-                "test/test_about_agilab_helpers.py",
-                "test/test_app_template_registry.py",
-                "test/test_code_editor_support.py",
-                "test/test_cluster_flight_validation.py",
-                "test/test_cluster_lan_discovery.py",
-                "test/test_dag_distributed_submitter.py",
-                "test/test_agilab_dev_shortcuts.py",
-                "test/test_ga_regression_selector.py",
-                "test/test_evidence_graph.py",
-                "test/test_env_file_utils.py",
-                "test/test_import_guard.py",
-                "test/test_logging_utils.py",
-                "test/test_page_bundle_registry.py",
-                "test/test_pinned_expander.py",
-                "test/test_security_check.py",
-                "test/test_secret_uri.py",
-                "test/test_snippet_registry.py",
-                "test/test_runtime_diagnostics.py",
-                "test/test_dag_execution_adapters.py",
-                "test/test_dag_execution_registry.py",
-                "test/test_dag_run_engine.py",
-                "test/test_ui_public_bind_guard.py",
-                "test/test_venv_linker.py",
-                "test/test_workflow_run_manifest.py",
-                "test/test_workflow_runtime_contract.py",
-                "test/test_workflow_ui.py",
-                "src/agilab/apps/builtin/uav_queue_project/test/test_uav_queue_project.py",
-                "src/agilab/apps/builtin/uav_relay_queue_project/test/test_uav_relay_queue_project.py",
-            ],
-            clean=True,
-        ),
-        _agi_gui_coverage_chunk(
-            "pipeline",
-            [
-                "test/test_first_proof_cli.py",
-                "test/test_first_proof_wizard.py",
-                "test/test_generated_actions.py",
-                "test/test_notebook_colab_support.py",
-                "test/test_notebook_import_doctor.py",
-                "test/test_page_docs.py",
-                "test/test_pipeline_ai.py",
-                "test/test_pipeline_ai_support.py",
-                "test/test_pipeline_editor.py",
-                "test/test_pipeline_lab.py",
-                "test/test_pipeline_mistral.py",
-                "test/test_pipeline_openai.py",
-                "test/test_pipeline_openai_compatible.py",
-                "test/test_pipeline_page_state.py",
-                "test/test_pipeline_recipe_memory.py",
-                "test/test_pipeline_run_controls.py",
-                "test/test_pipeline_runtime.py",
-                "test/test_pipeline_service_guard.py",
-                "test/test_pipeline_sidebar.py",
-                "test/test_pipeline_stage_templates.py",
-                "test/test_pipeline_stages.py",
-                "test/test_pipeline_views.py",
-                "test/test_multi_app_dag_draft.py",
-                "test/test_multi_app_dag_templates.py",
-                "test/test_tracking.py",
-                "test/test_flight_telemetry_project_runtime_args.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk(
-            "robots",
-            [
-                "test/test_agilab_web_robot.py",
-                "test/test_agilab_widget_robot_matrix.py",
-                "test/test_agilab_widget_robot.py",
-                "test/test_first_launch_robot.py",
-                "test/test_screenshot_manifest.py",
-                "test/test_ui_robot_coverage_contract.py",
-                "test/test_ui_robot_action_contract.py",
-                "test/test_ui_robot_failure_replay.py",
-                "test/test_ui_robot_canary.py",
-                "test/test_ui_robot_trend_report.py",
-                "test/test_ui_visual_baseline_report.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk(
-            "pages-flow",
-            [
-                "test/test_ui_pages.py",
-                "-k",
-                "execute_page or experiment_page or pipeline_page_project_selectbox",
-            ],
-        ),
-        _agi_gui_coverage_chunk(
-            "pages-rest",
-            [
-                "test/test_ui_pages.py",
-                "-k",
-                "not (execute_page or experiment_page or pipeline_page_project_selectbox)",
-                "test/test_apps_pages_launcher.py",
-                "test/test_app_args.py",
-                "test/test_streamlit_args.py",
-                "test/test_pagelib.py",
-                "test/test_connector_registry.py",
-                "test/test_page_project_selector.py",
-                "test/test_run_manifest.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk("views", ["test/test_view*.py"]),
-        _agi_gui_coverage_chunk(
-            "reports",
-            [
-                "test/test_ci_provider_artifacts.py",
-                "test/test_*_report.py",
-            ],
-        ),
-        _agi_gui_coverage_combine(),
-        _agi_gui_timing_report(),
+        _agi_gui_coverage_chunk(label, targets, clean=index == 0)
+        for index, (label, targets) in enumerate(_agi_gui_static_chunk_args().items())
+    ]
+    commands.extend(
+        [
+            _agi_gui_coverage_combine(),
+            _agi_gui_timing_report(),
         CommandSpec(
             label="agi-gui coverage xml",
             argv=[
@@ -600,7 +496,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
             timeout_seconds=5 * 60,
             ensure_dirs=["test-results"],
         ),
-    ]
+        ]
+    )
     return commands
 
 

@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
+SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py").resolve()
 
 
 def _has_with_dependency(argv: list[str], dependency: str) -> bool:
@@ -58,27 +59,12 @@ def _cache_args(cache_path: Path, *, no_result_cache: bool = False) -> SimpleNam
 
 
 def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
-    chunks: dict[str, list[str]] = {}
-    current_chunk: str | None = None
-    for line in WORKFLOW_PATH.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        match = re.fullmatch(r"run_gui_chunk ([a-z-]+) \\", stripped)
-        if match:
-            current_chunk = match.group(1)
-            chunks[current_chunk] = []
-            continue
-        if current_chunk is None:
-            continue
-        if not stripped:
-            current_chunk = None
-            continue
-        if stripped.startswith(("test/", "src/agilab/")):
-            chunks[current_chunk].append(stripped.removesuffix("\\").strip())
-            continue
-        if stripped.startswith("-"):
-            continue
-        current_chunk = None
-    return chunks
+    spec = importlib.util.spec_from_file_location("coverage_shard_plan_workflow_parity_test_module", SHARD_PLAN_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.static_chunk_args()
 
 
 def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
@@ -88,9 +74,8 @@ def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
     for command in commands:
         match = re.fullmatch(r"agi-gui coverage \(([a-z-]+)\)", command.label)
         assert match is not None
-        targets_by_chunk[match.group(1)] = [
-            arg for arg in command.argv if arg.startswith(("test/", "src/agilab/"))
-        ]
+        ignore_index = command.argv.index("--ignore=src/agilab/test/test_model_returns_code.py")
+        targets_by_chunk[match.group(1)] = command.argv[ignore_index + 1 :]
     return targets_by_chunk
 
 

@@ -10,6 +10,7 @@ on:
       - "src/**"
       - "test/**"
       - "tools/coverage_badge_guard.py"
+      - "tools/coverage_shard_plan.py"
       - "tools/coverage_timing_report.py"
       - "tools/generate_component_coverage_badges.py"
       - "tools/workflow_parity.py"
@@ -243,6 +244,15 @@ jobs:
       - name: Prepare artifacts
         run: mkdir -p test-results
 
+      - name: Restore agi-gui timing history
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: test-results/coverage-agi-gui-timing-cache
+          key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-
+            agi-gui-junit-timings-${{ runner.os }}-main-
+
       - name: Define heartbeat helper
         shell: bash
         run: |
@@ -281,126 +291,21 @@ jobs:
               "$@"
           }
 
-          case "${{ matrix.chunk }}" in
-            support)
-              run_gui_chunk support \
-                src/agilab/test \
-                src/agilab/lib/agi-gui/test \
-                test/test_action_execution.py \
-                test/test_agent_run.py \
-                test/test_agent_tool_safety.py \
-                test/test_orchestrate_cluster.py \
-                test/test_orchestrate_distribution.py \
-                test/test_orchestrate_execute.py \
-                test/test_orchestrate_page_helpers.py \
-                test/test_orchestrate_page_state.py \
-                test/test_orchestrate_page_support.py \
-                test/test_orchestrate_services.py \
-                test/test_orchestrate_support.py \
-                test/test_analysis_page_helpers.py \
-                test/test_about_agilab_helpers.py \
-                test/test_app_template_registry.py \
-                test/test_code_editor_support.py \
-                test/test_cluster_flight_validation.py \
-                test/test_cluster_lan_discovery.py \
-                test/test_dag_distributed_submitter.py \
-                test/test_dag_execution_adapters.py \
-                test/test_dag_execution_registry.py \
-                test/test_dag_run_engine.py \
-                test/test_evidence_graph.py \
-                test/test_env_file_utils.py \
-                test/test_agilab_dev_shortcuts.py \
-                test/test_ga_regression_selector.py \
-                test/test_import_guard.py \
-                test/test_logging_utils.py \
-                test/test_page_bundle_registry.py \
-                test/test_pinned_expander.py \
-                test/test_runtime_diagnostics.py \
-                test/test_security_check.py \
-                test/test_secret_uri.py \
-                test/test_snippet_registry.py \
-                test/test_ui_public_bind_guard.py \
-                test/test_venv_linker.py \
-                test/test_workflow_run_manifest.py \
-                test/test_workflow_runtime_contract.py \
-                test/test_workflow_ui.py \
-                src/agilab/apps/builtin/uav_queue_project/test/test_uav_queue_project.py \
-                src/agilab/apps/builtin/uav_relay_queue_project/test/test_uav_relay_queue_project.py
-              ;;
-            pipeline)
-              run_gui_chunk pipeline \
-                test/test_first_proof_cli.py \
-                test/test_first_proof_wizard.py \
-                test/test_generated_actions.py \
-                test/test_notebook_colab_support.py \
-                test/test_notebook_import_doctor.py \
-                test/test_page_docs.py \
-                test/test_pipeline_ai.py \
-                test/test_pipeline_ai_support.py \
-                test/test_pipeline_editor.py \
-                test/test_pipeline_lab.py \
-                test/test_pipeline_mistral.py \
-                test/test_pipeline_openai.py \
-                test/test_pipeline_openai_compatible.py \
-                test/test_pipeline_page_state.py \
-                test/test_pipeline_recipe_memory.py \
-                test/test_pipeline_run_controls.py \
-                test/test_pipeline_runtime.py \
-                test/test_pipeline_service_guard.py \
-                test/test_pipeline_sidebar.py \
-                test/test_pipeline_stage_templates.py \
-                test/test_pipeline_stages.py \
-                test/test_pipeline_views.py \
-                test/test_multi_app_dag_draft.py \
-                test/test_multi_app_dag_templates.py \
-                test/test_flight_telemetry_project_runtime_args.py \
-                test/test_tracking.py
-              ;;
-            robots)
-              run_gui_chunk robots \
-                test/test_agilab_web_robot.py \
-                test/test_agilab_widget_robot_matrix.py \
-                test/test_agilab_widget_robot.py \
-                test/test_first_launch_robot.py \
-                test/test_screenshot_manifest.py \
-                test/test_ui_robot_coverage_contract.py \
-                test/test_ui_robot_action_contract.py \
-                test/test_ui_robot_failure_replay.py \
-                test/test_ui_robot_canary.py \
-                test/test_ui_robot_trend_report.py \
-                test/test_ui_visual_baseline_report.py
-              ;;
-            pages-flow)
-              run_gui_chunk pages-flow \
-                test/test_ui_pages.py \
-                -k "execute_page or experiment_page or pipeline_page_project_selectbox"
-              ;;
-            pages-rest)
-              run_gui_chunk pages-rest \
-                test/test_ui_pages.py \
-                -k "not (execute_page or experiment_page or pipeline_page_project_selectbox)" \
-                test/test_apps_pages_launcher.py \
-                test/test_app_args.py \
-                test/test_streamlit_args.py \
-                test/test_pagelib.py \
-                test/test_connector_registry.py \
-                test/test_page_project_selector.py \
-                test/test_run_manifest.py
-              ;;
-            views)
-              run_gui_chunk views \
-                test/test_view*.py
-              ;;
-            reports)
-              run_gui_chunk reports \
-                test/test_ci_provider_artifacts.py \
-                test/test_*_report.py
-              ;;
-            *)
-              echo "Unknown AGI-GUI coverage chunk: ${{ matrix.chunk }}"
-              exit 2
-              ;;
-          esac
+          label="${{ matrix.chunk }}"
+          uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py write \
+            --output-dir test-results/coverage-agi-gui-shards \
+            test-results/coverage-agi-gui-timing-cache/junit-agi-gui-*.xml
+          uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py print-args \
+            --plan test-results/coverage-agi-gui-shards/plan.json \
+            --chunk "$label" > "$RUNNER_TEMP/agi-gui-${label}.args"
+          mapfile -t pytest_args < "$RUNNER_TEMP/agi-gui-${label}.args"
+          if [ "${#pytest_args[@]}" -eq 0 ]; then
+            echo "No pytest arguments planned for AGI-GUI coverage chunk ${label}" >&2
+            exit 2
+          fi
+          printf 'AGI-GUI coverage chunk %s planned pytest args:\n' "$label"
+          printf '  %q\n' "${pytest_args[@]}"
+          run_gui_chunk "$label" "${pytest_args[@]}"
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
@@ -513,6 +418,20 @@ jobs:
             --markdown-output test-results/coverage-agi-gui-timing.md \
             --json-output test-results/coverage-agi-gui-timing.json
           cat test-results/coverage-agi-gui-timing.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare agi-gui timing cache
+        if: always() && hashFiles('test-results/junit-agi-gui-*.xml') != ''
+        run: |
+          rm -rf test-results/coverage-agi-gui-timing-cache
+          mkdir -p test-results/coverage-agi-gui-timing-cache
+          cp test-results/junit-agi-gui-*.xml test-results/coverage-agi-gui-timing-cache/
+
+      - name: Save agi-gui timing history
+        if: always() && hashFiles('test-results/coverage-agi-gui-timing-cache/*.xml') != ''
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: test-results/coverage-agi-gui-timing-cache
+          key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
 
       - name: Upload agi-gui timing report
         if: always() && hashFiles('test-results/coverage-agi-gui-timing.*') != ''
