@@ -69,11 +69,11 @@
 
     <rect class="card" x="40" y="176" width="350" height="64" fill="#fff7ed"/>
     <text class="card-title" x="215" y="202" text-anchor="middle">agi-apps umbrella</text>
-    <text class="body" x="215" y="224" text-anchor="middle">catalog plus selected public starter payloads</text>
+    <text class="body" x="215" y="224" text-anchor="middle">catalog plus selected public app payloads</text>
 
     <rect class="card" x="40" y="274" width="350" height="64" fill="#fce7f3"/>
-    <text class="card-title" x="215" y="300" text-anchor="middle">agi-pages provider</text>
-    <text class="body" x="215" y="322" text-anchor="middle">discoverable ANALYSIS sidecar dashboards</text>
+    <text class="card-title" x="215" y="300" text-anchor="middle">agi-pages umbrella</text>
+    <text class="body" x="215" y="322" text-anchor="middle">catalog for ANALYSIS sidecar dashboards</text>
   </g>
 
   <path class="arrow" d="M520 206 C570 184 594 168 650 166" marker-end="url(#arrowhead)"/>

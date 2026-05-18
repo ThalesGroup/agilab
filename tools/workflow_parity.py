@@ -741,6 +741,17 @@ def _docs_profile() -> list[CommandSpec]:
             ],
         ),
         CommandSpec(
+            label="docs diagram wording check",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/docs_diagram_wording_check.py",
+            ],
+        ),
+        CommandSpec(
             label="docs sphinx build",
             argv=[
                 "uv",

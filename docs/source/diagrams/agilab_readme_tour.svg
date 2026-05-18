@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1360" height="940" viewBox="0 0 1360 940" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB 3-minute tour</title>
-  <desc id="desc">Narrative README diagram showing the built-in UAV Relay Queue path across Project, Orchestrate, Workflow, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
+  <desc id="desc">Narrative README diagram showing a built-in full-tour app path across Project, Orchestrate, Workflow, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
   <defs>
     <style>
       text {
@@ -119,19 +119,19 @@
     <text class="eyebrow" x="0" y="0">Start here</text>
     <text class="title" x="0" y="56">AGILAB 3-minute tour</text>
     <text class="subtitle" x="0" y="100">
-      <tspan x="0" dy="0">Use the built-in UAV Relay Queue demo to see the full path:</tspan>
-      <tspan x="0" dy="28">select one app, run it, inspect the replayable pipeline, and end on queue evidence.</tspan>
+      <tspan x="0" dy="0">Use a built-in full-tour demo to see the complete path:</tspan>
+      <tspan x="0" dy="28">select one app, run it, inspect the replayable pipeline, and end on evidence.</tspan>
     </text>
   </g>
 
   <g transform="translate(838,62)" filter="url(#shadow)">
     <rect x="0" y="0" width="450" height="94" rx="26" ry="26" fill="#ffffff" stroke="#d7e2ee" stroke-width="2.2"/>
     <rect x="20" y="22" width="124" height="34" rx="17" ry="17" class="pill-dark"/>
-    <text class="chip-text" x="82" y="44" text-anchor="middle">Demo app</text>
+    <text class="chip-text" x="82" y="44" text-anchor="middle">Built-in</text>
     <rect x="154" y="22" width="96" height="34" rx="17" ry="17" class="pill-accent"/>
     <text class="chip-text" x="202" y="44" text-anchor="middle">3 minutes</text>
     <text class="body" x="22" y="73">
-      <tspan x="22" dy="0">UAV Relay Queue from PROJECT</tspan>
+      <tspan x="22" dy="0">Full-tour app from PROJECT</tspan>
       <tspan x="22" dy="22">to WORKFLOW to ANALYSIS</tspan>
     </text>
   </g>
@@ -148,10 +148,10 @@
     <text class="card-title" x="64" y="42">PROJECT</text>
     <text class="card-kicker" x="28" y="78">Choose the app</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">Select the built-in</tspan>
-      <tspan x="28" dy="24">UAV Relay Queue app,</tspan>
-      <tspan x="28" dy="24">keep the scenario and</tspan>
-      <tspan x="28" dy="24">routing policy visible.</tspan>
+      <tspan x="28" dy="0">Select a built-in</tspan>
+      <tspan x="28" dy="24">demo app, keep its</tspan>
+      <tspan x="28" dy="24">scenario and output</tspan>
+      <tspan x="28" dy="24">contracts visible.</tspan>
     </text>
     <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">You start from one concrete app,</tspan>
@@ -167,7 +167,7 @@
     <text class="card-kicker" x="28" y="78">Install and run</text>
     <text class="body" x="28" y="116">
       <tspan x="28" dy="0">AGILAB installs and</tspan>
-      <tspan x="28" dy="24">runs the queue demo</tspan>
+      <tspan x="28" dy="24">runs the selected app</tspan>
       <tspan x="28" dy="24">through one packaged</tspan>
       <tspan x="28" dy="24">execution path.</tspan>
     </text>
@@ -185,7 +185,7 @@
     <text class="card-kicker" x="28" y="78">Replay the stages</text>
     <text class="body" x="28" y="116">
       <tspan x="28" dy="0">WORKFLOW keeps the</tspan>
-      <tspan x="28" dy="24">queue experiment explicit</tspan>
+      <tspan x="28" dy="24">experiment explicit</tspan>
       <tspan x="28" dy="24">with replayable stages</tspan>
       <tspan x="28" dy="24">and topology artifacts.</tspan>
     </text>
@@ -202,14 +202,14 @@
     <text class="card-title" x="64" y="42">ANALYSIS</text>
     <text class="card-kicker" x="28" y="78">End on evidence</text>
     <text class="body" x="28" y="116">
-      <tspan x="28" dy="0">Open queue plots and</tspan>
-      <tspan x="28" dy="24">maps over exported</tspan>
-      <tspan x="28" dy="24">drops, delays, and</tspan>
-      <tspan x="28" dy="24">route usage evidence.</tspan>
+      <tspan x="28" dy="0">Open plots, reports,</tspan>
+      <tspan x="28" dy="24">or maps over exported</tspan>
+      <tspan x="28" dy="24">metrics and run</tspan>
+      <tspan x="28" dy="24">evidence.</tspan>
     </text>
     <text class="mini" x="28" y="230">
       <tspan x="28" dy="0">The demo closes the loop with</tspan>
-      <tspan x="28" dy="22">visible queue evidence.</tspan>
+      <tspan x="28" dy="22">visible execution evidence.</tspan>
     </text>
   </g>
 
