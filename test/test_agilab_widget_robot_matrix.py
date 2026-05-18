@@ -197,6 +197,10 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
         apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=tmp_path / "screenshots",
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        trace_dir=tmp_path / "traces",
+        har_dir=tmp_path / "hars",
+        video_dir=tmp_path / "videos",
         timeout_seconds=12.0,
         widget_timeout_seconds=2.0,
         quiet_progress=True,
@@ -217,6 +221,12 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert argv[argv.index("--preselect-labels") + 1] == "Run now"
     assert argv[argv.index("--browser") + 1] == "webkit"
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "current-home-actions")
+    assert argv[argv.index("--failure-bundle-dir") + 1] == str(
+        tmp_path / "failure-bundles" / "current-home-actions"
+    )
+    assert argv[argv.index("--trace-dir") + 1] == str(tmp_path / "traces" / "current-home-actions")
+    assert argv[argv.index("--har-dir") + 1] == str(tmp_path / "hars" / "current-home-actions")
+    assert argv[argv.index("--video-dir") + 1] == str(tmp_path / "videos" / "current-home-actions")
     assert "--headful" in argv
     assert "--quiet-progress" in argv
     assert "--no-seed-demo-artifacts" in argv
@@ -224,6 +234,29 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert "--assert-workflow-artifacts" not in argv
     assert summary_path == tmp_path / "current-home-actions.json"
     assert progress_path == tmp_path / "current-home-actions.ndjson"
+
+
+def test_build_robot_command_passes_optional_browser_artifact_dirs(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        trace_dir=tmp_path / "traces",
+        har_dir=tmp_path / "har",
+        video_dir=tmp_path / "video",
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--trace-dir") + 1] == str(tmp_path / "traces" / "isolated-project-page")
+    assert argv[argv.index("--har-dir") + 1] == str(tmp_path / "har" / "isolated-project-page")
+    assert argv[argv.index("--video-dir") + 1] == str(tmp_path / "video" / "isolated-project-page")
 
 
 def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:

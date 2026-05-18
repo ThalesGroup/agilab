@@ -95,7 +95,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "production-readiness",
             "cloud-emulators",
             "ui-robot-contract",
+            "ui-robot-canary",
             "ui-robot-matrix",
+            "ui-artifact-capture-robot",
             "ui-history-robot",
             "ui-mobile-robot",
             "ui-release-evidence-robot",
@@ -151,6 +153,22 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue running later profiles even if one command fails.",
     )
+    parser.add_argument(
+        "--select-ui-robot-profiles",
+        action="store_true",
+        help="Select UI robot profiles from changed files instead of using the default profile set.",
+    )
+    parser.add_argument(
+        "--changed-file",
+        action="append",
+        default=[],
+        help="Changed file to classify for --select-ui-robot-profiles. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--changed-base",
+        default="",
+        help="Optional git base ref for --select-ui-robot-profiles. Defaults to the current dirty tree.",
+    )
     return parser
 
 
@@ -178,7 +196,9 @@ def _profile_descriptions() -> dict[str, str]:
         ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
         "ui-robot-contract": "Validate deterministic UI robot coverage contracts.",
+        "ui-robot-canary": "Run deliberate UI robot fault-injection canaries.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
+        "ui-artifact-capture-robot": "Run a small widget robot smoke with trace, HAR, and video artifact capture enabled.",
         "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
         "ui-mobile-robot": "Run the opt-in mobile viewport widget robot scenario.",
         "ui-release-evidence-robot": "Run opt-in success-screenshot, fresh-session, and performance-budget widget robot scenarios.",
@@ -214,7 +234,9 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-contract": _ui_robot_contract_profile(),
+        "ui-robot-canary": _ui_robot_canary_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
+        "ui-artifact-capture-robot": _ui_artifact_capture_robot_profile(),
         "ui-history-robot": _ui_history_robot_profile(),
         "ui-mobile-robot": _ui_mobile_robot_profile(),
         "ui-release-evidence-robot": _ui_release_evidence_robot_profile(),
@@ -230,6 +252,93 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "hf-install-robot": _hf_install_robot_profile(),
         "hf-visual-smoke-robot": _hf_visual_smoke_robot_profile(),
     }
+
+
+UI_ROBOT_PROFILE_ORDER = (
+    "ui-robot-contract",
+    "ui-robot-canary",
+    "ui-robot-matrix",
+    "ui-artifact-capture-robot",
+    "ui-history-robot",
+    "ui-mobile-robot",
+    "ui-keyboard-robot",
+    "ui-layout-robot",
+    "ui-accessibility-robot",
+    "ui-browser-error-robot",
+    "ui-above-fold-robot",
+    "ui-visual-baseline-robot",
+    "ui-trend-robot",
+    "ui-cross-browser-robot",
+    "hf-install-robot",
+    "hf-visual-smoke-robot",
+)
+
+
+def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
+    profiles: set[str] = set()
+    normalized = [Path(path).as_posix().lstrip("./") for path in paths if str(path).strip()]
+    for path in normalized:
+        lower = path.lower()
+        if lower.startswith(("tools/agilab_widget_robot", "tools/ui_robot_", "test/test_agilab_widget_robot", "test/test_ui_robot_")):
+            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
+            profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
+        if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):
+            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(("src/agilab/main_page.py", "src/agilab/pages/", "src/agilab/lib/agi-gui/", "src/agilab/apps-pages/")):
+            profiles.update(
+                {
+                    "ui-robot-matrix",
+                    "ui-history-robot",
+                    "ui-mobile-robot",
+                    "ui-keyboard-robot",
+                    "ui-layout-robot",
+                    "ui-accessibility-robot",
+                    "ui-browser-error-robot",
+                    "ui-above-fold-robot",
+                    "ui-trend-robot",
+                }
+            )
+        if "huggingface" in lower or lower.startswith(("docker/", "spaces/", ".github/workflows/huggingface")):
+            profiles.update({"hf-visual-smoke-robot", "hf-install-robot"})
+        if lower.startswith(("tools/workflow_parity.py", "test/test_workflow_parity.py")):
+            profiles.update({"ui-robot-contract", "ui-robot-canary"})
+    if not profiles:
+        profiles.add("ui-robot-contract")
+    return [profile for profile in UI_ROBOT_PROFILE_ORDER if profile in profiles]
+
+
+def _git_changed_files(base: str = "") -> list[str]:
+    commands = []
+    if base:
+        commands.append(["git", "diff", "--name-only", f"{base}...HEAD"])
+    else:
+        commands.extend(
+            [
+                ["git", "diff", "--name-only", "HEAD"],
+                ["git", "diff", "--cached", "--name-only"],
+                ["git", "ls-files", "--others", "--exclude-standard"],
+            ]
+        )
+    paths: list[str] = []
+    seen: set[str] = set()
+    for argv in commands:
+        completed = subprocess.run(argv, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if completed.returncode != 0:
+            continue
+        for line in completed.stdout.splitlines():
+            path = line.strip()
+            if path and path not in seen:
+                paths.append(path)
+                seen.add(path)
+    return paths
+
+
+def _selected_ui_robot_profiles(args: argparse.Namespace) -> list[str]:
+    changed_files = list(getattr(args, "changed_file", []) or [])
+    if not changed_files:
+        changed_files = _git_changed_files(str(getattr(args, "changed_base", "") or ""))
+    return select_ui_robot_profiles_for_files(changed_files)
 
 
 def _agi_gui_profile() -> list[CommandSpec]:
@@ -323,6 +432,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_screenshot_manifest.py",
                 "test/test_ui_robot_coverage_contract.py",
                 "test/test_ui_robot_failure_replay.py",
+                "test/test_ui_robot_canary.py",
                 "test/test_ui_robot_trend_report.py",
                 "test/test_ui_visual_baseline_report.py",
             ],
@@ -1106,6 +1216,70 @@ def _ui_robot_contract_profile() -> list[CommandSpec]:
     ]
 
 
+def _ui_robot_canary_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot fault-injection canary",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "--with",
+                "pillow",
+                "python",
+                "tools/ui_robot_canary.py",
+                "--output",
+                "test-results/ui-robot-canary.json",
+                "--json",
+            ],
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/ui-robot-canary.json"],
+        )
+    ]
+
+
+def _ui_artifact_capture_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui artifact capture robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-project-page",
+                "--apps",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-artifact-capture-robot",
+                "--screenshot-dir",
+                "screenshots/ui-artifact-capture-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-artifact-capture-robot/failure-bundles",
+                "--trace-dir",
+                "test-results/ui-artifact-capture-robot/traces",
+                "--har-dir",
+                "test-results/ui-artifact-capture-robot/har",
+                "--video-dir",
+                "test-results/ui-artifact-capture-robot/video",
+            ],
+            timeout_seconds=15 * 60,
+            remove_paths=["test-results/ui-artifact-capture-robot", "screenshots/ui-artifact-capture-robot"],
+        )
+    ]
+
+
 def _hf_install_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -1398,6 +1572,10 @@ def _ui_trend_robot_profile() -> list[CommandSpec]:
                 "tools/ui_robot_trend_report.py",
                 "--glob",
                 "test-results/**/*.ndjson",
+                "--max-total-seconds",
+                "5400",
+                "--max-mean-page-seconds",
+                "180",
                 "--output",
                 "test-results/ui-robot-trend-report.json",
                 "--json",
@@ -1610,6 +1788,8 @@ def _ui_first_proof_robot_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
+    if getattr(args, "select_ui_robot_profiles", False):
+        return _selected_ui_robot_profiles(args)
     opt_in_profiles = {
         "agi-node",
         "agi-cluster",
@@ -1618,6 +1798,8 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "production-readiness",
         "ui-robot-matrix",
         "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-artifact-capture-robot",
         "ui-history-robot",
         "ui-mobile-robot",
         "ui-release-evidence-robot",

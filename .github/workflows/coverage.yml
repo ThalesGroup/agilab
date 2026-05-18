@@ -365,6 +365,7 @@ jobs:
                 test/test_screenshot_manifest.py \
                 test/test_ui_robot_coverage_contract.py \
                 test/test_ui_robot_failure_replay.py \
+                test/test_ui_robot_canary.py \
                 test/test_ui_robot_trend_report.py \
                 test/test_ui_visual_baseline_report.py
               ;;

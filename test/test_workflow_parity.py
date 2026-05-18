@@ -118,7 +118,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_contract = profiles["ui-robot-contract"][0]
+    ui_robot_canary = profiles["ui-robot-canary"][0]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
+    ui_artifact_capture_robot = profiles["ui-artifact-capture-robot"][0]
     ui_history_robot = profiles["ui-history-robot"][0]
     ui_mobile_robot = profiles["ui-mobile-robot"][0]
     ui_release_evidence_robot = profiles["ui-release-evidence-robot"][0]
@@ -235,6 +237,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_screenshot_manifest.py" in agi_gui_argv
     assert "test/test_ui_robot_coverage_contract.py" in agi_gui_argv
     assert "test/test_ui_robot_failure_replay.py" in agi_gui_argv
+    assert "test/test_ui_robot_canary.py" in agi_gui_argv
+    assert "test/test_ui_robot_trend_report.py" in agi_gui_argv
+    assert "test/test_ui_visual_baseline_report.py" in agi_gui_argv
     assert "test/test_ui_pages.py" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-flow.db" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-rest.db" in agi_gui_argv
@@ -294,6 +299,12 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert ui_robot_contract.label == "ui robot coverage contract"
     assert ui_robot_contract.timeout_seconds == 2 * 60
     assert ui_robot_contract.argv[-2:] == ["tools/ui_robot_coverage_contract.py", "--json"]
+    assert ui_robot_canary.label == "ui robot fault-injection canary"
+    assert ui_robot_canary.timeout_seconds == 5 * 60
+    assert "tools/ui_robot_canary.py" in ui_robot_canary.argv
+    assert "test-results/ui-robot-canary.json" in ui_robot_canary.argv
+    assert _has_with_dependency(ui_robot_canary.argv, "playwright")
+    assert _has_with_dependency(ui_robot_canary.argv, "pillow")
     assert ui_robot_matrix.label == "ui robot matrix"
     assert ui_robot_matrix.timeout_seconds == 60 * 60
     assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"]
@@ -311,6 +322,21 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "screenshots/ui-robot-matrix" in ui_robot_matrix.argv
     assert "test-results/ui-robot-matrix/failure-bundles" in ui_robot_matrix.argv
     assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
+    assert ui_artifact_capture_robot.label == "ui artifact capture robot"
+    assert ui_artifact_capture_robot.timeout_seconds == 15 * 60
+    assert "isolated-project-page" in ui_artifact_capture_robot.argv
+    assert "flight_telemetry_project" in ui_artifact_capture_robot.argv
+    assert "--trace-dir" in ui_artifact_capture_robot.argv
+    assert "test-results/ui-artifact-capture-robot/traces" in ui_artifact_capture_robot.argv
+    assert "--har-dir" in ui_artifact_capture_robot.argv
+    assert "test-results/ui-artifact-capture-robot/har" in ui_artifact_capture_robot.argv
+    assert "--video-dir" in ui_artifact_capture_robot.argv
+    assert "test-results/ui-artifact-capture-robot/video" in ui_artifact_capture_robot.argv
+    assert ui_artifact_capture_robot.remove_paths == [
+        "test-results/ui-artifact-capture-robot",
+        "screenshots/ui-artifact-capture-robot",
+    ]
+    assert _has_with_dependency(ui_artifact_capture_robot.argv, "playwright")
     assert ui_history_robot.label == "ui browser history robot"
     assert ui_history_robot.timeout_seconds == 30 * 60
     assert ui_history_robot.remove_paths == ["test-results/ui-history-robot", "screenshots/ui-history-robot"]
@@ -397,6 +423,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert ui_trend_robot.label == "ui robot trend report"
     assert "tools/ui_robot_trend_report.py" in ui_trend_robot.argv
     assert "test-results/ui-robot-trend-report.json" in ui_trend_robot.argv
+    assert "--max-total-seconds" in ui_trend_robot.argv
+    assert "--max-mean-page-seconds" in ui_trend_robot.argv
     assert [command.label for command in ui_cross_browser_robot] == [
         "ui cross-browser playwright browsers",
         "ui cross-browser robot (firefox)",
@@ -444,7 +472,9 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "security-adoption" not in selected
     assert "production-readiness" not in selected
     assert "ui-robot-contract" not in selected
+    assert "ui-robot-canary" not in selected
     assert "ui-robot-matrix" not in selected
+    assert "ui-artifact-capture-robot" not in selected
     assert "ui-history-robot" not in selected
     assert "ui-mobile-robot" not in selected
     assert "ui-release-evidence-robot" not in selected
@@ -459,6 +489,25 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "ui-cross-browser-robot" not in selected
     assert "hf-install-robot" not in selected
     assert "hf-visual-smoke-robot" not in selected
+
+
+def test_selected_profiles_can_select_ui_robot_profiles_from_changed_files() -> None:
+    module = _load_module()
+    args = SimpleNamespace(
+        profile=None,
+        select_ui_robot_profiles=True,
+        changed_file=["tools/agilab_widget_robot.py", "docs/source/_static/page-shots/home.png"],
+        changed_base="",
+    )
+
+    selected = module._selected_profiles(args)
+
+    assert selected == [
+        "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-visual-baseline-robot",
+        "ui-trend-robot",
+    ]
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:

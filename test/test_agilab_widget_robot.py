@@ -133,9 +133,115 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.visual_mask_dynamic_regions is False
     assert args.success_screenshot is False
     assert args.failure_bundle_dir is None
+    assert args.trace_dir is None
+    assert args.har_dir is None
+    assert args.video_dir is None
     assert args.max_first_render_seconds == 0.0
     assert args.max_widgets_ready_seconds == 0.0
     assert args.max_action_settle_seconds == 0.0
+
+
+def test_widget_robot_context_artifact_labels_are_filesystem_safe() -> None:
+    module = _load_module()
+
+    assert module._context_artifact_label("flight/project:ANALYSIS") == "flight-project-ANALYSIS"
+    assert module._context_artifact_label("") == "context"
+
+
+def test_robot_context_records_optional_playwright_artifacts(tmp_path) -> None:
+    module = _load_module()
+    captured: dict[str, object] = {}
+    starts: list[dict[str, object]] = []
+    stops: list[dict[str, object]] = []
+    closed: list[bool] = []
+
+    class _Tracing:
+        def start(self, **kwargs):
+            starts.append(kwargs)
+
+        def stop(self, **kwargs):
+            stops.append(kwargs)
+
+    class _Context:
+        tracing = _Tracing()
+
+        @staticmethod
+        def close() -> None:
+            closed.append(True)
+
+    class _Browser:
+        @staticmethod
+        def new_context(**kwargs):
+            captured.update(kwargs)
+            return _Context()
+
+    trace_dir = tmp_path / "traces"
+    har_dir = tmp_path / "hars"
+    video_dir = tmp_path / "videos"
+    context = module._new_robot_context(
+        _Browser(),
+        viewport_width=1280,
+        viewport_height=720,
+        artifact_label="flight/PROJECT",
+        trace_dir=trace_dir,
+        har_dir=har_dir,
+        video_dir=video_dir,
+    )
+
+    assert context is not None
+    assert captured["viewport"] == {"width": 1280, "height": 720}
+    assert captured["record_har_path"] == str(har_dir / "flight-PROJECT.har")
+    assert captured["record_video_dir"] == str(video_dir / "flight-PROJECT")
+    assert starts == [{"screenshots": True, "snapshots": True, "sources": True}]
+    assert trace_dir.is_dir()
+    assert har_dir.is_dir()
+    assert (video_dir / "flight-PROJECT").is_dir()
+
+    module._close_robot_context(
+        context,
+        artifact_label="flight/PROJECT",
+        trace_dir=trace_dir,
+    )
+
+    assert stops == [{"path": str(trace_dir / "flight-PROJECT.zip")}]
+    assert closed == [True]
+    assert module._context_artifact_label("") == "context"
+
+
+def test_robot_context_trace_failures_do_not_hide_context_close(tmp_path) -> None:
+    module = _load_module()
+    closed: list[bool] = []
+
+    class _Tracing:
+        @staticmethod
+        def start(**_kwargs):
+            raise RuntimeError("trace start failed")
+
+        @staticmethod
+        def stop(**_kwargs):
+            raise RuntimeError("trace stop failed")
+
+    class _Context:
+        tracing = _Tracing()
+
+        @staticmethod
+        def close() -> None:
+            closed.append(True)
+
+    class _Browser:
+        @staticmethod
+        def new_context(**_kwargs):
+            return _Context()
+
+    context = module._new_robot_context(
+        _Browser(),
+        viewport_width=800,
+        viewport_height=600,
+        trace_dir=tmp_path / "trace",
+    )
+    module._close_robot_context(context, trace_dir=tmp_path / "trace")
+
+    assert closed == [True]
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -170,6 +276,65 @@ def test_widget_robot_main_rejects_remote_artifact_assertions() -> None:
             assert exc.code == 2
         else:
             raise AssertionError(f"expected parser rejection for remote artifact assertions with {flag}")
+
+
+def test_widget_robot_main_forwards_artifact_capture_dirs(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(module, "resolve_apps", lambda _value: ["flight_telemetry_project"])
+    monkeypatch.setattr(module, "resolve_pages", lambda _value: [""])
+    monkeypatch.setattr(module, "resolve_apps_pages", lambda _value: [])
+
+    def _fake_sweep_app(**kwargs):
+        captured.update(kwargs)
+        page = module.PageSweep(
+            app="flight_telemetry_project",
+            page="HOME",
+            success=True,
+            duration_seconds=0.1,
+            widget_count=1,
+            main_widget_count=1,
+            sidebar_widget_count=0,
+            interacted_count=0,
+            probed_count=1,
+            skipped_count=0,
+            failed_count=0,
+            url="http://local",
+            failures=[],
+            skips=[],
+        )
+        kwargs["on_page_result"](page)
+        return [page]
+
+    monkeypatch.setattr(module, "sweep_app", _fake_sweep_app)
+
+    exit_code = module.main(
+        [
+            "--apps",
+            "flight_telemetry_project",
+            "--pages",
+            "HOME",
+            "--apps-pages",
+            "none",
+            "--trace-dir",
+            str(tmp_path / "traces"),
+            "--har-dir",
+            str(tmp_path / "hars"),
+            "--video-dir",
+            str(tmp_path / "videos"),
+            "--quiet-progress",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["trace_dir"] == (tmp_path / "traces").resolve()
+    assert captured["har_dir"] == (tmp_path / "hars").resolve()
+    assert captured["video_dir"] == (tmp_path / "videos").resolve()
+    assert '"success": true' in capsys.readouterr().out
 
 
 def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> None:
