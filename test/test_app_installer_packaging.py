@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -262,6 +263,63 @@ def test_packaged_apps_include_required_project_assets() -> None:
     assert not missing, "Missing packaged app project assets:\n" + "\n".join(missing)
 
 
+def test_app_template_python_files_compile_safe() -> None:
+    scripts = sorted(APP_TEMPLATES_ROOT.glob("*_template/src/**/*.py"))
+
+    assert scripts
+    for script in scripts:
+        py_compile.compile(str(script), doraise=True)
+
+
+def test_app_templates_keep_runtime_contracts_explicit() -> None:
+    templates = sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir())
+    assert templates
+
+    forbidden_python_fragments = (
+        "AGI._env",
+        "warnings.filterwarnings",
+        "Backward-compatible",
+        "Compatibility shim",
+        "legacy",
+        "data_uri",
+    )
+    for template in templates:
+        pyproject = tomllib.loads((template / "pyproject.toml").read_text(encoding="utf-8"))
+        dependencies = set()
+        for dependency in pyproject["project"]["dependencies"]:
+            name = dependency.split(";", 1)[0].split("[", 1)[0].strip()
+            for operator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+                name = name.split(operator, 1)[0].strip()
+            dependencies.add(name)
+        assert {"agi-cluster", "agi-env", "agi-node", "pydantic", "streamlit"} <= dependencies
+        assert "filterwarnings" not in pyproject.get("tool", {}).get("mypy", {})
+
+        cluster_settings = tomllib.loads((template / "src/app_settings.toml").read_text(encoding="utf-8"))["cluster"]
+        assert "cluster_enabled" in cluster_settings
+        assert {"workers_enable", "workers_enabled", "scheduler_enable"}.isdisjoint(cluster_settings)
+
+        for script in sorted((template / "src").glob("**/*.py")):
+            text = script.read_text(encoding="utf-8")
+            for fragment in forbidden_python_fragments:
+                assert fragment not in text, f"{script.relative_to(ROOT).as_posix()} contains {fragment!r}"
+
+
+def test_app_template_pre_prompts_are_generic_and_dependency_neutral() -> None:
+    templates = sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir())
+    assert templates
+
+    stale_fragments = ("mlflow", "sklearn", "scikit-learn", "df is already loaded")
+    for template in templates:
+        prompt_path = template / "src/pre_prompt.json"
+        payload = json.loads(prompt_path.read_text(encoding="utf-8"))
+        prompt_text = json.dumps(payload).lower()
+
+        assert isinstance(payload, list)
+        assert all(isinstance(item.get("role"), str) and isinstance(item.get("content"), str) for item in payload)
+        for fragment in stale_fragments:
+            assert fragment not in prompt_text, f"{prompt_path.relative_to(ROOT).as_posix()} contains {fragment!r}"
+
+
 def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
     tracked = _git_paths("ls-files")
     visible_untracked = _git_paths("ls-files", "--others", "--exclude-standard")
@@ -319,6 +377,143 @@ def test_app_dir_candidates_include_installed_app_project_packages(tmp_path: Pat
     monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [installed_root])
 
     assert module._app_dir_candidates("flight")[-1] == installed_root
+
+
+def _seed_venv_python(project: Path) -> None:
+    python = project / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+
+
+def test_install_state_cache_hits_only_when_fingerprint_and_venvs_match(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "demo_project"
+    app_src = app_path / "src" / "demo"
+    worker_src = app_path / "src" / "demo_worker"
+    app_src.mkdir(parents=True)
+    worker_src.mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+    (app_src / "demo.py").write_text("print('manager')\n", encoding="utf-8")
+    (worker_src / "demo_worker.py").write_text("print('worker')\n", encoding="utf-8")
+    (worker_src / "pyproject.toml").write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="demo_project",
+        target="demo",
+        target_worker="demo_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+    )
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")[0] is False
+
+    _seed_venv_python(app_path)
+    _seed_venv_python(wenv_abs)
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")[0] is False
+
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-project'\ndependencies=['numpy']\n",
+        encoding="utf-8",
+    )
+    hit, reason = module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")
+    assert hit is False
+    assert reason == "install fingerprint changed"
+
+
+def test_install_state_cache_misses_when_dataset_payload_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "demo_project"
+    (app_path / "src" / "demo_worker").mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+    dataset_archive = app_path / "src" / "demo_worker" / "dataset.7z"
+    dataset_archive.write_bytes(b"archive")
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+    share_root = tmp_path / "share"
+    data_root = share_root / "demo"
+    data_root.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="demo_project",
+        target="demo",
+        target_worker="demo_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+        dataset_archive=dataset_archive,
+        app_data_rel="demo",
+        share_root_path=lambda: share_root,
+    )
+    _seed_venv_python(app_path)
+    _seed_venv_python(wenv_abs)
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    hit, reason = module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    assert hit is False
+    assert reason == f"dataset payload missing at {data_root}"
+
+    (data_root / "seeded.csv").write_text("ok\n", encoding="utf-8")
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+
+def test_install_main_skips_agi_install_on_cache_hit(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "demo_project"
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+    env = SimpleNamespace(active_app=app_path, wenv_abs=wenv_abs)
+    calls: list[str] = []
+
+    class FakeAGI:
+        DASK_MODE = 4
+        CYTHON_MODE = 2
+
+        @staticmethod
+        async def install(**_kwargs):
+            calls.append("install")
+
+    monkeypatch.setattr(sys, "argv", ["install.py", str(app_path)])
+    monkeypatch.setattr(module, "AgiEnv", lambda **_kwargs: env)
+    monkeypatch.setattr(module, "AGI", FakeAGI)
+    monkeypatch.setattr(module, "ensure_data_storage", lambda _env: None)
+    monkeypatch.setattr(module, "validate_app_definition", lambda _env: None)
+    monkeypatch.setattr(module, "_install_state_matches", lambda *_args, **_kwargs: (True, "test hit"))
+
+    assert asyncio.run(module.main()) == 0
+    assert calls == []
 
 
 def test_packaged_agi_example_scripts_are_compile_safe() -> None:

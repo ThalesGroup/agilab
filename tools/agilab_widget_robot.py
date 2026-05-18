@@ -128,6 +128,39 @@ CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "Run -> Load -> Export",
     "Run now",
 )
+INSTALL_ACTION_LABELS = {"install"}
+INSTALL_POSTCONDITION_ACTION_LABELS = (
+    "CHECK distribute",
+    "DISTRIBUTE",
+    "Run now",
+    "EXECUTE",
+    "RUN",
+    "Run -> Load -> Export",
+)
+BROWSER_HISTORY_CHECK_PAGES = ("PROJECT", "ORCHESTRATE", "ANALYSIS")
+THEME_STATE_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim();
+  const styleFor = (selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return {};
+    const style = window.getComputedStyle(el);
+    return {
+      backgroundColor: clean(style.backgroundColor),
+      color: clean(style.color),
+      colorScheme: clean(style.colorScheme),
+    };
+  };
+  const root = window.getComputedStyle(document.documentElement);
+  return {
+    rootBackground: clean(root.backgroundColor),
+    rootColor: clean(root.color),
+    rootColorScheme: clean(root.colorScheme),
+    app: styleFor("[data-testid='stApp']"),
+    body: styleFor("body"),
+  };
+}
+"""
 CURRENT_HOME_WORKER_IMPORT_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -1646,6 +1679,38 @@ def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
 
+def _rgb_brightness(value: str) -> float | None:
+    match = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", value)
+    if not match:
+        return None
+    red, green, blue = (int(match.group(index)) for index in range(1, 4))
+    return (red * 299 + green * 587 + blue * 114) / 1000.0
+
+
+def _dark_theme_status(page: Any) -> tuple[bool, str]:
+    try:
+        state = page.evaluate(THEME_STATE_COLLECTOR_JS)
+    except Exception as exc:
+        return False, f"dark theme state could not be collected: {exc}"
+    if not isinstance(state, dict):
+        return False, "dark theme state collector returned no data"
+    snapshots = {
+        "app_background": str((state.get("app") or {}).get("backgroundColor") or ""),
+        "body_background": str((state.get("body") or {}).get("backgroundColor") or ""),
+        "root_background": str(state.get("rootBackground") or ""),
+    }
+    dark_snapshots = {
+        name: value
+        for name, value in snapshots.items()
+        if (brightness := _rgb_brightness(value)) is not None and brightness < 96
+    }
+    if dark_snapshots:
+        preview = ", ".join(f"{name}={value}" for name, value in dark_snapshots.items())
+        return True, f"dark theme verified: {preview}"
+    preview = ", ".join(f"{name}={value or 'unknown'}" for name, value in snapshots.items())
+    return False, f"dark theme was not preserved; {preview}"
+
+
 def _parse_config_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
@@ -2635,6 +2700,45 @@ def _new_visible_streamlit_feedback(
     return candidates[0]
 
 
+def _visible_action_feedback_tail(page: Any, *, limit: int = 320) -> str:
+    feedback = _visible_streamlit_feedback(page)
+    if not feedback:
+        return ""
+    tail = " | ".join(f"{item['kind']}: {item['detail']}" for item in feedback[-3:])
+    return _short_detail(tail, limit=limit)
+
+
+def _action_status_detail(action_label: str, status: str, detail: str = "") -> str:
+    head = f"action={action_label!r} status={status}"
+    return _short_detail(f"{head} detail={detail}" if detail else head)
+
+
+def _is_install_action_label(label: str) -> bool:
+    return _normalized_label(label) in INSTALL_ACTION_LABELS
+
+
+def _install_postcondition_status(page: Any) -> tuple[bool, str]:
+    try:
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+    except Exception as exc:
+        return False, f"INSTALL completed but follow-up widgets could not be collected: {exc}"
+    enabled_followups: list[str] = []
+    for label in INSTALL_POSTCONDITION_ACTION_LABELS:
+        if _selected_action_matches(widgets, label, require_enabled=True):
+            enabled_followups.append(label)
+    if enabled_followups:
+        return True, f"INSTALL postcondition verified: enabled follow-up action {enabled_followups[0]!r}"
+    visible_actions = [
+        str(widget.get("label", "")).strip()
+        for widget in widgets
+        if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
+    ]
+    if visible_actions:
+        preview = ", ".join(repr(label) for label in visible_actions[:6])
+        return False, f"INSTALL completed but no expected enabled follow-up action was found; visible actions: {preview}"
+    return False, "INSTALL completed but no action buttons were visible afterward"
+
+
 def _visible_exception_detail(page: Any) -> str | None:
     """Backward-compatible alias for older tests and call sites."""
     try:
@@ -3229,6 +3333,7 @@ def _probe_widget(
         return "probed", "disabled state verified"
     locator = _widget_locator(page, widget)
     kind = str(widget.get("kind", ""))
+    action_label = str(widget.get("label", ""))
     is_selected_action = (
         kind in ACTION_BUTTON_KINDS
         and action_button_policy == "click-selected"
@@ -3325,11 +3430,26 @@ def _probe_widget(
                     allow_idle_settle=allow_idle_settle,
                 )
                 if error:
-                    return "failed", f"button click rendered Streamlit error: {error}"
+                    detail = f"button click rendered Streamlit error: {error}"
+                    feedback_tail = _visible_action_feedback_tail(page)
+                    if feedback_tail:
+                        detail = f"{detail}; evidence_tail={feedback_tail}"
+                    return "failed", _action_status_detail(action_label, "error", detail)
                 if not settled:
-                    return "skipped", f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s"
+                    return "skipped", _action_status_detail(
+                        action_label,
+                        "timeout",
+                        f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s",
+                    )
                 if action_button_policy == "safe-click":
                     return "interacted", f"clicked guarded safe action button: {safe_click_reason}"
+                if action_button_policy == "click-selected":
+                    if _is_install_action_label(action_label):
+                        install_ok, install_detail = _install_postcondition_status(page)
+                        if not install_ok:
+                            return "failed", _action_status_detail(action_label, "error", install_detail)
+                        return "interacted", _action_status_detail(action_label, "success", install_detail)
+                    return "interacted", _action_status_detail(action_label, "success", "selected action completed")
                 return "interacted", "clicked action button"
             if action_button_policy == "safe-click":
                 return _probe_action_button_trial(
@@ -3657,6 +3777,7 @@ def sweep_page(
     route_query: str = "",
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    browser_history_check: bool = False,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -3700,6 +3821,23 @@ def sweep_page(
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
+            if browser_history_check:
+                probes.append(
+                    _browser_history_probe(
+                        page,
+                        web_robot=web_robot,
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        app_name=app_name,
+                        display=display,
+                        timeout_ms=timeout_ms,
+                        widget_timeout_ms=widget_timeout_ms,
+                        screenshot_dir=screenshot_dir,
+                        route_query=route_query,
+                    )
+                )
+                if not any(probe.status == "failed" for probe in probes):
+                    restore_view()
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
             preflight_detail = current_home_action_preflight_blocker(
                 app_name=app_name,
@@ -3729,7 +3867,7 @@ def sweep_page(
                         url=page.url,
                     )
                 )
-            if selected_actions_first and not preflight_detail:
+            if selected_actions_first and not preflight_detail and not any(probe.status == "failed" for probe in probes):
                 orchestrate_artifact_context = None
                 if assert_orchestrate_artifacts and page_label(page_name) == "ORCHESTRATE":
                     orchestrate_artifact_context = build_orchestrate_artifact_context(
@@ -3930,6 +4068,158 @@ def _project_root_for(path: Path) -> Path:
     return path.parent
 
 
+def _browser_history_probe(
+    page: Any,
+    *,
+    web_robot: Any,
+    base_url: str,
+    active_app_query: str,
+    app_name: str,
+    display: str,
+    timeout_ms: float,
+    widget_timeout_ms: float,
+    screenshot_dir: Path | None,
+    route_query: str,
+) -> WidgetProbe:
+    route = " -> ".join(BROWSER_HISTORY_CHECK_PAGES)
+
+    def visit(page_name: str, label: str) -> str | None:
+        target = append_route_query(
+            web_robot.build_page_url(base_url, page_name, active_app=active_app_query),
+            route_query,
+        )
+        page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
+        health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:{label}",
+            expect_any=PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)),
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not health.success:
+            return f"{label} unhealthy: {health.detail}"
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return f"{label} {theme_detail}"
+        wait_for_page_ready(page, timeout_ms=timeout_ms)
+        wait_for_widgets_ready(page, page_name=page_name, timeout_ms=widget_timeout_ms)
+        if not active_app_route_matches(page.url, active_app_query):
+            return (
+                f"{label} active_app routed to {routed_active_app_slug(page.url)!r}, "
+                f"expected {sorted(active_app_aliases(active_app_query))!r}"
+            )
+        return None
+
+    try:
+        for page_name in BROWSER_HISTORY_CHECK_PAGES:
+            failure = visit(page_name, page_name)
+            if failure:
+                return WidgetProbe(app_name, display, "browser_history", route, "failed", _short_detail(failure), page.url)
+        page.go_back(wait_until="domcontentloaded", timeout=timeout_ms)
+        back_health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:browser-history-back",
+            expect_any=PAGE_EXPECTED_TEXT["ORCHESTRATE"],
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not back_health.success:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history back unhealthy: {back_health.detail}"),
+                page.url,
+            )
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history back {theme_detail}"),
+                page.url,
+            )
+        if not active_app_route_matches(page.url, active_app_query):
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(
+                    f"history back changed active_app to {routed_active_app_slug(page.url)!r}; "
+                    f"expected {sorted(active_app_aliases(active_app_query))!r}"
+                ),
+                page.url,
+            )
+        page.go_forward(wait_until="domcontentloaded", timeout=timeout_ms)
+        forward_health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:browser-history-forward",
+            expect_any=PAGE_EXPECTED_TEXT["ANALYSIS"],
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not forward_health.success:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history forward unhealthy: {forward_health.detail}"),
+                page.url,
+            )
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history forward {theme_detail}"),
+                page.url,
+            )
+        if not active_app_route_matches(page.url, active_app_query):
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(
+                    f"history forward changed active_app to {routed_active_app_slug(page.url)!r}; "
+                    f"expected {sorted(active_app_aliases(active_app_query))!r}"
+                ),
+                page.url,
+            )
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_history",
+            route,
+            "interacted",
+            "browser back/forward preserved page health, dark theme, and active_app routing",
+            page.url,
+        )
+    except Exception as exc:
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_history",
+            route,
+            "failed",
+            _short_detail(f"browser history check failed: {exc}"),
+            getattr(page, "url", ""),
+        )
+
+
 def sweep_direct_apps_page(
     *,
     web_robot: Any,
@@ -4087,6 +4377,7 @@ def sweep_app(
     runtime_isolation: str,
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    browser_history_check: bool = False,
     route_query: str = "",
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
@@ -4183,6 +4474,7 @@ def sweep_app(
                                 route_query=route_query,
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                                 assert_workflow_artifacts=assert_workflow_artifacts,
+                                browser_history_check=browser_history_check,
                             )
                             results.append(result)
                             _emit_page_result(result, progress=progress, on_page_result=on_page_result)
@@ -4247,6 +4539,7 @@ def sweep_remote_app(
     headless: bool,
     screenshot_dir: Path | None,
     route_query: str = "",
+    browser_history_check: bool = False,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -4323,6 +4616,7 @@ def sweep_remote_app(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         route_query=route_query,
+                        browser_history_check=browser_history_check,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
@@ -4467,6 +4761,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--discovery-passes", type=int, default=2, help="Number of repeated widget-discovery passes per page state, used to catch widgets revealed by safe callbacks.")
     parser.add_argument("--max-action-clicks-per-page", type=int, default=25, help="Maximum real action-button clicks per page sweep. Use 0 to trial-probe all action buttons without firing callbacks.")
     parser.add_argument("--route-query", default="", help="Extra query string to append to every top-level route, for example 'start=notebook-import'.")
+    parser.add_argument(
+        "--browser-history-check",
+        action="store_true",
+        help="Navigate PROJECT -> ORCHESTRATE -> ANALYSIS, then browser back/forward, and assert page health plus active_app routing.",
+    )
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -4574,6 +4873,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
                 route_query=args.route_query,
+                browser_history_check=args.browser_history_check,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
@@ -4604,6 +4904,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_isolation=args.runtime_isolation,
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
+                browser_history_check=args.browser_history_check,
                 route_query=args.route_query,
                 page_timeout=args.page_timeout,
                 progress=progress,

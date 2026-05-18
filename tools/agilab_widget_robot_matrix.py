@@ -36,6 +36,7 @@ class RobotScenario:
     target_seconds: float = 1800.0
     assert_orchestrate_artifacts: bool = False
     assert_workflow_artifacts: bool = False
+    browser_history_check: bool = False
 
 
 @dataclass(frozen=True)
@@ -226,6 +227,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
 
 
 OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
+    "isolated-browser-history": RobotScenario(
+        name="isolated-browser-history",
+        description=(
+            "Navigate PROJECT, ORCHESTRATE, and ANALYSIS with an isolated runtime, "
+            "then exercise browser back/forward and assert dark theme plus active_app routing survive."
+        ),
+        pages="PROJECT",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=360.0,
+        target_seconds=900.0,
+        browser_history_check=True,
+    ),
     "hf-flight-telemetry-install": RobotScenario(
         name="hf-flight-telemetry-install",
         description=(
@@ -370,6 +386,8 @@ def build_robot_command(
         argv.append("--assert-orchestrate-artifacts")
     if scenario.assert_workflow_artifacts:
         argv.append("--assert-workflow-artifacts")
+    if scenario.browser_history_check:
+        argv.append("--browser-history-check")
     if options.url:
         argv.extend(["--url", options.url])
     if options.active_app:

@@ -9,6 +9,9 @@ authors = [
 ]
 
 dependencies = [
+    "agi-cluster",
+    "agi-env",
+    "agi-node",
     "pydantic",
     "streamlit>=1.56.0",
 ]

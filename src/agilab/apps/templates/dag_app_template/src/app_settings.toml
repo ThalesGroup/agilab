@@ -3,13 +3,10 @@
 data_in = "dag_app/dataset"
 
 [cluster]
-workers_enable = true
-scheduler_enable = false
 pool = false
 cython = true
 rapids = false
 verbose = true
-workers_enabled = false
 cluster_enabled = false
 scheduler = "127.0.0.1:8786"
 workers_data_path = ""
