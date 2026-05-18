@@ -4,18 +4,34 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import ga_regression_selector
 import impact_validate
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+RESULT_CACHE_SCHEMA = "agilab-bugfix-validate-result-cache-v1"
+DEFAULT_RESULT_CACHE_PATH = (
+    REPO_ROOT / ".pytest_cache" / "agilab" / "bugfix_validate_results.json"
+)
+RESULT_CACHE_MAX_ENTRIES = 256
+RESULT_CACHE_STATIC_INPUTS = (
+    "pyproject.toml",
+    "uv.lock",
+    "pytest.ini",
+    "test/conftest.py",
+    "tools/bugfix_validate.py",
+    "tools/ga_regression_selector.py",
+    "tools/impact_validate.py",
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -46,6 +62,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path for cached GA selector test metadata.",
     )
     parser.add_argument("--no-cache", action="store_true", help="Bypass the GA selector cache.")
+    parser.add_argument(
+        "--result-cache-path",
+        default=str(DEFAULT_RESULT_CACHE_PATH),
+        help="Path for cached successful selected pytest runs.",
+    )
+    parser.add_argument(
+        "--no-result-cache",
+        action="store_true",
+        help="Bypass cached successful selected pytest runs.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit combined JSON.")
     parser.add_argument("--print-command", action="store_true", help="Print only the selected pytest command.")
     parser.add_argument("--run", action="store_true", help="Run the selected pytest command.")
@@ -94,6 +120,136 @@ def _render_human(
     )
 
 
+def _load_result_cache(path: Path) -> dict[str, object]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+    if not isinstance(data, dict):
+        return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+    entries = data.get("entries")
+    if data.get("schema") != RESULT_CACHE_SCHEMA or not isinstance(entries, dict):
+        return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+    return {"schema": RESULT_CACHE_SCHEMA, "entries": entries}
+
+
+def _write_result_cache(path: Path, state: dict[str, object]) -> None:
+    entries = state.get("entries")
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "entries": entries if isinstance(entries, dict) else {},
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
+def _repo_file(path: str) -> tuple[str, Path]:
+    file_part = path.split("::", 1)[0]
+    raw_path = Path(file_part)
+    if raw_path.is_absolute():
+        try:
+            label = raw_path.resolve().relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            label = raw_path.as_posix()
+        return label, raw_path
+    return file_part, REPO_ROOT / file_part
+
+
+def _hash_file(hasher: Any, path: str) -> None:
+    label, resolved = _repo_file(path)
+    hasher.update(f"path:{label}\n".encode("utf-8"))
+    try:
+        if not resolved.exists():
+            hasher.update(b"missing\n")
+            return
+        if not resolved.is_file():
+            hasher.update(b"not-file\n")
+            return
+        hasher.update(b"file\n")
+        with resolved.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+    except OSError as exc:
+        hasher.update(f"unreadable:{type(exc).__name__}\n".encode("utf-8"))
+
+
+def _unique_paths(paths: Sequence[str]) -> list[str]:
+    return sorted(dict.fromkeys(paths))
+
+
+def _result_cache_key(
+    files: Sequence[str],
+    selection: ga_regression_selector.SelectionResult,
+) -> str:
+    hasher = hashlib.sha256()
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "python": list(sys.version_info[:3]),
+        "command": list(selection.command),
+        "selected_tests": list(selection.selected_tests),
+        "required_tests": list(selection.required_tests),
+        "budget_seconds": selection.budget_seconds,
+    }
+    hasher.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
+    for group, paths in (
+        ("changed", files),
+        ("selected-tests", selection.selected_tests),
+        ("static-inputs", RESULT_CACHE_STATIC_INPUTS),
+    ):
+        hasher.update(f"\n[{group}]\n".encode("utf-8"))
+        for path in _unique_paths(paths):
+            _hash_file(hasher, path)
+    return hasher.hexdigest()
+
+
+def _has_cached_success(path: Path, key: str) -> bool:
+    entries = _load_result_cache(path).get("entries")
+    if not isinstance(entries, dict):
+        return False
+    entry = entries.get(key)
+    return isinstance(entry, dict) and entry.get("status") == "passed"
+
+
+def _record_cached_success(
+    path: Path,
+    key: str,
+    files: Sequence[str],
+    selection: ga_regression_selector.SelectionResult,
+) -> None:
+    state = _load_result_cache(path)
+    entries = state.get("entries")
+    if not isinstance(entries, dict):
+        entries = {}
+    entries[key] = {
+        "status": "passed",
+        "stored_at": round(time.time(), 3),
+        "files": list(files),
+        "selected_tests": list(selection.selected_tests),
+        "command": list(selection.command),
+    }
+    while len(entries) > RESULT_CACHE_MAX_ENTRIES:
+        oldest_key = min(
+            entries,
+            key=lambda entry_key: (
+                float(entries[entry_key]["stored_at"])
+                if isinstance(entries[entry_key], dict)
+                and isinstance(entries[entry_key].get("stored_at"), (int, float))
+                else 0.0
+            ),
+        )
+        entries.pop(oldest_key, None)
+    state["entries"] = entries
+    _write_result_cache(path, state)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -121,7 +277,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(_render_human(impact_report, selection), flush=True)
 
     if args.run and selection.selected_tests:
+        cache_path = Path(args.result_cache_path)
+        cache_key = _result_cache_key(files, selection)
+        if not args.no_result_cache and _has_cached_success(cache_path, cache_key):
+            print(
+                "bugfix_validate: cached pass for selected pytest subset",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 0
         completed = subprocess.run(selection.command, cwd=REPO_ROOT, check=False)
+        if completed.returncode == 0 and not args.no_result_cache:
+            _record_cached_success(cache_path, cache_key, files, selection)
         return completed.returncode
     return 0
 
