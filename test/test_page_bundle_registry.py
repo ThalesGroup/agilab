@@ -23,6 +23,7 @@ from agilab.page_bundle_registry import (
     PageBundleSpec,
     PageTemplateRegistry,
     PageTemplateSpec,
+    clear_page_bundle_discovery_cache,
     configured_page_bundle_names,
     discover_page_bundle,
     discover_page_bundles,
@@ -106,6 +107,25 @@ def test_discover_page_bundles_can_require_pyproject(tmp_path: Path) -> None:
     registry = discover_page_bundles(tmp_path, require_pyproject=True)
 
     assert registry.names() == ("view_public",)
+
+
+def test_discover_page_bundles_reuses_cache_until_directory_signature_changes(tmp_path: Path) -> None:
+    clear_page_bundle_discovery_cache()
+    _write_bundle(tmp_path, "view_first")
+
+    first = discover_page_bundles(tmp_path)
+    second = discover_page_bundles(tmp_path)
+
+    assert second is first
+
+    top_level = tmp_path / "view_second.py"
+    top_level.write_text("def main(): pass\n", encoding="utf-8")
+
+    third = discover_page_bundles(tmp_path)
+
+    assert third is not first
+    assert third.names() == ("view_first", "view_second")
+    clear_page_bundle_discovery_cache()
 
 
 def test_discover_page_bundle_loads_contract_metadata(tmp_path: Path) -> None:

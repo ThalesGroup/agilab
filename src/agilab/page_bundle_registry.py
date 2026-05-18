@@ -14,6 +14,7 @@ PAGE_BUNDLE_SCHEMA = "agilab.page_bundle_registry.v1"
 PAGE_TEMPLATE_SCHEMA = "agilab.page_template_registry.v1"
 PAGE_TEMPLATE_SUFFIX = "_page_template"
 PAGE_BUNDLE_ENTRYPOINT_NAMES = ("{module}.py", "main.py", "app.py")
+_PAGE_BUNDLE_DISCOVERY_CACHE: dict[tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]], "PageBundleRegistry"] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +259,15 @@ def discover_page_bundles(
     if root is None or not root.exists() or not root.is_dir():
         return PageBundleRegistry()
 
+    cache_key = _page_bundle_discovery_cache_key(
+        root,
+        require_pyproject=require_pyproject,
+        require_contract=require_contract,
+    )
+    cached = _PAGE_BUNDLE_DISCOVERY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     bundles: list[PageBundleSpec] = []
     for script_path in sorted(root.glob("*.py")):
         if script_path.name == "__init__.py" or script_path.name.startswith("."):
@@ -279,7 +289,14 @@ def discover_page_bundles(
         )
         if bundle is not None:
             bundles.append(bundle)
-    return PageBundleRegistry(bundles)
+    registry = PageBundleRegistry(bundles)
+    cache_prefix = cache_key[:3]
+    for stale_key in [
+        key for key in _PAGE_BUNDLE_DISCOVERY_CACHE if key[:3] == cache_prefix
+    ]:
+        _PAGE_BUNDLE_DISCOVERY_CACHE.pop(stale_key, None)
+    _PAGE_BUNDLE_DISCOVERY_CACHE[cache_key] = registry
+    return registry
 
 
 def discover_page_templates(
@@ -441,6 +458,103 @@ def configured_page_bundle_names(settings: Mapping[str, Any]) -> tuple[str, ...]
             seen.add(key)
             ordered.append(key)
     return tuple(ordered)
+
+
+def clear_page_bundle_discovery_cache() -> None:
+    """Clear the in-process apps-page discovery cache."""
+
+    _PAGE_BUNDLE_DISCOVERY_CACHE.clear()
+
+
+def _stat_signature(path: Path, *, label: str | None = None) -> tuple[str, bool, int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    name = label if label is not None else path.name
+    return (name, path.is_dir(), stat.st_mtime_ns, stat.st_size)
+
+
+def _page_bundle_dir_signature(bundle_dir: Path) -> list[tuple[str, bool, int, int]]:
+    signatures: list[tuple[str, bool, int, int]] = []
+    for candidate in (
+        bundle_dir,
+        bundle_dir / "pyproject.toml",
+        bundle_dir / "agilab.template.toml",
+        bundle_dir / "main.py",
+        bundle_dir / "app.py",
+        bundle_dir / f"{bundle_dir.name}.py",
+        bundle_dir / "src",
+        bundle_dir / "src" / bundle_dir.name,
+        bundle_dir / "src" / bundle_dir.name / f"{bundle_dir.name}.py",
+        bundle_dir / "src" / bundle_dir.name / "main.py",
+        bundle_dir / "src" / bundle_dir.name / "app.py",
+    ):
+        signature = _stat_signature(
+            candidate,
+            label=candidate.relative_to(bundle_dir.parent).as_posix(),
+        )
+        if signature is not None:
+            signatures.append(signature)
+
+    src = bundle_dir / "src"
+    if src.exists() and src.is_dir():
+        try:
+            src_children = sorted(src.iterdir(), key=lambda path: path.name.casefold())
+        except OSError:
+            src_children = []
+        for child in src_children:
+            signature = _stat_signature(
+                child,
+                label=child.relative_to(bundle_dir.parent).as_posix(),
+            )
+            if signature is not None:
+                signatures.append(signature)
+            if child.is_dir():
+                try:
+                    view_files = sorted(child.glob("view_*.py"), key=lambda path: path.name.casefold())
+                except OSError:
+                    view_files = []
+                for view_file in view_files:
+                    view_signature = _stat_signature(
+                        view_file,
+                        label=view_file.relative_to(bundle_dir.parent).as_posix(),
+                    )
+                    if view_signature is not None:
+                        signatures.append(view_signature)
+    return signatures
+
+
+def _page_bundle_discovery_cache_key(
+    root: Path,
+    *,
+    require_pyproject: bool,
+    require_contract: bool,
+) -> tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]]:
+    signatures: list[tuple[str, bool, int, int]] = []
+    root_signature = _stat_signature(root, label=".")
+    if root_signature is not None:
+        signatures.append(root_signature)
+    try:
+        children = sorted(root.iterdir(), key=lambda path: path.name.casefold())
+    except OSError:
+        children = []
+    for child in children:
+        if child.name.startswith("."):
+            continue
+        if child.is_file() and child.suffix == ".py":
+            signature = _stat_signature(child)
+            if signature is not None:
+                signatures.append(signature)
+            continue
+        if child.is_dir():
+            signatures.extend(_page_bundle_dir_signature(child))
+    return (
+        root.as_posix(),
+        bool(require_pyproject),
+        bool(require_contract),
+        tuple(signatures),
+    )
 
 
 def _bundle_from_existing_path(path: Path) -> PageBundleSpec:

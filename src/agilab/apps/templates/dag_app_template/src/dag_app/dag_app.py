@@ -1,5 +1,4 @@
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, List, Tuple
 
@@ -15,7 +14,6 @@ from .dag_app_args import (
 )
 
 logger = logging.getLogger(__name__)
-warnings.filterwarnings("ignore")
 
 
 class DagApp(BaseWorker):
@@ -31,6 +29,7 @@ class DagApp(BaseWorker):
     ) -> None:
         super().__init__()
         self.env = env
+        self.verbose = int(kwargs.pop("verbose", getattr(env, "verbose", 0) or 0))
 
         if args is None:
             allowed = set(DagAppArgs.model_fields.keys())
@@ -87,8 +86,4 @@ class DagApp(BaseWorker):
         return [], [], "id", "nb_fct", ""
 
 
-class Dag(DagApp):
-    """Alias matching legacy imports without the App suffix."""
-
-
-__all__ = ["DagApp", "Dag"]
+__all__ = ["DagApp"]

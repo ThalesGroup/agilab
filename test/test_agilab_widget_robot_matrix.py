@@ -83,7 +83,23 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "EXPORT dataframe" in journey.click_action_labels
     assert "Confirm delete" in journey.click_action_labels
     assert journey.assert_orchestrate_artifacts is True
+    assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "hf-flight-telemetry-install" not in [scenario.name for scenario in scenarios]
+
+
+def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
+    module = _load_module()
+
+    default_scenarios = module.resolve_scenarios(["all"])
+    history = module.resolve_scenarios(["isolated-browser-history"])[0]
+
+    assert "isolated-browser-history" not in [scenario.name for scenario in default_scenarios]
+    assert history.name == "isolated-browser-history"
+    assert history.pages == "PROJECT"
+    assert history.apps_pages == "none"
+    assert history.runtime_isolation == "isolated"
+    assert history.action_button_policy == "safe-click"
+    assert history.browser_history_check is True
 
 
 def test_opt_in_hf_install_scenario_is_not_part_of_default_all() -> None:
@@ -167,6 +183,29 @@ def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "hf-flight-telemetry-install")
     assert summary_path == tmp_path / "hf-flight-telemetry-install.json"
     assert progress_path == tmp_path / "hf-flight-telemetry-install.ndjson"
+
+
+def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-browser-history"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert "--browser-history-check" in argv
+    assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "isolated-browser-history")
+    assert summary_path == tmp_path / "isolated-browser-history.json"
+    assert progress_path == tmp_path / "isolated-browser-history.ndjson"
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:

@@ -2264,6 +2264,93 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
     assert "broken widget callback" in result.failures[0].detail
 
 
+def test_browser_history_probe_checks_back_forward_and_active_app_route() -> None:
+    module = _load_module()
+    visited: list[str] = []
+
+    class _Health:
+        success = True
+        detail = "ok"
+
+    class _FakeWebRobot:
+        @staticmethod
+        def build_page_url(base_url, page_name, *, active_app=None, current_page=None):
+            return f"{base_url.rstrip('/')}/{page_name}?active_app={active_app}"
+
+        @staticmethod
+        def assert_page_healthy(*_args, **_kwargs):
+            return _Health()
+
+    class _Page:
+        url = "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project"
+
+        def goto(self, url, **_kwargs):
+            self.url = url
+            visited.append(url)
+
+        def go_back(self, **_kwargs):
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
+            visited.append("BACK")
+
+        def go_forward(self, **_kwargs):
+            self.url = "http://127.0.0.1:8501/ANALYSIS?active_app=flight_telemetry_project"
+            visited.append("FORWARD")
+
+        def evaluate(self, script):
+            if script == module.THEME_STATE_COLLECTOR_JS:
+                return {
+                    "app": {"backgroundColor": "rgb(8, 17, 31)"},
+                    "body": {"backgroundColor": "rgb(8, 17, 31)"},
+                    "rootBackground": "rgb(8, 17, 31)",
+                }
+            return {}
+
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        probe = module._browser_history_probe(
+            _Page(),
+            web_robot=_FakeWebRobot(),
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
+            display="PROJECT",
+            timeout_ms=100,
+            widget_timeout_ms=100,
+            screenshot_dir=None,
+            route_query="",
+        )
+    finally:
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert probe.kind == "browser_history"
+    assert probe.status == "interacted"
+    assert "PROJECT -> ORCHESTRATE -> ANALYSIS" == probe.label
+    assert "dark theme" in probe.detail
+    assert visited[-2:] == ["BACK", "FORWARD"]
+
+
+def test_dark_theme_status_fails_for_light_background() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            assert script == module.THEME_STATE_COLLECTOR_JS
+            return {
+                "app": {"backgroundColor": "rgb(255, 255, 255)"},
+                "body": {"backgroundColor": "rgb(255, 255, 255)"},
+                "rootBackground": "rgb(255, 255, 255)",
+            }
+
+    ok, detail = module._dark_theme_status(_Page())
+
+    assert ok is False
+    assert "dark theme was not preserved" in detail
+
+
 def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
     module = _load_module()
     results: list[module.PageSweep] = []
@@ -3090,9 +3177,143 @@ def test_selected_action_button_detects_failure_in_orchestration_log_expander(tm
     )
 
     assert status == "failed"
+    assert "action='CHECK distribute' status=error" in detail
     assert "Distribution build failed" in detail
+    assert "evidence_tail=" in detail
     assert action_log_calls["value"] >= 1
     assert clicks == [{"timeout": 1000}]
+
+
+def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "install", "kind": "button", "label": "INSTALL", "disabled": True}]
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "install", "kind": "button", "label": "INSTALL"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["INSTALL"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "failed"
+    assert "action='INSTALL' status=error" in detail
+    assert "no expected enabled follow-up action" in detail
+    assert clicks == [{"timeout": 100}]
+
+
+def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            pass
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "check", "kind": "button", "label": "CHECK distribute", "scope": "main"}]
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "install", "kind": "button", "label": "INSTALL"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["INSTALL"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "interacted"
+    assert "action='INSTALL' status=success" in detail
+    assert "enabled follow-up action 'CHECK distribute'" in detail
 
 
 def test_selected_action_baseline_includes_stale_action_log_feedback() -> None:

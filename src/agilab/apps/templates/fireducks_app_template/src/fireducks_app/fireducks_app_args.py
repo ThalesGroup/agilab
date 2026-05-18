@@ -5,21 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_model_data
 
 
 class FireducksAppArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_keys(cls, data: Any):
-        if isinstance(data, dict) and "data_uri" in data and "data_in" not in data:
-            data = dict(data)
-            data["data_in"] = data.pop("data_uri")
-        return data
 
     data_in: Path = Field(default_factory=lambda: Path("data/FireducksApp"))
 

@@ -16,17 +16,53 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import sys
-import os
-import asyncio
-from pathlib import Path
 import argparse
+import asyncio
 import errno
 import getpass
-import shutil
+import hashlib
+import json
 import logging
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+INSTALL_STATE_SCHEMA = "agilab.app_install_state.v2"
+INSTALL_STATE_DISABLE_ENV = "AGILAB_DISABLE_APP_INSTALL_CACHE"
+INSTALL_STATE_FORCE_ENV = "AGILAB_FORCE_APP_INSTALL"
+INSTALL_STATE_CACHE_DIR_ENV = "AGILAB_INSTALL_CACHE_DIR"
+FINGERPRINT_SMALL_FILE_LIMIT = 8 * 1024 * 1024
+FINGERPRINT_SOURCE_SUFFIXES = {
+    ".7z",
+    ".csv",
+    ".dot",
+    ".ipynb",
+    ".json",
+    ".md",
+    ".py",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
+FINGERPRINT_EXCLUDED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "Modules",
+    "build",
+    "dist",
+}
+FINGERPRINT_EXCLUDED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
 
 
 def _package_root() -> Path:
@@ -296,6 +332,252 @@ def validate_app_definition(env: AgiEnv) -> None:
         )
 
 
+def _truthy(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().strip("\"'").lower() in {"1", "true", "yes", "on"}
+
+
+def _install_cache_root() -> Path:
+    configured = os.environ.get(INSTALL_STATE_CACHE_DIR_ENV)
+    if configured:
+        return Path(configured).expanduser()
+    xdg_cache = os.environ.get("XDG_CACHE_HOME")
+    cache_home = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
+    return cache_home / "agilab" / "install-state"
+
+
+def _safe_label(value: object) -> str:
+    text = str(value or "app").strip() or "app"
+    safe = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in text)
+    return safe.strip("._-") or "app"
+
+
+def _path_digest(path: Path) -> str:
+    text = str(path.expanduser().resolve(strict=False))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _install_state_path(env: AgiEnv) -> Path:
+    active_app = Path(getattr(env, "active_app", "app")).expanduser()
+    label = _safe_label(active_app.name or getattr(env, "app", "app"))
+    return _install_cache_root() / f"{label}-{_path_digest(active_app)}.json"
+
+
+def _project_python(project: Path) -> Path:
+    if os.name == "nt":
+        return project / ".venv" / "Scripts" / "python.exe"
+    return project / ".venv" / "bin" / "python"
+
+
+def _resolved_app_data_root(env: AgiEnv) -> Path | None:
+    app_data_rel = getattr(env, "app_data_rel", None)
+    if not app_data_rel:
+        return None
+    app_data_path = Path(app_data_rel).expanduser()
+    if app_data_path.is_absolute():
+        return app_data_path.resolve(strict=False)
+    try:
+        share_base = env.share_root_path()
+    except (AttributeError, OSError, RuntimeError):
+        return None
+    return (share_base / app_data_path).resolve(strict=False)
+
+
+def _dataset_payload_ready(env: AgiEnv) -> tuple[bool, str]:
+    dataset_archive = getattr(env, "dataset_archive", None)
+    if not isinstance(dataset_archive, Path) or not dataset_archive.exists():
+        return True, "no dataset archive"
+    data_root = _resolved_app_data_root(env)
+    if data_root is None:
+        return False, "dataset root unavailable"
+    try:
+        has_payload = any(path.name != ".DS_Store" for path in data_root.iterdir())
+    except OSError:
+        return False, f"dataset root unavailable at {data_root}"
+    if not has_payload:
+        return False, f"dataset payload missing at {data_root}"
+    return True, "dataset payload ready"
+
+
+def _required_install_venvs_ready(env: AgiEnv) -> tuple[bool, str]:
+    active_app = Path(getattr(env, "active_app", ""))
+    if not _project_python(active_app).exists():
+        return False, f"manager venv missing at {active_app / '.venv'}"
+    wenv_abs = Path(getattr(env, "wenv_abs", ""))
+    if not _project_python(wenv_abs).exists():
+        return False, f"worker venv missing at {wenv_abs / '.venv'}"
+    dataset_ready, dataset_reason = _dataset_payload_ready(env)
+    if not dataset_ready:
+        return False, dataset_reason
+    return True, "ready"
+
+
+def _should_scan_file(path: Path) -> bool:
+    if path.suffix in FINGERPRINT_EXCLUDED_SUFFIXES:
+        return False
+    return path.suffix in FINGERPRINT_SOURCE_SUFFIXES
+
+
+def _iter_fingerprint_files(root: Path) -> list[Path]:
+    if not root.exists() or not root.is_dir():
+        return []
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        current = Path(dirpath)
+        dirnames[:] = sorted(
+            dirname
+            for dirname in dirnames
+            if dirname not in FINGERPRINT_EXCLUDED_DIRS and not dirname.endswith(".egg-info")
+        )
+        for filename in sorted(filenames):
+            path = current / filename
+            if _should_scan_file(path):
+                files.append(path)
+    return files
+
+
+def _file_fingerprint(base: Path, path: Path) -> dict[str, object]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"path": path.as_posix(), "missing": True}
+    try:
+        rel_path = path.relative_to(base).as_posix()
+    except ValueError:
+        rel_path = path.resolve(strict=False).as_posix()
+    record: dict[str, object] = {
+        "path": rel_path,
+        "size": stat.st_size,
+    }
+    if stat.st_size <= FINGERPRINT_SMALL_FILE_LIMIT:
+        try:
+            record["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            record["unreadable"] = True
+            record["mtime_ns"] = stat.st_mtime_ns
+    else:
+        record["mtime_ns"] = stat.st_mtime_ns
+    return record
+
+
+def _project_metadata_fingerprints(project: object, label: str) -> list[dict[str, object]]:
+    if not isinstance(project, Path):
+        return []
+    records: list[dict[str, object]] = []
+    for filename in ("pyproject.toml", "uv_config.toml", "uv.lock"):
+        candidate = project / filename
+        if candidate.exists():
+            record = _file_fingerprint(project, candidate)
+            record["project"] = label
+            records.append(record)
+    return records
+
+
+def _uv_version(uv_cmd: object) -> str:
+    command = str(uv_cmd or "uv").strip()
+    if not command or any(ch.isspace() for ch in command):
+        return command
+    try:
+        completed = subprocess.run(
+            [command, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return command
+    return (completed.stdout or completed.stderr or command).strip()
+
+
+def _compute_install_fingerprint(
+    env: AgiEnv,
+    *,
+    modes_enabled: int,
+    scheduler: str,
+) -> dict[str, object]:
+    active_app = Path(getattr(env, "active_app", "")).expanduser().resolve(strict=False)
+    try:
+        share_root = env.share_root_path().expanduser().resolve(strict=False).as_posix()
+    except (AttributeError, OSError, RuntimeError):
+        share_root = ""
+    files = [_file_fingerprint(active_app, path) for path in _iter_fingerprint_files(active_app)]
+    for label, project in (
+        ("agi-env", getattr(env, "agi_env", None)),
+        ("agi-node", getattr(env, "agi_node", None)),
+        ("agi-core", getattr(env, "agi_core", None)),
+        ("agi-cluster", getattr(env, "agi_cluster", None)),
+    ):
+        files.extend(_project_metadata_fingerprints(project, label))
+    payload: dict[str, object] = {
+        "schema": INSTALL_STATE_SCHEMA,
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "python": sys.version_info[:3],
+        "app": str(getattr(env, "app", "")),
+        "target": str(getattr(env, "target", "")),
+        "target_worker": str(getattr(env, "target_worker", "")),
+        "active_app": active_app.as_posix(),
+        "wenv_abs": Path(getattr(env, "wenv_abs", "")).expanduser().resolve(strict=False).as_posix(),
+        "app_data_rel": str(getattr(env, "app_data_rel", "")),
+        "share_root": share_root,
+        "install_type": str(getattr(env, "install_type", "")),
+        "is_source_env": bool(getattr(env, "is_source_env", False)),
+        "post_install_rel": str(getattr(env, "post_install_rel", "")),
+        "python_version": str(getattr(env, "python_version", "")),
+        "pyvers_worker": str(getattr(env, "pyvers_worker", "")),
+        "uv": str(getattr(env, "uv", "")),
+        "uv_worker": str(getattr(env, "uv_worker", "")),
+        "uv_version": _uv_version(getattr(env, "uv", "uv")),
+        "modes_enabled": int(modes_enabled),
+        "scheduler": str(scheduler),
+        "files": sorted(files, key=lambda item: (str(item.get("project", "")), str(item.get("path", "")))),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    payload["digest"] = digest
+    return payload
+
+
+def _install_state_matches(
+    env: AgiEnv,
+    *,
+    modes_enabled: int,
+    scheduler: str,
+) -> tuple[bool, str]:
+    if _truthy(os.environ.get(INSTALL_STATE_DISABLE_ENV)):
+        return False, "install cache disabled"
+    ready, reason = _required_install_venvs_ready(env)
+    if not ready:
+        return False, reason
+    state_path = _install_state_path(env)
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False, f"install state missing at {state_path}"
+    if state.get("schema") != INSTALL_STATE_SCHEMA:
+        return False, "install state schema changed"
+    current = _compute_install_fingerprint(env, modes_enabled=modes_enabled, scheduler=scheduler)
+    if state.get("digest") != current.get("digest"):
+        return False, "install fingerprint changed"
+    return True, "install fingerprint unchanged"
+
+
+def _write_install_state(
+    env: AgiEnv,
+    *,
+    modes_enabled: int,
+    scheduler: str,
+) -> None:
+    state_path = _install_state_path(env)
+    state = _compute_install_fingerprint(env, modes_enabled=modes_enabled, scheduler=scheduler)
+    state["written_at"] = time.time()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 async def main():
     """
     Main asynchronous function to resolve paths in pyproject.toml and install a module using AGI.
@@ -313,6 +595,11 @@ async def main():
 
         parser.add_argument(
             "--verbose", type=int, default=1, help="Verbosity level (1-3 default: 1)"
+        )
+        parser.add_argument(
+            "--force-install",
+            action="store_true",
+            help="Run AGI.install even when the local install-state fingerprint is unchanged.",
         )
 
 
@@ -359,15 +646,39 @@ async def main():
         print(f"[ERROR] {err}", file=sys.stderr)
         return 1
 
+    scheduler = "127.0.0.1"
+    modes_enabled = AGI.DASK_MODE | AGI.CYTHON_MODE
+    force_install = args.force_install or _truthy(os.environ.get(INSTALL_STATE_FORCE_ENV))
+    if not force_install:
+        cache_hit, cache_reason = _install_state_matches(
+            app_env,
+            modes_enabled=modes_enabled,
+            scheduler=scheduler,
+        )
+        if cache_hit:
+            print(
+                f"[INFO] Install cache hit for {app_env.active_app}; skipping AGI.install "
+                f"({cache_reason})."
+            )
+            return 0
+
     await AGI.install(
         env=app_env,
-        scheduler="127.0.0.1",
+        scheduler=scheduler,
         # scheduler="192.168.20.122",
         # workers={"192.168.20.130":1},
         # workers_data_path="/home/agi/data",
         verbose=args.verbose,
-        modes_enabled=AGI.DASK_MODE | AGI.CYTHON_MODE
+        modes_enabled=modes_enabled,
     )
+    try:
+        _write_install_state(
+            app_env,
+            modes_enabled=modes_enabled,
+            scheduler=scheduler,
+        )
+    except OSError as exc:
+        print(f"[WARN] Unable to write install-state cache: {exc}", file=sys.stderr)
 
     local_user = getpass.getuser()
     ssh_user = (app_env.user or "").strip()

@@ -9,6 +9,9 @@ authors = [
 ]
 
 dependencies = [
+    "agi-cluster",
+    "agi-env",
+    "agi-node",
     "pandas>=2.3.0",
     "pydantic",
     "py7zr",
@@ -51,6 +54,7 @@ disallow_untyped_defs = true
 ignore_missing_imports = true
 
 # Quiet known third-party deprecations
+[tool.pytest.ini_options]
 filterwarnings = [
     "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
     "ignore:.*Theme names and color schemes are lowercase in IPython 9.0.*:DeprecationWarning:IPython\\.core\\.ultratb",
