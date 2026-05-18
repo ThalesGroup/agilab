@@ -177,11 +177,6 @@ _ANALYSIS_VIEW_PROFILES = {
         "Inspect data ingestion decisions and feature evidence.",
         "Use for data-quality and source-selection examples.",
     ),
-    "view_autoencoder_latenspace": (
-        "Latent-space view",
-        "Inspect reduced-dimensional embeddings and clustering behavior.",
-        "Use after dimensionality-reduction workflows.",
-    ),
     "view_autoencoder_latentspace": (
         "Latent-space view",
         "Inspect reduced-dimensional embeddings and clustering behavior.",

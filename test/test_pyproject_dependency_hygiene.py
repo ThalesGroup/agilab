@@ -445,7 +445,7 @@ def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> 
         *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
     ]
     allowed_exact_pins = {
-        "src/agilab/apps-pages/view_autoencoder_latenspace/pyproject.toml": {"tensorflow"},
+        "src/agilab/apps-pages/view_autoencoder_latentspace/pyproject.toml": {"tensorflow"},
     }
     internal_packages = {name.lower() for name in PACKAGE_NAMES}
 
