@@ -425,6 +425,39 @@ async def _install_into_project_venv(
     await run_fn(cmd, project)
 
 
+async def _install_many_into_project_venv(
+    uv_cmd: str,
+    project: Path,
+    package_refs: list[str | Path],
+    *,
+    run_fn: Callable[..., Any],
+    os_name: str = os.name,
+    editable: bool = False,
+    no_deps: bool = True,
+    python_version: str | None = None,
+    venv_project: Path | None = None,
+) -> None:
+    if not package_refs:
+        return
+    await _ensure_project_venv(
+        uv_cmd,
+        project,
+        run_fn=run_fn,
+        os_name=os_name,
+        python_version=python_version,
+        venv_project=venv_project,
+    )
+    venv_python = _project_venv_python(venv_project or project, os_name=os_name)
+    editable_flag = "-e " if editable else ""
+    no_deps_flag = "--no-deps " if no_deps else ""
+    package_specs = " ".join(
+        f'{editable_flag}"{str(package_ref)}"'
+        for package_ref in package_refs
+    )
+    cmd = f'{uv_cmd} pip install --python "{venv_python}" --upgrade {no_deps_flag}{package_specs}'
+    await run_fn(cmd, project)
+
+
 def _format_dependency_spec(name: str, extras: set[str], specifiers: list[str]) -> str:
     extras_part = ""
     if extras:
@@ -910,6 +943,7 @@ async def deploy_local_worker(
             log.info(f"Installing manager: {cmd_manager}")
         await run_fn(cmd_manager, app_path)
 
+    source_worker_app_installed = False
     if (not env.is_source_env) and (not env.is_worker_env):
         if manager_sync_uses_overlay:
             await _install_into_project_venv(
@@ -968,13 +1002,10 @@ async def deploy_local_worker(
                     log.debug("Dependency %s not installed in manager environment", meta["name"])
 
     if env.is_source_env:
-        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_env}'"
-        await run_fn(cmd, app_path)
-        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_node}'"
-        await run_fn(cmd, app_path)
-        cmd = f"{uv} {offline_flag}pip install -e '{env.agi_cluster}'"
-        await run_fn(cmd, app_path)
-        cmd = f"{uv} pip install --no-deps -e ."
+        cmd = (
+            f"{uv} {offline_flag}pip install --upgrade --no-deps "
+            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}' -e ."
+        )
         await run_fn(cmd, app_path)
 
     await agi_cls._build_lib_local()
@@ -1149,18 +1180,6 @@ async def deploy_local_worker(
         if env_whl is None:
             raise RuntimeError(cmd)
 
-        uv_worker_install = f"{uv_worker} {offline_flag}".rstrip()
-        await _install_into_project_venv(
-            uv_worker_install,
-            wenv_abs,
-            env.agi_env,
-            run_fn=run_fn,
-            editable=True,
-            no_deps=bool(editable_flags),
-            python_version=env.pyvers_worker,
-            venv_project=worker_venv_project,
-        )
-
         menv = env.agi_node
         cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
         await run_fn(cmd, menv)
@@ -1170,28 +1189,53 @@ async def deploy_local_worker(
             raise RuntimeError(cmd)
         shutil.copy2(whl, wenv_abs)
 
+        if env.is_source_env:
+            uv_worker_install = f"{uv_worker} {offline_flag}".rstrip()
+            await _install_many_into_project_venv(
+                uv_worker_install,
+                wenv_abs,
+                [env.agi_env, env.agi_node, env.active_app],
+                run_fn=run_fn,
+                editable=True,
+                no_deps=bool(editable_flags),
+                python_version=env.pyvers_worker,
+                venv_project=worker_venv_project,
+            )
+            source_worker_app_installed = True
+        else:
+            uv_worker_install = f"{uv_worker} {offline_flag}".rstrip()
+            await _install_into_project_venv(
+                uv_worker_install,
+                wenv_abs,
+                env.agi_env,
+                run_fn=run_fn,
+                editable=True,
+                no_deps=False,
+                python_version=env.pyvers_worker,
+                venv_project=worker_venv_project,
+            )
+            await _install_into_project_venv(
+                uv_worker_install,
+                wenv_abs,
+                env.agi_node,
+                run_fn=run_fn,
+                editable=True,
+                no_deps=False,
+                python_version=env.pyvers_worker,
+                venv_project=worker_venv_project,
+            )
+
+    if not source_worker_app_installed:
         await _install_into_project_venv(
-            uv_worker_install,
+            uv_worker,
             wenv_abs,
-            env.agi_node,
+            env.active_app,
             run_fn=run_fn,
             editable=True,
-            no_deps=bool(editable_flags),
+            no_deps=False,
             python_version=env.pyvers_worker,
             venv_project=worker_venv_project,
         )
-
-    editable_flags = "--no-deps " if env.is_source_env else ""
-    await _install_into_project_venv(
-        uv_worker,
-        wenv_abs,
-        env.active_app,
-        run_fn=run_fn,
-        editable=True,
-        no_deps=bool(editable_flags),
-        python_version=env.pyvers_worker,
-        venv_project=worker_venv_project,
-    )
 
     dest = wenv_abs / "src" / env.target_worker
     os.makedirs(dest, exist_ok=True)

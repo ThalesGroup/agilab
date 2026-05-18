@@ -22,10 +22,14 @@ SHARED_CORE_PREFIXES = (
 )
 SHARED_TOOLING_PATHS = {
     "install.sh",
+    "install.ps1",
     "src/agilab/install_apps.sh",
+    "src/agilab/install_apps.ps1",
     "src/agilab/apps/install.py",
+    "src/agilab/core/install.sh",
+    "src/agilab/core/install.ps1",
 }
-SHELL_CHECK_FILES = {"install.sh", "src/agilab/install_apps.sh"}
+SHELL_CHECK_FILES = ("install.sh", "src/agilab/install_apps.sh", "src/agilab/core/install.sh")
 RUNCONFIG_PREFIXES = (".idea/runConfigurations/", "tools/run_configs/")
 SKILL_PREFIXES = (".claude/skills/", ".codex/skills/")
 COVERAGE_BADGE_PATH_PREFIXES = ("badges/coverage-",)
@@ -399,7 +403,7 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
             Action(
                 key="shell-syntax",
                 summary="Validate installer shell syntax before broader repros.",
-                commands=["bash -n install.sh src/agilab/install_apps.sh"],
+                commands=["bash -n " + " ".join(SHELL_CHECK_FILES)],
             )
         )
 

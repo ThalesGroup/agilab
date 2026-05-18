@@ -303,6 +303,13 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
     installer_commands = profiles["installer"]
 
     assert len(installer_commands) == 3
+    assert installer_commands[0].argv == [
+        "bash",
+        "-n",
+        "install.sh",
+        "src/agilab/install_apps.sh",
+        "src/agilab/core/install.sh",
+    ]
     contract = installer_commands[-1]
     assert contract.label == "installer contract check"
     assert contract.argv[-4:] == [

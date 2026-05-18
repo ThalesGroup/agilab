@@ -321,6 +321,50 @@ function ConvertTo-List {
     return ($Value -split '[,\\s;]+' | Where-Object { $_ -ne '' })
 }
 
+function Test-PageVenvPython {
+    param([string]$PagePath)
+    $posixPython = Join-PathSafe $PagePath ".venv" "bin" "python"
+    $windowsPython = Join-PathSafe $PagePath ".venv" "Scripts" "python.exe"
+    return (Test-Path -LiteralPath $posixPython -PathType Leaf) -or
+        (Test-Path -LiteralPath $windowsPython -PathType Leaf)
+}
+
+function Get-PageSyncFingerprint {
+    param([string]$PagePath)
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add(("python={0}" -f $env:AGI_PYTHON_VERSION))
+    foreach ($relativePath in @("pyproject.toml", "uv.lock", "uv.toml")) {
+        $file = Join-PathSafe $PagePath $relativePath
+        if (Test-Path -LiteralPath $file -PathType Leaf) {
+            $item = Get-Item -LiteralPath $file
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $lines.Add(("{0}:{1}:{2}" -f $relativePath, $hash, $item.Length))
+        } else {
+            $lines.Add(("{0}:missing" -f $relativePath))
+        }
+    }
+    return ($lines -join "`n") + "`n"
+}
+
+function Test-PageSyncFresh {
+    param([string]$PagePath)
+    if (-not (Test-PageVenvPython $PagePath)) {
+        return $false
+    }
+    $stamp = Join-PathSafe $PagePath ".venv" ".agilab-sync-stamp"
+    if (-not (Test-Path -LiteralPath $stamp -PathType Leaf)) {
+        return $false
+    }
+    return ([string](Get-Content -LiteralPath $stamp -Raw)) -eq (Get-PageSyncFingerprint $PagePath)
+}
+
+function Write-PageSyncStamp {
+    param([string]$PagePath)
+    $stamp = Join-PathSafe $PagePath ".venv" ".agilab-sync-stamp"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stamp) | Out-Null
+    Set-Content -LiteralPath $stamp -Value (Get-PageSyncFingerprint $PagePath) -NoNewline -Encoding UTF8
+}
+
 function Invoke-UvPreview {
     param([string[]]$UvArgs)
     uv @UvArgs
@@ -822,10 +866,16 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
             continue
         }
         Push-Location $pagePath
-        $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
-        if ($exit -ne 0) {
-            Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
-            $status = 1
+        if (Test-PageSyncFresh $pagePath) {
+            Write-Color GREEN ("✓ '{0}' page environment already up to date." -f $page)
+        } else {
+            $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
+            if ($exit -ne 0) {
+                Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
+                $status = 1
+            } else {
+                Write-PageSyncStamp $pagePath
+            }
         }
         Pop-Location
     }

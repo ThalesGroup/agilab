@@ -157,6 +157,18 @@ def test_analyze_paths_adds_install_contract_check_for_install_entrypoint() -> N
     assert "tools/workflow_parity.py --profile installer" in parity.commands[0]
 
 
+def test_analyze_paths_treats_core_installer_as_shared_installer() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(["src/agilab/core/install.sh"])
+
+    assert report.overall_risk == "high"
+    assert any(zone.key == "shared-core" for zone in report.risk_zones)
+    assert any(zone.key == "installer" for zone in report.risk_zones)
+    shell_syntax = next(action for action in report.required_validations if action.key == "shell-syntax")
+    assert shell_syntax.commands == ["bash -n install.sh src/agilab/install_apps.sh src/agilab/core/install.sh"]
+
+
 def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
     module = _load_module()
 

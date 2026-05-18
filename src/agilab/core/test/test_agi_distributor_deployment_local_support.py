@@ -1986,9 +1986,14 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
 
     assert agi_cls._install_done_local is True
     assert any("uv --offline sync" in cmd and str(app_path) in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_env}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_node}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_cluster}'" in cmd for cmd, _ in commands)
+    assert any(
+        (
+            f"uv --offline pip install --upgrade --no-deps "
+            f"-e '{agi_env}' -e '{agi_node}' -e '{agi_cluster}' -e ."
+        )
+        in cmd
+        for cmd, _ in commands
+    )
     assert any(f'uv --offline --project "{agi_env}" build --wheel' in cmd for cmd, _ in commands)
     assert any(f'uv --offline --project "{agi_node}" build --wheel' in cmd for cmd, _ in commands)
     assert any(
@@ -2001,15 +2006,11 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
         for cmd, _ in commands
     )
     assert any(
-        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_env}"' in cmd
-        for cmd, _ in commands
-    )
-    assert any(
-        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_node}"' in cmd
-        for cmd, _ in commands
-    )
-    assert any(
-        f'uv pip install --python "{worker_python}" --upgrade --no-deps -e "{app_path}"' in cmd
+        (
+            f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps '
+            f'-e "{agi_env}" -e "{agi_node}" -e "{app_path}"'
+        )
+        in cmd
         for cmd, _ in commands
     )
     assert not any(f'pip install --project "{wenv_abs}"' in cmd for cmd, _ in commands)
@@ -2168,9 +2169,14 @@ path = "../sat_trajectory_project"
         and str(staged_overlay_root) in cmd
         for cmd, _ in commands
     )
-    assert any(f"uv --offline pip install -e '{env_project}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{node_project}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{cluster_project}'" in cmd for cmd, _ in commands)
+    assert any(
+        (
+            f"uv --offline pip install --upgrade --no-deps "
+            f"-e '{env_project}' -e '{node_project}' -e '{cluster_project}' -e ."
+        )
+        in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio

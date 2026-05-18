@@ -1503,11 +1503,12 @@ maybe_run_core_tests
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
 $UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
-$UV pip install -e src/agilab/core/agi-env
-$UV pip install -e src/agilab/core/agi-node
-$UV pip install -e src/agilab/core/agi-cluster
-$UV pip install -e src/agilab/core/agi-core
-$UV pip install -e .
+$UV pip install --upgrade --no-deps \
+    -e src/agilab/core/agi-env \
+    -e src/agilab/core/agi-node \
+    -e src/agilab/core/agi-cluster \
+    -e src/agilab/core/agi-core \
+    -e .
 popd > /dev/null
 
 maybe_run_root_tests

@@ -487,6 +487,56 @@ def _iter_page_project_roots(view_path: Path) -> list[Path]:
     return candidates
 
 
+def _page_sync_stamp_path(project_root: Path) -> Path:
+    return project_root / ".venv" / ".agilab-sync-stamp.json"
+
+
+def _page_sync_file_entry(project_root: Path, relative_path: str) -> dict[str, Any]:
+    path = project_root / relative_path
+    if not path.exists() or not path.is_file():
+        return {"path": relative_path, "missing": True}
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        return {"path": relative_path, "error": type(exc).__name__}
+    return {
+        "path": relative_path,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "size": len(payload),
+    }
+
+
+def _page_sync_fingerprint(project_root: Path) -> dict[str, Any]:
+    return {
+        "schema": 1,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "files": [
+            _page_sync_file_entry(project_root, relative_path)
+            for relative_path in ("pyproject.toml", "uv.lock", "uv.toml")
+        ],
+    }
+
+
+def _page_sync_is_fresh(project_root: Path) -> bool:
+    if not _python_in_venv(project_root / ".venv").exists():
+        return False
+    stamp_path = _page_sync_stamp_path(project_root)
+    try:
+        saved = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return saved == _page_sync_fingerprint(project_root)
+
+
+def _write_page_sync_stamp(project_root: Path) -> None:
+    stamp_path = _page_sync_stamp_path(project_root)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(
+        json.dumps(_page_sync_fingerprint(project_root), sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
 def _short_page_token(view_path: Path) -> str:
     return hashlib.sha1(str(view_path.resolve()).encode("utf-8")).hexdigest()[:10]
 
@@ -776,14 +826,21 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         env.logger.info("Trying analysis page sidecar project root: %s", page_home)
         attempts.append(f"Trying uv project root: {page_home}")
 
-        sync_cmd = f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} sync"
-        env.logger.info(sync_cmd)
-        sync_process = exec_bg(env, sync_cmd, cwd=page_home)
-        sync_code = sync_process.wait()
-        if sync_code != 0:
-            last_error = f"sync failed with code {sync_code} for {page_home}"
-            env.logger.error(last_error)
-            continue
+        if _page_sync_is_fresh(page_root):
+            env.logger.info("Skipping analysis page sync; environment is up to date for %s", page_home)
+        else:
+            sync_cmd = f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} sync"
+            env.logger.info(sync_cmd)
+            sync_process = exec_bg(env, sync_cmd, cwd=page_home)
+            sync_code = sync_process.wait()
+            if sync_code != 0:
+                last_error = f"sync failed with code {sync_code} for {page_home}"
+                env.logger.error(last_error)
+                continue
+            try:
+                _write_page_sync_stamp(page_root)
+            except OSError as exc:
+                env.logger.warning("Could not write analysis page sync stamp for %s: %s", page_home, exc)
 
         if env.is_source_env:
             ensure_cmd = (

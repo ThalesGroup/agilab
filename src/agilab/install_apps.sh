@@ -347,6 +347,41 @@ page_has_required_sources() {
   [[ -n "$source_match" ]]
 }
 
+page_venv_python_exists() {
+  local page_dir="$1"
+  [[ -x "$page_dir/.venv/bin/python" || -f "$page_dir/.venv/Scripts/python.exe" ]]
+}
+
+page_sync_fingerprint() {
+  local page_dir="$1"
+  local rel file
+  printf 'python=%s\n' "${AGI_PYTHON_VERSION:-}"
+  for rel in pyproject.toml uv.lock uv.toml; do
+    file="$page_dir/$rel"
+    if [[ -f "$file" ]]; then
+      printf '%s:' "$rel"
+      cksum "$file"
+    else
+      printf '%s:missing\n' "$rel"
+    fi
+  done
+}
+
+page_sync_is_fresh() {
+  local page_dir="$1"
+  local stamp="$page_dir/.venv/.agilab-sync-stamp"
+  page_venv_python_exists "$page_dir" || return 1
+  [[ -f "$stamp" ]] || return 1
+  cmp -s "$stamp" <(page_sync_fingerprint "$page_dir")
+}
+
+write_page_sync_stamp() {
+  local page_dir="$1"
+  local stamp="$page_dir/.venv/.agilab-sync-stamp"
+  mkdir -p -- "$(dirname -- "$stamp")"
+  page_sync_fingerprint "$page_dir" > "$stamp"
+}
+
 app_has_collectable_pytests() {
   local app_dir="${1:-.}"
 
@@ -1070,10 +1105,15 @@ for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     fi
     pushd "$page_dir" >/dev/null
     unlink_linked_venv ".venv" "$page"
-    ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
-    status=$?
-    if (( status != 0 )); then
-        echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+    if page_sync_is_fresh "$page_dir"; then
+        echo -e "${GREEN}✓ '$page' page environment already up to date.${NC}"
+    else
+        if ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade; then
+            write_page_sync_stamp "$page_dir"
+        else
+            status=$?
+            echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+        fi
     fi
     popd >/dev/null
 done

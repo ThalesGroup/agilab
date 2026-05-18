@@ -238,8 +238,7 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     )
 
     assert (env.wenv_abs / env.worker_pyproject.name).exists()
-    assert any("pip install agi-env" in cmd for cmd, _ in commands)
-    assert any("pip install agi-node" in cmd for cmd, _ in commands)
+    assert any("pip install agi-env agi-node" in cmd for cmd, _ in commands)
     assert any("bdist_egg" in cmd for cmd, _ in commands)
     assert str(egg_path) in uploads
 
@@ -298,8 +297,14 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
         run_fn=_fake_run,
     )
 
-    assert any(f'--offline --project "{env.active_app}" pip install -e \'{env.agi_env}\'' in cmd for cmd, _ in commands)
-    assert any(f'--offline --project "{env.active_app}" pip install -e \'{env.agi_node}\'' in cmd for cmd, _ in commands)
+    assert any(
+        (
+            f'--offline --project "{env.active_app}" pip install --upgrade --no-deps '
+            f"-e '{env.agi_env}' -e '{env.agi_node}'"
+        )
+        in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio
