@@ -177,6 +177,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Continue running later profiles even if one command fails.",
     )
     parser.add_argument(
+        "--result-cache",
+        action="store_true",
+        help=(
+            "Opt in to reusing successful local workflow parity results. Keep this "
+            "disabled for artifact-generating profiles such as docs, badges, skills, "
+            "and release checks."
+        ),
+    )
+    parser.add_argument(
         "--result-cache-path",
         default=str(DEFAULT_RESULT_CACHE_PATH),
         help=(
@@ -1238,6 +1247,12 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "isolated-project-rename-sidebar",
                 "--scenario",
                 "isolated-settings-page",
+                "--apps",
+                "all",
+                "--timeout",
+                "90",
+                "--widget-timeout",
+                "3",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
@@ -1929,7 +1944,11 @@ def _run_command(spec: CommandSpec) -> CommandResult:
 
 
 def _result_cache_enabled(args: argparse.Namespace, runner: Callable[[CommandSpec], CommandResult]) -> bool:
-    return runner is _run_command and not bool(getattr(args, "no_result_cache", False))
+    return (
+        runner is _run_command
+        and bool(getattr(args, "result_cache", False))
+        and not bool(getattr(args, "no_result_cache", False))
+    )
 
 
 def _result_cache_path(args: argparse.Namespace) -> Path:

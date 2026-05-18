@@ -308,7 +308,7 @@ def test_find_preview_target_returns_none_when_latest_file_disappears(tmp_path, 
     def flaky_stat(self: Path, *args, **kwargs):
         if self == newest_csv:
             newest_calls["count"] += 1
-            if newest_calls["count"] >= 4:
+            if newest_calls["count"] >= 2:
                 raise FileNotFoundError("simulated race")
         return original_stat(self, *args, **kwargs)
 
@@ -355,15 +355,35 @@ def test_preview_candidate_paths_are_sorted_before_search_cap(tmp_path, monkeypa
     first.write_text("a,b\n1,2\n", encoding="utf-8")
     second.write_text("a,b\n3,4\n", encoding="utf-8")
 
-    def fake_rglob(self, pattern):
-        if self == root and pattern == "*.csv":
-            return [second, first]
-        return []
-
-    monkeypatch.setattr(orchestrate_execute.Path, "rglob", fake_rglob)
     monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_SEARCH_FILES", 1)
 
     assert orchestrate_execute._preview_candidate_paths([root]) == [first]
+
+
+def test_preview_candidate_paths_scan_once_and_preserve_suffix_priority(tmp_path, monkeypatch):
+    root = tmp_path / "output"
+    root.mkdir()
+    csv_file = root / "a.csv"
+    parquet_file = root / "z.parquet"
+    json_file = root / "b.json"
+    csv_file.write_text("a,b\n1,2\n", encoding="utf-8")
+    parquet_file.write_text("parquet", encoding="utf-8")
+    json_file.write_text('{"ok": true}', encoding="utf-8")
+
+    original_rglob = orchestrate_execute.Path.rglob
+
+    def guarded_rglob(self: Path, *args, **kwargs):
+        if self == root:
+            pytest.fail("preview discovery should not call rglob per suffix")
+        return original_rglob(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        orchestrate_execute.Path,
+        "rglob",
+        guarded_rglob,
+    )
+
+    assert orchestrate_execute._preview_candidate_paths([root]) == [parquet_file, csv_file, json_file]
 
 
 def test_preview_candidate_paths_removes_duplicates_across_roots(tmp_path):
@@ -434,7 +454,17 @@ def test_execute_notice_and_preview_target_defensive_edges(monkeypatch, tmp_path
 
     directory_candidate = tmp_path / "candidate-dir"
     directory_candidate.mkdir()
-    monkeypatch.setattr(orchestrate_execute, "_preview_candidate_paths", lambda _roots: [directory_candidate])
+    monkeypatch.setattr(
+        orchestrate_execute,
+        "_preview_candidate_records",
+        lambda _roots: [
+            orchestrate_execute._PreviewCandidate(
+                path=directory_candidate,
+                stat_result=directory_candidate.stat(),
+                suffix_rank=0,
+            )
+        ],
+    )
 
     assert orchestrate_execute.find_preview_target([tmp_path]) == (None, [])
 

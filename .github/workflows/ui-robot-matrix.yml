@@ -94,6 +94,8 @@ jobs:
             --glob "test-results/ui-robot-matrix/*.ndjson" \
             --max-total-seconds 5400 \
             --max-mean-page-seconds 180 \
+            --strict \
+            --strict-budget \
             --output test-results/ui-robot-matrix/trend-report.json \
             | tee test-results/ui-robot-matrix/trend-report.txt
           {
