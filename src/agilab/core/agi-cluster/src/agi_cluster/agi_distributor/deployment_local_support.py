@@ -38,6 +38,7 @@ REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
 DISABLE_DEPLOY_STAGE_CACHE_ENV = "AGILAB_DISABLE_DEPLOY_STAGE_CACHE"
 DEPLOY_STAGE_CACHE_SCHEMA = "agilab-deploy-stage-cache-v1"
 DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
+EDITABLE_INSTALL_CACHE_SCHEMA = "agilab-editable-install-cache-v1"
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -504,6 +505,270 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
         return {"path": path.name, "missing": True}
 
 
+def _editable_install_cache_path(venv_project: Path) -> Path:
+    return _project_venv_root(venv_project) / ".agilab-editable-install-cache.json"
+
+
+def _load_editable_install_cache(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    installs = data.get("installs")
+    if data.get("schema") != EDITABLE_INSTALL_CACHE_SCHEMA or not isinstance(
+        installs, dict
+    ):
+        return {"schema": EDITABLE_INSTALL_CACHE_SCHEMA, "installs": {}}
+    return {"schema": EDITABLE_INSTALL_CACHE_SCHEMA, "installs": installs}
+
+
+def _write_editable_install_cache(path: Path, state: dict[str, Any]) -> None:
+    payload = {
+        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
+        "installs": state.get("installs")
+        if isinstance(state.get("installs"), dict)
+        else {},
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
+def _editable_install_project(package_ref: str | Path) -> Path | None:
+    try:
+        package_path = Path(package_ref).expanduser()
+    except (OSError, TypeError, ValueError):
+        return None
+    return package_path if _is_python_project(package_path) else None
+
+
+def _project_site_packages_dir(
+    project: Path,
+    *,
+    os_name: str = os.name,
+    python_version: str | None = None,
+) -> Path:
+    venv_root = _project_venv_root(project)
+    if os_name == "nt":
+        return venv_root / "Lib" / "site-packages"
+
+    if python_version:
+        python_parts = str(python_version).split(".")
+        if len(python_parts) >= 2 and python_parts[-1].endswith("t"):
+            python_dir = f"{python_parts[0]}.{python_parts[1].removesuffix('t')}t"
+            return venv_root / "lib" / f"python{python_dir}" / "site-packages"
+
+    requested = _python_version_tuple(python_version)
+    version = requested or _project_venv_cfg_version(project)
+    if version and len(version) >= 2:
+        return venv_root / "lib" / f"python{version[0]}.{version[1]}" / "site-packages"
+
+    lib_root = venv_root / "lib"
+    try:
+        candidates = sorted(lib_root.glob("python*/site-packages"))
+    except OSError:
+        candidates = []
+    if candidates:
+        return candidates[0]
+
+    fallback = _python_version_tuple(platform.python_version()) or (3, 13)
+    return venv_root / "lib" / f"python{fallback[0]}.{fallback[1]}" / "site-packages"
+
+
+def _editable_install_proof_exists(
+    venv_project: Path,
+    package_project: Path,
+    *,
+    os_name: str = os.name,
+    python_version: str | None = None,
+) -> bool:
+    site_packages = _project_site_packages_dir(
+        venv_project,
+        os_name=os_name,
+        python_version=python_version,
+    )
+    if not site_packages.exists():
+        return False
+
+    expected_path = package_project.expanduser().resolve(strict=False)
+    try:
+        direct_url_files = sorted(site_packages.glob("*.dist-info/direct_url.json"))
+    except OSError:
+        return False
+
+    for direct_url_file in direct_url_files:
+        try:
+            data = json.loads(direct_url_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        dir_info = data.get("dir_info")
+        if not isinstance(dir_info, dict) or dir_info.get("editable") is not True:
+            continue
+        raw_url = data.get("url")
+        if not isinstance(raw_url, str):
+            continue
+        parsed = urlparse(raw_url)
+        if parsed.scheme != "file":
+            continue
+        if parsed.netloc and parsed.netloc not in {"localhost", "127.0.0.1"}:
+            continue
+        installed_path = Path(unquote(parsed.path)).resolve(strict=False)
+        if installed_path == expected_path:
+            return True
+    return False
+
+
+def _editable_install_metadata_inputs(package_project: Path) -> list[Path]:
+    return [
+        package_project / "pyproject.toml",
+        package_project / "setup.py",
+        package_project / "setup.cfg",
+    ]
+
+
+def _editable_install_cache_key(
+    *,
+    package_project: Path,
+    venv_project: Path,
+) -> str:
+    payload = {
+        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
+        "package_project": package_project.expanduser()
+        .resolve(strict=False)
+        .as_posix(),
+        "venv": _project_venv_root(venv_project).resolve(strict=False).as_posix(),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _editable_install_digest(
+    *,
+    uv_cmd: str,
+    package_project: Path,
+    venv_project: Path,
+    editable: bool,
+    no_deps: bool,
+    python_version: str | None,
+    os_name: str,
+) -> str:
+    payload = {
+        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
+        "uv_cmd": uv_cmd.strip(),
+        "package_project": package_project.expanduser()
+        .resolve(strict=False)
+        .as_posix(),
+        "venv": _project_venv_root(venv_project).resolve(strict=False).as_posix(),
+        "venv_python": _project_venv_python(venv_project, os_name=os_name)
+        .resolve(strict=False)
+        .as_posix(),
+        "python_version": str(python_version or ""),
+        "venv_cfg_version": _project_venv_cfg_version(venv_project),
+        "editable": bool(editable),
+        "no_deps": bool(no_deps),
+        "os_name": os_name,
+        "metadata": [
+            _deploy_stage_file_fingerprint(path)
+            for path in _editable_install_metadata_inputs(package_project)
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _editable_install_cache_hit(
+    *,
+    uv_cmd: str,
+    package_project: Path,
+    venv_project: Path,
+    editable: bool,
+    no_deps: bool,
+    python_version: str | None,
+    os_name: str,
+) -> bool:
+    cache_path = _editable_install_cache_path(venv_project)
+    state = _load_editable_install_cache(cache_path)
+    installs = state.get("installs")
+    if not isinstance(installs, dict):
+        return False
+
+    key = _editable_install_cache_key(
+        package_project=package_project,
+        venv_project=venv_project,
+    )
+    cached = installs.get(key)
+    if not isinstance(cached, dict):
+        return False
+    digest = _editable_install_digest(
+        uv_cmd=uv_cmd,
+        package_project=package_project,
+        venv_project=venv_project,
+        editable=editable,
+        no_deps=no_deps,
+        python_version=python_version,
+        os_name=os_name,
+    )
+    return cached.get("digest") == digest and _editable_install_proof_exists(
+        venv_project,
+        package_project,
+        os_name=os_name,
+        python_version=python_version,
+    )
+
+
+def _record_editable_install_cache(
+    *,
+    uv_cmd: str,
+    package_project: Path,
+    venv_project: Path,
+    editable: bool,
+    no_deps: bool,
+    python_version: str | None,
+    os_name: str,
+) -> None:
+    if not _editable_install_proof_exists(
+        venv_project,
+        package_project,
+        os_name=os_name,
+        python_version=python_version,
+    ):
+        return
+    cache_path = _editable_install_cache_path(venv_project)
+    state = _load_editable_install_cache(cache_path)
+    installs = state.setdefault("installs", {})
+    if not isinstance(installs, dict):
+        return
+    key = _editable_install_cache_key(
+        package_project=package_project,
+        venv_project=venv_project,
+    )
+    installs[key] = {
+        "digest": _editable_install_digest(
+            uv_cmd=uv_cmd,
+            package_project=package_project,
+            venv_project=venv_project,
+            editable=editable,
+            no_deps=no_deps,
+            python_version=python_version,
+            os_name=os_name,
+        )
+    }
+    _write_editable_install_cache(cache_path, state)
+
+
 def _shared_worker_venv_cache_key(
     *,
     active_app: Path,
@@ -643,16 +908,34 @@ async def _install_into_project_venv(
     no_deps: bool = True,
     python_version: str | None = None,
     venv_project: Path | None = None,
+    install_cache_enabled: bool = True,
 ) -> None:
+    effective_venv_project = venv_project or project
     await _ensure_project_venv(
         uv_cmd,
         project,
         run_fn=run_fn,
         os_name=os_name,
         python_version=python_version,
-        venv_project=venv_project,
+        venv_project=effective_venv_project,
     )
-    venv_python = _project_venv_python(venv_project or project, os_name=os_name)
+    package_project = _editable_install_project(package_ref) if editable else None
+    if (
+        install_cache_enabled
+        and package_project is not None
+        and _editable_install_cache_hit(
+            uv_cmd=uv_cmd,
+            package_project=package_project,
+            venv_project=effective_venv_project,
+            editable=editable,
+            no_deps=no_deps,
+            python_version=python_version,
+            os_name=os_name,
+        )
+    ):
+        return
+
+    venv_python = _project_venv_python(effective_venv_project, os_name=os_name)
     package_spec = str(package_ref)
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
@@ -661,6 +944,16 @@ async def _install_into_project_venv(
         f'--upgrade {no_deps_flag}{editable_flag}"{package_spec}"'
     )
     await run_fn(cmd, project)
+    if install_cache_enabled and package_project is not None:
+        _record_editable_install_cache(
+            uv_cmd=uv_cmd,
+            package_project=package_project,
+            venv_project=effective_venv_project,
+            editable=editable,
+            no_deps=no_deps,
+            python_version=python_version,
+            os_name=os_name,
+        )
 
 
 async def _install_many_into_project_venv(
@@ -674,18 +967,45 @@ async def _install_many_into_project_venv(
     no_deps: bool = True,
     python_version: str | None = None,
     venv_project: Path | None = None,
+    install_cache_enabled: bool = True,
 ) -> None:
     if not package_refs:
         return
+    effective_venv_project = venv_project or project
     await _ensure_project_venv(
         uv_cmd,
         project,
         run_fn=run_fn,
         os_name=os_name,
         python_version=python_version,
-        venv_project=venv_project,
+        venv_project=effective_venv_project,
     )
-    venv_python = _project_venv_python(venv_project or project, os_name=os_name)
+    package_projects = (
+        [_editable_install_project(package_ref) for package_ref in package_refs]
+        if editable
+        else []
+    )
+    if (
+        install_cache_enabled
+        and package_projects
+        and all(package_project is not None for package_project in package_projects)
+        and all(
+            _editable_install_cache_hit(
+                uv_cmd=uv_cmd,
+                package_project=package_project,
+                venv_project=effective_venv_project,
+                editable=editable,
+                no_deps=no_deps,
+                python_version=python_version,
+                os_name=os_name,
+            )
+            for package_project in package_projects
+            if package_project is not None
+        )
+    ):
+        return
+
+    venv_python = _project_venv_python(effective_venv_project, os_name=os_name)
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
     package_specs = " ".join(
@@ -693,6 +1013,19 @@ async def _install_many_into_project_venv(
     )
     cmd = f'{uv_cmd} pip install --python "{venv_python}" --upgrade {no_deps_flag}{package_specs}'
     await run_fn(cmd, project)
+    if install_cache_enabled:
+        for package_project in package_projects:
+            if package_project is None:
+                continue
+            _record_editable_install_cache(
+                uv_cmd=uv_cmd,
+                package_project=package_project,
+                venv_project=effective_venv_project,
+                editable=editable,
+                no_deps=no_deps,
+                python_version=python_version,
+                os_name=os_name,
+            )
 
 
 def _format_dependency_spec(name: str, extras: set[str], specifiers: list[str]) -> str:
@@ -1261,6 +1594,7 @@ async def deploy_local_worker(
                 app_path,
                 run_fn=run_fn,
                 editable=True,
+                install_cache_enabled=stage_cache_enabled,
             )
         install_targets = (
             (agilab_project, "agilab"),
@@ -1284,6 +1618,7 @@ async def deploy_local_worker(
                     install_spec,
                     run_fn=run_fn,
                     no_deps=package_name not in {"agi-env", "agi-node", "agi-cluster"},
+                    install_cache_enabled=stage_cache_enabled,
                 )
 
         resources_src = env_project / "src/agi_env/resources"
@@ -1584,6 +1919,7 @@ async def deploy_local_worker(
                     install_spec,
                     run_fn=run_fn,
                     venv_project=worker_venv_project,
+                    install_cache_enabled=stage_cache_enabled,
                 )
 
         python_dirs = env.pyvers_worker.split(".")
@@ -1629,6 +1965,7 @@ async def deploy_local_worker(
                 no_deps=bool(editable_flags),
                 python_version=env.pyvers_worker,
                 venv_project=worker_venv_project,
+                install_cache_enabled=stage_cache_enabled,
             )
             source_worker_app_installed = True
         else:
@@ -1642,6 +1979,7 @@ async def deploy_local_worker(
                 no_deps=False,
                 python_version=env.pyvers_worker,
                 venv_project=worker_venv_project,
+                install_cache_enabled=stage_cache_enabled,
             )
             await _install_into_project_venv(
                 uv_worker_install,
@@ -1652,6 +1990,7 @@ async def deploy_local_worker(
                 no_deps=False,
                 python_version=env.pyvers_worker,
                 venv_project=worker_venv_project,
+                install_cache_enabled=stage_cache_enabled,
             )
 
     if not source_worker_app_installed:
@@ -1664,6 +2003,7 @@ async def deploy_local_worker(
             no_deps=False,
             python_version=env.pyvers_worker,
             venv_project=worker_venv_project,
+            install_cache_enabled=stage_cache_enabled,
         )
 
     dest = wenv_abs / "src" / env.target_worker

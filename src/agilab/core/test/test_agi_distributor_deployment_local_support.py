@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,31 @@ import pytest
 import tomlkit
 
 from agi_cluster.agi_distributor import deployment_local_support, uv_source_support
+
+
+def _write_editable_direct_url(
+    venv_project: Path,
+    package_project: Path,
+    *,
+    python_version: str = "3.13",
+) -> None:
+    site_packages = deployment_local_support._project_site_packages_dir(
+        venv_project,
+        python_version=python_version,
+    )
+    dist_info = (
+        site_packages / f"{package_project.name.replace('-', '_')}-0.0.dist-info"
+    )
+    dist_info.mkdir(parents=True, exist_ok=True)
+    (dist_info / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": package_project.resolve(strict=False).as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 async def _call_deploy_local_worker(
@@ -307,6 +333,156 @@ async def test_install_into_project_venv_recreates_existing_mismatched_python_ve
             f'uv pip install --python "{venv_python}" --upgrade --no-deps "{package_path}"',
             tmp_path,
         ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_skips_cached_editable_metadata(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    (package_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-pkg'\n", encoding="utf-8"
+    )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_path)
+
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_invalidates_editable_metadata_cache(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    pyproject = package_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='demo-pkg'\n", encoding="utf-8")
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_path)
+
+    for _ in range(2):
+        await deployment_local_support._install_into_project_venv(
+            "uv",
+            tmp_path,
+            package_path,
+            run_fn=_fake_run,
+            editable=True,
+            no_deps=False,
+            python_version="3.13",
+        )
+    pyproject.write_text(
+        "[project]\nname='demo-pkg'\ndependencies=['numpy']\n",
+        encoding="utf-8",
+    )
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        ),
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_many_into_project_venv_skips_cached_editables(tmp_path):
+    calls = []
+    package_a = tmp_path / "pkg_a"
+    package_b = tmp_path / "pkg_b"
+    for package_path in (package_a, package_b):
+        package_path.mkdir()
+        (package_path / "pyproject.toml").write_text(
+            f"[project]\nname='{package_path.name}'\n", encoding="utf-8"
+        )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_a)
+        _write_editable_direct_url(tmp_path, package_b)
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_a}" -e "{package_b}"',
+            tmp_path,
+        )
     ]
 
 
