@@ -102,6 +102,18 @@ def test_json_output_combines_impact_and_selection(capsys, monkeypatch) -> None:
     assert payload["selection"]["selected_tests"] == ["test/test_demo.py"]
 
 
+def test_print_command_outputs_selected_pytest_command(capsys, monkeypatch) -> None:
+    module = _load_module()
+    files = ["src/agilab/demo.py"]
+    report = _impact_report(module, files)
+    selection = _selection(module, files, command=("pytest", "test/test_demo.py"))
+
+    _patch_validation(monkeypatch, module, files, report, selection)
+
+    assert module.main(["--files", "src/agilab/demo.py", "--print-command"]) == 0
+    assert capsys.readouterr().out == "pytest test/test_demo.py\n"
+
+
 def test_collect_changed_files_delegates_to_ga_selector(monkeypatch) -> None:
     module = _load_module()
     captured = {}
@@ -146,6 +158,18 @@ def test_result_cache_helpers_reject_invalid_shapes(tmp_path: Path) -> None:
     )
     assert module._has_cached_success(cache_path, "anything") is False
     assert module._cached_frontdoor_success(cache_path, "anything") is None
+
+
+def test_result_cache_lookup_helpers_reject_non_dict_entries(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_load_result_cache",
+        lambda _path: {"schema": module.RESULT_CACHE_SCHEMA, "entries": []},
+    )
+
+    assert module._has_cached_success(Path("cache.json"), "anything") is False
+    assert module._cached_frontdoor_success(Path("cache.json"), "anything") is None
 
 
 def test_repo_file_hash_and_git_head_edge_cases(tmp_path: Path, monkeypatch) -> None:
@@ -648,25 +672,28 @@ def test_result_cache_eviction_uses_stored_timestamp(tmp_path: Path, monkeypatch
     assert sorted(entries) == ["fresh", "newer"]
 
 
-def test_record_cache_helpers_repair_non_dict_entries(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_record_cache_helpers_repair_non_dict_entries(monkeypatch) -> None:
     module = _load_module()
     files = ["src/agilab/demo.py"]
     selection = _selection(module, files)
-    cache_path = tmp_path / "bugfix-cache.json"
-    cache_path.write_text(
-        json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}),
-        encoding="utf-8",
+    writes = []
+    monkeypatch.setattr(
+        module,
+        "_load_result_cache",
+        lambda _path: {"schema": module.RESULT_CACHE_SCHEMA, "entries": []},
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_result_cache",
+        lambda _path, state: writes.append(state),
     )
     monkeypatch.setattr(module.time, "time", lambda: 12.0)
 
-    module._record_cached_success(cache_path, "selected", files, selection)
-    module._record_frontdoor_success(cache_path, "frontdoor", files, selection, "ok")
+    module._record_cached_success(Path("cache.json"), "selected", files, selection)
+    module._record_frontdoor_success(Path("cache.json"), "frontdoor", files, selection, "ok")
 
-    entries = module._load_result_cache(cache_path)["entries"]
-    assert entries["selected"]["status"] == "passed"
-    assert entries["frontdoor"]["kind"] == "frontdoor"
+    assert writes[0]["entries"]["selected"]["status"] == "passed"
+    assert writes[1]["entries"]["frontdoor"]["kind"] == "frontdoor"
 
 
 def test_build_selection_for_args_passes_impact_report(monkeypatch) -> None:
