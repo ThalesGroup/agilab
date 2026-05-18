@@ -912,8 +912,6 @@ Suggested scope:
 
 - harden notebook-to-pipeline import beyond the initial report and upload path,
   including broader edge cases for exported supervisor notebooks
-- keep expanding notebook-native analysis surfaces or Voilà-style packaging
-  without duplicating the current apps-pages logic blindly
 - make notebook-native analysis surfaces or Voilà-style packaging possible
   without duplicating the current apps-pages logic blindly
 - preserve enough provenance so the notebook remains explainable

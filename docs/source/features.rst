@@ -415,10 +415,8 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``operator UI components`` for status, unit cards, dependency graph, update
   timeline, action controls, and artifacts that render persisted state and support operator actions through a static HTML proof
 
-That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because additional external replication and future
-app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear.
+For the score rationale that maps these capabilities to AGILab's MLOps
+positioning, see :doc:`agilab-mlops-positioning`.
 
 Production-readiness controls
 -----------------------------
