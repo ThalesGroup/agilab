@@ -277,6 +277,22 @@ def test_readme_uses_explicit_wheel_yes_badge() -> None:
     assert 'alt="PyPI format"' not in readme
 
 
+def test_readmes_expose_supply_chain_evidence_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    badge = "https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E"
+    release_proof = "https://thalesgroup.github.io/agilab/release-proof.html"
+
+    assert (
+        f'<a href="{release_proof}"><img src="{badge}" '
+        'alt="Supply chain: SBOM, audit, provenance" /></a>'
+    ) in readme
+    assert (
+        f"[![Supply chain: SBOM, audit, provenance]({badge})]({release_proof})"
+        in pypi_readme
+    )
+
+
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
     local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
