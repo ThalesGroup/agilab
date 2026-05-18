@@ -435,6 +435,9 @@ production platform:
   routes that still need broader certification
 - ``tools/service_health_check.py`` evaluates service status against SLA
   thresholds and can emit JSON or Prometheus-compatible output
+- ``tools/controlled_pilot_readiness_report.py --compact`` packages the
+  controlled-pilot readiness proof for service health, persisted artifacts,
+  public-bind controls, secret redaction, and explicit failure modes
 - the release-decision analysis page compares baseline and candidate bundles,
   resolves artifact/log/export roots through the shared connector path registry,
   gates on the first-proof ``run_manifest.json``, imports external manifest
@@ -465,6 +468,6 @@ production platform:
 - ``SECURITY.md`` provides the public vulnerability-reporting and deployment
   hardening baseline
 
-That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+That supports a ``Production readiness`` score of ``3.2 / 5``. It is not scored
 higher because AGILab remains a research and engineering workbench rather than
 a production serving, monitoring, governance, or certification platform.

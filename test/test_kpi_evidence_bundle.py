@@ -218,10 +218,10 @@ def test_public_certification_profile_report_contract_bounds_scope() -> None:
         "agilab.public_certification_profile.v1"
     )
     assert check["details"]["summary"]["certification_profile"] == "bounded_public_evidence"
-    assert check["details"]["summary"]["path_count"] == 6
-    assert check["details"]["summary"]["certified_public_evidence_count"] == 5
+    assert check["details"]["summary"]["path_count"] == 7
+    assert check["details"]["summary"]["certified_public_evidence_count"] == 6
     assert check["details"]["summary"]["documented_not_certified_count"] == 1
-    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 3
+    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 4
     assert check["details"]["summary"]["production_certification_claimed"] is False
     assert check["details"]["summary"]["formal_third_party_certification"] is False
     assert check["details"]["summary"]["command_execution_count"] == 0

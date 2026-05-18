@@ -15,7 +15,7 @@ import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SUPPORTED_SCORE = "3.0 / 5"
+SUPPORTED_SCORE = "3.2 / 5"
 
 
 def _load_tool_module(name: str) -> Any:
@@ -322,6 +322,54 @@ def _check_service_health_contract(repo_root: Path) -> dict[str, Any]:
         ok,
         summary,
         evidence=["tools/service_health_check.py", "test/test_service_health_check.py"],
+        details=details,
+    )
+
+
+def _check_controlled_pilot_readiness_gate(repo_root: Path) -> dict[str, Any]:
+    try:
+        controlled_pilot = _load_tool_module("controlled_pilot_readiness_report")
+        report = controlled_pilot.build_report(repo_root=repo_root)
+        check_ids = [check.get("id") for check in report.get("checks", [])]
+        required_ids = {
+            "service_health_execution",
+            "service_failure_modes",
+            "persisted_artifact_contract",
+            "public_bind_and_secret_boundary",
+            "compatibility_matrix_entry",
+        }
+        missing_ids = sorted(required_ids - set(str(check_id) for check_id in check_ids))
+        ok = (
+            report.get("schema") == controlled_pilot.SCHEMA
+            and report.get("status") == "pass"
+            and report.get("supported_score") == SUPPORTED_SCORE
+            and not missing_ids
+        )
+        details = {
+            "status": report.get("status"),
+            "supported_score": report.get("supported_score"),
+            "summary": report.get("summary"),
+            "check_ids": check_ids,
+            "missing_ids": missing_ids,
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    summary = (
+        "controlled-pilot readiness proof covers service health, artifacts, public bind, secrets, and failure modes"
+        if ok
+        else "controlled-pilot readiness proof is missing, failing, or overclaiming"
+    )
+    return _check_result(
+        "controlled_pilot_readiness_gate",
+        "Controlled-pilot readiness gate",
+        ok,
+        summary,
+        evidence=[
+            "tools/controlled_pilot_readiness_report.py",
+            "tools/service_health_check.py",
+            "docs/source/data/compatibility_matrix.toml",
+        ],
         details=details,
     )
 
@@ -702,6 +750,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
         _check_production_readiness_workflow_profile(repo_root),
         _check_compatibility_matrix(repo_root),
         _check_service_health_contract(repo_root),
+        _check_controlled_pilot_readiness_gate(repo_root),
         _check_release_decision_contract(repo_root),
         _check_security_policy(repo_root),
         _check_security_adoption_gate(repo_root),

@@ -34,6 +34,7 @@ REQUIRED_PUBLIC_STATUSES = {
     "web-ui-local-first-proof": "validated",
     "agilab-hf-demo": "validated",
     "service-mode-operator-surface": "validated",
+    "controlled-pilot-readiness-gate": "validated",
     "notebook-quickstart": "documented",
     "published-package-route": "validated",
 }
@@ -42,6 +43,10 @@ REQUIRED_VALIDATED_EVIDENCE = {
     "web-ui-local-first-proof": ("streamlit run", "src/agilab/main_page.py"),
     "agilab-hf-demo": ("tools/hf_space_smoke.py", "--json"),
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),
+    "controlled-pilot-readiness-gate": (
+        "tools/controlled_pilot_readiness_report.py",
+        "--compact",
+    ),
     "published-package-route": (
         'pip install "agilab[examples]"',
         "python -m agilab.lab_run first-proof --json",
@@ -582,6 +587,7 @@ def _check_workflow_evidence_commands(repo_root: Path) -> dict[str, Any]:
             "tools/newcomer_first_proof.py",
             "tools/hf_space_smoke.py",
             "tools/service_health_check.py",
+            "tools/controlled_pilot_readiness_report.py",
         ],
         details=details,
     )

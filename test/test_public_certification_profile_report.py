@@ -31,10 +31,10 @@ def test_public_certification_profile_report_passes_contract(tmp_path: Path) -> 
     assert report["summary"]["schema"] == "agilab.public_certification_profile.v1"
     assert report["summary"]["execution_mode"] == "public_certification_static"
     assert report["summary"]["certification_profile"] == "bounded_public_evidence"
-    assert report["summary"]["path_count"] == 6
-    assert report["summary"]["certified_public_evidence_count"] == 5
+    assert report["summary"]["path_count"] == 7
+    assert report["summary"]["certified_public_evidence_count"] == 6
     assert report["summary"]["documented_not_certified_count"] == 1
-    assert report["summary"]["certified_beyond_newcomer_operator_count"] == 3
+    assert report["summary"]["certified_beyond_newcomer_operator_count"] == 4
     assert report["summary"]["production_certification_claimed"] is False
     assert report["summary"]["formal_third_party_certification"] is False
     assert report["summary"]["command_execution_count"] == 0
@@ -67,9 +67,13 @@ def test_public_certification_profile_marks_documented_routes() -> None:
     assert rows["published-package-route"]["certification_status"] == (
         "certified_public_evidence"
     )
+    assert rows["controlled-pilot-readiness-gate"]["certification_status"] == (
+        "certified_public_evidence"
+    )
     assert state["summary"]["certified_beyond_newcomer_operator_paths"] == [
         "web-ui-local-first-proof",
         "agilab-hf-demo",
+        "controlled-pilot-readiness-gate",
         "published-package-route",
     ]
     assert state["summary"]["production_certification_claimed"] is False
