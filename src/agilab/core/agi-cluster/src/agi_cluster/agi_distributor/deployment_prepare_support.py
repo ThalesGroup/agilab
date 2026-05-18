@@ -23,7 +23,10 @@ def _is_local_ip(ip: str) -> bool:
     return is_local(ip)
 
 
-def _uv_self_update_enabled(envars: dict[str, Any], envar_truthy_fn: Callable[[dict[str, Any], str], bool]) -> bool:
+def _uv_self_update_enabled(
+    envars: dict[str, Any],
+    envar_truthy_fn: Callable[[dict[str, Any], str], bool],
+) -> bool:
     return envar_truthy_fn(envars, UV_SELF_UPDATE_ENV)
 
 
