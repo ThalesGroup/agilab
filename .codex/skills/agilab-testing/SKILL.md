@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-16
+  updated: 2026-05-18
 ---
 
 # Testing Skill (AGILAB)
@@ -110,6 +110,21 @@ Use this skill when validating changes.
   - For robot validation of selected actions, use `--action-button-policy
     click-selected` with explicit `--click-action-labels` and check rendered
     action feedback, not only whether the click completed.
+- UI robot matrix evidence:
+  - When changing `tools/agilab_widget_robot_matrix.py`,
+    `tools/ui_robot_matrix_aggregate.py`, `tools/ui_robot_evidence.py`, or the
+    `ui-robot-matrix` workflow, cover the contract across shard execution,
+    aggregate artifact loading, public evidence projection, workflow text, and
+    workflow-parity commands.
+  - The focused regression slice is usually:
+    `test/test_agilab_widget_robot_matrix.py`, `test/test_ui_robot_matrix_aggregate.py`,
+    `test/test_ui_robot_evidence.py`, `test/test_ci_workflow.py`, and
+    `test/test_workflow_parity.py`.
+  - Prefer helper tests for aggregate/retry coverage. A full local matrix robot
+    run is release evidence or broad UI validation, not the default coverage loop.
+  - Keep failure-retry trace/HAR/video paths and aggregate replay commands
+    asserted in tests so a failed CI shard remains diagnosable from the uploaded
+    `ui-robot-matrix-aggregate-*` artifact.
 - Installer regressions:
   - For install failures, reproduce both:
     - plain shell: `uv sync --project <app>`
