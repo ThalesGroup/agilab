@@ -202,11 +202,16 @@ Goal:
 
 - AGILab stays a workbench, but hands clean evidence to the MLOps and platform
   systems that own production
+- converge the existing evidence pieces into a portable proof capsule that can
+  be verified, compared, replayed, and handed to another tool without relying
+  on the original developer workspace
 
 Concrete items:
 
 - strengthen run evidence, release decisions, run diff, artifact provenance,
   and compatibility profiles as first-class outputs
+- define the proof capsule schema before adding a public `.agipack` archive or
+  `agilab prove` / `agilab verify` / `agilab replay` commands
 - keep MLflow integration focused on tracking, artifacts, model registry
   handoff, and comparison rather than replacing AGILab execution
 - define promotion-ready evidence bundles for apps, imported notebooks, and
@@ -218,6 +223,8 @@ Done means:
 
 - an experiment can be reviewed, compared, promoted, or rejected from evidence
   that is versioned, portable, and honest about its execution environment
+- the same evidence can be exported as a single proof capsule without claiming
+  production certification
 
 ### P6. Extension architecture and maintainability
 

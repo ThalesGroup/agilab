@@ -162,6 +162,8 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "## Security Reporting",
         "## Dependency And Supply-Chain Boundaries",
         "## Evidence Taxonomy",
+        "## Proof Capsule Direction",
+        "roadmap targets, not\npublished CLI commands today",
         "## Source Version vs Package Version",
         "| `main` branch and root `pyproject.toml` |",
         "| Release tag |",

@@ -144,6 +144,9 @@ Engineering prototyping evidence
 AGILab is strongest for engineering prototypes that need more structure than a
 single notebook but less ceremony than a production MLOps platform:
 
+That supports an ``Engineering prototyping`` score of ``4.0 / 5`` in the
+current public evaluation snapshot.
+
 - app templates and cloned projects provide a repeatable manager/worker shape
 - app and page bundles keep dependencies isolated through their own
   ``pyproject.toml`` / ``uv`` environments

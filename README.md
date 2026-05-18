@@ -36,10 +36,12 @@
 # AGILAB
 
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
-It turns experimental notebooks and scripts into reproducible applications that
-can run locally or on distributed workers. The workflow stays portable: export
-it back to a runnable notebook, and hand off tracking evidence to MLflow when
-that integration is enabled.
+It turns notebooks and scripts into controlled, executable apps while preserving
+a notebook export path.
+That means you do not lose your work if AGILAB is no longer the right runtime.
+Those apps can run locally or on distributed workers, and the
+workflow stays portable: export it back to a runnable notebook, and hand off
+tracking evidence to MLflow when that integration is enabled.
 
 Use it to keep experimental AI work:
 
@@ -215,6 +217,23 @@ AGILAB separates public claims by evidence type:
 | Benchmarks | Timings for declared hardware, datasets, modes, and benchmark scripts. | General performance across arbitrary hardware, networks, or datasets. |
 | Self-assessment | KPI scores such as production readiness and strategic potential are maintained from repository evidence. | External validation or third-party certification. |
 | External validation | Only claimed when a named external artifact, reviewer, CI provider, or hosted demo proof is linked. | Implied endorsement beyond the linked evidence. |
+
+## Proof Capsule Direction
+
+The north-star product primitive is an AGILAB proof capsule: one portable,
+reviewable bundle for a run or app promotion decision. It should collect the
+run manifest, app/stage metadata, exported notebook handoff, MLflow handoff
+metadata when enabled, UI robot screenshots/traces/HAR/video when captured,
+artifact hashes, dependency locks, SBOM, `pip-audit`, wheel hashes, provenance,
+and a short human/machine summary.
+
+AGILAB already ships many of those pieces separately through first-proof
+manifests, notebook export, release proof, supply-chain scans, robot artifacts,
+and adoption reports. A single `.agipack` archive and commands such as
+`agilab prove`, `agilab verify`, and `agilab replay` are roadmap targets, not
+published CLI commands today. See the
+[proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
+contract for the intended boundary.
 
 ## Repository Map And Stability Boundaries
 
