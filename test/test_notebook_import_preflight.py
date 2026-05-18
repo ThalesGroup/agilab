@@ -461,6 +461,29 @@ def test_packaged_notebook_import_sample_declares_first_proof_defaults() -> None
     ][1]["C"]
 
 
+def test_packaged_notebook_import_sample_rejects_unknown_sample_id() -> None:
+    sample_module = _load_module(
+        SAMPLE_HELPER_PATH,
+        "notebook_import_packaged_sample_unknown_module",
+    )
+
+    samples = sample_module.list_sample_notebooks()
+
+    assert [sample.sample_id for sample in samples] == [
+        "flight_telemetry",
+        "mycode",
+        "weather_forecast",
+        "mission_decision",
+    ]
+    try:
+        sample_module.get_sample_notebook("unknown")
+    except KeyError as exc:
+        assert "Unknown notebook import sample 'unknown'" in str(exc)
+        assert "flight_telemetry, mycode, weather_forecast, mission_decision" in str(exc)
+    else:
+        raise AssertionError("unknown notebook import sample id should fail closed")
+
+
 def test_packaged_notebook_import_samples_create_equivalent_from_notebook_projects() -> None:
     core_module = _load_module(
         CORE_PATH,

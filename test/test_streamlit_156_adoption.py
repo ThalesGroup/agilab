@@ -95,6 +95,48 @@ def test_agilab_theme_config_maps_to_streamlit_environment(monkeypatch) -> None:
     assert env["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
+def test_streamlit_theme_values_ignore_missing_malformed_and_non_theme_configs(tmp_path) -> None:
+    missing = tmp_path / "missing.toml"
+    malformed = tmp_path / "malformed.toml"
+    non_theme = tmp_path / "server.toml"
+    malformed.write_text("[theme\n", encoding="utf-8")
+    non_theme.write_text("[server]\nheadless = true\n", encoding="utf-8")
+
+    assert streamlit_theme_env.load_streamlit_theme_values(missing) == {}
+    assert streamlit_theme_env.load_streamlit_theme_values(malformed) == {}
+    assert streamlit_theme_env.load_streamlit_theme_values(non_theme) == {}
+
+
+def test_streamlit_theme_environment_preserves_existing_values_and_skips_empty_theme_values(tmp_path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[theme]
+base = "dark"
+primaryColor = ""
+""".strip(),
+        encoding="utf-8",
+    )
+    env = {
+        "STREAMLIT_CONFIG_FILE": "existing.toml",
+        "STREAMLIT_THEME_BASE": "light",
+    }
+    module_file = tmp_path / "agilab" / "main_page.py"
+
+    streamlit_theme_env.apply_streamlit_theme_environment(config_path, environ=env)
+
+    assert streamlit_theme_env.packaged_streamlit_config_path(module_file) == (
+        module_file.resolve().parent / "resources" / "config.toml"
+    )
+    assert streamlit_theme_env.load_streamlit_theme_values(config_path) == {
+        "base": "dark",
+        "primaryColor": "",
+    }
+    assert env["STREAMLIT_CONFIG_FILE"] == "existing.toml"
+    assert env["STREAMLIT_THEME_BASE"] == "light"
+    assert "STREAMLIT_THEME_PRIMARY_COLOR" not in env
+
+
 def test_source_checkout_streamlit_config_matches_packaged_theme() -> None:
     source_config = tomllib.loads(Path(".streamlit/config.toml").read_text(encoding="utf-8"))
     theme_config = tomllib.loads(Path("src/agilab/resources/config.toml").read_text(encoding="utf-8"))
