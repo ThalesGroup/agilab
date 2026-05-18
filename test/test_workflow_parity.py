@@ -120,6 +120,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_history_robot = profiles["ui-history-robot"][0]
     ui_mobile_robot = profiles["ui-mobile-robot"][0]
     ui_release_evidence_robot = profiles["ui-release-evidence-robot"][0]
+    ui_first_proof_robot = profiles["ui-first-proof-robot"][0]
     hf_install_robot = profiles["hf-install-robot"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
@@ -290,6 +291,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "--json" in ui_robot_matrix.argv
     assert "--screenshot-dir" in ui_robot_matrix.argv
     assert "screenshots/ui-robot-matrix" in ui_robot_matrix.argv
+    assert "test-results/ui-robot-matrix/failure-bundles" in ui_robot_matrix.argv
     assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
     assert ui_history_robot.label == "ui browser history robot"
     assert ui_history_robot.timeout_seconds == 30 * 60
@@ -297,12 +299,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "tools/agilab_widget_robot_matrix.py" in ui_history_robot.argv
     assert "isolated-browser-history" in ui_history_robot.argv
     assert "screenshots/ui-history-robot" in ui_history_robot.argv
+    assert "test-results/ui-history-robot/failure-bundles" in ui_history_robot.argv
     assert _has_with_dependency(ui_history_robot.argv, "playwright")
     assert ui_mobile_robot.label == "ui mobile viewport robot"
     assert ui_mobile_robot.timeout_seconds == 30 * 60
     assert ui_mobile_robot.remove_paths == ["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"]
     assert "isolated-mobile-core-pages" in ui_mobile_robot.argv
     assert "screenshots/ui-mobile-robot" in ui_mobile_robot.argv
+    assert "test-results/ui-mobile-robot/failure-bundles" in ui_mobile_robot.argv
     assert _has_with_dependency(ui_mobile_robot.argv, "playwright")
     assert ui_release_evidence_robot.label == "ui release evidence robot"
     assert ui_release_evidence_robot.timeout_seconds == 45 * 60
@@ -313,7 +317,19 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-release-evidence" in ui_release_evidence_robot.argv
     assert "isolated-fresh-session-core-pages" in ui_release_evidence_robot.argv
     assert "screenshots/ui-release-evidence-robot" in ui_release_evidence_robot.argv
+    assert "test-results/ui-release-evidence-robot/failure-bundles" in ui_release_evidence_robot.argv
     assert _has_with_dependency(ui_release_evidence_robot.argv, "playwright")
+    assert ui_first_proof_robot.label == "ui first-proof golden path robot"
+    assert ui_first_proof_robot.timeout_seconds == 45 * 60
+    assert ui_first_proof_robot.remove_paths == [
+        "test-results/ui-first-proof-robot",
+        "screenshots/ui-first-proof-robot",
+    ]
+    assert "current-home-first-proof-golden-path" in ui_first_proof_robot.argv
+    assert "flight_telemetry_project" in ui_first_proof_robot.argv
+    assert "screenshots/ui-first-proof-robot" in ui_first_proof_robot.argv
+    assert "test-results/ui-first-proof-robot/failure-bundles" in ui_first_proof_robot.argv
+    assert _has_with_dependency(ui_first_proof_robot.argv, "playwright")
     assert hf_install_robot.label == "hf flight telemetry install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
@@ -322,6 +338,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "flight_telemetry_project" in hf_install_robot.argv
     assert "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project" in hf_install_robot.argv
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
+    assert "test-results/hf-install-robot/failure-bundles" in hf_install_robot.argv
     assert _has_with_dependency(hf_install_robot.argv, "playwright")
 
 
@@ -342,6 +359,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "ui-history-robot" not in selected
     assert "ui-mobile-robot" not in selected
     assert "ui-release-evidence-robot" not in selected
+    assert "ui-first-proof-robot" not in selected
     assert "hf-install-robot" not in selected
 
 
