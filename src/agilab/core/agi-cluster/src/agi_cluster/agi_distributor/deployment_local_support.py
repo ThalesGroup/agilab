@@ -313,7 +313,7 @@ def _load_deploy_stage_cache(path: Path) -> dict[str, Any]:
 
 
 def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
-    payload = {
+    payload: dict[str, Any] = {
         "schema": DEPLOY_STAGE_CACHE_SCHEMA,
         "stages": state.get("stages") if isinstance(state.get("stages"), dict) else {},
     }
@@ -661,7 +661,7 @@ def _load_editable_install_cache(path: Path) -> dict[str, Any]:
 
 
 def _write_editable_install_cache(path: Path, state: dict[str, Any]) -> None:
-    payload = {
+    payload: dict[str, Any] = {
         "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
         "installs": state.get("installs")
         if isinstance(state.get("installs"), dict)

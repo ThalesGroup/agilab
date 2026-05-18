@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-scenario-cockpit"
-version = "2026.05.17.post2"
+version = "2026.05.18"
 description = "AGILAB page bundle for scenario evidence comparison."
 readme = { text = "AGILAB page bundle for scenario evidence comparison.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_scenario_cockpit = "view_scenario_cockpit:bundle_root"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

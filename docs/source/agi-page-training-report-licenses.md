@@ -18,8 +18,8 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | absl-py | 2.4.0 | APACHE SOFTWARE LICENSE |
-| agi-env | 2026.5.17.post2 | BSD-3-Clause |
-| agi-gui | 2026.5.17.post2 | BSD-3-Clause |
+| agi-env | 2026.5.18 | BSD-3-Clause |
+| agi-gui | 2026.5.18 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | anyio | 4.13.0 | MIT |

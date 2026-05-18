@@ -1,9 +1,9 @@
 [project]
 name = "execution_pandas_project"
-version = "2026.05.17.post2"
+version = "2026.05.18"
 description = "Built-in AGILab execution playground using PandasWorker"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.17", "agi-node>=2026.05.17", "numpy", "pandas", "pydantic"]
+dependencies = ["agi-env>=2026.05.18", "agi-node>=2026.05.18", "numpy", "pandas", "pydantic"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../../../core/agi-env", editable = true }
