@@ -225,6 +225,31 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
 }
 
 
+OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
+    "hf-flight-telemetry-install": RobotScenario(
+        name="hf-flight-telemetry-install",
+        description=(
+            "Run the hosted Hugging Face flight telemetry INSTALL action and fail "
+            "on fatal install feedback rendered in the page or action log."
+        ),
+        pages="ORCHESTRATE",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="click-selected",
+        click_action_labels="INSTALL",
+        missing_selected_action_policy="fail",
+        action_timeout_seconds=600.0,
+        page_timeout_seconds=900.0,
+        target_seconds=1200.0,
+    ),
+}
+
+ALL_SCENARIOS: dict[str, RobotScenario] = {
+    **DEFAULT_SCENARIOS,
+    **OPT_IN_SCENARIOS,
+}
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -235,7 +260,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--scenario",
         action="append",
-        choices=["all", *DEFAULT_SCENARIOS.keys()],
+        choices=["all", *ALL_SCENARIOS.keys()],
         help="Scenario to run. May be passed multiple times. Defaults to all.",
     )
     parser.add_argument("--apps", default="all", help="Built-in apps or app paths to pass to the widget robot.")
@@ -265,7 +290,7 @@ def resolve_scenarios(names: Sequence[str] | None) -> list[RobotScenario]:
         for scenario_name in scenario_names:
             if scenario_name in seen:
                 continue
-            resolved.append(DEFAULT_SCENARIOS[scenario_name])
+            resolved.append(ALL_SCENARIOS[scenario_name])
             seen.add(scenario_name)
     return resolved
 

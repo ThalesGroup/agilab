@@ -1203,6 +1203,9 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "stToast" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert "fatalTextNeedles" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert "diagnostic" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
+    assert "install finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert "install finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "install finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
 
 
 def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
@@ -1221,6 +1224,15 @@ def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
             values = set(re.findall(r'"([^"]+)"', array_body))
             assert broad_needles.isdisjoint(values)
             assert "distribution build failed" in values
+            assert "install finished with errors" in values
+
+
+def test_action_log_feedback_collector_catches_install_finished_with_errors() -> None:
+    module = _load_module()
+
+    assert '"install finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert '"finished with errors"' in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert '"installation failed"' in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
 
 
 def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:

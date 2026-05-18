@@ -95,6 +95,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "production-readiness",
             "cloud-emulators",
             "ui-robot-matrix",
+            "hf-install-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -163,6 +164,7 @@ def _profile_descriptions() -> dict[str, str]:
         ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
+        "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
     }
 
 
@@ -184,6 +186,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
+        "hf-install-robot": _hf_install_robot_profile(),
     }
 
 
@@ -1026,6 +1029,40 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
     ]
 
 
+def _hf_install_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="hf flight telemetry install robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "hf-flight-telemetry-install",
+                "--apps",
+                "flight_telemetry_project",
+                "--url",
+                "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
+                "--active-app",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/hf-install-robot",
+                "--screenshot-dir",
+                "screenshots/hf-install-robot",
+            ],
+            timeout_seconds=25 * 60,
+            remove_paths=["test-results/hf-install-robot", "screenshots/hf-install-robot"],
+        )
+    ]
+
+
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
@@ -1036,6 +1073,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "security-adoption",
         "production-readiness",
         "ui-robot-matrix",
+        "hf-install-robot",
     }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 
