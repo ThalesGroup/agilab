@@ -34,6 +34,7 @@ _ensure_repo_on_path(REPO_ROOT)
 
 from agilab.repository_knowledge import (  # noqa: E402
     SCHEMA,
+    default_record_cache_path,
     persist_repository_knowledge_index,
 )
 
@@ -92,21 +93,41 @@ def build_report(
     *,
     repo_root: Path = REPO_ROOT,
     output_path: Path | None = None,
+    record_cache_path: Path | None = None,
+    use_record_cache: bool = True,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
+    effective_cache_path = (
+        record_cache_path
+        if use_record_cache and record_cache_path is not None
+        else default_record_cache_path(repo_root)
+        if use_record_cache
+        else None
+    )
     if output_path is None:
         with tempfile.TemporaryDirectory(prefix="agilab-repository-knowledge-") as tmp_dir:
             return _build_report_with_path(
                 repo_root=repo_root,
                 output_path=Path(tmp_dir) / "repository_knowledge_index.json",
+                record_cache_path=effective_cache_path,
             )
-    return _build_report_with_path(repo_root=repo_root, output_path=output_path)
+    return _build_report_with_path(
+        repo_root=repo_root,
+        output_path=output_path,
+        record_cache_path=effective_cache_path,
+    )
 
 
-def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, Any]:
+def _build_report_with_path(
+    *,
+    repo_root: Path,
+    output_path: Path,
+    record_cache_path: Path | None,
+) -> dict[str, Any]:
     proof = persist_repository_knowledge_index(
         repo_root=repo_root,
         output_path=output_path,
+        record_cache_path=record_cache_path,
     )
     state = proof["state"]
     summary = state.get("summary", {})
@@ -256,12 +277,27 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument(
+        "--cache-path",
+        type=Path,
+        default=None,
+        help="Optional path for the local per-file record cache.",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable the local per-file record cache.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
-    report = build_report(output_path=args.output)
+    report = build_report(
+        output_path=args.output,
+        record_cache_path=args.cache_path,
+        use_record_cache=not args.no_cache,
+    )
     if args.compact:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     else:
