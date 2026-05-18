@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 import html
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -80,7 +81,9 @@ class RegistrationResult:
 
 
 def _normalize_html(text: str) -> str:
-    return html.unescape(text)
+    plain = re.sub(r"(?is)<(script|style).*?</\1>", " ", text)
+    plain = re.sub(r"(?s)<[^>]+>", " ", plain)
+    return re.sub(r"\s+", " ", html.unescape(plain)).strip()
 
 
 def _authenticate_pypi_web(
@@ -290,7 +293,11 @@ def _interpret_registration_response(
             "project name, GitHub owner/repository, workflow filename, environment, "
             "and whether this publisher identity is already pending for another project."
         )
-    raise RuntimeError("PyPI did not confirm pending trusted publisher registration")
+    snippet = text[:800]
+    raise RuntimeError(
+        "PyPI did not confirm pending trusted publisher registration; "
+        f"response text starts with: {snippet!r}"
+    )
 
 
 def register_pending_github_publisher(
