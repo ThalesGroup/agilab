@@ -1,0 +1,59 @@
+name: pypi-pending-trusted-publisher
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: "PyPI project name to be created by the next trusted publish."
+        required: true
+      pypi_environment:
+        description: "GitHub Actions environment used by pypi-publish.yaml for this PyPI project."
+        required: true
+      owner:
+        description: "GitHub repository owner configured on PyPI."
+        required: false
+        default: "ThalesGroup"
+      repository:
+        description: "GitHub repository configured on PyPI."
+        required: false
+        default: "agilab"
+      workflow_filename:
+        description: "Publishing workflow filename configured on PyPI."
+        required: false
+        default: "pypi-publish.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install PyPI web automation dependencies
+        run: python -m pip install --upgrade --no-cache-dir packaging requests
+
+      - name: Register pending trusted publisher
+        env:
+          PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
+          PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+          PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
+          PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+        run: |
+          set -euxo pipefail
+          python tools/pypi_pending_trusted_publisher.py \
+            --repo pypi \
+            --project-name "${{ inputs.project_name }}" \
+            --owner "${{ inputs.owner }}" \
+            --repository "${{ inputs.repository }}" \
+            --workflow-filename "${{ inputs.workflow_filename }}" \
+            --environment "${{ inputs.pypi_environment }}" \
+            --json \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"

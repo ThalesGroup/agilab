@@ -1,0 +1,353 @@
+#!/usr/bin/env python3
+"""Register a PyPI pending GitHub trusted publisher for a new project."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import asdict, dataclass
+import html
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any, Callable, Sequence
+from urllib.parse import urljoin, urlparse
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+try:
+    from pypi_release_retention import (
+        PYPI_HOSTS,
+        _find_form,
+        _fresh_totp_code,
+        _submit_reauthentication_if_needed,
+        require_credentials,
+        resolve_auth_code,
+    )
+    from pypi_trusted_publisher_contract import (
+        DEFAULT_OWNER,
+        DEFAULT_REPOSITORY,
+        DEFAULT_WORKFLOW,
+    )
+except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
+    from tools.pypi_release_retention import (
+        PYPI_HOSTS,
+        _find_form,
+        _fresh_totp_code,
+        _submit_reauthentication_if_needed,
+        require_credentials,
+        resolve_auth_code,
+    )
+    from tools.pypi_trusted_publisher_contract import (
+        DEFAULT_OWNER,
+        DEFAULT_REPOSITORY,
+        DEFAULT_WORKFLOW,
+    )
+
+
+LOGIN_PATH = "/account/login/"
+PUBLISHING_PATH = "/manage/account/publishing/"
+SCHEMA_VERSION = "agilab.pypi_pending_trusted_publisher.v1"
+
+SUCCESS_FRAGMENT = "Registered a new pending publisher to create"
+ALREADY_REGISTERED_FRAGMENT = "This trusted publisher has already been registered"
+DIFFERENT_PROJECT_FRAGMENT = "for a different project name"
+MAX_PENDING_FRAGMENT = "more than 3 pending trusted publishers"
+PROJECT_EXISTS_FRAGMENT = "This project already exists"
+GENERIC_FAILURE_FRAGMENT = "The trusted publisher could not be registered"
+
+
+@dataclass(frozen=True)
+class PendingGitHubPublisher:
+    project_name: str
+    owner: str
+    repository: str
+    workflow_filename: str
+    environment: str
+
+
+@dataclass(frozen=True)
+class RegistrationResult:
+    publisher: PendingGitHubPublisher
+    registered: bool
+    already_registered: bool
+    dry_run: bool = False
+
+
+def _normalize_html(text: str) -> str:
+    return html.unescape(text)
+
+
+def _authenticate_pypi_web(
+    session: Any,
+    *,
+    base_url: str,
+    username: str,
+    password: str,
+    auth_code: str | None,
+) -> None:
+    login_url = f"{base_url}{LOGIN_PATH}"
+    response = session.get(login_url)
+    response.raise_for_status()
+
+    login_form = _find_form(response.text, target_path=LOGIN_PATH)
+    login_data = dict(login_form.inputs)
+    login_data.update({"username": username, "password": password})
+    response = session.post(
+        urljoin(base_url, login_form.action or LOGIN_PATH),
+        data=login_data,
+        headers={"referer": login_url},
+    )
+    response.raise_for_status()
+    if response.url.rstrip("/") == login_url.rstrip("/"):
+        raise RuntimeError(f"login failed for PyPI user {username!r}")
+
+    two_factor_prefix = f"{base_url}/account/two-factor/"
+    if not response.url.startswith(two_factor_prefix):
+        return
+
+    auth_code = _fresh_totp_code(auth_code)
+    if auth_code is None:
+        raise RuntimeError("PyPI requested 2FA but no non-interactive code was available")
+    two_factor_path = urlparse(response.url).path
+    two_factor_form = _find_form(response.text, target_path=two_factor_path)
+    two_factor_data = dict(two_factor_form.inputs)
+    two_factor_data.update({"method": "totp", "totp_value": auth_code})
+    response = session.post(
+        urljoin(base_url, two_factor_form.action or two_factor_path),
+        data=two_factor_data,
+        headers={"referer": response.url},
+    )
+    response.raise_for_status()
+    if response.url.startswith(two_factor_prefix):
+        raise RuntimeError("PyPI rejected the generated TOTP code")
+
+
+def _publisher_form_data(
+    form_inputs: dict[str, str],
+    publisher: PendingGitHubPublisher,
+) -> dict[str, str]:
+    data = dict(form_inputs)
+    data.update(
+        {
+            "project_name": publisher.project_name,
+            "owner": publisher.owner,
+            "repository": publisher.repository,
+            "workflow_filename": publisher.workflow_filename,
+            "environment": publisher.environment,
+        }
+    )
+    return data
+
+
+def _interpret_registration_response(
+    response_text: str,
+    publisher: PendingGitHubPublisher,
+) -> RegistrationResult:
+    text = _normalize_html(response_text)
+    if SUCCESS_FRAGMENT in text and publisher.project_name in text:
+        return RegistrationResult(
+            publisher=publisher,
+            registered=True,
+            already_registered=False,
+        )
+    if ALREADY_REGISTERED_FRAGMENT in text and DIFFERENT_PROJECT_FRAGMENT not in text:
+        return RegistrationResult(
+            publisher=publisher,
+            registered=False,
+            already_registered=True,
+        )
+    if MAX_PENDING_FRAGMENT in text:
+        raise RuntimeError(
+            "PyPI refused the pending publisher because the account already has "
+            "three pending trusted publishers. Remove stale pending publishers in "
+            "PyPI account publishing settings, then rerun this workflow."
+        )
+    if PROJECT_EXISTS_FRAGMENT in text:
+        raise RuntimeError(
+            f"PyPI project {publisher.project_name!r} already exists; configure "
+            "the normal project trusted publisher instead of a pending publisher."
+        )
+    if GENERIC_FAILURE_FRAGMENT in text or DIFFERENT_PROJECT_FRAGMENT in text:
+        raise RuntimeError(
+            "PyPI rejected the pending trusted publisher registration; check the "
+            "project name, GitHub owner/repository, workflow filename, environment, "
+            "and whether this publisher identity is already pending for another project."
+        )
+    raise RuntimeError("PyPI did not confirm pending trusted publisher registration")
+
+
+def register_pending_github_publisher(
+    *,
+    publisher: PendingGitHubPublisher,
+    repo: str,
+    username: str,
+    password: str,
+    auth_code: str | None = None,
+    session_factory: Callable[[], Any] | None = None,
+) -> RegistrationResult:
+    import requests
+
+    base_url = PYPI_HOSTS[repo].rstrip("/")
+    session_factory = session_factory or requests.Session
+    with session_factory() as session:
+        session.headers.update(
+            {
+                "User-Agent": (
+                    "agilab-pypi-pending-trusted-publisher/1 "
+                    f"(requests/{requests.__version__})"
+                )
+            }
+        )
+        _authenticate_pypi_web(
+            session,
+            base_url=base_url,
+            username=username,
+            password=password,
+            auth_code=auth_code,
+        )
+
+        publishing_url = f"{base_url}{PUBLISHING_PATH}"
+        response = session.get(publishing_url)
+        response.raise_for_status()
+        response = _submit_reauthentication_if_needed(
+            session,
+            response=response,
+            base_url=base_url,
+            username=username,
+            password=password,
+        )
+        if urlparse(response.url).path.rstrip("/") == "/account/login":
+            raise RuntimeError(
+                "PyPI redirected back to login while opening account publishing "
+                "settings after password/TOTP authentication. PyPI likely requires "
+                "unrecognized-login email confirmation from the same runner IP."
+            )
+
+        form = _find_form(
+            response.text,
+            target_path=PUBLISHING_PATH,
+            required_input="project_name",
+        )
+        registration_data = _publisher_form_data(form.inputs, publisher)
+        response = session.post(
+            urljoin(base_url, form.action or PUBLISHING_PATH),
+            data=registration_data,
+            headers={"referer": publishing_url},
+        )
+        response.raise_for_status()
+        return _interpret_registration_response(response.text, publisher)
+
+
+def render_summary(result: RegistrationResult) -> dict[str, Any]:
+    return {
+        "schema": SCHEMA_VERSION,
+        "success": True,
+        "registered": result.registered,
+        "already_registered": result.already_registered,
+        "dry_run": result.dry_run,
+        "publisher": asdict(result.publisher),
+    }
+
+
+def append_step_summary(path: Path, summary: dict[str, Any]) -> None:
+    publisher = summary["publisher"]
+    status = "DRY RUN" if summary["dry_run"] else "PASS"
+    state = "already registered" if summary["already_registered"] else "registered"
+    if summary["dry_run"]:
+        state = "not submitted"
+    lines = [
+        "## PyPI pending trusted publisher",
+        "",
+        f"- Status: `{status}`",
+        f"- Result: `{state}`",
+        f"- PyPI project: `{publisher['project_name']}`",
+        f"- GitHub owner/repository: `{publisher['owner']}/{publisher['repository']}`",
+        f"- Workflow: `{publisher['workflow_filename']}`",
+        f"- Environment: `{publisher['environment']}`",
+        "",
+    ]
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n".join(lines))
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Register a PyPI pending GitHub trusted publisher for a project that "
+            "does not exist yet."
+        )
+    )
+    parser.add_argument("--repo", choices=tuple(PYPI_HOSTS), default="pypi")
+    parser.add_argument("--project-name", required=True)
+    parser.add_argument("--owner", default=DEFAULT_OWNER)
+    parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
+    parser.add_argument("--workflow-filename", default=DEFAULT_WORKFLOW)
+    parser.add_argument("--environment", required=True)
+    parser.add_argument("--username")
+    parser.add_argument("--password")
+    parser.add_argument("--otp-code")
+    parser.add_argument("--totp-secret")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--github-step-summary",
+        nargs="?",
+        const=os.environ.get("GITHUB_STEP_SUMMARY"),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
+    publisher = PendingGitHubPublisher(
+        project_name=args.project_name,
+        owner=args.owner,
+        repository=args.repository,
+        workflow_filename=args.workflow_filename,
+        environment=args.environment,
+    )
+
+    if args.dry_run:
+        result = RegistrationResult(
+            publisher=publisher,
+            registered=False,
+            already_registered=False,
+            dry_run=True,
+        )
+    else:
+        username, password = require_credentials(args.username, args.password)
+        result = register_pending_github_publisher(
+            publisher=publisher,
+            repo=args.repo,
+            username=username,
+            password=password,
+            auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+        )
+
+    summary = render_summary(result)
+    if args.json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+    elif result.dry_run:
+        print(
+            "Dry run: pending trusted publisher would be registered for "
+            f"{publisher.project_name}."
+        )
+    elif result.already_registered:
+        print(f"Pending trusted publisher already registered for {publisher.project_name}.")
+    else:
+        print(f"Registered pending trusted publisher for {publisher.project_name}.")
+
+    if args.github_step_summary:
+        append_step_summary(Path(args.github_step_summary), summary)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
