@@ -189,6 +189,7 @@ def test_delete_release_falls_back_when_pypi_cleanup_cannot_parse_delete_form(mo
             "username": "maintainer",
             "password": "secret",
             "auth_code": "123456",
+            "confirm_login_url_provider": None,
         }
     ]
     assert "direct PyPI web fallback" in capsys.readouterr().err
@@ -313,6 +314,92 @@ def test_direct_pypi_delete_submits_reauth_before_delete_form() -> None:
     }
 
 
+def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redirect() -> None:
+    module = _load_module()
+    confirm_url = "https://pypi.org/account/confirm-login/?token=token"
+
+    class FakeResponse:
+        def __init__(self, *, text: str, url: str) -> None:
+            self.text = text
+            self.url = url
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.headers = {}
+            self.get_urls = []
+            self.posts = []
+            self.delete_attempts = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            self.get_urls.append(url)
+            if url == "https://pypi.org/account/login/":
+                return FakeResponse(
+                    url=url,
+                    text="""
+                    <form method="post" action="/account/login/">
+                      <input name="csrf_token" value="login-csrf">
+                    </form>
+                    """,
+                )
+            if url == confirm_url:
+                return FakeResponse(url=url, text="<html>confirmed</html>")
+            self.delete_attempts += 1
+            if self.delete_attempts == 1:
+                return FakeResponse(
+                    url="https://pypi.org/account/login/",
+                    text="<html>login required</html>",
+                )
+            return FakeResponse(
+                url=url,
+                text="""
+                <form method="post" action="/manage/project/agilab/release/2026.5.17/">
+                  <input name="csrf_token" value="delete-csrf">
+                  <input name="confirm_delete_version" value="">
+                </form>
+                """,
+            )
+
+        def post(self, url, **kwargs):
+            self.posts.append((url, kwargs))
+            if url == "https://pypi.org/account/login/":
+                return FakeResponse(
+                    url="https://pypi.org/manage/projects/",
+                    text="<html></html>",
+                )
+            return FakeResponse(
+                url="https://pypi.org/manage/project/agilab/releases/",
+                text="<html></html>",
+            )
+
+    session = FakeSession()
+
+    module.delete_release_via_pypi_web(
+        package="agilab",
+        version="2026.5.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        confirm_login_url_provider=lambda: confirm_url,
+        session_factory=lambda: session,
+    )
+
+    assert confirm_url in session.get_urls
+    assert session.delete_attempts == 2
+    assert session.posts[-1][1]["data"] == {
+        "csrf_token": "delete-csrf",
+        "confirm_delete_version": "2026.5.17",
+    }
+
+
 def test_fresh_totp_code_waits_until_reused_code_changes(monkeypatch) -> None:
     module = _load_module()
     codes = iter(["123456", "123456", "654321"])
@@ -335,7 +422,17 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
     }
     deletes: list[tuple[str, str, str, str]] = []
 
-    def fake_delete_release(*, package, version, repo, username, password, auth_code=None, verbose=False):
+    def fake_delete_release(
+        *,
+        package,
+        version,
+        repo,
+        username,
+        password,
+        auth_code=None,
+        confirm_login_url_provider=None,
+        verbose=False,
+    ):
         deletes.append((package, version, username, password, auth_code))
         releases[package] = [item for item in releases[package] if item != version]
 
