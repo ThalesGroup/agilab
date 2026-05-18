@@ -67,6 +67,12 @@ Use this runbook whenever you:
   that belong to that scope. Direct pushes to `main` are reserved for explicit
   emergency fixes or release-maintenance operations where the user asks for that
   exception.
+- **AGILAB product goal**: Optimize AGILAB work toward becoming the strongest
+  open-source workbench for turning AI/ML experiments, notebooks, and agent runs
+  into replayable, attestable evidence. Prefer concrete evidence primitives:
+  run manifests, notebook export manifests, artifact hashes, UI robot evidence,
+  SBOM / `pip-audit` / provenance, release proof, and verifier/replay contracts.
+  Keep claims honest; do not present roadmap items as shipped features.
 - **Current-code planning guardrail**: Before answering "next move", "ready for release",
   "release it", "sync HF", or any operational sequencing question, inspect the current
   repository state and the authoritative workflow/tooling files instead of relying on memory.
