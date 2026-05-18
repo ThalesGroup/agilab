@@ -292,6 +292,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
             ],
         ),
         _agi_gui_coverage_combine(),
+        _agi_gui_timing_report(),
         CommandSpec(
             label="agi-gui coverage xml",
             argv=[
@@ -320,6 +321,38 @@ def _agi_gui_profile() -> list[CommandSpec]:
         ),
     ]
     return commands
+
+
+def _agi_gui_timing_report() -> CommandSpec:
+    return CommandSpec(
+        label="agi-gui timing report",
+        argv=[
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--group",
+            "dev",
+            "--extra",
+            "ui",
+            "--extra",
+            "viz",
+            "python",
+            "tools/coverage_timing_report.py",
+            "test-results/junit-agi-gui-*.xml",
+            "--markdown-output",
+            "test-results/coverage-agi-gui-timing.md",
+            "--json-output",
+            "test-results/coverage-agi-gui-timing.json",
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=60,
+        ensure_dirs=["test-results"],
+        remove_paths=[
+            "test-results/coverage-agi-gui-timing.md",
+            "test-results/coverage-agi-gui-timing.json",
+        ],
+    )
 
 
 def _agi_gui_coverage_combine() -> CommandSpec:

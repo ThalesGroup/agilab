@@ -72,6 +72,7 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"src/**"',
         '"test/**"',
         '"tools/coverage_badge_guard.py"',
+        '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
         '"uv.lock"',
@@ -149,6 +150,8 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     combine_block = _agi_gui_combine_block()
     xml_step = _step_block("Write agi-gui coverage XML")
     junit_upload = _step_block("Upload JUnit results")
+    timing_step = _step_block("Write agi-gui timing report")
+    timing_upload = _step_block("Upload agi-gui timing report")
 
     assert "run_gui_chunk support" in run_block
     assert "run_gui_chunk pipeline" in run_block
@@ -163,6 +166,12 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     assert "python -m coverage xml" in xml_step
     assert "--cov=src/agilab" not in run_block
     assert "test-results/junit-agi-gui-*.xml" in junit_upload
+    assert "tools/coverage_timing_report.py test-results/junit-agi-gui-*.xml" in timing_step
+    assert "test-results/coverage-agi-gui-timing.md" in timing_step
+    assert "test-results/coverage-agi-gui-timing.json" in timing_step
+    assert 'cat test-results/coverage-agi-gui-timing.md >> "$GITHUB_STEP_SUMMARY"' in timing_step
+    assert "coverage-gui-timing-report" in timing_upload
+    assert "retention-days: 14" in timing_upload
 
 
 def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:

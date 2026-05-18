@@ -10,6 +10,7 @@ on:
       - "src/**"
       - "test/**"
       - "tools/coverage_badge_guard.py"
+      - "tools/coverage_timing_report.py"
       - "tools/generate_component_coverage_badges.py"
       - "tools/workflow_parity.py"
       - "uv.lock"
@@ -491,6 +492,23 @@ jobs:
           path: test-results/junit-agi-gui-*.xml
           if-no-files-found: ignore
           retention-days: 3
+
+      - name: Write agi-gui timing report
+        if: always()
+        run: |
+          python tools/coverage_timing_report.py test-results/junit-agi-gui-*.xml \
+            --markdown-output test-results/coverage-agi-gui-timing.md \
+            --json-output test-results/coverage-agi-gui-timing.json
+          cat test-results/coverage-agi-gui-timing.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload agi-gui timing report
+        if: always() && hashFiles('test-results/coverage-agi-gui-timing.*') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-gui-timing-report
+          path: test-results/coverage-agi-gui-timing.*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
