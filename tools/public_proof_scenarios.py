@@ -76,7 +76,7 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         "route": "WORKFLOW run with MLflow-backed tracking enabled",
         "target_seconds": FULL_INSTALL_TARGET_SECONDS,
         "commands": [
-            "uv --preview-features extra-build-dependencies run pytest -q test/test_tracking.py test/test_pipeline_run_controls.py",
+            "uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_tracking.py test/test_pipeline_run_controls.py",
         ],
         "evidence_files": [
             "src/agilab/tracking.py",

@@ -29,6 +29,7 @@ PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
 PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
+REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -872,10 +873,11 @@ async def deploy_local_worker(
         env_logger=getattr(env, "logger", None),
         python_version=pyvers,
     )
-    try:
-        (app_path / "uv.lock").unlink()
-    except FileNotFoundError:
-        pass
+    if _env_truthy(getattr(env, "envars", {}), REFRESH_LOCKS_ENV):
+        try:
+            (app_path / "uv.lock").unlink()
+        except FileNotFoundError:
+            pass
 
     if manager_sync_uses_overlay:
         with TemporaryDirectory(prefix="agilab-manager-sync-") as staged_root:

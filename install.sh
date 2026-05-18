@@ -127,6 +127,15 @@ NO_REMOTE_INSTALLERS="${AGILAB_NO_REMOTE_INSTALLERS:-0}"
 DRY_RUN=0
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
+env_truthy() {
+    local raw
+    raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    case "$raw" in
+        1|true|yes|on|enabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 read_env_var() {
     local file="$1"
     local key="$2"
@@ -1303,6 +1312,8 @@ print_dry_run_plan() {
     echo "test_core: ${TEST_CORE_FLAG}"
     echo "test_apps: ${TEST_APPS_FLAG}"
     echo "skip_offline: ${SKIP_OFFLINE}"
+    echo "refresh_locks: ${AGILAB_REFRESH_LOCKS:-0}"
+    echo "refresh_worker_envs: ${AGILAB_REFRESH_WORKER_ENVS:-0}"
     echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
     echo "no_remote_installers: ${NO_REMOTE_INSTALLERS}"
     echo "non_interactive: ${NON_INTERACTIVE}"
@@ -1325,6 +1336,8 @@ usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-cluster-share <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
+  echo "       Set AGILAB_REFRESH_LOCKS=1 to delete uv.lock files before resolving"
+  echo "       Set AGILAB_REFRESH_WORKER_ENVS=1 to remove per-app worker environments before install"
   echo "       [--no-remote-installers]  Refuse downloaded shell installers such as uv/Ollama/Homebrew bootstrap scripts"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
     exit 1
@@ -1467,7 +1480,11 @@ fi
 #    exit 1
 #fi
 
-find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+if env_truthy "${AGILAB_REFRESH_LOCKS:-0}"; then
+    find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+else
+    find . \( -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+fi
 
 check_internet
 guard_ephemeral_validation_env

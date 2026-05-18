@@ -92,6 +92,8 @@ configure_uv_link_mode
 
 DO_TEST_APPS=0
 LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"
+REFRESH_WORKER_ENVS="${AGILAB_REFRESH_WORKER_ENVS:-0}"
+export AGILAB_SHARED_WORKER_VENV="${AGILAB_SHARED_WORKER_VENV:-1}"
 
 BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
 BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
@@ -1115,8 +1117,12 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
 	  if [[ "$worker_env_name" == *_project ]]; then
 	    worker_env_name="${worker_env_name%_project}_worker"
 	  fi
-	  echo "cleanup wenv/$worker_env_name"
-	  rm -fr "$HOME/wenv/$worker_env_name"
+	  if is_truthy "$REFRESH_WORKER_ENVS"; then
+	    echo "cleanup wenv/$worker_env_name"
+	    rm -fr "$HOME/wenv/$worker_env_name"
+	  elif [[ -d "$HOME/wenv/$worker_env_name" ]]; then
+	    echo "reuse wenv/$worker_env_name (set AGILAB_REFRESH_WORKER_ENVS=1 to rebuild)"
+	  fi
 
   echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \

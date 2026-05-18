@@ -56,7 +56,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         ]
 
     if command == "test":
-        return [[*UV_RUN, "pytest", "-q", *args]]
+        return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", *args]]
 
     if command in {"regress", "ga-regress"}:
         forwarded = args or ["--staged", "--run"]
@@ -136,7 +136,7 @@ def _usage() -> str:
 High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
   bugfix    -> Run impact triage, then run the GA-selected fast regression subset; defaults to --staged.
-  test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
+  test      -> Run targeted pytest with -q and repo-wide coverage disabled, while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
