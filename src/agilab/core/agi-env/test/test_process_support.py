@@ -112,6 +112,31 @@ def test_build_subprocess_env_strips_uv_run_recursion_depth(tmp_path: Path):
     assert "PYTHONHOME" not in env
 
 
+def test_build_subprocess_env_sets_hardlink_uv_link_mode_by_default() -> None:
+    env = process_support.build_subprocess_env(base_env={"PATH": "/usr/bin"})
+
+    assert env["UV_LINK_MODE"] == "hardlink"
+
+
+def test_build_subprocess_env_preserves_uv_link_mode_overrides() -> None:
+    direct = process_support.build_subprocess_env(base_env={"PATH": "/usr/bin", "UV_LINK_MODE": "symlink"})
+    agilab_override = process_support.build_subprocess_env(
+        base_env={
+            "PATH": "/usr/bin",
+            "UV_LINK_MODE": "symlink",
+            "AGILAB_UV_LINK_MODE": "copy",
+        }
+    )
+
+    assert direct["UV_LINK_MODE"] == "symlink"
+    assert agilab_override["UV_LINK_MODE"] == "copy"
+
+
+def test_build_subprocess_env_rejects_invalid_uv_link_mode() -> None:
+    with pytest.raises(ValueError, match="Invalid uv link mode"):
+        process_support.build_subprocess_env(base_env={"PATH": "/usr/bin", "UV_LINK_MODE": "invalid"})
+
+
 def test_build_subprocess_env_keeps_pythonpath_entries_for_staging_dir(tmp_path: Path):
     class_entries = [str(tmp_path / "alpha"), str(tmp_path / "beta")]
     base_env = {

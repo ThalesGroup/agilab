@@ -8,9 +8,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_PS1 = REPO_ROOT / "install.ps1"
+INSTALL_APPS_SH = REPO_ROOT / "src" / "agilab" / "install_apps.sh"
+INSTALL_APPS_PS1 = REPO_ROOT / "src" / "agilab" / "install_apps.ps1"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
 INSTALL_ENDUSER_PS1 = REPO_ROOT / "tools" / "install_enduser.ps1"
 APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
+CORE_INSTALL_SH = REPO_ROOT / "src" / "agilab" / "core" / "install.sh"
 CORE_INSTALL_PS1 = REPO_ROOT / "src" / "agilab" / "core" / "install.ps1"
 
 
@@ -308,6 +311,36 @@ def test_installers_do_not_unconditionally_delete_existing_venvs() -> None:
     assert "$existingVenvPython = Get-VenvPython -VenvRoot $Venv" in enduser_ps1_text
     assert "if ($ForceRebuild)" in enduser_ps1_text
     assert "Remove-Item -LiteralPath $venvPath" not in core_install_ps1_text
+
+
+def test_installers_default_to_uv_hardlink_mode_with_explicit_override() -> None:
+    shell_scripts = [
+        INSTALL_SH,
+        INSTALL_APPS_SH,
+        CORE_INSTALL_SH,
+        INSTALL_ENDUSER_SH,
+    ]
+    powershell_scripts = [
+        INSTALL_PS1,
+        INSTALL_APPS_PS1,
+        CORE_INSTALL_PS1,
+        INSTALL_ENDUSER_PS1,
+    ]
+
+    for script_path in shell_scripts:
+        script_text = script_path.read_text(encoding="utf-8")
+        assert "configure_uv_link_mode()" in script_text
+        assert 'AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}' in script_text
+        assert "clone|copy|hardlink|symlink" in script_text
+        assert "export UV_LINK_MODE" in script_text
+
+    for script_path in powershell_scripts:
+        script_text = script_path.read_text(encoding="utf-8")
+        assert "function Set-UvLinkMode" in script_text
+        assert "$env:AGILAB_UV_LINK_MODE" in script_text
+        assert "$env:UV_LINK_MODE" in script_text
+        assert '"hardlink"' in script_text
+        assert '"clone", "copy", "hardlink", "symlink"' in script_text
 
 
 def test_shell_installers_stage_remote_scripts_before_execution() -> None:

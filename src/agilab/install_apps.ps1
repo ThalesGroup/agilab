@@ -36,6 +36,23 @@ function Write-Color {
     Write-Host $Message -ForegroundColor $fg
 }
 
+function Set-UvLinkMode {
+    $requested = if ($env:AGILAB_UV_LINK_MODE) {
+        $env:AGILAB_UV_LINK_MODE
+    } elseif ($env:UV_LINK_MODE) {
+        $env:UV_LINK_MODE
+    } else {
+        "hardlink"
+    }
+    if ($requested -notin @("clone", "copy", "hardlink", "symlink")) {
+        throw "Invalid uv link mode '$requested'. Expected one of: clone, copy, hardlink, symlink."
+    }
+    $env:UV_LINK_MODE = $requested
+    Write-Color BLUE "uv link mode: $env:UV_LINK_MODE"
+}
+
+Set-UvLinkMode
+
 function Import-DotEnv {
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return }

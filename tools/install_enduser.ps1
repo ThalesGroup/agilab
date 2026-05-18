@@ -10,6 +10,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Set-UvLinkMode {
+    $requested = if ($env:AGILAB_UV_LINK_MODE) {
+        $env:AGILAB_UV_LINK_MODE
+    } elseif ($env:UV_LINK_MODE) {
+        $env:UV_LINK_MODE
+    } else {
+        "hardlink"
+    }
+    if ($requested -notin @("clone", "copy", "hardlink", "symlink")) {
+        throw "Invalid uv link mode '$requested'. Expected one of: clone, copy, hardlink, symlink."
+    }
+    $env:UV_LINK_MODE = $requested
+    Write-Host "uv link mode: $env:UV_LINK_MODE" -ForegroundColor Blue
+}
+
+Set-UvLinkMode
+
 function Ensure-Dir {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {

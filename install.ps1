@@ -33,6 +33,23 @@ function Write-Success { param([string]$Message) Write-Host $Message -Foreground
 function Write-Warn { param([string]$Message) Write-Host "Warning: $Message" -ForegroundColor Yellow }
 function Write-Failure { param([string]$Message) Write-Host $Message -ForegroundColor Red }
 
+function Set-UvLinkMode {
+    $requested = if ($env:AGILAB_UV_LINK_MODE) {
+        $env:AGILAB_UV_LINK_MODE
+    } elseif ($env:UV_LINK_MODE) {
+        $env:UV_LINK_MODE
+    } else {
+        "hardlink"
+    }
+    if ($requested -notin @("clone", "copy", "hardlink", "symlink")) {
+        throw "Invalid uv link mode '$requested'. Expected one of: clone, copy, hardlink, symlink."
+    }
+    $env:UV_LINK_MODE = $requested
+    Write-Info "uv link mode: $env:UV_LINK_MODE"
+}
+
+Set-UvLinkMode
+
 function Check-Internet {
     Write-Info "Checking internet connectivity..."
     try {
