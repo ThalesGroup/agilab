@@ -98,6 +98,81 @@ def test_selection_is_deterministic_for_same_seed() -> None:
     assert first.estimated_seconds == second.estimated_seconds
 
 
+def test_selection_uses_exact_fast_path_for_small_candidate_sets(monkeypatch) -> None:
+    module = _load_module()
+
+    def _unexpected_random_genome(_length, _rng, _density):
+        raise AssertionError("small obvious candidate sets should skip random GA work")
+
+    monkeypatch.setattr(module, "_random_genome", _unexpected_random_genome)
+
+    selected = module.select_tests(
+        [
+            module.TestCandidate(
+                "test/test_ratio_decoy.py",
+                score=60.0,
+                estimated_seconds=10.0,
+                reasons=("high ratio",),
+            ),
+            module.TestCandidate(
+                "test/test_best_left.py",
+                score=100.0,
+                estimated_seconds=20.0,
+                reasons=("best pair",),
+            ),
+            module.TestCandidate(
+                "test/test_best_right.py",
+                score=120.0,
+                estimated_seconds=30.0,
+                reasons=("best pair",),
+            ),
+        ],
+        budget_seconds=50.0,
+        population_size=48,
+        generations=80,
+        seed=99,
+    )
+
+    assert [candidate.path for candidate in selected] == [
+        "test/test_best_right.py",
+        "test/test_best_left.py",
+    ]
+
+
+def test_selection_stops_after_stagnation(monkeypatch) -> None:
+    module = _load_module()
+    calls = 0
+    original_fitness = module._fitness
+    population_size = 16
+
+    def _counting_fitness(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_fitness(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_fitness", _counting_fitness)
+    candidates = [
+        module.TestCandidate(
+            f"test/test_candidate_{index:02d}.py",
+            score=30.0 - index * 0.1,
+            estimated_seconds=0.2,
+            reasons=("candidate",),
+        )
+        for index in range(module.EXACT_FAST_PATH_MAX_OPTIONAL + 4)
+    ]
+
+    selected = module.select_tests(
+        candidates,
+        budget_seconds=100.0,
+        population_size=population_size,
+        generations=80,
+        seed=17,
+    )
+
+    assert len(selected) == len(candidates)
+    assert calls <= 1 + (module.GA_STAGNATION_GENERATIONS + 1) * population_size
+
+
 def test_selection_prunes_optional_tests_to_budget() -> None:
     module = _load_module()
 
