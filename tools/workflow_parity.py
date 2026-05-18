@@ -48,6 +48,8 @@ AGI_GUI_COVERAGE_CHUNKS = (
     "views",
     "reports",
 )
+AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
+AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 10.0
 
 
 @dataclass
@@ -596,36 +598,115 @@ def _agi_gui_timing_report() -> CommandSpec:
     )
 
 
-def _agi_gui_coverage_combine() -> CommandSpec:
-    chunk_bases = [
-        f"test-results/coverage-agi-gui-{chunk}.db"
-        for chunk in AGI_GUI_COVERAGE_CHUNKS
-    ]
-    combine_code = (
+def _agi_gui_coverage_manifest_path(label: str) -> str:
+    return f"test-results/coverage-agi-gui-{label}.manifest.json"
+
+
+def _agi_gui_coverage_manifest_paths() -> list[str]:
+    return [_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS]
+
+
+def _agi_gui_coverage_chunk_code(label: str, data_file: str, junit_path: str, manifest_path: str) -> str:
+    return (
         "from pathlib import Path\n"
-        "import subprocess, sys, time\n"
-        f"chunk_bases = {chunk_bases!r}\n"
-        "missing = []\n"
-        "paths = []\n"
-        "for _ in range(120):\n"
-        "    missing = []\n"
-        "    paths = []\n"
-        "    for base in chunk_bases:\n"
-        "        base_path = Path(base)\n"
-        "        candidates = sorted(base_path.parent.glob(base_path.name + '*'))\n"
-        "        candidates = [path for path in candidates if path.is_file() and path.stat().st_size > 0]\n"
-        "        if not candidates:\n"
-        "            missing.append(base)\n"
-        "        paths.extend(str(path) for path in candidates)\n"
-        "    if not missing:\n"
+        "import json, subprocess, sys, time\n"
+        f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
+        f"label = {label!r}\n"
+        f"data_file = {data_file!r}\n"
+        f"junit_path = {junit_path!r}\n"
+        f"manifest_path = Path({manifest_path!r})\n"
+        "started = time.perf_counter()\n"
+        "cmd = [sys.executable, *sys.argv[1:]]\n"
+        "completed = subprocess.run(cmd, check=False)\n"
+        "base_path = Path(data_file)\n"
+        "coverage_db_paths = sorted(\n"
+        "    path.as_posix()\n"
+        "    for path in base_path.parent.glob(base_path.name + '*')\n"
+        "    if path.is_file() and path.stat().st_size > 0\n"
+        ")\n"
+        "manifest = {\n"
+        "    'schema': schema,\n"
+        "    'chunk': label,\n"
+        "    'returncode': completed.returncode,\n"
+        "    'duration_seconds': time.perf_counter() - started,\n"
+        "    'data_file': data_file,\n"
+        "    'junit_path': junit_path,\n"
+        "    'coverage_db_paths': coverage_db_paths,\n"
+        "    'coverage_command': cmd[1:],\n"
+        "}\n"
+        "manifest_path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n"
+        "sys.exit(completed.returncode)\n"
+    )
+
+
+def _agi_gui_coverage_combine_code() -> str:
+    manifest_paths = _agi_gui_coverage_manifest_paths()
+    return (
+        "from pathlib import Path\n"
+        "import json, subprocess, sys, time\n"
+        f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
+        f"manifest_paths = {manifest_paths!r}\n"
+        f"wait_seconds = {AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS!r}\n"
+        "deadline = time.monotonic() + wait_seconds\n"
+        "missing_manifests = []\n"
+        "while True:\n"
+        "    missing_manifests = [path for path in manifest_paths if not Path(path).is_file()]\n"
+        "    if not missing_manifests or time.monotonic() >= deadline:\n"
         "        break\n"
-        "    time.sleep(0.5)\n"
-        "if missing:\n"
-        "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
+        "    time.sleep(0.25)\n"
+        "if missing_manifests:\n"
+        "    print('Missing agi-gui coverage manifests: ' + ', '.join(missing_manifests))\n"
         "    sys.exit(1)\n"
-        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *paths]\n"
+        "failed_chunks = []\n"
+        "empty_chunks = []\n"
+        "missing_dbs = []\n"
+        "coverage_paths = []\n"
+        "seen_paths = set()\n"
+        "for manifest_path in manifest_paths:\n"
+        "    manifest_file = Path(manifest_path)\n"
+        "    try:\n"
+        "        manifest = json.loads(manifest_file.read_text(encoding='utf-8'))\n"
+        "    except Exception as exc:\n"
+        "        print(f'Invalid agi-gui coverage manifest {manifest_path}: {exc}')\n"
+        "        sys.exit(1)\n"
+        "    chunk = str(manifest.get('chunk') or manifest_path)\n"
+        "    if manifest.get('schema') != schema:\n"
+        "        print(f'Unexpected agi-gui coverage manifest schema for {chunk}: {manifest.get(\"schema\")!r}')\n"
+        "        sys.exit(1)\n"
+        "    returncode = int(manifest.get('returncode', 1))\n"
+        "    if returncode != 0:\n"
+        "        failed_chunks.append(f'{chunk}={returncode}')\n"
+        "    raw_paths = manifest.get('coverage_db_paths')\n"
+        "    chunk_paths = raw_paths if isinstance(raw_paths, list) else []\n"
+        "    valid_chunk_paths = []\n"
+        "    for raw_path in chunk_paths:\n"
+        "        path = Path(str(raw_path))\n"
+        "        if path.is_file() and path.stat().st_size > 0:\n"
+        "            path_key = path.as_posix()\n"
+        "            if path_key not in seen_paths:\n"
+        "                valid_chunk_paths.append(path_key)\n"
+        "                coverage_paths.append(path_key)\n"
+        "                seen_paths.add(path_key)\n"
+        "        else:\n"
+        "            missing_dbs.append(f'{chunk}:{raw_path}')\n"
+        "    if not valid_chunk_paths:\n"
+        "        empty_chunks.append(chunk)\n"
+        "if failed_chunks:\n"
+        "    print('Failed agi-gui coverage chunks: ' + ', '.join(failed_chunks))\n"
+        "    sys.exit(1)\n"
+        "if empty_chunks:\n"
+        "    print('No coverage DBs recorded for agi-gui chunks: ' + ', '.join(empty_chunks))\n"
+        "    sys.exit(1)\n"
+        "if missing_dbs:\n"
+        "    print('Missing agi-gui coverage DB files: ' + ', '.join(missing_dbs))\n"
+        "    sys.exit(1)\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *coverage_paths]\n"
         "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
     )
+
+
+def _agi_gui_coverage_combine() -> CommandSpec:
     return CommandSpec(
         label="agi-gui coverage combine",
         argv=[
@@ -641,7 +722,7 @@ def _agi_gui_coverage_combine() -> CommandSpec:
             "viz",
             "python",
             "-c",
-            combine_code,
+            _agi_gui_coverage_combine_code(),
         ],
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -656,11 +737,13 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
     expanded_targets = _expand_repo_globs(targets)
     junit_path = f"test-results/junit-agi-gui-{label}.xml"
     data_file = f"test-results/coverage-agi-gui-{label}.db"
+    manifest_path = _agi_gui_coverage_manifest_path(label)
     clean_paths = [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
         *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
         *(f"test-results/junit-agi-gui-{chunk}.xml" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+        *(_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS),
     ]
     return CommandSpec(
         label=f"agi-gui coverage ({label})",
@@ -676,6 +759,8 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             "--extra",
             "viz",
             "python",
+            "-c",
+            _agi_gui_coverage_chunk_code(label, data_file, junit_path, manifest_path),
             "-m",
             "coverage",
             "run",
@@ -701,7 +786,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
         remove_paths=(
             [*clean_paths, *(f"{path}.*" for path in clean_paths), junit_path]
             if clean
-            else [data_file, f"{data_file}.*", junit_path]
+            else [data_file, f"{data_file}.*", junit_path, manifest_path]
         ),
     )
 
