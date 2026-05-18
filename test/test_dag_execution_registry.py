@@ -52,6 +52,19 @@ def _flight_template_path(repo_root: Path) -> Path:
     return repo_root / dag_execution_registry.FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
 
 
+def _global_dag_template_path(repo_root: Path) -> Path:
+    return (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "global_dag_project"
+        / "dag_templates"
+        / "flight_to_weather_global_dag.json"
+    )
+
+
 def _uav_units() -> list[dict[str, str]]:
     return [
         {"id": "queue_baseline", "app": "uav_queue_project"},
@@ -234,6 +247,27 @@ def test_registry_rejects_marker_opted_contract_template_without_stage_contract(
 
     assert not support.supported
     assert "must declare `execution.entrypoint` or `execution.command`" in support.message
+
+
+def test_registry_keeps_global_dag_project_template_preview_only():
+    repo_root = Path.cwd()
+    dag_path = _global_dag_template_path(repo_root)
+
+    adapter = dag_execution_registry.registered_adapter_for_source(dag_path, repo_root)
+    support = dag_execution_registry.resolve_real_run_support(
+        units=[
+            {"id": "flight_context", "app": "flight_telemetry_project"},
+            {"id": "weather_forecast_review", "app": "weather_forecast_project"},
+        ],
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert adapter is None
+    assert not support.supported
+    assert support.status == "Preview-only"
+    assert "preview-only" in support.message
+    assert "missing the controlled execution" not in support.message
 
 
 def test_registry_reports_no_selected_dag():
