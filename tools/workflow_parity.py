@@ -276,11 +276,29 @@ UI_ROBOT_PROFILE_ORDER = (
 
 def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
     profiles: set[str] = set()
-    normalized = [Path(path).as_posix().lstrip("./") for path in paths if str(path).strip()]
+    normalized = [
+        Path(path).as_posix().removeprefix("./")
+        for path in paths
+        if str(path).strip()
+    ]
     for path in normalized:
         lower = path.lower()
-        if lower.startswith(("tools/agilab_widget_robot", "tools/ui_robot_", "test/test_agilab_widget_robot", "test/test_ui_robot_")):
-            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(
+            (
+                "tools/agilab_widget_robot",
+                "tools/ui_robot_",
+                "test/test_agilab_widget_robot",
+                "test/test_ui_robot_",
+            )
+        ):
+            profiles.update(
+                {
+                    "ui-robot-contract",
+                    "ui-robot-canary",
+                    "ui-artifact-capture-robot",
+                    "ui-trend-robot",
+                }
+            )
         if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
             profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
         if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):

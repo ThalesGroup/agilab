@@ -205,6 +205,31 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
     assert "| `dev` extra |" in readme
 
 
+def test_proof_capsule_direction_is_explicit_without_fake_cli_claims() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    pypi_readme = Path("README.pypi.md").read_text(encoding="utf-8")
+    docs_page = (DOCS_SOURCE / "proof-capsule.rst").read_text(encoding="utf-8")
+    roadmap = (DOCS_SOURCE / "roadmap" / "agilab-future-work.md").read_text(
+        encoding="utf-8"
+    )
+    index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
+    combined = "\n".join([readme, pypi_readme, docs_page, roadmap])
+
+    assert "Proof Capsule Direction" in readme
+    assert "Proof Capsule Direction" in pypi_readme
+    assert "Proof capsule <proof-capsule>" in index
+    assert "portable proof capsule" in docs_page
+    assert "run manifest" in combined
+    assert "exported notebook handoff" in combined
+    assert "UI robot screenshots/traces/HAR/video" in combined
+    assert "SBOM" in combined
+    assert "pip-audit" in combined
+    assert "wheel hashes" in combined
+    assert "roadmap targets, not\npublished CLI commands today" in readme
+    assert "not yet shipped\nas one archive file or one ``agilab prove`` command" in docs_page
+    assert "define the proof capsule schema before adding a public `.agipack` archive" in roadmap
+
+
 def test_quick_start_documents_public_install_tiers() -> None:
     quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
     ui_route = quick_start.split(

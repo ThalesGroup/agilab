@@ -505,9 +505,90 @@ def test_selected_profiles_can_select_ui_robot_profiles_from_changed_files() -> 
     assert selected == [
         "ui-robot-contract",
         "ui-robot-canary",
+        "ui-artifact-capture-robot",
         "ui-visual-baseline-robot",
         "ui-trend-robot",
     ]
+
+
+def test_ui_robot_profile_selection_covers_change_classes() -> None:
+    module = _load_module()
+
+    assert module.select_ui_robot_profiles_for_files([".github/workflows/coverage.yml"]) == [
+        "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-trend-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["src/agilab/pages/project.py"]) == [
+        "ui-robot-matrix",
+        "ui-history-robot",
+        "ui-mobile-robot",
+        "ui-keyboard-robot",
+        "ui-layout-robot",
+        "ui-accessibility-robot",
+        "ui-browser-error-robot",
+        "ui-above-fold-robot",
+        "ui-trend-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files([".github/workflows/huggingface.yml"]) == [
+        "hf-install-robot",
+        "hf-visual-smoke-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/workflow_parity.py"]) == [
+        "ui-robot-contract",
+        "ui-robot-canary",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["README.md"]) == [
+        "ui-robot-contract"
+    ]
+
+
+def test_selected_ui_robot_profiles_reads_dirty_tree_when_no_files_given(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_git_changed_files",
+        lambda base="": ["tools/ui_robot_canary.py"],
+    )
+    args = SimpleNamespace(
+        changed_file=[],
+        changed_base="",
+    )
+
+    assert module._selected_ui_robot_profiles(args) == [
+        "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-artifact-capture-robot",
+        "ui-trend-robot",
+    ]
+
+
+def test_git_changed_files_collects_unique_paths(monkeypatch) -> None:
+    module = _load_module()
+    calls: list[list[str]] = []
+
+    def _fake_run(argv, **_kwargs):
+        calls.append(list(argv))
+        if argv[:2] == ["git", "diff"] and argv[-1] == "HEAD":
+            return SimpleNamespace(returncode=0, stdout="tools/a.py\nshared.py\n")
+        if argv == ["git", "diff", "--name-only", "origin/main...HEAD"]:
+            return SimpleNamespace(returncode=0, stdout="tools/a.py\nshared.py\n")
+        if argv[:3] == ["git", "diff", "--cached"]:
+            return SimpleNamespace(returncode=1, stdout="")
+        return SimpleNamespace(returncode=0, stdout="shared.py\nuntracked.py\n")
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    assert module._git_changed_files() == ["tools/a.py", "shared.py", "untracked.py"]
+    assert calls == [
+        ["git", "diff", "--name-only", "HEAD"],
+        ["git", "diff", "--cached", "--name-only"],
+        ["git", "ls-files", "--others", "--exclude-standard"],
+    ]
+
+    calls.clear()
+    assert module._git_changed_files("origin/main") == ["tools/a.py", "shared.py"]
+    assert calls == [["git", "diff", "--name-only", "origin/main...HEAD"]]
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:
@@ -545,6 +626,9 @@ def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatc
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     results_dir = tmp_path / "test-results"
     results_dir.mkdir()
+    stale_dir = results_dir / "stale-dir"
+    stale_dir.mkdir()
+    (stale_dir / "old.txt").write_text("old")
     exact = results_dir / "coverage-agi-gui-pages.db"
     fragment = results_dir / "coverage-agi-gui-pages.db.m41.123.abc"
     unrelated = results_dir / "coverage-agi-gui-views.db.m41.123.abc"
@@ -560,13 +644,41 @@ def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatc
             remove_paths=[
                 "test-results/coverage-agi-gui-pages.db",
                 "test-results/coverage-agi-gui-pages.db.*",
+                "test-results/stale-dir",
+                "test-results/missing-file",
             ],
         )
     )
 
     assert not exact.exists()
     assert not fragment.exists()
+    assert not stale_dir.exists()
     assert unrelated.exists()
+
+
+def test_run_command_executes_with_env_and_cwd(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    workdir = tmp_path / "work"
+    spec = module.CommandSpec(
+        label="demo",
+        argv=[
+            sys.executable,
+            "-c",
+            "import os, pathlib; pathlib.Path('out.txt').write_text(os.environ['DEMO_ENV'])",
+        ],
+        env={"DEMO_ENV": "ok"},
+        cwd="work",
+        timeout_seconds=10,
+        ensure_dirs=["work"],
+    )
+
+    result = module._run_command(spec)
+
+    assert result.returncode == 0
+    assert result.cwd == str(workdir)
+    assert result.env == {"DEMO_ENV": "ok"}
+    assert (workdir / "out.txt").read_text(encoding="utf-8") == "ok"
 
 
 def test_run_profiles_stops_on_first_failure_by_default() -> None:
@@ -615,6 +727,51 @@ def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
         "--skills",
         "agilab-installer",
     ]
+
+
+def test_main_list_profiles_and_print_only_human(capsys) -> None:
+    module = _load_module()
+
+    assert module.main(["--list-profiles", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert "skills" in listed
+
+    assert module.main(["--list-profiles"]) == 0
+    assert "skills:" in capsys.readouterr().out
+
+    assert module.main(["--profile", "skills", "--print-only"]) == 0
+    printed = capsys.readouterr().out
+    assert "Selected profiles:" in printed
+    assert "- skills:" in printed
+
+
+def test_main_runs_profile_and_renders_results(capsys, monkeypatch) -> None:
+    module = _load_module()
+    result = module.ProfileResult(
+        profile="skills",
+        description="Validate skills",
+        success=True,
+        commands=[
+            module.CommandResult(
+                label="validate codex skills",
+                argv=["python", "tools/validate_agent_skills.py"],
+                returncode=0,
+                duration_seconds=0.01,
+                cwd=str(module.REPO_ROOT),
+                env={},
+            )
+        ],
+    )
+    monkeypatch.setattr(module, "run_profiles", lambda _selected, *, args: [result])
+
+    assert module.main(["--profile", "skills", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["results"][0]["success"] is True
+
+    assert module.main(["--profile", "skills"]) == 0
+    rendered = capsys.readouterr().out
+    assert "[PASS] skills" in rendered
+    assert "validate codex skills" in rendered
 
 
 def test_main_accepts_production_readiness_profile(capsys) -> None:
