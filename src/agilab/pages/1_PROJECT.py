@@ -158,7 +158,14 @@ PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defau
 PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX = "_project_notebook_runtime_role"
 PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
 PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
-PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
+PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
+PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
+PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = (
+    "start",
+    "create_mode",
+    "sidebar_selection",
+    PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+)
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
@@ -270,6 +277,10 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
     start = _project_query_param_value(query_params, "start").lower()
     requested_create_mode = _project_query_param_value(query_params, "create_mode")
     requested_sidebar = _project_query_param_value(query_params, "sidebar_selection")
+    requested_sample = _project_query_param_value(
+        query_params,
+        PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+    )
     notebook_requested = (
         start in {PROJECT_NOTEBOOK_IMPORT_START, "notebook"}
         or requested_create_mode == CREATE_MODE_NOTEBOOK
@@ -278,6 +289,7 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
             and requested_create_mode in {"", CREATE_MODE_NOTEBOOK}
         )
     )
+    sample_requested = requested_sample == PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE
     if not notebook_requested:
         try:
             if PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY in session_state:
@@ -286,12 +298,15 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
             pass
         return False
 
-    seed_signature = "|".join((start, requested_create_mode, requested_sidebar))
+    seed_signature = "|".join((start, requested_create_mode, requested_sidebar, requested_sample))
     if session_state.get(PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY) == seed_signature:
         return False
 
     session_state["sidebar_selection"] = "Create"
     session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+    if sample_requested:
+        session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
     session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
     return True
 

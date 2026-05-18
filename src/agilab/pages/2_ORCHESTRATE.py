@@ -268,6 +268,8 @@ import_agilab_symbols(
     "agilab.orchestrate_pending_actions",
     {
         "consume_pending_install_action": "consume_pending_install_action",
+        "queue_pending_install_action": "queue_pending_install_action",
+        "queue_pending_execute_action": "queue_pending_execute_action",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_pending_actions.py",
@@ -302,6 +304,11 @@ from agi_gui.pagelib import (
 from agi_env import AgiEnv
 from agi_gui.ui_support import store_last_active_app
 from agi_gui.ux_widgets import compact_choice
+
+logger = logging.getLogger(__name__)
+
+FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
+FIRST_PROOF_ORCHESTRATE_ACTIONS = {"install", "run"}
 
 # ===========================
 # Session State Initialization
@@ -386,6 +393,64 @@ def _looks_like_shared_path(path: Path) -> bool:
 def _set_active_app_query_param(active_app: Any) -> None:
     """Best-effort update of the active-app query parameter during page transitions."""
     _orchestrate_set_active_app_query_param(st.query_params, active_app, streamlit_api_exception=StreamlitAPIException)
+
+
+def _query_param_scalar(query_params: Any, key: str) -> str:
+    """Return a query-param value as a single stripped string."""
+    try:
+        value = query_params.get(key, "")
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        return ""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    return str(value or "").strip()
+
+
+def _query_params_as_dict(query_params: Any) -> dict:
+    """Return a mutable dict copy of Streamlit query params."""
+    to_dict = getattr(query_params, "to_dict", None)
+    if callable(to_dict):
+        return dict(to_dict() or {})
+    return dict(query_params)
+
+
+def _remove_query_param(query_params: Any, key: str) -> bool:
+    """Remove one query parameter without touching the rest of the URL state."""
+    try:
+        current = _query_params_as_dict(query_params)
+        if key not in current:
+            return False
+        cleaned = {name: value for name, value in current.items() if name != key}
+
+        from_dict = getattr(query_params, "from_dict", None)
+        if callable(from_dict):
+            from_dict(cleaned)
+            return True
+
+        del query_params[key]
+        return True
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError, RecursionError):
+        return False
+
+
+def _consume_first_proof_action_query_seed(session_state: Any, query_params: Any) -> str | None:
+    """Queue a first-proof ORCHESTRATE action requested by a new-tab URL."""
+    action = _query_param_scalar(query_params, FIRST_PROOF_ACTION_QUERY_KEY).lower()
+    if not action:
+        return None
+
+    _remove_query_param(query_params, FIRST_PROOF_ACTION_QUERY_KEY)
+    if action not in FIRST_PROOF_ORCHESTRATE_ACTIONS:
+        return None
+
+    if action == "install":
+        queue_pending_install_action(session_state)
+        session_state["show_install"] = True
+        return action
+
+    queue_pending_execute_action(session_state, "run")
+    session_state["show_run"] = True
+    return action
 
 
 def _clear_cached_distribution() -> None:
@@ -728,7 +793,6 @@ def load_toml_file(file_path: str | Path) -> dict[str, Any]:
                 return tomllib.load(f)
         except tomllib.TOMLDecodeError as exc:
             st.warning(f"Invalid TOML detected in {file_path.name}: {exc}")
-            logger = logging.getLogger(__name__)
             logger.warning("Failed to parse %s: %s", file_path, exc)
             return {}
     return {}
@@ -2170,6 +2234,7 @@ async def page() -> None:
             app_settings = {"args": {}, "cluster": {}}
             st.session_state["app_settings"] = app_settings
 
+    _consume_first_proof_action_query_seed(st.session_state, st.query_params)
 
     install_status = _app_install_status(env)
     installed = bool(install_status.get("manager_ready") and install_status.get("worker_ready"))

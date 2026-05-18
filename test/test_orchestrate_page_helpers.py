@@ -1130,6 +1130,38 @@ def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module._set_active_app_query_param("demo_project")
 
 
+def test_first_proof_orchestrate_query_seed_queues_install_and_cleans_url():
+    module = _load_orchestrate_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "active_app": "flight_telemetry_project",
+        "first_proof_action": "install",
+    }
+
+    action = module._consume_first_proof_action_query_seed(session_state, query_params)
+
+    assert action == "install"
+    assert session_state["_orchestrate_pending_install_action"] == "install"
+    assert session_state["show_install"] is True
+    assert query_params == {"active_app": "flight_telemetry_project"}
+
+
+def test_first_proof_orchestrate_query_seed_queues_run_and_cleans_url():
+    module = _load_orchestrate_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "active_app": "flight_telemetry_project",
+        "first_proof_action": "run",
+    }
+
+    action = module._consume_first_proof_action_query_seed(session_state, query_params)
+
+    assert action == "run"
+    assert session_state["_orchestrate_pending_action"] == "run"
+    assert session_state["show_run"] is True
+    assert query_params == {"active_app": "flight_telemetry_project"}
+
+
 def test_clear_cached_distribution_calls_clear_when_available():
     module = _load_orchestrate_module()
     called = {"count": 0}

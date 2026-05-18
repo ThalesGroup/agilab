@@ -22,7 +22,25 @@ LAB_STAGE_SOURCES = {
 }
 
 
+def _prime_current_agilab_package() -> None:
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = src_root / "agilab"
+    src_root_str = str(src_root)
+    package_root_str = str(package_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+
+    package = sys.modules.get("agilab")
+    if package is None or not hasattr(package, "__path__"):
+        return
+
+    package_path = list(package.__path__)
+    if package_root_str not in package_path:
+        package.__path__ = [package_root_str, *package_path]
+
+
 def _load_project_module():
+    _prime_current_agilab_package()
     spec = importlib.util.spec_from_file_location("agilab_project_page_tests", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -1070,6 +1088,24 @@ def test_active_notebook_import_source_uses_sample_until_user_upload():
 
     assert module._active_notebook_import_source(session_state) is user_upload
     assert module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY not in session_state
+
+
+def test_notebook_import_query_seed_selects_packaged_sample():
+    module = _load_project_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "active_app": "mycode_project",
+        "start": "notebook-import",
+        "sample": "agilab-first-proof",
+    }
+
+    consumed = module._consume_notebook_import_query_seed(session_state, query_params)
+
+    assert consumed is True
+    assert session_state["sidebar_selection"] == "Create"
+    assert session_state["create_mode"] == "From notebook"
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
+    assert module.PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY not in session_state
 
 
 def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
