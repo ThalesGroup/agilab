@@ -112,6 +112,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             ["python3", "tools/sync_agent_skills.py", "--skills", *skills, *extras],
             ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
             ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
+            ["python3", "tools/agent_skill_catalog.py", "--apply"],
+            ["python3", "tools/generate_skill_badges.py"],
+            ["python3", "tools/skill_security_scan.py", "--roots", ".claude/skills", ".codex/skills", "--fail-on", "critical"],
         ]
 
     raise SystemExit(f"unknown shortcut: {command}")
@@ -138,7 +141,7 @@ High-frequency mappings:
   release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
-  skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.
+  skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
 """
 
 

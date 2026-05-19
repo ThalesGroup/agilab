@@ -52,6 +52,12 @@ def test_analyze_paths_adds_skill_sync_and_index_refresh() -> None:
     assert artifact.commands[0] == "python3 tools/sync_agent_skills.py --skills codex-session-learning"
     assert "python3 tools/codex_skills.py --root .codex/skills validate --strict" in artifact.commands
     assert "python3 tools/codex_skills.py --root .codex/skills generate" in artifact.commands
+    assert "python3 tools/agent_skill_catalog.py --apply" in artifact.commands
+    assert "python3 tools/generate_skill_badges.py" in artifact.commands
+    assert (
+        "python3 tools/skill_security_scan.py --roots .claude/skills .codex/skills --fail-on critical"
+        in artifact.commands
+    )
     parity = next(action for action in report.artifact_actions if action.key == "workflow-parity-skills")
     assert "tools/workflow_parity.py --profile skills" in parity.commands[0]
 

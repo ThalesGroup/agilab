@@ -7,9 +7,49 @@ This repository is prepared for four agent paths:
 - **Aider**: repo config in [`.aider.conf.yml`](../.aider.conf.yml) and the wrapper in [aider_workflow.sh](aider_workflow.sh)
 - **OpenCode**: project config in [opencode.json](../opencode.json), agents under [`.opencode/agents`](../.opencode/agents), and the wrapper in [opencode_workflow.sh](opencode_workflow.sh)
 
+The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
+and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
+[llms-full.txt](../llms-full.txt). The README badge contract is:
+
+- **Skills**: the reviewed repo-managed skill count
+- **Standard**: Agent Skills style `SKILL.md` runbooks
+- **Works with**: Codex, Claude Code, Aider, and OpenCode
+
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
+
+## Resource preflight
+
+Before heavy agent-assisted analysis, model training, large data work, or cluster
+experiments, write a resource snapshot:
+
+```bash
+python tools/resource_snapshot.py --output resource_snapshot.json --json
+```
+
+The JSON uses schema `agilab.resource_snapshot.v1` and records CPU, memory,
+disk, GPU backends, and execution recommendations. Attach it to run evidence
+when resource constraints explain scheduler, autoscale, or model choices.
+
+## Skill security scan
+
+Changed repo-managed skills are scanned in CI by `agent-skills-security`.
+Run the same check locally before pushing skill changes:
+
+```bash
+python tools/skill_security_scan.py --changed-only --fail-on critical
+```
+
+For a full local pass:
+
+```bash
+python tools/skill_security_scan.py --roots .claude/skills .codex/skills --fail-on critical
+```
+
+The scanner is a review aid. It flags literal secrets, private absolute paths,
+powerful tool grants, network access, and environment-variable usage; findings
+should be reviewed in context before changing a skill.
 
 ## Trace an agent run
 
