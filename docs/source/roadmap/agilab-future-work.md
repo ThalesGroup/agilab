@@ -215,14 +215,52 @@ Concrete items:
 
 - strengthen run evidence, release decisions, run diff, artifact provenance,
   and compatibility profiles as first-class outputs
-- define the proof capsule schema before adding a public `.agipack` archive or
-  `agilab prove` / `agilab verify` / `agilab replay` commands
+- keep the first public proof-pack CLI layer small and verifiable:
+  `agilab prove`, `agilab verify`, `agilab replay`,
+  `agilab export-lineage`, `agilab policy-check`, `agilab cards`, and
+  `agilab metadata-store` operate on `run_manifest.json` and write plain JSON
+  evidence before AGILab claims a signed capsule archive
 - keep MLflow integration focused on tracking, artifacts, model registry
   handoff, and comparison rather than replacing AGILab execution
 - define promotion-ready evidence bundles for apps, imported notebooks, and
   cluster runs
 - add hooks for monitoring, drift, feature stores, orchestration engines, and
   serving platforms without claiming those systems are built into AGILab
+
+Current shipped baseline:
+
+- proof-pack directory export from a run manifest with verification report,
+  policy report, OpenLineage-shaped JSON, RO-Crate metadata, OpenTelemetry-shaped
+  trace JSON, local metadata-store entry, and model/dataset/prompt/eval cards
+- replay is safe by default: it prints the recorded command unless the operator
+  explicitly passes `--execute`
+- policy-as-code starts with a small JSON/TOML gate over the manifest checks
+  instead of a full external policy engine
+
+Remaining state-of-the-art scope:
+
+- signed `.agipack` archive with detached hashes, Sigstore/SLSA references, and
+  a verifier that can validate the archive without the source checkout
+- OpenLineage transport integration to emit events to an external lineage
+  backend, not only write an interoperable JSON payload
+- native OpenTelemetry SDK/OTLP instrumentation across Streamlit actions,
+  worker build, distributed execution, notebook export, MLflow handoff, and
+  agent runs
+- durable ML metadata backend, for example SQLite/Postgres/MLMD-compatible
+  storage, with query APIs for datasets, models, prompts, runs, artifacts, and
+  lineage
+- app-declared model cards, data cards, prompt cards, and evaluation cards with
+  domain metadata rather than evidence-only placeholders
+- richer policy-as-code, potentially OPA/Rego-compatible, for adoption gates,
+  promotion gates, release gates, and sensitive-data gates
+- capability-based sandboxing for generated code, notebooks, and agent runs:
+  explicit filesystem, network, secret, and subprocess scopes
+- first-class agent eval traces: prompt/tool/file/command timeline, permission
+  decisions, diff evidence, replay, scoring, and safety policy results
+- monitoring and drift handoff adapters for production systems without turning
+  AGILab into the production control plane
+- enterprise controls for shared deployments: secrets backend integration,
+  authentication, RBAC, audit logs, and tenant isolation
 
 Done means:
 

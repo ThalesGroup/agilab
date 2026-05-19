@@ -1132,6 +1132,68 @@ def test_install_pypi_app_package_reports_success_and_failure():
     assert "No matching distribution" in failure.detail
 
 
+def test_remove_pypi_app_package_reports_success_and_failure():
+    module = _load_project_module()
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def success_runner(command, **kwargs):
+        calls.append((tuple(command), kwargs))
+        return SimpleNamespace(returncode=0, stdout="uninstalled\n", stderr="")
+
+    success = module._remove_pypi_app_package(
+        "agi-app-weather-forecast",
+        runner=success_runner,
+        python_executable="/tmp/python",
+        uv_executable="/tmp/uv",
+    )
+
+    assert success.status == "success"
+    assert calls[0][0][-1] == "agi-app-weather-forecast"
+
+    def failure_runner(command, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="not installed\n")
+
+    failure = module._remove_pypi_app_package(
+        "agi-app-missing-demo",
+        runner=failure_runner,
+        python_executable="/tmp/python",
+        uv_executable="/tmp/uv",
+    )
+
+    assert failure.status == "error"
+    assert "not installed" in failure.detail
+
+
+def test_pypi_app_preflight_action_formats_metadata(monkeypatch):
+    module = _load_project_module()
+    metadata = module._pypi_app_packages_module.PypiAppMetadata(
+        package="agi-app-weather-forecast",
+        version="2026.5.18",
+        package_url="https://pypi.org/project/agi-app-weather-forecast/",
+        publisher="AGILAB",
+        wheel_available=True,
+        sdist_available=True,
+        provenance_available=True,
+        entry_points=("weather_forecast=agi_app_weather_forecast:project_root",),
+    )
+    preflight = module._pypi_app_packages_module.PypiAppPreflight(
+        status="pass",
+        requirement="agi-app-weather-forecast",
+        package="agi-app-weather-forecast",
+        metadata=metadata,
+        checks={"entry_point": "pass"},
+    )
+    monkeypatch.setattr(module, "_preflight_pypi_app_install", lambda _requirement: preflight)
+
+    result = module._preflight_pypi_app_package("agi-app-weather-forecast")
+
+    assert result.status == "success"
+    assert "Version: 2026.5.18" in result.detail
+    assert result.data["metadata"]["entry_points"] == (
+        "weather_forecast=agi_app_weather_forecast:project_root",
+    )
+
+
 def test_render_notebook_import_sample_actions_only_reports_existing_packaged_source():
     module = _load_project_module()
 

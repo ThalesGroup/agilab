@@ -639,14 +639,32 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 index = parts.index("Users") + 2
                 path = Path(*parts[index:])
             net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
-            try:
-                # your nfs account in order to mount it as net drive on windows
-                cmd = ["net", "use", "Z:", net_path, "/user:your-name", "your-password"]
-                logger.info(cmd)
-                subprocess.run(cmd, check=True)
-            except (OSError, subprocess.CalledProcessError) as e:
-                logger.error(f"Mount failed: {e}")
+            BaseWorker._try_windows_net_use(net_path)
         return BaseWorker._join(BaseWorker.expand(path1), path2)
+
+    @staticmethod
+    def _windows_net_use_command(net_path: str) -> list[str] | None:
+        user = os.environ.get("AGILAB_WINDOWS_NET_USE_USER", "").strip()
+        password = os.environ.get("AGILAB_WINDOWS_NET_USE_PASSWORD", "")
+        drive = os.environ.get("AGILAB_WINDOWS_NET_USE_DRIVE", "Z:").strip() or "Z:"
+        if not user or not password:
+            return None
+        return ["net", "use", drive, net_path, f"/user:{user}", password]
+
+    @staticmethod
+    def _try_windows_net_use(net_path: str) -> None:
+        cmd = BaseWorker._windows_net_use_command(net_path)
+        if cmd is None:
+            logger.info(
+                "Skipping Windows net use mapping; "
+                "AGILAB_WINDOWS_NET_USE_USER/PASSWORD are not configured"
+            )
+            return
+        try:
+            logger.info(cmd)
+            subprocess.run(cmd, check=True)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            logger.info("Failed to map Windows network drive: %s", exc)
 
     @staticmethod
     def expand(path, base_directory=None):
@@ -711,12 +729,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 else:
                     mapped = Path(resolved_str)
                 net_path = normalize_path(f"\\\\127.0.0.1\\{mapped}")
-                try:
-                    cmd = ["net", "use", "Z:", net_path, "/user:your-credentials"]
-                    logger.info(cmd)
-                    subprocess.run(cmd, check=True)
-                except (OSError, subprocess.CalledProcessError) as exc:
-                    logger.info("Failed to map network drive: %s", exc)
+                BaseWorker._try_windows_net_use(net_path)
             return resolved_str
 
         return candidate.as_posix()

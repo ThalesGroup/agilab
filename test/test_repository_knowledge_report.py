@@ -112,12 +112,81 @@ def test_repository_knowledge_report_path_setup_handles_package_paths(tmp_path: 
     assert tuple_package.__path__ == [str(package_root)]
 
 
-def test_repository_knowledge_report_docs_failure_and_temporary_output(tmp_path: Path) -> None:
+def test_repository_knowledge_report_docs_failure_and_temporary_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     module = _load_module(REPORT_PATH, "repository_knowledge_report_docs_failure_test_module")
     docs_check = module._docs_check(tmp_path / "missing-repo")
 
     assert docs_check["status"] == "fail"
     assert "error" in docs_check["details"]
+
+    def _fake_persist_repository_knowledge_index(*, repo_root, output_path, record_cache_path):
+        del repo_root, record_cache_path
+        state = {
+            "schema": module.SCHEMA,
+            "run_status": "indexed",
+            "execution_mode": "repository_knowledge_static_index",
+            "excluded_roots": ["artifacts", ".venv", "build", "dist"],
+            "excluded_existing_roots": [],
+            "issues": [],
+            "summary": {
+                "indexed_file_count": 90,
+                "source_file_count": 40,
+                "code_file_count": 70,
+                "python_file_count": 45,
+                "tool_file_count": 12,
+                "test_file_count": 20,
+                "docs_file_count": 15,
+                "pyproject_count": 8,
+                "runbook_count": 3,
+                "total_line_count": 1000,
+                "source_line_count": 500,
+                "code_line_count": 800,
+                "python_line_count": 600,
+                "tool_line_count": 120,
+                "test_line_count": 200,
+                "docs_line_count": 100,
+                "pyproject_line_count": 80,
+                "runbook_line_count": 60,
+                "total_size_bytes": 12345,
+                "kind_counts": {"test": 20},
+                "kind_line_counts": {"test": 200},
+                "suffix_counts": {".py": 45},
+                "knowledge_map_count": 5,
+                "query_seed_count": 4,
+                "excluded_root_count": 4,
+                "excluded_existing_count": 0,
+                "excluded_path_hit_count": 0,
+                "generated_wiki_source_of_truth": False,
+                "official_docs_source_of_truth": True,
+                "private_repository_indexed": False,
+                "network_probe_count": 0,
+                "command_execution_count": 0,
+            },
+            "knowledge_maps": [{"id": "official_docs", "source_of_truth": True}],
+            "query_seeds": [
+                {"id": "evidence_flow"},
+                {"id": "connector_flow"},
+                {"id": "dag_flow"},
+                {"id": "docs_source"},
+            ],
+            "provenance": {"executes_commands": False, "queries_network": False},
+        }
+        output_path.write_text(module.json.dumps(state, sort_keys=True), encoding="utf-8")
+        return {
+            "ok": True,
+            "round_trip_ok": True,
+            "path": str(output_path),
+            "state": state,
+        }
+
+    monkeypatch.setattr(
+        module,
+        "persist_repository_knowledge_index",
+        _fake_persist_repository_knowledge_index,
+    )
 
     report = module.build_report(
         repo_root=Path.cwd(),

@@ -73,8 +73,10 @@ Optional helpers include OpenAI-compatible models and local assistants such as
 Ollama and GPT-OSS when configured.
 
 .. note::
-   Windows support is still catching up. Some local-assistant features remain
-   partial while that work continues.
+   Native Windows is covered for the released package CLI first-proof smoke.
+   Source-checkout installer scripts, cluster workflows, and some
+   local-assistant features still work best through WSL2 or platform-specific
+   setup while native parity continues.
 
 What to read next
 -----------------

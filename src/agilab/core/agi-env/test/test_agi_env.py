@@ -2639,6 +2639,13 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
     monkeypatch.setattr(agi_env_module.subprocess, "check_call", _raise_called_process_error)
     AgiEnv.create_junction_windows(src_dir, tmp_path / "junction_fail")
 
+    monkeypatch.setattr(
+        agi_env_module.subprocess,
+        "check_call",
+        lambda _cmd: (_ for _ in ()).throw(OSError("cmd missing")),
+    )
+    assert AgiEnv.create_junction_windows(src_dir, tmp_path / "junction_oserror") is False
+
     monkeypatch.setattr(AgiEnv, "has_admin_rights", staticmethod(lambda: False))
     fake_create = lambda *_args, **_kwargs: 0
     monkeypatch.setattr(
@@ -2649,6 +2656,29 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
     )
     AgiEnv.create_symlink_windows(src_dir, tmp_path / "windows_link")
     assert mock_logger.info.called
+
+
+def test_create_symlink_uses_windows_junction_fallback(tmp_path: Path, monkeypatch):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    dest = tmp_path / "dest"
+    calls = []
+
+    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        agi_env_module.Path,
+        "symlink_to",
+        lambda self, *_args, **_kwargs: (_ for _ in ()).throw(OSError("denied")),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        AgiEnv,
+        "create_junction_windows",
+        staticmethod(lambda source, target: calls.append((source, target)) or True),
+    )
+
+    assert AgiEnv.create_symlink(src_dir, dest) is True
+    assert calls == [(src_dir, dest)]
 
 
 def test_create_symlink_windows_logs_success_and_failure(tmp_path: Path, monkeypatch):

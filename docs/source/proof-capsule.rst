@@ -5,8 +5,8 @@ The product north star for AGILAB is a portable proof capsule: a reviewable
 bundle that lets another operator verify what ran, where it ran, which
 artifacts were produced, and how the work can be replayed or handed off.
 
-This is the product shape AGILAB should converge toward; it is not yet shipped
-as one archive file or one ``agilab prove`` command.
+AGILAB now ships a first proof-pack layer around ``run_manifest.json``. It is a
+directory of plain JSON evidence, not yet a signed ``.agipack`` archive.
 
 Why this matters
 ----------------
@@ -74,7 +74,33 @@ A complete proof capsule should contain these parts:
 Target CLI shape
 ----------------
 
-The reserved product shape is:
+The shipped first layer operates on a run manifest:
+
+.. code-block:: bash
+
+   agilab prove ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack
+   agilab verify ~/log/execute/flight_telemetry/run_manifest.json --strict
+   agilab replay ~/log/execute/flight_telemetry/run_manifest.json
+   agilab export-lineage ~/log/execute/flight_telemetry/run_manifest.json --format all --output-dir proof-pack
+   agilab policy-check ~/log/execute/flight_telemetry/run_manifest.json --strict
+   agilab cards ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack
+   agilab metadata-store ~/log/execute/flight_telemetry/run_manifest.json --store ~/.agilab/metadata-store.json
+
+The proof pack includes:
+
+* a verification report
+* a small policy report
+* OpenLineage-shaped JSON
+* RO-Crate metadata
+* OpenTelemetry-shaped trace JSON
+* a local metadata-store entry
+* model, dataset, prompt, and evaluation cards generated from available
+  manifest evidence
+
+Replay is safe by default: ``agilab replay`` prints the recorded command and
+requires ``--execute`` before launching it.
+
+The reserved archive shape remains roadmap work:
 
 .. code-block:: bash
 
@@ -82,15 +108,32 @@ The reserved product shape is:
    agilab verify proof.agipack
    agilab replay proof.agipack
 
-These commands should not be documented as available until the archive schema,
-verification rules, and replay boundary are implemented. Until then, use the
-existing evidence commands:
+Until a signed archive verifier exists, keep using the existing first-proof and
+adoption commands as the entry evidence:
 
 .. code-block:: bash
 
    agilab first-proof --json --with-ui
    agilab adoption-report
    agilab security-check --profile shared --json
+
+Roadmap boundary
+----------------
+
+The following items remain planned work, not shipped capability:
+
+* signed ``.agipack`` archives with detached hashes and Sigstore/SLSA
+  references
+* transport to an external OpenLineage backend
+* native OpenTelemetry SDK/OTLP spans across UI, worker build, distributed
+  execution, notebook export, MLflow handoff, and agent runs
+* durable ML metadata storage and query APIs
+* app-authored model/data/prompt/eval cards with domain metadata
+* richer policy-as-code, including potential OPA/Rego-compatible gates
+* capability-based sandboxing for generated code, notebooks, and agent runs
+* first-class agent eval traces and replayable scoring
+* production monitoring, drift, RBAC, secrets-backend, and tenant-isolation
+  integrations
 
 Adoption rule
 -------------
