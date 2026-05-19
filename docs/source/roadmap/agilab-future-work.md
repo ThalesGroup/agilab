@@ -220,6 +220,13 @@ Concrete items:
   `agilab export-lineage`, `agilab policy-check`, `agilab cards`, and
   `agilab metadata-store` operate on `run_manifest.json` and write plain JSON
   evidence before AGILab claims a signed capsule archive
+- introduce an Evidence Core contract that bundles the run manifest, workflow
+  snapshot, environment lock, artifact hashes, notebook import/export manifest,
+  optional MLflow references, policy checks, and verifier results as one
+  portable audit surface
+- derive a graph-shaped evidence view that links claims, code, data, models,
+  environments, runs, notebooks, artifacts, cards, MLflow handoff, and
+  publication targets without requiring an external graph service by default
 - keep MLflow integration focused on tracking, artifacts, model registry
   handoff, and comparison rather than replacing AGILab execution
 - define promotion-ready evidence bundles for apps, imported notebooks, and
@@ -236,6 +243,19 @@ Current shipped baseline:
   explicitly passes `--execute`
 - policy-as-code starts with a small JSON/TOML gate over the manifest checks
   instead of a full external policy engine
+
+Evidence Core roadmap:
+
+- define stable evidence node and edge types for `claim`, `code`, `data`,
+  `model`, `environment`, `run`, `notebook`, `artifact`, `policy`, `card`, and
+  `publication`
+- generate deterministic JSON, JSON-LD, or GraphML exports from proof-pack
+  evidence so reviewers can inspect lineage and audit claims outside the UI
+- design inspection and verification surfaces around the existing proof commands
+  instead of adding a second execution runtime
+- keep the baseline local-first and file-based; graph databases, vector indexes,
+  message buses, or workflow-control services should remain optional adapters
+  until the portable evidence contract is stable
 
 Remaining state-of-the-art scope:
 
@@ -447,8 +467,13 @@ Acceptance gate:
 
 - run evidence, release decisions, compatibility reports, run diff, artifact
   provenance, and supply-chain evidence share stable schemas
+- evidence bundles expose a graph-shaped index that links the run manifest,
+  artifacts, notebook exports, optional MLflow references, policy results,
+  cards, and human-readable claims
 - evidence bundles can be consumed outside AGILab by reviewers, CI, MLflow, or
   platform teams
+- external graph, vector, streaming, or workflow-control infrastructure remains
+  optional; the local proof pack stays the portable baseline
 - promotion decisions state what passed, what failed, and what is out of scope
 
 Why now:
