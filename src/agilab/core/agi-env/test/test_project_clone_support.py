@@ -407,6 +407,29 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     assert (cleanup_root / "demo.txt").read_text(encoding="utf-8") == "demo text"
 
 
+def test_clone_directory_keeps_explicit_venv_symlink_when_gitignored(tmp_path: Path):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    dest_root = tmp_path / "dest"
+    (source_root / ".venv").mkdir()
+    (source_root / "ignored.txt").write_text("ignored", encoding="utf-8")
+    spec = PathSpec.from_lines(GitWildMatchPattern, [".venv/", "ignored.txt"])
+
+    clone_directory(
+        source_root,
+        dest_root,
+        {},
+        spec,
+        source_root,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        content_renamer_cls=lambda _rename_map: type("NoOpRenamer", (), {"visit": lambda self, tree: tree})(),
+        replace_content_fn=lambda text, _mapping: text,
+    )
+
+    assert (dest_root / ".venv").is_symlink()
+    assert not (dest_root / "ignored.txt").exists()
+
+
 def test_clone_directory_skips_entries_that_are_neither_files_nor_directories(tmp_path: Path, monkeypatch):
     source_root = tmp_path / "source"
     source_root.mkdir()

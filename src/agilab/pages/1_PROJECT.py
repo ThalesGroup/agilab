@@ -178,25 +178,25 @@ NOTEBOOK_RUNTIME_ROLE_LABELS = {
 NOTEBOOK_RUNTIME_ROLE_BY_LABEL = {label: role for role, label in NOTEBOOK_RUNTIME_ROLE_LABELS.items()}
 
 CLONE_ENV_STRATEGY_LABELS = {
-    "share_source_venv": "Temporary clone (share source .venv)",
     "detach_venv": "Working clone (no shared .venv)",
+    "share_source_venv": "Temporary clone (share source .venv)",
 }
 
 CLONE_ENV_STRATEGY_CAPTIONS = {
-    "share_source_venv": (
-        "Fast and lightweight. The clone keeps the source .venv by symlink, "
-        "so cleaning or deleting the source environment can break it."
-    ),
     "detach_venv": (
         "Safer for real development. The clone is created without .venv, "
         "so run INSTALL before EXECUTE."
     ),
+    "share_source_venv": (
+        "Fast and lightweight. The clone keeps the source .venv by symlink, "
+        "so cleaning or deleting the source environment can break it."
+    ),
 }
 CLONE_ENV_STRATEGY_HELP = (
-    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
-    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}\n\n"
     f"{CLONE_ENV_STRATEGY_LABELS['detach_venv']}: "
-    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}"
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}\n\n"
+    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}"
 )
 DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR = (
     "_last_execute_failed",
@@ -3621,7 +3621,7 @@ def handle_project_creation():
         "Environment strategy",
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
-        default="detach_venv" if guided_notebook_import else None,
+        default="detach_venv",
         format_func=CLONE_ENV_STRATEGY_LABELS.get,
         help=CLONE_ENV_STRATEGY_HELP,
         fallback="radio",

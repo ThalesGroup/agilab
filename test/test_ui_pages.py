@@ -2358,7 +2358,7 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     assert not at.exception
 
     assert "clone_env_strategy" in at.session_state
-    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}
+    assert at.session_state["clone_env_strategy"] == "detach_venv"
     sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
     assert "Fast and lightweight." not in sidebar_captions
     assert "Safer for real development." not in sidebar_captions

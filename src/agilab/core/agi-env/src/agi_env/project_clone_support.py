@@ -241,7 +241,8 @@ def clone_directory(
 
     for item in source_dir.iterdir():
         rel = item.relative_to(source_root).as_posix()
-        if spec.match_file(rel + ("/" if item.is_dir() else "")):
+        is_venv_dir = item.is_dir() and item.name == ".venv"
+        if not is_venv_dir and spec.match_file(rel + ("/" if item.is_dir() else "")):
             continue
 
         parts = rel.split("/")
