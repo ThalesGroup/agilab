@@ -163,6 +163,10 @@ Use this skill when validating changes.
     the current diff, keep the narrow changed-file tests green and report the
     exact unrelated failing test. Do not patch unrelated pages just to clear a
     broad profile unless the user approves that scope.
+  - Before rerunning a broad GUI/profile command, confirm no previous validation
+    process from this task is still writing `test-results/coverage-agi-gui-*`
+    manifests. Concurrent writers can make coverage evidence look corrupt. Stop
+    only verified PIDs started by the active task.
   - If a broad validation suddenly reports `SyntaxError` on conflict markers,
     check the current files with `rg -n "^(<<<<<<<|=======|>>>>>>>)" ...` before
     editing. A concurrent merge/fetch can leave one run looking at half-updated
@@ -182,6 +186,13 @@ Use this skill when validating changes.
   - After auto-merge, verify the PR is `MERGED`, record the merge commit, confirm
     required checks completed successfully, and fetch/prune before claiming the
     branch was deleted.
+- PyPI app-package regressions:
+  - When changing `src/agilab/pypi_app_packages.py`, the PROJECT page app-install
+    flow, or `agilab app` CLI wiring, cover package catalog parsing, preflight
+    metadata, install/update/remove commands, and UI entry points together.
+  - Keep source-repository app installs and PyPI app package installs distinct in
+    tests. A PyPI app regression should prove `agilab.apps` entry-point discovery,
+    not just local `src/agilab/apps` directory scanning.
 
 ## Common Commands
 
@@ -202,6 +213,10 @@ Use this skill when validating changes.
     whole suite timeout.
   - Example:
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
+- PyPI app management and PROJECT install flow:
+  - `uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_pypi_app_packages.py test/test_lab_run.py test/test_project_clone_policy.py`
+- Windows link/share fallback coverage:
+  - `uv --preview-features extra-build-dependencies run --no-sync pytest -q -o addopts='' src/agilab/core/agi-env/test/test_agi_env.py src/agilab/core/test/test_base_worker.py`
 - Focused ORCHESTRATE robot action regression:
   - Use this shape when validating a user-visible ORCHESTRATE action failure:
     `AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION=current-home uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot.py --apps flight_project --pages ORCHESTRATE --apps-pages none --json --json-output /tmp/flight-orchestrate-widget-robot.json --progress-log /tmp/flight-orchestrate-widget-robot.ndjson --interaction-mode full --action-button-policy click-selected --click-action-labels "CHECK distribute" --preselect-labels "Run now" --missing-selected-action-policy fail --runtime-isolation current-home`
