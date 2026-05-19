@@ -59,8 +59,8 @@ What each route is for
   Use :doc:`quick-start` if you want the recommended local run instead of a
   public demo.
 
-Four short demos
-----------------
+Short demo routes
+-----------------
 
 Use these as narrow product demos. They are intentionally generic and should
 not depend on private apps or app-specific claims.
