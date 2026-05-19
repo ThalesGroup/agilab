@@ -51,7 +51,7 @@ def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> N
     assert report["summary"]["docs_file_count"] > 10
     assert report["summary"]["pyproject_count"] >= 8
     assert report["summary"]["runbook_count"] >= 3
-    assert report["summary"]["knowledge_map_count"] == 4
+    assert report["summary"]["knowledge_map_count"] == 5
     assert report["summary"]["query_seed_count"] >= 4
     assert report["summary"]["excluded_path_hit_count"] == 0
     assert report["summary"]["generated_wiki_source_of_truth"] is False
@@ -453,6 +453,7 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
     assert blocker.read_text(encoding="utf-8") == "not a directory"
 
     signature = {
+        "schema": module.RECORD_SCHEMA,
         "path": "src/agilab/module.py",
         "kind": "package_source",
         "suffix": ".py",
@@ -460,10 +461,12 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
         "sha256": "abc",
     }
     valid_record = {
+        "schema": module.RECORD_SCHEMA,
         "path": "src/agilab/module.py",
         "kind": "package_source",
         "suffix": ".py",
         "size_bytes": 12,
+        "line_count": 1,
         "sha256": "abc",
     }
     assert module._cached_record({"entries": []}, signature) is None
