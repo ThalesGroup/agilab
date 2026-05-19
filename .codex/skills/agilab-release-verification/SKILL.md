@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-17
+  updated: 2026-05-19
 ---
 
 # AGILAB Release Verification
@@ -100,8 +100,8 @@ workflow dispatch:
 - `pypi-provenance-evidence`: verifies PyPI attestations after upload.
 - `pypi-release-retention`: prunes older public PyPI releases for selected projects.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
-- `sync-hf-space`: deploys the public Hugging Face Space after release assets when PyPI publication is selected and release assets succeeded.
-- `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof.
+- `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
+- `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof; package-only app/page publishes should skip it by release scope.
 
 Confirm this against `.github/workflows/pypi-publish.yaml` before each release
 answer because the workflow can change.
@@ -300,9 +300,10 @@ after the badge/source change.
   OIDC Trusted Publishing cannot delete old releases.
 - GitHub Release exists but PyPI missing: inspect `publish-agilab` and split
   package jobs; do not assume release assets imply package upload.
-- PyPI published but `sync-hf-space` skipped: check
-  `needs.release-plan.outputs.pypi_publish_selected` and
-  `needs.publish-release-assets.result`.
+- PyPI published but `sync-hf-space` skipped: first check
+  `needs.release-plan.outputs.umbrella_selected`. A package-only app/page
+  publish should skip HF Space sync and release-proof refresh. For an umbrella
+  release, also check `needs.publish-release-assets.result`.
 - `sync-hf-space` failed immediately with a missing token: configure the
   repository `HF_TOKEN` secret from a valid local or service Hugging Face token,
   then rerun the workflow job or perform a clean-worktree manual sync.
