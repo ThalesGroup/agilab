@@ -260,6 +260,11 @@ def test_readme_agent_skill_badges_use_raw_urls_for_public_renderers() -> None:
         'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" '
         'alt="Skills" /></a>'
     ) in readme
+    assert (
+        '<a href="tools/agent_workflows.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg" '
+        'alt="Agent API: CLI Python" /></a>'
+    ) in readme
     assert "badges/agent-skills.svg" not in readme
     assert 'src="badges/skills-codex.svg"' not in readme
     assert 'src="badges/skills-claude.svg"' not in readme
