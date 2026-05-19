@@ -1078,6 +1078,40 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 label="generate codex skills index",
                 argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
             ),
+            CommandSpec(
+                label="generate public agent skill catalog",
+                argv=["python3", "tools/agent_skill_catalog.py", "--apply"],
+            ),
+            CommandSpec(
+                label="refresh public agent skill badges",
+                argv=["python3", "tools/generate_skill_badges.py"],
+            ),
+            CommandSpec(
+                label="scan repo agent skills",
+                argv=[
+                    "python3",
+                    "tools/skill_security_scan.py",
+                    "--roots",
+                    ".claude/skills",
+                    ".codex/skills",
+                    "--fail-on",
+                    "critical",
+                ],
+            ),
+            CommandSpec(
+                label="agent skill generated artifact drift guard",
+                argv=[
+                    "git",
+                    "diff",
+                    "--exit-code",
+                    "--",
+                    ".codex/skills/.generated/",
+                    "AGENT_SKILLS.md",
+                    "llms.txt",
+                    "llms-full.txt",
+                    "badges/",
+                ],
+            ),
         ]
     )
     return commands

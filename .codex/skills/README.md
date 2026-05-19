@@ -13,6 +13,10 @@ canonical source can serve both agents.
 - Skills are **opt-in**: the agent chooses to load and follow a skill when it is relevant to the current task.
 - Skills are meant to be **actionable runbooks** (commands, conventions, pitfalls), not prose.
 - Prefer **fail-fast guidance** and **reproducible commands** (use `uv` in this repo).
+- Public discovery files are generated from the canonical `.claude/skills/`
+  tree: `AGENT_SKILLS.md`, `llms.txt`, and `llms-full.txt`.
+- Security review uses `python tools/skill_security_scan.py --changed-only --fail-on critical`
+  for changed skills and the same tool against both skill roots for full scans.
 
 ## Skill Catalog
 

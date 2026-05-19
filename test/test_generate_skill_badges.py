@@ -36,6 +36,8 @@ def test_format_skill_count_handles_singular_and_plural() -> None:
 
     assert module.format_skill_count(1) == "1 skill"
     assert module.format_skill_count(2) == "2 skills"
+    assert module.format_repo_skill_count(1) == "1 repo skill"
+    assert module.format_repo_skill_count(2) == "2 repo skills"
 
 
 def test_selected_provider_items_preserves_requested_subset_order() -> None:
@@ -164,3 +166,59 @@ def test_main_can_include_additional_local_repo_for_union_count(
     content = (badge_dir / "skills-codex.svg").read_text(encoding="utf-8")
     assert "3 skills" in content
     assert "codex: 3 skills -> badges/skills-codex.svg" in capsys.readouterr().out
+
+
+def test_main_generates_public_agent_badge_triad_by_default(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    claude_skills = tmp_path / ".claude" / "skills"
+    codex_skills = tmp_path / ".codex" / "skills"
+    claude_skills.mkdir(parents=True)
+    codex_skills.mkdir(parents=True)
+    (claude_skills / "alpha").mkdir()
+    (claude_skills / "beta").mkdir()
+    (codex_skills / "alpha").mkdir()
+    badge_dir = tmp_path / "badges"
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        module,
+        "PROVIDERS",
+        {
+            "codex": {
+                "label": "Codex skills",
+                "skills_dir": codex_skills,
+                "badge": badge_dir / "skills-codex.svg",
+                "color": "#00A67E",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "AGENT_BADGES",
+        {
+            "skills": {
+                "label": "Skills",
+                "badge": badge_dir / "agent-skills.svg",
+                "color": "#0F766E",
+            },
+            "standard": {
+                "label": "Standard",
+                "value": "Agent Skills",
+                "badge": badge_dir / "agent-standard.svg",
+                "color": "#5B6CFF",
+            },
+            "works-with": {
+                "label": "Works with",
+                "value": "Codex Claude Aider OpenCode",
+                "badge": badge_dir / "agent-works-with.svg",
+                "color": "#0F766E",
+            },
+        },
+    )
+    monkeypatch.setattr(sys, "argv", ["generate_skill_badges.py"])
+
+    result = module.main()
+
+    assert result == 0
+    assert "2 repo skills" in (badge_dir / "agent-skills.svg").read_text(encoding="utf-8")
+    assert "Agent Skills" in (badge_dir / "agent-standard.svg").read_text(encoding="utf-8")
+    assert "Codex Claude Aider OpenCode" in (badge_dir / "agent-works-with.svg").read_text(encoding="utf-8")

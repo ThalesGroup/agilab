@@ -1,0 +1,103 @@
+name: agent-skills-security
+
+on:
+  pull_request:
+    paths:
+      - ".claude/skills/**"
+      - ".codex/skills/**"
+      - "tools/agent_skill_catalog.py"
+      - "tools/codex_skills.py"
+      - "tools/generate_skill_badges.py"
+      - "tools/skill_security_scan.py"
+      - ".github/workflows/agent-skills-security.yaml"
+  push:
+    branches: ["main"]
+    paths:
+      - ".claude/skills/**"
+      - ".codex/skills/**"
+      - "tools/agent_skill_catalog.py"
+      - "tools/codex_skills.py"
+      - "tools/generate_skill_badges.py"
+      - "tools/skill_security_scan.py"
+      - ".github/workflows/agent-skills-security.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  scan-changed-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Detect changed skill directories
+        id: changed
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="${PR_BASE_SHA:-${PUSH_BEFORE_SHA:-}}"
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]] || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            base_sha="$(git rev-parse HEAD~1)"
+          fi
+          changed_files="$(git diff --name-only --diff-filter=ACMR "${base_sha}" HEAD -- .claude/skills .codex/skills || true)"
+          echo "Changed skill files:"
+          printf '%s\n' "${changed_files}"
+          skill_dirs="$(
+            printf '%s\n' "${changed_files}" \
+              | awk -F/ 'NF>=3 && ($1==".claude" || $1==".codex") && $2=="skills" {print $1 "/" $2 "/" $3}' \
+              | sort -u \
+              | while read -r dir; do
+                  if [[ -f "${dir}/SKILL.md" ]]; then
+                    printf '%s\n' "${dir}"
+                  fi
+                done \
+              | xargs || true
+          )"
+          echo "skill_dirs=${skill_dirs}" >> "${GITHUB_OUTPUT}"
+
+      - name: Scan changed skills
+        if: steps.changed.outputs.skill_dirs != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/skill_security_scan.py \
+            --fail-on critical \
+            --json-output agent-skill-security-scan.json \
+            --markdown-output agent-skill-security-scan.md \
+            $(printf '%s\n' "${{ steps.changed.outputs.skill_dirs }}" | awk '{for (i=1; i<=NF; i++) printf "--skill-dir %s ", $i}')
+
+      - name: Prepare no-op scan report
+        if: steps.changed.outputs.skill_dirs == ''
+        run: |
+          cat > agent-skill-security-scan.md <<'EOF'
+          # Agent Skill Security Scan
+
+          No changed skill directories with a SKILL.md were detected.
+          EOF
+          printf '{"schema":"agilab.agent_skill_security_scan.v1","skills_scanned":[],"finding_count":0,"findings":[]}\n' > agent-skill-security-scan.json
+
+      - name: Upload scan report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: agent-skill-security-scan
+          path: |
+            agent-skill-security-scan.json
+            agent-skill-security-scan.md
+          if-no-files-found: error
