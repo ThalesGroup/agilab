@@ -83,8 +83,84 @@ Choose analysis views, which writes the same list for you.
 Included page bundles
 ---------------------
 
-This section summarizes the public page bundles shipped with the repository.
-Use :doc:`explore-help` to discover, configure, and launch them from the UI.
+This section summarizes every page bundle shipped under
+``src/agilab/apps-pages``. Use :doc:`explore-help` to discover, configure, and
+launch them from the UI.
+
+``agi-pages`` is the provider/umbrella package for the default lightweight page
+set. Heavier teaching or framework-specific pages can still be shipped as
+standalone ``agi-page-*`` packages or source-checkout bundles without being
+pulled by the umbrella dependency graph.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Module
+     - Package
+     - Purpose
+     - Packaging status
+   * - ``view_autoencoder_latentspace``
+     - ``agi-page-latent-space``
+     - TensorFlow/Keras latent-space projection and autoencoder exploration.
+     - Source-checkout opt-in; intentionally outside ``agi-pages`` because it
+       targets Python 3.12 and carries TensorFlow runtime constraints.
+   * - ``view_barycentric``
+     - ``agi-page-simplex-map``
+     - Barycentric/simplex visualisation for proportion-style KPI features.
+     - Included in ``agi-pages``.
+   * - ``view_data_io_decision``
+     - ``agi-page-decision-evidence``
+     - Decision-evidence review for data ingestion and strategy selection.
+     - Included in ``agi-pages``.
+   * - ``view_forecast_analysis``
+     - ``agi-page-timeseries-forecast``
+     - Forecast metrics and prediction review for time-series workflows.
+     - Included in ``agi-pages``.
+   * - ``view_inference_analysis``
+     - ``agi-page-inference-report``
+     - Allocation and inference-result comparison across exported runs.
+     - Included in ``agi-pages``.
+   * - ``view_maps``
+     - ``agi-page-geospatial-map``
+     - 2D map viewer for geolocated datasets.
+     - Included in ``agi-pages``.
+   * - ``view_maps_3d``
+     - ``agi-page-geospatial-3d``
+     - 3D cartography view with extrusion, color, and overlay controls.
+     - Included in ``agi-pages``.
+   * - ``view_maps_network``
+     - ``agi-page-network-map``
+     - Network-aware geospatial topology and route inspection.
+     - Included in ``agi-pages``.
+   * - ``view_pytorch_playground``
+     - ``agi-page-pytorch-playground``
+     - Interactive PyTorch classifier playground with evidence-pack export.
+     - Standalone published page package; intentionally outside ``agi-pages``
+       because ``torch`` is a heavy runtime dependency.
+   * - ``view_queue_resilience``
+     - ``agi-page-queue-health``
+     - Queue occupancy, delay, drop, route, and run-metadata evidence.
+     - Included in ``agi-pages``.
+   * - ``view_relay_resilience``
+     - ``agi-page-relay-health``
+     - Relay queue comparison across exported run directories.
+     - Included in ``agi-pages``.
+   * - ``view_release_decision``
+     - ``agi-page-promotion-gate``
+     - Baseline/candidate promotion-gate evidence review.
+     - Included in ``agi-pages``.
+   * - ``view_scenario_cockpit``
+     - ``agi-page-scenario-cockpit``
+     - Scenario cockpit for baseline/candidate queue-analysis evidence.
+     - Included in ``agi-pages``.
+   * - ``view_shap_explanation``
+     - ``agi-page-feature-attribution``
+     - Local feature-attribution evidence review for SHAP-compatible outputs.
+     - Included in ``agi-pages``.
+   * - ``view_training_analysis``
+     - ``agi-page-training-report``
+     - Training run and TensorBoard scalar browser.
+     - Included in ``agi-pages``.
 
 view_barycentric
 ^^^^^^^^^^^^^^^^
@@ -163,6 +239,84 @@ Relay queue comparison page for producer-agnostic queue-analysis artifacts.
 - The same run directory also exposes generic ``pipeline/`` artifacts so you can
   open ``view_maps_network`` on the exact same result.
 
+view_data_io_decision
+^^^^^^^^^^^^^^^^^^^^^
+
+Decision evidence view for app-agnostic data and strategy selection artifacts.
+
+- Input: data-decision JSON/CSV artifacts emitted by a producer workflow.
+- Output: selected strategy, alternatives, validation notes, and evidence
+  summaries for audit/review.
+
+view_forecast_analysis
+^^^^^^^^^^^^^^^^^^^^^^
+
+Forecast evidence page for time-series prediction workflows.
+
+- Input: ``forecast_metrics.json`` and ``forecast_predictions.csv`` from the
+  selected export directory.
+- Output: metric summaries, forecast/prediction overlays, and run metadata.
+
+view_inference_analysis
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Inference and allocation comparison page for producer-agnostic result exports.
+
+- Input: ``allocations_steps`` files in JSON, JSONL/NDJSON, CSV, or parquet
+  form.
+- Output: side-by-side run metrics, delivered-bandwidth aggregates, and
+  allocation charts.
+
+view_release_decision
+^^^^^^^^^^^^^^^^^^^^^
+
+Promotion-gate page for baseline/candidate evidence bundles.
+
+- Input: candidate and baseline evidence directories.
+- Output: gate checks, decision summary, and downloadable
+  ``promotion_decision.json`` evidence.
+
+view_shap_explanation
+^^^^^^^^^^^^^^^^^^^^^
+
+Feature-attribution evidence page for SHAP-compatible model explanations.
+
+- Input: local explanation artifacts from SHAPKit, ``shap``, or compatible
+  custom explainers.
+- Output: feature attribution summaries and per-record explanation views.
+
+view_training_analysis
+^^^^^^^^^^^^^^^^^^^^^^
+
+Training evidence page for scalar logs and model-training runs.
+
+- Input: TensorBoard-compatible scalar folders under an app export directory.
+- Output: run selector, scalar trends, and training metadata for comparison.
+
+view_autoencoder_latentspace
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+TensorFlow/Keras latent-space exploration page for Python 3.12 source-checkout
+environments.
+
+- Input: embeddings, labels, or autoencoder-ready tabular/image artifacts.
+- Output: latent-space projections, clustering diagnostics, and reconstruction
+  exploration.
+- This page remains opt-in because TensorFlow constrains the supported Python
+  range and would make the default page bundle set heavier.
+
+view_pytorch_playground
+^^^^^^^^^^^^^^^^^^^^^^^
+
+PyTorch classifier playground for small synthetic datasets.
+
+- Input: interactive dataset and model configuration from the page controls.
+- Output: training curves, hidden-layer activation maps, network diagnostics,
+  optional loss-landscape projection, and a hashed evidence-pack download.
+- It is published as the standalone ``agi-page-pytorch-playground`` package but
+  remains outside the ``agi-pages`` umbrella because ``torch`` is a heavy runtime
+  dependency.
+
 Producer example for distributed runs
 -------------------------------------
 
@@ -173,20 +327,6 @@ Producer example for distributed runs
   ``~/export/<app_target>/queue_analysis/<artifact_stem>/`` directory, so
   distributed runs with several workload files do not overwrite each other's
   ``pipeline/`` artifacts.
-
-Experimental and opt-in views
------------------------------
-
-``view_autoencoder_latentspace`` is kept in the source checkout as a
-TensorFlow-based latent-space exploration page for Python 3.12 environments. It
-is intentionally not part of the public ``agi-pages`` umbrella because its
-runtime constraints are heavier than the generic page bundle set.
-
-``view_pytorch_playground`` is a PyTorch-based classifier playground for small
-synthetic datasets. It is published as the standalone
-``agi-page-pytorch-playground`` package and intentionally not included in the
-public ``agi-pages`` umbrella dependency graph because ``torch`` is a heavy
-runtime dependency.
 
 See also
 --------
