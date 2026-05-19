@@ -110,7 +110,7 @@ def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
     assert result["summary"]["backend"] == "torch"
 
 
-def test_pytorch_playground_bundle_root_and_source_only_docs() -> None:
+def test_pytorch_playground_bundle_root_and_opt_in_package_docs() -> None:
     spec = importlib.util.spec_from_file_location("view_pytorch_playground_init_test_module", INIT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -120,4 +120,5 @@ def test_pytorch_playground_bundle_root_and_source_only_docs() -> None:
     assert module.bundle_root() == INIT_PATH.parent.resolve()
     readme = README_PATH.read_text(encoding="utf-8")
     assert "view_pytorch_playground" in readme
+    assert "agi-page-pytorch-playground" in readme
     assert "not part of the public `agi-pages` umbrella" in readme
