@@ -23,7 +23,7 @@
   <a href="https://github.com/ThalesGroup/agilab/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome" /></a>
   <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/badge/wheel-yes-0F766E" alt="Wheel: yes" /></a>
   <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/repo-size/ThalesGroup/agilab" alt="Repo size" /></a>
-  <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Black code style" /></a>
+  <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/style%20guard-Ruff%20changed--files-0F766E" alt="Style guard: Ruff changed-files" /></a>
   <a href="https://orcid.org/0009-0003-5375-368X"><img src="https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid" alt="ORCID" /></a>
 </p>
 
