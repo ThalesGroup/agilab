@@ -41,6 +41,11 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "weather_forecast_project",
     ]
     assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
+    assert payload["coverage"]["hf_first_proof_pages"] == [
+        "view_forecast_analysis",
+        "view_maps",
+        "view_release_decision",
+    ]
     assert payload["coverage"]["hf_visual_smoke_profile_apps"] == [
         "flight_telemetry_project",
         "weather_forecast_project",
@@ -119,7 +124,10 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
         },
         OPT_IN_SCENARIOS={"hf-first-proof-visual-smoke": incomplete_hf_visual},
     )
-    hf_smoke = SimpleNamespace(profile_builtin_app_entries=lambda _profile: {"flight_project"})
+    hf_smoke = SimpleNamespace(
+        profile_builtin_app_entries=lambda _profile: {"flight_project"},
+        profile_page_entries=lambda _profile: {"view_maps"},
+    )
     workflow_parity = SimpleNamespace(
         _profile_commands=lambda _args: {
             "hf-install-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-install"])],
@@ -149,6 +157,10 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
         "flight_telemetry_project, weather_forecast_project"
     ) in details
     assert "first-proof HF profile still exposes stale demo apps: flight_project" in details
+    assert (
+        "first-proof HF profile is missing public demo pages: "
+        "view_forecast_analysis, view_release_decision"
+    ) in details
     assert "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke" in details
     assert "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke" in details
     assert "hf-visual-smoke-robot is missing first-proof apps: flight_project" in details

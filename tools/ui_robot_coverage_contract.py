@@ -21,15 +21,15 @@ SCHEMA = "agilab.ui_robot_coverage_contract.v1"
 REQUIRED_CORE_PAGES = ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS", "SETTINGS")
 REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
 REQUIRED_HF_FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
+REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
-REQUIRED_HF_FIRST_PROOF_APPS_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
         "pages": ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
         "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
     },
     "hf-first-proof-app-pages-visual-smoke": {
-        "apps_pages": REQUIRED_HF_FIRST_PROOF_APPS_PAGES,
+        "apps_pages": REQUIRED_HF_FIRST_PROOF_PAGES,
         "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
     },
     "hf-first-proof-install": {
@@ -165,6 +165,15 @@ def evaluate_contract() -> dict[str, Any]:
                 "first-proof HF profile still exposes stale demo apps: " + ", ".join(forbidden_hf_apps),
             )
         )
+    hf_first_proof_pages = sorted(hf_smoke.profile_page_entries("first-proof"))
+    missing_hf_pages = sorted(set(REQUIRED_HF_FIRST_PROOF_PAGES) - set(hf_first_proof_pages))
+    if missing_hf_pages:
+        issues.append(
+            CoverageIssue(
+                "hf_public_demo_page",
+                "first-proof HF profile is missing public demo pages: " + ", ".join(missing_hf_pages),
+            )
+        )
 
     scenario_by_name = {scenario.name: scenario for scenario in all_scenarios}
     hf_robot_scenarios: dict[str, dict[str, list[str]]] = {}
@@ -225,41 +234,31 @@ def evaluate_contract() -> dict[str, Any]:
     parity_profiles = workflow_parity._profile_commands(
         argparse.Namespace(components=(), skills=(), app_path=None, worker_copy=None)
     )
-    hf_install_profile_apps: list[str] = []
-    hf_install_profile_scenarios: list[str] = []
-    for command in parity_profiles.get("hf-install-robot", []):
-        scenarios = _argv_values(command.argv, "--scenario")
-        hf_install_profile_scenarios.extend(scenarios)
-        if "hf-first-proof-install" in scenarios:
-            hf_install_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
-    hf_install_profile_apps = sorted(set(hf_install_profile_apps))
-    hf_install_profile_scenarios = sorted(set(hf_install_profile_scenarios))
-    missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
-    if "hf-first-proof-install" not in hf_install_profile_scenarios:
-        issues.append(
-            CoverageIssue(
-                "hf_robot_profile",
-                "hf-install-robot does not run hf-first-proof-install",
-            )
-        )
-    if missing_install_profile_apps:
-        issues.append(
-            CoverageIssue(
-                "hf_robot_profile",
-                "hf-install-robot is missing first-proof apps: " + ", ".join(missing_install_profile_apps),
-            )
-        )
-
     hf_visual_smoke_profile_apps: list[str] = []
     hf_visual_smoke_profile_scenarios: list[str] = []
+    hf_install_profile_apps: list[str] = []
+    hf_install_profile_scenarios: list[str] = []
+    hf_visual_smoke_required_scenarios = {
+        "hf-first-proof-visual-smoke",
+        "hf-first-proof-app-pages-visual-smoke",
+    }
+    hf_install_required_scenarios = {"hf-first-proof-install"}
     for command in parity_profiles.get("hf-visual-smoke-robot", []):
         scenarios = _argv_values(command.argv, "--scenario")
         hf_visual_smoke_profile_scenarios.extend(scenarios)
-        if "hf-first-proof-visual-smoke" in scenarios:
+        if hf_visual_smoke_required_scenarios.intersection(scenarios):
             hf_visual_smoke_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
+    for command in parity_profiles.get("hf-install-robot", []):
+        scenarios = _argv_values(command.argv, "--scenario")
+        hf_install_profile_scenarios.extend(scenarios)
+        if hf_install_required_scenarios.intersection(scenarios):
+            hf_install_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
     hf_visual_smoke_profile_apps = sorted(set(hf_visual_smoke_profile_apps))
     hf_visual_smoke_profile_scenarios = sorted(set(hf_visual_smoke_profile_scenarios))
+    hf_install_profile_apps = sorted(set(hf_install_profile_apps))
+    hf_install_profile_scenarios = sorted(set(hf_install_profile_scenarios))
     missing_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_visual_smoke_profile_apps))
+    missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
     if "hf-first-proof-visual-smoke" not in hf_visual_smoke_profile_scenarios:
         issues.append(
             CoverageIssue(
@@ -308,6 +307,7 @@ def evaluate_contract() -> dict[str, Any]:
             "configured_apps_pages_scenarios": configured_scenarios,
             "high_risk_actions": action_to_scenarios,
             "hf_first_proof_apps": hf_first_proof_apps,
+            "hf_first_proof_pages": hf_first_proof_pages,
             "hf_install_profile_apps": hf_install_profile_apps,
             "hf_install_profile_scenarios": hf_install_profile_scenarios,
             "hf_visual_smoke_profile_apps": hf_visual_smoke_profile_apps,
