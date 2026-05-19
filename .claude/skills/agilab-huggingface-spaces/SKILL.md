@@ -92,8 +92,10 @@ public app IDs directly.
 Keep the skill aligned with the README contract:
 - the Space README presents AGILAB as an anti-lock-in reproducibility workbench,
   not as a generic AI platform
-- the default and advanced Space cards both mention runnable notebook export as
-  the user exit path: review, handoff, and reuse outside AGILAB
+- the default and advanced Space cards both describe notebook export as an
+  `agi-core` runtime handoff: review, handoff, and reuse without the AGILAB UI
+  or distributed worker layer, while still relying on the stable core runtime
+  and the exported project's dependencies
 - the Space exposes the AGILAB Streamlit interface
 - Space mode is single-container only
 - local Dask multi-worker execution may be demonstrated inside that container
@@ -188,7 +190,7 @@ Before touching the Space deployment, verify:
    - secret names
    - Space-card metadata, including a real pictographic `emoji:` value such as
      `🧪` rather than a textual alias like `lab_coat`
-   - anti-lock-in / runnable-notebook-export positioning
+   - anti-lock-in / `agi-core` notebook-export positioning
    - profile app/page lists
    - target repo content
    - current public app IDs, especially `flight_project` and
@@ -296,15 +298,15 @@ hf download "$space" pyproject.toml README.md Dockerfile \
   --revision "$space_sha" \
   --local-dir "$tmpdir"
 rg -n '^version = |^name = ' "$tmpdir/pyproject.toml"
-rg -n 'Anti-lock-in|anti-lock-in|runnable notebooks|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
+rg -n 'Anti-lock-in|anti-lock-in|agi-core|core runtime|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
   "$tmpdir/README.md" "$tmpdir/Dockerfile"
 ```
 
 Treat an old `pyproject.toml` version, missing current app IDs, or old app IDs
 such as `flight_telemetry_project` / `weather_forecast_project` in deployed
 profile files as a failed alignment, even if the live HTTP smoke passes. Treat
-missing anti-lock-in / notebook-export copy as a Space-card alignment failure,
-even when the runtime itself is healthy.
+missing anti-lock-in / `agi-core` notebook-export copy as a Space-card
+alignment failure, even when the runtime itself is healthy.
 
 If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:
