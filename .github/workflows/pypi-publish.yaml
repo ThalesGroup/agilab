@@ -689,7 +689,7 @@ jobs:
           python tools/pypi_release_retention.py "${args[@]}"
 
   sync-hf-space:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.publish-release-assets.result == 'success' }}
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.publish-release-assets.result == 'success' }}
     needs:
       - release-plan
       - publish-release-assets

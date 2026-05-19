@@ -340,6 +340,9 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "non-published package artifacts must stay workflow-only"
         ),
         "sync-hf-space:": "workflow must sync the public Hugging Face Space after release assets",
+        "sync-hf-space:\n    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true'": (
+            "HF Space sync and release-proof refresh must run only for the umbrella AGILAB release"
+        ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
         "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
         "--hf-space-commit \"$hf_commit\"": (
