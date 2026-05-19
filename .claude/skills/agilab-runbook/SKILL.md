@@ -196,18 +196,25 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `agilab adoption-report --json --strict` for automation
   - treat `safe_to_expand=true` as permission to try the next demo/notebook lane,
     not as production, shared-workstation, secrets, public-exposure, or cluster approval
-  - for team handoff, keep the manifest, exported `notebooks/lab_stages.ipynb`,
-    compatibility-report output, and redacted strict security-check output together
+  - for team handoff, keep the manifest, exported `agi-core`
+    `notebooks/lab_stages.ipynb`, compatibility-report output, and redacted
+    strict security-check output together. The notebook handoff removes
+    dependence on the AGILAB UI/distributed-worker layer, but it still relies on
+    the stable core runtime and the exported project's dependencies.
 - PyPI app-package management:
   - search: `agilab app search flight`
-  - preflight: `agilab app check agi-app-flight-project --json`
-  - install: `agilab app install agi-app-flight-project`
+  - preflight: `agilab app check agi-app-flight-telemetry --json`
+  - install: `agilab app install agi-app-flight-telemetry`
   - inventory/update/remove: `agilab app list`, `agilab app update <package>`,
     `agilab app remove <package>`
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
-  - Real PyPI does not auto-select `.postN` when the date version already exists. If `YYYY.MM.DD` is already published, choose an explicit next version such as the next release date or `--version YYYY.MM.DD.post1`; dry-run that exact command first, then publish with the same explicit version.
+  - Real PyPI does not auto-select `.postN` when the date version already
+    exists. Normal public releases should move to a deliberate new date-based
+    version or a release candidate/TestPyPI rehearsal first. Use `.postN` only
+    for a documented critical hotfix and pass the workflow's explicit
+    `allow_post_release` / reason controls.
   - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
   - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.

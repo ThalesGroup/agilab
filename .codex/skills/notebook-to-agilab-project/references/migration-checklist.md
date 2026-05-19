@@ -25,6 +25,9 @@
 - AGI snippets remain a valid reuse surface for code-centric logic; do not
   describe notebook/snippet reuse as local-runtime-only. Only the embedded
   ANALYSIS Jupyter sidecar is the local interactive launch path.
+- Exported notebooks remain runnable through `agi-core` plus the exported
+  project's dependencies. Present notebook export as an exit from the AGILAB UI
+  or distributed-worker layer, not as a dependency-free artifact.
 
 ## Migration value to show
 
