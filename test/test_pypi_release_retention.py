@@ -36,6 +36,47 @@ def test_retention_plan_keeps_only_protected_normalized_version(monkeypatch) -> 
     assert plan.missing_protected_version is False
 
 
+def test_resolve_protect_versions_accepts_disaligned_package_versions() -> None:
+    module = _load_module()
+
+    package_versions = module.resolve_protect_versions(
+        packages=["agilab", "agi-core"],
+        protect_package_versions=[
+            "agilab=2026.05.18",
+            "agi-core=2026.05.17",
+        ],
+    )
+
+    assert package_versions == {
+        "agilab": "2026.5.18",
+        "agi-core": "2026.5.17",
+    }
+
+
+def test_resolve_protect_versions_reads_selected_project_versions(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "selected_public_versions",
+        lambda repo_root, package_names: {
+            "agilab": "2026.05.18",
+            "agi-core": "2026.05.17",
+        },
+    )
+
+    package_versions = module.resolve_protect_versions(
+        packages=["agilab", "agi-core"],
+        protect_versions_from_projects=True,
+        repo_root=tmp_path,
+    )
+
+    assert package_versions == {
+        "agilab": "2026.5.18",
+        "agi-core": "2026.5.17",
+    }
+
+
 def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> None:
     module = _load_module()
 
@@ -470,6 +511,62 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
     assert '"success": true' in capsys.readouterr().out
 
 
+def test_main_deletes_old_versions_with_disaligned_protected_versions(monkeypatch, capsys) -> None:
+    module = _load_module()
+    releases = {
+        "agilab": ["2026.04.16", "2026.05.18"],
+        "agi-core": ["2026.04.16", "2026.05.17"],
+    }
+    deletes: list[tuple[str, str]] = []
+
+    def fake_delete_release(
+        *,
+        package,
+        version,
+        repo,
+        username,
+        password,
+        auth_code=None,
+        totp_secret=None,
+        confirm_login_url_provider=None,
+        verbose=False,
+    ):
+        deletes.append((package, version))
+        releases[package] = [item for item in releases[package] if item != version]
+
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
+    monkeypatch.setattr(module, "delete_release", fake_delete_release)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--package",
+            "agi-core",
+            "--protect-package-version",
+            "agilab=2026.05.18",
+            "--protect-package-version",
+            "agi-core=2026.05.17",
+            "--username",
+            "maintainer",
+            "--password",
+            "secret",
+            "--confirm-delete",
+            "--json",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert deletes == [("agilab", "2026.04.16"), ("agi-core", "2026.04.16")]
+    assert '"package": "agilab"' in captured.out
+    assert '"protect_version": "2026.5.18"' in captured.out
+    assert '"package": "agi-core"' in captured.out
+    assert '"protect_version": "2026.5.17"' in captured.out
+
+
 def test_main_rotates_totp_between_package_deletions(monkeypatch) -> None:
     module = _load_module()
     releases = {
@@ -599,7 +696,7 @@ def test_main_rejects_missing_protected_release(monkeypatch) -> None:
 
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
 
-    with pytest.raises(SystemExit, match="protected version 2026.5.17 is not visible"):
+    with pytest.raises(SystemExit, match="agilab=2026.5.17"):
         module.main(
             [
                 "--package",

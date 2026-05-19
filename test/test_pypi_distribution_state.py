@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import sys
 import urllib.error
 from pathlib import Path
@@ -18,7 +20,11 @@ SPEC.loader.exec_module(pypi_distribution_state)
 
 DistributionStateError = pypi_distribution_state.DistributionStateError
 analyze_distribution_dir = pypi_distribution_state.analyze_distribution_dir
+analyze_expected_project_distributions = pypi_distribution_state.analyze_expected_project_distributions
+download_reused_artifacts = pypi_distribution_state.download_reused_artifacts
+expected_distribution_filenames = pypi_distribution_state.expected_distribution_filenames
 write_github_output = pypi_distribution_state.write_github_output
+write_reused_artifact_manifests = pypi_distribution_state.write_reused_artifact_manifests
 
 
 def test_pypi_distribution_state_marks_existing_artifacts(tmp_path: Path) -> None:
@@ -65,8 +71,10 @@ def test_pypi_distribution_state_writes_github_outputs(tmp_path: Path) -> None:
     output = tmp_path / "github-output.txt"
     write_github_output(output, states)
 
-    assert "all-exist=false" in output.read_text(encoding="utf-8")
-    assert "missing-count=1" in output.read_text(encoding="utf-8")
+    text = output.read_text(encoding="utf-8")
+    assert "all-exist=false" in text
+    assert "missing-count=1" in text
+    assert "release-action=build" in text
 
 
 def test_pypi_distribution_state_requires_exact_remote_filename(tmp_path: Path) -> None:
@@ -100,3 +108,185 @@ def test_fetch_pypi_distribution_files_returns_empty_mapping_for_missing_project
     monkeypatch.setattr(pypi_distribution_state.urllib.request, "urlopen", raise_not_found)
 
     assert pypi_distribution_state.fetch_pypi_distribution_files("example-missing-package") == {}
+
+
+def test_expected_distribution_filenames_match_wheel_and_sdist_policy() -> None:
+    filenames = expected_distribution_filenames(
+        "agi-app-global-dag",
+        Version("2026.5.18"),
+        artifact_policy="wheel+sdist",
+    )
+
+    assert filenames == [
+        "agi_app_global_dag-2026.5.18-py3-none-any.whl",
+        "agi_app_global_dag-2026.5.18.tar.gz",
+    ]
+
+
+def test_expected_project_distribution_state_reuses_existing_remote_artifacts(tmp_path: Path) -> None:
+    project = tmp_path / "agi-env"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "agi-env"
+version = "2026.5.18"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    states = analyze_expected_project_distributions(
+        package="agi-env",
+        project=project,
+        artifact_policy="wheel+sdist",
+        fetch_distributions=lambda _name: {
+            Version("2026.5.18"): {
+                "agi_env-2026.5.18-py3-none-any.whl": {
+                    "filename": "agi_env-2026.5.18-py3-none-any.whl",
+                    "size": 123,
+                    "url": "https://files.pythonhosted.org/packages/agi_env-2026.5.18.whl",
+                    "digests": {"sha256": "a" * 64},
+                },
+                "agi_env-2026.5.18.tar.gz": {
+                    "filename": "agi_env-2026.5.18.tar.gz",
+                    "size": 456,
+                    "url": "https://files.pythonhosted.org/packages/agi_env-2026.5.18.tar.gz",
+                    "digests": {"sha256": "b" * 64},
+                },
+            }
+        },
+    )
+
+    assert [state.filename for state in states] == [
+        "agi_env-2026.5.18-py3-none-any.whl",
+        "agi_env-2026.5.18.tar.gz",
+    ]
+    assert all(state.exists for state in states)
+    assert {state.kind for state in states} == {"wheel", "sdist"}
+    assert {state.sha256 for state in states} == {"a" * 64, "b" * 64}
+
+
+def test_expected_project_distribution_state_rejects_package_metadata_mismatch(tmp_path: Path) -> None:
+    project = tmp_path / "agi-env"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "agi-core"
+version = "2026.5.18"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DistributionStateError, match="declares package agi-core, expected agi-env"):
+        analyze_expected_project_distributions(
+            package="agi-env",
+            project=project,
+            artifact_policy="wheel-only",
+            fetch_distributions=lambda _name: {},
+        )
+
+
+def test_reused_artifact_manifests_record_remote_hashes(tmp_path: Path) -> None:
+    project = tmp_path / "agilab"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "agilab"
+version = "2026.5.18"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    states = analyze_expected_project_distributions(
+        package="agilab",
+        project=project,
+        artifact_policy="wheel-only",
+        fetch_distributions=lambda _name: {
+            Version("2026.5.18"): {
+                "agilab-2026.5.18-py3-none-any.whl": {
+                    "filename": "agilab-2026.5.18-py3-none-any.whl",
+                    "size": 789,
+                    "url": "https://files.pythonhosted.org/packages/agilab-2026.5.18.whl",
+                    "digests": {"sha256": "c" * 64},
+                },
+            }
+        },
+    )
+
+    json_path, sums_path = write_reused_artifact_manifests(
+        states,
+        output_dir=tmp_path / "evidence",
+        output_prefix="agilab",
+    )
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "agilab.release_artifact_manifest.v1"
+    assert payload["source"] == "pypi"
+    assert payload["reused"] is True
+    assert payload["artifacts"] == [
+        {
+            "filename": "agilab-2026.5.18-py3-none-any.whl",
+            "name": "agilab",
+            "version": "2026.5.18",
+            "kind": "wheel",
+            "size": 789,
+            "sha256": "c" * 64,
+        }
+    ]
+    assert sums_path.read_text(encoding="utf-8") == (
+        f"{'c' * 64}  agilab-2026.5.18-py3-none-any.whl\n"
+    )
+
+
+def test_download_reused_artifacts_verifies_remote_hashes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "agilab"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "agilab"
+version = "2026.5.18"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    wheel_bytes = b"published wheel"
+    states = analyze_expected_project_distributions(
+        package="agilab",
+        project=project,
+        artifact_policy="wheel-only",
+        fetch_distributions=lambda _name: {
+            Version("2026.5.18"): {
+                "agilab-2026.5.18-py3-none-any.whl": {
+                    "filename": "agilab-2026.5.18-py3-none-any.whl",
+                    "size": len(wheel_bytes),
+                    "url": "https://files.pythonhosted.org/packages/agilab-2026.5.18.whl",
+                    "digests": {"sha256": hashlib.sha256(wheel_bytes).hexdigest()},
+                },
+            }
+        },
+    )
+
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return wheel_bytes
+
+    monkeypatch.setattr(
+        pypi_distribution_state.urllib.request,
+        "urlopen",
+        lambda url, timeout: FakeResponse(),
+    )
+
+    paths = download_reused_artifacts(states, download_dir=tmp_path / "dist")
+
+    assert [path.name for path in paths] == ["agilab-2026.5.18-py3-none-any.whl"]
+    assert paths[0].read_bytes() == wheel_bytes
