@@ -18,11 +18,11 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.05.18`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.05.20`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.05.18 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.18>`__
+     - `v2026.05.20 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``a0607024b14e76e965c327bdeadab3aec69b8f7e``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``0318f466aefb6c60fbfa78cfa4054c7c2aba0e59``
    * - Public guardrails
      - `repo-guardrails run 25970993906 <https://github.com/ThalesGroup/agilab/actions/runs/25970993906>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
@@ -41,7 +41,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.05.18"
+     python -m pip install "agilab[examples]==2026.05.20"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -70,7 +70,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.05.18"
+   python -m pip install "agilab[examples]==2026.05.20"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
