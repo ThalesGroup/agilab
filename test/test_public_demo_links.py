@@ -429,7 +429,7 @@ def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
     assert "``view_release_decision``" in demos
     assert "notebook-migration-skforecast-meteo" in demos
     assert "Notebook migration route" in demos
-    assert "Four short demos" in demos
+    assert "Short demo routes" in demos
     assert "``uav_relay_queue_project`` is the UAV Relay Queue RL demo" in demos
 
     for phrase in (
