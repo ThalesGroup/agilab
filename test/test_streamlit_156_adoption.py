@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 import tomllib
 
-THEME_ENV_PATH = Path("src/agilab/streamlit_theme_env.py").resolve()
-THEME_ENV_SPEC = importlib.util.spec_from_file_location("agilab_streamlit_theme_env_test", THEME_ENV_PATH)
-assert THEME_ENV_SPEC and THEME_ENV_SPEC.loader
-streamlit_theme_env = importlib.util.module_from_spec(THEME_ENV_SPEC)
-sys.modules[THEME_ENV_SPEC.name] = streamlit_theme_env
-THEME_ENV_SPEC.loader.exec_module(streamlit_theme_env)
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from agilab import streamlit_theme_env  # noqa: E402
 
 
 FIRST_PARTY_STREAMLIT_MANIFESTS = [

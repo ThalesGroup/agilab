@@ -60,11 +60,15 @@ Notes
 - AGILAB Analysis can scaffold new custom page bundles from the same panel:
   - Use **Create** to generate a minimal complete bundle.
 
-Experimental source-only views:
+Experimental and opt-in views:
 
 - view_autoencoder_latentspace
   - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - TensorFlow-based latent-space exploration for Python 3.12 environments. It is intentionally not part of the public `agi-pages` umbrella because its runtime constraints are heavier than the generic page bundle set.
+
+- view_pytorch_playground
+  - uv run streamlit run src/agilab/apps-pages/view_pytorch_playground/src/view_pytorch_playground/view_pytorch_playground.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+  - PyTorch-based classifier playground for synthetic datasets with shareable configs, hidden-layer activation maps, network diagnostics, optional loss-landscape projection, and a hashed evidence-pack download. It is published as the standalone `agi-page-pytorch-playground` package and intentionally not part of the public `agi-pages` umbrella because `torch` is a heavy runtime dependency.
 
 ## Repository Pages (optional)
 

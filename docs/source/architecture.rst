@@ -22,6 +22,39 @@ The short version is:
 
 Everything else in this page explains who owns each part of that path.
 
+Three-plane mental model
+------------------------
+
+AGILAB is easiest to understand as three planes kept in one releaseable
+monorepo:
+
+.. list-table::
+   :widths: 18 42 40
+   :header-rows: 1
+
+   * - Plane
+     - Owns
+     - Main roots
+   * - Control plane
+     - Product entry points, runtime APIs, environment resolution, worker
+       packaging, and local/distributed execution.
+     - ``src/agilab/core/*``, ``src/agilab/lib/agi-gui``,
+       ``src/agilab/pages``
+   * - Payload plane
+     - Apps, page bundles, templates, notebooks, examples, and PyPI payload
+       umbrellas.
+     - ``src/agilab/apps/builtin``, ``src/agilab/apps-pages``,
+       ``src/agilab/lib/agi-apps``, ``src/agilab/lib/agi-pages``,
+       ``src/agilab/examples``
+   * - Evidence plane
+     - Proof, audits, release contracts, supply-chain evidence, UI robot
+       outputs, docs mirror, and agent/runbook automation.
+     - ``tools``, ``.github``, ``docs/source``, ``.codex``, ``.claude``,
+       ``badges``
+
+This split is deliberate: the same source tree carries the runtime, the
+reusable app/page payloads, and the evidence proving those paths.
+
 .. figure:: diagrams/agilab_global_architecture.svg
    :alt: Global view of AGILAB entry surfaces, project contract, control plane, execution targets, evidence, portability, and guardrails.
    :class: diagram-panel diagram-hero

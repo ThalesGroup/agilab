@@ -490,10 +490,19 @@ def _check_repository_knowledge_report(repo_root: Path) -> dict[str, Any]:
             and int(summary.get("indexed_file_count", 0) or 0) > 50
             and int(summary.get("python_file_count", 0) or 0) > 20
             and int(summary.get("tool_file_count", 0) or 0) > 10
+            and int(summary.get("test_file_count", 0) or 0) > 10
             and int(summary.get("docs_file_count", 0) or 0) > 10
             and int(summary.get("pyproject_count", 0) or 0) >= 8
             and int(summary.get("runbook_count", 0) or 0) >= 3
-            and summary.get("knowledge_map_count") == 4
+            and int(summary.get("total_line_count", 0) or 0) > 0
+            and int(summary.get("python_line_count", 0) or 0) > 0
+            and int(summary.get("docs_line_count", 0) or 0) > 0
+            and int(summary.get("test_line_count", 0) or 0) > 0
+            and int(summary.get("total_size_bytes", 0) or 0) > 0
+            and isinstance(summary.get("kind_counts"), dict)
+            and isinstance(summary.get("kind_line_counts"), dict)
+            and isinstance(summary.get("suffix_counts"), dict)
+            and summary.get("knowledge_map_count") == 5
             and int(summary.get("query_seed_count", 0) or 0) >= 4
             and summary.get("excluded_path_hit_count") == 0
             and summary.get("generated_wiki_source_of_truth") is False
@@ -516,8 +525,8 @@ def _check_repository_knowledge_report(repo_root: Path) -> dict[str, Any]:
         "Repository knowledge index report contract",
         ok,
         (
-            "repository knowledge report indexes code, docs, runbooks, and "
-            "manifests while preserving source-of-truth boundaries"
+            "repository knowledge report indexes code, tests, docs, runbooks, "
+            "manifests, and deterministic stats while preserving source-of-truth boundaries"
             if ok
             else "repository knowledge report is failing or disconnected"
         ),

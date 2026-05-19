@@ -176,6 +176,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "cloud-emulators",
             "ui-robot-contract",
             "ui-robot-canary",
+            "ui-frontend-smoke",
             "ui-robot-matrix",
             "ui-artifact-capture-robot",
             "ui-history-robot",
@@ -299,6 +300,7 @@ def _profile_descriptions() -> dict[str, str]:
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
         "ui-robot-contract": "Validate deterministic UI robot coverage contracts.",
         "ui-robot-canary": "Run deliberate UI robot fault-injection canaries.",
+        "ui-frontend-smoke": "Run a cheap browser/static-asset smoke for the AGILAB Streamlit frontend.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
         "ui-artifact-capture-robot": "Run a small widget robot smoke with trace, HAR, and video artifact capture enabled.",
         "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
@@ -337,6 +339,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-contract": _ui_robot_contract_profile(),
         "ui-robot-canary": _ui_robot_canary_profile(),
+        "ui-frontend-smoke": _ui_frontend_smoke_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
         "ui-artifact-capture-robot": _ui_artifact_capture_robot_profile(),
         "ui-history-robot": _ui_history_robot_profile(),
@@ -359,6 +362,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
 UI_ROBOT_PROFILE_ORDER = (
     "ui-robot-contract",
     "ui-robot-canary",
+    "ui-frontend-smoke",
     "ui-robot-matrix",
     "ui-artifact-capture-robot",
     "ui-history-robot",
@@ -401,13 +405,18 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
                     "ui-trend-robot",
                 }
             )
+        if lower.startswith(("tools/agilab_web_robot.py", "test/test_agilab_web_robot.py")):
+            profiles.add("ui-frontend-smoke")
         if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
             profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
         if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):
             profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(".github/workflows/ci.yml"):
+            profiles.update({"ui-frontend-smoke", "ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
         if lower.startswith(("src/agilab/main_page.py", "src/agilab/pages/", "src/agilab/lib/agi-gui/", "src/agilab/apps-pages/")):
             profiles.update(
                 {
+                    "ui-frontend-smoke",
                     "ui-robot-matrix",
                     "ui-history-robot",
                     "ui-mobile-robot",
@@ -419,10 +428,23 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
                     "ui-trend-robot",
                 }
             )
+        if (
+            lower == "pyproject.toml"
+            or lower.endswith("/pyproject.toml")
+            or lower.startswith((".idea/runconfigurations/", "tools/run_configs/"))
+            or lower
+            in {
+                "tools/generate_runconfig_scripts.py",
+                "tools/generate_vscode_tasks.py",
+                "src/agilab/resources/config.toml",
+                "src/agilab/streamlit_theme_env.py",
+            }
+        ):
+            profiles.add("ui-frontend-smoke")
         if "huggingface" in lower or lower.startswith(("docker/", "spaces/", ".github/workflows/huggingface")):
             profiles.update({"hf-visual-smoke-robot", "hf-install-robot"})
         if lower.startswith(("tools/workflow_parity.py", "test/test_workflow_parity.py")):
-            profiles.update({"ui-robot-contract", "ui-robot-canary"})
+            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-frontend-smoke"})
     if not profiles:
         profiles.add("ui-robot-contract")
     return [profile for profile in UI_ROBOT_PROFILE_ORDER if profile in profiles]
@@ -1351,6 +1373,36 @@ def _ui_robot_canary_profile() -> list[CommandSpec]:
     ]
 
 
+def _ui_frontend_smoke_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui frontend smoke robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_web_robot.py",
+                "--frontend-smoke-only",
+                "--timeout",
+                "45",
+                "--target-seconds",
+                "45",
+                "--json",
+                "--screenshot-dir",
+                "screenshots/ui-frontend-smoke",
+            ],
+            timeout_seconds=5 * 60,
+            remove_paths=["screenshots/ui-frontend-smoke"],
+        )
+    ]
+
+
 def _ui_artifact_capture_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -1909,6 +1961,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "ui-robot-matrix",
         "ui-robot-contract",
         "ui-robot-canary",
+        "ui-frontend-smoke",
         "ui-artifact-capture-robot",
         "ui-history-robot",
         "ui-mobile-robot",

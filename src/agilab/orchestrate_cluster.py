@@ -34,6 +34,9 @@ LAN_UI_TCP_TIMEOUT = 0.15
 LAN_UI_SSH_TIMEOUT = 1
 LAN_UI_MAX_HOSTS = 128
 LAN_UI_PROBE_WORKERS = 32
+CLUSTER_ADVISOR_SCHEMA = "agilab.cluster_advisor.v1"
+CLUSTER_PLAN_FILE = Path(".agilab") / "cluster_plan.json"
+MAX_ADVISED_WORKERS_PER_HOST = 4
 
 
 @dataclass(frozen=True)
@@ -506,6 +509,190 @@ def _lan_discovery_invalid_worker_hosts(cache_path: Path | None = None) -> set[s
     return invalid_hosts
 
 
+def _default_cluster_plan_path(home: Path | str | None = None) -> Path:
+    if home is None:
+        return Path.home() / CLUSTER_PLAN_FILE
+    try:
+        return Path(home).expanduser() / CLUSTER_PLAN_FILE
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return Path.home() / CLUSTER_PLAN_FILE
+
+
+def _load_lan_discovery_payload(cache_path: Path | None = None) -> dict[str, Any]:
+    if cache_path is None:
+        return {}
+    try:
+        payload = json.loads(cache_path.expanduser().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _parse_cpu_cores(value: Any) -> int | None:
+    text = str(value or "")
+    core_match = re.search(r"\bcores?\s*:\s*(\d+)\b", text, flags=re.IGNORECASE)
+    if core_match:
+        return max(1, int(core_match.group(1)))
+    fallback = re.search(r"\b(\d+)\s*(?:cores?|cpu)\b", text, flags=re.IGNORECASE)
+    if fallback:
+        return max(1, int(fallback.group(1)))
+    return None
+
+
+def _parse_ram_gb(value: Any) -> float | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(gb|gib|mb|mib|tb|tib)?", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    amount = float(match.group(1))
+    unit = (match.group(2) or "gb").lower()
+    if unit in {"mb", "mib"}:
+        return amount / 1024.0
+    if unit in {"tb", "tib"}:
+        return amount * 1024.0
+    return amount
+
+
+def _gpu_count(value: Any) -> int:
+    text = str(value or "").strip()
+    if not text:
+        return 0
+    return len([part for part in re.split(r"[;,]+", text) if part.strip()])
+
+
+def _recommended_workers_for_node(node: dict[str, Any], *, scheduler_host: str = "") -> tuple[int, list[str]]:
+    host = str(node.get("host") or "").strip()
+    status = str(node.get("status") or "").strip()
+    reasons: list[str] = []
+    if not _is_lan_autofill_host(host):
+        return 0, ["excluded: host is not a usable LAN worker address"]
+    if status and status not in LAN_READY_STATUSES:
+        return 0, [f"excluded: LAN status is {status}"]
+
+    cores = _parse_cpu_cores(node.get("cpu"))
+    ram_gb = _parse_ram_gb(node.get("ram"))
+    gpus = _gpu_count(node.get("gpu"))
+    if cores is None:
+        cpu_limit = 1
+        reasons.append("CPU core count unknown; using one worker")
+    else:
+        cpu_limit = max(1, min(MAX_ADVISED_WORKERS_PER_HOST, cores // 4))
+        reasons.append(f"CPU budget: {cores} core(s) -> {cpu_limit} worker(s)")
+
+    if ram_gb is None:
+        ram_limit = MAX_ADVISED_WORKERS_PER_HOST
+        reasons.append("RAM unknown; not increasing above CPU budget")
+    else:
+        ram_limit = max(1, min(MAX_ADVISED_WORKERS_PER_HOST, int(ram_gb // 8) or 1))
+        reasons.append(f"RAM budget: {ram_gb:.0f} GB -> {ram_limit} worker(s)")
+
+    gpu_limit = max(1, min(MAX_ADVISED_WORKERS_PER_HOST, gpus)) if gpus else MAX_ADVISED_WORKERS_PER_HOST
+    if gpus:
+        reasons.append(f"GPU budget: {gpus} detected -> {gpu_limit} worker(s)")
+
+    recommended = max(1, min(cpu_limit, ram_limit, gpu_limit, MAX_ADVISED_WORKERS_PER_HOST))
+    if host == scheduler_host:
+        recommended = min(recommended, 1)
+        reasons.append("scheduler host kept to one worker")
+    return recommended, reasons
+
+
+def _cluster_advisor_plan(
+    cache_path: Path | None,
+    cluster_params: dict[str, Any],
+    env: Any,
+) -> dict[str, Any]:
+    payload = _load_lan_discovery_payload(cache_path)
+    defaults = _lan_discovery_cluster_defaults(cache_path) if payload else {}
+    scheduler = str(cluster_params.get("scheduler") or defaults.get("scheduler") or "")
+    scheduler_host = _scheduler_ssh_target_from_cluster_value(scheduler)
+    workers_data_path = str(cluster_params.get("workers_data_path") or defaults.get("workers_data_path") or "")
+    if not workers_data_path:
+        workers_data_path = _env_cluster_share_setting(env) or ""
+    current_workers = _workers_dict(cluster_params.get("workers"))
+    recommendations: dict[str, int] = {}
+    decisions: list[dict[str, Any]] = []
+
+    local_hosts = payload.get("local_hosts")
+    if payload and scheduler_host and _is_lan_autofill_host(scheduler_host):
+        local_node = {
+            "host": scheduler_host,
+            "status": "ready",
+            "sources": ["local-scheduler"],
+            "cpu": "",
+            "ram": "",
+            "gpu": "",
+        }
+        count, reasons = _recommended_workers_for_node(local_node, scheduler_host=scheduler_host)
+        if count:
+            recommendations[scheduler_host] = count
+        decisions.append({**local_node, "recommended_workers": count, "reasons": reasons})
+
+    nodes = payload.get("nodes")
+    if isinstance(nodes, list):
+        for raw_node in nodes:
+            if not isinstance(raw_node, dict):
+                continue
+            host = str(raw_node.get("host") or "").strip()
+            if host == scheduler_host and host in recommendations:
+                continue
+            count, reasons = _recommended_workers_for_node(raw_node, scheduler_host=scheduler_host)
+            if count:
+                recommendations[host] = count
+            decisions.append(
+                {
+                    "host": host,
+                    "status": str(raw_node.get("status") or ""),
+                    "sources": raw_node.get("sources") if isinstance(raw_node.get("sources"), list) else [],
+                    "score": raw_node.get("score"),
+                    "cpu": str(raw_node.get("cpu") or ""),
+                    "ram": str(raw_node.get("ram") or ""),
+                    "gpu": str(raw_node.get("gpu") or ""),
+                    "recommended_workers": count,
+                    "reasons": reasons,
+                }
+            )
+
+    decisions = sorted(
+        decisions,
+        key=lambda item: (0 if item.get("recommended_workers") else 1, str(item.get("host") or "")),
+    )
+    recommendations = dict(sorted(recommendations.items()))
+    status = "ok" if recommendations else ("missing_discovery" if not payload else "no_ready_workers")
+    return {
+        "schema": CLUSTER_ADVISOR_SCHEMA,
+        "mode": "advisor_only",
+        "status": status,
+        "app": str(getattr(env, "app", "") or ""),
+        "cache_path": str(cache_path.expanduser()) if cache_path is not None else "",
+        "source_generated_at": payload.get("generated_at"),
+        "local_hosts": local_hosts if isinstance(local_hosts, list) else [],
+        "scheduler": scheduler,
+        "workers_data_path": workers_data_path,
+        "current_workers": dict(sorted(current_workers.items())),
+        "recommended_workers": recommendations,
+        "summary": {
+            "ready_node_count": len(recommendations),
+            "excluded_node_count": len([item for item in decisions if not item.get("recommended_workers")]),
+            "recommended_total_workers": sum(recommendations.values()),
+            "current_total_workers": sum(current_workers.values()),
+            "max_workers_per_host": MAX_ADVISED_WORKERS_PER_HOST,
+        },
+        "decisions": decisions,
+    }
+
+
+def _write_cluster_advisor_plan(path: Path, plan: dict[str, Any]) -> tuple[bool, str]:
+    try:
+        path.expanduser().parent.mkdir(parents=True, exist_ok=True)
+        path.expanduser().write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return False, str(exc)
+    return True, str(path.expanduser())
+
+
 def _workers_dict(value: Any) -> dict[str, int]:
     if isinstance(value, dict):
         result: dict[str, int] = {}
@@ -592,6 +779,10 @@ def _lan_discovery_clear_key(app_state_name: str) -> str:
     return f"cluster_lan_discovery_clear__{app_state_name}"
 
 
+def _cluster_advisor_plan_key(app_state_name: str) -> str:
+    return f"cluster_advisor_plan__{app_state_name}"
+
+
 def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_run_mode_info: bool = True) -> None:
     app_settings = st.session_state.get("app_settings")
     if not isinstance(app_settings, dict):
@@ -652,7 +843,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
     if cluster_enabled:
         scheduler_widget_key = widget_keys["scheduler"]
         cluster_share_candidate = _env_cluster_share_candidate(env)
-        lan_action_cols = st.columns(2)
+        lan_action_cols = st.columns(3)
         lan_refresh_clicked = bool(
             lan_action_cols[0].button(
                 "Refresh LAN discovery",
@@ -663,10 +854,17 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 ),
             )
         )
+        lan_advisor_clicked = bool(
+            lan_action_cols[1].button(
+                "Build cluster plan",
+                key=_cluster_advisor_plan_key(app_state_name),
+                help="Build an advisory worker-count plan from LAN discovery without changing current settings.",
+            )
+        )
         env_home = _env_home_path(env)
         lan_cache_path = _default_lan_discovery_cache_path(env_home)
         lan_clear_clicked = bool(
-            lan_action_cols[1].button(
+            lan_action_cols[2].button(
                 "Clear LAN cache",
                 key=_lan_discovery_clear_key(app_state_name),
                 help=(
@@ -732,7 +930,29 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             if lan_cache_defaults:
                 st.info("LAN discovery defaults applied.")
             elif not lan_refresh_failed:
-                st.info("LAN discovery produced no usable scheduler/worker defaults. Check local IP/CIDR and SSH prerequisites.")
+                st.info(
+                    "LAN discovery produced no usable scheduler/worker defaults. "
+                    "Check local IP/CIDR and SSH prerequisites."
+                )
+        if lan_advisor_clicked and not lan_clear_clicked:
+            plan = _cluster_advisor_plan(lan_cache_path, cluster_params, env)
+            plan_path = _default_cluster_plan_path(env_home)
+            written, plan_message = _write_cluster_advisor_plan(plan_path, plan)
+            if written:
+                summary = plan.get("summary", {})
+                st.info(
+                    "Cluster plan written: "
+                    f"`{plan_message}` "
+                    f"({summary.get('recommended_total_workers', 0)} recommended worker(s), "
+                    f"{summary.get('excluded_node_count', 0)} excluded node(s))."
+                )
+                if plan.get("recommended_workers"):
+                    st.markdown(
+                        "`recommended_workers = "
+                        f"{json.dumps(plan['recommended_workers'], sort_keys=True)}`"
+                    )
+            else:
+                st.error(f"Could not write cluster plan `{plan_path}`: {plan_message}")
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
         user_widget_key = widget_keys["user"]

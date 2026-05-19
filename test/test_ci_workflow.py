@@ -148,6 +148,12 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
         "uv --preview-features extra-build-dependencies run --extra ui python "
         "tools/first_launch_robot.py --json --output first-launch-robot.json"
     ) in text
+    assert "Install Playwright browser for frontend smoke" in text
+    assert "Validate Streamlit frontend smoke" in text
+    assert "python -m playwright install --with-deps chromium" in text
+    assert "tools/agilab_web_robot.py" in text
+    assert "--frontend-smoke-only" in text
+    assert "frontend-smoke-robot.json" in text
     assert "clean-public-install" in text
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" in text
     assert "tools/install_release_proof_package.py" in text

@@ -622,7 +622,7 @@ def _render_first_proof_wizard_actions(
             "id": str(step["id"]),
             "button": str(step["button"]),
             "hint": str(step["hint"]),
-            "type": "primary" if step["id"] == next_step_id else "secondary",
+            "type": "primary" if step["id"] == next_step_id and step["id"] != "analysis" else "secondary",
         }
         for step in _first_proof_wizard_steps(state)
     ]

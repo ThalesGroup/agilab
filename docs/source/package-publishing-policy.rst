@@ -61,10 +61,14 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-promotion-gate``
 - ``agi-page-feature-attribution``
 - ``agi-page-training-report``
+- ``agi-page-pytorch-playground``
 
 These packages are built as both wheels and source distributions. Their names
 stay app-agnostic because page bundles must be reusable by AGILAB apps and
 exported notebooks.
+``agi-page-pytorch-playground`` is an explicit opt-in teaching page and is not
+included in the ``agi-pages`` umbrella dependency graph because it carries the
+heavier PyTorch runtime.
 
 Published page-bundle umbrella package
 --------------------------------------
@@ -104,6 +108,14 @@ as wheel and source-distribution artifacts and kept in the GitHub Release
 distribution archive until they are explicitly promoted. The payload is staged
 during package build, with local virtual environments, compiled artifacts,
 locks, and generated build outputs excluded.
+
+End users can add a trusted promoted app package to an existing AGILAB UI
+environment from ``PROJECT`` through ``Install PyPI app``. The UI accepts one
+``agi-app-*`` package requirement, installs it into the current Python
+environment with ``uv pip install --python``, and relies on the package's
+``agilab.apps`` entry point for discovery. This does not copy payloads into
+``src/agilab/apps``; ``APPS_REPOSITORY`` remains the source-checkout mechanism
+for external app repositories.
 
 ``mycode_project`` is not published as a separate ``agi-app-*`` distribution.
 It is the single base starter template bundled inside ``agi-apps`` so packaged
@@ -344,6 +356,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-training-report``
+   * - ``agi-page-pytorch-playground``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-pytorch-playground``
    * - ``agi-pages``
      - ``ThalesGroup``
      - ``agilab``
@@ -463,6 +480,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-page-promotion-gate``
 - ``pypi-agi-page-feature-attribution``
 - ``pypi-agi-page-training-report``
+- ``pypi-agi-page-pytorch-playground``
 - ``pypi-agi-pages``
 - ``pypi-agi-app-mission-decision``
 - ``pypi-agi-app-pandas-execution``

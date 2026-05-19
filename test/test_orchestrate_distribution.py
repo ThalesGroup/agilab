@@ -393,12 +393,16 @@ def test_orchestrate_distribution_import_fallback_sets_matplotlib_error():
     module = _load_module_with_missing(
         "agilab.orchestrate_distribution_no_matplotlib",
         "src/agilab/orchestrate_distribution.py",
-        "matplotlib.pyplot",
     )
 
+    def _missing_matplotlib(_name):
+        raise ModuleNotFoundError("matplotlib")
+
+    with pytest.raises(RuntimeError, match="matplotlib unavailable"):
+        module._require_matplotlib(import_module_fn=_missing_matplotlib)
+    assert isinstance(module._MATPLOTLIB_IMPORT_ERROR, ModuleNotFoundError)
     assert module.plt is None
     assert module.Patch is None
-    assert isinstance(module._MATPLOTLIB_IMPORT_ERROR, ModuleNotFoundError)
 
 
 def test_orchestrate_distribution_import_fallback_sets_networkx_error():

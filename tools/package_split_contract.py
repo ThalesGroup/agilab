@@ -60,6 +60,7 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-page-promotion-gate", "src/agilab/apps-pages/view_release_decision"),
     ("agi-page-feature-attribution", "src/agilab/apps-pages/view_shap_explanation"),
     ("agi-page-training-report", "src/agilab/apps-pages/view_training_analysis"),
+    ("agi-page-pytorch-playground", "src/agilab/apps-pages/view_pytorch_playground"),
 )
 
 

@@ -14,6 +14,53 @@ MODULE_PATH = Path("src/agilab/pages/4_ANALYSIS.py")
 STATE_MODULE_PATH = Path("src/agilab/analysis_page_state.py")
 
 
+class _FakeAnalysisTemplateStreamlit:
+    query_params: dict[str, str] = {}
+
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object]] = []
+
+    def set_page_config(self, **kwargs):
+        self.events.append(("set_page_config", kwargs))
+
+    def title(self, value):
+        self.events.append(("title", value))
+
+    def info(self, value):
+        self.events.append(("info", value))
+
+    def error(self, value):
+        self.events.append(("error", value))
+
+    def stop(self):
+        raise RuntimeError("streamlit stop")
+
+    def subheader(self, value):
+        self.events.append(("subheader", value))
+
+    def caption(self, value):
+        self.events.append(("caption", value))
+
+    def warning(self, value):
+        self.events.append(("warning", value))
+
+    def success(self, value):
+        self.events.append(("success", value))
+
+    def write(self, value):
+        self.events.append(("write", value))
+
+    def expander(self, *_args, **_kwargs):
+        class _Context:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+        return _Context()
+
+
 def _load_analysis_module():
     spec = importlib.util.spec_from_file_location("agilab_analysis_page_tests", MODULE_PATH)
     assert spec is not None and spec.loader is not None
@@ -905,15 +952,45 @@ def test_analysis_page_state_handles_invalid_and_unresolved_defaults(tmp_path: P
     assert state_module._resolve_default_view("missing_path", ("missing_path",), {}, {}) == (None, None)
 
 
-def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):
+def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
 
     entrypoint = module._create_analysis_page_bundle(tmp_path, "demo_view", "")
 
     assert entrypoint == tmp_path / "demo_view" / "src" / "demo_view" / "demo_view.py"
     assert entrypoint.exists()
+    assert (tmp_path / "demo_view" / "README.md").is_file()
+    assert (tmp_path / "demo_view" / "src" / "demo_view" / "__init__.py").is_file()
+
+    contract = tomllib.loads((tmp_path / "demo_view" / "agilab.template.toml").read_text(encoding="utf-8"))
+    assert contract["entrypoint"] == "src/demo_view/demo_view.py"
+    assert "src/demo_view/view_demo.py" not in (tmp_path / "demo_view" / "agilab.template.toml").read_text(
+        encoding="utf-8"
+    )
+
+    pyproject = tomllib.loads((tmp_path / "demo_view" / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["name"] == "view-demo-view"
+    dependencies = pyproject["project"]["dependencies"]
+    assert "streamlit>=1.56,<1.57" in dependencies
+    assert any(dependency.startswith("agi-env>=") for dependency in dependencies)
+
     template_text = entrypoint.read_text(encoding="utf-8")
     assert "except (ImportError, ModuleNotFoundError, OSError) as exc" in template_text
+    assert 'PAGE_TITLE = "demo_view"' in template_text
+    assert "src/view_demo/view_demo.py" not in template_text
+    assert 'get_docs_menu_items(html_file="explore-help.html")' in template_text
+
+    fake_streamlit = _FakeAnalysisTemplateStreamlit()
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    spec = importlib.util.spec_from_file_location("generated_demo_view", entrypoint)
+    assert spec is not None and spec.loader is not None
+    generated_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generated_module)
+
+    generated_module.main()
+
+    assert ("title", "demo_view") in fake_streamlit.events
+    assert any(event == "info" and "AGILAB Analysis" in str(value) for event, value in fake_streamlit.events)
 
 
 def test_clone_source_label_falls_back_to_absolute_path(tmp_path: Path):

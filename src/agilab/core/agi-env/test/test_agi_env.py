@@ -1782,7 +1782,7 @@ def test_clone_project_renames_sources_respects_gitignore_and_copies_data(tmp_pa
     (source / "src" / "flight").mkdir(parents=True)
     (source / "src" / "flight_worker").mkdir(parents=True)
     (source / ".venv").mkdir(parents=True)
-    (source / ".gitignore").write_text("ignored.txt\n", encoding="utf-8")
+    (source / ".gitignore").write_text(".venv/\nignored.txt\n", encoding="utf-8")
     (source / "README.md").write_text("flight_telemetry_project uses Flight and flight_worker.\n", encoding="utf-8")
     (source / "ignored.txt").write_text("skip me\n", encoding="utf-8")
     (source / "archive.7z").write_bytes(b"7z")

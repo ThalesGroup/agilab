@@ -15,6 +15,7 @@ from typing import Any, Mapping
 
 SCHEMA = "agilab.repository_knowledge_index.v1"
 RECORD_CACHE_SCHEMA = "agilab.repository_knowledge_record_cache.v1"
+RECORD_SCHEMA = "agilab.repository_knowledge_record.v2"
 DEFAULT_RUN_ID = "repository-knowledge-index-proof"
 CREATED_AT = "2026-04-25T00:00:43Z"
 UPDATED_AT = "2026-04-25T00:00:43Z"
@@ -72,7 +73,10 @@ def _first_heading(text: str) -> str:
 
 
 def _python_outline(path: Path) -> dict[str, Any]:
-    text = _read_text(path)
+    return _python_outline_text(_read_text(path))
+
+
+def _python_outline_text(text: str) -> dict[str, Any]:
     try:
         tree = ast.parse(text)
     except SyntaxError:
@@ -104,6 +108,12 @@ def _python_outline(path: Path) -> dict[str, Any]:
     }
 
 
+def _text_line_count(text: str) -> int:
+    if not text:
+        return 0
+    return len(text.splitlines())
+
+
 def _file_record(
     repo_root: Path,
     path: Path,
@@ -114,17 +124,20 @@ def _file_record(
 ) -> dict[str, Any]:
     stat_result = stat_result or path.stat()
     content_hash = content_hash or _sha256(path)
+    text = _read_text(path)
     record: dict[str, Any] = {
+        "schema": RECORD_SCHEMA,
         "path": _relative(repo_root, path),
         "kind": kind,
         "suffix": path.suffix,
         "size_bytes": stat_result.st_size,
+        "line_count": _text_line_count(text),
         "sha256": content_hash,
     }
     if path.suffix == ".py":
-        record.update(_python_outline(path))
+        record.update(_python_outline_text(text))
     else:
-        record["heading"] = _first_heading(_read_text(path))
+        record["heading"] = _first_heading(text)
     return record
 
 
@@ -196,6 +209,7 @@ def _record_signature(
     content_hash = content_hash or _sha256(path)
     return {
         "repo_root": str(repo_root.resolve()),
+        "schema": RECORD_SCHEMA,
         "path": _relative(repo_root, path),
         "kind": kind,
         "suffix": path.suffix,
@@ -217,7 +231,11 @@ def _cached_record(cache_state: Mapping[str, Any], signature: Mapping[str, Any])
     if not isinstance(record, dict):
         return None
     if (
-        record.get("path") != signature.get("path")
+        record.get("schema") != signature.get("schema")
+        or record.get("line_count") is None
+        or not isinstance(record.get("line_count"), int)
+        or int(record.get("line_count", 0) or 0) < 0
+        or record.get("path") != signature.get("path")
         or record.get("kind") != signature.get("kind")
         or record.get("suffix") != signature.get("suffix")
         or record.get("size_bytes") != signature.get("size")
@@ -253,6 +271,7 @@ def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[
     scan_roots = [
         ("package_source", repo_root / "src" / "agilab"),
         ("tool", repo_root / "tools"),
+        ("test", repo_root / "test"),
         ("official_docs", repo_root / "docs" / "source"),
     ]
     seen: set[Path] = set()
@@ -262,7 +281,7 @@ def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[
                 continue
             if kind == "official_docs" and path.suffix not in DOC_SUFFIXES:
                 continue
-            if kind in {"package_source", "tool"} and path.suffix not in CODE_SUFFIXES:
+            if kind in {"package_source", "tool", "test"} and path.suffix not in CODE_SUFFIXES:
                 continue
             records.append(
                 _record_with_cache(
@@ -336,6 +355,12 @@ def _knowledge_maps(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "source_of_truth": False,
         },
         {
+            "id": "test_index",
+            "label": "Root regression test index",
+            "record_count": counts.get("test", 0),
+            "source_of_truth": False,
+        },
+        {
             "id": "package_manifests",
             "label": "Package and app manifest index",
             "record_count": counts.get("package_manifest", 0),
@@ -348,6 +373,33 @@ def _knowledge_maps(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "source_of_truth": False,
         },
     ]
+
+
+def _record_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
+    kind_counts: dict[str, int] = {}
+    kind_line_counts: dict[str, int] = {}
+    suffix_counts: dict[str, int] = {}
+    total_size_bytes = 0
+    total_line_count = 0
+
+    for record in records:
+        kind = str(record.get("kind", "") or "unknown")
+        suffix = str(record.get("suffix", "") or "[no extension]")
+        line_count = int(record.get("line_count", 0) or 0)
+        size_bytes = int(record.get("size_bytes", 0) or 0)
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        kind_line_counts[kind] = kind_line_counts.get(kind, 0) + line_count
+        suffix_counts[suffix] = suffix_counts.get(suffix, 0) + 1
+        total_line_count += line_count
+        total_size_bytes += size_bytes
+
+    return {
+        "kind_counts": dict(sorted(kind_counts.items())),
+        "kind_line_counts": dict(sorted(kind_line_counts.items())),
+        "suffix_counts": dict(sorted(suffix_counts.items())),
+        "total_line_count": total_line_count,
+        "total_size_bytes": total_size_bytes,
+    }
 
 
 def _query_seeds() -> list[dict[str, str]]:
@@ -388,10 +440,9 @@ def build_repository_knowledge_index(
     excluded_path_hits = [
         path for path in indexed_paths if any(part in Path(path).parts for part in EXCLUDED_PARTS)
     ]
-    kind_counts: dict[str, int] = {}
-    for record in records:
-        kind = str(record.get("kind", ""))
-        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+    stats = _record_stats(records)
+    kind_counts = stats["kind_counts"]
+    kind_line_counts = stats["kind_line_counts"]
     knowledge_maps = _knowledge_maps(records)
     query_seeds = _query_seeds()
     issues = []
@@ -415,12 +466,33 @@ def build_repository_knowledge_index(
     summary = {
         "execution_mode": "repository_knowledge_static_index",
         "indexed_file_count": len(records),
-        "python_file_count": kind_counts.get("package_source", 0)
+        "source_file_count": kind_counts.get("package_source", 0),
+        "code_file_count": kind_counts.get("package_source", 0)
         + kind_counts.get("tool", 0),
+        "python_file_count": kind_counts.get("package_source", 0)
+        + kind_counts.get("tool", 0)
+        + kind_counts.get("test", 0),
         "tool_file_count": kind_counts.get("tool", 0),
+        "test_file_count": kind_counts.get("test", 0),
         "docs_file_count": kind_counts.get("official_docs", 0),
         "pyproject_count": kind_counts.get("package_manifest", 0),
         "runbook_count": kind_counts.get("runbook", 0),
+        "total_line_count": stats["total_line_count"],
+        "source_line_count": kind_line_counts.get("package_source", 0),
+        "code_line_count": kind_line_counts.get("package_source", 0)
+        + kind_line_counts.get("tool", 0),
+        "python_line_count": kind_line_counts.get("package_source", 0)
+        + kind_line_counts.get("tool", 0)
+        + kind_line_counts.get("test", 0),
+        "tool_line_count": kind_line_counts.get("tool", 0),
+        "test_line_count": kind_line_counts.get("test", 0),
+        "docs_line_count": kind_line_counts.get("official_docs", 0),
+        "pyproject_line_count": kind_line_counts.get("package_manifest", 0),
+        "runbook_line_count": kind_line_counts.get("runbook", 0),
+        "total_size_bytes": stats["total_size_bytes"],
+        "kind_counts": stats["kind_counts"],
+        "kind_line_counts": stats["kind_line_counts"],
+        "suffix_counts": stats["suffix_counts"],
         "knowledge_map_count": len(knowledge_maps),
         "query_seed_count": len(query_seeds),
         "excluded_root_count": len(EXCLUDED_PARTS),

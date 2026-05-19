@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import tomllib
 from types import SimpleNamespace
 
 import pytest
@@ -615,3 +616,13 @@ def test_repository_analysis_page_template_is_complete() -> None:
     assert template.contract.package_name_pattern == "view-{page_slug}"
     assert (template.root_path / template.contract.entrypoint).is_file()
     assert missing_required_files(template.root_path, template.contract) == ()
+
+    pyproject = tomllib.loads((template.root_path / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = pyproject["project"]["dependencies"]
+    assert pyproject["project"]["requires-python"] == ">=3.11"
+    assert "streamlit>=1.56,<1.57" in dependencies
+    assert any(dependency.startswith("agi-env>=") for dependency in dependencies)
+
+    entrypoint_text = (template.root_path / template.contract.entrypoint).read_text(encoding="utf-8")
+    assert "def get_docs_menu_items" in entrypoint_text
+    assert "--active-app" in entrypoint_text

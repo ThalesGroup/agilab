@@ -350,6 +350,15 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
+For a trusted app project published as a PyPI ``agi-app-*`` package, open the
+``PROJECT`` page, expand ``Install PyPI app``, enter the package name, confirm
+that the package was reviewed, and click ``Install PyPI app``. AGILAB installs the
+package into the current Python environment with ``uv pip install --python`` and
+then the app is discovered through the package's ``agilab.apps`` entry point.
+Refresh ``PROJECT`` or restart AGILAB if the new project is not listed
+immediately. This PyPI path is separate from ``APPS_REPOSITORY``, which remains
+the source-checkout route for external app repositories.
+
 Shared or team adoption check
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

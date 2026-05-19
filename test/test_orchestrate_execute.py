@@ -92,8 +92,13 @@ def test_collect_candidate_roots_deduplicates_paths(tmp_path):
 def test_orchestrate_execute_import_records_missing_matplotlib():
     fallback = _load_orchestrate_execute_with_missing_matplotlib()
 
-    assert fallback.plt is None
+    def _missing_matplotlib(_name):
+        raise ModuleNotFoundError("matplotlib")
+
+    with pytest.raises(RuntimeError, match="matplotlib unavailable"):
+        fallback._require_matplotlib(import_module_fn=_missing_matplotlib)
     assert isinstance(fallback._MATPLOTLIB_IMPORT_ERROR, ModuleNotFoundError)
+    assert fallback.plt is None
 
 
 def test_collect_candidate_roots_expands_relative_paths_from_home(monkeypatch, tmp_path):

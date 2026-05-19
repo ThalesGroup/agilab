@@ -43,6 +43,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "applies page-local user choices; generic robots verify visibility without firing the callback",
     ),
+    "Build cluster plan": (
+        "trial-only",
+        "writes advisory LAN discovery output; focused cluster tests cover the planning logic without mutating user settings",
+    ),
     "Clear LAN cache": (
         "trial-only",
         "clears local discovery cache; safe to render, but not a selected release action",
@@ -66,6 +70,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Import": (
         "trial-only",
         "project import is probed through PROJECT import scenarios without firing archive import",
+    ),
+    "Install PyPI app": (
+        "trial-only",
+        "installs a reviewed external app package; helper tests cover command construction without mutating the environment",
     ),
     "Overwrite": (
         "ignored",
