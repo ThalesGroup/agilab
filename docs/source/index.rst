@@ -119,7 +119,6 @@ references, and example projects.
    Package publishing policy <package-publishing-policy>
    Framework submodule contract <framework-submodule-contract>
    Module reference <modules>
-   Beta readiness <beta-readiness>
    Strategic potential <strategic-potential>
    Licenses <license>
 
