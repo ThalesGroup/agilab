@@ -40,6 +40,14 @@ Use this skill when working on:
   - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
 - Apps/pages install only:
   - `cd src/agilab && ./install_apps.sh --test-apps`
+- PyPI app package management:
+  - Use the PROJECT page `Install PyPI app` flow or the CLI
+    `agilab app search/check/install/list/update/remove` for promoted public
+    `agi-app-*` packages.
+  - This installs into the active Python environment with `uv pip install --python`;
+    discovery is via `agilab.apps` entry points, not copied source directories.
+  - Keep `APPS_REPOSITORY` for source-checkout app repositories and symlinked local
+    app development; do not mix it with the PyPI app-package path.
 
 ## Installer test switches
 
@@ -78,6 +86,17 @@ Use this skill when working on:
     `AGILAB_WINDOWS_NET_USE_PASSWORD` are configured; `AGILAB_WINDOWS_NET_USE_DRIVE`
     can override the default drive letter. Missing credentials are a supported
     skip path, not an install failure by themselves.
+
+- **PyPI app package installs**
+  - Preflight a promoted app package before installing it from the UI or CLI.
+    Check Python compatibility, wheel/sdist availability, advertised entry
+    points, hashes, and provenance/signature metadata when available.
+  - If a PyPI app install succeeds but the PROJECT page does not list the app,
+    inspect the installed package's `agilab.apps` entry points before adding
+    source-repository aliases.
+  - Treat local repository apps and PyPI app packages as different sources of
+    truth. Fix the app package metadata or publish target when the package is
+    stale; do not copy payloads into `src/agilab/apps` to paper over it.
 
 - **Source checkout still resolves end-user install paths**
   - Symptom: after running from a source checkout, ORCHESTRATE or the first page reports
