@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-18
+  updated: 2026-05-19
 ---
 
 # Testing Skill (AGILAB)
@@ -44,6 +44,10 @@ Use this skill when validating changes.
 - If several workflow parity profiles are required, run each required profile
   once. Prefer a single command with repeated `--profile` arguments when the
   tool supports it.
+- When validating a follow-up branch after prior squash merges, compare the
+  actual content diff with `git diff origin/main..HEAD`, not only commit counts.
+  Squash merges can make a branch look many commits ahead even when most content
+  is already on `main`.
 
 ## Regression Hygiene
 
@@ -159,12 +163,25 @@ Use this skill when validating changes.
     the current diff, keep the narrow changed-file tests green and report the
     exact unrelated failing test. Do not patch unrelated pages just to clear a
     broad profile unless the user approves that scope.
+  - If a broad validation suddenly reports `SyntaxError` on conflict markers,
+    check the current files with `rg -n "^(<<<<<<<|=======|>>>>>>>)" ...` before
+    editing. A concurrent merge/fetch can leave one run looking at half-updated
+    files; if the marker scan is clean, rerun the same targeted slice from the
+    current checkout before treating the failure as a code regression.
 - Concurrent workspace interference:
   - When another session or long-running workflow can rewrite files, re-check
     `git diff` for the touched files before final validation.
   - If your changes disappeared or were rewritten, reapply only your intended
     patch, rerun the narrow affected tests, and call out the interference rather
     than silently assuming the old validation still applies.
+- PR merge validation:
+  - Treat GitHub `mergeStateStatus=UNSTABLE` as pending-or-failing until the
+    check rollup is inspected. If required checks are still running and local
+    targeted validation is green, prefer arming auto-merge and watching checks
+    over bypassing branch protection.
+  - After auto-merge, verify the PR is `MERGED`, record the merge commit, confirm
+    required checks completed successfully, and fetch/prune before claiming the
+    branch was deleted.
 
 ## Common Commands
 

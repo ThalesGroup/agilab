@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-17
+  updated: 2026-05-19
 ---
 
 # AGILab runbook (Agent Skill)
@@ -85,6 +85,20 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`
   On Windows PowerShell:
   `($d = "$HOME\log\install_logs"); $f = Get-ChildItem -LiteralPath $d -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Host "Log:" $f.FullName; Select-String -LiteralPath $f.FullName -Pattern '(?i)(error|exception|traceback|failed|fatal|denied|missing|not found)' | Select-Object -Last 25 | ForEach-Object { $_.Line } } else { Write-Host "No logs found." }`
+- **Windows compatibility contract**: distinguish native Windows package support from source-checkout
+  convenience. The released package CLI first-proof and `repo-guardrails` clean install matrix are
+  expected to work on Windows. The source checkout installer still includes POSIX shell paths, so
+  prefer WSL2 for that path unless the task explicitly targets `install.ps1` or native Windows
+  parity. Do not remove the Windows classifier only because a source `install.sh` path needs WSL2.
+- **Windows process and path handling**: when touching Streamlit sidecars or app/page launch helpers,
+  prefer argv-list commands with `shell=False`; avoid POSIX-only `shlex.quote` strings for commands
+  that may run on Windows. For clone/app-repository links, allow Windows directory junction fallback
+  when symlink creation is denied, and treat missing link privileges as a recoverable condition
+  where possible.
+- **Windows network shares**: never hard-code placeholder `net use` credentials. `BaseWorker` should
+  attempt network-drive mapping only when `AGILAB_WINDOWS_NET_USE_USER` and
+  `AGILAB_WINDOWS_NET_USE_PASSWORD` are set, with `AGILAB_WINDOWS_NET_USE_DRIVE` optionally selecting
+  the drive letter. Missing credentials should skip mapping with an informational log.
 - **Clone policy**: in the PROJECT page, keep two clone classes explicit:
   - temporary clones may share the source `.venv` by symlink for lightweight local experiments
   - working clones should detach `.venv` and rerun `INSTALL` before `EXECUTE`

@@ -86,6 +86,30 @@ for name in ["agilab", "agi-core"]:
 PY
 ```
 
+## Explaining Two Visible Releases
+
+When a user asks why there are still "two branches on PyPI", translate that
+first: PyPI does not expose Git branches; it exposes project release versions.
+Two visible entries usually means one current protected release plus one stale
+older release.
+
+Check live PyPI JSON before answering. If selected packages now show one visible
+release, say that clearly and do not propose deletion. If some packages still
+show two or more visible releases, explain the most likely causes:
+
+- Trusted Publishing/OIDC can upload files but cannot delete old releases.
+- Release deletion uses PyPI web-management credentials and may be blocked by
+  2FA, unrecognized-login confirmation, CSRF/form changes, or PyPI cache delay.
+- The AGILAB workflow records stale releases as a retention warning when PyPI
+  deletion is operationally blocked, instead of invalidating otherwise complete
+  release assets and Hugging Face sync.
+- With split-package versioning, retention protects each selected package's own
+  project version from the release-plan metadata. Do not assume every package
+  must share the umbrella `agilab` version before deciding what is stale.
+
+Only move to cleanup after verifying the exact stale version, the affected
+package list, and the protected version that must remain.
+
 ## Exact Old-Version Deletion
 
 Use this when the user identifies a specific stale version that should disappear
