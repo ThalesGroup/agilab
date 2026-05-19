@@ -203,11 +203,13 @@ preview validation, but those rehearsals are not the source of truth for a real
 final release.
 
 After PyPI provenance passes, the release workflow attempts to keep one retained
-PyPI release per selected PyPI project. ``tools/pypi_release_retention.py`` first
-confirms that the current committed release version is visible, then tries to
-delete older releases before GitHub release assets are published. This is a
-destructive PyPI web-management operation, separate from Trusted Publishing, so
-the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
+PyPI release per selected PyPI project. ``tools/pypi_release_retention.py`` reads
+the selected release-plan projects, confirms that each package's own committed
+project version is visible, then tries to delete older releases before GitHub
+release assets are published. This allows split packages to advance
+independently while keeping retention from deleting another package's current
+version. This is a destructive PyPI web-management operation, separate from
+Trusted Publishing, so the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
 ``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
 authentication can use non-interactive authentication through
 ``PYPI_RELEASE_PRUNE_TOTP_SECRET``. ``PYPI_RELEASE_PRUNE_OTP`` exists only as a
@@ -218,7 +220,7 @@ validated. PyPI may require unrecognized-login email confirmation from the same
 IP address before accepting destructive web-management actions, so GitHub-hosted
 runners cannot guarantee automated deletion; use a self-hosted/static-IP runner
 or manual cleanup from a confirmed device when strict one-release retention is
-required. A missing current version remains a hard failure.
+required. A missing selected package version remains a hard failure.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror

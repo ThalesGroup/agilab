@@ -144,8 +144,18 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "uses: pypa/gh-action-pypi-publish@" in text
     assert "# release/v1" in text
     assert "tools/pypi_distribution_state.py" in text
+    assert "Check whether ${{ matrix.package }} can reuse PyPI artifacts" in text
+    assert "id: library-pypi-reuse" in text
+    assert "--project \"${{ matrix.project }}\"" in text
+    assert "--download-dir \"${{ matrix.dist }}\"" in text
+    assert "steps.library-pypi-reuse.outputs.all-exist != 'true'" in text
     assert "steps.library-pypi-state.outputs.all-exist != 'true'" in text
     assert "matrix.publish_to_pypi == 'true'" in text
+    assert "Check whether agilab can reuse PyPI artifacts" in text
+    assert "id: agilab-pypi-reuse" in text
+    assert "--project ." in text
+    assert "--download-dir dist" in text
+    assert "steps.agilab-pypi-reuse.outputs.all-exist != 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
@@ -245,7 +255,10 @@ def test_pypi_publish_prunes_previous_pypi_releases_before_release_assets() -> N
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--allow-delete-failure-warning" in text
-    assert "--protect-version \"$current_version\"" in text
+    assert "--protect-versions-from-projects" in text
+    assert "--repo-root ." in text
+    assert "--protect-version \"$current_version\"" not in text
+    assert "root pyproject.toml has no project version" not in text
     assert "needs.pypi-release-retention.result == 'success'" in text
     assert "      - pypi-release-retention" in text
 

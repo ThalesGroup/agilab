@@ -264,6 +264,27 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--artifact-policy \"${{ matrix.artifact_policy }}\"": (
             "artifact verification must use the generated artifact policy"
         ),
+        "Check whether ${{ matrix.package }} can reuse PyPI artifacts": (
+            "library packages must check for reusable PyPI artifacts before building"
+        ),
+        "--project \"${{ matrix.project }}\"": (
+            "library PyPI reuse checks must read package metadata from the generated project path"
+        ),
+        "steps.library-pypi-reuse.outputs.all-exist != 'true'": (
+            "library build and upload steps must skip packages that already exist on PyPI"
+        ),
+        "Check whether agilab can reuse PyPI artifacts": (
+            "umbrella package must check for reusable PyPI artifacts before building"
+        ),
+        "steps.agilab-pypi-reuse.outputs.all-exist != 'true'": (
+            "umbrella build and upload steps must skip when artifacts already exist on PyPI"
+        ),
+        "--download-dir \"${{ matrix.dist }}\"": (
+            "library reuse checks must materialize existing PyPI artifacts for release assets"
+        ),
+        "--download-dir dist": (
+            "umbrella reuse checks must materialize existing PyPI artifacts for release assets"
+        ),
         "matrix.publish_to_pypi == 'true'": (
             "PyPI upload steps must be gated by the generated publish flag"
         ),
@@ -281,6 +302,12 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "POST_RELEASE_REASON": "workflow must pass the .postN hotfix justification to the policy gate",
         "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
         "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
+        "--protect-versions-from-projects": (
+            "PyPI release retention must protect each selected package's own project version"
+        ),
+        "--repo-root .": (
+            "PyPI release retention must read selected project versions from the checked-out repo"
+        ),
         "PYPI_RELEASE_PRUNE_PASSWORD": (
             "workflow must keep PyPI release pruning credentials separate from OIDC upload"
         ),

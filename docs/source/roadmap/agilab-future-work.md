@@ -83,6 +83,11 @@ Concrete items:
   equivalent to its packaged example
 - keep PyPI, GitHub release proof, public docs, and Hugging Face demo text
   aligned before publication
+- keep the package-aware `pypi-publish` reuse gate healthy: detect expected
+  wheel/sdist artifacts before build, skip build, Trusted Publishing auth, and
+  upload when PyPI already exposes them, download reused files back into the
+  GitHub Release distribution bundle, and record their hashes in release
+  distribution evidence
 - fail fast on local-path, stale-worker, missing-share, or stale-app-repository
   states instead of silently degrading
 
@@ -290,6 +295,8 @@ Acceptance gate:
   checkout
 - the release proof names the exact version, validation routes, and known
   non-certified environments
+- the publish workflow shows which split packages were uploaded and which were
+  intentionally reused because their wheel/sdist artifacts were unchanged
 - no manual release note, README, public docs page, or demo copy contradicts the
   package that was published
 

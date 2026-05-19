@@ -290,10 +290,26 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
+      - name: Check whether ${{ matrix.package }} can reuse PyPI artifacts
+        id: library-pypi-reuse
+        if: matrix.publish_to_pypi == 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --package "${{ matrix.package }}" \
+            --project "${{ matrix.project }}" \
+            --artifact-policy "${{ matrix.artifact_policy }}" \
+            --github-output "$GITHUB_OUTPUT" \
+            --output-dir "test-results/release-artifacts/${{ matrix.package }}" \
+            --output-prefix "${{ matrix.package }}" \
+            --download-dir "${{ matrix.dist }}"
+
       - name: Clean previous ${{ matrix.package }} build
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
         run: rm -rf "${{ matrix.dist }}"
 
       - name: Build ${{ matrix.package }}
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           if [ "${{ matrix.artifact_policy }}" = "wheel-only" ]; then
@@ -303,9 +319,11 @@ jobs:
           fi
 
       - name: Verify ${{ matrix.package }}
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
         run: twine check "${{ matrix.dist }}"/*
 
       - name: Record ${{ matrix.package }} release artifact hashes
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/release_artifact_manifest.py \
@@ -317,6 +335,7 @@ jobs:
 
       - name: Check whether ${{ matrix.package }} distributions already exist on PyPI
         id: library-pypi-state
+        if: matrix.publish_to_pypi == 'true' && steps.library-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_distribution_state.py \
@@ -346,7 +365,7 @@ jobs:
           retention-days: 90
 
       - name: Ensure PyPI auth is configured for library packages
-        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -357,7 +376,7 @@ jobs:
           exit 2
 
       - name: Report trusted publisher claim for ${{ matrix.package }}
-        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_trusted_publisher_contract.py \
@@ -367,7 +386,7 @@ jobs:
       # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
       # project a distinct GitHub environment claim.
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
-        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: ${{ matrix.dist }}
@@ -405,22 +424,40 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
+      - name: Check whether agilab can reuse PyPI artifacts
+        id: agilab-pypi-reuse
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --package agilab \
+            --project . \
+            --artifact-policy wheel+sdist \
+            --github-output "$GITHUB_OUTPUT" \
+            --output-dir test-results/release-artifacts/agilab \
+            --output-prefix agilab \
+            --download-dir dist
+
       - name: Clean previous builds
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: rm -rf dist
 
       - name: Remove symlinks (apps/ and views/)
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         shell: bash
         run: |
           set -euxo pipefail
           find src/agilab/apps src/agilab/views -type l -print -delete || true
 
       - name: Build agilab
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: uv --preview-features extra-build-dependencies build
 
       - name: Verify agilab
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: twine check dist/*
 
       - name: Record agilab release artifact hashes
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/release_artifact_manifest.py \
@@ -432,6 +469,7 @@ jobs:
 
       - name: Check whether agilab distribution already exists on PyPI
         id: agilab-pypi-state
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_distribution_state.py \
@@ -449,7 +487,7 @@ jobs:
           retention-days: 90
 
       - name: Ensure PyPI auth is configured for agilab
-        if: steps.agilab-pypi-state.outputs.all-exist != 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -460,7 +498,7 @@ jobs:
           exit 2
 
       - name: Report trusted publisher claim for agilab
-        if: steps.agilab-pypi-state.outputs.all-exist != 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_trusted_publisher_contract.py \
@@ -468,7 +506,7 @@ jobs:
             --github-step-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Publish agilab to PyPI with trusted publishing
-        if: steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: dist/
@@ -630,20 +668,10 @@ jobs:
       - name: Delete older PyPI releases and keep the current release only
         run: |
           set -euxo pipefail
-          current_version="$(python - <<'PY'
-          import re
-          from pathlib import Path
-
-          text = Path("pyproject.toml").read_text(encoding="utf-8")
-          match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-          if not match:
-              raise SystemExit("root pyproject.toml has no project version")
-          print(match.group(1))
-          PY
-          )"
           args=(
             --repo pypi
-            --protect-version "$current_version"
+            --repo-root .
+            --protect-versions-from-projects
             --confirm-delete
             --allow-delete-failure-warning
             --json
