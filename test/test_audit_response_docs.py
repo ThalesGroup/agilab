@@ -50,10 +50,10 @@ def test_compatibility_matrix_promotes_clean_package_install_evidence() -> None:
     assert "--first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json" in docs
 
 
-def test_demo_page_keeps_three_generic_demo_routes() -> None:
+def test_demo_page_keeps_generic_demo_routes() -> None:
     demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
 
-    assert "Four short demos" in demos
+    assert "Short demo routes" in demos
     assert "Local app proof" in demos
     assert "Distributed worker route" in demos
     assert "MLflow tracking route" in demos
@@ -172,7 +172,9 @@ def test_adoption_guide_uses_current_first_proof_wizard() -> None:
 
 def test_quick_start_documents_security_adoption_checkpoint() -> None:
     quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
-    beta_readiness = (DOCS_SOURCE / "beta-readiness.rst").read_text(encoding="utf-8")
+    security_adoption = (DOCS_SOURCE / "security-adoption.rst").read_text(
+        encoding="utf-8"
+    )
 
     assert "Shared or team adoption check" in quick_start
     assert ":doc:`security-adoption`" in quick_start
@@ -181,9 +183,9 @@ def test_quick_start_documents_security_adoption_checkpoint() -> None:
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in quick_start
     assert "workflow_parity.py --profile security-adoption" in quick_start
     assert "AGILAB_SECURITY_CHECK_STRICT=1" in quick_start
-    assert "test-results/security-check.json" in beta_readiness
-    assert "using the ``shared`` adoption profile" in beta_readiness
-    assert "AGILAB_SECURITY_CHECK_STRICT=1" in beta_readiness
+    assert "security-check.json" in security_adoption
+    assert "security-check --profile shared" in security_adoption
+    assert "AGILAB_SECURITY_CHECK_STRICT=1" in security_adoption
 
 
 def test_readme_uses_recommended_workbench_positioning() -> None:
@@ -225,9 +227,11 @@ def test_proof_capsule_direction_is_explicit_without_fake_cli_claims() -> None:
     assert "SBOM" in combined
     assert "pip-audit" in combined
     assert "wheel hashes" in combined
-    assert "roadmap targets, not\npublished CLI commands today" in readme
-    assert "not yet shipped\nas one archive file or one ``agilab prove`` command" in docs_page
-    assert "define the proof capsule schema before adding a public `.agipack` archive" in roadmap
+    assert "The first public proof-pack layer now adds" in readme
+    assert "A signed `.agipack` archive" in readme
+    assert "remain roadmap work" in readme
+    assert "directory of plain JSON evidence, not yet a signed ``.agipack`` archive" in docs_page
+    assert "operate on `run_manifest.json` and write plain JSON" in roadmap
 
 
 def test_quick_start_documents_public_install_tiers() -> None:
