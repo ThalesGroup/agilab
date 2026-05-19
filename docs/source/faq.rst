@@ -144,6 +144,100 @@ WORKFLOW pipeline and writes a runnable notebook that preserves the saved stage
 contract. Import helps you enter AGILAB; export helps you leave or hand off the
 work without losing it.
 
+Packages, apps, and release evidence
+------------------------------------
+
+Which install surface should I choose?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Choose the smallest public surface that matches the task:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Need
+     - Install surface
+   * - CLI proof and compact runtime
+     - ``agilab``
+   * - Local Streamlit UI with public app and page catalogs
+     - ``agilab[ui]``
+   * - Packaged examples and notebooks without the full UI profile
+     - ``agilab[examples]``
+   * - Page-bundle discovery for notebook/app handoff
+     - ``agilab[pages]``
+   * - Notebook/API-only use
+     - ``agi-core``
+   * - Optional MLflow, agents, or local LLM stacks
+     - Add the matching optional extra only when that feature is used.
+
+The base package is intentionally small compared with the full UI/demo stack,
+but it still installs the core execution meta-package ``agi-core``. That means
+``agi-env``, ``agi-node``, and ``agi-cluster`` are present as runtime building
+blocks even when you run locally. Installing those packages does not mean the
+first proof uses a remote cluster; cluster execution remains opt-in.
+
+Why are apps and pages separate packages?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AGILAB separates three concerns:
+
+- the root ``agilab`` package exposes the top-level CLI and curated extras
+- ``agi-apps`` and ``agi-pages`` expose catalog/provider surfaces
+- ``agi-app-*`` and ``agi-page-*`` payload packages carry individual apps or
+  reusable analysis page bundles
+
+This keeps the top-level package from embedding every demo, page, notebook, and
+UI asset directly. It also lets a promoted app or page be published, inspected,
+installed, updated, or removed without requiring a full AGILAB runtime release
+when the runtime did not change.
+
+Page bundles must stay app-agnostic. A page package should describe the
+generic analysis capability it provides, not the first project that used it.
+That is why page names such as ``agi-page-training-report`` or
+``agi-page-feature-attribution`` are preferred over project-specific names.
+
+Do app and page versions always match the AGILAB version?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Runtime components, bundle packages, and payload packages have different
+versioning responsibilities:
+
+- runtime components such as ``agi-env``, ``agi-node``, ``agi-cluster``, and
+  ``agi-gui`` version the implementation they carry
+- bundle packages such as ``agilab``, ``agi-core``, ``agi-apps``, and
+  ``agi-pages`` version the curated dependency graph they expose
+- app and page payload packages version the payload they carry
+
+Bundle packages exact-pin the curated component graph for reproducible
+installs. Payload packages should normally declare compatible AGILAB runtime
+ranges so an unchanged app or page does not need to be republished for every
+runtime patch. Release proof ties the selected public packages back to one
+documented release decision.
+
+What does a proof pack mean today?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The shipped proof-pack layer is JSON-first. It starts from
+``run_manifest.json`` and related evidence files, then uses commands such as
+``agilab prove``, ``verify``, ``replay``, ``export-lineage``,
+``policy-check``, ``cards``, and ``metadata-store`` to make the run evidence
+inspectable and replayable.
+
+Signed archive formats, stronger third-party attestations, and richer portable
+capsules are roadmap work unless a release proof explicitly links the shipped
+implementation. Treat current proof-pack evidence as structured local/release
+evidence, not as independent external certification.
+
+Why does PyPI sometimes show several AGILAB packages for one release?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AGILAB publishes a package family because app workers, notebooks, the web UI,
+page bundles, and release validation need to resolve the same public dependency
+graph outside a source checkout. The user-facing entry points remain
+``agilab`` and ``agi-core``; the other public packages make that graph
+reproducible for workers, UI pages, app payloads, and release evidence.
+
 Runtime and cluster behavior
 ----------------------------
 
