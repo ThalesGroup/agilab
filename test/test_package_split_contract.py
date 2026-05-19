@@ -91,6 +91,39 @@ def test_package_contract_matches_pyproject_names_paths_and_roles() -> None:
         assert data["project"]["version"]
 
 
+def test_page_package_pyprojects_declare_pypi_discoverability_metadata() -> None:
+    required_keywords = {
+        "agilab",
+        "thalesgroup",
+        "streamlit",
+        "page-bundle",
+        "reproducibility",
+    }
+    required_url_keys = {
+        "Documentation",
+        "Source",
+        "Issues",
+        "Homepage",
+        "Repository",
+        "Discussions",
+        "Changelog",
+    }
+
+    for pyproject in sorted((REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml")):
+        data = _load_toml(pyproject)
+        project = data["project"]
+        package_name = project["name"]
+        keywords = {str(keyword).lower() for keyword in project.get("keywords", [])}
+        urls = project.get("urls", {})
+
+        assert required_keywords <= keywords, package_name
+        assert required_url_keys <= set(urls), package_name
+        assert urls["Documentation"] == "https://thalesgroup.github.io/agilab"
+        assert urls["Repository"] == "https://github.com/ThalesGroup/agilab"
+        assert urls["Homepage"] == "https://github.com/ThalesGroup/agilab"
+        assert urls["Source"].endswith(f"/{pyproject.parent.name}"), package_name
+
+
 def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
     versions = {
         package.name: _load_toml(pyproject_path(REPO_ROOT, package))["project"]["version"]
