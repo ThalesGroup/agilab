@@ -174,6 +174,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "security-adoption",
             "production-readiness",
             "cloud-emulators",
+            "github-ai-scraper",
             "ui-robot-contract",
             "ui-robot-canary",
             "ui-frontend-smoke",
@@ -298,6 +299,7 @@ def _profile_descriptions() -> dict[str, str]:
             "evidence, hardening guardrails, and docs parity."
         ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
+        "github-ai-scraper": "Run the opt-in static external discoverability check for github-ai-scraper.",
         "ui-robot-contract": "Validate deterministic UI robot coverage contracts.",
         "ui-robot-canary": "Run deliberate UI robot fault-injection canaries.",
         "ui-frontend-smoke": "Run a cheap browser/static-asset smoke for the AGILAB Streamlit frontend.",
@@ -337,6 +339,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "security-adoption": _security_adoption_profile(),
         "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
+        "github-ai-scraper": _github_ai_scraper_profile(),
         "ui-robot-contract": _ui_robot_contract_profile(),
         "ui-robot-canary": _ui_robot_canary_profile(),
         "ui-frontend-smoke": _ui_frontend_smoke_profile(),
@@ -1298,6 +1301,28 @@ def _cloud_emulators_profile() -> list[CommandSpec]:
     ]
 
 
+def _github_ai_scraper_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="github-ai-scraper static discoverability",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/github_ai_scraper_check.py",
+                "--json",
+                "--output",
+                "test-results/github-ai-scraper-discoverability.json",
+            ],
+            timeout_seconds=2 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/github-ai-scraper-discoverability.json"],
+        )
+    ]
+
+
 def _ui_robot_matrix_profile() -> list[CommandSpec]:
     commands: list[CommandSpec] = []
     for shard, scenarios in UI_ROBOT_MATRIX_SHARDS:
@@ -1992,6 +2017,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "release-proof",
         "security-adoption",
         "production-readiness",
+        "github-ai-scraper",
         "ui-robot-matrix",
         "ui-robot-contract",
         "ui-robot-canary",

@@ -124,6 +124,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     security_adoption = profiles["security-adoption"][0]
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
+    github_ai_scraper = profiles["github-ai-scraper"][0]
     ui_robot_contract = profiles["ui-robot-contract"]
     ui_robot_coverage_contract = ui_robot_contract[0]
     ui_robot_action_contract = ui_robot_contract[1]
@@ -318,6 +319,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "--compact",
     ]
     assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
+    assert github_ai_scraper.label == "github-ai-scraper static discoverability"
+    assert github_ai_scraper.argv[-4:] == [
+        "tools/github_ai_scraper_check.py",
+        "--json",
+        "--output",
+        "test-results/github-ai-scraper-discoverability.json",
+    ]
+    assert "--live" not in github_ai_scraper.argv
+    assert github_ai_scraper.timeout_seconds == 2 * 60
+    assert github_ai_scraper.ensure_dirs == ["test-results"]
+    assert github_ai_scraper.remove_paths == ["test-results/github-ai-scraper-discoverability.json"]
     assert [command.label for command in ui_robot_contract] == [
         "ui robot coverage contract",
         "ui robot action contract",
@@ -587,6 +599,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "release-proof" not in selected
     assert "security-adoption" not in selected
     assert "production-readiness" not in selected
+    assert "github-ai-scraper" not in selected
     assert "ui-robot-contract" not in selected
     assert "ui-robot-canary" not in selected
     assert "ui-frontend-smoke" not in selected

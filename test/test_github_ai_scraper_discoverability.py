@@ -2,228 +2,147 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
+import importlib.util
 import subprocess
+import sys
 from pathlib import Path
-import tomllib
 
 import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PYPROJECT = REPO_ROOT / "pyproject.toml"
-README = REPO_ROOT / "README.md"
-PYPI_README = REPO_ROOT / "README.pypi.md"
-AGILAB_URL = "https://github.com/ThalesGroup/agilab"
-LIVE_ENV = "AGILAB_GITHUB_AI_SCRAPER_LIVE"
-SCRAPER_PACKAGE_URL = "https://pypi.org/project/github-ai-scraper/"
-SCRAPER_BADGE_URL = "https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E"
-
-SCRAPER_MIN_STARS = 10
-SCRAPER_TOPICS = (
-    "ai-engineering",
-    "ai",
-    "machine-learning",
-    "mlops",
-    "ai-agents",
-    "reproducibility",
-    "reproducible-research",
-    "jupyter-notebook",
-    "mlflow",
-    "workflow-orchestration",
-    "data-science",
-)
-SCRAPER_KEYWORDS = (
-    "ai",
-    "ai/ml",
-    "machine learning",
-    "mlops",
-    "reproducibility",
-    "reproducible",
-    "agent",
-    "notebook",
-    "mlflow",
-)
-PUBLIC_GITHUB_TOPICS = (
-    "agentic-ai",
-    "ai",
-    "ai-agents",
-    "ai-engineering",
-    "codex",
-    "cython",
-    "dask",
-    "data-science",
-    "distributed-computing",
-    "experiment-tracking",
-    "free-threaded-python",
-    "jupyter-notebook",
-    "machine-learning",
-    "mlflow",
-    "mlops",
-    "python",
-    "reproducibility",
-    "reproducible-research",
-    "streamlit",
-    "workflow-orchestration",
-)
+TOOL_PATH = REPO_ROOT / "tools" / "github_ai_scraper_check.py"
 
 
-def _load_root_project() -> dict:
-    with PYPROJECT.open("rb") as stream:
-        return tomllib.load(stream)["project"]
-
-
-def _github_ai_scraper_query() -> str:
-    primary_topic = SCRAPER_TOPICS[0] if SCRAPER_TOPICS else "ai"
-    return f"stars:>{SCRAPER_MIN_STARS} topic:{primary_topic}"
-
-
-def _github_ai_scraper_would_keep_repo(*, name: str, description: str, topics: tuple[str, ...]) -> bool:
-    """Mirror github-ai-scraper 0.1.2's topic/keyword AI filter."""
-
-    text_to_check = f"{name} {description}".lower()
-    repo_topics = {topic.lower() for topic in topics}
-
-    if any(topic.lower() in repo_topics for topic in SCRAPER_TOPICS):
-        return True
-
-    for keyword in SCRAPER_KEYWORDS:
-        keyword_lower = keyword.lower()
-        keyword_normalized = keyword_lower.replace("-", " ")
-        if keyword_normalized in text_to_check or keyword_lower in text_to_check:
-            return True
-
-    return False
-
-
-def _subprocess_env() -> dict[str, str]:
-    env = os.environ.copy()
-    if not env.get("SSL_CERT_FILE"):
-        try:
-            import certifi
-        except ImportError:
-            return env
-        env["SSL_CERT_FILE"] = certifi.where()
-        env.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
-    return env
+def _load_tool():
+    spec = importlib.util.spec_from_file_location("github_ai_scraper_check_test_module", TOOL_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_agilab_metadata_stays_discoverable_by_github_ai_scraper_contract() -> None:
-    project = _load_root_project()
-    keywords = {str(keyword).lower() for keyword in project["keywords"]}
-    urls = project["urls"]
+    tool = _load_tool()
+    report = tool.static_contract_report(REPO_ROOT)
 
-    assert _github_ai_scraper_query() == "stars:>10 topic:ai-engineering"
-    assert {"ai", "ai-engineering", "machine-learning", "mlops", "ai-agents"} <= keywords
-    assert {"reproducibility", "reproducible-research", "jupyter-notebook", "mlflow"} <= keywords
-    assert urls["Repository"] == AGILAB_URL
-    assert urls["Source"] == AGILAB_URL
-    assert "reproducible ai/ml" in project["description"].lower()
-    assert "ai-engineering" in PUBLIC_GITHUB_TOPICS
-    assert "ai" in PUBLIC_GITHUB_TOPICS
-    assert "claude" not in PUBLIC_GITHUB_TOPICS
-
-    assert _github_ai_scraper_would_keep_repo(
+    assert report["success"]
+    assert report["query"] == "stars:>10 topic:ai-engineering"
+    assert {check["name"] for check in report["checks"]} >= {
+        "query",
+        "core_keywords",
+        "evidence_keywords",
+        "repository_url",
+        "description",
+        "scraper_filter",
+        "readme_badge",
+        "pypi_readme_badge",
+    }
+    assert tool.github_ai_scraper_would_keep_repo(
         name="agilab",
         description="Open-source platform for reproducible AI/ML workflows, from local experimentation to distributed workers and long-lived services.",
-        topics=PUBLIC_GITHUB_TOPICS,
+        topics=tool.PUBLIC_GITHUB_TOPICS,
     )
 
 
 def test_scraper_discoverability_badge_is_publicly_visible() -> None:
-    readme = README.read_text(encoding="utf-8")
-    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    tool = _load_tool()
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    pypi_readme = (REPO_ROOT / "README.pypi.md").read_text(encoding="utf-8")
 
     for text in (readme, pypi_readme):
-        assert SCRAPER_PACKAGE_URL in text
-        assert SCRAPER_BADGE_URL in text
+        assert tool.SCRAPER_PACKAGE_URL in text
+        assert tool.SCRAPER_BADGE_URL in text
         assert "github--ai--scraper-discoverable" in text
+
+
+def test_github_ai_scraper_tool_static_json_output(tmp_path: Path) -> None:
+    output_path = tmp_path / "github-ai-scraper.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "tools/github_ai_scraper_check.py",
+            "--json",
+            "--output",
+            str(output_path),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    stdout_payload = json.loads(completed.stdout)
+    file_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert stdout_payload == file_payload
+    assert file_payload["schema"] == "agilab.github_ai_scraper_check.v1"
+    assert file_payload["mode"] == "static"
+    assert file_payload["success"]
+    assert "live" not in file_payload
+
+
+def test_github_ai_scraper_tool_print_only_plans_live_without_running(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["GITHUB_TOKEN"] = "ghp_test_secret_should_be_redacted"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "tools/github_ai_scraper_check.py",
+            "--live",
+            "--print-only",
+            "--json",
+            "--work-dir",
+            str(tmp_path),
+            "--max-results",
+            "17",
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    payload = json.loads(completed.stdout)
+    assert payload["success"]
+    assert payload["mode"] == "live"
+    assert payload["print_only"] is True
+    assert "live" not in payload
+    assert payload["live_plan"]["commands"][0][:3] == ["uvx", "--from", "github-ai-scraper"]
+    assert payload["live_plan"]["commands"][0][-2:] == ["--max-results", "17"]
+    assert "max_results: 17" in payload["live_plan"]["config_text"]
+    assert "ghp_test_secret_should_be_redacted" not in payload["live_plan"]["config_text"]
+    assert "token: ***" in payload["live_plan"]["config_text"]
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    os.environ.get(LIVE_ENV) != "1",
-    reason=f"set {LIVE_ENV}=1 to run the live github-ai-scraper discovery check",
+    os.environ.get("AGILAB_GITHUB_AI_SCRAPER_LIVE") != "1",
+    reason="set AGILAB_GITHUB_AI_SCRAPER_LIVE=1 to run the live github-ai-scraper discovery check",
 )
 def test_live_github_ai_scraper_collects_agilab(tmp_path: Path) -> None:
-    uvx = shutil.which("uvx")
-    if uvx is None:
-        pytest.skip("uvx is required for the live github-ai-scraper check")
-
-    data_dir = tmp_path / "data"
-    output_dir = tmp_path / "output"
-    data_dir.mkdir()
-    output_dir.mkdir()
-    config_path = tmp_path / "ai-scraper.yaml"
-    export_path = tmp_path / "export.json"
-    config_path.write_text(
-        "\n".join(
-            [
-                "github:",
-                f"  token: {os.environ.get('GITHUB_TOKEN', '')}",
-                "  cache_ttl: 3600",
-                "filter:",
-                f"  min_stars: {SCRAPER_MIN_STARS}",
-                "  keywords:",
-                *[f"    - {keyword}" for keyword in SCRAPER_KEYWORDS],
-                "  topics:",
-                *[f"    - {topic}" for topic in SCRAPER_TOPICS],
-                "scrape:",
-                "  max_results: 100",
-                "  concurrency: 5",
-                "database:",
-                f"  path: {data_dir / 'ai_scraper.db'}",
-                "keywords:",
-                f"  file: {tmp_path / 'keywords.txt'}",
-                "  max_keywords: 100",
-                "output:",
-                f"  dir: {output_dir}",
-                "  filename: repositories.md",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    subprocess.run(
+    output_path = tmp_path / "github-ai-scraper-live.json"
+    completed = subprocess.run(
         [
-            uvx,
-            "--from",
-            "github-ai-scraper",
-            "ai-scraper",
-            "-c",
-            str(config_path),
-            "scrape",
-            "--no-progress",
-            "--max-results",
-            "100",
-        ],
-        check=True,
-        env=_subprocess_env(),
-        text=True,
-        timeout=120,
-    )
-    subprocess.run(
-        [
-            uvx,
-            "--from",
-            "github-ai-scraper",
-            "ai-scraper",
-            "-c",
-            str(config_path),
-            "db",
-            "export",
-            "--format",
-            "json",
+            sys.executable,
+            "tools/github_ai_scraper_check.py",
+            "--live",
+            "--json",
+            "--work-dir",
+            str(tmp_path / "work"),
             "--output",
-            str(export_path),
+            str(output_path),
         ],
         check=True,
-        env=_subprocess_env(),
+        cwd=REPO_ROOT,
+        capture_output=True,
         text=True,
-        timeout=60,
+        timeout=180,
     )
 
-    payload = json.loads(export_path.read_text(encoding="utf-8"))
-    scraped_urls = {repo["url"] for repo in payload["repositories"]}
-    assert AGILAB_URL in scraped_urls
+    payload = json.loads(completed.stdout)
+    assert payload == json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["live"]["agilab_found"]

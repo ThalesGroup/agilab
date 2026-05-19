@@ -95,6 +95,13 @@ Use this runbook whenever you:
 - **Dependency policy gate**: Use
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile dependency-policy`
   to verify runtime dependency hygiene, especially before release or when editing `pyproject.toml` files.
+- **External discoverability check**: Use
+  `uv --preview-features extra-build-dependencies run python tools/github_ai_scraper_check.py --json`
+  for the static github-ai-scraper contract check, or
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile github-ai-scraper`
+  for the workflow-parity wrapper. The real scraper is opt-in because it depends
+  on GitHub/PyPI/network behavior; run it with
+  `uv --preview-features extra-build-dependencies run python tools/github_ai_scraper_check.py --live --json`.
 - **PyPI release cleanup**: Use `tools/pypi_publish.py --delete-pypi-release <version>` only when a specific
   old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex`
   match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted
