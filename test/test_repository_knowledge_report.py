@@ -46,11 +46,27 @@ def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> N
     assert report["summary"]["run_status"] == "indexed"
     assert report["summary"]["execution_mode"] == "repository_knowledge_static_index"
     assert report["summary"]["indexed_file_count"] > 50
+    assert report["summary"]["source_file_count"] > 20
+    assert report["summary"]["code_file_count"] > 20
     assert report["summary"]["python_file_count"] > 20
     assert report["summary"]["tool_file_count"] > 10
+    assert report["summary"]["test_file_count"] > 10
     assert report["summary"]["docs_file_count"] > 10
     assert report["summary"]["pyproject_count"] >= 8
     assert report["summary"]["runbook_count"] >= 3
+    assert report["summary"]["total_line_count"] > 0
+    assert report["summary"]["source_line_count"] > 0
+    assert report["summary"]["code_line_count"] > 0
+    assert report["summary"]["python_line_count"] > 0
+    assert report["summary"]["tool_line_count"] > 0
+    assert report["summary"]["test_line_count"] > 0
+    assert report["summary"]["docs_line_count"] > 0
+    assert report["summary"]["pyproject_line_count"] > 0
+    assert report["summary"]["runbook_line_count"] > 0
+    assert report["summary"]["total_size_bytes"] > 0
+    assert report["summary"]["kind_counts"]["test"] == report["summary"]["test_file_count"]
+    assert report["summary"]["kind_line_counts"]["test"] == report["summary"]["test_line_count"]
+    assert report["summary"]["suffix_counts"][".py"] >= report["summary"]["python_file_count"]
     assert report["summary"]["knowledge_map_count"] == 5
     assert report["summary"]["query_seed_count"] >= 4
     assert report["summary"]["excluded_path_hit_count"] == 0
@@ -63,6 +79,7 @@ def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> N
     assert {check["id"] for check in report["checks"]} == {
         "repository_knowledge_schema",
         "repository_knowledge_code_docs_runbooks",
+        "repository_knowledge_statistics",
         "repository_knowledge_package_manifests",
         "repository_knowledge_exclusion_guardrails",
         "repository_knowledge_source_of_truth_boundary",
@@ -192,6 +209,8 @@ def test_repository_knowledge_core_handles_small_and_malformed_repositories(tmp_
     assert module._iter_files(syntax_error) == [syntax_error]
     assert module._iter_named_files(missing, "pyproject.toml") == []
     assert module._python_outline(syntax_error)["parse_status"] == "syntax_error"
+    assert module._text_line_count("one\ntwo\n") == 2
+    assert module._text_line_count("") == 0
     assert module._first_heading(doc.read_text(encoding="utf-8")) == "Visible heading"
     assert module._first_heading(".. comment\n:field: value\n| table\n") == ""
 
@@ -208,6 +227,10 @@ def test_repository_knowledge_core_handles_small_and_malformed_repositories(tmp_
 
     assert state["run_status"] == "invalid"
     assert state["summary"]["docs_file_count"] == 0
+    assert state["summary"]["test_file_count"] == 0
+    assert state["summary"]["total_line_count"] > 0
+    assert state["summary"]["kind_counts"]["package_source"] == 1
+    assert state["summary"]["kind_line_counts"]["package_source"] == 4
     assert state["issues"] == [
         {
             "level": "error",
@@ -416,6 +439,8 @@ def test_repository_knowledge_record_cache_round_trips_records(
     state = module.build_repository_knowledge_index(repo_root=repo_root, record_cache_path=cache_path)
 
     assert state["summary"]["indexed_file_count"] == 4
+    assert state["summary"]["total_line_count"] == 7
+    assert state["summary"]["test_file_count"] == 0
     assert module.default_record_cache_path(repo_root).parent == tmp_path / "xdg-cache" / "agilab" / "repository_knowledge"
     cache = module._load_record_cache(cache_path)
     assert cache["schema"] == module.RECORD_CACHE_SCHEMA

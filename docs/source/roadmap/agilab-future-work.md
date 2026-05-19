@@ -1390,8 +1390,9 @@ Current shipped baseline:
 - `tools/repository_knowledge_report.py --compact` validates
   `agilab.repository_knowledge_index.v1` in
   `repository_knowledge_static_index` mode
-- the report indexes local code, tools, official docs, root runbooks, and
-  package/app manifests with SHA-256 fingerprints and lightweight outlines
+- the report indexes local code, tools, root tests, official docs, root
+  runbooks, and package/app manifests with SHA-256 fingerprints, lightweight
+  outlines, and deterministic file, line, size, kind, and suffix statistics
 - generated artifacts, virtualenvs, build outputs, and distributions are
   excluded by contract
 - the report emits stable onboarding query seeds while explicitly keeping the

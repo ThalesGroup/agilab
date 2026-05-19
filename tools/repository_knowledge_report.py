@@ -64,11 +64,13 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "tools/repository_knowledge_report.py --compact",
         "agilab.repository_knowledge_index.v1",
         "repository_knowledge_static_index",
+        "root tests",
+        "deterministic file, line, size, kind, and suffix statistics",
         "generated wiki as an exploration aid",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
     try:
-        text = doc_path.read_text(encoding="utf-8")
+        text = " ".join(doc_path.read_text(encoding="utf-8").split())
         missing = [needle for needle in required if needle not in text]
         ok = not missing
         details = {"missing": missing}
@@ -155,11 +157,36 @@ def _build_report_with_path(
             "Repository knowledge code/docs/runbook coverage",
             int(summary.get("python_file_count", 0) or 0) > 20
             and int(summary.get("tool_file_count", 0) or 0) > 10
+            and int(summary.get("test_file_count", 0) or 0) > 10
             and int(summary.get("docs_file_count", 0) or 0) > 10
             and int(summary.get("runbook_count", 0) or 0) >= 3,
-            "index covers source files, tools, official docs, and root runbooks",
-            evidence=["src/agilab", "tools", "docs/source", "README.md", "AGENTS.md"],
+            "index covers source files, tools, tests, official docs, and root runbooks",
+            evidence=["src/agilab", "tools", "test", "docs/source", "README.md", "AGENTS.md"],
             details={"summary": summary},
+        ),
+        _check_result(
+            "repository_knowledge_statistics",
+            "Repository knowledge statistics",
+            int(summary.get("total_line_count", 0) or 0) > 0
+            and int(summary.get("python_line_count", 0) or 0) > 0
+            and int(summary.get("docs_line_count", 0) or 0) > 0
+            and int(summary.get("test_line_count", 0) or 0) > 0
+            and int(summary.get("total_size_bytes", 0) or 0) > 0
+            and isinstance(summary.get("kind_counts"), dict)
+            and isinstance(summary.get("kind_line_counts"), dict)
+            and isinstance(summary.get("suffix_counts"), dict),
+            "index exposes deterministic file, line, size, kind, and suffix statistics",
+            evidence=["src/agilab/repository_knowledge.py"],
+            details={
+                "total_line_count": summary.get("total_line_count", 0),
+                "python_line_count": summary.get("python_line_count", 0),
+                "docs_line_count": summary.get("docs_line_count", 0),
+                "test_line_count": summary.get("test_line_count", 0),
+                "total_size_bytes": summary.get("total_size_bytes", 0),
+                "kind_counts": summary.get("kind_counts", {}),
+                "kind_line_counts": summary.get("kind_line_counts", {}),
+                "suffix_counts": summary.get("suffix_counts", {}),
+            },
         ),
         _check_result(
             "repository_knowledge_package_manifests",
@@ -236,7 +263,7 @@ def _build_report_with_path(
         "report": "Repository knowledge index report",
         "status": "pass" if failed == 0 else "fail",
         "scope": (
-            "Builds a static repository knowledge index for code, docs, "
+            "Builds a static repository knowledge index and stats report for code, tests, docs, "
             "runbooks, and package manifests while excluding generated outputs."
         ),
         "summary": {
@@ -247,11 +274,27 @@ def _build_report_with_path(
             "run_status": state.get("run_status"),
             "execution_mode": state.get("execution_mode"),
             "indexed_file_count": summary.get("indexed_file_count"),
+            "source_file_count": summary.get("source_file_count"),
+            "code_file_count": summary.get("code_file_count"),
             "python_file_count": summary.get("python_file_count"),
             "tool_file_count": summary.get("tool_file_count"),
+            "test_file_count": summary.get("test_file_count"),
             "docs_file_count": summary.get("docs_file_count"),
             "pyproject_count": summary.get("pyproject_count"),
             "runbook_count": summary.get("runbook_count"),
+            "total_line_count": summary.get("total_line_count"),
+            "source_line_count": summary.get("source_line_count"),
+            "code_line_count": summary.get("code_line_count"),
+            "python_line_count": summary.get("python_line_count"),
+            "tool_line_count": summary.get("tool_line_count"),
+            "test_line_count": summary.get("test_line_count"),
+            "docs_line_count": summary.get("docs_line_count"),
+            "pyproject_line_count": summary.get("pyproject_line_count"),
+            "runbook_line_count": summary.get("runbook_line_count"),
+            "total_size_bytes": summary.get("total_size_bytes"),
+            "kind_counts": summary.get("kind_counts"),
+            "kind_line_counts": summary.get("kind_line_counts"),
+            "suffix_counts": summary.get("suffix_counts"),
             "knowledge_map_count": summary.get("knowledge_map_count"),
             "query_seed_count": summary.get("query_seed_count"),
             "excluded_root_count": summary.get("excluded_root_count"),

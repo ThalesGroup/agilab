@@ -280,10 +280,16 @@ def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
     )
     assert check["details"]["summary"]["indexed_file_count"] > 50
     assert check["details"]["summary"]["python_file_count"] > 20
+    assert check["details"]["summary"]["test_file_count"] > 10
     assert check["details"]["summary"]["docs_file_count"] > 10
     assert check["details"]["summary"]["pyproject_count"] >= 8
     assert check["details"]["summary"]["runbook_count"] >= 3
-    assert check["details"]["summary"]["knowledge_map_count"] == 4
+    assert check["details"]["summary"]["total_line_count"] > 0
+    assert check["details"]["summary"]["python_line_count"] > 0
+    assert check["details"]["summary"]["test_line_count"] > 0
+    assert check["details"]["summary"]["docs_line_count"] > 0
+    assert check["details"]["summary"]["total_size_bytes"] > 0
+    assert check["details"]["summary"]["knowledge_map_count"] == 5
     assert check["details"]["summary"]["query_seed_count"] >= 4
     assert check["details"]["summary"]["excluded_path_hit_count"] == 0
     assert check["details"]["summary"]["generated_wiki_source_of_truth"] is False
@@ -291,6 +297,7 @@ def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert "repository_knowledge_exclusion_guardrails" in check["details"]["check_ids"]
+    assert "repository_knowledge_statistics" in check["details"]["check_ids"]
     assert "repository_knowledge_source_of_truth_boundary" in check["details"]["check_ids"]
 
 
