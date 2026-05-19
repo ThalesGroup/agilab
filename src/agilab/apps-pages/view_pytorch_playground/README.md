@@ -3,7 +3,10 @@
 Standalone AGILAB analysis page for interactive PyTorch classifier experiments on
 small synthetic datasets. It is inspired by the TensorFlow Playground workflow,
 but it uses an original Streamlit implementation and trains an actual PyTorch
-model.
+model. It also adds AGILAB-specific reproducibility features: shareable
+configuration tokens, hidden-layer activation maps, network weight diagnostics,
+an optional 2D loss-landscape projection, and a deterministic evidence pack with
+CSV/JSON artifacts and SHA-256 hashes.
 
 Quick start:
 

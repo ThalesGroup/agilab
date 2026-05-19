@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -82,7 +86,468 @@ def test_pytorch_playground_reports_missing_torch(monkeypatch: pytest.MonkeyPatc
     assert result["samples"].shape[0] == 32
     assert result["history"].empty
     assert result["grid"].empty
+    assert result["network_layers"].empty
+    assert result["activation_maps"].empty
     assert result["summary"]["backend"] == "missing"
+    landscape = module._loss_landscape(config, resolution=5, span=0.2)
+    assert landscape["status"] == "missing_torch"
+    assert landscape["loss_landscape"].empty
+
+
+def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(
+        dataset="spiral",
+        sample_count=320,
+        noise=0.21,
+        train_ratio=0.85,
+        hidden_layers=(16, 8),
+        activation="relu",
+        optimizer="SGD",
+        learning_rate=0.015,
+        epochs=120,
+        batch_size=64,
+        seed=42,
+        feature_names=("x1", "x2", "sin_x1"),
+        grid_size=64,
+    )
+
+    token = module._encode_share_config(config)
+    decoded = module._decode_share_config(token)
+
+    assert decoded == config
+    assert module._config_from_query_params({"pytorch_playground": [token]}) == config
+    assert module._decode_share_config("not-valid-base64") is None
+    list_payload = module.base64.urlsafe_b64encode(b"[]").decode("ascii").rstrip("=")
+    assert module._decode_share_config(list_payload) is None
+    sanitized = module._config_from_payload(
+        {
+            "config": {
+                "dataset": "invalid",
+                "sample_count": 10_000,
+                "noise": float("nan"),
+                "hidden_layers": "8,wide",
+                "activation": "unknown",
+                "optimizer": "bad",
+                "feature_names": ["x1", "missing", "x2"],
+            }
+        }
+    )
+    assert sanitized.dataset == "circles"
+    assert sanitized.sample_count == 1000
+    assert sanitized.noise == module.PlaygroundConfig().noise
+    assert sanitized.hidden_layers == module.PlaygroundConfig().hidden_layers
+    assert sanitized.activation == module.PlaygroundConfig().activation
+    assert sanitized.optimizer == module.PlaygroundConfig().optimizer
+    assert sanitized.feature_names == ("x1", "x2")
+
+
+def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    active_app = tmp_path / "active_app"
+    active_app.mkdir()
+    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py", "--active-app", str(active_app)])
+    assert module._resolve_active_app() == active_app.resolve()
+    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py", "--active-app", str(tmp_path / "missing")])
+    assert module._resolve_active_app() is None
+    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py"])
+    assert module._resolve_active_app() is None
+
+    default = module.PlaygroundConfig()
+    assert module._bounded_int("bad", default=5, minimum=1, maximum=10) == 5
+    assert module._bounded_int(99, default=5, minimum=1, maximum=10) == 10
+    assert module._bounded_float(None, default=0.2, minimum=0.0, maximum=1.0) == 0.2
+    assert module._bounded_float(float("inf"), default=0.2, minimum=0.0, maximum=1.0) == 0.2
+    assert module._bounded_float(-2.0, default=0.2, minimum=0.0, maximum=1.0) == 0.0
+    assert module._coerce_hidden_layers([4, 2]) == (4, 2)
+    assert module._coerce_hidden_layers(["bad"], (3,)) == (3,)
+    assert module._coerce_hidden_layers(object(), (3,)) == (3,)
+    assert module._coerce_feature_names("x1, missing, sin_x2") == ("x1", "sin_x2")
+    assert module._coerce_feature_names(object(), ("x2",)) == ("x2",)
+    assert module._config_from_payload({"config": []}) == default
+    assert module._first_query_value([]) is None
+    assert module._first_query_value(None) is None
+    assert module._config_from_query_params({"config": module._encode_share_config(default)}) == default
+
+    for dataset in ("circles", "spiral", "gaussian", "invalid"):
+        frame = module._make_dataset(module.PlaygroundConfig(dataset=dataset, sample_count=35, seed=5))
+        assert list(frame.columns) == ["x1", "x2", "target"]
+        assert len(frame) == 35
+        assert set(frame["target"].unique()) <= {0, 1}
+
+    ndarray_features = module._feature_matrix(np.array([[1.0, 2.0], [3.0, 4.0]]), ())
+    np.testing.assert_allclose(ndarray_features, np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32))
+
+
+def test_pytorch_playground_evidence_pack_is_deterministic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "torch", None)
+    monkeypatch.setattr(module, "nn", None)
+    config = module.PlaygroundConfig(sample_count=32, epochs=10, grid_size=12, seed=11)
+    result = module._train_playground(config)
+    loss_landscape = pd.DataFrame(
+        [
+            {
+                "alpha": -0.1,
+                "beta": 0.0,
+                "train_loss": 0.7,
+                "validation_loss": 0.8,
+                "train_accuracy": 0.5,
+                "validation_accuracy": 0.5,
+                "is_center": False,
+            },
+            {
+                "alpha": 0.0,
+                "beta": 0.0,
+                "train_loss": 0.5,
+                "validation_loss": 0.6,
+                "train_accuracy": 0.75,
+                "validation_accuracy": 0.7,
+                "is_center": True,
+            },
+        ],
+        columns=module._empty_loss_landscape().columns,
+    )
+    result["loss_landscape"] = loss_landscape
+    result["landscape_summary"] = module._loss_landscape_summary(loss_landscape)
+
+    first = module._build_evidence_pack(config, result)
+    second = module._build_evidence_pack(config, result)
+
+    assert first == second
+    archive_path = tmp_path / "pytorch_playground_evidence_test.zip"
+    archive_path.write_bytes(first)
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        names = archive.namelist()
+        assert names == sorted(names)
+        assert {
+            "manifest.json",
+            "config/playground_config.json",
+            "data/samples.csv",
+            "data/training_history.csv",
+            "data/decision_grid.csv",
+            "model/network_layers.csv",
+            "model/hidden_activation_maps.csv",
+            "model/loss_landscape.csv",
+            "summary/run_summary.json",
+        }.issubset(set(names))
+        manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+        sample_bytes = archive.read("data/samples.csv")
+        landscape_bytes = archive.read("model/loss_landscape.csv")
+
+    assert manifest["schema"] == module.EVIDENCE_SCHEMA
+    assert manifest["config_schema"] == module.CONFIG_SCHEMA
+    assert manifest["row_counts"]["samples"] == 32
+    assert manifest["row_counts"]["loss_landscape"] == 2
+    assert manifest["landscape_summary"]["center_validation_loss"] == pytest.approx(0.6)
+    assert manifest["artifacts"]["data/samples.csv"]["sha256"] == hashlib.sha256(sample_bytes).hexdigest()
+    assert manifest["artifacts"]["model/loss_landscape.csv"]["sha256"] == hashlib.sha256(landscape_bytes).hexdigest()
+
+
+def test_pytorch_playground_loss_landscape_summary_marks_center_and_best() -> None:
+    module = _load_module()
+    landscape = pd.DataFrame(
+        [
+            {"alpha": -0.5, "beta": 0.0, "train_loss": 0.8, "validation_loss": 0.9, "train_accuracy": 0.4, "validation_accuracy": 0.4, "is_center": False},
+            {"alpha": 0.0, "beta": 0.0, "train_loss": 0.4, "validation_loss": 0.5, "train_accuracy": 0.8, "validation_accuracy": 0.75, "is_center": True},
+            {"alpha": 0.5, "beta": 0.0, "train_loss": 0.3, "validation_loss": 0.45, "train_accuracy": 0.85, "validation_accuracy": 0.8, "is_center": False},
+        ],
+        columns=module._empty_loss_landscape().columns,
+    )
+
+    summary = module._loss_landscape_summary(landscape)
+
+    assert summary["status"] == "ok"
+    assert summary["points"] == 3
+    assert summary["center_validation_loss"] == pytest.approx(0.5)
+    assert summary["best_validation_loss"] == pytest.approx(0.45)
+    assert summary["best_delta"] == pytest.approx(-0.05)
+    assert summary["sharpness"] == pytest.approx(0.4)
+
+
+def test_pytorch_playground_evidence_and_figure_helpers_cover_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "torch", None)
+    monkeypatch.setattr(module, "nn", None)
+
+    config = module.PlaygroundConfig(sample_count=20, grid_size=3, hidden_layers=())
+    samples = pd.DataFrame({"x1": [-0.5, 0.5], "x2": [0.2, -0.2], "target": [0, 1]})
+    irregular_grid = pd.DataFrame(
+        {
+            "x1": [-1.0, 0.0, 1.0],
+            "x2": [-1.0, 0.0, 1.0],
+            "probability": [0.1, 0.5, 0.9],
+        }
+    )
+    history = pd.DataFrame(
+        {
+            "epoch": [0, 1],
+            "train_loss": [0.8, 0.4],
+            "validation_loss": [0.9, 0.5],
+            "train_accuracy": [0.5, 0.8],
+            "validation_accuracy": [0.4, 0.7],
+        }
+    )
+    activation_maps = pd.DataFrame(
+        {
+            "layer": [1, 1, 1, 1],
+            "neuron": [1, 1, 1, 1],
+            "x1": [-1.0, 1.0, -1.0, 1.0],
+            "x2": [-1.0, -1.0, 1.0, 1.0],
+            "activation": [0.0, 0.5, 0.25, 1.0],
+        }
+    )
+    loss_landscape = pd.DataFrame(
+        {
+            "alpha": [-0.5, 0.0, 0.5],
+            "beta": [-0.5, 0.0, 0.5],
+            "train_loss": [0.7, 0.5, 0.6],
+            "validation_loss": [0.8, 0.45, 0.55],
+            "train_accuracy": [0.5, 0.7, 0.6],
+            "validation_accuracy": [0.4, 0.8, 0.7],
+            "is_center": [False, True, False],
+        }
+    )
+    layers = pd.DataFrame(
+        [
+            {
+                "layer": 1,
+                "kind": "hidden",
+                "input_features": 2,
+                "output_features": 3,
+                "parameters": 9,
+                "weight_mean": 0.1,
+                "weight_std": 0.2,
+                "weight_max_abs": 0.4,
+                "bias_mean": 0.0,
+                "bias_std": 0.1,
+                "bias_max_abs": 0.2,
+            }
+        ]
+    )
+    result = {
+        "samples": samples,
+        "history": history,
+        "grid": irregular_grid,
+        "network_layers": layers,
+        "activation_maps": activation_maps,
+        "loss_landscape": loss_landscape,
+        "summary": {"backend": "synthetic", "samples": 2, "features": 2},
+    }
+
+    assert module._activation_module.__name__ == "_activation_module"
+    with pytest.raises(RuntimeError, match="PyTorch is not available"):
+        module._activation_module("relu")
+    with pytest.raises(RuntimeError, match="PyTorch is not available"):
+        module._build_model(2, config)
+    assert module._hidden_activation_maps(object(), config, np.ones((1, 2)), np.ones((1, 2))).empty
+    assert module._array_stats(np.array([])) == {"mean": 0.0, "std": 0.0, "max_abs": 0.0}
+    assert module._network_layers([]).empty
+    assert module._empty_loss_landscape().empty
+    assert module._normalized_landscape_resolution(4) == 5
+    assert module._normalized_landscape_resolution(40) == 31
+    assert module._loss_landscape_summary(module._empty_loss_landscape()) == {"status": "not_computed", "points": 0}
+    landscape_summary = module._loss_landscape_summary(loss_landscape)
+    assert landscape_summary["status"] == "ok"
+    assert landscape_summary["best_validation_loss"] == 0.45
+    assert module._loss_landscape(config)["status"] == "missing_torch"
+    assert module._result_frame({}, "missing", samples) is samples
+    assert module._json_safe({"bad": np.float64(float("nan")), "count": np.int64(3)}) == {"bad": None, "count": 3}
+
+    x_axis, y_axis = module._grid_axes(irregular_grid, 5)
+    assert len(x_axis) == 2
+    assert len(y_axis) == 2
+    assert module._grid_axes(pd.DataFrame(), 5)[0].size == 0
+    assert len(module._decision_figure(samples, irregular_grid, 5).data) == 3
+    assert len(module._decision_figure(samples, pd.DataFrame(columns=["x1", "x2", "probability"]), 5).data) == 2
+    assert len(module._history_figure(history).data) == 4
+    assert len(module._history_figure(pd.DataFrame()).data) == 0
+    assert len(module._activation_figure(activation_maps, 1, 1).data) == 1
+    assert len(module._activation_figure(activation_maps, 2, 1).data) == 0
+    assert len(module._network_figure(layers).data) == 2
+    assert len(module._network_figure(module._empty_network_layers()).data) == 0
+    assert len(module._loss_landscape_figure(loss_landscape).data) == 3
+    assert len(module._loss_landscape_figure(module._empty_loss_landscape()).data) == 0
+
+    manifest = module._build_evidence_manifest(config, result)
+    assert manifest["row_counts"]["network_layers"] == 1
+    assert manifest["row_counts"]["loss_landscape"] == 3
+    assert set(module._evidence_artifact_files(config, {"summary": {}})) >= {
+        "data/samples.csv",
+        "model/network_layers.csv",
+        "model/loss_landscape.csv",
+    }
+    assert module._cached_train(module.asdict(config))["status"] == "missing_torch"
+    assert module._cached_loss_landscape(module.asdict(config), 4, 0.5)["status"] == "missing_torch"
+
+
+def test_pytorch_playground_fake_nn_covers_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+
+    class FakeTensor:
+        def __init__(self, values):
+            self._values = np.asarray(values, dtype=float)
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return self._values
+
+    class FakeLinear:
+        def __init__(self, in_features: int, out_features: int, *, bias: bool = True):
+            self.in_features = in_features
+            self.out_features = out_features
+            self.weight = FakeTensor(np.full((out_features, in_features), 0.25))
+            self.bias = FakeTensor(np.linspace(-0.1, 0.1, out_features)) if bias else None
+
+    class FakeSequential(list):
+        def __init__(self, *layers):
+            super().__init__(layers)
+
+    fake_nn = SimpleNamespace(
+        Linear=FakeLinear,
+        ReLU=lambda: SimpleNamespace(kind="relu"),
+        Sigmoid=lambda: SimpleNamespace(kind="sigmoid"),
+        Identity=lambda: SimpleNamespace(kind="identity"),
+        Tanh=lambda: SimpleNamespace(kind="tanh"),
+        Sequential=FakeSequential,
+    )
+    monkeypatch.setattr(module, "nn", fake_nn)
+
+    assert module._activation_module("relu").kind == "relu"
+    assert module._activation_module("sigmoid").kind == "sigmoid"
+    assert module._activation_module("identity").kind == "identity"
+    assert module._activation_module("other").kind == "tanh"
+
+    model = module._build_model(
+        3,
+        module.PlaygroundConfig(hidden_layers=(4, 2), activation="identity"),
+    )
+    assert [type(layer).__name__ for layer in model].count("FakeLinear") == 3
+    layers = module._network_layers(model)
+    assert layers["kind"].tolist() == ["hidden", "hidden", "output"]
+    assert layers["parameters"].tolist() == [16, 10, 6]
+
+    no_bias = module._network_layers([FakeLinear(2, 1, bias=False)])
+    assert no_bias.iloc[0]["bias_max_abs"] == 0.0
+    assert module._grid_points(module.PlaygroundConfig(grid_size=4)).shape == (144, 2)
+
+
+def test_pytorch_playground_fake_torch_covers_activation_and_grid_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+
+    class FakeTorchTensor:
+        def __init__(self, values):
+            self.values = np.asarray(values, dtype=float)
+
+        def __getitem__(self, key):
+            return FakeTorchTensor(self.values[key])
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return self.values
+
+    class FakeNoGrad:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    class FakeTorch:
+        float32 = "float32"
+        long = "long"
+
+        @staticmethod
+        def tensor(values, dtype=None):
+            if dtype == FakeTorch.long:
+                return np.asarray(values, dtype=np.int64)
+            return FakeTorchTensor(values)
+
+        @staticmethod
+        def no_grad():
+            return FakeNoGrad()
+
+        @staticmethod
+        def softmax(logits, dim=1):
+            values = logits.values
+            shifted = values - values.max(axis=dim, keepdims=True)
+            exp = np.exp(shifted)
+            return FakeTorchTensor(exp / exp.sum(axis=dim, keepdims=True))
+
+    class FakeLinear:
+        def __init__(self, in_features: int, out_features: int):
+            self.in_features = in_features
+            self.out_features = out_features
+
+        def __call__(self, values):
+            row_count = values.values.shape[0]
+            columns = [
+                values.values[:, index % values.values.shape[1]] + (index + 1) * 0.1
+                for index in range(self.out_features)
+            ]
+            return FakeTorchTensor(np.column_stack(columns).reshape(row_count, self.out_features))
+
+    class FakeActivation:
+        def __call__(self, values):
+            return values
+
+    class FakeModel(list):
+        def eval(self):
+            return None
+
+        def __call__(self, values):
+            for layer in self:
+                values = layer(values)
+            return values
+
+    monkeypatch.setattr(
+        module,
+        "nn",
+        SimpleNamespace(Linear=FakeLinear),
+    )
+    monkeypatch.setattr(module, "torch", FakeTorch)
+
+    config = module.PlaygroundConfig(
+        sample_count=20,
+        train_ratio=0.8,
+        hidden_layers=(3,),
+        feature_names=("x1", "x2"),
+        grid_size=12,
+    )
+    training_data = module._prepare_training_data(config)
+    assert training_data["x_train"].values.shape[1] == 2
+    assert training_data["y_train"].dtype == np.int64
+
+    model = FakeModel([FakeLinear(2, 3), FakeActivation(), FakeLinear(3, 2)])
+    activation_maps = module._hidden_activation_maps(
+        model,
+        config,
+        training_data["mean"],
+        training_data["std"],
+        max_neurons=2,
+    )
+    assert activation_maps.shape[0] == 12 * 12 * 2
+    assert sorted(activation_maps["neuron"].unique().tolist()) == [1, 2]
+
+    decision_grid = module._decision_grid(model, config, training_data["mean"], training_data["std"])
+    assert decision_grid.shape[0] == 12 * 12
+    assert decision_grid["probability"].between(0.0, 1.0).all()
 
 
 def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
@@ -106,8 +571,326 @@ def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
     assert result["status"] == "ok"
     assert not result["history"].empty
     assert result["grid"].shape[0] == 144
+    assert not result["network_layers"].empty
+    assert not result["activation_maps"].empty
+    assert sorted(result["activation_maps"]["layer"].unique().tolist()) == [1]
     assert 0.0 <= result["summary"]["validation_accuracy"] <= 1.0
     assert result["summary"]["backend"] == "torch"
+
+    landscape_result = module._loss_landscape(config, resolution=5, span=0.2)
+    assert landscape_result["status"] == "ok"
+    assert landscape_result["loss_landscape"].shape[0] == 25
+    assert landscape_result["loss_landscape"]["is_center"].sum() == 1
+    assert landscape_result["landscape_summary"]["points"] == 25
+
+
+def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+
+    class StopRender(RuntimeError):
+        pass
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    class FakeStreamlit:
+        def __init__(self, *, hidden_raw: str = "8,8", checkbox: bool = False):
+            self.query_params = {}
+            self.sidebar = FakeContext()
+            self.hidden_raw = hidden_raw
+            self.checkbox_value = checkbox
+            self.errors: list[str] = []
+            self.infos: list[str] = []
+            self.downloads: list[bytes] = []
+            self.json_payloads: list[dict[str, object]] = []
+
+        def set_page_config(self, **_kwargs):
+            return None
+
+        def title(self, *_args, **_kwargs):
+            return None
+
+        def caption(self, *_args, **_kwargs):
+            return None
+
+        def error(self, message, **_kwargs):
+            self.errors.append(str(message))
+
+        def stop(self):
+            raise StopRender()
+
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeContext() for _ in range(count)]
+
+        def tabs(self, labels):
+            return [FakeContext() for _ in labels]
+
+        def selectbox(self, _label, options, index=0, **_kwargs):
+            return list(options)[index]
+
+        def slider(self, _label, _min, _max, value, **_kwargs):
+            return value
+
+        def multiselect(self, _label, _options, default=None, **_kwargs):
+            return list(default or [])
+
+        def text_input(self, _label, value="", **_kwargs):
+            return self.hidden_raw
+
+        def number_input(self, _label, value=0, **_kwargs):
+            return value
+
+        def checkbox(self, *_args, **_kwargs):
+            return self.checkbox_value
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def info(self, message, **_kwargs):
+            self.infos.append(str(message))
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def download_button(self, _label, data, **_kwargs):
+            self.downloads.append(data)
+            return False
+
+        def code(self, *_args, **_kwargs):
+            return None
+
+        def json(self, payload, **_kwargs):
+            self.json_payloads.append(payload)
+            return None
+
+    def empty_result(status: str = "ok") -> dict[str, object]:
+        return {
+            "status": status,
+            "detail": "missing torch detail",
+            "samples": pd.DataFrame({"x1": [-0.2, 0.2], "x2": [0.1, -0.1], "target": [0, 1]}),
+            "history": pd.DataFrame(
+                columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]
+            ),
+            "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+            "network_layers": module._empty_network_layers(),
+            "activation_maps": module._empty_activation_maps(),
+            "summary": {"backend": status, "samples": 2, "features": 2},
+        }
+
+    invalid_st = FakeStreamlit(hidden_raw="8,wide")
+    monkeypatch.setattr(module, "st", invalid_st)
+    monkeypatch.setattr(module, "render_logo", lambda: None)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: None)
+    monkeypatch.setattr(module, "_cached_train", lambda _payload: empty_result())
+    with pytest.raises(StopRender):
+        module.main()
+    assert invalid_st.errors == ["Hidden layer width must be an integer: wide"]
+
+    ok_st = FakeStreamlit(checkbox=False)
+    monkeypatch.setattr(module, "st", ok_st)
+    monkeypatch.setattr(module, "_cached_train", lambda _payload: empty_result())
+    module.main()
+    assert any("Hidden activation maps" in message for message in ok_st.infos)
+    assert any("Enable computation" in message for message in ok_st.infos)
+    assert ok_st.json_payloads[0]["row_counts"]["loss_landscape"] == 0
+
+    missing_st = FakeStreamlit(checkbox=True)
+    monkeypatch.setattr(module, "st", missing_st)
+    monkeypatch.setattr(module, "_cached_train", lambda _payload: empty_result("missing_torch"))
+    module.main()
+    assert missing_st.errors == ["missing torch detail"]
+    assert any("Loss landscape is available" in message for message in missing_st.infos)
+
+
+def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def selectbox(self, _label, options, index=0, **_kwargs):
+            return list(options)[index]
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.query_params = {}
+            self.sidebar = FakeContext()
+            self.downloads: list[bytes] = []
+            self.json_payloads: list[dict[str, object]] = []
+
+        def set_page_config(self, **_kwargs):
+            return None
+
+        def title(self, *_args, **_kwargs):
+            return None
+
+        def caption(self, *_args, **_kwargs):
+            return None
+
+        def error(self, *_args, **_kwargs):
+            return None
+
+        def stop(self):
+            raise AssertionError("stop should not be called")
+
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeContext() for _ in range(count)]
+
+        def tabs(self, labels):
+            return [FakeContext() for _ in labels]
+
+        def selectbox(self, _label, options, index=0, **_kwargs):
+            return list(options)[index]
+
+        def slider(self, _label, _min, _max, value, **_kwargs):
+            return value
+
+        def multiselect(self, _label, _options, default=None, **_kwargs):
+            return list(default or [])
+
+        def text_input(self, _label, value="", **_kwargs):
+            return value
+
+        def number_input(self, _label, value=0, **_kwargs):
+            return value
+
+        def checkbox(self, *_args, **_kwargs):
+            return True
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def info(self, *_args, **_kwargs):
+            return None
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def download_button(self, _label, data, **_kwargs):
+            self.downloads.append(data)
+            return False
+
+        def code(self, *_args, **_kwargs):
+            return None
+
+        def json(self, payload, **_kwargs):
+            self.json_payloads.append(payload)
+            return None
+
+    fake_st = FakeStreamlit()
+    config = module.PlaygroundConfig(sample_count=64, grid_size=12, hidden_layers=(2,))
+    samples = module._make_dataset(config)
+    grid = pd.DataFrame(
+        {
+            "x1": [-1.0, 1.0, -1.0, 1.0],
+            "x2": [-1.0, -1.0, 1.0, 1.0],
+            "probability": [0.1, 0.9, 0.2, 0.8],
+        }
+    )
+    history = pd.DataFrame(
+        {
+            "epoch": [0],
+            "train_loss": [0.5],
+            "validation_loss": [0.6],
+            "train_accuracy": [0.7],
+            "validation_accuracy": [0.8],
+        }
+    )
+    layers = pd.DataFrame(
+        [
+            {
+                "layer": 1,
+                "kind": "hidden",
+                "input_features": 2,
+                "output_features": 2,
+                "parameters": 6,
+                "weight_mean": 0.0,
+                "weight_std": 0.1,
+                "weight_max_abs": 0.3,
+                "bias_mean": 0.0,
+                "bias_std": 0.1,
+                "bias_max_abs": 0.2,
+            }
+        ]
+    )
+    activation_maps = pd.DataFrame(
+        {
+            "layer": [1, 1, 1, 1],
+            "neuron": [1, 1, 1, 1],
+            "x1": [-1.0, 1.0, -1.0, 1.0],
+            "x2": [-1.0, -1.0, 1.0, 1.0],
+            "activation": [0.0, 1.0, 0.4, 0.8],
+        }
+    )
+    loss_landscape = pd.DataFrame(
+        {
+            "alpha": [-0.25, 0.0, 0.25],
+            "beta": [-0.25, 0.0, 0.25],
+            "train_loss": [0.6, 0.5, 0.7],
+            "validation_loss": [0.65, 0.45, 0.75],
+            "train_accuracy": [0.6, 0.7, 0.5],
+            "validation_accuracy": [0.55, 0.8, 0.45],
+            "is_center": [False, True, False],
+        }
+    )
+    result = {
+        "status": "ok",
+        "detail": "",
+        "samples": samples,
+        "history": history,
+        "grid": grid,
+        "network_layers": layers,
+        "activation_maps": activation_maps,
+        "summary": {"backend": "synthetic", "samples": len(samples), "features": 2},
+    }
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda: None)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: tmp_path)
+    monkeypatch.setattr(module, "_cached_train", lambda _payload: result)
+    monkeypatch.setattr(
+        module,
+        "_cached_loss_landscape",
+        lambda _payload, _resolution, _span: {
+            "status": "ok",
+            "detail": "",
+            "loss_landscape": loss_landscape,
+            "landscape_summary": module._loss_landscape_summary(loss_landscape),
+        },
+    )
+
+    module.main()
+
+    assert fake_st.downloads
+    assert fake_st.json_payloads[0]["schema"] == module.EVIDENCE_SCHEMA
 
 
 def test_pytorch_playground_bundle_root_and_opt_in_package_docs() -> None:
