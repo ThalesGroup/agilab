@@ -1,4 +1,4 @@
-from .flight import *  # noqa: F401,F403
+from .flight_telemetry import *  # noqa: F401,F403
 from .flight_args import (  # noqa: F401
     ArgsModel,
     ArgsOverrides,

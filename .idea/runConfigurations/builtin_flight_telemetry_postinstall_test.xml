@@ -11,7 +11,7 @@
         <env name="UV_NO_SYNC" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (flight_worker)" />
+    <option name="SDK_NAME" value="uv (flight_telemetry_worker)" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />

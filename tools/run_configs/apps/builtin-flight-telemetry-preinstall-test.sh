@@ -10,4 +10,4 @@ export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
 # Let uv select the run-config project .venv instead of a stale activated shell.
 unset VIRTUAL_ENV
-uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $HOME/wenv/flight_worker/src/flight_worker/flight_worker.py
+uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $HOME/wenv/flight_telemetry_worker/src/flight_telemetry_worker/flight_telemetry_worker.py

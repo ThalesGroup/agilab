@@ -528,7 +528,7 @@ def test_build_robot_command_enables_hf_visual_smoke_controls(tmp_path) -> None:
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
     assert argv[argv.index("--apps") + 1] == "flight_telemetry_project,weather_forecast_project"
-    assert argv[argv.index("--pages") + 1] == "HOME,ORCHESTRATE,WORKFLOW,ANALYSIS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab"
     assert "--active-app" not in argv
     assert "--success-screenshot" in argv

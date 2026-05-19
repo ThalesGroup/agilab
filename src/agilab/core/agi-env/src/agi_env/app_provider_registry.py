@@ -13,10 +13,9 @@ from typing import Any, Callable, Iterable, Mapping
 APP_PROVIDER_ENTRYPOINT_GROUP = "agilab.apps"
 _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {
-    "flight_telemetry": "flight",
     "mission_decision": "data_io_2026",
 }
-RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = {"flight"}
+RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = set()
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +97,7 @@ def resolve_app_runtime_target(project_root: Path | None, app_name: str | None) 
 
 
 def app_name_aliases(value: str | None) -> tuple[str, ...]:
-    """Return lookup aliases for app names such as ``flight`` and ``flight_telemetry_project``."""
+    """Return lookup aliases for app names such as slug and ``*_project`` forms."""
 
     normalized = normalize_app_name(value)
     if not normalized:

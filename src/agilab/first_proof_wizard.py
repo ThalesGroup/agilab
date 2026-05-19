@@ -354,7 +354,7 @@ def newcomer_first_proof_project_path(env: Any, repo_root: Path = REPO_ROOT) -> 
 
 def first_proof_output_dir(env: Any) -> Path:
     log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
-    return log_root / "execute" / "flight"
+    return log_root / "execute" / "flight_telemetry"
 
 
 def first_proof_run_manifest_path(output_dir: Path) -> Path:

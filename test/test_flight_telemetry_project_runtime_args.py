@@ -17,11 +17,11 @@ def _import_flight_modules(monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
     app_src = repo_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project" / "src"
     monkeypatch.syspath_prepend(str(app_src))
-    existing = sys.modules.get("flight")
+    existing = sys.modules.get("flight_telemetry")
     if existing is not None and not hasattr(existing, "__path__"):
-        monkeypatch.delitem(sys.modules, "flight", raising=False)
-    from flight.flight import Flight
-    from flight_worker.flight_worker import FlightWorker
+        monkeypatch.delitem(sys.modules, "flight_telemetry", raising=False)
+    from flight_telemetry.flight_telemetry import FlightTelemetry as Flight
+    from flight_telemetry_worker.flight_telemetry_worker import FlightTelemetryWorker as FlightWorker
 
     return Flight, FlightWorker
 
@@ -53,7 +53,7 @@ class _FakeEnv:
         self.agi_share_path_abs = share_root
         self.agi_share_path = share_root
         self.AGI_LOCAL_SHARE = str(share_root)
-        self.target = "flight"
+        self.target = "flight_telemetry"
 
     def share_root_path(self):
         return self.share_root
@@ -95,7 +95,7 @@ def test_flight_manager_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
 
 def test_flight_args_validation_persistence_and_default_helpers(monkeypatch, tmp_path):
     _import_flight_modules(monkeypatch)
-    from flight.flight_args import (
+    from flight_telemetry.flight_args import (
         ARGS_SECTION,
         FlightArgs,
         apply_source_defaults,
@@ -107,9 +107,9 @@ def test_flight_args_validation_persistence_and_default_helpers(monkeypatch, tmp
         merge_args,
     )
 
-    migrated = FlightArgs(data_uri="flight/custom", files="*.csv", nfile=0, data_out="")
-    assert migrated.data_in == Path("flight/custom")
-    assert migrated.data_out == Path("flight/dataframe")
+    migrated = FlightArgs(data_uri="flight_telemetry/custom", files="*.csv", nfile=0, data_out="")
+    assert migrated.data_in == Path("flight_telemetry/custom")
+    assert migrated.data_out == Path("flight_telemetry/dataframe")
     assert migrated.nfile == 999_999_999_999
     assert migrated.to_toml_payload()["datemin"] == "2020-01-01"
 
@@ -132,7 +132,7 @@ def test_flight_args_validation_persistence_and_default_helpers(monkeypatch, tmp
     with pytest.raises(ValueError, match="file-based input"):
         apply_source_defaults(SimpleNamespace(data_source="hawk"))
 
-    base = FlightArgs(data_in="flight/dataset", files="")
+    base = FlightArgs(data_in="flight_telemetry/dataset", files="")
     with_defaults = apply_source_defaults(base)
     assert with_defaults.files == "*"
     assert ensure_defaults(FlightArgs(files="*.csv")) is not None
@@ -157,8 +157,8 @@ def test_flight_args_validation_persistence_and_default_helpers(monkeypatch, tmp
 
 def test_flight_manager_constructor_and_helper_branches(monkeypatch, tmp_path):
     Flight, _ = _import_flight_modules(monkeypatch)
-    import flight.flight as flight_module
-    from flight.flight_args import FlightArgs
+    import flight_telemetry.flight_telemetry as flight_module
+    from flight_telemetry.flight_args import FlightArgs
 
     env = _FakeEnv(tmp_path / "share")
     existing_out = env.share_root / "existing-output"
@@ -167,9 +167,9 @@ def test_flight_manager_constructor_and_helper_branches(monkeypatch, tmp_path):
 
     direct = Flight(
         env,
-        args=FlightArgs(data_in="flight/dataset", data_out="existing-output", reset_target=True),
+        args=FlightArgs(data_in="flight_telemetry/dataset", data_out="existing-output", reset_target=True),
     )
-    assert direct.args.data_in == env.share_root / "flight" / "dataset"
+    assert direct.args.data_in == env.share_root / "flight_telemetry" / "dataset"
     assert not (existing_out / "stale.txt").exists()
 
     from_dict = Flight(env, args={"data_in": "dict-in", "data_out": "dict-out", "reset_target": False})
@@ -184,7 +184,7 @@ def test_flight_manager_constructor_and_helper_branches(monkeypatch, tmp_path):
     class SlotOnly:
         __slots__ = ()
 
-    with pytest.raises(ValueError, match="Invalid Flight arguments"):
+    with pytest.raises(ValueError, match="Invalid FlightTelemetry arguments"):
         Flight(env, args=SlotOnly())
 
     settings_path = tmp_path / "flight_settings.toml"
@@ -217,15 +217,15 @@ def test_flight_manager_file_inventory_error_and_absolute_display(monkeypatch, t
     Flight, _ = _import_flight_modules(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     share_root = tmp_path / "outside-share"
-    source_root = share_root / "flight" / "dataset"
+    source_root = share_root / "flight_telemetry" / "dataset"
     source_root.mkdir(parents=True)
     source = source_root / "60_abs.csv"
     source.write_text("x" * 1000, encoding="utf-8")
 
     flight = Flight(
         _FakeEnv(share_root),
-        data_in="flight/dataset",
-        data_out="flight/dataframe",
+        data_in="flight_telemetry/dataset",
+        data_out="flight_telemetry/dataframe",
         files="*.csv",
         reset_target=False,
     )
@@ -238,7 +238,7 @@ def test_flight_manager_file_inventory_error_and_absolute_display(monkeypatch, t
     missing = Flight(
         _FakeEnv(share_root),
         data_in="missing",
-        data_out="flight/dataframe",
+        data_out="flight_telemetry/dataframe",
         files="*.csv",
         reset_target=False,
     )
@@ -297,7 +297,7 @@ def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
     assert weights_unit == "KB"
 
 
-def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
+def test_flight_telemetry_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     _, FlightWorker = _import_flight_modules(monkeypatch)
     worker = object.__new__(FlightWorker)
     worker.args = MutableNamespace(
@@ -323,8 +323,8 @@ def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
 
     object_args_worker = object.__new__(FlightWorker)
     object_args_worker.args = SimpleNamespace(
-        data_in="flight/dataset",
-        data_out="flight/dataframe",
+        data_in="flight_telemetry/dataset",
+        data_out="flight_telemetry/dataframe",
         reset_target=True,
         data_source="",
         output_format="",
@@ -333,7 +333,7 @@ def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     object_args_worker._worker_id = 3
     object_args_worker.env = _FakeEnv(tmp_path / "share")
     object_args_worker.pool_vars = None
-    object_args_worker.data_out = str(tmp_path / "share" / "flight" / "dataframe")
+    object_args_worker.data_out = str(tmp_path / "share" / "flight_telemetry" / "dataframe")
     object_args_worker.setup_data_directories = fake_setup_data_directories
 
     object_args_worker.start()
@@ -344,9 +344,9 @@ def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     assert object_args_worker.pool_vars["verbose"] == 2
 
 
-def test_flight_worker_helper_and_error_branches(monkeypatch, tmp_path):
+def test_flight_telemetry_worker_helper_and_error_branches(monkeypatch, tmp_path):
     _, FlightWorker = _import_flight_modules(monkeypatch)
-    import flight_worker.flight_worker as worker_module
+    import flight_telemetry_worker.flight_telemetry_worker as worker_module
 
     assert worker_module._haversine_distance_m({"prev_lat": None, "prev_long": 2, "lat": 3, "long": 4}) == 0.0
     assert worker_module._haversine_distance_m({"prev_lat": "bad", "prev_long": 2, "lat": 3, "long": 4}) == 0.0
@@ -387,13 +387,13 @@ def test_flight_worker_helper_and_error_branches(monkeypatch, tmp_path):
     assert stop_calls == [True, True]
 
 
-def test_flight_worker_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
+def test_flight_telemetry_worker_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
     _, FlightWorker = _import_flight_modules(monkeypatch)
     worker = object.__new__(FlightWorker)
     worker.args = MutableNamespace(
         data_source="hawk",
         data_in="hawk.cluster.local:9200",
-        data_out="flight/dataframe",
+        data_out="flight_telemetry/dataframe",
         reset_target=False,
     )
     worker.verbose = 0
@@ -412,7 +412,7 @@ def test_flight_worker_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
 
 def test_flight_reduce_contract_merges_trajectory_partials(monkeypatch):
     _import_flight_modules(monkeypatch)
-    from flight.reduction import (
+    from flight_telemetry.reduction import (
         REDUCE_ARTIFACT_NAME,
         REDUCER_NAME,
         build_reduce_artifact,
@@ -472,7 +472,7 @@ def test_flight_reduce_contract_merges_trajectory_partials(monkeypatch):
 
 def test_flight_reduce_contract_validation_edges(monkeypatch):
     _import_flight_modules(monkeypatch)
-    from flight import reduction
+    from flight_telemetry import reduction
 
     assert reduction._timestamp(date(2021, 1, 2)) == "2021-01-02"
     assert reduction._timestamp(None) == ""
@@ -500,13 +500,13 @@ def test_flight_reduce_contract_validation_edges(monkeypatch):
             reduction._validate_flight_artifact(artifact)
 
 
-def test_flight_worker_emits_reduce_artifact(monkeypatch, tmp_path):
+def test_flight_telemetry_worker_emits_reduce_artifact(monkeypatch, tmp_path):
     _, FlightWorker = _import_flight_modules(monkeypatch)
-    from flight.reduction import REDUCE_ARTIFACT_NAME, REDUCER_NAME, reduce_artifact_path
+    from flight_telemetry.reduction import REDUCE_ARTIFACT_NAME, REDUCER_NAME, reduce_artifact_path
 
     monkeypatch.setenv("HOME", str(tmp_path))
     share_root = tmp_path / "share"
-    source_root = share_root / "flight" / "dataset"
+    source_root = share_root / "flight_telemetry" / "dataset"
     source_root.mkdir(parents=True)
     source = source_root / "01_track.csv"
     source.write_text(
@@ -525,8 +525,8 @@ def test_flight_worker_emits_reduce_artifact(monkeypatch, tmp_path):
     worker = FlightWorker()
     worker.env = _FakeEnv(share_root)
     worker.args = {
-        "data_in": "flight/dataset",
-        "data_out": "flight/dataframe",
+        "data_in": "flight_telemetry/dataset",
+        "data_out": "flight_telemetry/dataframe",
         "reset_target": True,
         "output_format": "parquet",
     }
@@ -550,7 +550,7 @@ def test_flight_worker_emits_reduce_artifact(monkeypatch, tmp_path):
     assert artifact.name == REDUCE_ARTIFACT_NAME
     assert artifact.reducer == REDUCER_NAME
     assert artifact.partial_count == 1
-    assert artifact.partial_ids == ("flight_worker_0",)
+    assert artifact.partial_ids == ("flight_telemetry_worker_0",)
     assert artifact.payload["flight_run_count"] == 1
     assert artifact.payload["row_count"] == 3
     assert artifact.payload["source_files"] == ["01_track.csv"]

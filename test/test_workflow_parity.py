@@ -733,7 +733,7 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
         components=None,
         skills=None,
         app_path="src/agilab/apps/builtin/flight_telemetry_project",
-        worker_copy="~/wenv/builtin/flight_worker",
+        worker_copy="~/wenv/builtin/flight_telemetry_worker",
     )
 
     profiles = module._profile_commands(args)
@@ -753,7 +753,7 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
         "--app-path",
         "src/agilab/apps/builtin/flight_telemetry_project",
         "--worker-copy",
-        "~/wenv/builtin/flight_worker",
+        "~/wenv/builtin/flight_telemetry_worker",
     ]
 
 

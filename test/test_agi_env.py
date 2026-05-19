@@ -59,11 +59,11 @@ def test_create_rename_map_basic(env, tmp_path: Path):
     src.mkdir(); dst.mkdir()
     mapping = env.create_rename_map(src, dst)
     assert mapping.get('flight_telemetry_project') == 'tata_project'
-    assert mapping.get('flight') == 'tata'
-    assert mapping.get('Flight') == 'Tata'
-    assert mapping.get('FlightWorker') == 'TataWorker'
-    assert mapping.get('FlightArgs') == 'TataArgs'
-    assert mapping.get('src/flight') == 'src/tata'
+    assert mapping.get('flight_telemetry') == 'tata'
+    assert mapping.get('FlightTelemetry') == 'Tata'
+    assert mapping.get('FlightTelemetryWorker') == 'TataWorker'
+    assert mapping.get('FlightTelemetryArgs') == 'TataArgs'
+    assert mapping.get('src/flight_telemetry') == 'src/tata'
 
 def test_locate_helper_exists():
     assert hasattr(AgiEnv, 'locate_agilab_installation')

@@ -1,7 +1,7 @@
 [args]
 data_source = "file"
-data_in = "flight/dataset"
-data_out = "flight/dataframe"
+data_in = "flight_telemetry/dataset"
+data_out = "flight_telemetry/dataframe"
 files = "*"
 nfile = 1
 nskip = 0
@@ -45,8 +45,8 @@ network_evidence = "flight_ops_opensearch"
 trajectory_store = "flight_artifact_store"
 
 [legacy_paths]
-data_in = "flight/dataset"
-data_out = "flight/dataframe"
+data_in = "flight_telemetry/dataset"
+data_out = "flight_telemetry/dataframe"
 
 [view_maps]
 datadir = ""
@@ -70,16 +70,16 @@ view_module = [
 [pages.view_maps_network]
 dataset_base_choice = "AGI_CLUSTER_SHARE"
 dataset_custom_base = ""
-dataset_subpath = "flight/dataframe"
+dataset_subpath = "flight_telemetry/dataframe"
 default_traj_globs = [
-    "flight/dataframe/*.parquet",
-    "flight/dataframe/*.csv",
+    "flight_telemetry/dataframe/*.parquet",
+    "flight_telemetry/dataframe/*.csv",
 ]
 
 [view_maps_network]
 base_dir_choice = "AGI_CLUSTER_SHARE"
 input_datadir = ""
-datadir_rel = "flight/dataframe"
+datadir_rel = "flight_telemetry/dataframe"
 file_ext_choice = "all"
 id_col = ""
 time_col = ""

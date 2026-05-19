@@ -106,14 +106,14 @@ def test_project_software_metric_summary_counts_repository_tests_for_builtin_fli
     assert summary["test_files"] >= len(repo_test_names) > 0
 
 
-def test_project_worker_class_summary_detects_builtin_flight_worker_class():
+def test_project_worker_class_summary_detects_builtin_flight_telemetry_worker_class():
     module = _load_project_module()
     project_root = Path("src/agilab/apps/builtin/flight_telemetry_project")
 
     worker_class, worker_caption = module._project_worker_class_summary(project_root)
 
     assert worker_class == "PolarsWorker"
-    assert worker_caption == "FlightWorker"
+    assert worker_caption == "FlightTelemetryWorker"
 
 
 def test_finalize_cloned_project_environment_keeps_shared_venv(tmp_path: Path):

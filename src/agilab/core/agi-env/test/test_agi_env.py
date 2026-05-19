@@ -587,13 +587,13 @@ def test_active_app_override_uses_builtin_path_even_when_env_apps_path_is_set(tm
     (env_dir / ".env").write_text(f"APPS_PATH={wrong_apps}\n", encoding="utf-8")
 
     builtin_app = tmp_path / "apps" / "builtin" / "flight_telemetry_project"
-    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-telemetry-project'\n", encoding="utf-8")
     (builtin_app / "uv_config.toml").write_text("[tool.uv]\n", encoding="utf-8")
-    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
-    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+    (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightTelemetryWorker(BaseWorker):\n    pass\n",
         encoding="utf-8",
     )
 
@@ -603,8 +603,8 @@ def test_active_app_override_uses_builtin_path_even_when_env_apps_path_is_set(tm
     env = AgiEnv(active_app=builtin_app, verbose=0)
 
     assert env.active_app == builtin_app.resolve()
-    assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
-    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.manager_path == (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").resolve()
 
 
 def test_explicit_apps_path_wins_over_stale_env_apps_path(tmp_path: Path, monkeypatch):
@@ -625,13 +625,13 @@ def test_explicit_apps_path_wins_over_stale_env_apps_path(tmp_path: Path, monkey
 
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
     builtin_app = source_apps / "builtin" / "flight_telemetry_project"
-    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-telemetry-project'\n", encoding="utf-8")
     (builtin_app / "uv_config.toml").write_text("[tool.uv]\n", encoding="utf-8")
-    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
-    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+    (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightTelemetryWorker(BaseWorker):\n    pass\n",
         encoding="utf-8",
     )
 
@@ -642,8 +642,8 @@ def test_explicit_apps_path_wins_over_stale_env_apps_path(tmp_path: Path, monkey
 
     assert env.apps_path == source_apps.resolve()
     assert env.active_app == builtin_app.resolve()
-    assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
-    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.manager_path == (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").resolve()
 
 
 def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path, monkeypatch):
@@ -661,12 +661,12 @@ def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path,
     (wrong_app / "pyproject.toml").write_text("[project]\nname='wrong-flight'\n", encoding="utf-8")
 
     builtin_app = tmp_path / "apps" / "builtin" / "flight_telemetry_project"
-    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
-    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
-    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+    (builtin_app / "src" / "flight_telemetry").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-telemetry-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightTelemetryWorker(BaseWorker):\n    pass\n",
         encoding="utf-8",
     )
 
@@ -676,8 +676,8 @@ def test_missing_flattened_active_app_falls_back_to_builtin_copy(tmp_path: Path,
     env = AgiEnv(active_app=wrong_app, verbose=0)
 
     assert env.active_app == builtin_app.resolve()
-    assert env.manager_path == (builtin_app / "src" / "flight" / "flight.py").resolve()
-    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.manager_path == (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").resolve()
     assert env.uvproject == (builtin_app / "uv_config.toml").resolve()
 
 
@@ -697,13 +697,13 @@ def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: P
     (flat_app / "pyproject.toml").write_text("[project]\nname='wrong-flight'\n", encoding="utf-8")
 
     builtin_app = apps_root / "builtin" / "flight_telemetry_project"
-    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-project'\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "pyproject.toml").write_text("[project]\nname='flight-telemetry-project'\n", encoding="utf-8")
     (builtin_app / "uv_config.toml").write_text("[tool.uv]\n", encoding="utf-8")
-    (builtin_app / "src" / "flight" / "flight.py").write_text("class Flight:\n    pass\n", encoding="utf-8")
-    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class BaseWorker:\n    pass\n\nclass FlightWorker(BaseWorker):\n    pass\n",
+    (builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class BaseWorker:\n    pass\n\nclass FlightTelemetryWorker(BaseWorker):\n    pass\n",
         encoding="utf-8",
     )
 
@@ -713,7 +713,7 @@ def test_explicit_apps_root_prefers_builtin_copy_over_flattened_stub(tmp_path: P
     env = AgiEnv(apps_path=apps_root, active_app=flat_app, verbose=0)
 
     assert env.active_app == builtin_app.resolve()
-    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
+    assert env.worker_path == (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").resolve()
     assert env.uvproject == (builtin_app / "uv_config.toml").resolve()
 
 
@@ -1779,19 +1779,22 @@ def test_clone_project_renames_sources_respects_gitignore_and_copies_data(tmp_pa
     home = tmp_path / "home"
     apps_path = tmp_path / "apps"
     source = apps_path / "flight_telemetry_project"
-    (source / "src" / "flight").mkdir(parents=True)
-    (source / "src" / "flight_worker").mkdir(parents=True)
+    (source / "src" / "flight_telemetry").mkdir(parents=True)
+    (source / "src" / "flight_telemetry_worker").mkdir(parents=True)
     (source / ".venv").mkdir(parents=True)
     (source / ".gitignore").write_text(".venv/\nignored.txt\n", encoding="utf-8")
-    (source / "README.md").write_text("flight_telemetry_project uses Flight and flight_worker.\n", encoding="utf-8")
-    (source / "ignored.txt").write_text("skip me\n", encoding="utf-8")
-    (source / "archive.7z").write_bytes(b"7z")
-    (source / "src" / "flight" / "flight.py").write_text(
-        "class Flight:\n    pass\n",
+    (source / "README.md").write_text(
+        "flight_telemetry_project uses FlightTelemetry and flight_telemetry_worker.\n",
         encoding="utf-8",
     )
-    (source / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class FlightWorker:\n    pass\n",
+    (source / "ignored.txt").write_text("skip me\n", encoding="utf-8")
+    (source / "archive.7z").write_bytes(b"7z")
+    (source / "src" / "flight_telemetry" / "flight_telemetry.py").write_text(
+        "class FlightTelemetry:\n    pass\n",
+        encoding="utf-8",
+    )
+    (source / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
         encoding="utf-8",
     )
     (home / "data" / "flight").mkdir(parents=True)

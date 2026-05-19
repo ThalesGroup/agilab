@@ -36,8 +36,8 @@ catalog supports SQL, object-storage, and OpenSearch-compatible connector
 definitions, but this built-in app rejects search-index data sources instead of
 exposing a partially implemented path.
 
-Manager (`flight.flight`)
--------------------------
+Manager (`flight_telemetry.flight_telemetry`)
+---------------------------------------------
 - Wraps the runnable application. Converts user-supplied arguments into a
   validated `FlightArgs` model, normalises data URIs, and initialises cluster
   dispatch by seeding ``WorkDispatcher``.
@@ -46,15 +46,15 @@ Manager (`flight.flight`)
 - Handles managed-PC specifics (path remapping, data directory resets) and keeps
   the dataframe export folder clean between runs.
 
-Args (`flight.flight_args`)
----------------------------
+Args (`flight_telemetry.flight_args`)
+-------------------------------------
 - Pydantic models that capture the supported public configuration, including
   dataset location, slicing parameters and cluster toggles.
 - Ships conversion utilities for reading/writing ``app_settings.toml`` and merging
   overrides that are injected by the Orchestrate page.
 
-Worker (`flight_worker.flight_worker`)
---------------------------------------
+Worker (`flight_telemetry_worker.flight_telemetry_worker`)
+----------------------------------------------------------
 - Extends ``PolarsWorker`` to preprocess raw telemetry, compute great-circle
   segment distances between samples, and partition files across the cluster.
 - Can be compiled by the AGILab dispatcher when Cython is enabled; generated
@@ -77,7 +77,7 @@ API Reference
    :align: center
    :class: diagram-panel diagram-standard
 
-.. automodule:: flight.flight
+.. automodule:: flight_telemetry.flight_telemetry
    :members:
    :show-inheritance:
 
@@ -86,7 +86,7 @@ API Reference
    :align: center
    :class: diagram-panel diagram-standard
 
-.. automodule:: flight.flight_args
+.. automodule:: flight_telemetry.flight_args
    :members:
    :show-inheritance:
 
@@ -100,7 +100,7 @@ API Reference
    :align: center
    :class: diagram-panel diagram-standard
 
-.. automodule:: flight_worker.flight_worker
+.. automodule:: flight_telemetry_worker.flight_telemetry_worker
    :members:
    :show-inheritance:
 

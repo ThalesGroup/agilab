@@ -35,8 +35,8 @@ logger = AgiLogger.get_logger(__name__)
 warnings.filterwarnings("ignore")
 
 
-class Flight(BaseWorker):
-    """Flight class provides methods to orchestrate the run."""
+class FlightTelemetry(BaseWorker):
+    """FlightTelemetry class provides methods to orchestrate the run."""
 
     ivq_logs = None
 
@@ -62,11 +62,11 @@ class Flight(BaseWorker):
                 try:
                     payload = {**vars(args), **kwargs}
                 except TypeError as exc:
-                    raise ValueError(f"Invalid Flight arguments: {args!r}") from exc
+                    raise ValueError(f"Invalid FlightTelemetry arguments: {args!r}") from exc
             try:
                 parsed_args = FlightArgs(**payload)
             except ValidationError as exc:
-                raise ValueError(f"Invalid Flight arguments: {exc}") from exc
+                raise ValueError(f"Invalid FlightTelemetry arguments: {exc}") from exc
         self.args = parsed_args
         self.args.data_in = env.resolve_share_path(self.args.data_in)
         self.args.data_out = env.resolve_share_path(self.args.data_out)
@@ -101,7 +101,7 @@ class Flight(BaseWorker):
         settings_path: str | Path = "app_settings.toml",
         section: str = "args",
         **overrides: FlightArgsTD,
-    ) -> "Flight":
+    ) -> "FlightTelemetry":
         base_args = load_args_from_toml(settings_path, section)
         merged = merge_args(base_args, overrides or None)
         return cls(env, args=merged)
@@ -278,8 +278,8 @@ class Flight(BaseWorker):
         return planes_partition, planes_partition_size, df
 
 
-class FlightApp(Flight):
-    """Alias keeping legacy imports alive."""
+class FlightTelemetryApp(FlightTelemetry):
+    """Named AGILAB manager class for the flight-telemetry runtime."""
 
 
-__all__ = ["Flight", "FlightApp"]
+__all__ = ["FlightTelemetry", "FlightTelemetryApp"]

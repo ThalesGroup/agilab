@@ -654,10 +654,9 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
         "flight_telemetry_project",
         "flight_telemetry",
-        "flight",
     }
     assert module.active_app_aliases("uav_relay_queue") == {"uav_relay_queue", "uav_relay_queue_project"}
-    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_telemetry_project")
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight_telemetry", "/tmp/flight_telemetry_project")
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=uav_relay_queue_project", "uav_relay_queue")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
@@ -745,7 +744,7 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
     assert seeded.env["AGI_EXPORT_DIR"] == str(tmp_path / "export")
     assert seeded.env["AGI_LOCAL_SHARE"] == str(tmp_path / "localshare")
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
-    assert (tmp_path / "localshare" / "flight" / "dataframe" / "00_robot_flight.csv").is_file()
+    assert (tmp_path / "localshare" / "flight_telemetry" / "dataframe" / "00_robot_flight.csv").is_file()
 
 
 def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypatch) -> None:
@@ -880,7 +879,7 @@ def test_workflow_page_artifact_validation_requires_versioned_export_contract(tm
     app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
-    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[flight]\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
@@ -906,7 +905,7 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
     app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
-    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
@@ -951,10 +950,10 @@ def test_analysis_artifact_validation_requires_first_proof_outputs(tmp_path) -> 
 
 def test_analysis_artifact_validation_accepts_existing_first_proof_outputs(tmp_path) -> None:
     module = _load_module()
-    output_file = tmp_path / "localshare" / "flight" / "dataframe" / "proof.csv"
+    output_file = tmp_path / "localshare" / "flight_telemetry" / "dataframe" / "proof.csv"
     output_file.parent.mkdir(parents=True)
     output_file.write_text("value\n1\n", encoding="utf-8")
-    export_file = tmp_path / "export" / "flight" / "proof.json"
+    export_file = tmp_path / "export" / "flight_telemetry" / "proof.json"
     export_file.parent.mkdir(parents=True)
     export_file.write_text('{"ok": true}\n', encoding="utf-8")
     context = module.OrchestrateArtifactContext(
@@ -1008,7 +1007,7 @@ def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -
         export_root=tmp_path / "export",
     )
     before_logs = module._snapshot_workflow_run_logs(context)
-    log_file = tmp_path / "log" / "execute" / "flight" / "pipeline_20260508.log"
+    log_file = tmp_path / "log" / "execute" / "flight_telemetry" / "pipeline_20260508.log"
     log_file.parent.mkdir(parents=True)
     log_file.write_text("Run workflow started\n", encoding="utf-8")
 
@@ -1063,7 +1062,7 @@ def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> Non
         cluster_share_root=tmp_path / "clustershare",
     )
     before_export = module._snapshot_artifact_files(module._orchestrate_export_roots(context))
-    export_file = export_root / "flight" / "export.csv"
+    export_file = export_root / "flight_telemetry" / "export.csv"
     export_file.parent.mkdir(parents=True)
     export_file.write_text("value\n1\n", encoding="utf-8")
 
@@ -1085,7 +1084,7 @@ def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> Non
 def test_orchestrate_artifact_validation_accepts_existing_manual_export(tmp_path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
-    export_file = export_root / "flight" / "export.csv"
+    export_file = export_root / "flight_telemetry" / "export.csv"
     export_file.parent.mkdir(parents=True)
     export_file.write_text("value\n1\n", encoding="utf-8")
     context = module.OrchestrateArtifactContext(
@@ -1124,7 +1123,7 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
         share_root=share_root,
         cluster_share_root=tmp_path / "clustershare",
     )
-    output_file = share_root / "flight" / "dataframe" / "part-0.csv"
+    output_file = share_root / "flight_telemetry" / "dataframe" / "part-0.csv"
     output_file.parent.mkdir(parents=True)
     output_file.write_text("value\n1\n", encoding="utf-8")
     output_roots = module._orchestrate_output_roots(context)
@@ -4315,7 +4314,7 @@ def test_file_uploader_uses_ipynb_fixture_for_notebook_upload(tmp_path) -> None:
 def test_parse_csv_splits_and_strips_values() -> None:
     module = _load_module()
 
-    assert module.parse_csv(" flight_telemetry_project, ,uav_queue_project,,flight\n") == [
+    assert module.parse_csv(" flight_telemetry_project, ,uav_queue_project,,flight_telemetry\n") == [
         "flight_telemetry_project",
         "uav_queue_project",
     ]
@@ -4351,7 +4350,6 @@ def test_active_app_slug_and_route_aliases() -> None:
     assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
         "flight_telemetry_project",
         "flight_telemetry",
-        "flight",
     }
 
 

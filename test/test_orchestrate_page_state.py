@@ -307,7 +307,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
 
 
 def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
 
     state = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
         show_distribute=True,
@@ -321,7 +321,7 @@ def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
 
 
 def test_orchestrate_distribution_workflow_state_prefers_runtime_distribution_tree(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
     worker_env_path.mkdir(parents=True)
     runtime_plan = worker_env_path / "distribution_tree.json"
     legacy_plan = worker_env_path / "distribution.json"
@@ -345,7 +345,7 @@ def test_orchestrate_distribution_workflow_state_prefers_runtime_distribution_tr
 
 
 def test_orchestrate_distribution_workflow_state_blocks_hidden_missing_command_or_runtime(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
 
     hidden = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
         show_distribute=False,

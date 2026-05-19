@@ -152,7 +152,7 @@ def truncate_path_at_segment(
 ) -> Path:
     """
     Return the Path up through the last directory whose name ends with `segment`,
-    e.g. '/foo/flight_worker/bar.py' → '/foo/flight_worker'.
+    e.g. '/foo/example_worker/bar.py' -> '/foo/example_worker'.
 
     exact_match and multiple are kept for signature compatibility but ignored,
     since we want any dir name ending in segment.

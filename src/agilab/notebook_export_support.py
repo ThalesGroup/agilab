@@ -1411,10 +1411,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 add(f"{{text}}_project")
             aliases = {{
                 "data_io_2026": ("mission_decision", "mission_decision_project"),
-                "flight": ("flight_telemetry", "flight_telemetry_project"),
                 "meteo_forecast": ("weather_forecast", "weather_forecast_project"),
                 "mission_decision": ("data_io_2026", "data_io_2026_project"),
-                "flight_telemetry": ("flight",),
                 "weather_forecast": ("meteo_forecast", "meteo_forecast_project"),
             }}
             for candidate in list(candidates):

@@ -40,13 +40,13 @@ def test_configure_worker_runtime_resolves_builtin_worker_copy(tmp_path: Path):
     builtin_root = tmp_path / "apps" / "builtin"
     env.builtin_apps_path = builtin_root
     builtin_app = builtin_root / "flight_telemetry_project"
-    (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text("class FlightWorker:\n    pass\n", encoding="utf-8")
+    (builtin_app / "src" / "flight_telemetry").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text("class FlightTelemetryWorker:\n    pass\n", encoding="utf-8")
 
     configure_worker_runtime(
         env,
-        target="flight",
+        target="flight_telemetry",
         home_abs=tmp_path / "home",
         apps_path=tmp_path / "apps",
         apps_root=tmp_path / "apps",
@@ -61,8 +61,8 @@ def test_configure_worker_runtime_resolves_builtin_worker_copy(tmp_path: Path):
     )
 
     assert env.active_app == builtin_app.resolve()
-    assert env.worker_path == (builtin_app / "src" / "flight_worker" / "flight_worker.py").resolve()
-    assert env.manager_path == builtin_app / "src" / "flight" / "flight.py"
+    assert env.worker_path == (builtin_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").resolve()
+    assert env.manager_path == builtin_app / "src" / "flight_telemetry" / "flight_telemetry.py"
 
 
 def test_configure_worker_runtime_prefers_packaged_worker_sources(tmp_path: Path):

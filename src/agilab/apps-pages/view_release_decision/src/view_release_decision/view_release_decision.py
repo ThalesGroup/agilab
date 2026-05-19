@@ -116,7 +116,7 @@ def _connector_path_registry(env: AgiEnv) -> ConnectorPathRegistry:
     return build_connector_path_registry(
         env,
         target=str(env.target),
-        first_proof_target="flight",
+        first_proof_target="flight_telemetry",
         run_manifest_filename=RUN_MANIFEST_FILENAME,
     )
 
