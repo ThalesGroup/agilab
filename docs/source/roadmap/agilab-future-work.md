@@ -390,6 +390,14 @@ Concrete items:
   the repository
 - provide clear app repository update, install, rename, and migration behavior
   instead of compatibility aliases for stale local copies
+- keep public app packaging and private app validation as separate lanes:
+  public `agi-app-*` packages use PyPI, entry points, wheel/sdist metadata, and
+  provenance checks; private or non-public apps still need a pinned validation
+  model that does not vendor private code into the public repository
+- evaluate a private-side app validation manifest that records the external app
+  repository origin, commit SHA, app path, runtime/package constraints, and
+  expected validation commands while preserving `APPS_REPOSITORY` symlinks as
+  the lightweight local-development shortcut
 - publish only examples that meet content-quality, install/run, README, and
   notebook-import criteria
 
@@ -592,6 +600,9 @@ Acceptance gate:
 
 - app packages use consistent `agi-app-*` names, trusted publishing, and clean
   metadata
+- private/non-public app validation has a reproducible pinned-revision option
+  for CI and release checks, while the local `APPS_REPOSITORY` symlink workflow
+  remains available for day-to-day development
 - example READMEs explain purpose, inputs, outputs, install/run path, notebook
   import status, and limitations
 - app repository update behavior wins over stale local copies without hidden
@@ -1587,6 +1598,8 @@ Use this rule of thumb:
 - choose **Postgres + Superset** if the next need is curated KPI analytics
 - choose **Connector framework hardening and the data connector facility** if the
   next need is portability, SQL/ELK/data-system access, and reliable artefact flow
+- choose **Pinned private-app validation** if the next need is CI/release
+  reproducibility for non-public apps without publishing or vendoring their code
 - choose **DeepWiki/Open-style repository knowledge layer** if the next need is
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
@@ -1621,6 +1634,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - P2 notebook interop and no-lock-in
 - P3 security and supply-chain posture
 - P4 team and cluster operation
+- P5 pinned private-app validation for non-public app CI and release checks
 - Multi-app DAG orchestration productization, once the professional baseline is
   stable
 - Data connector facility and connector-aware views, once first-run and
