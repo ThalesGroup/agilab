@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-feature-attribution"
-version = "2026.05.19.post1"
+version = "2026.05.20"
 description = "AGILAB page bundle for feature-attribution evidence."
 readme = { text = "AGILAB page bundle for feature-attribution evidence.", content-type = "text/markdown" }
 requires-python = ">=3.11"

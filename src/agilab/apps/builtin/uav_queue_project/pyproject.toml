@@ -1,9 +1,9 @@
 [project]
 name = "uav_queue_project"
-version = "2026.05.18"
+version = "2026.05.20"
 description = "Built-in AGILAB lightweight UAV relay queue example"
 requires-python = ">=3.13"
-dependencies = ["agi-env>=2026.05.18", "agi-node>=2026.05.18", "agi-cluster>=2026.05.18", "networkx", "pandas>=2.3.0", "pydantic", "simpy>=4.1,<5", "streamlit>=1.56,<1.57"]
+dependencies = ["agi-env>=2026.05.20", "agi-node>=2026.05.20", "agi-cluster>=2026.05.20", "networkx", "pandas>=2.3.0", "pydantic", "simpy>=4.1,<5", "streamlit>=1.56,<1.57"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }

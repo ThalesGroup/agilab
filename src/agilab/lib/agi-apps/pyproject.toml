@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.18"
+version = "2026.05.20"
 name = "agi-apps"
 description = "AGILAB public app package umbrella and example assets"
 requires-python = ">=3.11"
@@ -31,7 +31,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-core==2026.05.18", "agi-app-mission-decision==2026.05.18", "agi-app-pandas-execution==2026.05.18", "agi-app-polars-execution==2026.05.18", "agi-app-flight-telemetry==2026.05.18", "agi-app-global-dag==2026.05.18", "agi-app-weather-forecast==2026.05.18", "agi-app-uav-relay-queue==2026.05.18; python_version >= '3.13'"]
+dependencies = ["agi-core==2026.05.20", "agi-app-mission-decision==2026.05.20", "agi-app-pandas-execution==2026.05.20", "agi-app-polars-execution==2026.05.20", "agi-app-flight-telemetry==2026.05.20", "agi-app-global-dag==2026.05.20", "agi-app-weather-forecast==2026.05.20", "agi-app-uav-relay-queue==2026.05.20; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
