@@ -525,6 +525,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert hf_visual_smoke_robot.remove_paths == ["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"]
     assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
     assert "hf-first-proof-app-pages-visual-smoke" in hf_visual_smoke_robot.argv
+    assert hf_visual_smoke_robot.argv.count("--scenario") == 2
     assert "flight_telemetry_project,weather_forecast_project" in hf_visual_smoke_robot.argv
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_visual_smoke_robot.argv
     assert "--active-app" not in hf_visual_smoke_robot.argv
