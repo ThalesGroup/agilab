@@ -1,9 +1,17 @@
 [project]
 name = "agi-page-scenario-cockpit"
-version = "2026.05.18"
+version = "2026.05.19.post1"
 description = "AGILAB page bundle for scenario evidence comparison."
 readme = { text = "AGILAB page bundle for scenario evidence comparison.", content-type = "text/markdown" }
 requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",
     "agi-node>=2026.05.12.post3,<2027.0",
@@ -13,6 +21,15 @@ dependencies = [
 [project.entry-points."agilab.pages"]
 view_scenario_cockpit = "view_scenario_cockpit:bundle_root"
 
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_scenario_cockpit"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }
