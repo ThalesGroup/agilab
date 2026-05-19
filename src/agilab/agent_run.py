@@ -47,6 +47,8 @@ class AgentRunConfig:
     include_command_args: bool = False
     tags: tuple[str, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
+    protocol_adapters: tuple[str, ...] = ()
+    capabilities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,17 @@ def _normalize_tags(raw_values: Sequence[str]) -> tuple[str, ...]:
     return tuple(tags)
 
 
+def _normalize_slug_values(raw_values: Sequence[str]) -> tuple[str, ...]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_values:
+        clean = _slug(raw, "").casefold()
+        if clean and clean not in seen:
+            values.append(clean)
+            seen.add(clean)
+    return tuple(values)
+
+
 def _redacted_env_payload(env_overrides: dict[str, str]) -> dict[str, object]:
     return {
         "keys": sorted(env_overrides),
@@ -162,6 +175,36 @@ def _context_payload(config: AgentRunConfig) -> dict[str, object]:
         "metadata": metadata,
         "metadata_redacted": metadata_redacted,
     }
+
+
+def _protocol_payload(config: AgentRunConfig) -> dict[str, object]:
+    return {
+        "adapters": list(config.protocol_adapters),
+        "capabilities": list(config.capabilities),
+        "mode": "metadata-only" if config.protocol_adapters or config.capabilities else "none",
+        "dependency_boundary": (
+            "Protocol bridges are recorded as manifest metadata here; concrete MCP, A2A, "
+            "AG-UI, FastAPI, or similar adapters must stay behind optional integrations."
+        ),
+    }
+
+
+def _event_payload(
+    sequence: int,
+    event_type: str,
+    *,
+    timestamp: str,
+    status: str,
+    **fields: object,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "sequence": sequence,
+        "timestamp": timestamp,
+        "type": event_type,
+        "status": status,
+    }
+    payload.update({key: value for key, value in fields.items() if value is not None})
+    return payload
 
 
 def _file_payload(path: Path) -> dict[str, object]:
@@ -220,6 +263,8 @@ def create_agent_run_config(
     include_command_args: bool = False,
     tags: Sequence[str] = (),
     metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
 ) -> AgentRunConfig:
     """Build a validated agent-run config with CLI-compatible defaults.
 
@@ -262,6 +307,8 @@ def create_agent_run_config(
         include_command_args=bool(include_command_args),
         tags=_normalize_tags(tags),
         metadata=dict(metadata or {}),
+        protocol_adapters=_normalize_slug_values(protocol_adapters),
+        capabilities=_normalize_slug_values(capabilities),
     )
 
 
@@ -285,6 +332,7 @@ def _artifact_paths(output_dir: Path) -> dict[str, Path]:
 def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
     """Build a trace manifest without executing the command."""
     artifacts = _artifact_paths(config.output_dir)
+    planned_at = _utc_now()
     return {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -295,6 +343,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
         "returncode": None,
         "command": _command_payload(config),
         "context": _context_payload(config),
+        "protocols": _protocol_payload(config),
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": None,
@@ -307,6 +356,16 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
             "stdout": str(artifacts["stdout"]),
             "stderr": str(artifacts["stderr"]),
         },
+        "events": [
+            _event_payload(
+                1,
+                "agent.run.planned",
+                timestamp=planned_at,
+                status="planned",
+                protocol_adapters=list(config.protocol_adapters),
+                capabilities=list(config.capabilities),
+            )
+        ],
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
@@ -332,6 +391,16 @@ def run_agent_command(
     env.update(config.env_overrides)
     started_at = _utc_now()
     started = perf_counter()
+    events: list[dict[str, object]] = [
+        _event_payload(
+            1,
+            "agent.run.started",
+            timestamp=started_at,
+            status="running",
+            protocol_adapters=list(config.protocol_adapters),
+            capabilities=list(config.capabilities),
+        )
+    ]
     timed_out = False
     try:
         proc = runner(
@@ -357,10 +426,29 @@ def run_agent_command(
         stderr = (stderr + f"\nTimed out after {config.timeout_seconds:.0f}s").strip()
     duration_seconds = perf_counter() - started
     finished_at = _utc_now()
+    events.append(
+        _event_payload(
+            2,
+            "agent.command.timeout" if timed_out else "agent.command.completed",
+            timestamp=finished_at,
+            status="timeout" if timed_out else "completed",
+            returncode=returncode,
+            duration_seconds=duration_seconds,
+        )
+    )
 
     stdout_path.write_text(stdout, encoding="utf-8")
     stderr_path.write_text(stderr, encoding="utf-8")
     status = "pass" if returncode == 0 else "timeout" if timed_out else "fail"
+    events.append(
+        _event_payload(
+            3,
+            "agent.artifacts.written",
+            timestamp=finished_at,
+            status=status,
+            artifacts=["stdout", "stderr"],
+        )
+    )
     manifest: dict[str, object] = {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -371,6 +459,7 @@ def run_agent_command(
         "returncode": returncode,
         "command": _command_payload(config),
         "context": _context_payload(config),
+        "protocols": _protocol_payload(config),
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": started_at,
@@ -383,6 +472,7 @@ def run_agent_command(
             "stdout": _file_payload(stdout_path),
             "stderr": _file_payload(stderr_path),
         },
+        "events": events,
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
@@ -407,6 +497,8 @@ def trace_agent_run(
     include_command_args: bool = False,
     tags: Sequence[str] = (),
     metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     perf_counter: Callable[[], float] = time.perf_counter,
 ) -> AgentRunResult:
@@ -425,6 +517,8 @@ def trace_agent_run(
         include_command_args=include_command_args,
         tags=tags,
         metadata=metadata,
+        protocol_adapters=protocol_adapters,
+        capabilities=capabilities,
     )
     return run_agent_command(config, runner=runner, perf_counter=perf_counter)
 
@@ -557,6 +651,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env", action="append", default=[], help="Environment override passed to the command as KEY=VALUE.")
     parser.add_argument("--metadata", action="append", default=[], help="Structured manifest context as KEY=VALUE.")
     parser.add_argument("--tag", action="append", default=[], help="Tag stored in the manifest context. May be repeated.")
+    parser.add_argument(
+        "--protocol-adapter",
+        action="append",
+        default=[],
+        help="Protocol bridge observed or intended for this run, for example mcp, a2a, ag-ui, or fastapi.",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Capability exercised by this run, for example app-as-tool, notebook-export, or evidence-review.",
+    )
     parser.add_argument("--json", action="store_true", help="Print the trace manifest JSON.")
     parser.add_argument("--print-only", action="store_true", help="Print the planned trace without executing the command.")
     parser.add_argument("--allow-failure", action="store_true", help="Return 0 even if the traced command fails.")
@@ -596,6 +702,8 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
             include_command_args=bool(args.include_command_args),
             tags=args.tag,
             metadata=_parse_metadata(args.metadata),
+            protocol_adapters=args.protocol_adapter,
+            capabilities=args.capability,
         )
     except ValueError as exc:
         parser.error(str(exc))

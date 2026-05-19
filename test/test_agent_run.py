@@ -51,6 +51,12 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
             str(tmp_path),
             "--env",
             "OPENAI_API_KEY=sk-secret",
+            "--protocol-adapter",
+            "AG-UI",
+            "--protocol-adapter",
+            "ag ui",
+            "--capability",
+            "app as tool",
             "--json",
             "--print-only",
             "--",
@@ -71,6 +77,12 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
     assert payload["command"]["env_overrides"]["keys"] == ["OPENAI_API_KEY"]
     assert payload["command"]["env_overrides"]["value_redacted"]["OPENAI_API_KEY"] is True
     assert payload["command"]["env_overrides"]["secret_like"]["OPENAI_API_KEY"] is True
+    assert payload["protocols"]["adapters"] == ["ag-ui"]
+    assert payload["protocols"]["capabilities"] == ["app-as-tool"]
+    assert payload["protocols"]["mode"] == "metadata-only"
+    assert payload["events"][0]["type"] == "agent.run.planned"
+    assert payload["events"][0]["protocol_adapters"] == ["ag-ui"]
+    assert payload["events"][0]["capabilities"] == ["app-as-tool"]
     assert "sk-secret" not in json.dumps(payload)
     assert "review" not in json.dumps(payload)
 
@@ -158,6 +170,8 @@ def test_agent_run_public_python_api_uses_cli_defaults(tmp_path: Path, monkeypat
         env_overrides={"OPENAI_API_KEY": "sk-secret"},
         tags=("review", "Review", "api smoke"),
         metadata={"branch": "main", "token": "hidden"},
+        protocol_adapters=("mcp", "MCP"),
+        capabilities=("evidence review",),
     )
 
     assert config.run_id == "api-run"
@@ -165,6 +179,8 @@ def test_agent_run_public_python_api_uses_cli_defaults(tmp_path: Path, monkeypat
     assert config.cwd == ROOT
     assert config.tags == ("review", "api-smoke")
     assert config.metadata == {"branch": "main", "token": "hidden"}
+    assert config.protocol_adapters == ("mcp",)
+    assert config.capabilities == ("evidence-review",)
 
 
 def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) -> None:
@@ -180,6 +196,8 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) 
         env_overrides={"OPENAI_API_KEY": "sk-secret"},
         metadata={"note": "using env://OPENAI_API_KEY"},
         tags=("api",),
+        protocol_adapters=("mcp",),
+        capabilities=("agent-as-tool",),
     )
 
     assert result.returncode == 0
@@ -188,6 +206,13 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) 
     assert result.manifest["command"]["argv"] == [sys.executable, "<2 argument(s) redacted>"]
     assert result.manifest["command"]["env_overrides"]["keys"] == ["OPENAI_API_KEY"]
     assert result.manifest["context"]["metadata"]["note"] == "using <secret-ref>"
+    assert result.manifest["protocols"]["adapters"] == ["mcp"]
+    assert result.manifest["protocols"]["capabilities"] == ["agent-as-tool"]
+    assert [event["type"] for event in result.manifest["events"]] == [
+        "agent.run.started",
+        "agent.command.completed",
+        "agent.artifacts.written",
+    ]
     assert "sk-secret" not in json.dumps(result.manifest)
     assert (tmp_path / module.STDOUT_FILENAME).read_text(encoding="utf-8").strip() == "api ok"
     summary = module.summarize_agent_run(tmp_path)
@@ -226,6 +251,13 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
     assert payload["artifacts"]["manifest"] == str(manifest_path)
     assert payload["artifacts"]["stdout"]["line_count"] == 1
     assert payload["artifacts"]["stderr"]["line_count"] == 1
+    assert payload["protocols"]["mode"] == "none"
+    assert [event["type"] for event in payload["events"]] == [
+        "agent.run.started",
+        "agent.command.completed",
+        "agent.artifacts.written",
+    ]
+    assert payload["events"][1]["returncode"] == 0
     assert stdout_path.read_text(encoding="utf-8").strip() == "ok"
     assert stderr_path.read_text(encoding="utf-8").strip() == "warn"
     assert json.loads(manifest_path.read_text(encoding="utf-8"))["run_id"] == "agent-success"
@@ -344,6 +376,12 @@ def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     assert result.returncode == 124
     assert result.manifest["status"] == "timeout"
     assert result.manifest["timing"]["duration_seconds"] == 2.0
+    assert [event["type"] for event in result.manifest["events"]] == [
+        "agent.run.started",
+        "agent.command.timeout",
+        "agent.artifacts.written",
+    ]
+    assert result.manifest["events"][1]["returncode"] == 124
     assert "Timed out after 1s" in (tmp_path / "stderr.txt").read_text(encoding="utf-8")
 
 
