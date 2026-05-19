@@ -1070,6 +1070,68 @@ def test_create_project_clone_action_resolves_installed_app_project(
     assert result.data["resolved_clone_source"] == installed_root
 
 
+def test_pypi_app_requirement_validation_and_install_command():
+    module = _load_project_module()
+
+    assert module._normalize_pypi_app_requirement(" AGI-APP-Weather_Forecast==2026.5.18 ") == (
+        "agi-app-weather-forecast==2026.5.18"
+    )
+    assert module._pypi_app_install_command(
+        "agi-app-weather-forecast",
+        python_executable="/tmp/python",
+        uv_executable="/tmp/uv",
+    ) == (
+        "/tmp/uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "pip",
+        "install",
+        "--python",
+        "/tmp/python",
+        "--upgrade",
+        "agi-app-weather-forecast",
+    )
+
+    for bad_value in ("", "requests", "agi-page-geospatial-map", "agi-app-demo @ https://example.test/x"):
+        with pytest.raises(ValueError):
+            module._normalize_pypi_app_requirement(bad_value)
+
+
+def test_install_pypi_app_package_reports_success_and_failure():
+    module = _load_project_module()
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def success_runner(command, **kwargs):
+        calls.append((tuple(command), kwargs))
+        return SimpleNamespace(returncode=0, stdout="installed\n", stderr="")
+
+    success = module._install_pypi_app_package(
+        "agi-app-weather-forecast",
+        runner=success_runner,
+        python_executable="/tmp/python",
+        uv_executable="/tmp/uv",
+    )
+
+    assert success.status == "success"
+    assert success.data["requirement"] == "agi-app-weather-forecast"
+    assert calls[0][0][-1] == "agi-app-weather-forecast"
+    assert calls[0][1]["timeout"] == module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+    assert "Refresh PROJECT" in success.next_action
+
+    def failure_runner(command, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="No matching distribution found\n")
+
+    failure = module._install_pypi_app_package(
+        "agi-app-missing-demo",
+        runner=failure_runner,
+        python_executable="/tmp/python",
+        uv_executable="/tmp/uv",
+    )
+
+    assert failure.status == "error"
+    assert "No matching distribution" in failure.detail
+
+
 def test_render_notebook_import_sample_actions_only_reports_existing_packaged_source():
     module = _load_project_module()
 

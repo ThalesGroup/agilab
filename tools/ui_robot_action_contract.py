@@ -67,6 +67,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "project import is probed through PROJECT import scenarios without firing archive import",
     ),
+    "Install PyPI app": (
+        "trial-only",
+        "installs a reviewed external app package; helper tests cover command construction without mutating the environment",
+    ),
     "Overwrite": (
         "ignored",
         "conditional conflict-resolution action that only appears after an import conflict",

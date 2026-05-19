@@ -3920,6 +3920,7 @@ def _wait_for_action_outcome(
     idle_seen = 0
     baseline_feedback = set(baseline_feedback or ())
     while True:
+        now = time.perf_counter()
         try:
             page.evaluate(OPEN_EXPANDERS_JS)
         except Exception:
@@ -3953,14 +3954,14 @@ def _wait_for_action_outcome(
                 busy_seen
                 or soft_feedback_seen
                 or allow_idle_settle
-                or time.perf_counter() >= min_observation_deadline
+                or now >= min_observation_deadline
             ):
                 return None, True
             if require_feedback and soft_feedback_seen and allow_idle_settle:
                 idle_seen += 1
-                if time.perf_counter() >= min_observation_deadline:
+                if now >= min_observation_deadline:
                     return None, True
-            elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+            elif require_feedback and allow_idle_settle and now >= min_observation_deadline:
                 return None, True
         elif busy_seen and not require_feedback:
             idle_seen += 1
@@ -3968,13 +3969,12 @@ def _wait_for_action_outcome(
                 return None, True
         elif require_feedback and soft_feedback_seen and allow_idle_settle:
             idle_seen += 1
-            if time.perf_counter() >= min_observation_deadline:
+            if now >= min_observation_deadline:
                 return None, True
-        elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+        elif require_feedback and allow_idle_settle and now >= min_observation_deadline:
             return None, True
-        elif not require_feedback and time.perf_counter() >= min_observation_deadline:
+        elif not require_feedback and now >= min_observation_deadline:
             return None, True
-        now = time.perf_counter()
         if now >= deadline:
             if require_feedback and allow_idle_settle and (
                 soft_feedback_seen or now >= min_observation_deadline
