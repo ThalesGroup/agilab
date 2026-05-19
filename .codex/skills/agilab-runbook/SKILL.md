@@ -85,6 +85,12 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs and
   release-proof checks only for release-proof inputs. If classification fails, it runs all local
   guards. Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
+- **Public style badge alignment**: keep the code-style/style-guard signal in
+  `README.md` and `README.pypi.md` aligned with the actual repository guard. If
+  the public badge moves to a Ruff changed-files guard or another style tool,
+  update both README files, grep for stale `Black`, `black`, or `code%20style`
+  badge text, and avoid advertising a tool that is not wired into the local
+  validation path.
 - **Install-log startup check**: before launching flows after installer changes or a reported install
   failure, inspect the latest installer log for errors. On macOS/Linux:
   `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`
