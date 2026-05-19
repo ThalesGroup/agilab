@@ -5,4 +5,9 @@ package_name_pattern = "view-{page_slug}"
 entrypoint = "src/view_demo/view_demo.py"
 
 [files]
-required = ["pyproject.toml", "src/view_demo/view_demo.py"]
+required = [
+    "README.md",
+    "pyproject.toml",
+    "src/view_demo/__init__.py",
+    "src/view_demo/view_demo.py",
+]
