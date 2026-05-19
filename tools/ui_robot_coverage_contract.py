@@ -22,12 +22,17 @@ REQUIRED_CORE_PAGES = ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS",
 REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
 REQUIRED_HF_FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
+REQUIRED_HF_FIRST_PROOF_APPS_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
         "pages": ("HOME", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
         "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
     },
-    "hf-flight-telemetry-install": {
+    "hf-first-proof-app-pages-visual-smoke": {
+        "apps_pages": REQUIRED_HF_FIRST_PROOF_APPS_PAGES,
+        "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
+    },
+    "hf-first-proof-install": {
         "pages": ("ORCHESTRATE",),
         "actions": ("INSTALL",),
     },
@@ -62,6 +67,14 @@ def _scenario_action_labels(widget_robot: Any, scenario: Any) -> set[str]:
     }
 
 
+def _scenario_apps_pages(widget_robot: Any, scenario: Any) -> set[str]:
+    return {
+        name
+        for name in widget_robot.parse_csv(str(getattr(scenario, "apps_pages", "")))
+        if name and name != "none"
+    }
+
+
 def _scenario_flags(scenario: Any) -> set[str]:
     return {
         flag
@@ -75,6 +88,10 @@ def _argv_value(argv: Sequence[str], option: str) -> str:
         return argv[argv.index(option) + 1]
     except (ValueError, IndexError):
         return ""
+
+
+def _argv_values(argv: Sequence[str], option: str) -> list[str]:
+    return [argv[index + 1] for index, value in enumerate(argv[:-1]) if value == option]
 
 
 def evaluate_contract() -> dict[str, Any]:
@@ -159,8 +176,10 @@ def evaluate_contract() -> dict[str, Any]:
         pages = sorted(_scenario_pages(widget_robot, scenario))
         actions = sorted(_scenario_action_labels(widget_robot, scenario))
         flags = sorted(_scenario_flags(scenario))
+        apps_pages = sorted(_scenario_apps_pages(widget_robot, scenario))
         hf_robot_scenarios[scenario_name] = {
             "pages": pages,
+            "apps_pages": apps_pages,
             "actions": actions,
             "flags": flags,
         }
@@ -186,6 +205,14 @@ def evaluate_contract() -> dict[str, Any]:
                     f"{scenario_name} is missing required actions: " + ", ".join(missing_actions),
                 )
             )
+        missing_apps_pages = sorted(set(requirements.get("apps_pages", ())) - set(apps_pages))
+        if missing_apps_pages:
+            issues.append(
+                CoverageIssue(
+                    "hf_robot_scenario",
+                    f"{scenario_name} is missing required apps-pages: " + ", ".join(missing_apps_pages),
+                )
+            )
         missing_flags = sorted(set(requirements.get("flags", ())) - set(flags))
         if missing_flags:
             issues.append(
@@ -198,13 +225,37 @@ def evaluate_contract() -> dict[str, Any]:
     parity_profiles = workflow_parity._profile_commands(
         argparse.Namespace(components=(), skills=(), app_path=None, worker_copy=None)
     )
+    hf_install_profile_apps: list[str] = []
+    hf_install_profile_scenarios: list[str] = []
+    for command in parity_profiles.get("hf-install-robot", []):
+        scenarios = _argv_values(command.argv, "--scenario")
+        hf_install_profile_scenarios.extend(scenarios)
+        if "hf-first-proof-install" in scenarios:
+            hf_install_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
+    hf_install_profile_apps = sorted(set(hf_install_profile_apps))
+    hf_install_profile_scenarios = sorted(set(hf_install_profile_scenarios))
+    missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
+    if "hf-first-proof-install" not in hf_install_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "hf_robot_profile",
+                "hf-install-robot does not run hf-first-proof-install",
+            )
+        )
+    if missing_install_profile_apps:
+        issues.append(
+            CoverageIssue(
+                "hf_robot_profile",
+                "hf-install-robot is missing first-proof apps: " + ", ".join(missing_install_profile_apps),
+            )
+        )
+
     hf_visual_smoke_profile_apps: list[str] = []
     hf_visual_smoke_profile_scenarios: list[str] = []
     for command in parity_profiles.get("hf-visual-smoke-robot", []):
-        scenario = _argv_value(command.argv, "--scenario")
-        if scenario:
-            hf_visual_smoke_profile_scenarios.append(scenario)
-        if scenario == "hf-first-proof-visual-smoke":
+        scenarios = _argv_values(command.argv, "--scenario")
+        hf_visual_smoke_profile_scenarios.extend(scenarios)
+        if "hf-first-proof-visual-smoke" in scenarios:
             hf_visual_smoke_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
     hf_visual_smoke_profile_apps = sorted(set(hf_visual_smoke_profile_apps))
     hf_visual_smoke_profile_scenarios = sorted(set(hf_visual_smoke_profile_scenarios))
@@ -214,6 +265,13 @@ def evaluate_contract() -> dict[str, Any]:
             CoverageIssue(
                 "hf_robot_profile",
                 "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke",
+            )
+        )
+    if "hf-first-proof-app-pages-visual-smoke" not in hf_visual_smoke_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "hf_robot_profile",
+                "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke",
             )
         )
     if missing_profile_apps:
@@ -236,6 +294,8 @@ def evaluate_contract() -> dict[str, Any]:
             "configured_apps_pages_scenarios": configured_scenarios,
             "high_risk_actions": action_to_scenarios,
             "hf_first_proof_apps": hf_first_proof_apps,
+            "hf_install_profile_apps": hf_install_profile_apps,
+            "hf_install_profile_scenarios": hf_install_profile_scenarios,
             "hf_visual_smoke_profile_apps": hf_visual_smoke_profile_apps,
             "hf_visual_smoke_profile_scenarios": hf_visual_smoke_profile_scenarios,
             "hf_robot_scenarios": hf_robot_scenarios,
