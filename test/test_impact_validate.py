@@ -69,8 +69,7 @@ def test_analyze_paths_keeps_skill_badges_out_of_coverage_badge_refresh() -> Non
         [
             ".claude/skills/agilab-ui-robot-validation/SKILL.md",
             ".codex/skills/agilab-ui-robot-validation/SKILL.md",
-            "badges/skills-codex.svg",
-            "badges/skills-claude.svg",
+            "badges/skills.svg",
         ]
     )
 
