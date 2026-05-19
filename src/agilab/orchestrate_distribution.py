@@ -15,15 +15,9 @@ except ModuleNotFoundError as exc:
 else:
     _NETWORKX_IMPORT_ERROR = None
 
-try:
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Patch
-except ModuleNotFoundError as exc:
-    plt = None  # type: ignore[assignment]
-    Patch = None  # type: ignore[assignment]
-    _MATPLOTLIB_IMPORT_ERROR = exc
-else:
-    _MATPLOTLIB_IMPORT_ERROR = None
+plt = None  # type: ignore[assignment]
+Patch = None  # type: ignore[assignment]
+_MATPLOTLIB_IMPORT_ERROR: ModuleNotFoundError | None = None
 
 
 def _networkx_unavailable_message() -> str:
@@ -39,6 +33,31 @@ def _require_networkx():
     return nx
 
 
+def _matplotlib_unavailable_message() -> str:
+    return (
+        f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+        "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+    )
+
+
+def _require_matplotlib(import_module_fn=importlib.import_module):
+    global Patch, plt, _MATPLOTLIB_IMPORT_ERROR
+    if plt is not None and Patch is not None:
+        return plt, Patch
+    if _MATPLOTLIB_IMPORT_ERROR is not None:
+        raise RuntimeError(_matplotlib_unavailable_message())
+    try:
+        plt = import_module_fn("matplotlib.pyplot")
+        patches_module = import_module_fn("matplotlib.patches")
+    except ModuleNotFoundError as exc:
+        plt = None  # type: ignore[assignment]
+        Patch = None  # type: ignore[assignment]
+        _MATPLOTLIB_IMPORT_ERROR = exc
+        raise RuntimeError(_matplotlib_unavailable_message()) from exc
+    Patch = patches_module.Patch
+    return plt, Patch
+
+
 def import_plotly_graph_objects(import_module_fn=importlib.import_module):
     try:
         return import_module_fn("plotly.graph_objects")
@@ -51,11 +70,7 @@ def import_plotly_graph_objects(import_module_fn=importlib.import_module):
 def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     """Shared drawing routine for distribution or DAG graphs."""
     nx_module = _require_networkx()
-    if plt is None or Patch is None:
-        raise RuntimeError(
-            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
-            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
-        )
+    plt_module, patch_cls = _require_matplotlib()
 
     pos = nx_module.multipartite_layout(graph, subset_key="level", align="horizontal")
     pos = {k: (-x, -y) for k, (x, y) in pos.items()}
@@ -65,8 +80,8 @@ def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     partition_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 2]
     leaf_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 3]
 
-    plt.figure(figsize=(12, 8))
-    plt.margins(x=0.1, y=0.1)
+    plt_module.figure(figsize=(12, 8))
+    plt_module.margins(x=0.1, y=0.1)
 
     nx_module.draw_networkx_nodes(graph, pos, nodelist=ip_nodes, node_color="royalblue", node_shape="o", node_size=1500)
     nx_module.draw_networkx_nodes(graph, pos, nodelist=worker_nodes, node_color="skyblue", node_shape="o", node_size=1500)
@@ -79,7 +94,7 @@ def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
         )
     nx_module.draw_networkx_edges(graph, pos)
 
-    ax = plt.gca()
+    ax = plt_module.gca()
     for node in graph.nodes():
         x, y = pos[node]
         rotation, fontsize = (90, 7) if show_leaf_list and node in leaf_nodes else (0, 7)
@@ -100,18 +115,18 @@ def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
         nx_module.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
 
     patches = [
-        Patch(facecolor="royalblue", label="Host IP"),
-        Patch(facecolor="skyblue", label="Worker"),
-        Patch(facecolor="lightgreen", label=partition_key.title()),
+        patch_cls(facecolor="royalblue", label="Host IP"),
+        patch_cls(facecolor="skyblue", label="Worker"),
+        patch_cls(facecolor="lightgreen", label=partition_key.title()),
     ]
     if show_leaf_list:
-        patches.append(Patch(facecolor="lightgrey", label="Leaf List"))
-    plt.legend(handles=patches, loc="center", bbox_to_anchor=(0.5, -0.05), ncol=len(patches))
+        patches.append(patch_cls(facecolor="lightgrey", label="Leaf List"))
+    plt_module.legend(handles=patches, loc="center", bbox_to_anchor=(0.5, -0.05), ncol=len(patches))
 
-    plt.tight_layout()
-    plt.title(title)
-    plt.axis("off")
-    st.pyplot(plt, width="stretch")
+    plt_module.tight_layout()
+    plt_module.title(title)
+    plt_module.axis("off")
+    st.pyplot(plt_module, width="stretch")
 
 
 def extract_chunk_info(chunk, partition_key, weights_key) -> tuple[Any, Any]:

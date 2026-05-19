@@ -55,6 +55,11 @@ DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
 DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
+PAGE_READY_POLL_MS = 150
+PAGE_READY_STABILIZE_MS = 100
+WIDGET_READY_POLL_MS = 150
+ACTION_OUTCOME_POLL_MS = 100
+ACTION_MIN_OBSERVATION_SECONDS = 1.0
 DEFAULT_TARGET_SECONDS = 1800.0
 DEFAULT_VIEWPORT_WIDTH = 1440
 DEFAULT_VIEWPORT_HEIGHT = 1000
@@ -1802,9 +1807,9 @@ def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:
             text = ""
             spinner_count = 0
         if "initializing environment" not in text and spinner_count == 0:
-            page.wait_for_timeout(250)
+            page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
             return
-        page.wait_for_timeout(250)
+        page.wait_for_timeout(PAGE_READY_POLL_MS)
 
 
 def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> int:
@@ -1825,7 +1830,7 @@ def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> i
         else:
             stable_seen = 0
         last_count = count
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(WIDGET_READY_POLL_MS)
     return max(last_count, 0)
 
 
@@ -3661,7 +3666,7 @@ def _probe_selected_actions_first(
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
         wait_for_widgets_ready(page, page_name=display, timeout_ms=widget_timeout_ms)
-        _wait_for_timeout(page, 1000)
+        _wait_for_timeout(page, WIDGET_READY_POLL_MS)
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
         _close_all_expanders(page)
         return page.evaluate(WIDGET_COLLECTOR_JS)
@@ -3909,7 +3914,7 @@ def _wait_for_action_outcome(
     start = time.perf_counter()
     timeout_seconds = timeout_ms / 1000.0
     deadline = start + timeout_seconds
-    min_observation_deadline = start + min(5.0, timeout_seconds)
+    min_observation_deadline = start + min(ACTION_MIN_OBSERVATION_SECONDS, timeout_seconds)
     busy_seen = False
     soft_feedback_seen = False
     idle_seen = 0
@@ -3976,7 +3981,7 @@ def _wait_for_action_outcome(
             ):
                 return None, True
             return None, False
-        _wait_for_timeout(page, min(250, max(10, (deadline - now) * 1000.0)))
+        _wait_for_timeout(page, min(ACTION_OUTCOME_POLL_MS, max(10, (deadline - now) * 1000.0)))
 
 
 def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
@@ -4583,7 +4588,7 @@ def sweep_page(
         if not health.success:
             raise RuntimeError(health.detail)
         first_render_seconds = time.perf_counter() - render_started
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
         _enforce_page_deadline(page_deadline, "page watchdog expired before readiness wait")
         wait_for_page_ready(page, timeout_ms=timeout_ms)
         _enforce_page_deadline(page_deadline, "page watchdog expired before widget readiness wait")
