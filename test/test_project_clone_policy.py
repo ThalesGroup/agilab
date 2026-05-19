@@ -701,6 +701,7 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert result.data["notebook_import_cell_count"] == 1
 
     steps = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
+    assert steps["__meta__"] == {"schema": "agilab.lab_stages.v1", "version": 1}
     assert steps["notebook_demo_project"][0]["D"] == "Load data"
     assert steps["notebook_demo_project"][0]["NB_SOURCE_NOTEBOOK"] == (
         "notebooks/source/Demo_Notebook.ipynb"
@@ -713,6 +714,37 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert contract["artifact_contract"]["outputs"] == ["outputs/orders.csv"]
     assert (dest_root / "notebook_import_pipeline_view.json").is_file()
     assert (dest_root / "notebook_import_view_plan.json").is_file()
+
+
+def test_project_notebook_import_preview_uses_canonical_persistence(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    calls: list[tuple[dict, Path, Path, dict]] = []
+
+    def _fake_write(preview, module_dir, stages_file, **kwargs):
+        calls.append((preview, Path(module_dir), Path(stages_file), kwargs))
+        return 7
+
+    monkeypatch.setattr(module, "_write_notebook_import_preview", _fake_write)
+
+    preview = {"cell_count": 3}
+    result = module._write_project_notebook_import_preview(
+        preview,
+        tmp_path,
+        tmp_path / "lab_stages.toml",
+    )
+
+    assert result == 7
+    assert calls == [
+        (
+            preview,
+            tmp_path,
+            tmp_path / "lab_stages.toml",
+            {"view_manifest_dir": tmp_path},
+        )
+    ]
 
 
 def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contracts(
@@ -780,6 +812,7 @@ def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contra
         assert (dest_root / "notebook_import_view_plan.json").is_file()
 
         stages = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
+        assert stages["__meta__"] == {"schema": "agilab.lab_stages.v1", "version": 1}
         imported_stages = stages[expected_project]
         assert imported_stages
         assert all(stage["NB_RUNTIME_ROLE"] == "manager" for stage in imported_stages)
@@ -1090,6 +1123,26 @@ def test_active_notebook_import_source_uses_sample_until_user_upload():
     assert module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY not in session_state
 
 
+def test_active_notebook_import_source_uses_selected_packaged_sample():
+    module = _load_project_module()
+    session_state: dict[str, object] = {
+        module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY: True,
+        module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY: "mycode",
+    }
+
+    source = module._active_notebook_import_source(session_state)
+    notebook = json.loads(module._read_uploaded_notebook_bytes(source).decode("utf-8"))
+
+    assert source.name == "mycode_from_notebook.ipynb"
+    assert source.type == "application/x-ipynb+json"
+    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == "mycode_project"
+    assert notebook["metadata"]["agilab"]["import"]["project_name_hint"] == (
+        "mycode-from-notebook-project"
+    )
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY] == "mycode"
+
+
 def test_notebook_import_query_seed_selects_packaged_sample():
     module = _load_project_module()
     session_state: dict[str, object] = {}
@@ -1105,7 +1158,49 @@ def test_notebook_import_query_seed_selects_packaged_sample():
     assert session_state["sidebar_selection"] == "Create"
     assert session_state["create_mode"] == "From notebook"
     assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY] == "flight_telemetry"
     assert module.PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY not in session_state
+
+
+def test_notebook_import_query_seed_selects_registry_sample_by_id():
+    module = _load_project_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "start": "notebook-import",
+        "sample": "weather_forecast",
+    }
+
+    consumed = module._consume_notebook_import_query_seed(session_state, query_params)
+    source = module._active_notebook_import_source(session_state)
+    notebook = json.loads(module._read_uploaded_notebook_bytes(source).decode("utf-8"))
+
+    assert consumed is True
+    assert session_state["sidebar_selection"] == "Create"
+    assert session_state["create_mode"] == "From notebook"
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY] == "weather_forecast"
+    assert source.name == "weather_forecast_from_notebook.ipynb"
+    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == (
+        "weather_forecast_project"
+    )
+
+
+def test_notebook_import_query_seed_reports_unknown_registry_sample():
+    module = _load_project_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "start": "notebook-import",
+        "sample": "unknown_sample",
+    }
+
+    consumed = module._consume_notebook_import_query_seed(session_state, query_params)
+
+    assert consumed is True
+    assert session_state["sidebar_selection"] == "Create"
+    assert session_state["create_mode"] == "From notebook"
+    assert module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY not in session_state
+    assert module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY not in session_state
+    assert "Unknown notebook import sample" in session_state[module.PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]
 
 
 def test_notebook_import_create_copy_uses_newcomer_friendly_labels():

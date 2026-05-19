@@ -65,8 +65,29 @@ except ModuleNotFoundError:
         sys.path.insert(0, page_dir_str)
     from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
 
+try:
+    from settings_support import (
+        coerce_str_list as _coerce_str_list,
+        first_nonempty_setting as _get_first_nonempty_setting,
+        get_view_maps_page_settings as _page_settings_from_app_settings,
+        setting_list as _get_setting_list,
+    )
+except ModuleNotFoundError:
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from settings_support import (
+        coerce_str_list as _coerce_str_list,
+        first_nonempty_setting as _get_first_nonempty_setting,
+        get_view_maps_page_settings as _page_settings_from_app_settings,
+        setting_list as _get_setting_list,
+    )
+
 logger = AgiLogger.get_logger(__name__)
 _TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
+_HEATMAP_NUMBA_KERNEL: Any | None = None
+_HEATMAP_NUMBA_KERNEL_ATTEMPTED = False
 
 
 def _ensure_repo_on_path() -> None:
@@ -166,57 +187,7 @@ def _get_view_maps_settings() -> dict:
 
 def _get_view_maps_page_settings() -> dict:
     app_settings = st.session_state.setdefault("app_settings", {})
-    pages = app_settings.get("pages")
-    if not isinstance(pages, dict):
-        return {}
-    vm_settings = pages.get("view_maps_network")
-    return vm_settings if isinstance(vm_settings, dict) else {}
-
-
-def _coerce_str_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        raw_items = re.split(r"[,;\n]", value)
-    elif isinstance(value, (list, tuple, set)):
-        raw_items = [str(item) for item in value]
-    else:
-        raw_items = [str(value)]
-    items: list[str] = []
-    seen: set[str] = set()
-    for item in raw_items:
-        cleaned = str(item).strip()
-        if not cleaned or cleaned in seen:
-            continue
-        seen.add(cleaned)
-        items.append(cleaned)
-    return items
-
-
-def _get_first_nonempty_setting(sources: list[dict[str, Any]], *keys: str) -> str:
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        for key in keys:
-            value = source.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return ""
-
-
-def _get_setting_list(sources: list[dict[str, Any]], *keys: str) -> list[str]:
-    items: list[str] = []
-    seen: set[str] = set()
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        for key in keys:
-            for item in _coerce_str_list(source.get(key)):
-                if item in seen:
-                    continue
-                seen.add(item)
-                items.append(item)
-    return items
+    return _page_settings_from_app_settings(app_settings)
 
 
 def _read_query_param(key: str) -> Optional[str]:
@@ -429,67 +400,193 @@ def _load_cloud_heatmap_grid(npz_path: str) -> dict[str, Any]:
     }
 
 
+def _empty_heatmap_stats_arrays(size: int) -> dict[str, np.ndarray]:
+    nan_values = np.full(int(size), np.nan, dtype=np.float64)
+    return {
+        "raw_value": nan_values.copy(),
+        "proxy_value": nan_values.copy(),
+        "local_mean": nan_values.copy(),
+        "local_max": nan_values.copy(),
+    }
+
+
+def _coerce_float_array(values: Any) -> np.ndarray:
+    try:
+        return np.asarray(values, dtype=np.float64)
+    except (TypeError, ValueError, OverflowError):
+        return pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=np.float64)
+
+
+def _cloud_heatmap_stats_kernel_py(
+    lat_values: np.ndarray,
+    lon_values: np.ndarray,
+    heatmap: np.ndarray,
+    x_min: float,
+    z_min: float,
+    step: float,
+    center_x: float,
+    center_z: float,
+    neighborhood_radius_cells: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    size = lat_values.shape[0]
+    raw_values = np.empty(size, dtype=np.float64)
+    proxy_values = np.empty(size, dtype=np.float64)
+    local_means = np.empty(size, dtype=np.float64)
+    local_maxes = np.empty(size, dtype=np.float64)
+    raw_values[:] = np.nan
+    proxy_values[:] = np.nan
+    local_means[:] = np.nan
+    local_maxes[:] = np.nan
+
+    if step == 0.0 or not np.isfinite(step):
+        return raw_values, proxy_values, local_means, local_maxes
+
+    radius = max(1, int(neighborhood_radius_cells))
+    n_rows = heatmap.shape[0]
+    n_cols = heatmap.shape[1]
+    x_origin = center_x + x_min
+    z_origin = center_z + z_min
+
+    for index in range(size):
+        lat_f = float(lat_values[index])
+        lon_f = float(lon_values[index])
+        if not np.isfinite(lat_f) or not np.isfinite(lon_f):
+            continue
+
+        x_world = float(EARTH_RADIUS_M * np.radians(lon_f))
+        z_world = float(EARTH_RADIUS_M * np.radians(lat_f))
+        col = int(round((x_world - x_origin) / step))
+        row = int(round((z_world - z_origin) / step))
+        if row < 0 or row >= n_rows or col < 0 or col >= n_cols:
+            continue
+
+        raw_values[index] = float(heatmap[row, col])
+        row0 = max(0, row - radius)
+        row1 = min(n_rows, row + radius + 1)
+        col0 = max(0, col - radius)
+        col1 = min(n_cols, col + radius + 1)
+
+        total = 0.0
+        count = 0
+        max_value = -np.inf
+        found = False
+        for row_index in range(row0, row1):
+            for col_index in range(col0, col1):
+                value = float(heatmap[row_index, col_index])
+                if np.isnan(value):
+                    continue
+                total += value
+                count += 1
+                if not found or value > max_value:
+                    max_value = value
+                    found = True
+
+        if count > 0:
+            local_means[index] = total / float(count)
+            local_maxes[index] = max_value
+            proxy_values[index] = max_value
+
+    return raw_values, proxy_values, local_means, local_maxes
+
+
+def _get_heatmap_numba_kernel() -> Any | None:
+    global _HEATMAP_NUMBA_KERNEL, _HEATMAP_NUMBA_KERNEL_ATTEMPTED
+
+    if _HEATMAP_NUMBA_KERNEL_ATTEMPTED:
+        return _HEATMAP_NUMBA_KERNEL
+
+    _HEATMAP_NUMBA_KERNEL_ATTEMPTED = True
+    try:
+        from numba import njit  # type: ignore[import-not-found]
+    except Exception:
+        _HEATMAP_NUMBA_KERNEL = None
+        return None
+
+    try:
+        # Streamlit and tests can import this page under dynamic module names.
+        # A disk cache may then reload invalid module references across runs.
+        _HEATMAP_NUMBA_KERNEL = njit(cache=False)(_cloud_heatmap_stats_kernel_py)
+    except Exception:
+        _HEATMAP_NUMBA_KERNEL = None
+    return _HEATMAP_NUMBA_KERNEL
+
+
+def _sample_cloud_heatmap_stats_batch(
+    npz_path: str,
+    lat_values: Any,
+    lon_values: Any,
+    neighborhood_radius_cells: int = 25,
+) -> dict[str, np.ndarray]:
+    global _HEATMAP_NUMBA_KERNEL
+
+    lat_array = _coerce_float_array(lat_values).reshape(-1)
+    lon_array = _coerce_float_array(lon_values).reshape(-1)
+    if lat_array.shape[0] != lon_array.shape[0]:
+        raise ValueError(
+            "Heatmap sampling requires matching latitude and longitude counts "
+            f"({lat_array.shape[0]} != {lon_array.shape[0]})"
+        )
+
+    if lat_array.size == 0:
+        return _empty_heatmap_stats_arrays(0)
+    if not (np.isfinite(lat_array).any() and np.isfinite(lon_array).any()):
+        return _empty_heatmap_stats_arrays(lat_array.size)
+
+    try:
+        grid = _load_cloud_heatmap_grid(npz_path)
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
+        return _empty_heatmap_stats_arrays(lat_array.size)
+
+    kernel_args = (
+        lat_array.astype(np.float64, copy=False),
+        lon_array.astype(np.float64, copy=False),
+        np.asarray(grid["heatmap"], dtype=np.float32),
+        float(grid["x_min"]),
+        float(grid["z_min"]),
+        float(grid["step"]),
+        float(grid["center_x"]),
+        float(grid["center_z"]),
+        max(1, int(neighborhood_radius_cells)),
+    )
+    kernel = _get_heatmap_numba_kernel()
+    if kernel is not None:
+        try:
+            raw_values, proxy_values, local_means, local_maxes = kernel(*kernel_args)
+            return {
+                "raw_value": np.asarray(raw_values, dtype=np.float64),
+                "proxy_value": np.asarray(proxy_values, dtype=np.float64),
+                "local_mean": np.asarray(local_means, dtype=np.float64),
+                "local_max": np.asarray(local_maxes, dtype=np.float64),
+            }
+        except Exception:
+            _HEATMAP_NUMBA_KERNEL = None
+
+    raw_values, proxy_values, local_means, local_maxes = _cloud_heatmap_stats_kernel_py(*kernel_args)
+    return {
+        "raw_value": raw_values,
+        "proxy_value": proxy_values,
+        "local_mean": local_means,
+        "local_max": local_maxes,
+    }
+
+
 def _sample_cloud_heatmap_stats(
     npz_path: str,
     lat: Any,
     lon: Any,
     neighborhood_radius_cells: int = 25,
 ) -> dict[str, float]:
-    try:
-        lat_f = float(lat)
-        lon_f = float(lon)
-    except (TypeError, ValueError, OverflowError):
-        return {
-            "raw_value": float("nan"),
-            "proxy_value": float("nan"),
-            "local_mean": float("nan"),
-            "local_max": float("nan"),
-        }
-    if not np.isfinite(lat_f) or not np.isfinite(lon_f):
-        return {
-            "raw_value": float("nan"),
-            "proxy_value": float("nan"),
-            "local_mean": float("nan"),
-            "local_max": float("nan"),
-        }
-
-    try:
-        grid = _load_cloud_heatmap_grid(npz_path)
-    except (FileNotFoundError, OSError, RuntimeError, ValueError):
-        return {
-            "raw_value": float("nan"),
-            "proxy_value": float("nan"),
-            "local_mean": float("nan"),
-            "local_max": float("nan"),
-        }
-
-    x_world = float(EARTH_RADIUS_M * np.radians(lon_f))
-    z_world = float(EARTH_RADIUS_M * np.radians(lat_f))
-    col = int(round((x_world - (grid["center_x"] + grid["x_min"])) / grid["step"]))
-    row = int(round((z_world - (grid["center_z"] + grid["z_min"])) / grid["step"]))
-    heatmap = grid["heatmap"]
-    if not (0 <= row < heatmap.shape[0] and 0 <= col < heatmap.shape[1]):
-        return {
-            "raw_value": float("nan"),
-            "proxy_value": float("nan"),
-            "local_mean": float("nan"),
-            "local_max": float("nan"),
-        }
-
-    raw_value = float(heatmap[row, col])
-    radius = max(1, int(neighborhood_radius_cells))
-    row0 = max(0, row - radius)
-    row1 = min(heatmap.shape[0], row + radius + 1)
-    col0 = max(0, col - radius)
-    col1 = min(heatmap.shape[1], col + radius + 1)
-    window = np.asarray(heatmap[row0:row1, col0:col1], dtype=np.float32)
-    local_mean = float(np.nanmean(window))
-    local_max = float(np.nanmax(window))
+    stats = _sample_cloud_heatmap_stats_batch(
+        npz_path,
+        [lat],
+        [lon],
+        neighborhood_radius_cells=neighborhood_radius_cells,
+    )
     return {
-        "raw_value": raw_value,
-        "proxy_value": local_max,
-        "local_mean": local_mean,
-        "local_max": local_max,
+        "raw_value": float(stats["raw_value"][0]),
+        "proxy_value": float(stats["proxy_value"][0]),
+        "local_mean": float(stats["local_mean"][0]),
+        "local_max": float(stats["local_max"][0]),
     }
 
 
@@ -557,28 +654,24 @@ def _selected_nodes_heatmap_timeline(
             group = group.iloc[keep]
         sampled_groups.append(group)
     sampled_traj = pd.concat(sampled_groups, ignore_index=True)
-    rows: list[dict[str, Any]] = []
-    for _, row in sampled_traj.iterrows():
-        stats = _sample_cloud_heatmap_stats(
-            npz_path,
-            row.get("lat"),
-            row.get("long"),
-            neighborhood_radius_cells=neighborhood_radius_cells,
-        )
-        rows.append(
-            {
-                "node_id": str(row.get("id_col")),
-                "map_time": row.get("time_col"),
-                "heatmap_value": stats["proxy_value"],
-                "raw_heatmap_value": stats["raw_value"],
-                "local_mean": stats["local_mean"],
-                "local_max": stats["local_max"],
-                "lat": pd.to_numeric(row.get("lat"), errors="coerce"),
-                "long": pd.to_numeric(row.get("long"), errors="coerce"),
-            }
-        )
-
-    return pd.DataFrame(rows)
+    stats = _sample_cloud_heatmap_stats_batch(
+        npz_path,
+        sampled_traj["lat"].to_numpy(dtype=np.float64, copy=False),
+        sampled_traj["long"].to_numpy(dtype=np.float64, copy=False),
+        neighborhood_radius_cells=neighborhood_radius_cells,
+    )
+    return pd.DataFrame(
+        {
+            "node_id": sampled_traj["id_col"].astype(str).to_numpy(),
+            "map_time": sampled_traj["time_col"].to_numpy(),
+            "heatmap_value": stats["proxy_value"],
+            "raw_heatmap_value": stats["raw_value"],
+            "local_mean": stats["local_mean"],
+            "local_max": stats["local_max"],
+            "lat": sampled_traj["lat"].to_numpy(dtype=np.float64, copy=False),
+            "long": sampled_traj["long"].to_numpy(dtype=np.float64, copy=False),
+        }
+    )
 
 
 def _downsample_heatmap_timeline(
@@ -1816,6 +1909,30 @@ def hex_to_rgba(hex_color):
         return [136, 136, 136, 255]
     return [r, g, b, 255]
 
+
+def _position_lookup(
+    positions: pd.DataFrame,
+) -> tuple[dict[str, tuple[Any, Any, Any]], set[str]]:
+    if positions.empty or not {"flight_id", "long", "lat"} <= set(positions.columns):
+        return {}, set()
+    lookup: dict[str, tuple[Any, Any, Any]] = {}
+    for row in positions.itertuples(index=False):
+        try:
+            node_id = str(getattr(row, "flight_id"))
+        except AttributeError:
+            continue
+        if not node_id or node_id.lower() == "nan":
+            continue
+        if node_id in lookup:
+            continue
+        lookup[node_id] = (
+            getattr(row, "long", np.nan),
+            getattr(row, "lat", np.nan),
+            getattr(row, "alt", 0.0),
+        )
+    return lookup, set(lookup)
+
+
 def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pairs: set[tuple[str, str]] | None = None):
     if link_column not in df.columns:
         return pd.DataFrame()
@@ -1830,14 +1947,12 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
         except (ValueError, SyntaxError):
             return None
 
-    df.loc[:, link_column] = df[link_column].apply(_parse_entry)
-    link_edges = df.loc[
-        df[link_column].notna() & df["flight_id"].notna(),
-        [link_column, "flight_id", "long", "lat", "alt"],
-    ]
+    parsed_links = df[link_column].map(_parse_entry)
+    link_edges = df.loc[parsed_links.notna() & df["flight_id"].notna(), ["flight_id"]].copy()
+    link_edges[link_column] = parsed_links.loc[link_edges.index]
     edges_list = []
     label_text = _label_for_link(link_column)
-    node_set = set(current_positions["flight_id"].astype(str).tolist())
+    position_lookup, node_set = _position_lookup(current_positions)
     for _, row in link_edges.iterrows():
         links = row[link_column]
         if links is not None:
@@ -1851,16 +1966,16 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
                 pair = _canonical_edge_pair(source_id, target_id)
                 if allowed_edge_pairs is not None and pair not in allowed_edge_pairs:
                     continue
-                source_pos = current_positions.loc[current_positions["flight_id"] == source_id]
-                target_pos = current_positions.loc[current_positions["flight_id"] == target_id]
-                if not source_pos.empty and not target_pos.empty:
-                    mid_long = (source_pos["long"].values[0] + target_pos["long"].values[0]) / 2
-                    mid_lat = (source_pos["lat"].values[0] + target_pos["lat"].values[0]) / 2
-                    mid_alt = (source_pos["alt"].values[0] + target_pos["alt"].values[0]) / 2
+                source_pos = position_lookup.get(source_id)
+                target_pos = position_lookup.get(target_id)
+                if source_pos is not None and target_pos is not None:
+                    mid_long = (source_pos[0] + target_pos[0]) / 2
+                    mid_lat = (source_pos[1] + target_pos[1]) / 2
+                    mid_alt = (source_pos[2] + target_pos[2]) / 2
                     edges_list.append(
                         {
-                            "source": source_pos[["long", "lat", "alt"]].values[0].tolist(),
-                            "target": target_pos[["long", "lat", "alt"]].values[0].tolist(),
+                            "source": list(source_pos),
+                            "target": list(target_pos),
                             "label": label_text,
                             "midpoint": [mid_long, mid_lat, mid_alt],
                         }
@@ -2413,17 +2528,13 @@ def _load_traj_file(path_str: str) -> pd.DataFrame:
 def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, color=None):
     if alloc_df.empty or positions.empty:
         return []
-    positions_idx = positions.copy()
-    positions_idx["flight_id"] = positions_idx["flight_id"].astype(str)
-    node_set = set(positions_idx["flight_id"].astype(str).tolist())
+    position_lookup, node_set = _position_lookup(positions)
+    if not position_lookup:
+        return []
 
-    def _lookup_position(node_id: Any) -> pd.Series | None:
+    def _lookup_position(node_id: Any) -> tuple[Any, Any, Any] | None:
         resolved = _resolve_node_id(node_id, node_set)
-        if resolved:
-            match = positions_idx.loc[positions_idx["flight_id"] == resolved]
-            if not match.empty:
-                return match.iloc[0]
-        return None
+        return position_lookup.get(resolved) if resolved else None
 
     def _as_list(value: Any) -> list[Any]:
         if value is None or (isinstance(value, float) and np.isnan(value)):
@@ -2482,8 +2593,8 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
                 bearer = path_bearers[i] if i < len(path_bearers) else None
                 edges.append(
                     {
-                        "source": [u_pos["long"], u_pos["lat"], u_pos.get("alt", 0.0)],
-                        "target": [v_pos["long"], v_pos["lat"], v_pos.get("alt", 0.0)],
+                        "source": list(u_pos),
+                        "target": list(v_pos),
                         "bandwidth": bandwidth,
                         "delivered": delivered,
                         "bearer": bearer,
@@ -2498,8 +2609,8 @@ def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, 
                 continue
             edges.append(
                 {
-                    "source": [src_pos["long"], src_pos["lat"], src_pos.get("alt", 0.0)],
-                    "target": [dst_pos["long"], dst_pos["lat"], dst_pos.get("alt", 0.0)],
+                    "source": list(src_pos),
+                    "target": list(dst_pos),
                     "bandwidth": bandwidth,
                     "delivered": delivered,
                     "bearer": path_bearers[0] if path_bearers else None,

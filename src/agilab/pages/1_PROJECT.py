@@ -128,24 +128,24 @@ _notebook_pipeline_import_module = import_agilab_module(
 )
 _build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_preview
 _build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
-_build_notebook_import_pipeline_view = (
-    _notebook_pipeline_import_module.build_notebook_import_pipeline_view
-)
 _build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
-_build_notebook_import_view_plan = _notebook_pipeline_import_module.build_notebook_import_view_plan
 _build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
 _apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
 _extract_notebook_import_defaults = _notebook_pipeline_import_module.extract_notebook_import_defaults
 _normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
-_discover_notebook_import_view_manifest = (
-    _notebook_pipeline_import_module.discover_notebook_import_view_manifest
-)
 _notebook_import_sample_module = import_agilab_module(
     "agilab.notebook_import_sample",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "notebook_import_sample.py",
     fallback_name="agilab_notebook_import_sample_project_fallback",
 )
+_pipeline_editor_module = import_agilab_module(
+    "agilab.pipeline_editor",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_editor.py",
+    fallback_name="agilab_pipeline_editor_project_fallback",
+)
+_write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -158,6 +158,7 @@ PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defau
 PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX = "_project_notebook_runtime_role"
 PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
 PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
+PROJECT_NOTEBOOK_SAMPLE_ID_KEY = "_project_notebook_import_sample_id"
 PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
 PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
 PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = (
@@ -272,6 +273,22 @@ def _remove_notebook_import_query_seed(query_params) -> bool:
         return False
 
 
+def _resolve_notebook_import_sample_query(sample_query: str) -> tuple[str, str]:
+    requested = str(sample_query or "").strip()
+    if not requested:
+        return "", ""
+    sample_id = (
+        _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+        if requested == PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE
+        else requested
+    )
+    try:
+        sample = _notebook_import_sample_module.get_sample_notebook(sample_id)
+    except KeyError as exc:
+        return "", str(exc)
+    return str(sample.sample_id), ""
+
+
 def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
     """Open PROJECT directly on the notebook file selector when requested by URL."""
     start = _project_query_param_value(query_params, "start").lower()
@@ -289,7 +306,7 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
             and requested_create_mode in {"", CREATE_MODE_NOTEBOOK}
         )
     )
-    sample_requested = requested_sample == PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE
+    sample_id, sample_error = _resolve_notebook_import_sample_query(requested_sample)
     if not notebook_requested:
         try:
             if PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY in session_state:
@@ -304,8 +321,17 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
 
     session_state["sidebar_selection"] = "Create"
     session_state["create_mode"] = CREATE_MODE_NOTEBOOK
-    if sample_requested:
+    if sample_id:
         session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ID_KEY] = sample_id
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+    elif requested_sample:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = sample_error
+    else:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
         session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
     session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
     return True
@@ -2649,11 +2675,13 @@ def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
     return bytes(raw)
 
 
-def _packaged_sample_notebook_upload():
+def _packaged_sample_notebook_upload(sample_id: str | None = None):
     """Return the packaged sample as an upload-like object without touching file_uploader state."""
-    sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
+    selected_sample_id = sample_id or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+    sample = _notebook_import_sample_module.get_sample_notebook(selected_sample_id)
+    sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes(sample.sample_id)
     return SimpleNamespace(
-        name=_notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
+        name=sample.download_name,
         type=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
         getvalue=lambda sample_bytes=sample_bytes: sample_bytes,
         read=lambda sample_bytes=sample_bytes: sample_bytes,
@@ -2665,14 +2693,20 @@ def _active_notebook_import_source(session_state):
     uploaded_notebook = session_state.get("create_notebook_upload")
     if uploaded_notebook is not None:
         session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
         session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
         return uploaded_notebook
     if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
         try:
+            sample_id = str(
+                session_state.get(PROJECT_NOTEBOOK_SAMPLE_ID_KEY)
+                or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+            )
             session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
-            return _packaged_sample_notebook_upload()
-        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            return _packaged_sample_notebook_upload(sample_id)
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
             session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
             session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = str(exc)
     return None
 
@@ -3074,45 +3108,14 @@ def _write_project_notebook_import_preview(
 ) -> int:
     module_dir = Path(module_dir)
     stages_file = Path(stages_file)
-    module = str(preview.get("module", "") or module_dir.name or "notebook_import_project")
-    preflight = preview.get("preflight", {})
-    notebook_import = preview.get("notebook_import", {})
-
-    stages_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(stages_file, "wb") as toml_file:
-        tomli_w.dump(preview.get("toml_content", {}), toml_file)
-
-    contract = _build_notebook_import_contract(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
+    return int(
+        _write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=module_dir,
+        )
     )
-    pipeline_view = _build_notebook_import_pipeline_view(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-    )
-    view_manifest_path = _discover_notebook_import_view_manifest(module_dir)
-    view_plan = _build_notebook_import_view_plan(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-        manifest_path=view_manifest_path,
-    )
-
-    (module_dir / "notebook_import_contract.json").write_text(
-        json.dumps(contract, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    (module_dir / "notebook_import_pipeline_view.json").write_text(
-        json.dumps(pipeline_view, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    (module_dir / "notebook_import_view_plan.json").write_text(
-        json.dumps(view_plan, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return int(preview.get("cell_count", 0) or 0)
 
 
 def _notebook_import_blocking_detail(preflight) -> str:
@@ -3666,6 +3669,7 @@ def handle_project_creation():
             new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
             st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
             st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
             st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)

@@ -474,6 +474,7 @@ def load_args_from_toml(path):
         with patch.dict(os.environ, {
             "APP_DEFAULT": "flight_telemetry_project",
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "AGILAB_DISABLE_HARDWARE_PROBES": "1",
             "AGI_CLUSTER_SHARE": str(tmp_path),
             "AGI_EXPORT_DIR": str(export_dir),
             "AGI_LOG_DIR": str(log_dir),

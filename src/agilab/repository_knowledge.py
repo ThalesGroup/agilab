@@ -72,7 +72,10 @@ def _first_heading(text: str) -> str:
 
 
 def _python_outline(path: Path) -> dict[str, Any]:
-    text = _read_text(path)
+    return _python_outline_text(_read_text(path))
+
+
+def _python_outline_text(text: str) -> dict[str, Any]:
     try:
         tree = ast.parse(text)
     except SyntaxError:
@@ -104,6 +107,12 @@ def _python_outline(path: Path) -> dict[str, Any]:
     }
 
 
+def _text_line_count(text: str) -> int:
+    if not text:
+        return 0
+    return len(text.splitlines())
+
+
 def _file_record(
     repo_root: Path,
     path: Path,
@@ -114,17 +123,19 @@ def _file_record(
 ) -> dict[str, Any]:
     stat_result = stat_result or path.stat()
     content_hash = content_hash or _sha256(path)
+    text = _read_text(path)
     record: dict[str, Any] = {
         "path": _relative(repo_root, path),
         "kind": kind,
         "suffix": path.suffix,
         "size_bytes": stat_result.st_size,
+        "line_count": _text_line_count(text),
         "sha256": content_hash,
     }
     if path.suffix == ".py":
-        record.update(_python_outline(path))
+        record.update(_python_outline_text(text))
     else:
-        record["heading"] = _first_heading(_read_text(path))
+        record["heading"] = _first_heading(text)
     return record
 
 
@@ -253,6 +264,7 @@ def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[
     scan_roots = [
         ("package_source", repo_root / "src" / "agilab"),
         ("tool", repo_root / "tools"),
+        ("test", repo_root / "test"),
         ("official_docs", repo_root / "docs" / "source"),
     ]
     seen: set[Path] = set()
@@ -262,7 +274,7 @@ def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[
                 continue
             if kind == "official_docs" and path.suffix not in DOC_SUFFIXES:
                 continue
-            if kind in {"package_source", "tool"} and path.suffix not in CODE_SUFFIXES:
+            if kind in {"package_source", "tool", "test"} and path.suffix not in CODE_SUFFIXES:
                 continue
             records.append(
                 _record_with_cache(
@@ -333,6 +345,12 @@ def _knowledge_maps(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "id": "code_index",
             "label": "Python source and tool index",
             "record_count": counts.get("package_source", 0) + counts.get("tool", 0),
+            "source_of_truth": False,
+        },
+        {
+            "id": "test_index",
+            "label": "Root regression test index",
+            "record_count": counts.get("test", 0),
             "source_of_truth": False,
         },
         {

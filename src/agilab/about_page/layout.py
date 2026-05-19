@@ -20,6 +20,13 @@ from urllib.parse import urlparse
 import streamlit as st
 
 
+HARDWARE_PROBE_DISABLE_ENV = "AGILAB_DISABLE_HARDWARE_PROBES"
+
+
+def _hardware_probes_disabled() -> bool:
+    return os.environ.get(HARDWARE_PROBE_DISABLE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _hero_target_svg_data_uri() -> str:
     """Return the banner target diagram as an image-safe SVG data URI."""
     svg = """
@@ -589,6 +596,13 @@ def _format_bytes(byte_count: int) -> str:
 
 
 def _local_hardware_summary() -> dict[str, str]:
+    if _hardware_probes_disabled():
+        return {
+            "CPU": "probe disabled",
+            "RAM": "probe disabled",
+            "GPU": "probe disabled",
+            "NPU": "probe disabled",
+        }
     _, cpu_name = system_information_summary()
     gpu_summary, npu_summary = accelerator_information_summary()
     return {
@@ -833,6 +847,8 @@ def _ssh_target(host: str, user: str) -> str:
 
 @lru_cache(maxsize=32)
 def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
+    if _hardware_probes_disabled():
+        return ""
     command: list[str] = [
         "ssh",
         "-o",

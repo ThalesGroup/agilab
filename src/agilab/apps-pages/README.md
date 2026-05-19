@@ -66,6 +66,10 @@ Experimental source-only views:
   - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - TensorFlow-based latent-space exploration for Python 3.12 environments. It is intentionally not part of the public `agi-pages` umbrella because its runtime constraints are heavier than the generic page bundle set.
 
+- view_pytorch_playground
+  - uv run streamlit run src/agilab/apps-pages/view_pytorch_playground/src/view_pytorch_playground/view_pytorch_playground.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+  - PyTorch-based classifier playground for synthetic datasets. It is intentionally not part of the public `agi-pages` umbrella because `torch` is a heavy runtime dependency.
+
 ## Repository Pages (optional)
 
 - This repository ships with built-in pages under `src/agilab/apps-pages`.

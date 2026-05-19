@@ -115,6 +115,25 @@ def test_repository_knowledge_report_cli_modes(tmp_path: Path, capsys) -> None:
     module = _load_module(REPORT_PATH, "repository_knowledge_report_cli_test_module")
     compact_output = tmp_path / "repository_knowledge_compact.json"
     cache_path = tmp_path / "repository-knowledge-cache.json"
+    calls: list[dict[str, object]] = []
+
+    def _fake_build_report(*, output_path=None, record_cache_path=None, use_record_cache=True):
+        calls.append(
+            {
+                "output_path": output_path,
+                "record_cache_path": record_cache_path,
+                "use_record_cache": use_record_cache,
+            }
+        )
+        report = {"report": "Repository knowledge index report", "status": "pass", "summary": {}}
+        if output_path is not None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(module.json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if record_cache_path is not None and use_record_cache:
+            record_cache_path.write_text("{}", encoding="utf-8")
+        return report
+
+    module.build_report = _fake_build_report
 
     assert module.main(["--output", str(compact_output), "--cache-path", str(cache_path), "--compact"]) == 0
     compact = capsys.readouterr().out
@@ -129,6 +148,18 @@ def test_repository_knowledge_report_cli_modes(tmp_path: Path, capsys) -> None:
     assert "\n  " in pretty
     assert module.json.loads(pretty)["status"] == "pass"
     assert pretty_output.is_file()
+    assert calls == [
+        {
+            "output_path": compact_output,
+            "record_cache_path": cache_path,
+            "use_record_cache": True,
+        },
+        {
+            "output_path": pretty_output,
+            "record_cache_path": None,
+            "use_record_cache": False,
+        },
+    ]
 
 
 def test_repository_knowledge_index_excludes_generated_paths(repository_knowledge_artifacts) -> None:

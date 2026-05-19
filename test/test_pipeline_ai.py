@@ -76,15 +76,11 @@ pipeline_ai_controls_direct = _load_module(
 
 
 @pytest.fixture(autouse=True)
-def reload_pipeline_ai_modules(isolate_home_for_root_tests):
-    """Keep the real pipeline_ai module graph clean across the full root suite."""
-    global pipeline_ai
-    _load_module("agilab.pipeline_ai_support", "src/agilab/pipeline_ai_support.py")
-    _load_module("agilab.pipeline_openai_compatible", "src/agilab/pipeline_openai_compatible.py")
-    _load_module("agilab.pipeline_recipe_memory", "src/agilab/pipeline_recipe_memory.py")
-    _load_module("agilab.pipeline_ai_uoaic", "src/agilab/pipeline_ai_uoaic.py")
-    _load_module("agilab.pipeline_ai_controls", "src/agilab/pipeline_ai_controls.py")
-    pipeline_ai = _load_module("agilab.pipeline_ai", "src/agilab/pipeline_ai.py")
+def reset_pipeline_ai_test_state(isolate_home_for_root_tests):
+    """Keep per-test caches clean without reloading the full module graph."""
+    clear = getattr(pipeline_ai._ollama_available_models, "clear", None)
+    if callable(clear):
+        clear()
 
 
 def test_extract_code_splits_detail_and_python_block():
