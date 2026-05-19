@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
+from agilab.agent_config import load_agent_config, resolve_agent_provider
+from agilab.agent_tool_safety import normalize_permission_level
+from agilab.agent_trace import AgentTraceStore, trace_artifact_payload
 from agilab.secret_uri import redact_text
 
 
@@ -49,6 +52,12 @@ class AgentRunConfig:
     metadata: dict[str, str] = field(default_factory=dict)
     protocol_adapters: tuple[str, ...] = ()
     capabilities: tuple[str, ...] = ()
+    provider: str = ""
+    model: str = ""
+    permission_level: str = "safe"
+    trace_enabled: bool = True
+    provider_capability: dict[str, object] = field(default_factory=dict)
+    config_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -71,6 +80,7 @@ class AgentRunSummary:
     manifest_path: Path
     stdout_path: Path | None
     stderr_path: Path | None
+    trace_events_path: Path | None
     duration_seconds: float
     tags: tuple[str, ...] = ()
     metadata: dict[str, object] = field(default_factory=dict)
@@ -170,11 +180,23 @@ def _context_payload(config: AgentRunConfig) -> dict[str, object]:
         redacted_value = redact_text(value)
         metadata[key] = redacted_value
         metadata_redacted[key] = redacted_value != value
-    return {
+    payload: dict[str, object] = {
         "tags": list(config.tags),
         "metadata": metadata,
         "metadata_redacted": metadata_redacted,
+        "agent_config": {
+            "permission_level": config.permission_level,
+            "trace_enabled": config.trace_enabled,
+            "config_paths": list(config.config_paths),
+        },
     }
+    if config.provider or config.model or config.provider_capability:
+        payload["provider"] = {
+            "provider": config.provider,
+            "model": config.model,
+            "capability": config.provider_capability,
+        }
+    return payload
 
 
 def _protocol_payload(config: AgentRunConfig) -> dict[str, object]:
@@ -265,6 +287,10 @@ def create_agent_run_config(
     metadata: Mapping[str, str] | None = None,
     protocol_adapters: Sequence[str] = (),
     capabilities: Sequence[str] = (),
+    provider: str | None = None,
+    model: str | None = None,
+    permission_level: str | None = None,
+    trace_enabled: bool | None = None,
 ) -> AgentRunConfig:
     """Build a validated agent-run config with CLI-compatible defaults.
 
@@ -284,6 +310,20 @@ def create_agent_run_config(
     resolved_cwd = Path(cwd).expanduser().resolve() if cwd is not None else Path.cwd().resolve()
     if not resolved_cwd.is_dir():
         raise ValueError(f"cwd is not a directory: {resolved_cwd}")
+
+    agent_config = load_agent_config(resolved_cwd)
+    provider_name = ""
+    model_name = ""
+    provider_capability: dict[str, object] = {}
+    has_provider_context = any(
+        str(value or "").strip()
+        for value in (provider, model, agent_config.default_provider, agent_config.default_model)
+    )
+    if has_provider_context:
+        resolved_provider = resolve_agent_provider(agent_config, provider=provider, model=model)
+        provider_name = resolved_provider.provider
+        model_name = resolved_provider.model
+        provider_capability = resolved_provider.capability.as_dict()
 
     clean_run_id = _slug(run_id or "", "agent-run") if run_id and run_id.strip() else _new_run_id(agent)
     resolved_output_dir = (
@@ -309,6 +349,12 @@ def create_agent_run_config(
         metadata=dict(metadata or {}),
         protocol_adapters=_normalize_slug_values(protocol_adapters),
         capabilities=_normalize_slug_values(capabilities),
+        provider=provider_name,
+        model=model_name,
+        permission_level=normalize_permission_level(permission_level or agent_config.permission_level),
+        trace_enabled=agent_config.trace_enabled if trace_enabled is None else bool(trace_enabled),
+        provider_capability=provider_capability,
+        config_paths=tuple(str(path) for path in agent_config.config_paths),
     )
 
 
@@ -355,6 +401,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
             "manifest": str(artifacts["manifest"]),
             "stdout": str(artifacts["stdout"]),
             "stderr": str(artifacts["stderr"]),
+            "agent_trace": trace_artifact_payload(config.output_dir),
         },
         "events": [
             _event_payload(
@@ -370,6 +417,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
             "Environment override values are redacted from the manifest.",
+            "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
     }
 
@@ -386,6 +434,23 @@ def run_agent_command(
     stdout_path = artifacts["stdout"]
     stderr_path = artifacts["stderr"]
     manifest_path = artifacts["manifest"]
+    trace_store = AgentTraceStore(
+        config.output_dir,
+        run_id=config.run_id,
+        agent=config.agent,
+        label=config.label,
+        provider=config.provider,
+        model=config.model,
+    )
+    if config.trace_enabled:
+        trace_store.initialize(
+            {
+                "tags": list(config.tags),
+                "permission_level": config.permission_level,
+                "provider": config.provider,
+                "model": config.model,
+            }
+        )
 
     env = os.environ.copy()
     env.update(config.env_overrides)
@@ -402,6 +467,21 @@ def run_agent_command(
         )
     ]
     timed_out = False
+    if config.trace_enabled:
+        trace_store.append(
+            "session_start",
+            message=config.label,
+            metadata={
+                "agent": config.agent,
+                "tags": list(config.tags),
+                "permission_level": config.permission_level,
+            },
+        )
+        trace_store.append(
+            "command_start",
+            message=config.label,
+            metadata=_command_payload(config),
+        )
     try:
         proc = runner(
             list(config.command),
@@ -449,6 +529,23 @@ def run_agent_command(
             artifacts=["stdout", "stderr"],
         )
     )
+    if config.trace_enabled:
+        trace_store.append(
+            "command_done",
+            status=status,
+            message=f"command finished with returncode {returncode}",
+            metadata={
+                "returncode": returncode,
+                "stdout": _file_payload(stdout_path),
+                "stderr": _file_payload(stderr_path),
+            },
+        )
+        trace_store.append(
+            "session_end",
+            status=status,
+            message=f"agent run {status}",
+            metadata={"returncode": returncode},
+        )
     manifest: dict[str, object] = {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -471,12 +568,14 @@ def run_agent_command(
             "manifest": str(manifest_path),
             "stdout": _file_payload(stdout_path),
             "stderr": _file_payload(stderr_path),
+            "agent_trace": trace_artifact_payload(config.output_dir),
         },
         "events": events,
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
             "Environment override values are redacted from the manifest.",
+            "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -499,6 +598,10 @@ def trace_agent_run(
     metadata: Mapping[str, str] | None = None,
     protocol_adapters: Sequence[str] = (),
     capabilities: Sequence[str] = (),
+    provider: str | None = None,
+    model: str | None = None,
+    permission_level: str | None = None,
+    trace_enabled: bool | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     perf_counter: Callable[[], float] = time.perf_counter,
 ) -> AgentRunResult:
@@ -519,6 +622,10 @@ def trace_agent_run(
         metadata=metadata,
         protocol_adapters=protocol_adapters,
         capabilities=capabilities,
+        provider=provider,
+        model=model,
+        permission_level=permission_level,
+        trace_enabled=trace_enabled,
     )
     return run_agent_command(config, runner=runner, perf_counter=perf_counter)
 
@@ -564,6 +671,12 @@ def summarize_agent_run(manifest_or_path: dict[str, object] | Path | str) -> Age
     raw_metadata = context_map.get("metadata", {})
 
     manifest_path = _path_from_artifact(artifact_map.get("manifest")) or Path("")
+    trace_payload = artifact_map.get("agent_trace")
+    trace_events_path = None
+    if isinstance(trace_payload, dict):
+        raw_events_path = trace_payload.get("events")
+        if isinstance(raw_events_path, str) and raw_events_path:
+            trace_events_path = Path(raw_events_path)
     return AgentRunSummary(
         run_id=str(manifest.get("run_id") or ""),
         agent=str(manifest.get("agent") or ""),
@@ -573,6 +686,7 @@ def summarize_agent_run(manifest_or_path: dict[str, object] | Path | str) -> Age
         manifest_path=manifest_path,
         stdout_path=_path_from_artifact(artifact_map.get("stdout")),
         stderr_path=_path_from_artifact(artifact_map.get("stderr")),
+        trace_events_path=trace_events_path,
         duration_seconds=float(timing_map.get("duration_seconds") or 0.0),
         tags=tuple(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else (),
         metadata=dict(raw_metadata) if isinstance(raw_metadata, dict) else {},
@@ -663,6 +777,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Capability exercised by this run, for example app-as-tool, notebook-export, or evidence-review.",
     )
+    parser.add_argument("--provider", default="", help="Optional agent provider alias or type to stamp in evidence.")
+    parser.add_argument("--model", default="", help="Optional agent model id to stamp in evidence.")
+    parser.add_argument("--permission-level", default="", help="Agent permission level: readonly, safe, standard, or operator.")
+    parser.add_argument("--no-trace", action="store_true", help="Do not write the append-only agent_events.ndjson trace.")
     parser.add_argument("--json", action="store_true", help="Print the trace manifest JSON.")
     parser.add_argument("--print-only", action="store_true", help="Print the planned trace without executing the command.")
     parser.add_argument("--allow-failure", action="store_true", help="Return 0 even if the traced command fails.")
@@ -704,6 +822,10 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
             metadata=_parse_metadata(args.metadata),
             protocol_adapters=args.protocol_adapter,
             capabilities=args.capability,
+            provider=args.provider or None,
+            model=args.model or None,
+            permission_level=args.permission_level or None,
+            trace_enabled=False if args.no_trace else None,
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -729,6 +851,7 @@ def _summary_payload(summary: AgentRunSummary) -> dict[str, object]:
         "manifest": str(summary.manifest_path),
         "stdout": str(summary.stdout_path) if summary.stdout_path else None,
         "stderr": str(summary.stderr_path) if summary.stderr_path else None,
+        "trace_events": str(summary.trace_events_path) if summary.trace_events_path else None,
         "duration_seconds": summary.duration_seconds,
         "tags": list(summary.tags),
         "metadata": summary.metadata,
