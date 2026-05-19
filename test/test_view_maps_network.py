@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import sys
 import tomllib
 from datetime import datetime
 from pathlib import Path
@@ -117,6 +118,32 @@ def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_p
         "flight/dataframe/*.parquet",
         "flight/dataframe/*.csv",
     ]
+
+
+def test_view_maps_network_package_entrypoints(monkeypatch) -> None:
+    package_src = MODULE_PATH.parent.parent
+    package_name = "view_maps_network"
+    active_app = Path("src/agilab/apps/builtin/flight_telemetry_project").resolve()
+    argv = [MODULE_PATH.name, "--active-app", str(active_app)]
+
+    monkeypatch.syspath_prepend(str(package_src.resolve()))
+    for module_name in (
+        package_name,
+        f"{package_name}.maps_network_graph",
+        f"{package_name}.view_maps_network",
+    ):
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    package = importlib.import_module(package_name)
+    assert package.bundle_root() == MODULE_PATH.parent.resolve()
+
+    AgiEnv.reset()
+    with warnings.catch_warnings():
+        _suppress_page_import_warnings()
+        with patch("sys.argv", argv):
+            graph_module = importlib.import_module(f"{package_name}.maps_network_graph")
+
+    assert graph_module.create_network_graph is not None
 
 
 def test_view_maps_network_normalizes_settings_sources(monkeypatch, tmp_path: Path) -> None:
@@ -839,6 +866,55 @@ def test_view_maps_network_color_and_link_helpers(monkeypatch, tmp_path: Path) -
         }
     )
     assert module._detect_link_columns(link_df) == ["satcom_link", "custom_link"]
+
+
+def test_view_maps_network_colormap_loader_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    class _FakeCmap:
+        N = 10
+
+        def __call__(self, idx: int):
+            return (idx / 10.0, 0.2, 0.3, 1.0)
+
+        def resampled(self, lut: int):
+            return ("resampled", lut)
+
+    class _FakeRegistry:
+        def get_cmap(self, name: str):
+            return ("registry", name) if name == "plain" else _FakeCmap()
+
+    def _registry_import(name: str):
+        assert name == "matplotlib"
+        return SimpleNamespace(colormaps=_FakeRegistry())
+
+    monkeypatch.setattr(module.importlib, "import_module", _registry_import)
+
+    assert module._get_cmap("plain") == ("registry", "plain")
+    assert module._get_cmap("tab10", 4) == ("resampled", 4)
+
+    def _cm_import(name: str):
+        if name == "matplotlib":
+            return SimpleNamespace(colormaps=None)
+        if name == "matplotlib.cm":
+            return SimpleNamespace(get_cmap=lambda cmap_name, lut=None: ("cm", cmap_name, lut))
+        raise AssertionError(name)
+
+    monkeypatch.setattr(module.importlib, "import_module", _cm_import)
+
+    assert module._get_cmap("tab20") == ("cm", "tab20", None)
+    assert module._get_cmap("tab20", 6) == ("cm", "tab20", 6)
+
+    missing = ModuleNotFoundError("matplotlib")
+    monkeypatch.setattr(
+        module.importlib,
+        "import_module",
+        lambda _name: (_ for _ in ()).throw(missing),
+    )
+
+    with pytest.raises(RuntimeError, match="matplotlib unavailable"):
+        module._get_cmap("tab10")
+    assert module._MATPLOTLIB_IMPORT_ERROR is missing
 
 
 def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path: Path) -> None:
