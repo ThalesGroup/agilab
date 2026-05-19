@@ -32,21 +32,44 @@ ALLOWED_APP_ENTRIES = {
     "src",
     "templates",
 }
-EXPECTED_BUILTIN_APP_ENTRIES = {
-    "flight_project",
-    "meteo_forecast_project",
+PROFILE_BUILTIN_APP_ENTRIES = {
+    "first-proof": {
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    },
+    "advanced": {
+        "data_io_2026_project",
+        "execution_pandas_project",
+        "execution_polars_project",
+        "flight_telemetry_project",
+        "global_dag_project",
+        "meteo_forecast_project",
+        "mission_decision_project",
+        "mycode_project",
+        "tescia_diagnostic_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+        "weather_forecast_project",
+    },
 }
-ALLOWED_PAGE_ENTRIES = {
-    ".DS_Store",
-    ".gitignore",
-    "README.md",
-    "__init__.py",
-    "__pycache__",
-    "view_forecast_analysis",
-    "view_maps",
-    "view_release_decision",
-    "view_scenario_cockpit",
+PROFILE_PAGE_ENTRIES = {
+    "first-proof": {
+        "view_forecast_analysis",
+        "view_maps",
+        "view_release_decision",
+    },
+    "advanced": {
+        "view_data_io_decision",
+        "view_forecast_analysis",
+        "view_maps",
+        "view_maps_network",
+        "view_queue_resilience",
+        "view_relay_resilience",
+        "view_release_decision",
+        "view_scenario_cockpit",
+    },
 }
+ALLOWED_PAGE_SUPPORT_ENTRIES = {".DS_Store", ".gitignore", "README.md", "__init__.py", "__pycache__"}
 ALLOWED_CORE_PAGE_ENTRIES = {
     ".DS_Store",
     "__pycache__",
@@ -96,23 +119,38 @@ JsonFetcher = Callable[[str, float], Any]
 Clock = Callable[[], float]
 
 
-def route_specs() -> list[RouteSpec]:
+def profile_builtin_app_entries(profile: str) -> set[str]:
+    try:
+        return set(PROFILE_BUILTIN_APP_ENTRIES[profile])
+    except KeyError as exc:
+        raise ValueError(f"unknown HF Space profile: {profile}") from exc
+
+
+def profile_page_entries(profile: str) -> set[str]:
+    try:
+        return set(PROFILE_PAGE_ENTRIES[profile])
+    except KeyError as exc:
+        raise ValueError(f"unknown HF Space profile: {profile}") from exc
+
+
+def route_specs(profile: str = "first-proof") -> list[RouteSpec]:
+    profile_builtin_app_entries(profile)
     return [
         RouteSpec("streamlit health", path="/_stcore/health"),
         RouteSpec("base app"),
-        RouteSpec("flight project", query={"active_app": "flight_project"}),
+        RouteSpec("flight telemetry project", query={"active_app": "flight_telemetry_project"}),
         RouteSpec(
-            "flight view_maps",
+            "flight telemetry view_maps",
             query={
-                "active_app": "flight_project",
+                "active_app": "flight_telemetry_project",
                 "current_page": "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
             },
         ),
-        RouteSpec("meteo forecast project", query={"active_app": "meteo_forecast_project"}),
+        RouteSpec("weather forecast project", query={"active_app": "weather_forecast_project"}),
         RouteSpec(
-            "meteo forecast view",
+            "weather forecast view",
             query={
-                "active_app": "meteo_forecast_project",
+                "active_app": "weather_forecast_project",
                 "current_page": "/app/src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             },
         ),
@@ -215,22 +253,31 @@ def private_app_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
     )
 
 
-def builtin_app_entry_mismatch(entries: Sequence[dict[str, Any]]) -> tuple[list[str], list[str]]:
+def builtin_app_entry_mismatch(
+    entries: Sequence[dict[str, Any]],
+    *,
+    profile: str = "first-proof",
+) -> tuple[list[str], list[str]]:
+    expected = profile_builtin_app_entries(profile)
     names = {
         name
         for entry in entries
         if (name := _direct_tree_entry_name(str(entry.get("path", "")), BUILTIN_APP_TREE_PATH))
     }
-    missing = sorted(EXPECTED_BUILTIN_APP_ENTRIES - names)
-    unexpected = sorted(names - EXPECTED_BUILTIN_APP_ENTRIES)
+    missing = sorted(expected - names)
+    unexpected = sorted(names - expected)
     return missing, unexpected
 
 
-def unexpected_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+def unexpected_page_entries(
+    entries: Sequence[dict[str, Any]],
+    *,
+    profile: str = "first-proof",
+) -> list[str]:
     return _unexpected_direct_entries(
         entries,
         tree_path=PAGES_TREE_PATH,
-        allowed_entries=ALLOWED_PAGE_ENTRIES,
+        allowed_entries=profile_page_entries(profile) | ALLOWED_PAGE_SUPPORT_ENTRIES,
     )
 
 
@@ -275,6 +322,7 @@ def check_builtin_app_tree(
     space_id: str,
     *,
     timeout: float,
+    profile: str = "first-proof",
     fetcher: JsonFetcher = fetch_json,
     clock: Clock = time.perf_counter,
 ) -> CheckResult:
@@ -288,7 +336,7 @@ def check_builtin_app_tree(
     duration = clock() - start
     if not isinstance(payload, list):
         return CheckResult("builtin app profile tree", False, duration, "tree API returned non-list payload", url)
-    missing, unexpected = builtin_app_entry_mismatch(payload)
+    missing, unexpected = builtin_app_entry_mismatch(payload, profile=profile)
     if missing or unexpected:
         details: list[str] = []
         if missing:
@@ -303,6 +351,7 @@ def check_public_pages_tree(
     space_id: str,
     *,
     timeout: float,
+    profile: str = "first-proof",
     fetcher: JsonFetcher = fetch_json,
     clock: Clock = time.perf_counter,
 ) -> CheckResult:
@@ -316,7 +365,7 @@ def check_public_pages_tree(
     duration = clock() - start
     if not isinstance(payload, list):
         return CheckResult("public pages tree", False, duration, "tree API returned non-list payload", url)
-    offenders = unexpected_page_entries(payload)
+    offenders = unexpected_page_entries(payload, profile=profile)
     if offenders:
         return CheckResult(
             "public pages tree",
@@ -361,6 +410,7 @@ def run_smoke(
     *,
     space_id: str = DEFAULT_SPACE_ID,
     space_url: str = DEFAULT_SPACE_URL,
+    profile: str = "first-proof",
     timeout: float = 20.0,
     target_seconds: float = DEFAULT_TARGET_SECONDS,
     fetch_text_fn: TextFetcher = fetch_text,
@@ -369,11 +419,15 @@ def run_smoke(
 ) -> SmokeSummary:
     checks = [
         check_route(space_url, spec, timeout=timeout, fetcher=fetch_text_fn, clock=clock)
-        for spec in route_specs()
+        for spec in route_specs(profile=profile)
     ]
     checks.append(check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
-    checks.append(check_builtin_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
-    checks.append(check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
+    checks.append(
+        check_builtin_app_tree(space_id, timeout=timeout, profile=profile, fetcher=fetch_json_fn, clock=clock)
+    )
+    checks.append(
+        check_public_pages_tree(space_id, timeout=timeout, profile=profile, fetcher=fetch_json_fn, clock=clock)
+    )
     checks.append(check_core_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
     total = sum(check.duration_seconds for check in checks)
     success = all(check.success for check in checks)
@@ -389,6 +443,7 @@ def run_smoke(
 def run_tree_checks(
     *,
     space_id: str = DEFAULT_SPACE_ID,
+    profile: str = "first-proof",
     timeout: float = 20.0,
     target_seconds: float = DEFAULT_TARGET_SECONDS,
     fetch_json_fn: JsonFetcher = fetch_json,
@@ -396,8 +451,8 @@ def run_tree_checks(
 ) -> SmokeSummary:
     checks = [
         check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
-        check_builtin_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
-        check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
+        check_builtin_app_tree(space_id, timeout=timeout, profile=profile, fetcher=fetch_json_fn, clock=clock),
+        check_public_pages_tree(space_id, timeout=timeout, profile=profile, fetcher=fetch_json_fn, clock=clock),
         check_core_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
     ]
     total = sum(check.duration_seconds for check in checks)
@@ -434,6 +489,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Smoke-check the public AGILAB Hugging Face Space.")
     parser.add_argument("--space", default=DEFAULT_SPACE_ID, help=f"Space ID (default: {DEFAULT_SPACE_ID}).")
     parser.add_argument("--url", default=DEFAULT_SPACE_URL, help=f"Space URL (default: {DEFAULT_SPACE_URL}).")
+    parser.add_argument("--profile", default="first-proof", choices=sorted(PROFILE_BUILTIN_APP_ENTRIES))
     parser.add_argument("--timeout", type=float, default=20.0, help="Per-request timeout in seconds.")
     parser.add_argument(
         "--target-seconds",
@@ -461,6 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.tree_only:
         summary = run_tree_checks(
             space_id=args.space,
+            profile=args.profile,
             timeout=args.timeout,
             target_seconds=args.target_seconds,
         )
@@ -468,6 +525,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         summary = run_smoke(
             space_id=args.space,
             space_url=args.url,
+            profile=args.profile,
             timeout=args.timeout,
             target_seconds=args.target_seconds,
         )

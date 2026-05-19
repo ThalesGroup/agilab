@@ -25,18 +25,18 @@ def test_build_space_url_encodes_current_page_query() -> None:
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
 
-def test_build_space_url_encodes_meteo_view_query() -> None:
+def test_build_space_url_encodes_weather_view_query() -> None:
     module = _load_module()
     spec = module.route_specs()[5]
 
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=meteo_forecast_project" in url
+    assert "active_app=weather_forecast_project" in url
     assert (
         "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_forecast_analysis"
         "%2Fsrc%2Fview_forecast_analysis%2Fview_forecast_analysis.py"
@@ -51,7 +51,7 @@ def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
             {"path": "src/agilab/apps/builtin"},
             {"path": "src/agilab/apps/install.py"},
             {"path": "src/agilab/apps/uav_graph_routing_project"},
-            {"path": "src/agilab/apps/builtin/flight_project"},
+            {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
         ]
     )
 
@@ -64,12 +64,12 @@ def test_builtin_app_profile_requires_current_first_proof_apps() -> None:
     missing, unexpected = module.builtin_app_entry_mismatch(
         [
             {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
-            {"path": "src/agilab/apps/builtin/flight_project"},
+            {"path": "src/agilab/apps/builtin/tescia_diagnostic_project"},
         ]
     )
 
-    assert missing == ["meteo_forecast_project"]
-    assert unexpected == ["flight_telemetry_project"]
+    assert missing == ["weather_forecast_project"]
+    assert unexpected == ["tescia_diagnostic_project"]
 
 
 def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
@@ -87,7 +87,7 @@ def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
         ]
     )
 
-    assert offenders == ["view_maps_network"]
+    assert offenders == ["view_maps_network", "view_scenario_cockpit"]
 
 
 def test_unexpected_core_page_entries_flags_stale_renamed_pages() -> None:
@@ -180,8 +180,8 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
         if _url.endswith("src/agilab/apps/builtin"):
             return [
-                {"path": "src/agilab/apps/builtin/flight_project"},
-                {"path": "src/agilab/apps/builtin/meteo_forecast_project"},
+                {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             ]
         if _url.endswith("src/agilab/pages"):
             return [
@@ -227,8 +227,8 @@ def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
         if _url.endswith("src/agilab/apps/builtin"):
             return [
-                {"path": "src/agilab/apps/builtin/flight_project"},
-                {"path": "src/agilab/apps/builtin/meteo_forecast_project"},
+                {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             ]
         if _url.endswith("src/agilab/pages"):
             return [

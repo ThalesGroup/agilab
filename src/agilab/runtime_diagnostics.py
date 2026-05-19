@@ -51,7 +51,6 @@ def diagnostics_widget_key(app_name: Any) -> str:
     safe = "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in app_text)
     legacy_prefixes = {
         "data_io_2026_project": "mission_decision_project",
-        "flight_project": "flight_telemetry_project",
         "meteo_forecast_project": "weather_forecast_project",
     }
     for legacy, current in legacy_prefixes.items():

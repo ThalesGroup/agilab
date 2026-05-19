@@ -31,8 +31,8 @@ def test_revision_traceability_report_passes_public_contract(tmp_path: Path) -> 
     assert report["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert report["summary"]["execution_mode"] == "revision_traceability_static"
     assert report["summary"]["core_component_count"] == 5
-    assert report["summary"]["builtin_app_count"] == 13
-    assert report["summary"]["app_fingerprint_count"] == 13
+    assert report["summary"]["builtin_app_count"] == 12
+    assert report["summary"]["app_fingerprint_count"] == 12
     assert report["summary"]["command_execution_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert {check["id"] for check in report["checks"]} == {
@@ -56,7 +56,6 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
         "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
         "flight_telemetry_project",
         "global_dag_project",
         "meteo_forecast_project",

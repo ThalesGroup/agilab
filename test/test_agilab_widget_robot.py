@@ -68,11 +68,11 @@ def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
     module = _load_module()
 
     url = module.append_route_query(
-        "http://127.0.0.1:8501/PROJECT?active_app=flight_project",
+        "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project",
         "start=notebook-import",
     )
 
-    assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_project&start=notebook-import"
+    assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project&start=notebook-import"
 
 
 def test_streamlit_health_failure_detail_includes_process_output() -> None:
@@ -655,7 +655,6 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
         "flight_telemetry_project",
         "flight_telemetry",
         "flight",
-        "flight_project",
     }
     assert module.active_app_aliases("uav_relay_queue") == {"uav_relay_queue", "uav_relay_queue_project"}
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_telemetry_project")
@@ -4353,7 +4352,6 @@ def test_active_app_slug_and_route_aliases() -> None:
         "flight_telemetry_project",
         "flight_telemetry",
         "flight",
-        "flight_project",
     }
 
 
