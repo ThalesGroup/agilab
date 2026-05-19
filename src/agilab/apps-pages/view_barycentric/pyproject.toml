@@ -1,9 +1,17 @@
 [project]
 name = "agi-page-simplex-map"
-version = "2026.05.18"
+version = "2026.05.19.post1"
 description = "AGILAB page bundle for simplex projection and barycentric analysis."
 readme = { text = "AGILAB page bundle for simplex projection and barycentric analysis.", content-type = "text/markdown" }
 requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",
     "plotly>=6.3.0",
@@ -19,6 +27,15 @@ view_barycentric = "view_barycentric:bundle_root"
 
 
 
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_barycentric"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }
