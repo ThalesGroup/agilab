@@ -509,13 +509,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-cross-browser-core-pages" in ui_cross_browser_robot[2].argv
     assert ui_cross_browser_robot[2].argv[ui_cross_browser_robot[2].argv.index("--browser") + 1] == "webkit"
     assert all(_has_with_dependency(command.argv, "playwright") for command in ui_cross_browser_robot)
-    assert hf_install_robot.label == "hf flight telemetry install robot"
+    assert hf_install_robot.label == "hf first-proof install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
     assert "tools/agilab_widget_robot_matrix.py" in hf_install_robot.argv
-    assert "hf-flight-telemetry-install" in hf_install_robot.argv
-    assert "flight_telemetry_project" in hf_install_robot.argv
-    assert "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project" in hf_install_robot.argv
+    assert "hf-first-proof-install" in hf_install_robot.argv
+    assert "flight_telemetry_project,weather_forecast_project" in hf_install_robot.argv
+    assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_install_robot.argv
+    assert "--active-app" not in hf_install_robot.argv
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
     assert "test-results/hf-install-robot/failure-bundles" in hf_install_robot.argv
     assert _has_with_dependency(hf_install_robot.argv, "playwright")
@@ -523,6 +524,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert hf_visual_smoke_robot.timeout_seconds == 25 * 60
     assert hf_visual_smoke_robot.remove_paths == ["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"]
     assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
+    assert "hf-first-proof-app-pages-visual-smoke" in hf_visual_smoke_robot.argv
     assert "flight_telemetry_project,weather_forecast_project" in hf_visual_smoke_robot.argv
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_visual_smoke_robot.argv
     assert "--active-app" not in hf_visual_smoke_robot.argv
