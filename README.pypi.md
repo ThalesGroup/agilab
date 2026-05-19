@@ -193,9 +193,12 @@ and a short human/machine summary.
 
 AGILAB already ships many of those pieces separately through first-proof
 manifests, notebook export, release proof, supply-chain scans, robot artifacts,
-and adoption reports. A single `.agipack` archive and commands such as
-`agilab prove`, `agilab verify`, and `agilab replay` are roadmap targets, not
-published CLI commands today. See the
+and adoption reports. The first public proof-pack layer now adds
+`agilab prove`, `agilab verify`, `agilab replay`, `agilab export-lineage`,
+`agilab policy-check`, `agilab cards`, and `agilab metadata-store` for
+`run_manifest.json` evidence. A signed `.agipack` archive, native lineage or
+observability transport, durable ML metadata, rich app-authored cards, and
+enterprise governance integrations remain roadmap work. See the
 [proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
 contract for the intended boundary.
 
@@ -204,6 +207,14 @@ contract for the intended boundary.
 The source repository intentionally keeps runtime packages, UI, built-in apps,
 examples, release tooling, agent workflows, and docs together so release proof
 can validate one coherent tree. Their stability differs:
+
+Use three planes to read that tree:
+
+| Plane | Owns | Main roots |
+|---|---|---|
+| Control plane | Product entry points, runtime APIs, environment resolution, worker packaging, and local/distributed execution. | `src/agilab/core/*`, `src/agilab/lib/agi-gui`, `src/agilab/pages` |
+| Payload plane | Apps, page bundles, templates, notebooks, examples, and PyPI payload umbrellas. | `src/agilab/apps/builtin`, `src/agilab/apps-pages`, `src/agilab/lib/agi-apps`, `src/agilab/lib/agi-pages`, `src/agilab/examples` |
+| Evidence plane | Proof, audits, release contracts, supply-chain evidence, UI robot outputs, docs mirror, and agent/runbook automation. | `tools`, `.github`, `docs/source`, `.codex`, `.claude`, `badges` |
 
 | Area | Role | Stability contract |
 |---|---|---|
