@@ -37,7 +37,15 @@ agilab agent-run list --agent codex --json
 or from Python:
 
 ```python
-from agilab.agent_run import list_agent_runs
+from agilab.agent_run import list_agent_runs, trace_agent_run
+
+result = trace_agent_run(
+    ["codex", "review"],
+    agent="codex",
+    label="Review current diff",
+    tags=("review",),
+    metadata={"branch": "main"},
+)
 
 runs = list_agent_runs(agent="codex", limit=5)
 ```

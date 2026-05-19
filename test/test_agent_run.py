@@ -145,6 +145,56 @@ def test_agent_run_manifest_context_supports_tags_and_metadata(tmp_path: Path, c
     assert "env://OPENAI_API_KEY" not in json.dumps(payload)
 
 
+def test_agent_run_public_python_api_uses_cli_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "logs"))
+
+    config = module.create_agent_run_config(
+        [sys.executable, "-c", "print('api')"],
+        agent="Codex Agent",
+        label="Python API smoke",
+        cwd=ROOT,
+        run_id="api run",
+        env_overrides={"OPENAI_API_KEY": "sk-secret"},
+        tags=("review", "Review", "api smoke"),
+        metadata={"branch": "main", "token": "hidden"},
+    )
+
+    assert config.run_id == "api-run"
+    assert config.output_dir == tmp_path / "logs" / "agents" / "Codex-Agent" / "api-run"
+    assert config.cwd == ROOT
+    assert config.tags == ("review", "api-smoke")
+    assert config.metadata == {"branch": "main", "token": "hidden"}
+
+
+def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) -> None:
+    module = _load_module()
+
+    result = module.trace_agent_run(
+        [sys.executable, "-c", "print('api ok')"],
+        agent="codex",
+        label="Python API trace",
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="api-trace",
+        env_overrides={"OPENAI_API_KEY": "sk-secret"},
+        metadata={"note": "using env://OPENAI_API_KEY"},
+        tags=("api",),
+    )
+
+    assert result.returncode == 0
+    assert result.manifest["status"] == "pass"
+    assert result.manifest["run_id"] == "api-trace"
+    assert result.manifest["command"]["argv"] == [sys.executable, "<2 argument(s) redacted>"]
+    assert result.manifest["command"]["env_overrides"]["keys"] == ["OPENAI_API_KEY"]
+    assert result.manifest["context"]["metadata"]["note"] == "using <secret-ref>"
+    assert "sk-secret" not in json.dumps(result.manifest)
+    assert (tmp_path / module.STDOUT_FILENAME).read_text(encoding="utf-8").strip() == "api ok"
+    summary = module.summarize_agent_run(tmp_path)
+    assert summary.run_id == "api-trace"
+    assert summary.tags == ("api",)
+
+
 def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, capsys) -> None:
     module = _load_module()
 
@@ -316,6 +366,14 @@ def test_agent_run_defaults_and_helper_error_paths(tmp_path: Path, monkeypatch: 
         module._parse_env_overrides(["BROKEN"])
     with pytest.raises(ValueError, match="KEY cannot be empty"):
         module._parse_env_overrides([" =value"])
+    with pytest.raises(ValueError, match="command cannot be empty"):
+        module.create_agent_run_config([], cwd=ROOT)
+    with pytest.raises(ValueError, match="argv sequence"):
+        module.create_agent_run_config("codex review", cwd=ROOT)
+    with pytest.raises(ValueError, match="timeout_seconds must be > 0"):
+        module.create_agent_run_config([sys.executable], cwd=ROOT, timeout_seconds=0)
+    with pytest.raises(ValueError, match="cwd is not a directory"):
+        module.create_agent_run_config([sys.executable], cwd=tmp_path / "missing")
 
     missing_payload = module._file_payload(tmp_path / "missing.txt")
     assert missing_payload == {
