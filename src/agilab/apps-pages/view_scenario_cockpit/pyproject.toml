@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-scenario-cockpit"
-version = "2026.05.18"
+version = "2026.05.19.post1"
 description = "AGILAB page bundle for scenario evidence comparison."
 readme = { text = "AGILAB page bundle for scenario evidence comparison.", content-type = "text/markdown" }
 requires-python = ">=3.11"

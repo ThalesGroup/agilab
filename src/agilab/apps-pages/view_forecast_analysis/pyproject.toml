@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-timeseries-forecast"
-version = "2026.05.18"
+version = "2026.05.19.post1"
 description = "AGILAB page bundle for time-series forecast review."
 readme = { text = "AGILAB page bundle for time-series forecast review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
