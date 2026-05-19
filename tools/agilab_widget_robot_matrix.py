@@ -471,11 +471,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         above_fold_check=True,
         browser_error_check=True,
     ),
-    "hf-flight-telemetry-visual-smoke": RobotScenario(
-        name="hf-flight-telemetry-visual-smoke",
+    "hf-first-proof-visual-smoke": RobotScenario(
+        name="hf-first-proof-visual-smoke",
         description=(
-            "Capture hosted Hugging Face screenshots for entry, ORCHESTRATE, "
-            "WORKFLOW, and ANALYSIS without firing install/run actions."
+            "Capture hosted Hugging Face screenshots for first-proof demo apps "
+            "across entry, ORCHESTRATE, WORKFLOW, and ANALYSIS without firing "
+            "install/run actions."
         ),
         pages="HOME,ORCHESTRATE,WORKFLOW,ANALYSIS",
         apps_pages="none",
