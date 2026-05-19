@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.18"
+version = "2026.05.20"
 name = "agi-app-mission-decision"
 description = "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
 requires-python = ">=3.11"
