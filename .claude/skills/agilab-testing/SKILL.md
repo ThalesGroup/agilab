@@ -193,6 +193,14 @@ Use this skill when validating changes.
   - Keep source-repository app installs and PyPI app package installs distinct in
     tests. A PyPI app regression should prove `agilab.apps` entry-point discovery,
     not just local `src/agilab/apps` directory scanning.
+- External discoverability regressions:
+  - When changing project metadata, README badges, repository topics, or the
+    public positioning text that external scanners consume, include
+    `test/test_github_ai_scraper_discoverability.py` in the focused regression
+    slice.
+  - Keep the normal check static and local. The live scraper path depends on
+    GitHub/PyPI/network behavior and remains opt-in through
+    `AGILAB_GITHUB_AI_SCRAPER_LIVE=1`.
 
 ## Common Commands
 
@@ -227,6 +235,10 @@ Use this skill when validating changes.
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators`
   - This proves connector schemas, local-emulator endpoint boundaries, runtime adapter mappings, and no credential materialization for MinIO/S3, Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints.
   - Do not claim real-cloud validation from this profile; IAM, private networking, region behavior, quota, and billing still require opt-in live smoke in a real cloud account.
+- External scanner discoverability:
+  - `uv --preview-features extra-build-dependencies run --with pytest python -m pytest -q -o addopts='' test/test_github_ai_scraper_discoverability.py`
+  - Add `AGILAB_GITHUB_AI_SCRAPER_LIVE=1` only when intentionally running the
+    network-backed github-ai-scraper integration check.
 
 - Whole repo tests (if needed):
   - `uv --preview-features extra-build-dependencies run --no-sync pytest`
