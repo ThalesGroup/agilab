@@ -310,6 +310,11 @@ Current packaging policy is conservative:
 - Public analysis page bundles use decoupled `agi-page-*` package names such
   as `agi-page-feature-attribution`; `agi-pages` is the provider package pulled
   in by the `ui` and `pages` extras.
+- The optional PyTorch playground is published as `agi-page-pytorch-playground`
+  and lives in
+  [`src/agilab/apps-pages/view_pytorch_playground`](src/agilab/apps-pages/view_pytorch_playground).
+  Its loss-landscape projection is a tab inside that page, not a separate
+  `view_loss_landscape` bundle.
 - Larger optional stacks must stay behind extras, and release evidence must
   include SBOM / `pip-audit` data for the actual enabled profile.
 - `agi-cluster` remains in the base runtime by design. A separate minimal
