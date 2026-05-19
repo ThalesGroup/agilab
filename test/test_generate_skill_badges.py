@@ -36,94 +36,67 @@ def test_format_skill_count_handles_singular_and_plural() -> None:
 
     assert module.format_skill_count(1) == "1 skill"
     assert module.format_skill_count(2) == "2 skills"
-    assert module.format_repo_skill_count(1) == "1 repo skill"
-    assert module.format_repo_skill_count(2) == "2 repo skills"
 
 
-def test_selected_provider_items_preserves_requested_subset_order() -> None:
-    module = _load_module()
-
-    selected = module.selected_provider_items(["claude", "codex"])
-
-    assert [name for name, _ in selected] == ["claude", "codex"]
-
-
-def test_selected_provider_items_defaults_to_all_providers() -> None:
-    module = _load_module()
-
-    selected = module.selected_provider_items(None)
-
-    assert [name for name, _ in selected] == list(module.PROVIDERS)
-
-
-def test_provider_skill_names_unions_additional_repo_without_double_counting(tmp_path: Path) -> None:
+def test_repo_skill_names_unions_agent_trees_and_extra_repo_without_double_counting(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     repo_root = tmp_path / "agilab"
     extra_root = tmp_path / "thales_agilab"
-    primary_dir = repo_root / ".codex" / "skills"
-    extra_dir = extra_root / ".codex" / "skills"
-    primary_dir.mkdir(parents=True)
-    extra_dir.mkdir(parents=True)
-    (primary_dir / "alpha").mkdir()
-    (primary_dir / "beta").mkdir()
-    (extra_dir / "beta").mkdir()
-    (extra_dir / "gamma").mkdir()
-    module.REPO_ROOT = repo_root
+    claude_dir = repo_root / ".claude" / "skills"
+    codex_dir = repo_root / ".codex" / "skills"
+    extra_claude_dir = extra_root / ".claude" / "skills"
+    extra_codex_dir = extra_root / ".codex" / "skills"
+    claude_dir.mkdir(parents=True)
+    codex_dir.mkdir(parents=True)
+    extra_claude_dir.mkdir(parents=True)
+    extra_codex_dir.mkdir(parents=True)
+    (claude_dir / "alpha").mkdir()
+    (codex_dir / "alpha").mkdir()
+    (codex_dir / "beta").mkdir()
+    (extra_claude_dir / "beta").mkdir()
+    (extra_codex_dir / "gamma").mkdir()
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
 
-    names = module.provider_skill_names(
-        {
-            "label": "Codex skills",
-            "skills_dir": primary_dir,
-            "badge": repo_root / "badges" / "skills-codex.svg",
-            "color": "#00A67E",
-        },
-        [str(extra_root)],
-    )
+    names = module.repo_skill_names([str(extra_root)])
 
     assert names == {"alpha", "beta", "gamma"}
 
 
-def test_main_generates_selected_provider_badge_from_public_skill_dirs(
+def test_main_generates_single_public_skill_badge_from_both_skill_trees(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     module = _load_module()
-    codex_skills = tmp_path / ".codex" / "skills"
-    claude_skills = tmp_path / ".claude" / "skills"
-    codex_skills.mkdir(parents=True)
+    repo_root = tmp_path / "agilab"
+    claude_skills = repo_root / ".claude" / "skills"
+    codex_skills = repo_root / ".codex" / "skills"
     claude_skills.mkdir(parents=True)
+    codex_skills.mkdir(parents=True)
+    (claude_skills / "alpha").mkdir()
     (codex_skills / "alpha").mkdir()
     (codex_skills / "beta").mkdir()
-    (claude_skills / "gamma").mkdir()
-    badge_dir = tmp_path / "badges"
+    badge_dir = repo_root / "badges"
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
     monkeypatch.setattr(
         module,
-        "PROVIDERS",
-        {
-            "codex": {
-                "label": "Codex skills",
-                "skills_dir": codex_skills,
-                "badge": badge_dir / "skills-codex.svg",
-                "color": "#00A67E",
-            },
-            "claude": {
-                "label": "Claude skills",
-                "skills_dir": claude_skills,
-                "badge": badge_dir / "skills-claude.svg",
-                "color": "#D97706",
-            },
-        },
+        "SKILL_BADGE",
+        {"label": "Skills", "badge": badge_dir / "skills.svg", "color": "#0F766E"},
     )
-    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(sys, "argv", ["generate_skill_badges.py", "--providers", "codex"])
+    monkeypatch.setattr(module, "AGENT_BADGES", {})
+    monkeypatch.setattr(sys, "argv", ["generate_skill_badges.py"])
 
     result = module.main()
 
     assert result == 0
-    assert (badge_dir / "skills-codex.svg").exists()
+    assert (badge_dir / "skills.svg").exists()
+    assert not (badge_dir / "skills-codex.svg").exists()
     assert not (badge_dir / "skills-claude.svg").exists()
-    assert "Codex skills" in (badge_dir / "skills-codex.svg").read_text(encoding="utf-8")
-    assert "2 skills" in (badge_dir / "skills-codex.svg").read_text(encoding="utf-8")
-    assert "codex: 2 skills -> badges/skills-codex.svg" in capsys.readouterr().out
+    content = (badge_dir / "skills.svg").read_text(encoding="utf-8")
+    assert "Skills" in content
+    assert "2 skills" in content
+    assert "repo skills" not in content
+    assert "skills: 2 skills -> badges/skills.svg" in capsys.readouterr().out
 
 
 def test_main_can_include_additional_local_repo_for_union_count(
@@ -141,34 +114,29 @@ def test_main_can_include_additional_local_repo_for_union_count(
     (extra_codex_skills / "beta").mkdir()
     (extra_codex_skills / "gamma").mkdir()
     badge_dir = repo_root / "badges"
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
     monkeypatch.setattr(
         module,
-        "PROVIDERS",
-        {
-            "codex": {
-                "label": "Codex skills",
-                "skills_dir": codex_skills,
-                "badge": badge_dir / "skills-codex.svg",
-                "color": "#00A67E",
-            },
-        },
+        "SKILL_BADGE",
+        {"label": "Skills", "badge": badge_dir / "skills.svg", "color": "#0F766E"},
     )
-    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(module, "AGENT_BADGES", {})
     monkeypatch.setattr(
         sys,
         "argv",
-        ["generate_skill_badges.py", "--providers", "codex", "--include-repo", str(extra_root)],
+        ["generate_skill_badges.py", "--include-repo", str(extra_root)],
     )
 
     result = module.main()
 
     assert result == 0
-    content = (badge_dir / "skills-codex.svg").read_text(encoding="utf-8")
+    content = (badge_dir / "skills.svg").read_text(encoding="utf-8")
     assert "3 skills" in content
-    assert "codex: 3 skills -> badges/skills-codex.svg" in capsys.readouterr().out
+    assert "repo skills" not in content
+    assert "skills: 3 skills -> badges/skills.svg" in capsys.readouterr().out
 
 
-def test_main_generates_public_agent_badge_triad_by_default(monkeypatch, tmp_path: Path) -> None:
+def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     claude_skills = tmp_path / ".claude" / "skills"
     codex_skills = tmp_path / ".codex" / "skills"
@@ -181,25 +149,13 @@ def test_main_generates_public_agent_badge_triad_by_default(monkeypatch, tmp_pat
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(
         module,
-        "PROVIDERS",
-        {
-            "codex": {
-                "label": "Codex skills",
-                "skills_dir": codex_skills,
-                "badge": badge_dir / "skills-codex.svg",
-                "color": "#00A67E",
-            },
-        },
+        "SKILL_BADGE",
+        {"label": "Skills", "badge": badge_dir / "skills.svg", "color": "#0F766E"},
     )
     monkeypatch.setattr(
         module,
         "AGENT_BADGES",
         {
-            "skills": {
-                "label": "Skills",
-                "badge": badge_dir / "agent-skills.svg",
-                "color": "#0F766E",
-            },
             "standard": {
                 "label": "Standard",
                 "value": "Agent Skills",
@@ -208,7 +164,7 @@ def test_main_generates_public_agent_badge_triad_by_default(monkeypatch, tmp_pat
             },
             "works-with": {
                 "label": "Works with",
-                "value": "Codex Claude Aider OpenCode",
+                "value": "Codex Claude Continue Aider OpenCode",
                 "badge": badge_dir / "agent-works-with.svg",
                 "color": "#0F766E",
             },
@@ -219,6 +175,8 @@ def test_main_generates_public_agent_badge_triad_by_default(monkeypatch, tmp_pat
     result = module.main()
 
     assert result == 0
-    assert "2 repo skills" in (badge_dir / "agent-skills.svg").read_text(encoding="utf-8")
+    assert "2 skills" in (badge_dir / "skills.svg").read_text(encoding="utf-8")
     assert "Agent Skills" in (badge_dir / "agent-standard.svg").read_text(encoding="utf-8")
-    assert "Codex Claude Aider OpenCode" in (badge_dir / "agent-works-with.svg").read_text(encoding="utf-8")
+    assert "Codex Claude Continue Aider OpenCode" in (
+        badge_dir / "agent-works-with.svg"
+    ).read_text(encoding="utf-8")

@@ -9,27 +9,18 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-PROVIDERS = {
-    "codex": {
-        "label": "Codex skills",
-        "skills_dir": REPO_ROOT / ".codex" / "skills",
-        "badge": REPO_ROOT / "badges" / "skills-codex.svg",
-        "color": "#0F766E",
-    },
-    "claude": {
-        "label": "Claude skills",
-        "skills_dir": REPO_ROOT / ".claude" / "skills",
-        "badge": REPO_ROOT / "badges" / "skills-claude.svg",
-        "color": "#0F766E",
-    },
+SKILL_TREE_DIRS = (
+    Path(".claude") / "skills",
+    Path(".codex") / "skills",
+)
+
+SKILL_BADGE = {
+    "label": "Skills",
+    "badge": REPO_ROOT / "badges" / "skills.svg",
+    "color": "#0F766E",
 }
 
 AGENT_BADGES = {
-    "skills": {
-        "label": "Skills",
-        "badge": REPO_ROOT / "badges" / "agent-skills.svg",
-        "color": "#0F766E",
-    },
     "standard": {
         "label": "Standard",
         "value": "Agent Skills",
@@ -38,7 +29,7 @@ AGENT_BADGES = {
     },
     "works-with": {
         "label": "Works with",
-        "value": "Codex Claude Aider OpenCode",
+        "value": "Codex Claude Continue Aider OpenCode",
         "badge": REPO_ROOT / "badges" / "agent-works-with.svg",
         "color": "#0F766E",
     },
@@ -48,12 +39,6 @@ AGENT_BADGES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--providers",
-        nargs="+",
-        choices=sorted(PROVIDERS),
-        help="Only refresh the selected skill badge provider(s).",
-    )
-    parser.add_argument(
         "--include-repo",
         action="append",
         default=[],
@@ -62,16 +47,6 @@ def parse_args() -> argparse.Namespace:
             "to the count. Skill names are unioned across repos so shared skills are not "
             "double-counted. Intended for local-only composite badge refreshes."
         ),
-    )
-    parser.add_argument(
-        "--agent-badges-only",
-        action="store_true",
-        help="Refresh only the public agent metadata badges.",
-    )
-    parser.add_argument(
-        "--skip-agent-badges",
-        action="store_true",
-        help="Do not refresh public agent metadata badges.",
     )
     return parser.parse_args()
 
@@ -126,36 +101,28 @@ def format_skill_count(count: int) -> str:
     return f"{count} {suffix}"
 
 
-def format_repo_skill_count(count: int) -> str:
-    suffix = "skill" if count == 1 else "skills"
-    return f"{count} repo {suffix}"
-
-
-def selected_provider_items(requested: list[str] | None) -> list[tuple[str, dict[str, object]]]:
-    if not requested:
-        return list(PROVIDERS.items())
-    return [(name, PROVIDERS[name]) for name in requested]
-
-
-def provider_skill_names(config: dict[str, object], include_repos: list[str]) -> set[str]:
-    names = set(visible_skill_names(config["skills_dir"]))
-    repo_relative_skills_dir = config["skills_dir"].relative_to(REPO_ROOT)
+def repo_skill_names(include_repos: list[str]) -> set[str]:
+    names: set[str] = set()
+    for relative_dir in SKILL_TREE_DIRS:
+        names.update(visible_skill_names(REPO_ROOT / relative_dir))
     for repo_root in include_repos:
-        names.update(visible_skill_names(Path(repo_root) / repo_relative_skills_dir))
+        for relative_dir in SKILL_TREE_DIRS:
+            names.update(visible_skill_names(Path(repo_root) / relative_dir))
     return names
 
 
-def agent_skill_names(include_repos: list[str]) -> set[str]:
-    names = set(visible_skill_names(REPO_ROOT / ".claude" / "skills"))
-    for repo_root in include_repos:
-        names.update(visible_skill_names(Path(repo_root) / ".claude" / "skills"))
-    return names
+def refresh_skill_badge(include_repos: list[str]) -> None:
+    value = format_skill_count(len(repo_skill_names(include_repos)))
+    svg = render_badge(str(SKILL_BADGE["label"]), value, str(SKILL_BADGE["color"]))
+    badge_path = SKILL_BADGE["badge"]
+    badge_path.parent.mkdir(parents=True, exist_ok=True)
+    badge_path.write_text(svg, encoding="utf-8")
+    print(f"skills: {value} -> {badge_path.relative_to(REPO_ROOT)}")
 
 
 def refresh_agent_badges(include_repos: list[str]) -> None:
-    skill_count_value = format_repo_skill_count(len(agent_skill_names(include_repos)))
     for name, config in AGENT_BADGES.items():
-        value = str(config.get("value", skill_count_value))
+        value = str(config["value"])
         svg = render_badge(str(config["label"]), value, str(config["color"]))
         badge_path = config["badge"]
         badge_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,17 +132,8 @@ def refresh_agent_badges(include_repos: list[str]) -> None:
 
 def main() -> int:
     args = parse_args()
-    if not args.agent_badges_only:
-        for name, config in selected_provider_items(args.providers):
-            count = len(provider_skill_names(config, args.include_repo))
-            value = format_skill_count(count)
-            svg = render_badge(config["label"], value, config["color"])
-            badge_path = config["badge"]
-            badge_path.parent.mkdir(parents=True, exist_ok=True)
-            badge_path.write_text(svg, encoding="utf-8")
-            print(f"{name}: {value} -> {badge_path.relative_to(REPO_ROOT)}")
-    if (args.agent_badges_only or not args.providers) and not args.skip_agent_badges:
-        refresh_agent_badges(args.include_repo)
+    refresh_skill_badge(args.include_repo)
+    refresh_agent_badges(args.include_repo)
     return 0
 
 

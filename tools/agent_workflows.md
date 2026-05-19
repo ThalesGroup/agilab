@@ -1,9 +1,10 @@
 # Agent Workflows for AGILAB
 
-This repository is prepared for four agent paths:
+This repository is prepared for five agent paths:
 
 - **Claude**: repo skills under [`.claude/skills`](../.claude/skills/README.md)
 - **Codex**: repo skills under [`.codex/skills`](../.codex/skills/README.md) and the wrapper in [codex_workflow.sh](codex_workflow.sh)
+- **Continue**: consumes the same repo guidance and public skill catalog through AGENT_SKILLS.md / `llms.txt`
 - **Aider**: repo config in [`.aider.conf.yml`](../.aider.conf.yml) and the wrapper in [aider_workflow.sh](aider_workflow.sh)
 - **OpenCode**: project config in [opencode.json](../opencode.json), agents under [`.opencode/agents`](../.opencode/agents), and the wrapper in [opencode_workflow.sh](opencode_workflow.sh)
 
@@ -11,9 +12,9 @@ The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
 and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
 [llms-full.txt](../llms-full.txt). The README badge contract is:
 
-- **Skills**: the reviewed repo-managed skill count
+- **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks
-- **Works with**: Codex, Claude Code, Aider, and OpenCode
+- **Works with**: Codex, Claude Code, Continue, Aider, and OpenCode
 
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)

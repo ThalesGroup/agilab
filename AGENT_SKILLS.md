@@ -5,9 +5,9 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 ## Badges
 
-- Skills: 28 repo-managed skills
+- Skills: 28 skills
 - Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references
-- Works with: Codex, Claude Code, Aider, OpenCode
+- Works with: Codex, Claude Code, Continue, Aider, OpenCode
 
 ## Security And Maintenance Contract
 
