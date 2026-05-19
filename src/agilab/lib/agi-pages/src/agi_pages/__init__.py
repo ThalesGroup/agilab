@@ -7,6 +7,21 @@ import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 
+from .chart_spec import (
+    CHART_EVIDENCE_SCHEMA,
+    CHART_SPEC_SCHEMA,
+    DEFAULT_ECHARTS_SCRIPT_URL,
+    SUPPORTED_DATASET_CHART_TYPES,
+    ChartData,
+    ChartSpec,
+    build_chart_spec,
+    chart_spec_to_static_html,
+    normalize_chart_data,
+    option_from_data,
+    render_notebook,
+    render_streamlit,
+)
+
 PAGE_BUNDLE_ENTRYPOINT_NAMES = ("{module}.py", "main.py", "app.py")
 PAGE_BUNDLE_ENTRYPOINT_GROUP = "agilab.pages"
 PUBLIC_PAGE_MODULES = (
@@ -300,10 +315,22 @@ __all__ = [
     "PAGE_BUNDLE_ENTRYPOINT_NAMES",
     "PAGE_BUNDLE_ENTRYPOINT_GROUP",
     "PUBLIC_PAGE_MODULES",
+    "CHART_EVIDENCE_SCHEMA",
+    "CHART_SPEC_SCHEMA",
+    "DEFAULT_ECHARTS_SCRIPT_URL",
+    "SUPPORTED_DATASET_CHART_TYPES",
+    "ChartData",
+    "ChartSpec",
     "PageBundle",
+    "build_chart_spec",
     "bundles_root",
+    "chart_spec_to_static_html",
     "inline_renderer_target",
     "iter_bundles",
+    "normalize_chart_data",
+    "option_from_data",
+    "render_notebook",
+    "render_streamlit",
     "resolve_bundle",
     "script_path",
 ]
