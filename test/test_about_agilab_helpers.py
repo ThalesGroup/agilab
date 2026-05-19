@@ -3880,7 +3880,9 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
     assert "agilab-hero" in body
     assert "width: 100%" in body
-    assert "Reproducible AI workflows" in body
+    assert "Turn experiments into evidence-backed apps" in body
+    assert "Import notebooks or scripts" in body
+    assert "portable proof, notebook export, and MLflow handoff" in body
     assert "agilab-hero__visual" in body
     assert "agilab-hero__target-img" in body
     assert "data:image/svg+xml;base64," in body
@@ -3889,7 +3891,7 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert '<g transform="translate(54 111)">' not in body
     assert "<svg viewBox" not in body
     assert "Thales open-source workbench" not in body
-    assert "Open-source workbench" in body
+    assert "AI/ML reproducibility workbench" in body
     assert "Select a project, run it, and inspect the result" not in body
     assert "agilab-hero__top" in body
     assert "agilab-hero__legal-mark" in body
@@ -3899,9 +3901,10 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "margin: 1.55rem 0 0" not in body
     assert "text-align: right" in body
     assert "white-space: nowrap" in body
-    assert "Project" in body
-    assert "Run" in body
-    assert "Analyse" in body
+    assert "Import" in body
+    assert "Execute" in body
+    assert "Prove" in body
+    assert "Export" in body
     assert "Control path" not in body
     assert "Data intake" not in body
     assert "Decision evidence" not in body

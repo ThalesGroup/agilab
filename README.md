@@ -38,8 +38,8 @@
 # AGILAB
 
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
-It turns notebooks and scripts into controlled, executable apps while preserving
-a notebook export path.
+It turns notebooks and scripts into executable, portable, evidence-backed apps
+while preserving a notebook export path.
 That means you do not lose your work if AGILAB is no longer the right runtime.
 Those apps can run locally or on distributed workers, and the
 workflow stays portable: export it back to a runnable notebook, and hand off
@@ -50,19 +50,19 @@ Use it to keep experimental AI work:
 - **one-command setup**
 - **controlled environments**
 - **local or distributed execution**
-- **visible experiment evidence**
+- **reviewable run evidence**
 - **runnable outside AGILAB as exported notebooks**
 - **optional MLflow integration**
 
 AGILAB complements MLflow and production MLOps platforms. It owns the
 reproducible execution and analysis layer around them.
 In short: MLflow tracks experiments; AGILAB transforms notebooks and scripts
-into reproducible executable AI applications.
+into executable, portable, evidence-backed AI applications.
 
 ## Core Flow
 
-Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
-Streamlit UI
+Notebook/script → AGILAB app → controlled execution → artifacts + evidence →
+notebook / MLflow / UI handoff
 
 The flow is reversible where it matters for long-term reuse: WORKFLOW can export
 the saved pipeline as a runnable supervisor notebook, so the code, stage order,

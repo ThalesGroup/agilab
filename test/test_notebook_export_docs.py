@@ -28,9 +28,11 @@ def test_readme_leads_with_anti_lock_in_notebook_export_value() -> None:
     headline_window = readme[readme.index("# AGILAB") : readme.index("## Core Flow")]
 
     assert "anti-lock-in reproducibility workbench" in headline_window
-    assert "exported back to a runnable notebook" in headline_window
+    assert "executable, portable, evidence-backed apps" in headline_window
+    assert "export it back to a runnable notebook" in headline_window
     assert "you do not lose your work" in headline_window
     assert "runnable outside AGILAB as exported notebooks" in headline_window
+    assert "reviewable run evidence" in headline_window
 
 
 def test_docs_overview_leads_with_no_lock_in_notebook_export_value() -> None:
@@ -41,8 +43,8 @@ def test_docs_overview_leads_with_no_lock_in_notebook_export_value() -> None:
     compact_index = _compact(index)
     compact_architecture = _compact(architecture)
 
-    assert "controlled AI/ML experimentation without lock-in" in compact_index
-    assert "export the work back to runnable notebooks" in compact_index
+    assert "executable, portable, evidence-backed applications" in compact_index
+    assert "export them back to runnable notebooks" in compact_index
     assert "anti-lock-in reproducibility workbench" in compact_architecture
     assert "workflows can be exported back to runnable notebooks" in compact_architecture
 

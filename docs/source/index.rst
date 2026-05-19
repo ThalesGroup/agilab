@@ -1,10 +1,11 @@
 AGILab Documentation
 =====================
 
-AGILAB turns experimental AI/ML notebooks and scripts into reproducible
-applications that can run locally or on distributed workers. Workflows stay
-portable: export them back to runnable notebooks, keep reproducibility evidence,
-and hand off tracking evidence to MLflow when that integration is enabled.
+AGILAB turns experimental AI/ML notebooks and scripts into executable,
+portable, evidence-backed applications that can run locally or on distributed
+workers. Workflows stay portable: export them back to runnable notebooks, keep
+reproducibility evidence, and hand off tracking evidence to MLflow when that
+integration is enabled.
 
 If you are new to AGILab, choose one route first:
 

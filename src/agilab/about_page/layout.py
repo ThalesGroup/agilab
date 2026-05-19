@@ -256,9 +256,16 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero h1 {{
                 margin: 0;
                 max-width: 760px;
-                font-size: clamp(2.05rem, 4.3vw, 4.2rem);
-                line-height: 0.98;
-                letter-spacing: -0.055em;
+                font-size: 3.45rem;
+                line-height: 1.02;
+                letter-spacing: 0;
+              }}
+              .agilab-hero__subcopy {{
+                max-width: 660px;
+                margin: 0.9rem 0 0;
+                color: rgba(247, 242, 232, 0.78);
+                font-size: 1rem;
+                line-height: 1.48;
               }}
               .agilab-hero__chips {{
                 display: flex;
@@ -319,6 +326,9 @@ def quick_logo(resources_path: Path) -> None:
                 .agilab-hero__body {{
                   grid-template-columns: 1fr;
                 }}
+                .agilab-hero h1 {{
+                  font-size: 3rem;
+                }}
                 .agilab-hero__visual {{
                   min-height: unset;
                 }}
@@ -344,13 +354,19 @@ def quick_logo(resources_path: Path) -> None:
                 .agilab-hero__legal-sep {{
                   display: none;
                 }}
+                .agilab-hero h1 {{
+                  font-size: 2.25rem;
+                }}
+                .agilab-hero__subcopy {{
+                  font-size: 0.96rem;
+                }}
               }}
             </style>
             <section class="agilab-hero" aria-label="AGILAB introduction">
               <div class="agilab-hero__top">
                 <div class="agilab-hero__brand">
                   <img src="{img_src}" alt="AGILAB logo">
-                  <span>Open-source workbench</span>
+                  <span>AI/ML reproducibility workbench</span>
                 </div>
                 <p class="agilab-hero__legal">
                   <span class="agilab-hero__legal-mark">BSD 3-Clause</span>
@@ -360,12 +376,17 @@ def quick_logo(resources_path: Path) -> None:
               </div>
               <div class="agilab-hero__body">
                 <div class="agilab-hero__copy">
-                  <p class="agilab-hero__eyebrow">AI/ML experimentation</p>
-                  <h1>Reproducible AI workflows.</h1>
+                  <p class="agilab-hero__eyebrow">Notebook/script to evidence</p>
+                  <h1>Turn experiments into evidence-backed apps.</h1>
+                  <p class="agilab-hero__subcopy">
+                    Import notebooks or scripts, run them locally or distributed,
+                    and keep portable proof, notebook export, and MLflow handoff.
+                  </p>
                   <div class="agilab-hero__chips" aria-label="AGILAB workflow">
-                    <span class="agilab-hero__chip">Project</span>
-                    <span class="agilab-hero__chip">Run</span>
-                    <span class="agilab-hero__chip">Analyse</span>
+                    <span class="agilab-hero__chip">Import</span>
+                    <span class="agilab-hero__chip">Execute</span>
+                    <span class="agilab-hero__chip">Prove</span>
+                    <span class="agilab-hero__chip">Export</span>
                   </div>
                 </div>
                 <div class="agilab-hero__visual" role="img" aria-label="Digital twin assisted generalization map">
