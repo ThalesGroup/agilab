@@ -4189,6 +4189,11 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     run_button = _event_index(fake_st.events, "link_button", "2. EXECUTE demo")
     run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `EXECUTE`")
     open_analysis = _event_index(fake_st.events, "link_button", "3. OPEN ANALYSIS")
+    link_types = {
+        body.rsplit(":", 1)[0]: body.rsplit(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_type"
+    }
     analysis_hint = next(
         index
         for index in range(open_analysis + 1, len(fake_st.events))
@@ -4265,6 +4270,10 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Run one local proof first" in caption_bodies[9]
     assert caption_bodies[10].startswith("Handoff bundle:")
     assert "strict security-check output" in caption_bodies[10]
+    assert link_types["1. INSTALL demo"] == "primary"
+    assert link_types["2. EXECUTE demo"] == "secondary"
+    assert link_types["3. OPEN ANALYSIS"] == "secondary"
+    assert link_types["Create from built-in notebook"] == "secondary"
     assert not [body for kind, body in pre_details if kind == "file_uploader"]
     assert not [body for kind, body in pre_details if kind == "download_button"]
     assert not [body for kind, body in pre_details if kind == "page_link"]
@@ -4750,6 +4759,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
+    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
@@ -4791,6 +4801,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
+    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 

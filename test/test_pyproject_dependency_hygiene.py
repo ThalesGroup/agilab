@@ -353,6 +353,40 @@ def test_worker_manifests_do_not_depend_on_streamlit() -> None:
     assert violations == []
 
 
+def test_streamlit_runtime_is_capped_below_blank_starlette_frontend_release() -> None:
+    """Streamlit 1.57 serves HTML for JS assets from uv archive installs."""
+    pyprojects = [
+        REPO_ROOT / "pyproject.toml",
+        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps-pages/templates").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
+        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
+        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
+        REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml",
+        *(
+            REPO_ROOT / "src/agilab/lib"
+        ).glob("agi-app-*/src/*/project/*_project/pyproject.toml"),
+    ]
+    violations: list[str] = []
+
+    for pyproject in sorted(set(pyprojects)):
+        data = _load_pyproject(pyproject)
+        dependency_groups = [
+            data.get("project", {}).get("dependencies", []),
+            *data.get("project", {}).get("optional-dependencies", {}).values(),
+        ]
+        for dependency_group in dependency_groups:
+            for dependency in dependency_group:
+                requirement = Requirement(dependency)
+                if requirement.name.lower() != "streamlit":
+                    continue
+                specifier_text = str(requirement.specifier)
+                if ">=1.56" not in specifier_text or "<1.57" not in specifier_text:
+                    violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
+
+    assert violations == []
+
+
 def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
     stale_by_manifest = {
         "src/agilab/core/agi-env/pyproject.toml": {
