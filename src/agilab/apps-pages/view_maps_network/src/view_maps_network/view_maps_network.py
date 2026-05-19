@@ -619,13 +619,14 @@ def _decision_time_samples(
     for time_index in time_index_values:
         sample_time = np.nan
         for df_in in (alloc_df, baseline_df):
-            if df_in.empty or "time_index" not in df_in.columns or "t_now_s" not in df_in.columns:
+            time_col = "time_s" if "time_s" in df_in.columns else "t_now_s" if "t_now_s" in df_in.columns else None
+            if df_in.empty or "time_index" not in df_in.columns or time_col is None:
                 continue
             time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
             match = time_series.eq(float(time_index))
             if not match.any():
                 continue
-            t_series = pd.to_numeric(df_in.loc[match, "t_now_s"], errors="coerce").dropna()
+            t_series = pd.to_numeric(df_in.loc[match, time_col], errors="coerce").dropna()
             if not t_series.empty:
                 sample_time = float(t_series.iloc[0])
                 break
@@ -1607,8 +1608,9 @@ def _filter_allocation_rows_for_selected_nodes(
         return filtered
 
     sample_time_num = _coerce_numeric_float(sample_time)
-    if sample_time_num is not None and "t_now_s" in filtered.columns:
-        t_series = pd.to_numeric(filtered["t_now_s"], errors="coerce")
+    time_col = "time_s" if "time_s" in filtered.columns else "t_now_s" if "t_now_s" in filtered.columns else None
+    if sample_time_num is not None and time_col is not None:
+        t_series = pd.to_numeric(filtered[time_col], errors="coerce")
         valid_times = sorted({float(v) for v in t_series.dropna().tolist()})
         if valid_times:
             nearest_time = min(valid_times, key=lambda value: abs(value - sample_time_num))
@@ -2187,7 +2189,7 @@ def filter_edges(df, edge_columns, allowed_edge_pairs: set[tuple[str, str]] | No
 # Live allocations helpers
 # ----------------------------
 _ALLOC_STEP_CANDIDATES = ("time_index", "decision", "step", "time_idx")
-_ALLOC_TIME_CANDIDATES = ("t_now_s", "time_s", "time", "t")
+_ALLOC_TIME_CANDIDATES = ("time_s", "t_now_s", "time", "t")
 
 
 def _pick_ci_column(df: pd.DataFrame, candidates: tuple[str, ...]) -> Optional[str]:
@@ -2276,19 +2278,21 @@ def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
             for alloc in _parse_allocations_cell(row.get(alloc_col)):
                 merged = dict(alloc)
                 merged.setdefault("time_index", step_value)
-                if t_value is not None and "t_now_s" not in merged:
-                    merged["t_now_s"] = t_value
+                if t_value is not None:
+                    merged.setdefault("time_s", t_value)
+                    merged.setdefault("t_now_s", t_value)
                 rows.append(merged)
         if rows:
             df = pd.DataFrame(rows)
 
     df = _coerce_alloc_time_index(df)
 
-    if "t_now_s" not in df.columns:
-        t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
-        if t_col is not None:
-            t_num = pd.to_numeric(df[t_col], errors="coerce")
-            if t_num.notna().any():
+    t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
+    if t_col is not None:
+        t_num = pd.to_numeric(df[t_col], errors="coerce")
+        if t_num.notna().any():
+            df["time_s"] = t_num
+            if "t_now_s" not in df.columns:
                 df["t_now_s"] = t_num
     return df
 
@@ -4868,9 +4872,12 @@ def page():
         )
         t_for_positions = float(t_sel)
         for df_step in (alloc_step, baseline_step):
-            if df_step is None or df_step.empty or "t_now_s" not in df_step.columns:
+            if df_step is None or df_step.empty:
                 continue
-            t_series = pd.to_numeric(df_step["t_now_s"], errors="coerce").dropna()
+            time_col = "time_s" if "time_s" in df_step.columns else "t_now_s" if "t_now_s" in df_step.columns else None
+            if time_col is None:
+                continue
+            t_series = pd.to_numeric(df_step[time_col], errors="coerce").dropna()
             if not t_series.empty:
                 t_for_positions = float(t_series.iloc[0])
                 break

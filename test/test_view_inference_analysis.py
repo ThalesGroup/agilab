@@ -305,16 +305,16 @@ def test_view_inference_analysis_prefers_shared_time_index_for_mixed_time_axes()
     assert set(step_kpi_df["run_label"]) == {"uav", "fcas"}
 
 
-def test_view_inference_analysis_prefers_seconds_when_all_runs_have_t_now_s() -> None:
+def test_view_inference_analysis_prefers_canonical_seconds_when_all_runs_have_time_s() -> None:
     module = _load_module()
 
     frames = {
-        "run_a": pd.DataFrame({"time_index": [0], "t_now_s": [0.5], "delivered_bandwidth": [1.0]}),
-        "run_b": pd.DataFrame({"time_index": [0], "t_now_s": [1.0], "delivered_bandwidth": [2.0]}),
+        "run_a": pd.DataFrame({"time_index": [0], "time_s": [0.5], "delivered_bandwidth": [1.0]}),
+        "run_b": pd.DataFrame({"time_index": [0], "time_s": [1.0], "delivered_bandwidth": [2.0]}),
     }
 
-    assert module._choose_time_series_axis(frames) == "t_now_s"
-    assert module._axis_options_for_frames(frames) == ["time_index", "t_now_s"]
+    assert module._choose_time_series_axis(frames) == "time_s"
+    assert module._axis_options_for_frames(frames) == ["time_index", "time_s"]
 
 
 def test_view_inference_analysis_axis_helpers_cover_partial_and_empty_inputs() -> None:
@@ -329,7 +329,7 @@ def test_view_inference_analysis_axis_helpers_cover_partial_and_empty_inputs() -
     assert module._choose_time_series_axis({}) == ""
     assert module._axis_options_for_frames({"empty": pd.DataFrame()}) == []
     assert module._choose_time_series_axis(partial_frames) == "time_index"
-    assert module._axis_options_for_frames(partial_frames) == ["time_index", "t_now_s"]
+    assert module._axis_options_for_frames(partial_frames) == ["time_index"]
 
 
 def test_view_inference_analysis_detects_when_requested_load_varies() -> None:
@@ -522,6 +522,7 @@ def test_view_inference_analysis_helper_edges_cover_paths_patterns_and_empty_fra
     assert module._coerce_time_index(pd.DataFrame()).empty
     assert module._coerce_time_index(pd.DataFrame({"step": ["bad", "worse"]}))["time_index"].tolist() == [0, 1]
     time_normalized = module._coerce_time_index(pd.DataFrame({"step": [1, 2], "time_s": ["1.5", "bad"]}))
+    assert time_normalized["time_s"].iloc[0] == pytest.approx(1.5)
     assert time_normalized["t_now_s"].iloc[0] == pytest.approx(1.5)
     assert pd.isna(time_normalized["t_now_s"].iloc[1])
     assert module._series_varies(pd.Series([42.0])) is False
@@ -545,6 +546,7 @@ def test_view_inference_analysis_normalizes_nested_allocations_with_row_index_an
     )
 
     assert normalized["time_index"].tolist() == [0]
+    assert normalized["time_s"].tolist() == pytest.approx([1.5])
     assert normalized["t_now_s"].tolist() == pytest.approx([1.5])
     assert normalized["source"].tolist() == [1]
     assert normalized["destination"].tolist() == [2]
@@ -560,6 +562,7 @@ def test_view_inference_analysis_normalizes_nested_allocations_with_row_index_an
     )
 
     assert normalized_with_context_time["time_index"].tolist() == [0]
+    assert normalized_with_context_time["time_s"].tolist() == pytest.approx([3.5])
     assert normalized_with_context_time["t_now_s"].tolist() == pytest.approx([3.5])
 
 
@@ -633,6 +636,7 @@ def test_view_inference_analysis_parses_structured_cells_and_coerces_time_index(
     assert normalized["path"].tolist() == ["[1, 2]", "[3, 4]"]
     assert normalized["capacity_mbps"].tolist() == pytest.approx([0.8, 0.9])
     assert normalized["time_index"].tolist() == [2, 1]
+    assert normalized["time_s"].tolist() == pytest.approx([0.5, 1.5])
     assert normalized["t_now_s"].tolist() == pytest.approx([0.5, 1.5])
 
     fallback = module._coerce_time_index(pd.DataFrame({"latency": [10.0, 20.0]}))
@@ -685,6 +689,7 @@ def test_view_inference_analysis_loads_allocation_files_from_common_formats(tmp_
     assert csv_df["latency"].tolist() == pytest.approx([12.0])
     assert csv_df["path"].tolist() == ["[1, 2]"]
     assert csv_df["capacity_mbps"].tolist() == pytest.approx([0.8])
+    assert csv_df["time_s"].tolist() == pytest.approx([1.5])
     assert csv_df["t_now_s"].tolist() == pytest.approx([1.5])
     assert jsonl_df["time_index"].tolist() == [1]
     assert json_df["time_index"].tolist() == [2]
@@ -1651,7 +1656,7 @@ def test_view_inference_analysis_main_renders_no_axis_detail_state(
 
     module.main()
 
-    assert "The selected files do not expose a step axis such as `time_index` or `t_now_s`." in fake_st.infos
+    assert "The selected files do not expose a step axis such as `time_index` or `time_s`." in fake_st.infos
     assert "run_a: No bearer involvement data available." in fake_st.infos
     assert "No routed path data available." in fake_st.infos
 
