@@ -36,18 +36,34 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "flight_telemetry_project",
         "weather_forecast_project",
     ]
+    assert payload["coverage"]["hf_install_profile_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
     assert payload["coverage"]["hf_visual_smoke_profile_apps"] == [
         "flight_telemetry_project",
         "weather_forecast_project",
     ]
-    assert payload["coverage"]["hf_visual_smoke_profile_scenarios"] == ["hf-first-proof-visual-smoke"]
+    assert payload["coverage"]["hf_visual_smoke_profile_scenarios"] == [
+        "hf-first-proof-app-pages-visual-smoke",
+        "hf-first-proof-visual-smoke",
+    ]
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
         "actions": [],
+        "apps_pages": [],
         "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
         "pages": ["ANALYSIS", "HOME", "ORCHESTRATE", "WORKFLOW"],
     }
-    assert payload["coverage"]["hf_robot_scenarios"]["hf-flight-telemetry-install"] == {
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-app-pages-visual-smoke"] == {
+        "actions": [],
+        "apps_pages": ["view_forecast_analysis", "view_maps", "view_release_decision"],
+        "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
+        "pages": [],
+    }
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-install"] == {
         "actions": ["install"],
+        "apps_pages": [],
         "flags": [],
         "pages": ["ORCHESTRATE"],
     }
@@ -101,7 +117,8 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     hf_smoke = SimpleNamespace(profile_builtin_app_entries=lambda _profile: {"flight_project"})
     workflow_parity = SimpleNamespace(
         _profile_commands=lambda _args: {
-            "hf-visual-smoke-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-smoke"])]
+            "hf-install-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-install"])],
+            "hf-visual-smoke-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-smoke"])],
         }
     )
 
@@ -128,7 +145,10 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     ) in details
     assert "first-proof HF profile still exposes stale demo apps: flight_project" in details
     assert "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke" in details
+    assert "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke" in details
     assert "hf-visual-smoke-robot is missing first-proof apps: flight_project" in details
+    assert "hf-install-robot does not run hf-first-proof-install" in details
+    assert "hf-install-robot is missing first-proof apps: flight_project" in details
     assert any(
         detail.startswith("hf-first-proof-visual-smoke is missing required pages:")
         and "ANALYSIS" in detail
@@ -142,4 +162,5 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
         and "success_screenshot" in detail
         for detail in details
     )
-    assert "hf-flight-telemetry-install is missing from the robot matrix" in details
+    assert "hf-first-proof-app-pages-visual-smoke is missing from the robot matrix" in details
+    assert "hf-first-proof-install is missing from the robot matrix" in details
