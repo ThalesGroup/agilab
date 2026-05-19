@@ -203,7 +203,7 @@ def render_human(report: Mapping[str, Any]) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--progress-log", action="append", type=Path, default=[])
-    parser.add_argument("--glob", action="append", default=["test-results/**/*.ndjson"])
+    parser.add_argument("--glob", action="append", default=None)
     parser.add_argument("--slow-page-seconds", type=float, default=120.0)
     parser.add_argument("--max-total-seconds", type=float, default=0.0, help="Report a budget warning when total recorded page time exceeds this value. Use 0 to disable.")
     parser.add_argument("--max-mean-page-seconds", type=float, default=0.0, help="Report pages whose mean duration exceeds this value. Use 0 to disable.")
@@ -212,8 +212,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(list(argv) if argv is not None else None)
+    glob_patterns = args.glob if args.glob is not None else ["test-results/**/*.ndjson"]
     paths = [path.resolve(strict=False) for path in args.progress_log if path.exists()]
-    paths.extend(path for path in discover_progress_logs(args.glob) if path not in paths)
+    paths.extend(path for path in discover_progress_logs(glob_patterns) if path not in paths)
     report = build_report(
         progress_logs=paths,
         slow_page_seconds=args.slow_page_seconds,
