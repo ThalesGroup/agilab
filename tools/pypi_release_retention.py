@@ -29,7 +29,8 @@ from packaging.version import InvalidVersion, Version
 try:
     from pypi_release_version_policy import selected_public_versions
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
-    from tools.pypi_release_version_policy import selected_public_versions
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from pypi_release_version_policy import selected_public_versions
 
 
 PYPI_JSON_URLS = {
