@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
 from agilab.secret_uri import redact_text
@@ -204,6 +204,67 @@ def _command_payload(config: AgentRunConfig) -> dict[str, object]:
     }
 
 
+def create_agent_run_config(
+    command: Sequence[str],
+    *,
+    agent: str = "agent",
+    label: str = "Agent run",
+    cwd: Path | str | None = None,
+    output_dir: Path | str | None = None,
+    run_id: str | None = None,
+    timeout_seconds: float = float(DEFAULT_TIMEOUT_SECONDS),
+    env_overrides: Mapping[str, str] | None = None,
+    print_only: bool = False,
+    json_output: bool = False,
+    allow_failure: bool = False,
+    include_command_args: bool = False,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+) -> AgentRunConfig:
+    """Build a validated agent-run config with CLI-compatible defaults.
+
+    This is the Python API equivalent of ``agilab agent-run`` argument
+    resolution. It intentionally accepts an argv sequence, not a shell string,
+    so callers do not accidentally depend on shell parsing or quoting.
+    """
+
+    if isinstance(command, str):
+        raise ValueError("command must be an argv sequence, not a shell string")
+    command_tuple = tuple(str(part) for part in command)
+    if not command_tuple:
+        raise ValueError("command cannot be empty")
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be > 0")
+
+    resolved_cwd = Path(cwd).expanduser().resolve() if cwd is not None else Path.cwd().resolve()
+    if not resolved_cwd.is_dir():
+        raise ValueError(f"cwd is not a directory: {resolved_cwd}")
+
+    clean_run_id = _slug(run_id or "", "agent-run") if run_id and run_id.strip() else _new_run_id(agent)
+    resolved_output_dir = (
+        Path(output_dir).expanduser().resolve()
+        if output_dir is not None
+        else _default_output_dir(agent, clean_run_id)
+    )
+
+    return AgentRunConfig(
+        agent=agent,
+        label=label,
+        command=command_tuple,
+        cwd=resolved_cwd,
+        output_dir=resolved_output_dir,
+        run_id=clean_run_id,
+        timeout_seconds=float(timeout_seconds),
+        env_overrides=dict(env_overrides or {}),
+        print_only=bool(print_only),
+        json_output=bool(json_output),
+        allow_failure=bool(allow_failure),
+        include_command_args=bool(include_command_args),
+        tags=_normalize_tags(tags),
+        metadata=dict(metadata or {}),
+    )
+
+
 def _environment_payload(cwd: Path) -> dict[str, object]:
     repo_root = _detect_repo_root(cwd)
     return {
@@ -330,6 +391,42 @@ def run_agent_command(
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return AgentRunResult(manifest=manifest, returncode=returncode)
+
+
+def trace_agent_run(
+    command: Sequence[str],
+    *,
+    agent: str = "agent",
+    label: str = "Agent run",
+    cwd: Path | str | None = None,
+    output_dir: Path | str | None = None,
+    run_id: str | None = None,
+    timeout_seconds: float = float(DEFAULT_TIMEOUT_SECONDS),
+    env_overrides: Mapping[str, str] | None = None,
+    allow_failure: bool = False,
+    include_command_args: bool = False,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    perf_counter: Callable[[], float] = time.perf_counter,
+) -> AgentRunResult:
+    """Trace an agent command directly from Python and write AGILAB evidence."""
+
+    config = create_agent_run_config(
+        command,
+        agent=agent,
+        label=label,
+        cwd=cwd,
+        output_dir=output_dir,
+        run_id=run_id,
+        timeout_seconds=timeout_seconds,
+        env_overrides=env_overrides,
+        allow_failure=allow_failure,
+        include_command_args=include_command_args,
+        tags=tags,
+        metadata=metadata,
+    )
+    return run_agent_command(config, runner=runner, perf_counter=perf_counter)
 
 
 def load_agent_run_manifest(path: Path | str) -> dict[str, object]:
@@ -483,29 +580,25 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
     if args.timeout <= 0:
         parser.error("--timeout must be > 0")
 
-    cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd().resolve()
-    if not cwd.is_dir():
-        parser.error(f"--cwd is not a directory: {cwd}")
-    env_overrides = _parse_env_overrides(args.env)
-    metadata = _parse_metadata(args.metadata)
-    run_id = _slug(args.run_id, "agent-run") if args.run_id.strip() else _new_run_id(args.agent)
-    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else _default_output_dir(args.agent, run_id)
-    return AgentRunConfig(
-        agent=args.agent,
-        label=args.label,
-        command=command,
-        cwd=cwd,
-        output_dir=output_dir,
-        run_id=run_id,
-        timeout_seconds=float(args.timeout),
-        env_overrides=env_overrides,
-        print_only=bool(args.print_only),
-        json_output=bool(args.json),
-        allow_failure=bool(args.allow_failure),
-        include_command_args=bool(args.include_command_args),
-        tags=_normalize_tags(args.tag),
-        metadata=metadata,
-    )
+    try:
+        return create_agent_run_config(
+            command,
+            agent=args.agent,
+            label=args.label,
+            cwd=Path(args.cwd).expanduser().resolve() if args.cwd else None,
+            output_dir=Path(args.output_dir).expanduser().resolve() if args.output_dir else None,
+            run_id=args.run_id,
+            timeout_seconds=float(args.timeout),
+            env_overrides=_parse_env_overrides(args.env),
+            print_only=bool(args.print_only),
+            json_output=bool(args.json),
+            allow_failure=bool(args.allow_failure),
+            include_command_args=bool(args.include_command_args),
+            tags=args.tag,
+            metadata=_parse_metadata(args.metadata),
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 def _build_list_parser() -> argparse.ArgumentParser:
