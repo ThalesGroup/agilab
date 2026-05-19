@@ -93,6 +93,11 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   constants, request objects, and stable wrappers over private `AGI._*`
   internals, raw mode bitmasks, stale generated scripts, or legacy event-loop
   snippets.
+- When describing notebook export, position it as a runnable `agi-core` runtime
+  handoff, not as a UI-only fallback or a local sidecar feature. The public
+  claim is that users can keep stage order, runtime hints, review context, and
+  executable notebook code usable through the stable core runtime even when the
+  AGILAB UI or distributed runtime is not used.
 - When updating public examples, add or refresh a stale-snippet grep/test for the
   old pattern so outdated snippets do not reappear in README, `docs/source`,
   canonical docs, or Hugging Face copy.
