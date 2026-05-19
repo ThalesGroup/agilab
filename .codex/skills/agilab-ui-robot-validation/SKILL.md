@@ -123,6 +123,9 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
 - ABOUT / first-proof wizard:
   run `first_launch_robot.py`, the focused ABOUT tests, and at least the matrix
   scenario that covers entry and app pages.
+  When the first visible copy or product journey wording changes, update
+  `tools/first_launch_robot.py` expectations in the same change so CI validates
+  the current pitch instead of stale labels.
 - Streamlit dependency, `pyproject.toml`, run config, theme, or launch wrapper:
   run `tools/agilab_web_robot.py --frontend-smoke-only` first. This is the
   fastest real-browser guard for blank pages caused by static frontend assets
@@ -136,6 +139,11 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
 - ORCHESTRATE action buttons:
   use `agilab_widget_robot.py --action-button-policy click-selected` with the
   exact visible button labels the end user is expected to press.
+  If the button is intentionally not clicked by generic robots because it writes
+  local state, launches external work, or is advisory-only, add or update its
+  disposition in `tools/ui_robot_action_contract.py` and cover the behavior with
+  focused helper/AppTest regressions. Examples include LAN discovery/cache
+  controls and advisory planning actions such as `Build cluster plan`.
 - SETTINGS or Streamlit system-menu changes:
   run settings page tests plus the settings matrix scenario.
 - Public demo or HF Space UI:
