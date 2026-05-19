@@ -248,6 +248,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_pipeline_mistral.py" in agi_gui_argv
     assert "test/test_pipeline_openai_compatible.py" in agi_gui_argv
     assert "test/test_notebook_colab_support.py" in agi_gui_argv
+    assert "test/test_notebook_import_sample.py" in agi_gui_argv
     assert "test/test_pinned_expander.py" in agi_gui_argv
     assert "test/test_workflow_ui.py" in agi_gui_argv
     assert "test/test_agilab_web_robot.py" in agi_gui_argv
