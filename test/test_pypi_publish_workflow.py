@@ -280,10 +280,11 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "gh release create \"$release_tag\"" in text
 
 
-def test_pypi_publish_syncs_hf_space_after_release_assets() -> None:
+def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "sync-hf-space:" in text
+    assert "needs.release-plan.outputs.umbrella_selected == 'true'" in text
     assert "needs.publish-release-assets.result == 'success'" in text
     assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in text
     assert "HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}" in text
