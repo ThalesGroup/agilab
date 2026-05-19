@@ -27,7 +27,7 @@ accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
   ``os.path.normpath`` on Windows so downstream code can hand the value to shell
   commands or ``pathlib`` without further tweaks.
 
-All built-in workers, including ``flight_worker`` and ``mycode_worker``, call
+All built-in workers, including ``flight_telemetry_worker`` and ``mycode_worker``, call
 this helper in ``start`` and ``work_pool`` to populate ``self.args.data_uri``
 and any per-file path passed to the pool. Extending these workers means you get
 consistent path semantics across local and distributed executions without

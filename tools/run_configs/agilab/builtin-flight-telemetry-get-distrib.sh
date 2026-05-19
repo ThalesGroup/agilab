@@ -10,4 +10,4 @@ export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
 # Let uv select the run-config project .venv instead of a stale activated shell.
 unset VIRTUAL_ENV
-uv run python $HOME/log/execute/flight_telemetry/AGI_get_flight.py
+uv run python $HOME/log/execute/flight_telemetry/AGI_get_flight_telemetry.py

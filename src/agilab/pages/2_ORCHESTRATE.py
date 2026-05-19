@@ -758,7 +758,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
     if env.app == "flight_telemetry_project":
         try:
-            from flight import apply_source_defaults, load_args_from_toml
+            from flight_telemetry import apply_source_defaults, load_args_from_toml
 
             args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
             app_settings["args"] = args_model.to_toml_payload()
@@ -1093,7 +1093,7 @@ def render_generic_ui() -> None:
         app_settings_file = env.app_settings_file
         if env.app == "flight_telemetry_project":
             try:
-                from flight import apply_source_defaults, dump_args_to_toml, FlightArgs
+                from flight_telemetry import apply_source_defaults, dump_args_to_toml, FlightArgs
                 from pydantic import ValidationError
 
                 parsed_args = FlightArgs(**args_input)

@@ -113,10 +113,10 @@ def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_p
     settings = module.get_view_maps_page_settings(app_settings)
 
     assert settings["dataset_base_choice"] == "AGI_CLUSTER_SHARE"
-    assert settings["dataset_subpath"] == "flight/dataframe"
+    assert settings["dataset_subpath"] == "flight_telemetry/dataframe"
     assert settings["default_traj_globs"] == [
-        "flight/dataframe/*.parquet",
-        "flight/dataframe/*.csv",
+        "flight_telemetry/dataframe/*.parquet",
+        "flight_telemetry/dataframe/*.csv",
     ]
 
 

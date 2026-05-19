@@ -25,8 +25,8 @@ async def main():
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
         data_source="file",
-        data_in="flight/dataset",
-        data_out="flight/dataframe",
+        data_in="flight_telemetry/dataset",
+        data_out="flight_telemetry/dataframe",
         files="*",
         nfile=1,
     )

@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from flight import (
+from flight_telemetry import (
     FlightArgs,
     apply_source_defaults,
     dump_args_to_toml,
@@ -76,7 +76,7 @@ def _is_huggingface_space(env: Any) -> bool:
 
 
 def _is_default_file_seed(path_value: Any) -> bool:
-    return str(path_value or "").strip().replace("\\", "/").rstrip("/") == "flight/dataset"
+    return str(path_value or "").strip().replace("\\", "/").rstrip("/") == "flight_telemetry/dataset"
 
 
 env = _get_env()

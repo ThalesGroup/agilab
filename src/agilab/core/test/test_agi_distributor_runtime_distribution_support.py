@@ -586,7 +586,7 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         app="flight_telemetry_project",
         apps_path=builtin_apps.parent,
         active_app=builtin_apps / "flight_telemetry_project",
-        target_worker="flight_worker",
+        target_worker="flight_telemetry_worker",
         uv="uv",
         uv_worker="uv-worker",
         pyvers_worker="3.13",

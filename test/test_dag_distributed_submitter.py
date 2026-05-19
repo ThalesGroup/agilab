@@ -295,8 +295,8 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
                         "entrypoint": "flight_telemetry_project.flight_context",
                         "params": {"scenario": "demo"},
                         "stages": [{"name": "prepare", "args": {"n": 2}}],
-                        "data_in": "flight/dataset",
-                        "data_out": "flight/dataframe",
+                        "data_in": "flight_telemetry/dataset",
+                        "data_out": "flight_telemetry/dataframe",
                         "reset_target": False,
                     },
                 }
@@ -319,8 +319,8 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
             "Mode": "15",
             "Apps path": "src/agilab/apps/builtin",
             "Request": (
-                '{"benchmark_best_single_node":false,"data_in":"flight/dataset",'
-                '"data_out":"flight/dataframe","params":{"scenario":"demo"},'
+                '{"benchmark_best_single_node":false,"data_in":"flight_telemetry/dataset",'
+                '"data_out":"flight_telemetry/dataframe","params":{"scenario":"demo"},'
                 '"rapids_enabled":false,"reset_target":false,'
                 '"stages":[{"args":{"n":2},"name":"prepare"}]}'
             ),

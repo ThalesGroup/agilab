@@ -71,9 +71,9 @@ def test_worker_runtime_support_covers_remaining_builtin_and_copy_fallbacks(tmp_
     env_builtin = _dummy_worker_env(tmp_path, app_name="flight_telemetry_project")
     builtin_root = tmp_path / "apps" / "builtin"
     candidate_app = builtin_root / "flight_telemetry_project"
-    (candidate_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
-    (candidate_app / "src" / "flight_worker" / "flight_worker.py").write_text(
-        "class FlightWorker:\n    pass\n",
+    (candidate_app / "src" / "flight_telemetry_worker").mkdir(parents=True, exist_ok=True)
+    (candidate_app / "src" / "flight_telemetry_worker" / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
         encoding="utf-8",
     )
     original_resolve = worker_runtime_support.Path.resolve
@@ -86,8 +86,8 @@ def test_worker_runtime_support_covers_remaining_builtin_and_copy_fallbacks(tmp_
     monkeypatch.setattr(worker_runtime_support.Path, "resolve", _resolve_with_oserror, raising=False)
     worker_runtime_support._resolve_builtin_worker_paths(
         env_builtin,
-        target="flight",
-        target_worker="flight_worker",
+        target="flight_telemetry",
+        target_worker="flight_telemetry_worker",
         apps_path=tmp_path / "apps",
         apps_root=tmp_path / "apps",
         requested_active_app=env_builtin.active_app,

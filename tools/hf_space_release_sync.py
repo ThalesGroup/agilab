@@ -76,7 +76,7 @@ DOCKERIGNORE = """\
 **/*.so
 **/*.c
 **/*.7z
-!src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/dataset.7z
+!src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z
 **/node_modules/
 """
 

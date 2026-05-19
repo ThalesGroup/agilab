@@ -45,6 +45,11 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "flight_telemetry_project",
         "weather_forecast_project",
     ]
+    assert payload["coverage"]["hf_install_profile_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
     assert payload["coverage"]["hf_visual_smoke_profile_scenarios"] == [
         "hf-first-proof-app-pages-visual-smoke",
         "hf-first-proof-visual-smoke",
@@ -53,7 +58,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "actions": [],
         "apps_pages": [],
         "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
-        "pages": ["ANALYSIS", "HOME", "ORCHESTRATE", "WORKFLOW"],
+        "pages": ["ANALYSIS", "HOME", "ORCHESTRATE", "PROJECT", "WORKFLOW"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-app-pages-visual-smoke"] == {
         "actions": [],

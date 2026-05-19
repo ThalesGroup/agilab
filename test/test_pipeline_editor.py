@@ -439,7 +439,7 @@ def test_notebook_import_runtime_role_controls_and_write_preview_edges(monkeypat
             ],
             "summary": {"pipeline_stage_count": 1},
         },
-        "toml_content": {"flight": [{"Q": "q", "C": "print('x')"}]},
+        "toml_content": {"flight_telemetry": [{"Q": "q", "C": "print('x')"}]},
         "preflight": {"summary": {"pipeline_stage_count": 1}},
         "contract": {"artifact_contract": {"inputs": ["in.csv"], "outputs": ["out.csv"], "unknown": ["tmp.bin"]}},
     }
@@ -454,7 +454,7 @@ def test_notebook_import_runtime_role_controls_and_write_preview_edges(monkeypat
     )
 
     stages_file = tmp_path / "lab_stages.toml"
-    stages_file.write_text("[[flight]]\nQ='old'\n", encoding="utf-8")
+    stages_file.write_text("[[flight_telemetry]]\nQ='old'\n", encoding="utf-8")
     text = pipeline_editor._notebook_import_write_preview_text(preview, stages_file, max_diff_lines=1)
 
     assert "Runtime roles: none" in text
@@ -662,16 +662,16 @@ def test_get_stages_list_and_dict_handle_invalid_files_and_alias_keys(monkeypatc
     stages_file = tmp_path / "lab_stages.toml"
     stages_file.write_text(
         "[[flight_telemetry_project]]\nQ = 'first'\n"
-        "[[flight]]\nQ = 'alias'\n",
+        "[[flight_telemetry]]\nQ = 'alias'\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_telemetry_project", "flight"])
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_telemetry_project", "flight_telemetry"])
 
     stages = pipeline_editor.get_stages_list(tmp_path / "flight_telemetry_project", stages_file)
     stored = pipeline_editor.get_stages_dict(tmp_path / "flight_telemetry_project", stages_file)
 
     assert stages[0]["Q"] == "first"
-    assert "flight" not in stored
+    assert "flight_telemetry" not in stored
 
     invalid_file = tmp_path / "broken.toml"
     invalid_file.write_text("[[flight_telemetry_project]\n", encoding="utf-8")
@@ -917,10 +917,10 @@ def test_save_stage_merges_alias_entries_and_reports_dump_failure(monkeypatch, t
     stages_file = tmp_path / "lab_stages.toml"
     stages_file.write_text(
         """
-[[flight]]
+[[flight_telemetry]]
 Q = "alias only"
 C = "print('alias')"
-[[flight]]
+[[flight_telemetry]]
 Q = "alias second"
 C = "print('second')"
 [[flight_telemetry_project]]
@@ -937,7 +937,7 @@ C = "print('short')"
         error=lambda message, *args, **kwargs: errors.append(message),
     )
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_telemetry_project", "flight"])
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_telemetry_project", "flight_telemetry"])
     monkeypatch.setattr(
         pipeline_editor,
         "tomli_w",
@@ -1235,7 +1235,7 @@ def test_confirm_notebook_import_preview_uses_app_manifest_without_writing_to_ap
                         "source": [
                             "import pandas as pd\n",
                             "df = pd.read_csv('flight/raw/input.csv')\n",
-                            "df.to_parquet('flight/dataframe/output.parquet')\n",
+                            "df.to_parquet('flight_telemetry/dataframe/output.parquet')\n",
                         ],
                     },
                 ]
@@ -1263,7 +1263,7 @@ app = "flight_telemetry_project"
 [[views]]
 id = "flight_maps"
 module = "view_maps"
-required_artifacts_any = ["flight/dataframe/*.parquet"]
+required_artifacts_any = ["flight_telemetry/dataframe/*.parquet"]
 optional_artifacts = ["flight/raw/*.csv"]
 """.strip()
         + "\n",
@@ -1289,7 +1289,7 @@ optional_artifacts = ["flight/raw/*.csv"]
     assert view_plan["status"] == "matched"
     assert view_plan["matched_views"][0]["module"] == "view_maps"
     assert set(view_plan["matched_views"][0]["matched_artifacts"]) == {
-        "flight/dataframe/output.parquet",
+        "flight_telemetry/dataframe/output.parquet",
         "flight/raw/input.csv",
     }
     assert ("revision", "bump") in messages
@@ -3132,7 +3132,10 @@ def test_pycharm_notebook_mirror_path_prefers_project_notebooks_for_active_app(t
     (app_root / "pyproject.toml").write_text("[project]\nname='flight_telemetry_project'\n", encoding="utf-8")
 
     paths = []
-    for project_name, artifact_name in (("flight_telemetry_project", "flight"), ("flight", "flight_telemetry_project")):
+    for project_name, artifact_name in (
+        ("flight_telemetry_project", "flight_telemetry"),
+        ("flight_telemetry", "flight_telemetry"),
+    ):
         export_dir = tmp_path / "export" / artifact_name
         export_dir.mkdir(parents=True, exist_ok=True)
         context = notebook_export_support.NotebookExportContext(

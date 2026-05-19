@@ -1315,7 +1315,7 @@ def test_bootstrap_cluster_share_startup_error_can_disable_stale_app_setting(tmp
     settings_path.write_text(
         """
 [args]
-data_in = "flight/dataset"
+data_in = "flight_telemetry/dataset"
 
 [cluster]
 cluster_enabled = true
@@ -2499,7 +2499,7 @@ def test_env_editor_refresh_share_dir_warning_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(about_agilab, "st", fake_st)
     env = SimpleNamespace(
         home_abs=tmp_path,
-        share_target_name="flight",
+        share_target_name="flight_telemetry",
         ensure_data_root=lambda: (_ for _ in ()).throw(OSError("root boom")),
     )
 
@@ -3957,7 +3957,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
     assert state["compatibility_status"] == "validated"
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
+    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight_telemetry" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
@@ -4032,7 +4032,7 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "AGI_install_flight_telemetry.py").write_text("# helper", encoding="utf-8")
     (output_dir / "AGI_run_flight_telemetry.py").write_text("# helper", encoding="utf-8")
@@ -4058,7 +4058,7 @@ def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
 
@@ -4147,7 +4147,7 @@ def test_env_editor_refresh_share_dir_success_and_ignored_empty(tmp_path, monkey
     data_root = tmp_path / "share" / "flight"
     env = SimpleNamespace(
         home_abs=tmp_path,
-        share_target_name="flight",
+        share_target_name="flight_telemetry",
         ensure_data_root=lambda: data_root,
     )
 
@@ -4156,7 +4156,7 @@ def test_env_editor_refresh_share_dir_success_and_ignored_empty(tmp_path, monkey
 
     assert env.agi_share_path == "share"
     assert env.data_root == data_root
-    assert env.dataframe_path == tmp_path / "share" / "flight" / "dataframe"
+    assert env.dataframe_path == tmp_path / "share" / "flight_telemetry" / "dataframe"
 
 
 def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
@@ -4774,7 +4774,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
     fake_st = _FakeStreamlit(button_values={"3. OPEN ANALYSIS": True})

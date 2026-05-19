@@ -799,7 +799,10 @@ def test_flight_telemetry_project_package_data_includes_payload_for_execute() ->
     package_data = pyproject["tool"]["setuptools"]["package-data"]["agi_app_flight_telemetry"]
     excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agi_app_flight_telemetry", [])
 
-    assert (ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/dataset.7z").is_file()
+    assert (
+        ROOT
+        / "src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z"
+    ).is_file()
     assert "project/**/*" in package_data
     assert "project/**/.venv/**" in excluded_data
 
