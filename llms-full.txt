@@ -27,7 +27,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Example Maturity ## Goal Raise AGILAB packaged examples from internal smoke snippets to external-beta examples: readable, deterministic, copy/paste safe, aligned with docs, and
 - agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-17
+  updated: 2026-05-19
   preview: # Hugging Face Spaces Skill (AGILAB) Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space. The current source of truth is the sibling apps/docs checkout, normally `../thales_agilab` relative to the public `agilab` checkout:
 - agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

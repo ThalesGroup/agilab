@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_model_data
 
 
-class DataIo2026Args(BaseModel):
+class MissionDecisionArgs(BaseModel):
     """Runtime parameters for the autonomous mission-data decision demo."""
 
     model_config = ConfigDict(extra="forbid")
@@ -30,7 +30,7 @@ class DataIo2026Args(BaseModel):
     reset_target: bool = False
 
     @model_validator(mode="after")
-    def _validate_consistency(self) -> "DataIo2026Args":
+    def _validate_consistency(self) -> "MissionDecisionArgs":
         self.files = self.files.strip() or "*.json"
         total = (
             self.latency_weight
@@ -43,7 +43,7 @@ class DataIo2026Args(BaseModel):
         return self
 
 
-class DataIo2026ArgsTD(TypedDict, total=False):
+class MissionDecisionArgsTD(TypedDict, total=False):
     data_in: str
     data_out: str
     files: str
@@ -59,23 +59,23 @@ class DataIo2026ArgsTD(TypedDict, total=False):
     reset_target: bool
 
 
-ArgsModel = DataIo2026Args
-ArgsOverrides = DataIo2026ArgsTD
+ArgsModel = MissionDecisionArgs
+ArgsOverrides = MissionDecisionArgsTD
 
 
-def load_args(settings_path: str | Path, *, section: str = "args") -> DataIo2026Args:
-    return load_model_from_toml(DataIo2026Args, settings_path, section=section)
+def load_args(settings_path: str | Path, *, section: str = "args") -> MissionDecisionArgs:
+    return load_model_from_toml(MissionDecisionArgs, settings_path, section=section)
 
 
 def merge_args(
-    base: DataIo2026Args,
-    overrides: DataIo2026ArgsTD | None = None,
-) -> DataIo2026Args:
+    base: MissionDecisionArgs,
+    overrides: MissionDecisionArgsTD | None = None,
+) -> MissionDecisionArgs:
     return merge_model_data(base, overrides)
 
 
 def dump_args(
-    args: DataIo2026Args,
+    args: MissionDecisionArgs,
     settings_path: str | Path,
     *,
     section: str = "args",
@@ -84,15 +84,15 @@ def dump_args(
     dump_model_to_toml(args, settings_path, section=section, create_missing=create_missing)
 
 
-def ensure_defaults(args: DataIo2026Args, **_: Any) -> DataIo2026Args:
+def ensure_defaults(args: MissionDecisionArgs, **_: Any) -> MissionDecisionArgs:
     return args
 
 
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
-    "DataIo2026Args",
-    "DataIo2026ArgsTD",
+    "MissionDecisionArgs",
+    "MissionDecisionArgsTD",
     "dump_args",
     "ensure_defaults",
     "load_args",

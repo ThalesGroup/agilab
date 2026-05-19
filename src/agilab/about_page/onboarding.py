@@ -559,13 +559,6 @@ def _first_proof_handoff_bundle_caption(rows: List[Dict[str, str]]) -> str:
     )
 
 
-def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
-    """Return the wizard step that should be visually promoted."""
-    if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
-        return "analysis"
-    return "install"
-
-
 def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
     """Return query params that open PROJECT on the notebook-import create path."""
     query_params = dict(FIRST_PROOF_NOTEBOOK_QUERY_PARAMS)
@@ -616,13 +609,12 @@ def _render_first_proof_wizard_actions(
         "Recommended: run the built-in demo. Notebook import is optional: use AGILAB's included "
         "notebook with no file to find."
     )
-    next_step_id = _first_proof_next_wizard_step_id(state)
     proof_actions = [
         {
             "id": str(step["id"]),
             "button": str(step["button"]),
             "hint": str(step["hint"]),
-            "type": "primary" if step["id"] == next_step_id and step["id"] != "analysis" else "secondary",
+            "type": "secondary",
         }
         for step in _first_proof_wizard_steps(state)
     ]

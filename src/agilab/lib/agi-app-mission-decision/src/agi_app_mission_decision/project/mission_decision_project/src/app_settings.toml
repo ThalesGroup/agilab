@@ -30,10 +30,6 @@ allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
 
-[legacy_paths]
-data_in = "mission_decision/scenarios"
-data_out = "mission_decision/results"
-
 [pages]
 default_view = "view_data_io_decision"
 view_module = [

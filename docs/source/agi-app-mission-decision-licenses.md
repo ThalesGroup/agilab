@@ -7,7 +7,7 @@ Resolver: `licensecheck 2025.1.0`.
 Source manifests:
 - `src/agilab/lib/agi-app-mission-decision/pyproject.toml`
 - `src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/pyproject.toml`
-- `src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/src/data_io_2026_worker/pyproject.toml`
+- `src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/src/mission_decision_worker/pyproject.toml`
 
 Extras included: none.
 

@@ -27,5 +27,5 @@ a domain computation. It is meant to be copied or extended.
 ## Scope
 
 Use this app as a compact reference for app structure. Use the flight,
-meteo_forecast, or data_io_2026 demos when you need a complete user-facing
+meteo_forecast, or mission_decision demos when you need a complete user-facing
 workflow.

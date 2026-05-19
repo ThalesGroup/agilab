@@ -1,4 +1,4 @@
-"""Worker for the public Data IO 2026 autonomous mission decision demo."""
+"""Worker for the public Mission Decision autonomous demo."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from typing import Any
 
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
-from data_io_2026 import DataIo2026Args
-from data_io_2026.artifacts import build_decision_artifacts
-from data_io_2026.reduction import write_reduce_artifact
+from mission_decision import MissionDecisionArgs
+from mission_decision.artifacts import build_decision_artifacts
+from mission_decision.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -37,7 +37,7 @@ def _artifact_dir(env: object, leaf: str) -> Path:
 def _sanitize_slug(value: str) -> str:
     cleaned = re.sub(r"[^0-9A-Za-z_-]+", "_", value.strip())
     cleaned = cleaned.strip("_")
-    return cleaned or "data_io_2026_run"
+    return cleaned or "mission_decision_run"
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -65,12 +65,12 @@ def _args_with_defaults(value: Any) -> SimpleNamespace:
         raw = vars(value).copy()
     else:
         raw = vars(value).copy()
-    defaults = DataIo2026Args().model_dump(mode="json")
+    defaults = MissionDecisionArgs().model_dump(mode="json")
     defaults.update({key: val for key, val in raw.items() if not key.startswith("_")})
     return SimpleNamespace(**defaults)
 
 
-class DataIo2026Worker(PandasWorker):
+class MissionDecisionWorker(PandasWorker):
     """Execute one mission scenario and export decision evidence artifacts."""
 
     pool_vars: dict[str, object] = {}
@@ -173,7 +173,7 @@ class DataIo2026Worker(PandasWorker):
             return
         self._write_artifact_bundle(Path(self.data_out), artifacts)
         self._write_artifact_bundle(self.artifact_dir, artifacts)
-        logger.info("wrote Data IO 2026 decision artifacts for %s", artifacts["artifact_stem"])
+        logger.info("wrote Mission Decision artifacts for %s", artifacts["artifact_stem"])
 
 
-__all__ = ["DataIo2026Worker"]
+__all__ = ["MissionDecisionWorker"]
