@@ -33,6 +33,12 @@ AGENT_BADGES = {
         "badge": REPO_ROOT / "badges" / "agent-works-with.svg",
         "color": "#0F766E",
     },
+    "agent-api": {
+        "label": "Agent API",
+        "value": "CLI Python",
+        "badge": REPO_ROOT / "badges" / "agent-api.svg",
+        "color": "#5B6CFF",
+    },
 }
 
 

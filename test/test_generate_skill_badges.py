@@ -161,6 +161,12 @@ def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Pa
                 "badge": badge_dir / "agent-works-with.svg",
                 "color": "#0F766E",
             },
+            "agent-api": {
+                "label": "Agent API",
+                "value": "CLI Python",
+                "badge": badge_dir / "agent-api.svg",
+                "color": "#5B6CFF",
+            },
         },
     )
     monkeypatch.setattr(sys, "argv", ["generate_skill_badges.py"])
@@ -174,4 +180,7 @@ def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Pa
     assert "Agent Skills" in (badge_dir / "agent-standard.svg").read_text(encoding="utf-8")
     assert "Codex Claude Continue Aider OpenCode" in (
         badge_dir / "agent-works-with.svg"
+    ).read_text(encoding="utf-8")
+    assert "Agent API: CLI Python" in (
+        badge_dir / "agent-api.svg"
     ).read_text(encoding="utf-8")
