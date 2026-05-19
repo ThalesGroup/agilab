@@ -11,7 +11,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from data_io_2026 import DataIo2026Args, dump_args, load_args
+from mission_decision import MissionDecisionArgs, dump_args, load_args
 
 
 PAGE_ID = "mission_decision_project:app_args_form"
@@ -29,12 +29,12 @@ def _get_env():
     return env
 
 
-def _load_current_args(settings_path: Path) -> DataIo2026Args:
+def _load_current_args(settings_path: Path) -> MissionDecisionArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
         st.warning(f"Unable to load Mission Decision args from `{settings_path}`: {exc}")
-        return DataIo2026Args()
+        return MissionDecisionArgs()
 
 
 env = _get_env()
@@ -133,7 +133,7 @@ if data_out_raw:
     candidate["data_out"] = data_out_raw
 
 try:
-    validated = DataIo2026Args(**candidate)
+    validated = MissionDecisionArgs(**candidate)
 except ValidationError as exc:
     st.error("Invalid Mission Decision parameters:")
     if hasattr(env, "humanize_validation_errors"):

@@ -825,7 +825,7 @@ def test_log_indicates_install_failure():
 
 def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_path: Path) -> None:
     active_app = tmp_path / "mission_decision_project"
-    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    worker_root = tmp_path / "wenv" / "mission_decision_worker"
     manager_venv = active_app / ".venv"
     worker_venv = worker_root / ".venv"
     _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node", "agi_cluster")
@@ -993,7 +993,7 @@ def test_dataframe_preview_state_roundtrip_cleans_export_flags():
 
 def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) -> None:
     active_app = tmp_path / "mission_decision_project"
-    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    worker_root = tmp_path / "wenv" / "mission_decision_worker"
     manager_venv = active_app / ".venv"
     worker_venv = worker_root / ".venv"
     _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node")
@@ -1029,7 +1029,7 @@ def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path
 
 def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) -> None:
     active_app = tmp_path / "mission_decision_project"
-    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    worker_root = tmp_path / "wenv" / "mission_decision_worker"
     manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_cluster")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv")
     editable_core = tmp_path / "editable-core"

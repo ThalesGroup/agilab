@@ -11,12 +11,12 @@ from pydantic import ValidationError
 
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
-from .app_args import ArgsOverrides, DataIo2026Args, dump_args, ensure_defaults, load_args, merge_args
+from .app_args import ArgsOverrides, MissionDecisionArgs, dump_args, ensure_defaults, load_args, merge_args
 
 logger = logging.getLogger(__name__)
 
 
-class DataIo2026(BaseWorker):
+class MissionDecision(BaseWorker):
     """Manager that seeds mission scenarios and builds worker distribution plans."""
 
     worker_vars: dict[str, Any] = {}
@@ -24,7 +24,7 @@ class DataIo2026(BaseWorker):
     def __init__(
         self,
         env,
-        args: DataIo2026Args | None = None,
+        args: MissionDecisionArgs | None = None,
         **kwargs: ArgsOverrides,
     ) -> None:
         self.env = env
@@ -33,9 +33,9 @@ class DataIo2026(BaseWorker):
 
         if args is None:
             try:
-                args = DataIo2026Args(**kwargs)
+                args = MissionDecisionArgs(**kwargs)
             except ValidationError as exc:
-                raise ValueError(f"Invalid DataIo2026 arguments: {exc}") from exc
+                raise ValueError(f"Invalid MissionDecision arguments: {exc}") from exc
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
@@ -79,7 +79,7 @@ class DataIo2026(BaseWorker):
         settings_path: str | Path = "app_settings.toml",
         section: str = "args",
         **overrides: ArgsOverrides,
-    ) -> "DataIo2026":
+    ) -> "MissionDecision":
         base = load_args(settings_path, section=section)
         merged = ensure_defaults(merge_args(base, overrides or None), env=env)
         return cls(env, args=merged)
@@ -128,8 +128,8 @@ class DataIo2026(BaseWorker):
         return work_plan, metadata, "scenario", "size_kb", "KB"
 
 
-class DataIo2026App(DataIo2026):
-    """Compatibility alias retaining the descriptive *App suffix."""
+class MissionDecisionApp(MissionDecision):
+    """Application class with the descriptive *App suffix."""
 
 
-__all__ = ["DataIo2026", "DataIo2026App"]
+__all__ = ["MissionDecision", "MissionDecisionApp"]
