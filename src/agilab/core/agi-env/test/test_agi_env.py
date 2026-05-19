@@ -2639,6 +2639,13 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
     monkeypatch.setattr(agi_env_module.subprocess, "check_call", _raise_called_process_error)
     AgiEnv.create_junction_windows(src_dir, tmp_path / "junction_fail")
 
+    monkeypatch.setattr(
+        agi_env_module.subprocess,
+        "check_call",
+        lambda _cmd: (_ for _ in ()).throw(OSError("cmd missing")),
+    )
+    assert AgiEnv.create_junction_windows(src_dir, tmp_path / "junction_oserror") is False
+
     monkeypatch.setattr(AgiEnv, "has_admin_rights", staticmethod(lambda: False))
     fake_create = lambda *_args, **_kwargs: 0
     monkeypatch.setattr(

@@ -1479,7 +1479,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.info(f"Created junction: {dest} -> {source}")
             return True
-        except subprocess.CalledProcessError as e:
+        except (OSError, subprocess.CalledProcessError) as e:
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create junction. Error: {e}")

@@ -655,7 +655,10 @@ class BaseWorker(ArtifactContract, abc.ABC):
     def _try_windows_net_use(net_path: str) -> None:
         cmd = BaseWorker._windows_net_use_command(net_path)
         if cmd is None:
-            logger.info("Skipping Windows net use mapping; AGILAB_WINDOWS_NET_USE_USER/PASSWORD are not configured")
+            logger.info(
+                "Skipping Windows net use mapping; "
+                "AGILAB_WINDOWS_NET_USE_USER/PASSWORD are not configured"
+            )
             return
         try:
             logger.info(cmd)
