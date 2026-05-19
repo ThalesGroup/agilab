@@ -24,6 +24,8 @@ classifiers = [
 ]
 keywords = [
     "python",
+    "ai",
+    "ai-engineering",
     "machine-learning",
     "ai-experimentation",
     "reproducibility",
