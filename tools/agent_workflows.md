@@ -28,7 +28,17 @@ from the manifest. Pass `--include-command-args` only when the prompt/arguments
 are safe to store.
 
 Use `--tag` and `--metadata KEY=VALUE` for structured, non-secret context that
-other tools can query later. Read previous run evidence from the CLI:
+other tools can query later. Use `--protocol-adapter` for metadata-only bridge
+labels such as `mcp`, `a2a`, `ag-ui`, or `fastapi`, and `--capability` for the
+agent capability exercised by the run. These fields make protocol or
+agent-as-tool experiments reviewable without adding those protocol stacks to the
+base package.
+
+Each manifest also carries a compact `events` timeline. It records the planned
+or started run, command completion or timeout, and artifact write event so later
+adapters can map the same evidence into streaming protocols.
+
+Read previous run evidence from the CLI:
 
 ```bash
 agilab agent-run list --agent codex --json
