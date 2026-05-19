@@ -56,8 +56,9 @@ evidence instead of only a tool-specific log::
 
    agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review
 
-The command writes a redacted ``agilab.agent_run.v1`` manifest plus local
-``stdout.txt`` and ``stderr.txt`` artifacts under
+The command writes a redacted ``agilab.agent_run.v1`` manifest, local
+``stdout.txt`` / ``stderr.txt`` artifacts, and an append-only
+``agilab.agent_trace.v1`` event log under
 ``~/log/agents/<agent>/<run-id>/``. Environment override values passed with
 ``--env KEY=VALUE`` are redacted from the manifest. Command arguments are
 redacted by default and represented by an argv hash; pass
@@ -75,6 +76,56 @@ or from Python::
    from agilab.agent_run import list_agent_runs
 
    runs = list_agent_runs(agent="codex", limit=5)
+
+Agent evidence contract
+-----------------------
+
+AGILAB keeps the agent evidence layer deliberately small and provider-neutral:
+
+- ``agent_run_manifest.json`` records command identity, redacted arguments,
+  environment metadata, metadata-only protocol labels, provider/model
+  capability metadata when configured, and pointers to local artifacts.
+- ``agent_trace_meta.json`` describes the trace directory.
+- ``agent_events.ndjson`` is an append-only typed event stream. Current event
+  types include ``session_start``, ``command_start``, ``tool_start``,
+  ``tool_output``, ``tool_done``, ``permission_request``,
+  ``permission_resolved``, ``compact``, ``rewind``, and ``session_end``.
+- ``tool-output/`` is reserved for large or structured tool payloads that
+  should stay out of public JSON.
+
+The base package records protocol bridges as evidence labels only. Add
+``--protocol-adapter mcp`` or ``--capability app-as-tool`` when experimenting
+with agent protocol bridges without adding protocol-stack dependencies to the
+base runtime.
+
+The tool safety helpers expose the same control points for future agent tools:
+
+- permission tiers: ``readonly``, ``safe``, ``standard``, and ``operator``
+- deterministic confirmation tokens for operator-gated/destructive actions
+- before/after hooks that can approve, deny, redact, audit, or replace a tool
+  result before it is written back into evidence
+
+Agent configuration is layered from ``~/.agilab/agents/agents.json`` and then
+``.agilab/agents.json`` files from the project root to the current working
+directory. A minimal project-local file can stamp provider capability and
+permission context into future agent-run manifests::
+
+   {
+     "default": {"provider": "local-code"},
+     "permission": {"level": "standard"},
+     "providers": {
+       "local-code": {
+         "type": "ollama",
+         "model": "qwen2.5-coder:latest",
+         "capability": {"context_window": 32768}
+       }
+     }
+   }
+
+Use explicit CLI overrides when a run should carry a one-off provider or model
+label without changing project config::
+
+   agilab agent-run --provider openai --model gpt-5 --permission-level standard -- codex review
 
 Supported agent paths
 ---------------------
