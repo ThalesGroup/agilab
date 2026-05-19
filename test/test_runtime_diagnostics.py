@@ -34,7 +34,7 @@ def test_diagnostics_verbose_mapping_is_user_facing_and_bounded() -> None:
     assert runtime_diagnostics.coerce_diagnostics_verbose(99) == 1
     assert runtime_diagnostics.coerce_diagnostics_verbose("bad", default=0) == 0
     assert runtime_diagnostics.diagnostics_verbose("unknown", default=3) == 3
-    assert runtime_diagnostics.diagnostics_widget_key("flight project/demo") == (
+    assert runtime_diagnostics.diagnostics_widget_key("flight telemetry project/demo") == (
         "runtime_diagnostics_level__flight_telemetry_project_demo"
     )
     assert runtime_diagnostics.diagnostics_widget_key("   ") == "runtime_diagnostics_level__default"

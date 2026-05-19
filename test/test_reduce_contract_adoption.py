@@ -43,7 +43,6 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
         "flight_telemetry_project",
         "meteo_forecast_project",
         "mission_decision_project",

@@ -16,6 +16,7 @@ PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {
     "flight_telemetry": "flight",
     "mission_decision": "data_io_2026",
 }
+RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = {"flight"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,15 +113,16 @@ def app_name_aliases(value: str | None) -> tuple[str, ...]:
     add(normalized)
     runtime_target = default_app_runtime_target(normalized)
     add(runtime_target)
-    add(f"{runtime_target}_project")
+    if runtime_target not in RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS:
+        add(f"{runtime_target}_project")
     public_alias_target = PUBLIC_RUNTIME_TARGET_ALIASES.get(runtime_target)
     if public_alias_target:
         add(public_alias_target)
-        add(f"{public_alias_target}_project")
     if normalized.endswith("_project"):
         add(normalized.removesuffix("_project"))
     else:
-        add(f"{normalized}_project")
+        if normalized not in RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS:
+            add(f"{normalized}_project")
     for public_name, alias_target in PUBLIC_RUNTIME_TARGET_ALIASES.items():
         if runtime_target == alias_target:
             add(public_name)

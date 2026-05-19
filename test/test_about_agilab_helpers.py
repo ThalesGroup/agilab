@@ -4339,12 +4339,12 @@ def test_notebook_to_validated_app_rows_track_project_creation(tmp_path):
 def test_first_proof_adoption_gate_tracks_manifest_and_export(tmp_path):
     onboarding = about_agilab._about_onboarding
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / onboarding.FIRST_PROOF_PROJECT
-    flight_project.mkdir(parents=True)
-    export_path = flight_project / "notebooks" / "lab_stages.ipynb"
+    flight_telemetry_project = apps_path / "builtin" / onboarding.FIRST_PROOF_PROJECT
+    flight_telemetry_project.mkdir(parents=True)
+    export_path = flight_telemetry_project / "notebooks" / "lab_stages.ipynb"
     state = {
         "active_app_name": onboarding.FIRST_PROOF_PROJECT,
-        "project_path": flight_project,
+        "project_path": flight_telemetry_project,
         "run_manifest_path": tmp_path / "run_manifest.json",
         "run_manifest_passed": False,
         "run_output_detected": False,
@@ -4387,12 +4387,12 @@ def test_first_proof_adoption_gate_tracks_manifest_and_export(tmp_path):
 def test_first_proof_handoff_bundle_tracks_core_evidence_and_commands(tmp_path):
     onboarding = about_agilab._about_onboarding
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_telemetry_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     manifest_path = tmp_path / "run_manifest.json"
     state = {
         "active_app_name": onboarding.FIRST_PROOF_PROJECT,
-        "project_path": flight_project,
+        "project_path": flight_telemetry_project,
         "run_manifest_path": manifest_path,
         "run_manifest_passed": False,
         "evidence_commands": [
@@ -4415,7 +4415,7 @@ def test_first_proof_handoff_bundle_tracks_core_evidence_and_commands(tmp_path):
     assert "agilab security-check --json --strict" in missing_rows[3]["evidence"]
     assert "keep the passing run manifest" in onboarding._first_proof_handoff_bundle_caption(missing_rows)
 
-    notebook_path = flight_project / "notebooks" / "lab_stages.ipynb"
+    notebook_path = flight_telemetry_project / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
     ready_rows = onboarding._first_proof_handoff_bundle_rows(

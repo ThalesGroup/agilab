@@ -35,13 +35,16 @@ def test_app_name_aliases_cover_slug_and_project_suffix() -> None:
         "flight_telemetry",
         "flight_telemetry_project",
         "flight",
-        "flight_project",
     )
     assert app_name_aliases("flight-telemetry-project") == (
         "flight_telemetry_project",
         "flight_telemetry",
         "flight",
-        "flight_project",
+    )
+    assert app_name_aliases("flight") == (
+        "flight",
+        "flight_telemetry",
+        "flight_telemetry_project",
     )
 
 

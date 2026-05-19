@@ -515,7 +515,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
 
     monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
 
-    assert module._ensure_sidecar("view-key", view_path, 8765, "flight_project") is True
+    assert module._ensure_sidecar("view-key", view_path, 8765, "flight_telemetry_project") is True
 
     assert len(commands) == 1
     command, cwd = commands[0]
@@ -525,7 +525,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     assert "run" in command
     assert str(view_path) in command
     assert "--active-app" in command
-    assert "flight_project" in command
+    assert "flight_telemetry_project" in command
     assert "sync" not in command
     assert "ensurepip" not in command
     assert "pip" not in command
