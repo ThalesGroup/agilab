@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-17
+  updated: 2026-05-19
 ---
 
 # Docs Skill (AGILAB)
@@ -104,6 +104,12 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Public demo copy must describe AGILAB's capabilities directly. Do not publish
   internal comparison language such as "beats <competitor>", "make it obsolete",
   or named internal competitor positioning.
+- Proof-pack docs must keep the shipped boundary clear. The current first layer
+  operates on `run_manifest.json` and writes JSON evidence through commands such
+  as `agilab prove`, `verify`, `replay`, `export-lineage`, `policy-check`,
+  `cards`, and `metadata-store`. Signed `.agipack` archives and stronger
+  external attestation remain roadmap unless the implementation and release
+  proof show they are shipped.
 
 ## Positioning Claim Guardrail
 
