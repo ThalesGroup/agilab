@@ -4,7 +4,10 @@ Architecture in 5 minutes
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering
 teams. It bridges local interactive development, distributed execution, and
 result analysis while preserving an exit path: workflows can be exported back
-to runnable notebooks if AGILAB stops being the right runtime for a project.
+to runnable ``agi-core`` notebooks if the AGILAB UI or distributed runtime is
+no longer the right interface for a project. That export keeps execution on the
+stable, production-grade core technology while preserving the project and stage
+contract.
 
 Use this page for the mental model before opening the detailed architecture
 reference. The global map shows the current level of abstraction: AGILAB is not

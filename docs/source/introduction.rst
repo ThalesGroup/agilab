@@ -11,8 +11,8 @@ What AGILab is
 
 AGILab turns experimental AI/ML notebooks and scripts into executable,
 portable, evidence-backed applications that can run locally or on distributed
-workers, while keeping a handoff path to runnable notebooks and MLflow tracking
-evidence.
+workers, while keeping a handoff path to runnable ``agi-core`` notebooks and
+MLflow tracking evidence.
 
 It is a framework and web UI for running Python data, ML, and RL projects
 through one visible workflow: create the app, execute it under controlled

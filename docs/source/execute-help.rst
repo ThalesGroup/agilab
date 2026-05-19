@@ -224,8 +224,9 @@ For a first pass through the UI, follow this sequence exactly:
    confirm the work plan matches the selected workers.
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
-   a runnable notebook for review, handoff, or reuse if AGILAB is no longer the
-   runtime you want to keep.
+   a runnable ``agi-core`` notebook for review, handoff, or reuse if the AGILAB
+   UI or distributed runtime is no longer the interface you want to keep. This
+   keeps execution on the stable, production-grade core technology.
 6. In :doc:`experiment-help`, import or regenerate that snippet as a WORKFLOW
    stage instead of retyping it.
 
