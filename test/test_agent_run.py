@@ -83,6 +83,8 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
     assert payload["events"][0]["type"] == "agent.run.planned"
     assert payload["events"][0]["protocol_adapters"] == ["ag-ui"]
     assert payload["events"][0]["capabilities"] == ["app-as-tool"]
+    assert payload["artifacts"]["agent_trace"]["events"] == str(tmp_path / "agent_events.ndjson")
+    assert payload["artifacts"]["agent_trace"]["exists"] is False
     assert "sk-secret" not in json.dumps(payload)
     assert "review" not in json.dumps(payload)
 
@@ -160,6 +162,7 @@ def test_agent_run_manifest_context_supports_tags_and_metadata(tmp_path: Path, c
 def test_agent_run_public_python_api_uses_cli_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
     monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "logs"))
+    monkeypatch.setenv("AGILAB_AGENT_HOME", str(tmp_path / "agent-home"))
 
     config = module.create_agent_run_config(
         [sys.executable, "-c", "print('api')"],
@@ -181,10 +184,15 @@ def test_agent_run_public_python_api_uses_cli_defaults(tmp_path: Path, monkeypat
     assert config.metadata == {"branch": "main", "token": "hidden"}
     assert config.protocol_adapters == ("mcp",)
     assert config.capabilities == ("evidence-review",)
+    assert config.permission_level == "safe"
+    assert config.trace_enabled is True
+    assert config.provider == ""
+    assert config.model == ""
 
 
-def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) -> None:
+def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
+    monkeypatch.setenv("AGILAB_AGENT_HOME", str(tmp_path / "agent-home"))
 
     result = module.trace_agent_run(
         [sys.executable, "-c", "print('api ok')"],
@@ -218,6 +226,49 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path) 
     summary = module.summarize_agent_run(tmp_path)
     assert summary.run_id == "api-trace"
     assert summary.tags == ("api",)
+    assert summary.trace_events_path == tmp_path / "agent_events.ndjson"
+    events = (tmp_path / "agent_events.ndjson").read_text(encoding="utf-8")
+    assert "session_start" in events
+    assert "command_done" in events
+    assert "sk-secret" not in events
+
+
+def test_agent_run_stamps_provider_config_and_permission_level(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    agent_home = tmp_path / "agent-home"
+    agent_home.mkdir()
+    monkeypatch.setenv("AGILAB_AGENT_HOME", str(agent_home))
+    (agent_home / "agents.json").write_text(
+        json.dumps(
+            {
+                "default": {"provider": "local-code"},
+                "permission": {"level": "standard"},
+                "providers": {
+                    "local-code": {
+                        "type": "ollama",
+                        "model": "qwen2.5-coder:latest",
+                        "capability": {"context_window": 32768},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = module.build_planned_manifest(
+        module.create_agent_run_config(
+            [sys.executable, "-c", "print('ok')"],
+            cwd=ROOT,
+            output_dir=tmp_path / "run",
+            run_id="configured",
+        )
+    )
+
+    assert payload["context"]["agent_config"]["permission_level"] == "standard"
+    assert payload["context"]["agent_config"]["config_paths"] == [str(agent_home / "agents.json")]
+    assert payload["context"]["provider"]["provider"] == "ollama"
+    assert payload["context"]["provider"]["model"] == "qwen2.5-coder:latest"
+    assert payload["context"]["provider"]["capability"]["context_window"] == 32768
 
 
 def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, capsys) -> None:
@@ -258,9 +309,17 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
         "agent.artifacts.written",
     ]
     assert payload["events"][1]["returncode"] == 0
+    assert payload["artifacts"]["agent_trace"]["event_count"] == 4
+    assert payload["artifacts"]["agent_trace"]["event_types"] == [
+        "session_start",
+        "command_start",
+        "command_done",
+        "session_end",
+    ]
     assert stdout_path.read_text(encoding="utf-8").strip() == "ok"
     assert stderr_path.read_text(encoding="utf-8").strip() == "warn"
     assert json.loads(manifest_path.read_text(encoding="utf-8"))["run_id"] == "agent-success"
+    assert "command finished with returncode 0" in (tmp_path / "agent_events.ndjson").read_text(encoding="utf-8")
 
 
 def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) -> None:
@@ -318,6 +377,7 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
     assert summary.manifest_path == codex_dir / module.MANIFEST_FILENAME
     assert summary.stdout_path == codex_dir / module.STDOUT_FILENAME
     assert summary.stderr_path == codex_dir / module.STDERR_FILENAME
+    assert summary.trace_events_path == codex_dir / "agent_events.ndjson"
     assert summary.tags == ("review",)
     assert summary.metadata == {"branch": "main"}
 
@@ -328,6 +388,7 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
     listed = json.loads(capsys.readouterr().out)
     assert [item["run_id"] for item in listed] == ["agent-codex"]
     assert listed[0]["metadata"] == {"branch": "main"}
+    assert listed[0]["trace_events"] == str(codex_dir / "agent_events.ndjson")
 
 
 def test_agent_run_failure_returns_command_status_and_manifest(tmp_path: Path, capsys) -> None:
