@@ -15,16 +15,16 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from data_io_2026 import DataIo2026, DataIo2026Args, build_decision_artifacts
-from data_io_2026.fred_support import (
+from mission_decision import MissionDecision, MissionDecisionArgs, build_decision_artifacts
+from mission_decision.fred_support import (
     FRED_FIXTURE_SERIES_ID,
     fetch_fred_csv_rows,
     fred_csv_url,
     fred_fixture_rows,
     parse_fred_csv,
 )
-from data_io_2026_worker import DataIo2026Worker
-from data_io_2026_worker.data_io_2026_worker import _args_with_defaults
+from mission_decision_worker import MissionDecisionWorker
+from mission_decision_worker.mission_decision_worker import _args_with_defaults
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -44,18 +44,18 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
         _is_managed_pc=False,
         AGI_LOCAL_SHARE=str(share_root),
         AGILAB_EXPORT_ABS=export_root,
-        target="data_io_2026",
+        target="mission_decision",
     )
 
 
-def test_data_io_2026_manager_seeds_public_scenario_and_distribution(tmp_path: Path) -> None:
+def test_mission_decision_manager_seeds_public_scenario_and_distribution(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
-    manager = DataIo2026(env, args=DataIo2026Args())
+    manager = MissionDecision(env, args=MissionDecisionArgs())
 
     files = sorted(manager.args.data_in.glob("*.json"))
     assert len(files) == 1
     assert files[0].name == "mission_decision_demo.json"
-    assert manager.analysis_artifact_dir == env.AGILAB_EXPORT_ABS / "data_io_2026" / "data_io_decision"
+    assert manager.analysis_artifact_dir == env.AGILAB_EXPORT_ABS / "mission_decision" / "data_io_decision"
 
     work_plan, metadata, partition_key, weights_key, unit = manager.build_distribution({"127.0.0.1": 1})
 
@@ -67,11 +67,11 @@ def test_data_io_2026_manager_seeds_public_scenario_and_distribution(tmp_path: P
     assert unit == "KB"
 
 
-def test_data_io_2026_decision_artifacts_replan_after_bandwidth_drop() -> None:
-    scenario_path = SRC_ROOT / "data_io_2026" / "sample_data" / "mission_decision_demo.json"
+def test_mission_decision_decision_artifacts_replan_after_bandwidth_drop() -> None:
+    scenario_path = SRC_ROOT / "mission_decision" / "sample_data" / "mission_decision_demo.json"
     scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
 
-    artifacts = build_decision_artifacts(scenario, DataIo2026Args())
+    artifacts = build_decision_artifacts(scenario, MissionDecisionArgs())
     summary = artifacts["summary"]
     feature_rows = artifacts["feature_table"]
 
@@ -90,7 +90,7 @@ def test_data_io_2026_decision_artifacts_replan_after_bandwidth_drop() -> None:
     } <= {(row["feature"], row["source"]) for row in feature_rows}
 
 
-def test_data_io_2026_fred_fixture_and_parser_are_deterministic() -> None:
+def test_mission_decision_fred_fixture_and_parser_are_deterministic() -> None:
     rows = fred_fixture_rows()
 
     assert [row["date"] for row in rows] == ["2026-01-01", "2026-02-01", "2026-03-01"]
@@ -112,7 +112,7 @@ def test_data_io_2026_fred_fixture_and_parser_are_deterministic() -> None:
     ]
 
 
-def test_data_io_2026_fred_live_fetch_is_optional_and_injectable() -> None:
+def test_mission_decision_fred_live_fetch_is_optional_and_injectable() -> None:
     class _Response:
         def __enter__(self):
             return self
@@ -145,10 +145,10 @@ def test_data_io_2026_fred_live_fetch_is_optional_and_injectable() -> None:
 
 def test_mission_decision_worker_exports_analysis_artifacts(tmp_path: Path) -> None:
     env = _make_env(tmp_path)
-    manager = DataIo2026(env, args=DataIo2026Args(reset_target=True))
+    manager = MissionDecision(env, args=MissionDecisionArgs(reset_target=True))
     source = sorted(manager.args.data_in.glob("*.json"))[0]
 
-    worker = DataIo2026Worker()
+    worker = MissionDecisionWorker()
     worker.env = env
     worker.args = manager.args.model_dump(mode="json")
     worker._worker_id = 0
@@ -202,7 +202,7 @@ def test_mission_decision_worker_args_fill_missing_defaults() -> None:
     assert args.failure_kind == "bandwidth_drop"
 
 
-def test_data_io_2026_public_analysis_config_and_wording() -> None:
+def test_mission_decision_public_analysis_config_and_wording() -> None:
     settings = tomllib.loads((SRC_ROOT / "app_settings.toml").read_text(encoding="utf-8"))
 
     assert settings["pages"]["default_view"] == "view_data_io_decision"
@@ -228,4 +228,4 @@ def test_data_io_2026_public_analysis_config_and_wording() -> None:
 
 
 def test_mission_decision_worker_is_installable_supported_worker() -> None:
-    assert issubclass(DataIo2026Worker, PandasWorker)
+    assert issubclass(MissionDecisionWorker, PandasWorker)

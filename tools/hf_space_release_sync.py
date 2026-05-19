@@ -27,7 +27,6 @@ DEFAULT_POLL_SECONDS = 10.0
 FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
 FIRST_PROOF_PAGES = ("view_maps", "view_forecast_analysis", "view_release_decision")
 ADVANCED_APPS = (
-    "data_io_2026_project",
     "execution_pandas_project",
     "execution_polars_project",
     "flight_telemetry_project",

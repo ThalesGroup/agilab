@@ -4273,10 +4273,12 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Run one local proof first" in caption_bodies[9]
     assert caption_bodies[10].startswith("Handoff bundle:")
     assert "strict security-check output" in caption_bodies[10]
-    assert link_types["1. INSTALL demo"] == "primary"
-    assert link_types["2. EXECUTE demo"] == "secondary"
-    assert link_types["3. OPEN ANALYSIS"] == "secondary"
-    assert link_types["Create from built-in notebook"] == "secondary"
+    assert link_types == {
+        "1. INSTALL demo": "secondary",
+        "2. EXECUTE demo": "secondary",
+        "3. OPEN ANALYSIS": "secondary",
+        "Create from built-in notebook": "secondary",
+    }
     assert not [body for kind, body in pre_details if kind == "file_uploader"]
     assert not [body for kind, body in pre_details if kind == "download_button"]
     assert not [body for kind, body in pre_details if kind == "page_link"]

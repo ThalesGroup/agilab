@@ -40,7 +40,6 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
     assert check["status"] == "pass", "\n".join(check["details"].get("failures", []))
     assert check["id"] == "reduce_contract_adoption_guardrail"
     assert check["details"]["checked_apps"] == sorted([
-        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
@@ -54,10 +53,10 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
     assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
 
 
-def test_data_io_2026_reduce_contract_merges_decision_summaries(monkeypatch) -> None:
+def test_mission_decision_reduce_contract_merges_decision_summaries(monkeypatch) -> None:
     app_src = BUILTIN_APPS_ROOT / "mission_decision_project" / "src"
     monkeypatch.syspath_prepend(str(app_src))
-    from data_io_2026.reduction import (
+    from mission_decision.reduction import (
         REDUCE_ARTIFACT_NAME,
         REDUCER_NAME,
         build_reduce_artifact,

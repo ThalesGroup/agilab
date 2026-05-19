@@ -1,4 +1,4 @@
-"""Reduce-contract adoption for the built-in Data IO 2026 app."""
+"""Reduce-contract adoption for the built-in Mission Decision app."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from agi_node.reduction import (
 
 
 REDUCE_ARTIFACT_FILENAME_TEMPLATE = "reduce_summary_worker_{worker_id}.json"
-REDUCE_ARTIFACT_NAME = "data_io_2026_reduce_summary"
-REDUCER_NAME = "data_io_2026.mission-decision.v1"
+REDUCE_ARTIFACT_NAME = "mission_decision_reduce_summary"
+REDUCER_NAME = "mission_decision.mission-decision.v1"
 
 _REQUIRED_SUMMARY_KEYS = (
     "schema",
@@ -61,7 +61,7 @@ def _sorted_strings(values: set[str]) -> list[str]:
     return sorted(value for value in values if value)
 
 
-def _merge_data_io_2026_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
+def _merge_mission_decision_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
     scenarios: set[str] = set()
     selected_strategies: set[str] = set()
     initial_strategies: set[str] = set()
@@ -107,22 +107,22 @@ def _merge_data_io_2026_partials(partials: Sequence[ReducePartial]) -> dict[str,
     }
 
 
-def _validate_data_io_2026_artifact(artifact: ReduceArtifact) -> None:
+def _validate_mission_decision_artifact(artifact: ReduceArtifact) -> None:
     payload = artifact.payload
     if int(payload["scenario_count"]) <= 0:
-        raise ValueError("data_io_2026 reducer produced no scenarios")
+        raise ValueError("mission_decision reducer produced no scenarios")
     if int(payload["max_pipeline_stage_count"]) <= 0:
-        raise ValueError("data_io_2026 reducer produced no pipeline stages")
+        raise ValueError("mission_decision reducer produced no pipeline stages")
 
 
-DATA_IO_2026_REDUCE_CONTRACT = ReduceContract(
+MISSION_DECISION_REDUCE_CONTRACT = ReduceContract(
     name=REDUCER_NAME,
     artifact_name=REDUCE_ARTIFACT_NAME,
-    merge=_merge_data_io_2026_partials,
+    merge=_merge_mission_decision_partials,
     validate_partial=require_payload_keys(*_REQUIRED_PAYLOAD_KEYS),
-    validate_artifact=_validate_data_io_2026_artifact,
+    validate_artifact=_validate_mission_decision_artifact,
     metadata={
-        "app": "data_io_2026_project",
+        "app": "mission_decision_project",
         "domain": "mission-decision",
         "scope": "scenario-summary",
     },
@@ -144,7 +144,7 @@ def partial_from_decision_summary(
     missing = [key for key in _REQUIRED_SUMMARY_KEYS if key not in metrics]
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(f"data_io_2026 summary metrics missing keys: {missing_text}")
+        raise ValueError(f"mission_decision summary metrics missing keys: {missing_text}")
 
     payload = {
         "scenario_count": 1,
@@ -168,7 +168,7 @@ def partial_from_decision_summary(
 
 
 def build_reduce_artifact(partials: Sequence[ReducePartial]) -> ReduceArtifact:
-    return DATA_IO_2026_REDUCE_CONTRACT.build_artifact(partials)
+    return MISSION_DECISION_REDUCE_CONTRACT.build_artifact(partials)
 
 
 def write_reduce_artifact(
@@ -180,7 +180,7 @@ def write_reduce_artifact(
     output_path = reduce_artifact_path(output_dir, worker_id)
     partial = partial_from_decision_summary(
         metrics,
-        partial_id=f"data_io_2026_worker_{worker_id}_{metrics['artifact_stem']}",
+        partial_id=f"mission_decision_worker_{worker_id}_{metrics['artifact_stem']}",
         artifact_path=output_path,
         metadata={
             "worker_id": str(worker_id),
@@ -196,7 +196,7 @@ def write_reduce_artifact(
 
 
 __all__ = [
-    "DATA_IO_2026_REDUCE_CONTRACT",
+    "MISSION_DECISION_REDUCE_CONTRACT",
     "REDUCE_ARTIFACT_FILENAME_TEMPLATE",
     "REDUCE_ARTIFACT_NAME",
     "REDUCER_NAME",

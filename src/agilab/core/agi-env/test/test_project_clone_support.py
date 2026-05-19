@@ -24,6 +24,18 @@ def test_create_rename_map_covers_core_aliases():
     assert mapping["flight_telemetry_args"] == "demo_args"
 
 
+def test_create_rename_map_covers_data_io_2026_to_mission_decision():
+    mapping = create_rename_map(Path("data_io_2026_project"), Path("mission_decision_project"))
+
+    assert mapping["data_io_2026_project"] == "mission_decision_project"
+    assert mapping["src/data_io_2026"] == "src/mission_decision"
+    assert mapping["src/data_io_2026_worker"] == "src/mission_decision_worker"
+    assert mapping["data_io_2026"] == "mission_decision"
+    assert mapping["DataIo2026"] == "MissionDecision"
+    assert mapping["DataIo2026Worker"] == "MissionDecisionWorker"
+    assert mapping["DataIo2026Args"] == "MissionDecisionArgs"
+
+
 def test_clone_project_uses_template_source_and_updates_projects(tmp_path: Path):
     apps_path = tmp_path / "apps"
     template_src = apps_path / "templates" / "alpha_project"
