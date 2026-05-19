@@ -140,9 +140,10 @@ What is the difference between notebook import and notebook export?
 
 Notebook import turns an existing ``.ipynb`` into AGILAB project stages after
 preflight checks and explicit role review. Notebook export takes an AGILAB
-WORKFLOW pipeline and writes a runnable notebook that preserves the saved stage
-contract. Import helps you enter AGILAB; export helps you leave or hand off the
-work without losing it.
+WORKFLOW pipeline and writes a runnable ``agi-core`` notebook that preserves
+the saved stage contract. Import helps you enter AGILAB; export helps you leave
+the UI or hand off the work without losing it, while still running on the
+stable, production-grade core technology.
 
 Packages, apps, and release evidence
 ------------------------------------

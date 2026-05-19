@@ -146,15 +146,18 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
     readme = README.read_text(encoding="utf-8")
     pypi_readme = PYPI_README.read_text(encoding="utf-8")
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    compact_readme = " ".join(readme.split())
+    compact_pypi_readme = " ".join(pypi_readme.split())
 
     assert pyproject["project"]["readme"] == "README.pypi.md"
 
     synced_fragments = (
         "AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.",
         "It turns notebooks and scripts into executable, portable, evidence-backed apps",
-        "you do not lose your work if AGILAB is no longer the right runtime.",
+        "you do not lose your work if the AGILAB UI or distributed runtime is",
         "reviewable run evidence",
-        "runnable outside AGILAB as exported notebooks",
+        "runnable outside the AGILAB UI as `agi-core` notebooks",
+        "production-grade core technology",
         "AGILAB complements MLflow and production MLOps platforms.",
         "## Core Flow",
         "### Local PyPI UI Proof",
@@ -180,8 +183,8 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "Package publishing policy",
     )
     for fragment in synced_fragments:
-        assert fragment in readme
-        assert fragment in pypi_readme
+        assert fragment in readme or fragment in compact_readme
+        assert fragment in pypi_readme or fragment in compact_pypi_readme
 
     stale_fragments = (
         "Try this first",

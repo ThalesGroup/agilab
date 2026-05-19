@@ -44,7 +44,8 @@ A complete proof capsule should contain these parts:
        to rerun the application.
      - ``lab_stages.toml``, app settings seeds, and exported run manifests.
    * - Notebook bridge
-     - Imported notebook provenance or exported runnable notebook for handoff.
+     - Imported notebook provenance or exported runnable ``agi-core`` notebook
+       for handoff.
      - WORKFLOW notebook import/export and notebook export manifests.
    * - Tracking handoff
      - MLflow run identifiers or exported tracking metadata when MLflow is

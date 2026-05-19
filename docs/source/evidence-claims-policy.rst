@@ -24,8 +24,9 @@ Use these phrases only when the linked implementation or artifact exists.
      - A run manifest, stage metadata, or artifact manifest is written.
    * - AGILAB release proof ties together package, CI, docs, and demo evidence.
      - The public :doc:`release-proof` page references the current release.
-   * - AGILAB can export a workflow back to a runnable notebook.
-     - The workflow has a notebook export manifest or exported notebook.
+   * - AGILAB can export a workflow back to a runnable ``agi-core`` notebook.
+     - The workflow has a notebook export manifest or exported notebook that
+       declares the stable, production-grade ``agi-core`` runtime dependency.
    * - AGILAB can hand evidence to MLflow when the integration is enabled.
      - The MLflow route is explicitly enabled and the run records the handoff.
    * - AGILAB UI robot evidence captures public UI behavior.

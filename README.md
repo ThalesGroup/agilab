@@ -42,10 +42,14 @@
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
 It turns notebooks and scripts into executable, portable, evidence-backed apps
 while preserving a notebook export path.
-That means you do not lose your work if AGILAB is no longer the right runtime.
-Those apps can run locally or on distributed workers, and the
-workflow stays portable: export it back to a runnable notebook, and hand off
-tracking evidence to MLflow when that integration is enabled.
+That export is an `agi-core` runtime handoff: you can continue to run the saved
+project and stage contract with only the stable, production-grade core
+technology, without depending on the AGILAB UI or distributed worker layer.
+That means you do not lose your work if the AGILAB UI or distributed runtime is
+no longer the right interface. Those apps can run locally or on distributed
+workers, and the workflow stays portable: export it back to an `agi-core`
+notebook, inspect or adapt the Python stages, and hand off tracking evidence to
+MLflow when that integration is enabled.
 
 Use it to keep experimental AI work:
 
@@ -53,7 +57,7 @@ Use it to keep experimental AI work:
 - **controlled environments**
 - **local or distributed execution**
 - **reviewable run evidence**
-- **runnable outside AGILAB as exported notebooks**
+- **runnable outside the AGILAB UI as `agi-core` notebooks**
 - **optional MLflow integration**
 
 AGILAB complements MLflow and production MLOps platforms. It owns the
@@ -67,9 +71,10 @@ Notebook/script → AGILAB app → controlled execution → artifacts + evidence
 notebook / MLflow / UI handoff
 
 The flow is reversible where it matters for long-term reuse: WORKFLOW can export
-the saved pipeline as a runnable supervisor notebook, so the code, stage order,
-runtime hints, and review context remain usable in Jupyter-compatible tools even
-if you later decide AGILAB is no longer the right runtime for that work.
+the saved pipeline as a runnable `agi-core` supervisor notebook, so the code,
+stage order, runtime hints, and review context remain usable through the stable,
+production-grade core technology if the AGILAB UI or distributed runtime is no
+longer the right interface for that work.
 
 Start with the public browser preview or the demo chooser:
 
