@@ -519,10 +519,13 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
     assert "test-results/hf-install-robot/failure-bundles" in hf_install_robot.argv
     assert _has_with_dependency(hf_install_robot.argv, "playwright")
-    assert hf_visual_smoke_robot.label == "hf flight telemetry visual smoke robot"
+    assert hf_visual_smoke_robot.label == "hf first-proof visual smoke robot"
     assert hf_visual_smoke_robot.timeout_seconds == 25 * 60
     assert hf_visual_smoke_robot.remove_paths == ["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"]
-    assert "hf-flight-telemetry-visual-smoke" in hf_visual_smoke_robot.argv
+    assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
+    assert "flight_telemetry_project,weather_forecast_project" in hf_visual_smoke_robot.argv
+    assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_visual_smoke_robot.argv
+    assert "--active-app" not in hf_visual_smoke_robot.argv
     assert "screenshots/hf-visual-smoke-robot" in hf_visual_smoke_robot.argv
     assert _has_with_dependency(hf_visual_smoke_robot.argv, "playwright")
 
@@ -644,6 +647,14 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
         "ui-trend-robot",
     ]
     assert module.select_ui_robot_profiles_for_files([".github/workflows/huggingface.yml"]) == [
+        "hf-install-robot",
+        "hf-visual-smoke-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/hf_space_smoke.py"]) == [
+        "hf-install-robot",
+        "hf-visual-smoke-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/hf_space_release_sync.py"]) == [
         "hf-install-robot",
         "hf-visual-smoke-robot",
     ]
