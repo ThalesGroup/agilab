@@ -95,8 +95,9 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "isolated-above-fold-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-visual-baseline-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-cross-browser-core-pages" not in [scenario.name for scenario in scenarios]
-    assert "hf-flight-telemetry-install" not in [scenario.name for scenario in scenarios]
+    assert "hf-first-proof-install" not in [scenario.name for scenario in scenarios]
     assert "hf-first-proof-visual-smoke" not in [scenario.name for scenario in scenarios]
+    assert "hf-first-proof-app-pages-visual-smoke" not in [scenario.name for scenario in scenarios]
 
 
 def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
@@ -118,10 +119,10 @@ def test_opt_in_hf_install_scenario_is_not_part_of_default_all() -> None:
     module = _load_module()
 
     default_scenarios = module.resolve_scenarios(["all"])
-    hf_scenario = module.resolve_scenarios(["hf-flight-telemetry-install"])[0]
+    hf_scenario = module.resolve_scenarios(["hf-first-proof-install"])[0]
 
-    assert "hf-flight-telemetry-install" not in [scenario.name for scenario in default_scenarios]
-    assert hf_scenario.name == "hf-flight-telemetry-install"
+    assert "hf-first-proof-install" not in [scenario.name for scenario in default_scenarios]
+    assert hf_scenario.name == "hf-first-proof-install"
     assert hf_scenario.pages == "ORCHESTRATE"
     assert hf_scenario.apps_pages == "none"
     assert hf_scenario.action_button_policy == "click-selected"
@@ -146,6 +147,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     above_fold = module.resolve_scenarios(["isolated-above-fold-core-pages"])[0]
     visual_baseline = module.resolve_scenarios(["isolated-visual-baseline-core-pages"])[0]
     hf_visual_smoke = module.resolve_scenarios(["hf-first-proof-visual-smoke"])[0]
+    hf_apps_pages_smoke = module.resolve_scenarios(["hf-first-proof-app-pages-visual-smoke"])[0]
     cross_browser = module.resolve_scenarios(["isolated-cross-browser-core-pages"])[0]
 
     assert mobile.name not in default_names
@@ -160,6 +162,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert above_fold.name not in default_names
     assert visual_baseline.name not in default_names
     assert hf_visual_smoke.name not in default_names
+    assert hf_apps_pages_smoke.name not in default_names
     assert cross_browser.name not in default_names
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
@@ -273,33 +276,32 @@ def test_options_from_args_controls_result_cache(tmp_path) -> None:
 
 def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:
     module = _load_module()
-    scenario = module.ALL_SCENARIOS["hf-flight-telemetry-install"]
+    scenario = module.ALL_SCENARIOS["hf-first-proof-install"]
     options = module.MatrixOptions(
-        apps="flight_telemetry_project",
+        apps="flight_telemetry_project,weather_forecast_project",
         output_dir=tmp_path,
         screenshot_dir=tmp_path / "screenshots",
         timeout_seconds=90.0,
         widget_timeout_seconds=3.0,
         quiet_progress=True,
         no_seed_demo_artifacts=True,
-        url="https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
-        active_app="flight_telemetry_project",
+        url="https://huggingface.co/spaces/jpmorard/agilab",
     )
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--apps") + 1] == "flight_telemetry_project"
+    assert argv[argv.index("--apps") + 1] == "flight_telemetry_project,weather_forecast_project"
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--action-button-policy") + 1] == "click-selected"
     assert argv[argv.index("--click-action-labels") + 1] == "INSTALL"
     assert argv[argv.index("--missing-selected-action-policy") + 1] == "fail"
     assert argv[argv.index("--action-timeout") + 1] == "600.0"
-    assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project"
-    assert argv[argv.index("--active-app") + 1] == "flight_telemetry_project"
-    assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "hf-flight-telemetry-install")
-    assert summary_path == tmp_path / "hf-flight-telemetry-install.json"
-    assert progress_path == tmp_path / "hf-flight-telemetry-install.ndjson"
+    assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab"
+    assert "--active-app" not in argv
+    assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "hf-first-proof-install")
+    assert summary_path == tmp_path / "hf-first-proof-install.json"
+    assert progress_path == tmp_path / "hf-first-proof-install.ndjson"
 
 
 def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
@@ -535,6 +537,35 @@ def test_build_robot_command_enables_hf_visual_smoke_controls(tmp_path) -> None:
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "hf-first-proof-visual-smoke.json"
     assert progress_path == tmp_path / "hf-first-proof-visual-smoke.ndjson"
+
+
+def test_build_robot_command_enables_hf_app_pages_visual_smoke_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["hf-first-proof-app-pages-visual-smoke"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project,weather_forecast_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        url="https://huggingface.co/spaces/jpmorard/agilab",
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--apps") + 1] == "flight_telemetry_project,weather_forecast_project"
+    assert argv[argv.index("--pages") + 1] == "none"
+    assert argv[argv.index("--apps-pages") + 1] == "view_maps,view_forecast_analysis,view_release_decision"
+    assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab"
+    assert "--active-app" not in argv
+    assert "--success-screenshot" in argv
+    assert "--visual-mask-dynamic-regions" in argv
+    assert "--above-fold-check" in argv
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "hf-first-proof-app-pages-visual-smoke.json"
+    assert progress_path == tmp_path / "hf-first-proof-app-pages-visual-smoke.ndjson"
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:

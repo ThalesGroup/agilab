@@ -315,7 +315,7 @@ def _profile_descriptions() -> dict[str, str]:
         "ui-visual-baseline-robot": "Capture masked UI screenshots and compare them with screenshot baselines.",
         "ui-trend-robot": "Summarize widget robot NDJSON progress logs for failures, flakes, and slow pages.",
         "ui-cross-browser-robot": "Run the opt-in Firefox and WebKit widget robot smoke scenarios.",
-        "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
+        "hf-install-robot": "Run the hosted Hugging Face first-proof INSTALL action robot.",
         "hf-visual-smoke-robot": "Capture hosted Hugging Face first-proof visual smoke screenshots without firing install actions.",
     }
 
@@ -1446,7 +1446,7 @@ def _ui_artifact_capture_robot_profile() -> list[CommandSpec]:
 def _hf_install_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
-            label="hf flight telemetry install robot",
+            label="hf first-proof install robot",
             argv=[
                 "uv",
                 "--preview-features",
@@ -1457,13 +1457,11 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
                 "python",
                 "tools/agilab_widget_robot_matrix.py",
                 "--scenario",
-                "hf-flight-telemetry-install",
+                "hf-first-proof-install",
                 "--apps",
-                "flight_telemetry_project",
+                "flight_telemetry_project,weather_forecast_project",
                 "--url",
-                "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
-                "--active-app",
-                "flight_telemetry_project",
+                "https://huggingface.co/spaces/jpmorard/agilab",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
@@ -1494,6 +1492,8 @@ def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
                 "tools/agilab_widget_robot_matrix.py",
                 "--scenario",
                 "hf-first-proof-visual-smoke",
+                "--scenario",
+                "hf-first-proof-app-pages-visual-smoke",
                 "--apps",
                 "flight_telemetry_project,weather_forecast_project",
                 "--url",

@@ -490,6 +490,24 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         above_fold_check=True,
         browser_error_check=True,
     ),
+    "hf-first-proof-app-pages-visual-smoke": RobotScenario(
+        name="hf-first-proof-app-pages-visual-smoke",
+        description=(
+            "Capture hosted Hugging Face screenshots for the first-proof apps-page "
+            "bundles exposed by public demo routes."
+        ),
+        pages="none",
+        apps_pages="view_maps,view_forecast_analysis,view_release_decision",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=1200.0,
+        success_screenshot=True,
+        visual_mask_dynamic_regions=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    ),
     "current-home-first-proof-golden-path": RobotScenario(
         name="current-home-first-proof-golden-path",
         description=(
@@ -510,11 +528,11 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         assert_analysis_artifacts=True,
         success_screenshot=True,
     ),
-    "hf-flight-telemetry-install": RobotScenario(
-        name="hf-flight-telemetry-install",
+    "hf-first-proof-install": RobotScenario(
+        name="hf-first-proof-install",
         description=(
-            "Run the hosted Hugging Face flight telemetry INSTALL action and fail "
-            "on fatal install feedback rendered in the page or action log."
+            "Run the hosted Hugging Face first-proof app INSTALL actions and "
+            "fail on fatal install feedback rendered in the page or action log."
         ),
         pages="ORCHESTRATE",
         apps_pages="none",
