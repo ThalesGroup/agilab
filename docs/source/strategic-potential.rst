@@ -123,8 +123,8 @@ new evidence closes a listed gap.
      - Required proof
      - Still not claimed
    * - ``4.3 / 5``
-     - Final beta gate passes with network included; packaged examples pass the
-       external-beta maturity contract; public docs link the strategic
+     - Final release gate passes with network included; packaged examples pass
+       the external-beta maturity contract; public docs link the strategic
        scorecard; HF demo, PyPI, and docs are aligned to the same public
        release.
      - Production serving, enterprise governance, and formal certification.
@@ -156,5 +156,6 @@ Related pages
 
 - :doc:`agilab-mlops-positioning` for toolchain fit and current category scores
 - :doc:`compatibility-matrix` for validated public routes and evidence commands
-- :doc:`beta-readiness` for the beta promotion gate
+- :doc:`release-proof` and :doc:`package-publishing-policy` for public release
+  evidence and publication gates
 - :doc:`features` for shipped capability evidence
