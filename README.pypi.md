@@ -10,6 +10,7 @@
 [![Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg)](https://github.com/ThalesGroup/agilab/blob/main/AGENT_SKILLS.md)
 [![Standard: Agent Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg)](https://agentskills.io/)
 [![Works with](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
+[![Agent API: CLI Python](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
 
 # AGILAB
 

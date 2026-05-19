@@ -94,7 +94,7 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     pypi_readme = (REPO_ROOT / "README.pypi.md").read_text(encoding="utf-8")
 
-    for badge in ("skills.svg", "agent-standard.svg", "agent-works-with.svg"):
+    for badge in ("skills.svg", "agent-standard.svg", "agent-works-with.svg", "agent-api.svg"):
         assert badge in readme
         assert badge in pypi_readme
 
