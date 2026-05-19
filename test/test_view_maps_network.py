@@ -1015,6 +1015,7 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkey
             "routed": True,
             "path": [(1, 2)],
             "time_index": 7,
+            "time_s": 1.5,
             "t_now_s": 1.5,
         }
     ]
@@ -2059,6 +2060,7 @@ def test_view_maps_network_allocation_normalization_branches(monkeypatch, tmp_pa
     )
     assert normalized["source"].tolist() == ["1"]
     assert normalized["destination"].tolist() == ["2"]
+    assert normalized["time_s"].tolist() == [3.5]
     assert normalized["t_now_s"].tolist() == [3.5]
 
 

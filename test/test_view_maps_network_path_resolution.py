@@ -16,7 +16,7 @@ def _load_view_maps_network_module() -> object:
     spec = importlib.util.spec_from_file_location("view_maps_network_path_resolution_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    active_app = Path("/Users/agi/PycharmProjects/thales_agilab/apps/sb3_trainer_project")
+    active_app = Path("src/agilab/apps/builtin/flight_telemetry_project").resolve()
     argv = [MODULE_PATH.name, "--active-app", str(active_app)]
     AgiEnv.reset()
     with patch("sys.argv", argv):
