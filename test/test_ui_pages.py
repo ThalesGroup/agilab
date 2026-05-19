@@ -648,8 +648,11 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source
     assert "streamlit.sidebar.columns([0.76, 0.24], vertical_alignment=\"bottom\")" in selector_source
-    assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' in selector_source
-    assert 'st.switch_page(Path("pages/1_PROJECT.py"))' in pipeline_source
+    assert 'PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
+    assert "switch_to_project_page(streamlit, active_app=selection)" in selector_source
+    assert "switch_to_project_page(st, active_app=selected_lab)" in pipeline_source
+    assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' not in selector_source
+    assert 'st.switch_page(Path("pages/1_PROJECT.py"))' not in pipeline_source
     assert 'st.sidebar.markdown(f"### [MLflow]({mlflow_url})")' in pipeline_source
     assert 'st.sidebar.columns([0.64, 0.36], vertical_alignment="center")' not in pipeline_source
     assert "stLinkButton" not in pipeline_source
