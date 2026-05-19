@@ -198,8 +198,9 @@ machine-readable proof record.
    notebook -> PROJECT ``Create`` -> ORCHESTRATE ``INSTALL`` -> ORCHESTRATE
    ``EXECUTE`` -> ANALYSIS -> WORKFLOW ``Download pipeline notebook``. The last
    step is the no-lock-in check: the work remains available as
-   ``lab_stages.ipynb`` if AGILAB is no longer the right runtime for the
-   project.
+   ``lab_stages.ipynb`` running on the stable, production-grade ``agi-core``
+   technology if the AGILAB UI or distributed runtime is no longer the right
+   interface for the project.
 
    The landing page also shows an adoption gate. Treat it as a go/no-go for
    widening from one user to a controlled team trial: one first proof must have a
