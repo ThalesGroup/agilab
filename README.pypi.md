@@ -7,7 +7,7 @@
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![GitHub AI scraper: discoverable](https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E)](https://pypi.org/project/github-ai-scraper/)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
-[![Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-skills.svg)](https://github.com/ThalesGroup/agilab/blob/main/AGENT_SKILLS.md)
+[![Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg)](https://github.com/ThalesGroup/agilab/blob/main/AGENT_SKILLS.md)
 [![Standard: Agent Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg)](https://agentskills.io/)
 [![Works with](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
 

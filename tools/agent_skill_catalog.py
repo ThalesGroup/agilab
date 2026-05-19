@@ -15,7 +15,7 @@ DEFAULT_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
 DEFAULT_MARKDOWN_OUT = REPO_ROOT / "AGENT_SKILLS.md"
 DEFAULT_LLMS_OUT = REPO_ROOT / "llms.txt"
 DEFAULT_LLMS_FULL_OUT = REPO_ROOT / "llms-full.txt"
-WORKS_WITH = ("Codex", "Claude Code", "Aider", "OpenCode")
+WORKS_WITH = ("Codex", "Claude Code", "Continue", "Aider", "OpenCode")
 
 
 def _codex_skills_module():
@@ -60,6 +60,11 @@ def _skill_lines(skills: Iterable[object], *, full: bool) -> list[str]:
     return lines
 
 
+def _skill_count_label(count: int) -> str:
+    suffix = "skill" if count == 1 else "skills"
+    return f"{count} {suffix}"
+
+
 def render_markdown(skills: list[object]) -> str:
     lines = [
         "# AGILAB Agent Skills",
@@ -69,7 +74,7 @@ def render_markdown(skills: list[object]) -> str:
         "",
         "## Badges",
         "",
-        "- Skills: {count} repo-managed skills".format(count=len(skills)),
+        "- Skills: " + _skill_count_label(len(skills)),
         "- Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references",
         "- Works with: " + ", ".join(WORKS_WITH),
         "",
