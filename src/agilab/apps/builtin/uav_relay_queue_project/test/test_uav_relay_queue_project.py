@@ -138,6 +138,8 @@ def test_uav_relay_queue_worker_exports_queue_artifacts(tmp_path: Path) -> None:
     demand_payload = json.loads((pipeline_dir / "demands.json").read_text(encoding="utf-8"))
 
     assert {"time_s", "relay", "queue_depth_pkts"} <= set(queue_df.columns)
+    assert "time_s" in allocations_df.columns
+    assert "t_now_s" not in allocations_df.columns
     assert {"packet_id", "origin_kind", "relay", "status"} <= set(packet_df.columns)
     assert {"node", "latitude", "longitude", "alt_m"} <= set(positions_df.columns)
     assert {"relay", "packets_generated", "packets_delivered"} <= set(routing_df.columns)

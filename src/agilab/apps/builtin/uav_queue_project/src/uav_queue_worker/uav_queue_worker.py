@@ -589,7 +589,7 @@ class UavQueueWorker(PandasWorker):
                 allocation_rows.append(
                     {
                         "time_index": time_index,
-                        "t_now_s": round(float(sample_time), 3),
+                        "time_s": round(float(sample_time), 3),
                         "source": source_id,
                         "destination": sink_id,
                         "relay": relay.relay_id,
