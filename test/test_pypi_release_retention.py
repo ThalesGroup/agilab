@@ -77,6 +77,16 @@ def test_resolve_protect_versions_reads_selected_project_versions(monkeypatch, t
     }
 
 
+def test_resolve_protect_versions_rejects_missing_package_version() -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit, match="missing protected versions for: agi-core"):
+        module.resolve_protect_versions(
+            packages=["agilab", "agi-core"],
+            protect_package_versions=["agilab=2026.05.18"],
+        )
+
+
 def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> None:
     module = _load_module()
 
