@@ -316,7 +316,7 @@ def _profile_descriptions() -> dict[str, str]:
         "ui-trend-robot": "Summarize widget robot NDJSON progress logs for failures, flakes, and slow pages.",
         "ui-cross-browser-robot": "Run the opt-in Firefox and WebKit widget robot smoke scenarios.",
         "hf-install-robot": "Run the hosted Hugging Face flight telemetry INSTALL action robot.",
-        "hf-visual-smoke-robot": "Capture hosted Hugging Face visual smoke screenshots without firing install actions.",
+        "hf-visual-smoke-robot": "Capture hosted Hugging Face first-proof visual smoke screenshots without firing install actions.",
     }
 
 
@@ -441,7 +441,9 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
             }
         ):
             profiles.add("ui-frontend-smoke")
-        if "huggingface" in lower or lower.startswith(("docker/", "spaces/", ".github/workflows/huggingface")):
+        if "huggingface" in lower or lower.startswith(
+            ("docker/", "spaces/", ".github/workflows/huggingface", "tools/hf_space_", "test/test_hf_space_")
+        ):
             profiles.update({"hf-visual-smoke-robot", "hf-install-robot"})
         if lower.startswith(("tools/workflow_parity.py", "test/test_workflow_parity.py")):
             profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-frontend-smoke"})
@@ -1480,7 +1482,7 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
 def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
-            label="hf flight telemetry visual smoke robot",
+            label="hf first-proof visual smoke robot",
             argv=[
                 "uv",
                 "--preview-features",
@@ -1491,13 +1493,11 @@ def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
                 "python",
                 "tools/agilab_widget_robot_matrix.py",
                 "--scenario",
-                "hf-flight-telemetry-visual-smoke",
+                "hf-first-proof-visual-smoke",
                 "--apps",
-                "flight_telemetry_project",
+                "flight_telemetry_project,weather_forecast_project",
                 "--url",
-                "https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project",
-                "--active-app",
-                "flight_telemetry_project",
+                "https://huggingface.co/spaces/jpmorard/agilab",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
