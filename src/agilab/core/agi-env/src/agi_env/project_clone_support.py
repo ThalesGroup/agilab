@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
@@ -28,6 +29,48 @@ def _safe_resolve(path: Path, *, strict: bool = False) -> Path:
         return path.resolve(strict=strict)
     except PATH_RESOLVE_EXCEPTIONS:
         return path
+
+
+def _try_link_directory(source: Path, dest: Path) -> bool:
+    """Best-effort directory link with a Windows junction fallback."""
+
+    try:
+        os.symlink(source, dest, target_is_directory=True)
+        return True
+    except FileExistsError:
+        return True
+    except OSError:
+        if os.name != "nt":
+            return False
+    try:
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(dest), str(source)],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
+def _try_link_symlink(item: Path, dest: Path) -> bool:
+    """Preserve a symlink when the platform permits it."""
+
+    try:
+        target = os.readlink(item)
+    except OSError:
+        target = str(_safe_resolve(item))
+    try:
+        os.symlink(target, dest, target_is_directory=item.is_dir())
+        return True
+    except FileExistsError:
+        return True
+    except OSError:
+        if item.is_dir():
+            return _try_link_directory(_safe_resolve(item), dest)
+        return False
 
 
 def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str]:
@@ -257,19 +300,12 @@ def clone_directory(
         ensure_dir_fn(dst.parent)
 
         if item.is_symlink():
-            try:
-                target = os.readlink(item)
-            except OSError:
-                target = str(_safe_resolve(item))
-            try:
-                os.symlink(target, dst, target_is_directory=item.is_dir())
-            except FileExistsError:
-                pass
+            _try_link_symlink(item, dst)
             continue
 
         if item.is_dir():
             if item.name == ".venv":
-                os.symlink(item, dst, target_is_directory=True)
+                _try_link_directory(item, dst)
             else:
                 clone_directory(
                     item,

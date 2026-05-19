@@ -173,6 +173,12 @@ def _run_env(argv: list[str]) -> int:
     raise SystemExit("agilab env: supported commands: footprint")
 
 
+def _run_app(argv: list[str]) -> int:
+    from agilab import pypi_app_packages
+
+    return pypi_app_packages.main(argv)
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -234,6 +240,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_evidence_contract([command, *raw_argv[1:]])
     if raw_argv[:1] == ["env"]:
         return _run_env(raw_argv[1:])
+    if raw_argv[:1] == ["app"]:
+        return _run_app(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

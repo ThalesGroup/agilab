@@ -425,6 +425,8 @@ def test_baseworker_expand_and_join_windows_mount_failure_is_swallowed(monkeypat
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
     monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
     monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
 
     def _fake_run(cmd, **kwargs):
         calls.append((cmd, kwargs))
@@ -468,6 +470,8 @@ def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fa
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(posix_path_cls, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
 
     calls = []
 
@@ -492,6 +496,8 @@ def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypa
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
     monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
     monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
     monkeypatch.setattr(
         base_worker_mod.subprocess,
         "run",

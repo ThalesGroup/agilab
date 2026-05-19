@@ -1041,7 +1041,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             else:
                 return False
 
-        dest.symlink_to(candidate, target_is_directory=True)
+        if not AgiEnv.create_symlink(candidate, dest):
+            return False
         AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
         return True
 
@@ -1350,26 +1351,32 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
 
     @staticmethod
-    def create_symlink(src: Path, dest: Path):
+    def create_symlink(src: Path, dest: Path) -> bool:
         try:
             if dest.exists() or dest.is_symlink():
                 if dest.is_symlink() and dest.resolve() == src.resolve():
                     logger = AgiEnv.logger
                     if logger:
                         logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
-                    return
+                    return True
                 logger = AgiEnv.logger
                 if logger:
                     logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
+                if dest.is_dir():
+                    return False
                 dest.unlink()
             dest.symlink_to(src, target_is_directory=src.is_dir())
             logger = AgiEnv.logger
             if logger:
                 logger.info(f"Symlink created: @{dest.name} -> {src}")
+            return True
         except OSError as e:
+            if os.name == "nt" and src.is_dir() and AgiEnv.create_junction_windows(src, dest):
+                return True
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
+            return False
 
     def change_app(self, app):
         # Normalize current and requested app identifiers to comparable names
@@ -1457,7 +1464,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return False
 
     @staticmethod
-    def create_junction_windows(source: Path, dest: Path):
+    def create_junction_windows(source: Path, dest: Path) -> bool:
         """
         Create a directory junction on Windows.
 
@@ -1471,10 +1478,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger = AgiEnv.logger
             if logger:
                 logger.info(f"Created junction: {dest} -> {source}")
+            return True
         except subprocess.CalledProcessError as e:
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create junction. Error: {e}")
+            return False
 
     @staticmethod
     def create_symlink_windows(source: Path, dest: Path):

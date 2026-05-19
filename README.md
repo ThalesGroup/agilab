@@ -347,6 +347,10 @@ cd "$CHECKOUT"
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
+On native Windows, prefer the published package route below. The source checkout
+installer uses POSIX shell scripts, so run that path from WSL2 until native
+installer parity is published.
+
 Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `WORKFLOW`, and
 `ANALYSIS`. To collect the same check as JSON:
 

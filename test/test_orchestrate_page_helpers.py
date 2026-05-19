@@ -94,13 +94,21 @@ def _prime_current_agilab_package() -> None:
     sys.modules["agilab"] = pkg
 
 
+_ORCHESTRATE_PAGE_HELPERS_MODULE = None
+_ORCHESTRATE_MODULE = None
+
+
 def _load_orchestrate_page_helpers_module():
+    global _ORCHESTRATE_PAGE_HELPERS_MODULE
+    if _ORCHESTRATE_PAGE_HELPERS_MODULE is not None:
+        return _ORCHESTRATE_PAGE_HELPERS_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _ORCHESTRATE_PAGE_HELPERS_MODULE = module
     return module
 
 
@@ -153,12 +161,16 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
 
 
 def _load_orchestrate_module():
+    global _ORCHESTRATE_MODULE
+    if _ORCHESTRATE_MODULE is not None:
+        return _ORCHESTRATE_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _ORCHESTRATE_MODULE = module
     return module
 
 

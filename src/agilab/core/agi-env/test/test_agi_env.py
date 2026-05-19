@@ -2651,6 +2651,29 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
     assert mock_logger.info.called
 
 
+def test_create_symlink_uses_windows_junction_fallback(tmp_path: Path, monkeypatch):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    dest = tmp_path / "dest"
+    calls = []
+
+    monkeypatch.setattr(agi_env_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(
+        agi_env_module.Path,
+        "symlink_to",
+        lambda self, *_args, **_kwargs: (_ for _ in ()).throw(OSError("denied")),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        AgiEnv,
+        "create_junction_windows",
+        staticmethod(lambda source, target: calls.append((source, target)) or True),
+    )
+
+    assert AgiEnv.create_symlink(src_dir, dest) is True
+    assert calls == [(src_dir, dest)]
+
+
 def test_create_symlink_windows_logs_success_and_failure(tmp_path: Path, monkeypatch):
     src_dir = tmp_path / "src"
     src_dir.mkdir()

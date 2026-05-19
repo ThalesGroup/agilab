@@ -22,6 +22,7 @@ import html
 import json
 import re
 import inspect
+from collections.abc import Sequence
 from typing import Any, Union
 import asyncio
 import shlex
@@ -734,7 +735,25 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
     return env
 
 
-def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | None = None) -> None:
+BgCommand = str | Sequence[str]
+
+
+def _split_local_command(value: str) -> list[str]:
+    return shlex.split(str(value), posix=os.name != "nt") if str(value).strip() else []
+
+
+def _local_uv_command(env: Any, ip: str = "127.0.0.1") -> list[str]:
+    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+    return [*_split_local_command(cmd_prefix), *_split_local_command(env.uv)]
+
+
+def _format_bg_command(cmd: BgCommand) -> str:
+    if isinstance(cmd, str):
+        return cmd
+    return shlex.join(str(part) for part in cmd)
+
+
+def exec_bg(agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, str] | None = None) -> None:
     """
     Execute background command
     Args:
@@ -750,9 +769,16 @@ def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | N
     env.pop("PYTHONPATH", None)
     if process_env:
         env.update(process_env)
+    command: str | list[str]
+    if isinstance(cmd, str):
+        command = cmd
+        shell = True
+    else:
+        command = [str(part) for part in cmd]
+        shell = False
     return subprocess.Popen(
-        cmd,
-        shell=isinstance(cmd, str),
+        command,
+        shell=shell,
         cwd=cwd,
         stdout=stdout,
         stderr=stderr,
@@ -774,8 +800,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         return True
     env = st.session_state['env']
     ip = "127.0.0.1"
-    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    uv = cmd_prefix + env.uv
+    uv = _local_uv_command(env, ip)
     attempts: list[str] = []
     last_error = ""
     project_roots = _iter_page_project_roots(view_page)
@@ -787,20 +812,16 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
     env.out_log = log_file
     env.err_log = err_file
 
-    view_arg = shlex.quote(str(view_page))
-    active_app_quoted = shlex.quote(active_app) if active_app else ""
-
     for page_root in project_roots:
         page_home = str(page_root)
-        page_home_quoted = shlex.quote(page_home)
         env.logger.info("Trying analysis page sidecar project root: %s", page_home)
         attempts.append(f"Trying uv project root: {page_home}")
 
         if _page_sync_is_fresh(page_root):
             env.logger.info("Skipping analysis page sync; environment is up to date for %s", page_home)
         else:
-            sync_cmd = f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} sync"
-            env.logger.info(sync_cmd)
+            sync_cmd = [*uv, "--preview-features", "extra-build-dependencies", "--project", page_home, "sync"]
+            env.logger.info(_format_bg_command(sync_cmd))
             sync_process = exec_bg(env, sync_cmd, cwd=page_home)
             sync_code = sync_process.wait()
             if sync_code != 0:
@@ -817,18 +838,32 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             if _source_bootstrap_is_fresh(page_root, source_root):
                 env.logger.info("Skipping analysis page source bootstrap; environment is up to date for %s", page_home)
             else:
-                pip_probe_cmd = (
-                    f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
-                    f"run python -c {shlex.quote('import pip')}"
-                )
-                env.logger.info(pip_probe_cmd)
+                pip_probe_cmd = [
+                    *uv,
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "--project",
+                    page_home,
+                    "run",
+                    "python",
+                    "-c",
+                    "import pip",
+                ]
+                env.logger.info(_format_bg_command(pip_probe_cmd))
                 pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home)
                 if pip_probe_process.wait() != 0:
-                    ensure_cmd = (
-                        f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
-                        "run python -m ensurepip"
-                    )
-                    env.logger.info(ensure_cmd)
+                    ensure_cmd = [
+                        *uv,
+                        "--preview-features",
+                        "extra-build-dependencies",
+                        "--project",
+                        page_home,
+                        "run",
+                        "python",
+                        "-m",
+                        "ensurepip",
+                    ]
+                    env.logger.info(_format_bg_command(ensure_cmd))
                     ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
                     ensure_code = ensure_process.wait()
                     if ensure_code != 0:
@@ -836,11 +871,21 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                         env.logger.error(last_error)
                         continue
 
-                install_cmd = (
-                    f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} "
-                    f"run python -m pip install -e {shlex.quote(str(source_root))}"
-                )
-                env.logger.info(install_cmd)
+                install_cmd = [
+                    *uv,
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "--project",
+                    page_home,
+                    "run",
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "-e",
+                    str(source_root),
+                ]
+                env.logger.info(_format_bg_command(install_cmd))
                 install_process = exec_bg(env, install_cmd, cwd=page_home)
                 install_code = install_process.wait()
                 if install_code != 0:
@@ -852,15 +897,32 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 except OSError as exc:
                     env.logger.warning("Could not write analysis page source bootstrap stamp for %s: %s", page_home, exc)
 
-        run_cmd = (
-            f"{uv} run --project {page_home_quoted} python -m streamlit run {view_arg} "
-            f"--server.port {port} --server.address 127.0.0.1 "
-            f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-            f"--browser.gatherUsageStats false"
-        )
-        if active_app_quoted:
-            run_cmd += f" -- --active-app {active_app_quoted}"
-        env.logger.info(run_cmd)
+        run_cmd = [
+            *uv,
+            "run",
+            "--project",
+            page_home,
+            "python",
+            "-m",
+            "streamlit",
+            "run",
+            str(view_page),
+            "--server.port",
+            str(port),
+            "--server.address",
+            "127.0.0.1",
+            "--server.headless",
+            "true",
+            "--server.enableCORS",
+            "false",
+            "--server.enableXsrfProtection",
+            "false",
+            "--browser.gatherUsageStats",
+            "false",
+        ]
+        if active_app:
+            run_cmd.extend(["--", "--active-app", active_app])
+        env.logger.info(_format_bg_command(run_cmd))
         run_process = exec_bg(env, run_cmd, cwd=page_home)
 
         # Wait a bit for the port to come up
@@ -896,22 +958,52 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             fallback_targets.append(
                 (
                     f"local page venv ({page_venv})",
-                    f"{shlex.quote(str(python))} -m streamlit run {view_arg} "
-                    f"--server.port {port} --server.address 127.0.0.1 "
-                    f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-                    f"--browser.gatherUsageStats false"
-                    + (f" -- --active-app {active_app_quoted}" if active_app_quoted else ""),
+                    [
+                        str(python),
+                        "-m",
+                        "streamlit",
+                        "run",
+                        str(view_page),
+                        "--server.port",
+                        str(port),
+                        "--server.address",
+                        "127.0.0.1",
+                        "--server.headless",
+                        "true",
+                        "--server.enableCORS",
+                        "false",
+                        "--server.enableXsrfProtection",
+                        "false",
+                        "--browser.gatherUsageStats",
+                        "false",
+                        *(["--", "--active-app", active_app] if active_app else []),
+                    ],
                     _page_pythonpath(view_page.parent),
                 )
             )
         fallback_targets.append(
             (
                 "manager python interpreter",
-                f"{shlex.quote(str(sys.executable))} -m streamlit run {view_arg} "
-                f"--server.port {port} --server.address 127.0.0.1 "
-                f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-                f"--browser.gatherUsageStats false"
-                + (f" -- --active-app {active_app_quoted}" if active_app_quoted else ""),
+                [
+                    str(sys.executable),
+                    "-m",
+                    "streamlit",
+                    "run",
+                    str(view_page),
+                    "--server.port",
+                    str(port),
+                    "--server.address",
+                    "127.0.0.1",
+                    "--server.headless",
+                    "true",
+                    "--server.enableCORS",
+                    "false",
+                    "--server.enableXsrfProtection",
+                    "false",
+                    "--browser.gatherUsageStats",
+                    "false",
+                    *(["--", "--active-app", active_app] if active_app else []),
+                ],
                 _page_pythonpath(view_page.parent, Path(env.env_pck).parent),
             )
         )
@@ -2066,7 +2158,7 @@ def _notebook_iframe_tornado_settings_arg() -> str:
             "X-Frame-Options": "",
         }
     }
-    return shlex.quote(json.dumps(settings, separators=(",", ":")))
+    return json.dumps(settings, separators=(",", ":"))
 
 
 def _ensure_notebook_sidecar(
@@ -2080,8 +2172,7 @@ def _ensure_notebook_sidecar(
         return True
     env = st.session_state["env"]
     ip = "127.0.0.1"
-    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    uv = cmd_prefix + env.uv
+    uv = _local_uv_command(env, ip)
     attempts: list[str] = []
     last_error = ""
 
@@ -2090,19 +2181,32 @@ def _ensure_notebook_sidecar(
     env.err_log = err_file
 
     project_home = str(project_root.resolve())
-    project_home_quoted = shlex.quote(project_home)
     tornado_settings = _notebook_iframe_tornado_settings_arg()
-    run_cmd = (
-        f"{uv} --preview-features extra-build-dependencies run "
-        f"--project {project_home_quoted} --with jupyterlab --with ipykernel "
-        f"jupyter lab --no-browser "
-        f"--ServerApp.ip=127.0.0.1 --ServerApp.port={port} "
-        f"--ServerApp.open_browser=False --ServerApp.token= --ServerApp.password= "
-        f"--ServerApp.allow_origin={shlex.quote('*')} --ServerApp.disable_check_xsrf=True "
-        f"--ServerApp.root_dir={project_home_quoted} "
-        f"--ServerApp.tornado_settings={tornado_settings}"
-    )
-    env.logger.info("Starting project notebook sidecar: %s", run_cmd)
+    run_cmd = [
+        *uv,
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        project_home,
+        "--with",
+        "jupyterlab",
+        "--with",
+        "ipykernel",
+        "jupyter",
+        "lab",
+        "--no-browser",
+        "--ServerApp.ip=127.0.0.1",
+        f"--ServerApp.port={port}",
+        "--ServerApp.open_browser=False",
+        "--ServerApp.token=",
+        "--ServerApp.password=",
+        "--ServerApp.allow_origin=*",
+        "--ServerApp.disable_check_xsrf=True",
+        f"--ServerApp.root_dir={project_home}",
+        f"--ServerApp.tornado_settings={tornado_settings}",
+    ]
+    env.logger.info("Starting project notebook sidecar: %s", _format_bg_command(run_cmd))
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
     run_process = exec_bg(env, run_cmd, cwd=project_home)
 
