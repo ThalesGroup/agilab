@@ -190,7 +190,7 @@ def test_frontend_static_asset_check_accepts_streamlit_js_and_css_mime_types() -
             return self.content_type if name.lower() == "content-type" else default
 
     responses = {
-        "http://demo/?active_app=flight": _Response(
+        "http://demo/?active_app=flight_telemetry": _Response(
             '<html><script type="module" src="./static/js/index.js"></script>'
             '<link rel="stylesheet" href="/static/css/index.css"></html>',
             "text/html; charset=utf-8",
@@ -199,7 +199,7 @@ def test_frontend_static_asset_check_accepts_streamlit_js_and_css_mime_types() -
         "http://demo/static/css/index.css": _Response("body{}", "text/css"),
     }
 
-    step = module.assert_frontend_static_assets("http://demo/?active_app=flight", opener=responses.__getitem__)
+    step = module.assert_frontend_static_assets("http://demo/?active_app=flight_telemetry", opener=responses.__getitem__)
 
     assert step.success is True
     assert step.label == "frontend static assets"

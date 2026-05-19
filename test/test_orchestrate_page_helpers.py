@@ -1298,14 +1298,14 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
             "WARNING: Cache entry deserialization failed, entry ignored",
             "flight_telemetry_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
             "flight_telemetry_project.runtime_distribution_support.run_local debug=False",
-            "flight_telemetry_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"from pathlib import Path",
+            "flight_telemetry_project.execution_support.run_async Executing in /Users/agi/wenv/flight_telemetry_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_telemetry_worker --python 3.13.13 python -c \"from pathlib import Path",
             "from agi_env import AgiEnv",
             "from agi_node.agi_dispatcher import  BaseWorker",
             "import asyncio",
             "async def main():",
             "  env = AgiEnv(apps_path=Path('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin'), app='flight_telemetry_project', verbose=1)",
-            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
-            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight_telemetry/dataset', 'data_out': 'flight_telemetry/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight_telemetry/dataset', 'data_out': 'flight_telemetry/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
             "  print(res)",
             "if __name__ == '__main__':",
             "  asyncio.run(main())\"",
@@ -1670,7 +1670,7 @@ def test_app_args_env_uses_cluster_share_instead_of_stale_local_share(tmp_path):
     assert args_env.share_root_path() == cluster_share
     assert args_env.agi_share_path == cluster_share
     assert args_env.agi_share_path_abs == cluster_share
-    assert args_env.resolve_share_path("flight/dataset") == cluster_share / "flight/dataset"
+    assert args_env.resolve_share_path("flight_telemetry/dataset") == cluster_share / "flight_telemetry/dataset"
     assert args_env.envars["AGI_CLUSTER_SHARE"] == str(cluster_share)
 
 

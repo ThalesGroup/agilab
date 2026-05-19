@@ -7,7 +7,7 @@ Resolver: `licensecheck 2025.1.0`.
 Source manifests:
 - `src/agilab/lib/agi-app-flight-telemetry/pyproject.toml`
 - `src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/pyproject.toml`
-- `src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/src/flight_worker/pyproject.toml`
+- `src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/src/flight_telemetry_worker/pyproject.toml`
 
 Extras included: none.
 

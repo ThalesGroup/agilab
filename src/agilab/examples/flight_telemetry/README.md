@@ -25,13 +25,13 @@ python ~/log/execute/flight_telemetry/AGI_run_flight_telemetry.py
 
 ## Expected Input
 
-The default run reads one file from `flight/dataset` in AGILAB shared storage.
+The default run reads one file from `flight_telemetry/dataset` in AGILAB shared storage.
 If the dataset is missing, install the built-in apps or run the first-proof path
 that seeds the public flight sample.
 
 ## Expected Output
 
-The run writes dataframe artifacts under `flight/dataframe` for the default
+The run writes dataframe artifacts under `flight_telemetry/dataframe` for the default
 `view_maps` analysis page.
 
 ## Read The Script
@@ -39,8 +39,8 @@ The run writes dataframe artifacts under `flight/dataframe` for the default
 Open `AGI_run_flight_telemetry.py` and look for these lines first:
 
 - `APP = "flight_telemetry_project"` selects the built-in app.
-- `data_in="flight/dataset"` names the input folder.
-- `data_out="flight/dataframe"` names the generated artifacts.
+- `data_in="flight_telemetry/dataset"` names the input folder.
+- `data_out="flight_telemetry/dataframe"` names the generated artifacts.
 - `mode=LOCAL_RUN_MODES` runs the stable public local worker modes.
 
 ## Change One Thing
@@ -54,4 +54,4 @@ experiment so you can compare only the effect of the file count.
 - If the script cannot find `.agilab-path`, run the AGILAB installer first.
 - If no flight files are found, rerun `agilab first-proof --json` or reinstall
   the built-in examples.
-- If the map view is empty, check that `flight/dataframe` contains fresh files.
+- If the map view is empty, check that `flight_telemetry/dataframe` contains fresh files.

@@ -118,7 +118,7 @@ def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
 
 def test_render_page_context_is_silent() -> None:
     fake_st = _FakeStreamlit()
-    env = SimpleNamespace(app="flight_telemetry_project", target="flight_worker", mode="Run now")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker", mode="Run now")
 
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
@@ -144,7 +144,7 @@ def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
         "global_dag_project",
     )
     assert not workflow_ui.is_dag_based_app(
-        SimpleNamespace(app="flight_telemetry_project", target="flight", base_worker_cls="PolarsWorker"),
+        SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry", base_worker_cls="PolarsWorker"),
         "flight_telemetry_project",
     )
 
@@ -152,8 +152,8 @@ def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
 def test_workflow_state_scope_target_variants() -> None:
     assert workflow_ui.workflow_state_scope(
         "WORKFLOW",
-        SimpleNamespace(app="flight_telemetry_project", target="flight_worker"),
-    ) == "WORKFLOW::flight_telemetry_project::flight_worker"
+        SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker"),
+    ) == "WORKFLOW::flight_telemetry_project::flight_telemetry_worker"
     assert workflow_ui.workflow_state_scope(
         "WORKFLOW",
         SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project"),
@@ -219,7 +219,7 @@ def test_render_latest_outputs_summarizes_dataframe_and_downloads(tmp_path) -> N
 
 def test_project_ui_state_is_scoped_by_page_and_project() -> None:
     session_state = {}
-    env = SimpleNamespace(app="flight_telemetry_project", target="flight_worker")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker")
 
     workflow_ui.remember_project_ui_state(
         session_state,

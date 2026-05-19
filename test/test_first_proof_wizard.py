@@ -74,7 +74,7 @@ def test_first_proof_state_routes_only_to_flight_telemetry_project(tmp_path: Pat
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert state["documented_route_ids"] == ["notebook-quickstart"]
-    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
+    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight_telemetry" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
@@ -111,7 +111,7 @@ def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "AGI_install_flight_telemetry.py").write_text("# helper", encoding="utf-8")
     (output_dir / "AGI_run_flight_telemetry.py").write_text("# helper", encoding="utf-8")
@@ -139,7 +139,7 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     manifest = run_manifest.build_run_manifest(
         path_id="source-checkout-first-proof",
@@ -203,7 +203,7 @@ def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     manifest = run_manifest.build_run_manifest(
         path_id="source-checkout-first-proof",
@@ -337,7 +337,7 @@ def test_first_proof_state_reports_invalid_manifest_and_filtered_outputs(tmp_pat
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "run_manifest.json").write_text("{not-json", encoding="utf-8")
     (output_dir / ".hidden").write_text("hidden", encoding="utf-8")

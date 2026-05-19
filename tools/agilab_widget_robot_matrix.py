@@ -475,10 +475,10 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         name="hf-first-proof-visual-smoke",
         description=(
             "Capture hosted Hugging Face screenshots for first-proof demo apps "
-            "across entry, ORCHESTRATE, WORKFLOW, and ANALYSIS without firing "
-            "install/run actions."
+            "across entry, PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS without "
+            "firing install/run actions."
         ),
-        pages="HOME,ORCHESTRATE,WORKFLOW,ANALYSIS",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",

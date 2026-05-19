@@ -45,7 +45,7 @@ EVAL_CARD_FILENAME = "eval-card.json"
 
 DEFAULT_MANIFEST_CANDIDATES = (
     Path("~/log/execute/flight_telemetry/run_manifest.json"),
-    Path("~/log/execute/flight/run_manifest.json"),
+    Path("~/log/execute/flight_telemetry/run_manifest.json"),
 )
 
 DEFAULT_POLICY_RULES = (

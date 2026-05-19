@@ -18,8 +18,8 @@ from agi_env import normalize_path
 from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
 from agi_env.agi_logger import AgiLogger
-from flight.flight_args import UNSUPPORTED_DATA_SOURCE_MESSAGE
-from flight.reduction import write_reduce_artifact
+from flight_telemetry.flight_args import UNSUPPORTED_DATA_SOURCE_MESSAGE
+from flight_telemetry.reduction import write_reduce_artifact
 
 logger = AgiLogger.get_logger(__name__)
 warnings.filterwarnings("ignore")
@@ -49,7 +49,7 @@ def _haversine_distance_m(row) -> float:
     return 2.0 * _EARTH_RADIUS_M * math.asin(math.sqrt(min(1.0, a)))
 
 
-class FlightWorker(PolarsWorker):
+class FlightTelemetryWorker(PolarsWorker):
     """Class derived from AgiDataWorker"""
 
     pool_vars = {}

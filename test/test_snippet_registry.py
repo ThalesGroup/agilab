@@ -55,7 +55,7 @@ def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_pat
 
     registry = discover_pipeline_snippets(
         stages_file=stages_file,
-        app_name="flight",
+        app_name="flight_telemetry",
         explicit_snippet=explicit,
         safe_service_template=safe_template,
         runenv_root=runenv,
@@ -95,9 +95,9 @@ def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(
     current_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "from agi_env import AgiEnv\n"
-        f"{snippet_contract_block(app='flight')}\n"
+        f"{snippet_contract_block(app='flight_telemetry')}\n"
         "async def main():\n"
-        "    await AGI.run(AgiEnv(apps_path='/tmp/apps', app='flight'))\n",
+        "    await AGI.run(AgiEnv(apps_path='/tmp/apps', app='flight_telemetry'))\n",
         encoding="utf-8",
     )
     wrong_app = runenv / "AGI_run_other.py"
@@ -114,7 +114,7 @@ def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(
 
     registry = discover_pipeline_snippets(
         stages_file=stages_file,
-        app_name="flight",
+        app_name="flight_telemetry",
         runenv_root=runenv,
         app_settings_file=app_settings,
     )
@@ -246,6 +246,6 @@ def test_snippet_registry_read_and_runenv_scan_failures(monkeypatch) -> None:
         snippet_registry._runenv_snippet_candidates(
             runenv_root="broken",
             app_settings_file=None,
-            app_name="flight",
+            app_name="flight_telemetry",
         )
     ) == []

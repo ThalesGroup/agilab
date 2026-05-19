@@ -56,7 +56,7 @@ def test_distributed_stage_smoke_dry_run_writes_two_node_request_preview(tmp_pat
     ]
     first_request = json.loads(report["distributed_request_preview"][0]["Request"])
     assert first_request["params"]["output_format"] == "parquet"
-    assert first_request["data_in"] == "flight/dataset"
+    assert first_request["data_in"] == "flight_telemetry/dataset"
     assert first_request["stages"] == []
 
 

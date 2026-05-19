@@ -312,8 +312,8 @@ debugging, check both dependency scopes:
 - manager dependencies in the app project ``pyproject.toml``
 - worker dependencies in the worker package ``pyproject.toml``
 
-For example, the built-in flight worker manifest lives under
-``src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/pyproject.toml``.
+For example, the built-in flight telemetry worker manifest lives under
+``src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/pyproject.toml``.
 
 Why do installers still build eggs?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

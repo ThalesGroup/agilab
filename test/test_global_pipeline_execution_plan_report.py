@@ -109,7 +109,7 @@ def test_execution_plan_carries_app_template_execution_contracts() -> None:
     first, second = plan.runnable_units
     assert first["execution_contract"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert first["execution_contract"]["params"]["output_format"] == "parquet"
-    assert first["execution_contract"]["data_in"] == "flight/dataset"
+    assert first["execution_contract"]["data_in"] == "flight_telemetry/dataset"
     assert first["execution_contract"]["stages"] == []
     assert second["execution_contract"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert second["execution_contract"]["params"]["station"] == "Paris-Montsouris"

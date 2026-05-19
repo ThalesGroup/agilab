@@ -19,9 +19,9 @@ from agi_env.project_clone_support import (
 def test_create_rename_map_covers_core_aliases():
     mapping = create_rename_map(Path("flight_telemetry_project"), Path("demo_project"))
     assert mapping["flight_telemetry_project"] == "demo_project"
-    assert mapping["src/flight_worker"] == "src/demo_worker"
-    assert mapping["FlightWorker"] == "DemoWorker"
-    assert mapping["flight_args"] == "demo_args"
+    assert mapping["src/flight_telemetry_worker"] == "src/demo_worker"
+    assert mapping["FlightTelemetryWorker"] == "DemoWorker"
+    assert mapping["flight_telemetry_args"] == "demo_args"
 
 
 def test_clone_project_uses_template_source_and_updates_projects(tmp_path: Path):

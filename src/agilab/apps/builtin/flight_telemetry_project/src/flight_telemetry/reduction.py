@@ -20,7 +20,7 @@ from agi_node.reduction import (
 
 REDUCE_ARTIFACT_FILENAME_TEMPLATE = "reduce_summary_worker_{worker_id}.json"
 REDUCE_ARTIFACT_NAME = "flight_reduce_summary"
-REDUCER_NAME = "flight.trajectory-metrics.v1"
+REDUCER_NAME = "flight_telemetry.trajectory-metrics.v1"
 
 _REQUIRED_FRAME_COLUMNS = frozenset(
     {
@@ -199,7 +199,7 @@ def write_reduce_artifact(
     output_path = reduce_artifact_path(output_dir, worker_id)
     partial = partial_from_flight_frame(
         df,
-        partial_id=f"flight_worker_{worker_id}",
+        partial_id=f"flight_telemetry_worker_{worker_id}",
         output_files=output_files,
         output_format=output_format,
         artifact_path=output_path,

@@ -311,7 +311,7 @@ def test_default_share_user_sanitizes_machine_user():
     assert cfv._default_share_user({"USER": "!!!"}) == "user"
 
 
-def test_write_synthetic_flight_dataset_uses_flight_worker_schema(tmp_path: Path):
+def test_write_synthetic_flight_dataset_uses_flight_telemetry_worker_schema(tmp_path: Path):
     (tmp_path / "stale.csv").write_text("old\n", encoding="utf-8")
     stale_dir = tmp_path / "directory.csv"
     stale_dir.mkdir()

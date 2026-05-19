@@ -199,12 +199,12 @@ def _load_flight_form_module(
             raise load_error
         return FlightArgs()
 
-    fake_flight = types.ModuleType("flight")
-    fake_flight.FlightArgs = FlightArgs
-    fake_flight.SUPPORTED_DATA_SOURCES = ("file",)
-    fake_flight.apply_source_defaults = apply_source_defaults
-    fake_flight.dump_args_to_toml = dump_args_to_toml
-    fake_flight.load_args_from_toml = load_args_from_toml
+    fake_flight_telemetry = types.ModuleType("flight_telemetry")
+    fake_flight_telemetry.FlightArgs = FlightArgs
+    fake_flight_telemetry.SUPPORTED_DATA_SOURCES = ("file",)
+    fake_flight_telemetry.apply_source_defaults = apply_source_defaults
+    fake_flight_telemetry.dump_args_to_toml = dump_args_to_toml
+    fake_flight_telemetry.load_args_from_toml = load_args_from_toml
 
     def _resolve_share_path(raw):
         return tmp_path / str(raw or "")
@@ -224,8 +224,8 @@ def _load_flight_form_module(
         fake_st.session_state.setdefault("env", env)
     monkeypatch.setitem(sys.modules, "streamlit", fake_st)
     missing = object()
-    previous_flight = sys.modules.get("flight", missing)
-    sys.modules["flight"] = fake_flight
+    previous_flight_telemetry = sys.modules.get("flight_telemetry", missing)
+    sys.modules["flight_telemetry"] = fake_flight_telemetry
 
     module_name = f"flight_form_test_{len(sys.modules)}"
     spec = importlib.util.spec_from_file_location(module_name, form_path)
@@ -235,10 +235,10 @@ def _load_flight_form_module(
     try:
         spec.loader.exec_module(module)
     finally:
-        if previous_flight is missing:
-            sys.modules.pop("flight", None)
+        if previous_flight_telemetry is missing:
+            sys.modules.pop("flight_telemetry", None)
         else:
-            sys.modules["flight"] = previous_flight
+            sys.modules["flight_telemetry"] = previous_flight_telemetry
     return module, fake_st, calls
 
 
@@ -414,10 +414,10 @@ def mock_ui_env(tmp_path, monkeypatch):
     src_dir = project_dir / "src"
     src_dir.mkdir()
     settings_file = src_dir / "app_settings.toml"
-    settings_file.write_text("[flight]\n") # Just some dummy TOML
+    settings_file.write_text("[flight_telemetry]\n") # Just some dummy TOML
     
-    # Needs to be able to import flight
-    (src_dir / "flight.py").write_text("""
+    # Needs to be able to import flight_telemetry
+    (src_dir / "flight_telemetry.py").write_text("""
 from pydantic import BaseModel
 from datetime import date
 class FlightArgs(BaseModel):
@@ -1173,8 +1173,8 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_telemetry_project:app_args_form:data_in": "flight/dataset",
-            "flight_telemetry_project:app_args_form:data_out": "flight/dataframe",
+            "flight_telemetry_project:app_args_form:data_in": "flight_telemetry/dataset",
+            "flight_telemetry_project:app_args_form:data_out": "flight_telemetry/dataframe",
         },
         share_root_error=True,
         load_error=RuntimeError("broken settings"),
@@ -1593,7 +1593,7 @@ def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_u
         'flight_telemetry_project = [{ Q = "Recover pipeline", C = "print(1)" }]\n',
         encoding="utf-8",
     )
-    target_stages = mock_ui_env["export_dir"] / "flight" / "lab_stages.toml"
+    target_stages = mock_ui_env["export_dir"] / "flight_telemetry" / "lab_stages.toml"
     assert not target_stages.exists()
 
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
@@ -1607,7 +1607,7 @@ def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_u
 
     assert not at.exception
     data = tomllib.loads(target_stages.read_text(encoding="utf-8"))
-    assert data["flight"][0]["Q"] == "Recover pipeline"
+    assert data["flight_telemetry"][0]["Q"] == "Recover pipeline"
     assert "flight_telemetry_project" not in data
 
 
@@ -1907,10 +1907,10 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
     """Deleting then canceling a stage should rerender locally without crashing."""
     export_root = tmp_path / "export"
-    flight_lab_dir = export_root / "flight"
+    flight_lab_dir = export_root / "flight_telemetry"
     flight_lab_dir.mkdir(parents=True, exist_ok=True)
     (flight_lab_dir / "lab_stages.toml").write_text(
-        '[[flight]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     flight_telemetry_project_lab_dir = export_root / "flight_telemetry_project"
@@ -1931,7 +1931,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
 
         at.query_params["lab_dir_selectbox"] = "flight_telemetry_project"
         at.session_state["env"] = env
-        at.session_state["flight"] = [0, "", "", "", "", "", 1]
+        at.session_state["flight_telemetry"] = [0, "", "", "", "", "", 1]
         at.session_state["flight_telemetry_project"] = [0, "", "", "", "", "", 1]
         at.session_state["flight_telemetry_project__venv_map"] = {}
         at.session_state["_requested_lab_dir"] = "flight_telemetry_project"
@@ -2095,7 +2095,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight"
+        env.target = "flight_telemetry"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
         env.get_projects = MagicMock(return_value=["flight_telemetry_project", "sb3_trainer_project"])
 

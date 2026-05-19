@@ -79,7 +79,7 @@ def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_non
     assert flight_payload["execution"]["adapter"] == "controlled_contract_dag"
     assert flight_payload["nodes"][0]["execution"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert flight_payload["nodes"][0]["execution"]["params"]["output_format"] == "parquet"
-    assert flight_payload["nodes"][0]["execution"]["data_out"] == "flight/dataframe"
+    assert flight_payload["nodes"][0]["execution"]["data_out"] == "flight_telemetry/dataframe"
     assert flight_payload["nodes"][1]["execution"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert flight_payload["nodes"][1]["execution"]["params"]["station"] == "Paris-Montsouris"
     assert flight_payload["nodes"][1]["execution"]["data_in"] == "weather_forecast/dataset"

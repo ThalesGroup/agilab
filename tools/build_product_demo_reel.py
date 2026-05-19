@@ -947,7 +947,7 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         "",
         "APP = \"flight_telemetry_project\"",
         "app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)",
-        "request = RunRequest(mode=15, data_in=\"flight/dataset\")",
+        "request = RunRequest(mode=15, data_in=\"flight_telemetry/dataset\")",
         "res = await AGI.run(app_env, request=request)",
         "print(res)",
     ]

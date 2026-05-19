@@ -34,17 +34,14 @@ def test_app_name_aliases_cover_slug_and_project_suffix() -> None:
     assert app_name_aliases("flight_telemetry") == (
         "flight_telemetry",
         "flight_telemetry_project",
-        "flight",
     )
     assert app_name_aliases("flight-telemetry-project") == (
         "flight_telemetry_project",
         "flight_telemetry",
-        "flight",
     )
     assert app_name_aliases("flight") == (
         "flight",
-        "flight_telemetry",
-        "flight_telemetry_project",
+        "flight_project",
     )
 
 
@@ -52,11 +49,11 @@ def test_resolve_app_runtime_target_uses_explicit_project_metadata(tmp_path: Pat
     project = tmp_path / "flight_telemetry_project"
     project.mkdir()
     (project / "pyproject.toml").write_text(
-        "[project]\nname='flight_telemetry_project'\n\n[tool.agilab]\nruntime_target='flight'\n",
+        "[project]\nname='flight_telemetry_project'\n\n[tool.agilab]\nruntime_target='flight_telemetry'\n",
         encoding="utf-8",
     )
 
-    assert resolve_app_runtime_target(project, "flight_telemetry_project") == "flight"
+    assert resolve_app_runtime_target(project, "flight_telemetry_project") == "flight_telemetry"
     assert resolve_app_runtime_target(None, "weather_forecast_project") == "weather_forecast"
 
     invalid_project = tmp_path / "invalid_project"
@@ -92,7 +89,7 @@ def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path
     def entry_points_fn():
         return _EntryPoints(
             [
-                _EntryPoint("flight", lambda: flight_telemetry_project),
+                _EntryPoint("flight_telemetry", lambda: flight_telemetry_project),
                 _EntryPoint("broken", lambda: broken_project),
             ]
         )
@@ -100,7 +97,11 @@ def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path
     projects = discover_installed_app_projects(entry_points_fn=entry_points_fn)
 
     assert projects == (
-        InstalledAppProject(name="flight_telemetry_project", project_root=flight_telemetry_project.resolve(), provider="flight"),
+        InstalledAppProject(
+            name="flight_telemetry_project",
+            project_root=flight_telemetry_project.resolve(),
+            provider="flight_telemetry",
+        ),
     )
     assert installed_app_project_paths(entry_points_fn=entry_points_fn) == (flight_telemetry_project.resolve(),)
 

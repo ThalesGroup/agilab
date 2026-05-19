@@ -33,7 +33,7 @@ def default_manifest_candidates() -> tuple[Path, ...]:
     log_root = _log_root()
     return (
         log_root / "execute" / "flight_telemetry" / run_manifest.RUN_MANIFEST_FILENAME,
-        log_root / "execute" / "flight" / run_manifest.RUN_MANIFEST_FILENAME,
+        log_root / "execute" / "flight_telemetry" / run_manifest.RUN_MANIFEST_FILENAME,
     )
 
 

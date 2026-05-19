@@ -25,7 +25,7 @@ FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
 REQUIRED_HF_FIRST_PROOF_APPS_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
-        "pages": ("HOME", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
+        "pages": ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
         "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
     },
     "hf-first-proof-app-pages-visual-smoke": {
@@ -279,6 +279,20 @@ def evaluate_contract() -> dict[str, Any]:
             CoverageIssue(
                 "hf_robot_profile",
                 "hf-visual-smoke-robot is missing first-proof apps: " + ", ".join(missing_profile_apps),
+            )
+        )
+    if "hf-first-proof-install" not in hf_install_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "hf_robot_profile",
+                "hf-install-robot does not run hf-first-proof-install",
+            )
+        )
+    if missing_install_profile_apps:
+        issues.append(
+            CoverageIssue(
+                "hf_robot_profile",
+                "hf-install-robot is missing first-proof apps: " + ", ".join(missing_install_profile_apps),
             )
         )
 

@@ -145,14 +145,14 @@ def test_collect_candidate_roots_resolves_app_args_with_share_path(tmp_path):
     roots = orchestrate_execute.collect_candidate_roots(
         env,
         {
-            "data_in": "flight/dataset",
-            "data_out": "flight/dataframe",
+            "data_in": "flight_telemetry/dataset",
+            "data_out": "flight_telemetry/dataframe",
         },
     )
 
     assert roots == [
-        share_root / "flight/dataframe",
-        share_root / "flight/dataset",
+        share_root / "flight_telemetry/dataframe",
+        share_root / "flight_telemetry/dataset",
     ]
 
 
@@ -276,7 +276,7 @@ def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
 
 
 def test_find_preview_target_prefers_flight_dataframe_over_newer_reduce_summary(tmp_path):
-    output_dir = tmp_path / "flight" / "dataframe"
+    output_dir = tmp_path / "flight_telemetry" / "dataframe"
     output_dir.mkdir(parents=True)
 
     plane_60 = output_dir / "60.parquet"

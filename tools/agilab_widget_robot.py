@@ -102,7 +102,7 @@ RISKY_ACTION_LABEL_TOKENS = {
     "upload",
 }
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {
-    "flight",
+    "flight_telemetry",
     "weather_forecast",
     "meteo_forecast",
     "uav_queue",
@@ -1582,7 +1582,7 @@ def _seed_track_dataframe(path: Path, *, node_prefix: str = "robot") -> None:
 
 def _seed_flight_artifacts(export_root: Path, share_root: Path) -> None:
     for base in (share_root, export_root):
-        _seed_track_dataframe(base / "flight" / "dataframe" / "00_robot_flight.csv", node_prefix="flight")
+        _seed_track_dataframe(base / "flight_telemetry" / "dataframe" / "00_robot_flight.csv", node_prefix="flight")
 
 
 def _queue_run_rows(policy: str, *, delivered_offset: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1748,7 +1748,7 @@ def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: 
         return
     export_root.mkdir(parents=True, exist_ok=True)
     share_root.mkdir(parents=True, exist_ok=True)
-    if target == "flight":
+    if target == "flight_telemetry":
         _seed_flight_artifacts(export_root, share_root)
     elif target in {"uav_queue", "uav_relay_queue"}:
         _seed_queue_artifacts(export_root, target)

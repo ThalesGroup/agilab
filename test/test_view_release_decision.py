@@ -72,7 +72,7 @@ def _write_first_proof_manifest(
     target_seconds: float = 600.0,
     validation_status: str = "pass",
 ) -> Path:
-    manifest_path = runtime_root / "log" / "execute" / "flight" / "run_manifest.json"
+    manifest_path = runtime_root / "log" / "execute" / "flight_telemetry" / "run_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     validations = [
         {
@@ -324,9 +324,9 @@ def _write_flight_reduce_artifact(path: Path) -> None:
             {
                 "schema_version": 1,
                 "name": "flight_reduce_summary",
-                "reducer": "flight.trajectory-metrics.v1",
+                "reducer": "flight_telemetry.trajectory-metrics.v1",
                 "partial_count": 1,
-                "partial_ids": ["flight_worker_0"],
+                "partial_ids": ["flight_telemetry_worker_0"],
                 "payload": {
                     "flight_run_count": 1,
                     "row_count": 3,
@@ -1383,7 +1383,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     uav = next(row for row in rows if row["reducer"] == "uav_queue.queue-metrics.v1")
     relay = next(row for row in rows if row["reducer"] == "uav_relay_queue.queue-metrics.v1")
     forecast = next(row for row in rows if row["reducer"] == "weather_forecast.forecast-metrics.v1")
-    flight = next(row for row in rows if row["reducer"] == "flight.trajectory-metrics.v1")
+    flight = next(row for row in rows if row["reducer"] == "flight_telemetry.trajectory-metrics.v1")
     invalid = next(row for row in rows if row["status"] == "invalid")
     assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
     assert valid["reducer"] == "execution_polars.weighted-score.v1"

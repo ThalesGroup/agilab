@@ -30,7 +30,7 @@ UNSUPPORTED_DATA_SOURCE_MESSAGE = (
 
 
 class FlightArgs(BaseModel):
-    """Validated configuration for the Flight worker."""
+    """Validated configuration for the flight telemetry worker."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -49,7 +49,7 @@ class FlightArgs(BaseModel):
         return data
 
     data_source: Literal["file"] = "file"
-    data_in: Path = Field(default_factory=lambda: Path("flight/dataset"))
+    data_in: Path = Field(default_factory=lambda: Path("flight_telemetry/dataset"))
     data_out: Path | None = None
     files: str = "*"
     nfile: int = Field(default=1, ge=0)
@@ -175,7 +175,7 @@ def apply_source_defaults(
 
     overrides: FlightArgsTD = {}
     if not str(args.data_in).strip():
-        overrides["data_in"] = "flight/dataset"
+        overrides["data_in"] = "flight_telemetry/dataset"
     if not args.files:
         overrides["files"] = "*"
 

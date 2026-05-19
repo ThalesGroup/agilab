@@ -321,8 +321,8 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert result.state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
     assert flight["execution_contract"]["entrypoint"] == "flight_telemetry_project.flight_context"
-    assert flight["execution_contract"]["data_in"] == "flight/dataset"
-    assert flight["execution_contract"]["data_out"] == "flight/dataframe"
+    assert flight["execution_contract"]["data_in"] == "flight_telemetry/dataset"
+    assert flight["execution_contract"]["data_out"] == "flight_telemetry/dataframe"
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert flight["produces"] == [

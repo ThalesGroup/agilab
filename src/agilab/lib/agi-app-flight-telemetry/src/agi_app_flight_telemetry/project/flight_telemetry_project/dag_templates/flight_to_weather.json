@@ -30,8 +30,8 @@
           "output_format": "parquet"
         },
         "stages": [],
-        "data_in": "flight/dataset",
-        "data_out": "flight/dataframe",
+        "data_in": "flight_telemetry/dataset",
+        "data_out": "flight_telemetry/dataframe",
         "reset_target": false
       },
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",

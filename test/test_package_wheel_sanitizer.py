@@ -115,15 +115,15 @@ def test_sanitize_packaged_page_bundle_pyprojects_updates_build_tree(tmp_path: P
 
 def test_purge_packaged_builtin_app_artifacts_removes_build_noise(tmp_path: Path) -> None:
     module = _load_module()
-    app_src = tmp_path / "agilab/apps/builtin/flight_telemetry_project/src/flight"
+    app_src = tmp_path / "agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry"
     pycache = app_src / "__pycache__"
-    egg_info = app_src / "flight.egg-info"
+    egg_info = app_src / "flight_telemetry.egg-info"
     pycache.mkdir(parents=True)
     egg_info.mkdir()
-    keep_source = app_src / "flight.py"
-    keep_pyx = app_src / "flight_worker.pyx"
-    remove_pyc = pycache / "flight.cpython-313.pyc"
-    remove_c = app_src / "flight_worker.c"
+    keep_source = app_src / "flight_telemetry.py"
+    keep_pyx = app_src / "flight_telemetry_worker.pyx"
+    remove_pyc = pycache / "flight_telemetry.cpython-313.pyc"
+    remove_c = app_src / "flight_telemetry_worker.c"
     keep_source.write_text("print('ok')\n", encoding="utf-8")
     keep_pyx.write_text("# generated source kept for cython build\n", encoding="utf-8")
     remove_pyc.write_bytes(b"pyc")

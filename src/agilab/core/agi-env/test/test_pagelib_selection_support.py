@@ -274,7 +274,7 @@ def test_resolve_active_app_support_prefers_query_param_and_fallback_last_app(tm
 
     app_name, changed = resolve_active_app(
         env,
-        query_params={"active_app": "flight"},
+        query_params={"active_app": "flight_telemetry"},
         normalize_query_param_value_fn=normalize_query_param_value,
         active_app_candidates_fn=active_app_candidates,
         store_last_active_app_fn=lambda path: stored.append(path),

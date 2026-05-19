@@ -573,9 +573,9 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     assert _option(run_config, "WORKING_DIRECTORY") == "$ProjectFileDir$/src/agilab/apps/builtin/flight_telemetry_project"
 
     worker_config = _read_generated_config(tmp_path, "_flight_telemetry_lib_worker.xml")
-    assert _option(worker_config, "SDK_NAME") == "uv (flight_worker)"
-    assert _option(worker_config, "WORKING_DIRECTORY") == "$USER_HOME$/wenv/flight_worker"
-    assert "$USER_HOME$/wenv/flight_worker" in _option(worker_config, "PARAMETERS")
+    assert _option(worker_config, "SDK_NAME") == "uv (flight_telemetry_worker)"
+    assert _option(worker_config, "WORKING_DIRECTORY") == "$USER_HOME$/wenv/flight_telemetry_worker"
+    assert "$USER_HOME$/wenv/flight_telemetry_worker" in _option(worker_config, "PARAMETERS")
     assert "wenv/builtin" not in _option(worker_config, "PARAMETERS")
 
     install_config = _read_generated_config(tmp_path, "_flight_telemetry_install.xml")
@@ -585,7 +585,7 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     assert _option(install_config, "SDK_NAME") == "uv (agi-cluster)"
 
     preinstall_config = _read_generated_config(tmp_path, "_flight_telemetry_preinstall_manager.xml")
-    assert "$USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py" in _option(
+    assert "$USER_HOME$/wenv/flight_telemetry_worker/src/flight_telemetry_worker/flight_telemetry_worker.py" in _option(
         preinstall_config,
         "PARAMETERS",
     )
