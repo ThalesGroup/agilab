@@ -81,6 +81,10 @@ def test_agent_run_evidence_command_is_documented() -> None:
         assert "agilab agent-run --agent codex" in text
         assert "agilab.agent_run.v1" in text
         assert "~/log/agents/" in text
+    for text in (agent_workflows, readme):
+        assert "--protocol-adapter" in text
+        assert "--capability" in text
+        assert "metadata-only" in text
     assert "trace_agent_run" in agent_workflows
     assert "agilab.agent_run.trace_agent_run()" in readme
 
