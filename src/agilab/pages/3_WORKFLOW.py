@@ -40,6 +40,7 @@ _page_project_selector_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
+switch_to_project_page = _page_project_selector_module.switch_to_project_page
 _page_docs_module = load_local_module(
     "agilab.page_docs",
     current_file=__file__,
@@ -933,8 +934,7 @@ def sidebar_controls() -> None:
         help=f"Edit {selected_lab}.",
         width="stretch",
     ):
-        st.query_params["active_app"] = selected_lab
-        st.switch_page(Path("pages/1_PROJECT.py"))
+        switch_to_project_page(st, active_app=selected_lab)
     st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
     if selected_lab != persisted_lab:

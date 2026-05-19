@@ -141,3 +141,48 @@ def test_project_selector_edit_button_updates_query_and_switches_page() -> None:
     assert streamlit.query_params["active_app"] == "beta_project"
     assert switched == [Path("pages/1_PROJECT.py")]
     assert changed == ["beta_project"]
+
+
+def test_project_selector_edit_button_prefers_registered_navigation_page(monkeypatch) -> None:
+    module = _load_module()
+    route = object()
+    switched: list[object] = []
+
+    class SelectorHost:
+        @staticmethod
+        def selectbox(_label, options, *, index=0, **_kwargs):
+            assert index == 0
+            return options[index]
+
+    class EditHost:
+        @staticmethod
+        def button(_label, **_kwargs):
+            return True
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agilab.main_page",
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={"project": route}),
+    )
+    monkeypatch.delattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", raising=False)
+
+    streamlit = SimpleNamespace(
+        session_state={},
+        sidebar=SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            columns=lambda *_args, **_kwargs: (SelectorHost(), EditHost()),
+        ),
+        query_params={},
+        switch_page=switched.append,
+    )
+
+    selection = module.render_project_selector(
+        streamlit,
+        ["alpha_project", "beta_project"],
+        "alpha_project",
+        on_change=lambda _selected: None,
+    )
+
+    assert selection == "alpha_project"
+    assert streamlit.query_params["active_app"] == "alpha_project"
+    assert switched == [route]
