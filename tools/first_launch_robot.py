@@ -136,7 +136,14 @@ def build_report(
         _check_result(
             "first_launch_brand_signal",
             "First launch exposes product signal",
-            _contains_any(markdown, ["AGILAB logo", "Reproducible AI workflows"]),
+            _contains_any(
+                markdown,
+                [
+                    "AGILAB logo",
+                    "AI/ML reproducibility workbench",
+                    "Turn experiments into evidence-backed apps",
+                ],
+            ),
             "Landing page exposes the AGILAB brand and workflow proposition",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
@@ -178,8 +185,12 @@ def build_report(
             or all(
                 _contains_any([*markdown, *captions, *buttons], [token])
                 for token in ("Project", "Run", "Analyse")
+            )
+            or all(
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in ("Import", "Execute", "Prove", "Export")
             ),
-            "Landing page shows the product journey from project to results",
+            "Landing page shows the product journey from import to proof/export",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
