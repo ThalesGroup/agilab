@@ -1,4 +1,4 @@
-data_io_2026 = [
+mission_decision = [
   { D = "Ingest mission data", Q = "Load the public Mission Decision scenario with sensor, satcom, constraint inputs, and deterministic FRED context evidence.", M = "", C = "APP = 'mission_decision_project'\ndata_in = 'mission_decision/scenarios'\nfiles = '*.json'", R = "runpy" },
   { D = "Generate the adaptive pipeline", Q = "Select the required cleaning, feature, scoring, failure-detection, re-planning, and decision stages from the scenario contract.", M = "", C = "APP = 'mission_decision_project'\nfailure_kind = 'bandwidth_drop'\nadaptation_mode = 'auto_replan'", R = "runpy" },
   { D = "Distribute scenario execution", Q = "Partition mission scenario files across available workers and produce worker-visible metadata.", M = "", C = "APP = 'mission_decision_project'\nworkers = {'127.0.0.1': 1}", R = "runpy" },

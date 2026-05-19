@@ -12,9 +12,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 APP_PROVIDER_ENTRYPOINT_GROUP = "agilab.apps"
 _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {
-    "mission_decision": "data_io_2026",
-}
+PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {}
 RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = set()
 
 

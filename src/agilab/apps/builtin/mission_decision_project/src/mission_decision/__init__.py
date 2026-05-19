@@ -1,8 +1,8 @@
 """Application surface for the public Mission Decision demo."""
 
 from .app_args import (
-    DataIo2026Args,
-    DataIo2026ArgsTD,
+    MissionDecisionArgs,
+    MissionDecisionArgsTD,
     dump_args,
     ensure_defaults,
     load_args,
@@ -16,7 +16,7 @@ from .artifacts import (
     choose_route,
     score_routes,
 )
-from .data_io_2026 import DataIo2026, DataIo2026App
+from .mission_decision import MissionDecision, MissionDecisionApp
 from .fred_support import (
     FRED_CSV_BASE_URL,
     FRED_FIXTURE_CSV,
@@ -29,7 +29,7 @@ from .fred_support import (
     parse_fred_csv,
 )
 from .reduction import (
-    DATA_IO_2026_REDUCE_CONTRACT,
+    MISSION_DECISION_REDUCE_CONTRACT,
     REDUCE_ARTIFACT_FILENAME_TEMPLATE,
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
@@ -40,11 +40,11 @@ from .reduction import (
 )
 
 __all__ = [
-    "DATA_IO_2026_REDUCE_CONTRACT",
-    "DataIo2026",
-    "DataIo2026App",
-    "DataIo2026Args",
-    "DataIo2026ArgsTD",
+    "MISSION_DECISION_REDUCE_CONTRACT",
+    "MissionDecision",
+    "MissionDecisionApp",
+    "MissionDecisionArgs",
+    "MissionDecisionArgsTD",
     "FRED_CSV_BASE_URL",
     "FRED_FIXTURE_CSV",
     "FRED_FIXTURE_SERIES_ID",

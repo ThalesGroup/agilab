@@ -38,7 +38,6 @@ PROFILE_BUILTIN_APP_ENTRIES = {
         "weather_forecast_project",
     },
     "advanced": {
-        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
