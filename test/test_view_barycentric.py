@@ -94,6 +94,10 @@ class _State(dict):
 
 
 def _load_module():
+    # Load Streamlit/Plotly before installing fake scientific dependencies so
+    # their global module state is initialized against the real environment.
+    import streamlit  # noqa: F401
+
     fake_barviz = ModuleType("barviz")
     exec(BARVIZ_STUB, fake_barviz.__dict__)
 

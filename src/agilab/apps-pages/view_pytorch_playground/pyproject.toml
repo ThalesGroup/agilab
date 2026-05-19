@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-pytorch-playground"
-version = "2026.05.19.post1"
+version = "2026.05.20"
 description = "Opt-in AGILAB page bundle for interactive PyTorch classifier experiments."
 readme = { text = "Opt-in AGILAB page bundle for interactive PyTorch classifier experiments.", content-type = "text/markdown" }
 requires-python = ">=3.12"
