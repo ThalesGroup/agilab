@@ -16,6 +16,7 @@ from package_split_contract import (
     LIBRARY_PACKAGE_CONTRACTS,
     PROMOTED_APP_PROJECT_PACKAGE_NAMES,
     UMBRELLA_PACKAGE_CONTRACT,
+    WHEEL_ONLY_PACKAGE_NAMES,
 )
 
 
@@ -89,6 +90,36 @@ def test_release_plan_github_output_is_compact_and_parseable(tmp_path: Path) -> 
     assert values["pypi_publish_selected"] == "true"
     assert "agi-env" in values["provenance_packages"]
     assert "\n" not in values["library_matrix"]
+
+
+def test_release_plan_provenance_packages_match_selected_public_publish_set() -> None:
+    module = _load_module()
+
+    payload = module.release_plan()
+    expected = [
+        package.name
+        for package in LIBRARY_PACKAGE_CONTRACTS
+        if package.role in module.PYPI_PUBLISH_ROLES
+        or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
+    ]
+    expected.append(UMBRELLA_PACKAGE_CONTRACT.name)
+
+    assert payload["provenance_packages"] == expected
+
+
+def test_release_plan_public_packages_default_to_wheel_and_sdist() -> None:
+    module = _load_module()
+    contracts = {
+        package.name: package
+        for package in (*LIBRARY_PACKAGE_CONTRACTS, UMBRELLA_PACKAGE_CONTRACT)
+    }
+
+    for package_name in module.release_plan()["provenance_packages"]:
+        package = contracts[package_name]
+        if package.name in WHEEL_ONLY_PACKAGE_NAMES:
+            assert package.artifact_policy == "wheel-only", package.name
+        else:
+            assert package.artifact_policy == "wheel+sdist", package.name
 
 
 def test_release_plan_can_target_page_packages_without_unrelated_apps() -> None:

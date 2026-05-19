@@ -227,6 +227,12 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "release-plan:": "workflow must render the package plan before publishing",
         "id: release-plan": "release-plan step must expose GitHub outputs",
         "tools/release_plan.py": "workflow must call the release-plan generator",
+        "python -m playwright install --with-deps chromium": (
+            "release preflight must install a browser before the frontend smoke"
+        ),
+        "--profile ui-frontend-smoke": (
+            "release preflight must verify the Streamlit frontend hydrates in a real browser"
+        ),
         "library_matrix: ${{ steps.release-plan.outputs.library_matrix }}": (
             "release-plan job must expose the library matrix output"
         ),
@@ -292,6 +298,18 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "tools/pypi_provenance_check.py": "workflow must run the PyPI provenance verifier",
         "pypi-provenance-evidence.tar.gz": (
             "workflow must attach PyPI provenance evidence to GitHub release assets"
+        ),
+        "release-dist-*": "workflow must download release distribution evidence artifacts",
+        "-name '*.whl' -o": "GitHub release assets must include wheels",
+        "-name '*.tar.gz' -o": "GitHub release assets must include source distributions",
+        "-name '*-artifact-hashes.json' -o": (
+            "GitHub release assets must include release artifact hash manifests"
+        ),
+        "-name '*-SHA256SUMS.txt'": (
+            "GitHub release assets must include per-package SHA256SUMS files"
+        ),
+        "release-distribution-evidence.tar.gz": (
+            "workflow must attach the complete release distribution evidence archive"
         ),
         "allow_post_release:": "workflow must require an explicit public .postN hotfix override",
         "post_release_reason:": "workflow must capture the public .postN hotfix justification",
