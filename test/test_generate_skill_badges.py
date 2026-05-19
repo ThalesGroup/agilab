@@ -31,13 +31,6 @@ def test_visible_skill_names_filters_hidden_dirs_and_files(tmp_path: Path) -> No
     assert names == {"alpha", "beta"}
 
 
-def test_format_skill_count_handles_singular_and_plural() -> None:
-    module = _load_module()
-
-    assert module.format_skill_count(1) == "1 skill"
-    assert module.format_skill_count(2) == "2 skills"
-
-
 def test_repo_skill_names_unions_agent_trees_and_extra_repo_without_double_counting(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -94,9 +87,9 @@ def test_main_generates_single_public_skill_badge_from_both_skill_trees(
     assert not (badge_dir / "skills-claude.svg").exists()
     content = (badge_dir / "skills.svg").read_text(encoding="utf-8")
     assert "Skills" in content
-    assert "2 skills" in content
-    assert "repo skills" not in content
-    assert "skills: 2 skills -> badges/skills.svg" in capsys.readouterr().out
+    assert "Skills: 2" in content
+    assert "2 skills" not in content
+    assert "skills: 2 -> badges/skills.svg" in capsys.readouterr().out
 
 
 def test_main_can_include_additional_local_repo_for_union_count(
@@ -131,9 +124,9 @@ def test_main_can_include_additional_local_repo_for_union_count(
 
     assert result == 0
     content = (badge_dir / "skills.svg").read_text(encoding="utf-8")
-    assert "3 skills" in content
-    assert "repo skills" not in content
-    assert "skills: 3 skills -> badges/skills.svg" in capsys.readouterr().out
+    assert "Skills: 3" in content
+    assert "3 skills" not in content
+    assert "skills: 3 -> badges/skills.svg" in capsys.readouterr().out
 
 
 def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Path) -> None:
@@ -175,7 +168,9 @@ def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Pa
     result = module.main()
 
     assert result == 0
-    assert "2 skills" in (badge_dir / "skills.svg").read_text(encoding="utf-8")
+    skill_badge = (badge_dir / "skills.svg").read_text(encoding="utf-8")
+    assert "Skills: 2" in skill_badge
+    assert "2 skills" not in skill_badge
     assert "Agent Skills" in (badge_dir / "agent-standard.svg").read_text(encoding="utf-8")
     assert "Codex Claude Continue Aider OpenCode" in (
         badge_dir / "agent-works-with.svg"
