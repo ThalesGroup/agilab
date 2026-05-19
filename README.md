@@ -185,15 +185,20 @@ Agent workflows can now produce AGILAB evidence directly. Use
 `agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review`
 to execute a local coding-agent command and write a redacted
 `agilab.agent_run.v1` manifest plus local stdout/stderr artifacts under
-`~/log/agents/`. Command arguments are redacted by default and represented by
-an argv hash; pass `--include-command-args` only when the prompt/arguments are
-safe to store. Add `--protocol-adapter mcp` or `--capability app-as-tool` as
-metadata-only labels when experimenting with agent protocol bridges; the base
-package records those labels and lifecycle events without depending on the
-protocol stacks. Use `agilab agent-run list --agent codex --json` or
-the Python helpers `agilab.agent_run.trace_agent_run()` and
+`~/log/agents/`. Each run also writes an append-only
+`agilab.agent_trace.v1` stream in `agent_events.ndjson`, with typed events for
+session, command/tool, permission, compaction, rewind, and completion evidence.
+Command arguments are redacted by default and represented by an argv hash; pass
+`--include-command-args` only when the prompt/arguments are safe to store. Add
+`--protocol-adapter mcp` or `--capability app-as-tool` as metadata-only labels
+when experimenting with agent protocol bridges; the base package records those
+labels and lifecycle events without depending on the protocol stacks. Use
+`agilab agent-run list --agent codex --json` or the Python helpers
+`agilab.agent_run.trace_agent_run()` and
 `agilab.agent_run.list_agent_runs()` to create or consume run evidence from
-automation.
+automation. Provider/model capability context can be stamped with
+`--provider`, `--model`, project-local `.agilab/agents.json`, or global
+`~/.agilab/agents/agents.json`.
 
 Cluster/Dask support is intentionally part of the base runtime through
 `agi-core`. AGILAB keeps local, pool, and distributed back planes behind the

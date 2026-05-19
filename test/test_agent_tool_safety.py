@@ -88,6 +88,91 @@ def test_destructive_agent_tool_invocation_requires_stable_confirmation() -> Non
     assert confirmed.reason == "destructive action confirmed by operator token"
 
 
+def test_permission_tiers_classify_and_gate_agent_actions() -> None:
+    module = _load_module()
+
+    readonly = module.evaluate_tool_permission("inspect_project", level="readonly")
+    safe_denied = module.evaluate_tool_permission("write_report", level="readonly")
+    standard_denied = module.evaluate_tool_permission("run_tests", level="safe")
+    operator_denied = module.evaluate_tool_permission("delete_output", {"path": "/tmp/out"}, level="standard")
+    token = module.confirmation_token("delete_output", {"path": "/tmp/out"})
+    operator_allowed = module.evaluate_tool_permission(
+        "delete_output",
+        {"path": "/tmp/out"},
+        level="standard",
+        confirmation=token,
+    )
+
+    assert readonly.allowed is True
+    assert readonly.tier == "readonly"
+    assert safe_denied.allowed is False
+    assert safe_denied.tier == "safe"
+    assert standard_denied.allowed is False
+    assert standard_denied.tier == "standard"
+    assert operator_denied.allowed is False
+    assert operator_denied.tier == "operator"
+    assert operator_denied.confirmation_token == token
+    assert operator_allowed.allowed is True
+    assert operator_allowed.reason == "operator action confirmed by explicit token"
+    assert module.normalize_permission_level("yolo") == "operator"
+
+
+def test_permission_tiers_honor_explicit_metadata() -> None:
+    module = _load_module()
+
+    decision = module.evaluate_tool_permission(
+        "archive_project",
+        level="safe",
+        metadata={"permission_tier": "standard"},
+    )
+
+    assert decision.allowed is False
+    assert decision.tier == "standard"
+
+
+def test_tool_hook_set_can_skip_and_rewrite_tool_results() -> None:
+    module = _load_module()
+    hooks = module.ToolHookSet()
+    calls: list[str] = []
+
+    @hooks.before_tool
+    def before(ctx):
+        calls.append(f"before:{ctx.action}")
+        if ctx.action == "blocked":
+            return module.ToolHookResult(output="blocked", status="denied", is_error=True)
+        return None
+
+    @hooks.after_tool
+    def after(ctx, result):
+        calls.append(f"after:{ctx.action}:{result.status}")
+        if result.status == "pass":
+            return module.ToolHookResult(
+                output=f"{result.output} audited",
+                status=result.status,
+                metadata={"audited": True},
+            )
+        return None
+
+    def runner(ctx):
+        calls.append(f"run:{ctx.action}")
+        return module.ToolHookResult(output="ok")
+
+    allowed = hooks.execute(module.ToolHookContext("inspect", {}, {}, run_id="run"), runner)
+    blocked = hooks.execute(module.ToolHookContext("blocked", {}, {}, run_id="run"), runner)
+
+    assert allowed.output == "ok audited"
+    assert allowed.metadata == {"audited": True}
+    assert blocked.output == "blocked"
+    assert blocked.is_error is True
+    assert calls == [
+        "before:inspect",
+        "run:inspect",
+        "after:inspect:pass",
+        "before:blocked",
+        "after:blocked:denied",
+    ]
+
+
 def test_require_tool_invocation_allowed_raises_for_unconfirmed_destructive_action() -> None:
     module = _load_module()
     with pytest.raises(module.ToolConfirmationRequired, match="requires explicit operator confirmation"):

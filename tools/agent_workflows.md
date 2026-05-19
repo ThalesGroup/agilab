@@ -62,6 +62,9 @@ agilab agent-run --agent codex --label "Review current diff" --tag review --meta
 
 The command writes a redacted `agilab.agent_run.v1` manifest plus local
 `stdout.txt` and `stderr.txt` artifacts under `~/log/agents/<agent>/<run-id>/`.
+It also writes an append-only `agilab.agent_trace.v1` event stream in
+`agent_events.ndjson` and reserves `tool-output/` for large or structured tool
+payloads.
 Command arguments are redacted by default and represented by an argv hash;
 environment override values passed with `--env KEY=VALUE` are also redacted
 from the manifest. Pass `--include-command-args` only when the prompt/arguments
@@ -99,6 +102,22 @@ result = trace_agent_run(
 
 runs = list_agent_runs(agent="codex", limit=5)
 ```
+
+Agent-run evidence now has a stable low-level contract:
+
+- `agent_run_manifest.json` records command identity, redacted argv/env
+  metadata, optional provider/model capability context, and artifact paths.
+- `agent_trace_meta.json` describes the trace directory.
+- `agent_events.ndjson` appends typed events such as `session_start`,
+  `command_start`, `tool_start`, `tool_output`, `tool_done`,
+  `permission_request`, `permission_resolved`, `compact`, `rewind`, and
+  `session_end`.
+- `agilab.agent_tool_safety` exposes permission tiers (`readonly`, `safe`,
+  `standard`, `operator`) and before/after hooks for future agent-exposed
+  tools.
+- Agent provider defaults can be layered through `~/.agilab/agents/agents.json`
+  and project-local `.agilab/agents.json` files. Use `--provider`, `--model`,
+  and `--permission-level` for one-off CLI evidence labels.
 
 ## CLI-first references
 
