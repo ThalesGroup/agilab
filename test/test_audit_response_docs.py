@@ -17,7 +17,8 @@ def test_architecture_five_minutes_page_exposes_layer_map() -> None:
 
     assert "Architecture in 5 minutes" in page
     assert "anti-lock-in reproducibility workbench" in page
-    assert "workflows can be exported back to runnable notebooks" in normalized_page
+    assert "workflows can be exported back to runnable ``agi-core`` notebooks" in normalized_page
+    assert "stable, production-grade core technology" in normalized_page
     assert "Streamlit UI, CLI wrappers, or notebook entry points" in page
     assert "AgiEnv: settings, project selection, app paths, logs, local workspace" in page
     assert "Dask back-plane and optional MLflow tracking" in page

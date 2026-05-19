@@ -26,12 +26,14 @@ def test_pipeline_docs_sell_runnable_supervisor_notebook_export() -> None:
 def test_readme_leads_with_anti_lock_in_notebook_export_value() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     headline_window = readme[readme.index("# AGILAB") : readme.index("## Core Flow")]
+    compact_headline = _compact(headline_window)
 
     assert "anti-lock-in reproducibility workbench" in headline_window
     assert "executable, portable, evidence-backed apps" in headline_window
-    assert "export it back to a runnable notebook" in headline_window
+    assert "export it back to an `agi-core` notebook" in compact_headline
     assert "you do not lose your work" in headline_window
-    assert "runnable outside AGILAB as exported notebooks" in headline_window
+    assert "stable, production-grade core technology" in compact_headline
+    assert "runnable outside the AGILAB UI as `agi-core` notebooks" in headline_window
     assert "reviewable run evidence" in headline_window
 
 
@@ -44,9 +46,10 @@ def test_docs_overview_leads_with_no_lock_in_notebook_export_value() -> None:
     compact_architecture = _compact(architecture)
 
     assert "executable, portable, evidence-backed applications" in compact_index
-    assert "export them back to runnable notebooks" in compact_index
+    assert "export them back to runnable ``agi-core`` notebooks" in compact_index
+    assert "stable, production-grade core technology" in compact_index
     assert "anti-lock-in reproducibility workbench" in compact_architecture
-    assert "workflows can be exported back to runnable notebooks" in compact_architecture
+    assert "workflows can be exported back to runnable ``agi-core`` notebooks" in compact_architecture
 
 
 def test_agilab_help_mentions_pipeline_notebook_export() -> None:

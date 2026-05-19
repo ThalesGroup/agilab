@@ -3,9 +3,12 @@ AGILab Documentation
 
 AGILAB turns experimental AI/ML notebooks and scripts into executable,
 portable, evidence-backed applications that can run locally or on distributed
-workers. Workflows stay portable: export them back to runnable notebooks, keep
-reproducibility evidence, and hand off tracking evidence to MLflow when that
-integration is enabled.
+workers. Workflows stay portable: export them back to runnable ``agi-core``
+notebooks, keep reproducibility evidence, and hand off tracking evidence to
+MLflow when that integration is enabled. The notebook export is an ``agi-core``
+runtime handoff: you can continue to run the saved project and stage contract
+with only the stable, production-grade core technology, without depending on
+the AGILAB UI or distributed worker layer.
 
 If you are new to AGILab, choose one route first:
 
