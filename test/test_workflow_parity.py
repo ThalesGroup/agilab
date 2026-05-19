@@ -128,6 +128,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_robot_coverage_contract = ui_robot_contract[0]
     ui_robot_action_contract = ui_robot_contract[1]
     ui_robot_canary = profiles["ui-robot-canary"][0]
+    ui_frontend_smoke = profiles["ui-frontend-smoke"][0]
     ui_robot_matrix_commands = profiles["ui-robot-matrix"]
     ui_robot_matrix = {
         command.label.removeprefix("ui robot matrix (").removesuffix(")"): command
@@ -329,6 +330,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test-results/ui-robot-canary.json" in ui_robot_canary.argv
     assert _has_with_dependency(ui_robot_canary.argv, "playwright")
     assert _has_with_dependency(ui_robot_canary.argv, "pillow")
+    assert ui_frontend_smoke.label == "ui frontend smoke robot"
+    assert ui_frontend_smoke.timeout_seconds == 5 * 60
+    assert ui_frontend_smoke.remove_paths == ["screenshots/ui-frontend-smoke"]
+    assert "tools/agilab_web_robot.py" in ui_frontend_smoke.argv
+    assert "--frontend-smoke-only" in ui_frontend_smoke.argv
+    assert "--timeout" in ui_frontend_smoke.argv
+    assert "--target-seconds" in ui_frontend_smoke.argv
+    assert "45" in ui_frontend_smoke.argv
+    assert "screenshots/ui-frontend-smoke" in ui_frontend_smoke.argv
+    assert _has_extra(ui_frontend_smoke.argv, "ui")
+    assert _has_with_dependency(ui_frontend_smoke.argv, "playwright")
     assert set(ui_robot_matrix) == {"core", "state", "quality", "layout"}
     expected_matrix_scenarios = {
         "core": {
@@ -570,6 +582,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "production-readiness" not in selected
     assert "ui-robot-contract" not in selected
     assert "ui-robot-canary" not in selected
+    assert "ui-frontend-smoke" not in selected
     assert "ui-robot-matrix" not in selected
     assert "ui-artifact-capture-robot" not in selected
     assert "ui-history-robot" not in selected
@@ -617,6 +630,7 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
         "ui-trend-robot",
     ]
     assert module.select_ui_robot_profiles_for_files(["src/agilab/pages/project.py"]) == [
+        "ui-frontend-smoke",
         "ui-robot-matrix",
         "ui-history-robot",
         "ui-mobile-robot",
@@ -634,6 +648,16 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
     assert module.select_ui_robot_profiles_for_files(["tools/workflow_parity.py"]) == [
         "ui-robot-contract",
         "ui-robot-canary",
+        "ui-frontend-smoke",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/agilab_web_robot.py"]) == [
+        "ui-frontend-smoke",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["pyproject.toml"]) == [
+        "ui-frontend-smoke",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/run_configs/agilab/agilab-run-dev.sh"]) == [
+        "ui-frontend-smoke",
     ]
     assert module.select_ui_robot_profiles_for_files(["README.md"]) == [
         "ui-robot-contract"
