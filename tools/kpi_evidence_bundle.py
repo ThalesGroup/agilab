@@ -332,8 +332,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 13
-            and summary.get("app_fingerprint_count") == 13
+            and summary.get("builtin_app_count") == 12
+            and summary.get("app_fingerprint_count") == 12
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -434,7 +434,7 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("page_lib_release_graph_aligned") is True
             and summary.get("app_lib_component_count") == 1
             and summary.get("app_lib_release_graph_aligned") is True
-            and summary.get("builtin_app_pyproject_count") == 13
+            and summary.get("builtin_app_pyproject_count") == 12
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0
             and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
@@ -2138,17 +2138,16 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "app_catalog_validation_only"
-            and summary.get("app_catalog_count") == 8
-            and summary.get("connector_count") == 24
-            and summary.get("page_connector_ref_count") == 18
-            and summary.get("legacy_path_count") == 16
+            and summary.get("app_catalog_count") == 7
+            and summary.get("connector_count") == 21
+            and summary.get("page_connector_ref_count") == 15
+            and summary.get("legacy_path_count") == 14
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("apps")
             == [
                 "execution_pandas_project",
                 "execution_polars_project",
-                "flight_project",
                 "flight_telemetry_project",
                 "meteo_forecast_project",
                 "uav_queue_project",
@@ -2178,7 +2177,6 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
         evidence=[
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
-            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
             "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
             "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
@@ -2197,10 +2195,10 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
         required_labels = {
             "streamlit health",
             "base app",
-            "flight project",
-            "flight view_maps",
-            "meteo forecast project",
-            "meteo forecast view",
+            "flight telemetry project",
+            "flight telemetry view_maps",
+            "weather forecast project",
+            "weather forecast view",
         }
         ok = (
             required_labels.issubset(labels)

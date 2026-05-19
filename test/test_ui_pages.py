@@ -876,7 +876,7 @@ def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path
     """Source ORCHESTRATE must not keep an old installed agi-space active app."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_apps = tmp_path / "agi-space" / "apps"
     stale_project = stale_apps / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
@@ -904,7 +904,7 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(mock_ui_env
     """ORCHESTRATE header must not use an old agi-space active app when apps_path is already source."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
 
@@ -1182,85 +1182,6 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
 
     assert not any("Input directory does not exist" in message for message in calls["warning"])
     assert any("public Hugging Face Space" in message for message in calls["info"])
-
-
-def test_flight_project_app_args_form_import_matches_public_file_contract(monkeypatch, tmp_path):
-    form_path = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
-    with pytest.raises(RuntimeError, match="st.stop"):
-        _load_flight_form_module(monkeypatch, tmp_path, form_path=form_path, session_state={}, inject_env=False)
-
-    module, fake_st, calls = _load_flight_form_module(
-        monkeypatch,
-        tmp_path,
-        form_path=form_path,
-        session_state={
-            "flight_project:app_args_form:data_source": "hawk",
-            "flight_project:app_args_form:data_in": "missing/input",
-            "flight_project:app_args_form:data_out": "custom/output",
-            "flight_project:app_args_form:files": "*.csv",
-        },
-        share_root_error=True,
-        load_error=RuntimeError("broken settings"),
-    )
-
-    assert module._k("data_source") == "flight_project:app_args_form:data_source"
-    assert fake_st.session_state["flight_project:app_args_form:data_source"] == "file"
-    assert any("Unsupported Flight data source reset" in message for message in calls["warning"])
-    assert any("Unable to load Flight args" in message for message in calls["warning"])
-    assert any("Input directory does not exist" in message for message in calls["warning"])
-    assert calls["success"]
-
-    fake_st.session_state["flight_project:app_args_form:data_source"] = "hawk"
-    module._on_data_source_change()
-    assert fake_st.session_state["flight_project:app_args_form:data_source"] == "file"
-
-    fallback = date(2020, 1, 2)
-    assert module._parse_iso_date(fallback, fallback=fallback) == fallback
-    assert module._parse_iso_date("bad", fallback=fallback) == fallback
-    assert module._parse_iso_date("", fallback=fallback) == fallback
-    assert module._is_huggingface_space(SimpleNamespace(envars={"SPACE_HOST": "space"})) is True
-    assert module._is_default_file_seed("flight\\dataset/") is True
-    module.apply_source_defaults = lambda _args: (_ for _ in ()).throw(RuntimeError("defaults failed"))
-    module._on_data_source_change()
-
-    _invalid_module, _invalid_st, invalid_calls = _load_flight_form_module(
-        monkeypatch,
-        tmp_path,
-        form_path=form_path,
-        session_state={
-            "flight_project:app_args_form:data_source": "file",
-            "flight_project:app_args_form:files": "[",
-        },
-        with_humanized_errors=False,
-    )
-    assert invalid_calls["error"] == ["Invalid Flight parameters:"]
-    assert invalid_calls["code"]
-
-    _humanized_module, _humanized_st, humanized_calls = _load_flight_form_module(
-        monkeypatch,
-        tmp_path,
-        form_path=form_path,
-        session_state={
-            "flight_project:app_args_form:data_source": "file",
-            "flight_project:app_args_form:files": "[",
-        },
-        with_humanized_errors=True,
-    )
-    assert humanized_calls["markdown"]
-
-    monkeypatch.setenv("SPACE_ID", "thales/agilab")
-    _hf_module, _hf_st, hf_calls = _load_flight_form_module(
-        monkeypatch,
-        tmp_path,
-        form_path=form_path,
-        session_state={
-            "flight_project:app_args_form:data_in": "flight/dataset",
-            "flight_project:app_args_form:data_out": "flight/dataframe",
-        },
-        share_root_error=True,
-        load_error=RuntimeError("broken settings"),
-    )
-    assert any("public Hugging Face Space" in message for message in hf_calls["info"])
 
 
 def test_explore_page_multiselect(mock_ui_env):

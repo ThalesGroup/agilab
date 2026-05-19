@@ -24,20 +24,21 @@ DEFAULT_PROFILE = "first-proof"
 DEFAULT_TIMEOUT_SECONDS = 900.0
 DEFAULT_POLL_SECONDS = 10.0
 
-FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
+FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
 FIRST_PROOF_PAGES = ("view_maps", "view_forecast_analysis", "view_release_decision")
 ADVANCED_APPS = (
     "data_io_2026_project",
     "execution_pandas_project",
     "execution_polars_project",
-    "flight_project",
+    "flight_telemetry_project",
     "global_dag_project",
+    "meteo_forecast_project",
     "mission_decision_project",
     "mycode_project",
     "tescia_diagnostic_project",
     "uav_queue_project",
     "uav_relay_queue_project",
-    "meteo_forecast_project",
+    "weather_forecast_project",
 )
 ADVANCED_PAGES = (
     "view_data_io_decision",
@@ -47,6 +48,7 @@ ADVANCED_PAGES = (
     "view_queue_resilience",
     "view_relay_resilience",
     "view_release_decision",
+    "view_scenario_cockpit",
 )
 ALLOWED_APP_ENTRIES = {
     ".DS_Store",
@@ -74,7 +76,7 @@ DOCKERIGNORE = """\
 **/*.so
 **/*.c
 **/*.7z
-!src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z
+!src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/dataset.7z
 **/node_modules/
 """
 
@@ -375,6 +377,28 @@ def copy_ignore(_directory: str, names: list[str]) -> set[str]:
     return ignored
 
 
+def copy_ignore_for_profile(repo_root: Path, apps: Sequence[str], pages: Sequence[str]):
+    apps_root = (repo_root / "src/agilab/apps").resolve()
+    builtin_root = (repo_root / "src/agilab/apps/builtin").resolve()
+    pages_root = (repo_root / "src/agilab/apps-pages").resolve()
+    keep_apps = set(apps)
+    keep_pages = set(pages)
+    allowed_page_files = {".gitignore", "README.md", "__init__.py", "__pycache__", "templates"}
+
+    def _ignore(directory: str, names: list[str]) -> set[str]:
+        ignored = copy_ignore(directory, names)
+        current = Path(directory).resolve()
+        if current == apps_root:
+            ignored.update(name for name in names if name not in ALLOWED_APP_ENTRIES)
+        elif current == builtin_root:
+            ignored.update(name for name in names if name not in keep_apps)
+        elif current == pages_root:
+            ignored.update(name for name in names if name not in keep_pages and name not in allowed_page_files)
+        return ignored
+
+    return _ignore
+
+
 def prune_dir_except(root: Path, keep: Sequence[str]) -> None:
     keep_set = set(keep)
     for entry in sorted(root.iterdir(), key=lambda path: path.name):
@@ -402,12 +426,10 @@ def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[
     apps, pages = profile_entries(profile)
     if not (repo_root / "src/agilab/main_page.py").is_file():
         raise RuntimeError(f"not an AGILAB checkout: {repo_root}")
-    require_clean_public_apps(repo_root / "src/agilab/apps")
     require_profile_dirs(repo_root, profile, apps, pages)
-    require_no_symlinked_sources(repo_root / "src")
 
     write_profile_assets(stage_dir, profile, apps, pages)
-    shutil.copytree(repo_root / "src", stage_dir / "src", ignore=copy_ignore)
+    shutil.copytree(repo_root / "src", stage_dir / "src", ignore=copy_ignore_for_profile(repo_root, apps, pages))
     shutil.copy2(repo_root / "pyproject.toml", stage_dir / "pyproject.toml")
     shutil.copy2(repo_root / "uv_config.toml", stage_dir / "uv_config.toml")
     (stage_dir / "docker").mkdir()
@@ -415,6 +437,8 @@ def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[
 
     prune_dir_except(stage_dir / "src/agilab/apps/builtin", apps)
     prune_dir_except(stage_dir / "src/agilab/apps-pages", pages)
+    require_clean_public_apps(stage_dir / "src/agilab/apps")
+    require_no_symlinked_sources(stage_dir / "src")
 
     files = [path for path in stage_dir.rglob("*") if path.is_file()]
     total_bytes = sum(path.stat().st_size for path in files)
@@ -516,7 +540,14 @@ def wait_for_runtime(
     raise TimeoutError(f"HF Space did not reach RUNNING at {expected_sha} within {timeout_seconds:.0f}s")
 
 
-def run_hosted_smoke(repo_root: Path, *, space_id: str, timeout: float, target_seconds: float) -> dict[str, Any]:
+def run_hosted_smoke(
+    repo_root: Path,
+    *,
+    space_id: str,
+    profile: str,
+    timeout: float,
+    target_seconds: float,
+) -> dict[str, Any]:
     command = [
         sys.executable,
         str(repo_root / "tools/hf_space_smoke.py"),
@@ -524,6 +555,8 @@ def run_hosted_smoke(repo_root: Path, *, space_id: str, timeout: float, target_s
         space_id,
         "--url",
         runtime_url_for_space(space_id),
+        "--profile",
+        profile,
         "--json",
         "--timeout",
         str(timeout),
@@ -591,6 +624,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             smoke = run_hosted_smoke(
                 repo_root,
                 space_id=args.space,
+                profile=args.profile,
                 timeout=args.smoke_timeout,
                 target_seconds=args.smoke_target_seconds,
             )

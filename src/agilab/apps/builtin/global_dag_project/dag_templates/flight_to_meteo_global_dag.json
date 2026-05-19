@@ -10,7 +10,7 @@
   "nodes": [
     {
       "id": "flight_context",
-      "app": "flight_project",
+      "app": "flight_telemetry_project",
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
       "produces": [
         {
