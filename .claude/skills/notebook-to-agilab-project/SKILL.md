@@ -156,8 +156,9 @@ ANALYSIS notebook launcher:
   directory and persist notebook selection alongside view selection.
 - Do not describe notebooks or AGI snippets as local-runtime-only. Only the
   embedded ANALYSIS Jupyter sidecar is local interactive UI; exported notebooks
-  and snippets can be reused wherever their runtime and dependencies are
-  available.
+  are `agi-core` runtime handoffs and snippets can be reused wherever their
+  runtime and dependencies are available. The export is an exit from the
+  AGILAB UI/distributed-worker layer, not from the stable core technology.
 
 ## References
 
