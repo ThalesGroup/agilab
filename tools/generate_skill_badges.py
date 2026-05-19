@@ -96,11 +96,6 @@ def visible_skill_names(skills_dir: Path) -> set[str]:
     }
 
 
-def format_skill_count(count: int) -> str:
-    suffix = "skill" if count == 1 else "skills"
-    return f"{count} {suffix}"
-
-
 def repo_skill_names(include_repos: list[str]) -> set[str]:
     names: set[str] = set()
     for relative_dir in SKILL_TREE_DIRS:
@@ -112,7 +107,7 @@ def repo_skill_names(include_repos: list[str]) -> set[str]:
 
 
 def refresh_skill_badge(include_repos: list[str]) -> None:
-    value = format_skill_count(len(repo_skill_names(include_repos)))
+    value = str(len(repo_skill_names(include_repos)))
     svg = render_badge(str(SKILL_BADGE["label"]), value, str(SKILL_BADGE["color"]))
     badge_path = SKILL_BADGE["badge"]
     badge_path.parent.mkdir(parents=True, exist_ok=True)
