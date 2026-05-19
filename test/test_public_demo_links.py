@@ -256,17 +256,15 @@ def test_readme_agent_skill_badges_use_raw_urls_for_public_renderers() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert (
-        '<a href=".codex/skills/README.md"><img '
-        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills-codex.svg" '
-        'alt="Codex skills" /></a>'
+        '<a href="AGENT_SKILLS.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" '
+        'alt="Skills" /></a>'
     ) in readme
-    assert (
-        '<a href=".claude/skills/README.md"><img '
-        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills-claude.svg" '
-        'alt="Claude skills" /></a>'
-    ) in readme
+    assert "badges/agent-skills.svg" not in readme
     assert 'src="badges/skills-codex.svg"' not in readme
     assert 'src="badges/skills-claude.svg"' not in readme
+    assert "badges/skills-codex.svg" not in readme
+    assert "badges/skills-claude.svg" not in readme
 
 
 def test_readme_uses_explicit_wheel_yes_badge() -> None:
