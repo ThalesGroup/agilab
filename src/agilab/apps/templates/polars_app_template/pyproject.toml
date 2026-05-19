@@ -15,7 +15,7 @@ dependencies = [
     "polars",
     "pydantic",
     "py7zr",
-    "streamlit>=1.56.0",
+    "streamlit>=1.56,<1.57",
 ]
 
 [dependency-groups]

@@ -3220,6 +3220,7 @@ def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_p
         action_button_policy="safe-click",
         upload_file=tmp_path / "fixture.txt",
         restore_view=None,
+        action_timeout_ms=100,
         action_click_budget=budget,
     )
 
@@ -3236,6 +3237,7 @@ def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_p
         action_button_policy="safe-click",
         upload_file=tmp_path / "fixture.txt",
         restore_view=None,
+        action_timeout_ms=100,
         action_click_budget=[1],
     )
 
@@ -3343,6 +3345,7 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
         known=set(),
         discovery_passes=2,
         action_click_budget=[2],
+        action_timeout_ms=100,
     )
 
     assert [probe.kind for probe in probes] == ["button", "text_input"]

@@ -14,6 +14,11 @@ dependencies = [
     "sqlalchemy>=2.0.43",
 ]
 
+[project.optional-dependencies]
+fast = [
+    "numba>=0.62.1; python_version < '3.14'",
+]
+
 [project.entry-points."agilab.pages"]
 view_maps_network = "view_maps_network:bundle_root"
 

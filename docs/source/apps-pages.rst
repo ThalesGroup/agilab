@@ -174,13 +174,19 @@ Producer example for distributed runs
   distributed runs with several workload files do not overwrite each other's
   ``pipeline/`` artifacts.
 
-Experimental source-only views
-------------------------------
+Experimental and opt-in views
+-----------------------------
 
 ``view_autoencoder_latentspace`` is kept in the source checkout as a
 TensorFlow-based latent-space exploration page for Python 3.12 environments. It
 is intentionally not part of the public ``agi-pages`` umbrella because its
 runtime constraints are heavier than the generic page bundle set.
+
+``view_pytorch_playground`` is a PyTorch-based classifier playground for small
+synthetic datasets. It is published as the standalone
+``agi-page-pytorch-playground`` package and intentionally not included in the
+public ``agi-pages`` umbrella dependency graph because ``torch`` is a heavy
+runtime dependency.
 
 See also
 --------

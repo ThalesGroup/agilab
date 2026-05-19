@@ -92,9 +92,12 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 
     assert 'python-version: ["3.13"]' in text
     assert 'python-version: ["3.13", "3.14"]' not in text
+    assert "Install Playwright browser for frontend smoke" in text
+    assert "python -m playwright install --with-deps chromium" in text
     assert "tools/workflow_parity.py" in text
     assert "--profile agi-env" in text
     assert "--profile agi-gui" in text
+    assert "--profile ui-frontend-smoke" in text
     assert "--profile agi-core-combined" in text
     assert "--profile shared-core-typing" in text
     assert "--profile dependency-policy" in text
@@ -182,6 +185,51 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "twine upload" not in text
 
 
+def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republishing() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "Check whether ${{ matrix.package }} can reuse PyPI artifacts" in text
+    assert "--project \"${{ matrix.project }}\"" in text
+    assert "--artifact-policy \"${{ matrix.artifact_policy }}\"" in text
+    assert "--download-dir \"${{ matrix.dist }}\"" in text
+    assert "--output-dir \"test-results/release-artifacts/${{ matrix.package }}\"" in text
+    assert "Clean previous ${{ matrix.package }} build" in text
+    assert "Build ${{ matrix.package }}" in text
+    assert "Verify ${{ matrix.package }}" in text
+    assert "Record ${{ matrix.package }} release artifact hashes" in text
+    assert text.count("steps.library-pypi-reuse.outputs.all-exist != 'true'") >= 7
+    assert (
+        "if: steps.library-pypi-reuse.outputs.all-exist != 'true' "
+        "&& steps.library-pypi-state.outputs.all-exist != 'true' "
+        "&& matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'"
+    ) in text
+
+    assert "Check whether agilab can reuse PyPI artifacts" in text
+    assert "--project ." in text
+    assert "--artifact-policy wheel+sdist" in text
+    assert "--download-dir dist" in text
+    assert "--output-dir test-results/release-artifacts/agilab" in text
+    assert "Clean previous builds" in text
+    assert "Build agilab" in text
+    assert "Verify agilab" in text
+    assert "Record agilab release artifact hashes" in text
+    assert text.count("steps.agilab-pypi-reuse.outputs.all-exist != 'true'") >= 7
+    assert (
+        "if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' "
+        "&& steps.agilab-pypi-state.outputs.all-exist != 'true' "
+        "&& env.PYPI_TRUSTED_PUBLISHING == 'true'"
+    ) in text
+
+    assert "Upload ${{ matrix.package }} public release distribution evidence" in text
+    assert "if: matrix.publish_to_pypi == 'true'" in text
+    assert "${{ matrix.dist }}/*" in text
+    assert "test-results/release-artifacts/${{ matrix.package }}/*" in text
+    assert "Upload agilab release distribution evidence" in text
+    assert "dist/*" in text
+    assert "test-results/release-artifacts/agilab/*" in text
+    assert "skip-existing: true" in text
+
+
 def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
@@ -220,6 +268,13 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "supply-chain-release-evidence.tar.gz" in text
     assert "pypi-provenance-evidence.tar.gz" in text
     assert "release-distribution-evidence.tar.gz" in text
+    assert "release-dist-*" in text
+    assert "path: release-assets/distributions" in text
+    assert "-name '*.whl' -o" in text
+    assert "-name '*.tar.gz' -o" in text
+    assert "-name '*-artifact-hashes.json' -o" in text
+    assert "-name '*-SHA256SUMS.txt'" in text
+    assert "-C release-assets/distributions ." in text
     assert "shasum -a 256 * > SHA256SUMS.txt" in text
     assert "gh release upload \"$release_tag\" github-release-assets/* --clobber" in text
     assert "gh release create \"$release_tag\"" in text

@@ -167,6 +167,78 @@ def test_wait_for_streamlit_health_succeeds_when_health_route_responds() -> None
     assert result.url == "http://demo/_stcore/health"
 
 
+def test_frontend_static_asset_check_accepts_streamlit_js_and_css_mime_types() -> None:
+    module = _load_module()
+
+    class _Response:
+        status = 200
+
+        def __init__(self, body: str, content_type: str) -> None:
+            self.body = body.encode("utf-8")
+            self.content_type = content_type
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        def read(self):
+            return self.body
+
+        def getheader(self, name: str, default: str = "") -> str:
+            return self.content_type if name.lower() == "content-type" else default
+
+    responses = {
+        "http://demo/?active_app=flight": _Response(
+            '<html><script type="module" src="./static/js/index.js"></script>'
+            '<link rel="stylesheet" href="/static/css/index.css"></html>',
+            "text/html; charset=utf-8",
+        ),
+        "http://demo/static/js/index.js": _Response("console.log('ok')", "application/javascript"),
+        "http://demo/static/css/index.css": _Response("body{}", "text/css"),
+    }
+
+    step = module.assert_frontend_static_assets("http://demo/?active_app=flight", opener=responses.__getitem__)
+
+    assert step.success is True
+    assert step.label == "frontend static assets"
+    assert "2 Streamlit JS/CSS asset" in step.detail
+
+
+def test_frontend_static_asset_check_rejects_html_served_for_js() -> None:
+    module = _load_module()
+
+    class _Response:
+        def __init__(self, body: str, content_type: str) -> None:
+            self.body = body.encode("utf-8")
+            self.content_type = content_type
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        def read(self):
+            return self.body
+
+        def getheader(self, name: str, default: str = "") -> str:
+            return self.content_type if name.lower() == "content-type" else default
+
+    responses = {
+        "http://demo/": _Response('<script type="module" src="/static/js/index.js"></script>', "text/html"),
+        "http://demo/static/js/index.js": _Response("<!doctype html>", "text/html"),
+    }
+
+    step = module.assert_frontend_static_assets("http://demo/", opener=responses.__getitem__)
+
+    assert step.success is False
+    assert step.label == "frontend static assets"
+    assert "content-type text/html" in step.detail
+    assert "application/javascript" in step.detail
+
+
 def test_find_rejected_pattern_flags_browser_connection_errors() -> None:
     module = _load_module()
 
@@ -252,6 +324,7 @@ def test_build_parser_has_expected_defaults() -> None:
     assert args.target_seconds == module.DEFAULT_TARGET_SECONDS
     assert args.analysis_view is None
     assert args.screenshot_dir is None
+    assert args.frontend_smoke_only is False
 
 
 def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
@@ -336,6 +409,18 @@ def test_main_print_only_with_remote_url_targets_remote_analysis_view(capsys) ->
     assert payload["launch_command"] is None
     assert payload["analysis_view"] == "view_maps"
     assert payload["analysis_view_path"] == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
+
+
+def test_main_print_only_frontend_smoke_route_is_static_asset_focused(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(["--print-only", "--json", "--frontend-smoke-only", "--port", "9999"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["base_url"] == "http://127.0.0.1:9999"
+    assert payload["route"] == ["frontend static assets", "frontend landing hydration"]
+    assert "--frontend-smoke-only" not in payload["launch_command"]
 
 
 def test_main_rejects_zero_timeout() -> None:

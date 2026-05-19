@@ -37,6 +37,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-page-promotion-gate",
         "agi-page-feature-attribution",
         "agi-page-training-report",
+        "agi-page-pytorch-playground",
     }
 )
 

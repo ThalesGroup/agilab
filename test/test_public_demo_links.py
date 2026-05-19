@@ -151,8 +151,9 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
 
     synced_fragments = (
         "AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.",
-        "It turns notebooks and scripts into controlled, executable apps while preserving",
+        "It turns notebooks and scripts into executable, portable, evidence-backed apps",
         "you do not lose your work if AGILAB is no longer the right runtime.",
+        "reviewable run evidence",
         "runnable outside AGILAB as exported notebooks",
         "AGILAB complements MLflow and production MLOps platforms.",
         "## Core Flow",
@@ -163,7 +164,7 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "## Dependency And Supply-Chain Boundaries",
         "## Evidence Taxonomy",
         "## Proof Capsule Direction",
-        "roadmap targets, not\npublished CLI commands today",
+        "The first public proof-pack layer now adds",
         "## Source Version vs Package Version",
         "| `main` branch and root `pyproject.toml` |",
         "| Release tag |",

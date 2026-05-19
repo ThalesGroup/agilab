@@ -12,6 +12,18 @@ compact Python/runtime API, and the remaining packages are published so
 releases can install only the pieces they need. See
 :doc:`package-publishing-policy` for the release and versioning contract.
 
+Read the repository and package split as three planes:
+
+* **Control plane**: product entry points, runtime APIs, environment
+  resolution, worker packaging, and local/distributed execution.
+* **Payload plane**: apps, page bundles, templates, notebooks, examples, and
+  PyPI payload umbrellas.
+* **Evidence plane**: proof, audits, release contracts, supply-chain evidence,
+  UI robot outputs, docs mirror, and agent/runbook automation.
+
+The three planes are released together so users can install a bounded runtime
+while maintainers can prove the matching payload and evidence contracts.
+
 .. list-table:: AGILab component packages
    :header-rows: 1
    :widths: 26 42 32

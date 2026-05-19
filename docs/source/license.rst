@@ -67,6 +67,7 @@ UI and page packages
    agi-page-promotion-gate <agi-page-promotion-gate-licenses>
    agi-page-feature-attribution <agi-page-feature-attribution-licenses>
    agi-page-training-report <agi-page-training-report-licenses>
+   agi-page-pytorch-playground <agi-page-pytorch-playground-licenses>
    agi-pages <agi-pages-licenses>
 
 App packages

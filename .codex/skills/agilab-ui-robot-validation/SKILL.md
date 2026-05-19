@@ -62,13 +62,27 @@ navigation changed:
 UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output /tmp/agilab-first-launch-robot.json
 ```
 
+Use this for Streamlit dependency, run-configuration, theme, or blank-page
+frontend issues. It launches the dev app, checks JS/CSS MIME types, then verifies
+the first page hydrates in Chromium:
+
+```bash
+UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --extra ui --with playwright python tools/agilab_web_robot.py \
+  --frontend-smoke-only \
+  --timeout 45 \
+  --target-seconds 45 \
+  --json \
+  --screenshot-dir /tmp/agilab-frontend-smoke-screenshots \
+  > /tmp/agilab-frontend-smoke.json
+```
+
 Use this for browser-level ABOUT and notebook handoff issues:
 
 ```bash
-UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_web_robot.py \
+UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --extra ui --with playwright python tools/agilab_web_robot.py \
   --json \
-  --json-output /tmp/agilab-web-robot.json \
-  --screenshot-dir /tmp/agilab-web-robot-screenshots
+  --screenshot-dir /tmp/agilab-web-robot-screenshots \
+  > /tmp/agilab-web-robot.json
 ```
 
 Use this for a selected page/action journey. Keep labels exact and fail if the
@@ -109,6 +123,10 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
 - ABOUT / first-proof wizard:
   run `first_launch_robot.py`, the focused ABOUT tests, and at least the matrix
   scenario that covers entry and app pages.
+- Streamlit dependency, `pyproject.toml`, run config, theme, or launch wrapper:
+  run `tools/agilab_web_robot.py --frontend-smoke-only` first. This is the
+  fastest real-browser guard for blank pages caused by static frontend assets
+  being served with the wrong MIME type.
 - PROJECT sidebar, create/import/rename/delete:
   run focused PROJECT tests plus matrix scenarios for project page,
   project-import-sidebar, project-rename-sidebar, and notebook import.

@@ -21,6 +21,7 @@ import time
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -136,6 +137,50 @@ class RobotSummary:
     steps: list[RobotStep]
 
 
+@dataclass(frozen=True)
+class FrontendAsset:
+    kind: str
+    url: str
+    expected_content_types: tuple[str, ...]
+
+
+class _FrontendAssetParser(HTMLParser):
+    def __init__(self, landing_url: str) -> None:
+        super().__init__()
+        self.landing_url = landing_url
+        self.assets: list[FrontendAsset] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {name.lower(): value or "" for name, value in attrs}
+        normalized_tag = tag.lower()
+        if normalized_tag == "script" and values.get("src"):
+            self.assets.append(
+                FrontendAsset(
+                    kind="script",
+                    url=urllib.parse.urljoin(self.landing_url, values["src"]),
+                    expected_content_types=(
+                        "application/javascript",
+                        "application/ecmascript",
+                        "application/x-javascript",
+                        "text/javascript",
+                        "text/ecmascript",
+                    ),
+                )
+            )
+        if (
+            normalized_tag == "link"
+            and "stylesheet" in values.get("rel", "").lower()
+            and values.get("href")
+        ):
+            self.assets.append(
+                FrontendAsset(
+                    kind="stylesheet",
+                    url=urllib.parse.urljoin(self.landing_url, values["href"]),
+                    expected_content_types=("text/css",),
+                )
+            )
+
+
 class StreamlitServer:
     def __init__(self, argv: Sequence[str], *, env: dict[str, str], url: str) -> None:
         self.argv = list(argv)
@@ -249,6 +294,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--screenshot-dir",
         help="Optional directory where failure screenshots are written.",
+    )
+    parser.add_argument(
+        "--frontend-smoke-only",
+        action="store_true",
+        help=(
+            "Only validate Streamlit frontend asset MIME types and landing-page "
+            "browser hydration. This catches blank-page frontend regressions without "
+            "running the full upload/navigation robot."
+        ),
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser.add_argument(
@@ -397,6 +451,99 @@ def wait_for_streamlit_health(
             break
         sleeper(0.5)
     return RobotStep("streamlit health", False, clock() - start, f"not ready: {last_error}", health_url)
+
+
+def _response_content_type(response: Any) -> str:
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        get_content_type = getattr(headers, "get_content_type", None)
+        if callable(get_content_type):
+            return str(get_content_type()).lower()
+        try:
+            raw = str(headers.get("Content-Type", ""))
+        except Exception:
+            raw = ""
+        if raw:
+            return raw.split(";", 1)[0].strip().lower()
+    getheader = getattr(response, "getheader", None)
+    if callable(getheader):
+        return str(getheader("Content-Type", "")).split(";", 1)[0].strip().lower()
+    return ""
+
+
+def _read_response_text(response: Any) -> str:
+    raw = response.read()
+    if isinstance(raw, str):
+        return raw
+    return bytes(raw).decode("utf-8", errors="replace")
+
+
+def discover_frontend_assets(
+    landing_url: str,
+    *,
+    opener: Callable[[str], Any] = urllib.request.urlopen,
+) -> list[FrontendAsset]:
+    with opener(landing_url) as response:
+        parser = _FrontendAssetParser(landing_url)
+        parser.feed(_read_response_text(response))
+    seen: set[tuple[str, str]] = set()
+    assets: list[FrontendAsset] = []
+    for asset in parser.assets:
+        key = (asset.kind, asset.url)
+        if key in seen:
+            continue
+        assets.append(asset)
+        seen.add(key)
+    return assets
+
+
+def assert_frontend_static_assets(
+    landing_url: str,
+    *,
+    opener: Callable[[str], Any] = urllib.request.urlopen,
+) -> RobotStep:
+    start = time.perf_counter()
+    try:
+        assets = discover_frontend_assets(landing_url, opener=opener)
+        script_count = sum(1 for asset in assets if asset.kind == "script")
+        if not script_count:
+            return RobotStep(
+                "frontend static assets",
+                False,
+                time.perf_counter() - start,
+                "no JavaScript frontend assets discovered in Streamlit landing HTML",
+                landing_url,
+            )
+        for asset in assets:
+            with opener(asset.url) as response:
+                content_type = _response_content_type(response)
+                if content_type not in asset.expected_content_types:
+                    expected = ", ".join(asset.expected_content_types)
+                    return RobotStep(
+                        "frontend static assets",
+                        False,
+                        time.perf_counter() - start,
+                        (
+                            f"{asset.kind} asset returned content-type {content_type or '<missing>'}; "
+                            f"expected one of: {expected}; url={asset.url}"
+                        ),
+                        asset.url,
+                    )
+        return RobotStep(
+            "frontend static assets",
+            True,
+            time.perf_counter() - start,
+            f"{len(assets)} Streamlit JS/CSS asset(s) returned expected MIME types",
+            landing_url,
+        )
+    except Exception as exc:
+        return RobotStep(
+            "frontend static assets",
+            False,
+            time.perf_counter() - start,
+            f"frontend asset check failed: {exc}",
+            landing_url,
+        )
 
 
 def _load_playwright() -> Any:
@@ -743,6 +890,64 @@ def run_browser_robot(
     return steps
 
 
+def run_frontend_smoke(
+    *,
+    base_url: str,
+    active_app_query: str,
+    browser_name: str,
+    headless: bool,
+    timeout: float,
+    screenshot_dir: Path | None = None,
+) -> list[RobotStep]:
+    landing_url = build_url(base_url, active_app=active_app_query)
+
+    def _open_url(url: str) -> Any:
+        return urllib.request.urlopen(url, timeout=timeout)
+
+    steps = [assert_frontend_static_assets(landing_url, opener=_open_url)]
+    if not steps[-1].success:
+        return steps
+
+    Error, TimeoutError, sync_playwright = _load_playwright()
+    timeout_ms = timeout * 1000.0
+    try:
+        with sync_playwright() as playwright:
+            browser_type = getattr(playwright, browser_name)
+            browser = browser_type.launch(headless=headless)
+            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            try:
+                page = context.new_page()
+                start = time.perf_counter()
+                page.goto(landing_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                steps.append(
+                    RobotStep(
+                        "frontend browser navigation",
+                        True,
+                        time.perf_counter() - start,
+                        "loaded",
+                        page.url,
+                    )
+                )
+                _append_step(
+                    steps,
+                    assert_page_healthy(
+                        page,
+                        label="frontend landing hydration",
+                        expect_any=("First proof", "Upload"),
+                        timeout_ms=timeout_ms,
+                        screenshot_dir=screenshot_dir,
+                    ),
+                )
+            finally:
+                context.close()
+                browser.close()
+    except RuntimeError:
+        raise
+    except (Error, TimeoutError) as exc:
+        steps.append(RobotStep("frontend browser hydration", False, 0.0, f"playwright failed: {exc}", landing_url))
+    return steps
+
+
 def summarize_steps(steps: Sequence[RobotStep], *, target_seconds: float) -> RobotSummary:
     total = sum(step.duration_seconds for step in steps)
     success = bool(steps) and all(step.success for step in steps)
@@ -760,6 +965,7 @@ def render_human(
     summary: RobotSummary | None,
     launch_command: Sequence[str] | None,
     base_url: str,
+    route: Sequence[str] | None = None,
     print_only: bool = False,
 ) -> str:
     lines = ["AGILAB web UI robot", f"base url: {base_url}"]
@@ -767,7 +973,7 @@ def render_human(
         lines.append("$ " + " ".join(shlex.quote(part) for part in launch_command))
     if print_only:
         lines.append("mode: print-only")
-        lines.append("route: landing Upload chooser -> PROJECT notebook handoff -> ORCHESTRATE -> ANALYSIS")
+        lines.append("route: " + " -> ".join(route or _full_robot_route()))
         return "\n".join(lines)
 
     assert summary is not None
@@ -786,6 +992,19 @@ def render_human(
 
 def _print_json(payload: object) -> None:
     print(json.dumps(payload, indent=2))
+
+
+def _frontend_smoke_route() -> list[str]:
+    return ["frontend static assets", "frontend landing hydration"]
+
+
+def _full_robot_route() -> list[str]:
+    return [
+        "landing Upload chooser",
+        "PROJECT notebook handoff",
+        "ORCHESTRATE",
+        "ANALYSIS",
+    ]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -807,15 +1026,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     if args.print_only:
+        route = _frontend_smoke_route() if args.frontend_smoke_only else _full_robot_route()
         payload = {
             "base_url": base_url,
             "launch_command": launch_command,
-            "route": [
-                "landing Upload chooser",
-                "PROJECT notebook handoff",
-                "ORCHESTRATE",
-                "ANALYSIS",
-            ],
+            "route": route,
             "analysis_view": args.analysis_view,
             "analysis_view_path": (
                 resolve_analysis_view_path(
@@ -835,6 +1050,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     summary=None,
                     launch_command=launch_command,
                     base_url=base_url,
+                    route=route,
                     print_only=True,
                 )
             )
@@ -859,18 +1075,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                 health = wait_for_streamlit_health(base_url, timeout=args.timeout)
                 steps.append(health)
                 if health.success:
-                    steps.extend(
-                        run_browser_robot(
-                            base_url=base_url,
-                            active_app_query=active_app_query,
-                            browser_name=args.browser,
-                            headless=not args.headful,
-                            timeout=args.timeout,
-                            analysis_view=args.analysis_view,
-                            analysis_view_path=analysis_view_path,
-                            screenshot_dir=screenshot_dir,
+                    if args.frontend_smoke_only:
+                        steps.extend(
+                            run_frontend_smoke(
+                                base_url=base_url,
+                                active_app_query=active_app_query,
+                                browser_name=args.browser,
+                                headless=not args.headful,
+                                timeout=args.timeout,
+                                screenshot_dir=screenshot_dir,
+                            )
                         )
-                    )
+                    else:
+                        steps.extend(
+                            run_browser_robot(
+                                base_url=base_url,
+                                active_app_query=active_app_query,
+                                browser_name=args.browser,
+                                headless=not args.headful,
+                                timeout=args.timeout,
+                                analysis_view=args.analysis_view,
+                                analysis_view_path=analysis_view_path,
+                                screenshot_dir=screenshot_dir,
+                            )
+                        )
                 elif server.process and server.process.poll() is not None:
                     steps.append(
                         RobotStep(
@@ -882,18 +1110,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                         )
                     )
         else:
-            steps.extend(
-                run_browser_robot(
-                    base_url=base_url,
-                    active_app_query=active_app_query,
-                    browser_name=args.browser,
-                    headless=not args.headful,
-                    timeout=args.timeout,
-                    analysis_view=args.analysis_view,
-                    analysis_view_path=analysis_view_path,
-                    screenshot_dir=screenshot_dir,
+            if args.frontend_smoke_only:
+                steps.extend(
+                    run_frontend_smoke(
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        browser_name=args.browser,
+                        headless=not args.headful,
+                        timeout=args.timeout,
+                        screenshot_dir=screenshot_dir,
+                    )
                 )
-            )
+            else:
+                steps.extend(
+                    run_browser_robot(
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        browser_name=args.browser,
+                        headless=not args.headful,
+                        timeout=args.timeout,
+                        analysis_view=args.analysis_view,
+                        analysis_view_path=analysis_view_path,
+                        screenshot_dir=screenshot_dir,
+                    )
+                )
     except RuntimeError as exc:
         steps.append(RobotStep("browser setup", False, 0.0, str(exc), base_url))
 

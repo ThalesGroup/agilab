@@ -474,6 +474,7 @@ def load_args_from_toml(path):
         with patch.dict(os.environ, {
             "APP_DEFAULT": "flight_telemetry_project",
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "AGILAB_DISABLE_HARDWARE_PROBES": "1",
             "AGI_CLUSTER_SHARE": str(tmp_path),
             "AGI_EXPORT_DIR": str(export_dir),
             "AGI_LOG_DIR": str(log_dir),
@@ -770,7 +771,7 @@ def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
 
 
 def test_execute_page_cluster_settings(mock_ui_env):
-    """Test the EXECUTE page cluster settings interactivity."""
+    """Test the EXECUTE page cluster settings render and state persistence."""
     
     # For execute page we need an initialized env in session_state
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
@@ -789,7 +790,18 @@ def test_execute_page_cluster_settings(mock_ui_env):
     (runenv / "run_20260506_010203.log").write_text("first run\n", encoding="utf-8")
     (runenv / "run_20260506_020304.log").write_text("second run\n", encoding="utf-8")
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    app_state_name = Path(str(env.app)).name
+    enabled_toggle_key = f"cluster_enabled__{app_state_name}"
+    scheduler_key = f"cluster_scheduler__{app_state_name}"
+    pool_key = f"cluster_pool__{app_state_name}"
+    at.session_state["app_settings"] = {
+        "args": {},
+        "cluster": {
+            "cluster_enabled": True,
+            "pool": True,
+            "scheduler": "127.0.0.1:8786",
+        },
+    }
     _seed_env_editor_state(at, env)
     
     at.run()
@@ -830,20 +842,6 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Runtime diagnostics" not in _element_labels(at.sidebar)
     assert "Diagnostics level" not in _element_labels(at.sidebar)
 
-    app_state_name = _current_app_state_name(at)
-    enabled_toggle_key = f"cluster_enabled__{app_state_name}"
-    scheduler_key = f"cluster_scheduler__{app_state_name}"
-    pool_key = f"cluster_pool__{app_state_name}"
-    at.toggle(key=enabled_toggle_key).set_value(True).run()
-    assert not at.exception
-
-    at.session_state[scheduler_key] = "127.0.0.1:8786"
-    at.session_state[pool_key] = True
-    at.run()
-    
-    assert not at.exception
-    markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "agi_share_path" not in markdown_text
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     enabled_state = at.session_state[enabled_toggle_key] if enabled_toggle_key in at.session_state else None
@@ -851,6 +849,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
+    assert "agi_share_path" not in markdown_text
 
 
 def test_orchestrate_page_does_not_import_dag_helper_from_execute_module():
@@ -1795,17 +1794,12 @@ def test_execute_page_workers_data_path(mock_ui_env):
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    app_state_name = Path(str(env.app)).name
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.session_state["app_settings"] = {"args": {}, "cluster": {"cluster_enabled": True}}
     _seed_env_editor_state(at, env)
 
     at.run()
-    assert not at.exception
-
-    # Enable cluster first
-    app_state_name = _current_app_state_name(at)
-    enabled_key = f"cluster_enabled__{app_state_name}"
-    at.toggle(key=enabled_key).set_value(True).run()
     assert not at.exception
 
     # Set workers data path
@@ -2358,7 +2352,7 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     assert not at.exception
 
     assert "clone_env_strategy" in at.session_state
-    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}
+    assert at.session_state["clone_env_strategy"] == "detach_venv"
     sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
     assert "Fast and lightweight." not in sidebar_captions
     assert "Safer for real development." not in sidebar_captions

@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import stat
+import importlib
 import importlib.util
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -24,13 +25,8 @@ except ModuleNotFoundError as exc:
 else:
     _NETWORKX_IMPORT_ERROR = None
 
-try:
-    import matplotlib.pyplot as plt
-except ModuleNotFoundError as exc:
-    plt = None  # type: ignore[assignment]
-    _MATPLOTLIB_IMPORT_ERROR = exc
-else:
-    _MATPLOTLIB_IMPORT_ERROR = None
+plt = None  # type: ignore[assignment]
+_MATPLOTLIB_IMPORT_ERROR: ModuleNotFoundError | None = None
 
 _NETWORKX_ERROR_TYPE = getattr(nx, "NetworkXError", RuntimeError) if nx is not None else RuntimeError
 _PREVIEW_LOAD_EXCEPTIONS = (OSError, RuntimeError, TypeError, ValueError, _NETWORKX_ERROR_TYPE)
@@ -58,6 +54,28 @@ def _require_networkx():
     if nx is None:
         raise RuntimeError(_networkx_unavailable_message())
     return nx
+
+
+def _matplotlib_unavailable_message() -> str:
+    return (
+        f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+        "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+    )
+
+
+def _require_matplotlib(import_module_fn=importlib.import_module):
+    global plt, _MATPLOTLIB_IMPORT_ERROR
+    if plt is not None:
+        return plt
+    if _MATPLOTLIB_IMPORT_ERROR is not None:
+        raise RuntimeError(_matplotlib_unavailable_message())
+    try:
+        plt = import_module_fn("matplotlib.pyplot")
+    except ModuleNotFoundError as exc:
+        plt = None  # type: ignore[assignment]
+        _MATPLOTLIB_IMPORT_ERROR = exc
+        raise RuntimeError(_matplotlib_unavailable_message()) from exc
+    return plt
 
 
 def _is_networkx_graph(value: object) -> bool:
@@ -370,21 +388,17 @@ def render_execute_notice(streamlit_api, session_state) -> None:
 
 def _render_graph_preview(graph_preview: "nx.Graph", source_preview_name: Optional[str]) -> None:
     nx_module = _require_networkx()
-    if plt is None:
-        raise RuntimeError(
-            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
-            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
-        )
+    plt_module = _require_matplotlib()
 
     st.caption("Graph preview generated from JSON output")
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt_module.subplots(figsize=(8, 6))
     pos = nx_module.spring_layout(graph_preview, seed=42)
     nx_module.draw_networkx_nodes(graph_preview, pos, node_color="skyblue", ax=ax)
     nx_module.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
     nx_module.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
     ax.axis("off")
     st.pyplot(fig, width="stretch")
-    plt.close(fig)
+    plt_module.close(fig)
     if source_preview_name:
         st.caption(f"Source: {source_preview_name}")
 

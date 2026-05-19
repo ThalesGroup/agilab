@@ -224,6 +224,27 @@ def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch
     assert captured == [["--json", "--strict"]]
 
 
+def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_evidence_contract(argv: list[str]) -> int:
+        captured.append(argv)
+        return 45
+
+    monkeypatch.setattr(lab_run, "_run_evidence_contract", fake_evidence_contract)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["export_lineage", "run_manifest.json", "--format", "openlineage"])
+
+    assert rc == 45
+    assert captured == [["export-lineage", "run_manifest.json", "--format", "openlineage"]]
+
+
 def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []

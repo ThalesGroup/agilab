@@ -207,128 +207,20 @@ _NOTEBOOK_IGNORED_DIRS = {
     "venv",
 }
 
-_MINIMAL_PAGE_TEMPLATE_PYPROJECT = """[project]
-name = "view-{module_slug}"
-version = "0.1.0"
-requires-python = ">=3.13"
-dependencies = [
-    "streamlit",
-    "agi-env",
-    "agi-node",
-]
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-"""
-
-_MINIMAL_PAGE_TEMPLATE_SCRIPT = """from __future__ import annotations
-
-import argparse
-from pathlib import Path
-
-import streamlit as st
-
-try:
-    from agi_env import AgiEnv
-except (ImportError, ModuleNotFoundError, OSError) as exc:  # pragma: no cover - dependency hint
-    AgiEnv = None
-    _AGI_ENV_IMPORT_ERROR = exc
-else:  # pragma: no cover
-    _AGI_ENV_IMPORT_ERROR = None
-
-
-PAGE_TITLE = "__TITLE__"
-
-
-def _parse_active_app() -> str:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app")
-    args, _ = parser.parse_known_args()
-    if args.active_app:
-        return args.active_app
-
-    # Support fallback query arguments in case page gets launched with custom params.
-    for key in ("active_app", "active-app", "project"):
-        value = st.query_params.get(key, "")
-        if value:
-            return value
-    return ""
-
-
-def _load_project_env(active_app: str):
-    if AgiEnv is None:
-        st.error(
-            "This template requires the ``agi-env`` package available in this page environment."
-        )
-        st.error(f"Import error: {_AGI_ENV_IMPORT_ERROR}")
-        st.stop()
-
-    active_app_path = Path(active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided active project path does not exist: {active_app_path}")
-        st.stop()
-
-    return AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-
-
-def main() -> None:
-    st.set_page_config(
-        page_title=PAGE_TITLE,
-        layout="wide",
-        menu_items=get_docs_menu_items(html_file="explore-help.html"),
-    )
-    st.title(PAGE_TITLE)
-
-    active_app = _parse_active_app().strip()
-    if not active_app:
-        st.info(
-            "Open this page from AGILAB Analysis so the active project is passed via --active-app."
-        )
-        return
-
-    env = _load_project_env(active_app)
-    st.subheader(f"Project: {env.app}")
-    st.caption(f"Project path: {env.active_app}")
-
-    dataset_root = env.app_data_rel / "dataset"
-    if not dataset_root.exists():
-        st.info("No dataset folder yet. Run your pipeline before exploring outputs here.")
-        return
-
-    csv_files = sorted(dataset_root.glob("*.csv"))
-    if not csv_files:
-        st.warning("No CSV file found in the dataset folder yet.")
-        return
-
-    st.success(f"{len(csv_files)} CSV file(s) available.")
-    with st.expander("Dataset files", expanded=False):
-        for file in csv_files:
-            st.write(file.name)
-
-
-if __name__ == "__main__":
-    main()
-"""
-
-_MINIMAL_PAGE_TEMPLATE_README = """# {title}
-
-This bundle was generated from AGILab's minimal custom page template.
-
-Quick start:
-
-- Open the page from Analysis after selecting a project.
-- Use the embedded AGILAB sidecar runner; `--active-app` is automatically passed.
-- Export results first, then refresh this page to inspect available CSV outputs.
-
-Files:
-
-- `pyproject.toml`: page-specific dependency declaration.
-- `src/{module}/__init__.py`: package module marker.
-- `src/{module}/{module}.py`: Streamlit page script.
-
-You can extend this page with your own charts, plots, and actions.
-"""
+_ANALYSIS_PAGE_TEMPLATE_NAME = "analysis_page_template"
+_ANALYSIS_PAGE_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1] / "apps-pages" / "templates" / _ANALYSIS_PAGE_TEMPLATE_NAME
+)
+_ANALYSIS_PAGE_TEMPLATE_IGNORED_NAMES = {
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+}
 
 
 def _normalize_page_name(value: str) -> str:
@@ -355,45 +247,84 @@ def _next_page_name(base_name: str, pages_root: Path) -> str:
     return candidate
 
 
+def _analysis_template_distribution_name(module_name: str) -> str:
+    return f"view-{module_name.replace('_', '-')}"
+
+
+def _render_analysis_template_text(text: str, module_name: str) -> str:
+    return (
+        text.replace("view-demo", _analysis_template_distribution_name(module_name))
+        .replace("view_demo", module_name)
+        .replace("View Demo", module_name.replace("_", " ").title())
+    )
+
+
+def _render_analysis_template_path(relative_path: Path, module_name: str) -> Path:
+    return Path(
+        *(_render_analysis_template_text(part, module_name) for part in relative_path.parts)
+    )
+
+
+def _analysis_template_entrypoint(template_root: Path, module_name: str) -> Path:
+    contract_path = template_root / "agilab.template.toml"
+    try:
+        contract = tomllib.loads(contract_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError(
+            f"Unable to read AGILAB analysis page template contract: {contract_path}"
+        ) from exc
+    entrypoint = str(contract.get("entrypoint", ""))
+    if not entrypoint:
+        raise RuntimeError(f"AGILAB analysis page template has no entrypoint: {contract_path}")
+    return _render_analysis_template_path(Path(entrypoint), module_name)
+
+
+def _should_copy_analysis_template_path(path: Path) -> bool:
+    if any(part in _ANALYSIS_PAGE_TEMPLATE_IGNORED_NAMES for part in path.parts):
+        return False
+    return not any(part.endswith(".egg-info") for part in path.parts)
+
+
 def _write_minimal_view_template(
     pages_root: Path, module_name: str
 ) -> tuple[Path, Path, Path]:
     """
-    Create a minimal page bundle from template files.
+    Create a minimal page bundle from the repository analysis page template.
 
     Returns:
         tuple: (bundle_root, entrypoint_path, readme_path)
     """
     pages_root = pages_root.resolve()
+    pages_root.mkdir(parents=True, exist_ok=True)
     bundle_root = pages_root / module_name
-    src_root = bundle_root / "src" / module_name
-    entrypoint = src_root / f"{module_name}.py"
+    template_root = _ANALYSIS_PAGE_TEMPLATE_ROOT
+    if not template_root.is_dir():
+        raise FileNotFoundError(f"Missing AGILAB analysis page template: {template_root}")
+    if bundle_root.exists():
+        raise FileExistsError(f"Analysis page bundle already exists: {bundle_root}")
+
+    for source_path in sorted(template_root.rglob("*")):
+        relative_source_path = source_path.relative_to(template_root)
+        if not _should_copy_analysis_template_path(relative_source_path):
+            continue
+        relative_target_path = _render_analysis_template_path(relative_source_path, module_name)
+        target_path = bundle_root / relative_target_path
+        if source_path.is_dir():
+            target_path.mkdir(parents=True, exist_ok=True)
+            continue
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            payload = source_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            shutil.copy2(source_path, target_path)
+            continue
+        target_path.write_text(_render_analysis_template_text(payload, module_name), encoding="utf-8")
+
+    entrypoint = bundle_root / _analysis_template_entrypoint(template_root, module_name)
     readme = bundle_root / "README.md"
-    pyproject = bundle_root / "pyproject.toml"
-    package_init = src_root / "__init__.py"
-    bundle_root.mkdir(parents=True, exist_ok=True)
-    src_root.mkdir(parents=True, exist_ok=True)
-
-    page_title = module_name
-    pyproject_payload = _MINIMAL_PAGE_TEMPLATE_PYPROJECT.replace("{module_slug}", module_name)
-    script_payload = (
-        _MINIMAL_PAGE_TEMPLATE_SCRIPT.replace("__TITLE__", page_title.replace('"', '\\"'))
-        .replace("__MODULE__", module_name)
-    )
-    readme_payload = (
-        _MINIMAL_PAGE_TEMPLATE_README.replace("{title}", page_title)
-        .replace("{module}", module_name)
-    )
-
-    if not pyproject.exists():
-        pyproject.write_text(pyproject_payload, encoding="utf-8")
-    if not entrypoint.exists():
-        entrypoint.write_text(script_payload, encoding="utf-8")
-    if not package_init.exists():
-        package_init.write_text("", encoding="utf-8")
-    if not readme.exists():
-        readme.write_text(readme_payload, encoding="utf-8")
-
+    if not entrypoint.is_file():
+        raise RuntimeError(f"Generated analysis page entrypoint is missing: {entrypoint}")
     return bundle_root, entrypoint, readme
 
 # =============== Streamlit page config ==================

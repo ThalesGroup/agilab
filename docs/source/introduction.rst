@@ -9,12 +9,15 @@ and :doc:`quick-start`.
 What AGILab is
 --------------
 
-AGILab turns experimental AI/ML notebooks and scripts into reproducible
-applications that can run locally or on distributed workers, while keeping a
-handoff path to runnable notebooks and MLflow tracking evidence.
+AGILab turns experimental AI/ML notebooks and scripts into executable,
+portable, evidence-backed applications that can run locally or on distributed
+workers, while keeping a handoff path to runnable notebooks and MLflow tracking
+evidence.
 
 It is a framework and web UI for running Python data, ML, and RL projects
-through one visible workflow.
+through one visible workflow: create the app, execute it under controlled
+runtime choices, inspect artifacts and evidence, then export the result to a
+notebook or MLflow handoff when needed.
 
 It has two main user interfaces:
 

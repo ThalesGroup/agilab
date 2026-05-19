@@ -3880,7 +3880,9 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
     assert "agilab-hero" in body
     assert "width: 100%" in body
-    assert "Reproducible AI workflows" in body
+    assert "Turn experiments into evidence-backed apps" in body
+    assert "Import notebooks or scripts" in body
+    assert "portable proof, notebook export, and MLflow handoff" in body
     assert "agilab-hero__visual" in body
     assert "agilab-hero__target-img" in body
     assert "data:image/svg+xml;base64," in body
@@ -3889,7 +3891,7 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert '<g transform="translate(54 111)">' not in body
     assert "<svg viewBox" not in body
     assert "Thales open-source workbench" not in body
-    assert "Open-source workbench" in body
+    assert "AI/ML reproducibility workbench" in body
     assert "Select a project, run it, and inspect the result" not in body
     assert "agilab-hero__top" in body
     assert "agilab-hero__legal-mark" in body
@@ -3899,9 +3901,10 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "margin: 1.55rem 0 0" not in body
     assert "text-align: right" in body
     assert "white-space: nowrap" in body
-    assert "Project" in body
-    assert "Run" in body
-    assert "Analyse" in body
+    assert "Import" in body
+    assert "Execute" in body
+    assert "Prove" in body
+    assert "Export" in body
     assert "Control path" not in body
     assert "Data intake" not in body
     assert "Decision evidence" not in body
@@ -4189,6 +4192,11 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     run_button = _event_index(fake_st.events, "link_button", "2. EXECUTE demo")
     run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `EXECUTE`")
     open_analysis = _event_index(fake_st.events, "link_button", "3. OPEN ANALYSIS")
+    link_types = {
+        body.rsplit(":", 1)[0]: body.rsplit(":", 1)[1]
+        for kind, body in fake_st.events
+        if kind == "link_type"
+    }
     analysis_hint = next(
         index
         for index in range(open_analysis + 1, len(fake_st.events))
@@ -4265,6 +4273,10 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Run one local proof first" in caption_bodies[9]
     assert caption_bodies[10].startswith("Handoff bundle:")
     assert "strict security-check output" in caption_bodies[10]
+    assert link_types["1. INSTALL demo"] == "primary"
+    assert link_types["2. EXECUTE demo"] == "secondary"
+    assert link_types["3. OPEN ANALYSIS"] == "secondary"
+    assert link_types["Create from built-in notebook"] == "secondary"
     assert not [body for kind, body in pre_details if kind == "file_uploader"]
     assert not [body for kind, body in pre_details if kind == "download_button"]
     assert not [body for kind, body in pre_details if kind == "page_link"]
@@ -4750,6 +4762,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
+    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
@@ -4791,6 +4804,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
+    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 

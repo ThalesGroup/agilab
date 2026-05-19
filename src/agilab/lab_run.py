@@ -158,6 +158,12 @@ def _run_adoption_report(argv: list[str]) -> int:
     return adoption_report.main(argv)
 
 
+def _run_evidence_contract(argv: list[str]) -> int:
+    from agilab import evidence_contract
+
+    return evidence_contract.main(argv)
+
+
 def _run_env(argv: list[str]) -> int:
     if argv[:1] == ["footprint"]:
         from agilab import env_footprint
@@ -212,6 +218,20 @@ def main(argv: list[str] | None = None) -> int:
         return _run_security_check(raw_argv[1:])
     if raw_argv[:1] in (["adoption-report"], ["adoption_report"]):
         return _run_adoption_report(raw_argv[1:])
+    if raw_argv[:1] in (
+        ["prove"],
+        ["verify"],
+        ["replay"],
+        ["export-lineage"],
+        ["export_lineage"],
+        ["policy-check"],
+        ["policy_check"],
+        ["cards"],
+        ["metadata-store"],
+        ["metadata_store"],
+    ):
+        command = raw_argv[0].replace("_", "-")
+        return _run_evidence_contract([command, *raw_argv[1:]])
     if raw_argv[:1] == ["env"]:
         return _run_env(raw_argv[1:])
 

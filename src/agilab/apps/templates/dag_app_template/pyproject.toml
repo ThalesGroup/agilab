@@ -13,7 +13,7 @@ dependencies = [
     "agi-env",
     "agi-node",
     "pydantic",
-    "streamlit>=1.56.0",
+    "streamlit>=1.56,<1.57",
 ]
 
 [dependency-groups]

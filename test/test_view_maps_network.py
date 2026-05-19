@@ -20,6 +20,9 @@ import pandas as pd
 MODULE_PATH = Path(
     "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
 )
+SETTINGS_SUPPORT_PATH = Path(
+    "src/agilab/apps-pages/view_maps_network/src/view_maps_network/settings_support.py"
+)
 APP_SETTINGS_PATH = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml")
 
 
@@ -70,6 +73,14 @@ def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
     return module
 
 
+def _load_view_maps_network_settings_support():
+    spec = importlib.util.spec_from_file_location("view_maps_network_settings_support_test_module", SETTINGS_SUPPORT_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _write_heatmap_npz(
     path: Path,
     *,
@@ -93,13 +104,12 @@ def _write_heatmap_npz(
 
 
 def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_path: Path) -> None:
-    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    module = _load_view_maps_network_settings_support()
 
     with APP_SETTINGS_PATH.open("rb") as handle:
         app_settings = tomllib.load(handle)
 
-    module.st = SimpleNamespace(session_state={"app_settings": app_settings})
-    settings = module._get_view_maps_page_settings()
+    settings = module.get_view_maps_page_settings(app_settings)
 
     assert settings["dataset_base_choice"] == "AGI_CLUSTER_SHARE"
     assert settings["dataset_subpath"] == "flight/dataframe"
@@ -110,15 +120,15 @@ def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_p
 
 
 def test_view_maps_network_normalizes_settings_sources(monkeypatch, tmp_path: Path) -> None:
-    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    module = _load_view_maps_network_settings_support()
 
-    assert module._coerce_str_list(" alpha, beta; alpha\n gamma ") == ["alpha", "beta", "gamma"]
-    assert module._get_first_nonempty_setting(
+    assert module.coerce_str_list(" alpha, beta; alpha\n gamma ") == ["alpha", "beta", "gamma"]
+    assert module.first_nonempty_setting(
         [{"unused": " "}, "ignored", {"primary": " ", "secondary": " chosen "}],
         "primary",
         "secondary",
     ) == "chosen"
-    assert module._get_setting_list(
+    assert module.setting_list(
         [{"paths": "one, two;one"}, {"paths": ["two", "three"]}, {"paths": None}],
         "paths",
     ) == ["one", "two", "three"]
@@ -334,6 +344,33 @@ def test_view_maps_network_loads_heatmap_points_and_stats(monkeypatch, tmp_path:
     invalid = module._sample_cloud_heatmap_stats(str(npz_path), "bad", 0.0)
     assert all(math.isnan(value) for value in invalid.values())
 
+    monkeypatch.setattr(module, "_get_heatmap_numba_kernel", lambda: None)
+    batch = module._sample_cloud_heatmap_stats_batch(
+        str(npz_path),
+        pd.Series([0.0, "bad", 90.0]),
+        pd.Series([0.0, 0.0, 180.0]),
+        neighborhood_radius_cells=1,
+    )
+    assert batch["raw_value"][0] == 1.0
+    assert batch["proxy_value"][0] == 4.0
+    assert batch["local_mean"][0] == 2.5
+    assert batch["local_max"][0] == 4.0
+    assert math.isnan(batch["raw_value"][1])
+    assert math.isnan(batch["raw_value"][2])
+
+    def fake_numba_kernel(*args):
+        return module._cloud_heatmap_stats_kernel_py(*args)
+
+    monkeypatch.setattr(module, "_get_heatmap_numba_kernel", lambda: fake_numba_kernel)
+    accelerated = module._sample_cloud_heatmap_stats_batch(
+        str(npz_path),
+        np.asarray([0.0], dtype=np.float64),
+        np.asarray([0.0], dtype=np.float64),
+        neighborhood_radius_cells=1,
+    )
+    assert accelerated["raw_value"].tolist() == [1.0]
+    assert accelerated["local_max"].tolist() == [4.0]
+
 
 def test_view_maps_network_decision_samples_and_heatmap_timeline(monkeypatch, tmp_path: Path) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
@@ -347,21 +384,23 @@ def test_view_maps_network_decision_samples_and_heatmap_timeline(monkeypatch, tm
         {"time_index": 4, "sample_time_s": 4.0},
     ]
 
-    def fake_sample_cloud_heatmap_stats(
+    def fake_sample_cloud_heatmap_stats_batch(
         _npz_path: str,
-        lat: float,
-        lon: float,
+        lat_values,
+        lon_values,
         neighborhood_radius_cells: int = 25,
-    ) -> dict[str, float]:
+    ) -> dict[str, np.ndarray]:
         assert neighborhood_radius_cells == 2
+        lat_array = np.asarray(lat_values, dtype=np.float64)
+        lon_array = np.asarray(lon_values, dtype=np.float64)
         return {
-            "raw_value": float(lat),
-            "proxy_value": float(lat + lon),
-            "local_mean": 1.5,
-            "local_max": 2.5,
+            "raw_value": lat_array,
+            "proxy_value": lat_array + lon_array,
+            "local_mean": np.full(lat_array.shape, 1.5, dtype=np.float64),
+            "local_max": np.full(lat_array.shape, 2.5, dtype=np.float64),
         }
 
-    monkeypatch.setattr(module, "_sample_cloud_heatmap_stats", fake_sample_cloud_heatmap_stats)
+    monkeypatch.setattr(module, "_sample_cloud_heatmap_stats_batch", fake_sample_cloud_heatmap_stats_batch)
 
     trajectory_df = pd.DataFrame(
         {
@@ -837,6 +876,25 @@ def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path:
             "midpoint": [1.5, 11.5, 250.0],
         },
     ]
+
+    duplicate_positions = pd.concat(
+        [
+            current_positions,
+            pd.DataFrame(
+                {
+                    "flight_id": ["2"],
+                    "id_col": ["2"],
+                    "long": [99.0],
+                    "lat": [88.0],
+                    "alt": [777.0],
+                    "color": [[9, 9, 9, 255]],
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+    duplicate_edges = module.create_edges_geomap(df.copy(), "satcom_link", duplicate_positions)
+    assert duplicate_edges.to_dict("records")[0]["target"] == [1.0, 11.0, 200.0]
 
     assert module.parse_edges(["[(1, 2), (2, 3)]", [(3, 4)]]) == [("1", "2"), ("2", "3"), ("3", "4")]
     assert module.filter_edges(df, ["satcom_link"], {("1", "2")}) == {"satcom_link": [("1", "2")]}
@@ -1489,6 +1547,19 @@ def test_view_maps_network_allocation_pair_preview_and_layer_fallback_branches(
     assert ivdl_layers[0].data[0]["color"] == [255, 140, 0]
     assert ivdl_layers[0].data[0]["width"] == 2
 
+    duplicate_positions = pd.concat(
+        [
+            positions,
+            pd.DataFrame({"flight_id": ["2"], "long": [99.0], "lat": [88.0], "alt": [777.0]}),
+        ],
+        ignore_index=True,
+    )
+    duplicate_layers = module.build_allocation_layers(
+        pd.DataFrame([{"source": "1", "destination": "2", "bearers": ["satcom"]}]),
+        duplicate_positions,
+    )
+    assert duplicate_layers[0].data[0]["target"] == [2.0, 20.0, 200.0]
+
 
 def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
     monkeypatch, tmp_path: Path
@@ -1832,12 +1903,12 @@ def test_view_maps_network_traj_heatmap_and_edge_geomap_fallback_branches(
 
     monkeypatch.setattr(
         module,
-        "_sample_cloud_heatmap_stats",
-        lambda *_args, **_kwargs: {
-            "raw_value": 1.0,
-            "proxy_value": 2.0,
-            "local_mean": 1.5,
-            "local_max": 2.5,
+        "_sample_cloud_heatmap_stats_batch",
+        lambda _npz_path, lat_values, _lon_values, **_kwargs: {
+            "raw_value": np.full(len(lat_values), 1.0, dtype=np.float64),
+            "proxy_value": np.full(len(lat_values), 2.0, dtype=np.float64),
+            "local_mean": np.full(len(lat_values), 1.5, dtype=np.float64),
+            "local_max": np.full(len(lat_values), 2.5, dtype=np.float64),
         },
     )
     assert module._selected_nodes_heatmap_timeline(

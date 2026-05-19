@@ -1,0 +1,23 @@
+[project]
+name = "agi-page-pytorch-playground"
+version = "2026.05.19"
+description = "Opt-in AGILAB page bundle for interactive PyTorch classifier experiments."
+readme = { text = "Opt-in AGILAB page bundle for interactive PyTorch classifier experiments.", content-type = "text/markdown" }
+requires-python = ">=3.12"
+dependencies = [
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "numpy>=2.2",
+    "pandas>=2.3.0",
+    "plotly>=6.3.0",
+    "torch>=2.8.0",
+]
+
+[project.entry-points."agilab.pages"]
+view_pytorch_playground = "view_pytorch_playground:bundle_root"
+
+
+
+
+
+[tool.uv.sources]
+agi-gui = { path = "../../lib/agi-gui", editable = true }
