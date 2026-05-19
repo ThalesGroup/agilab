@@ -213,8 +213,20 @@ def test_ui_robot_action_contract_human_rendering_and_cli(capsys, monkeypatch) -
     assert "src/agilab/page.py:12" in rendered
 
 
-def test_ui_robot_action_contract_json_cli(capsys) -> None:
+def test_ui_robot_action_contract_json_cli(capsys, monkeypatch) -> None:
     module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "evaluate_contract",
+        lambda _roots: {
+            "schema": module.SCHEMA,
+            "success": True,
+            "summary": {"action_count": 0},
+            "issues": [],
+            "actions": [],
+            "unused_dispositions": [],
+        },
+    )
 
     exit_code = module.main(["--json"])
 

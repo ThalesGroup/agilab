@@ -36,9 +36,12 @@ Fast adoption path:
 Prerequisites
 -------------
 
-- Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed
-  (``curl -LsSf https://astral.sh/uv/install.sh | sh``).
-- macOS or Linux shell (use WSL2 on Windows until native support lands).
+- Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed.
+  Use the installer command for your platform from the uv documentation; the
+  common macOS/Linux bootstrap is ``curl -LsSf https://astral.sh/uv/install.sh | sh``.
+- macOS or Linux shell for the source-checkout installer. On native Windows,
+  use the published package route for the CI-covered CLI first proof, or use
+  WSL2 for the source checkout path until native installer parity is published.
 - PyCharm is optional. The first proof below uses only a shell and the web UI;
   IDE run configurations are contributor conveniences, not an installation
   requirement.
@@ -115,6 +118,9 @@ machine-readable proof record.
    This is the narrow source-checkout path. It installs the public built-in
    apps and keeps root/app/core test suites opt-in so a first proof does not
    become a full CI run.
+   On native Windows, prefer the published package route below. The source
+   checkout installer uses POSIX shell scripts, so run that path from WSL2
+   until native installer parity is published.
 
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
@@ -350,14 +356,29 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
-For a trusted app project published as a PyPI ``agi-app-*`` package, open the
-``PROJECT`` page, expand ``Install PyPI app``, enter the package name, confirm
-that the package was reviewed, and click ``Install PyPI app``. AGILAB installs the
-package into the current Python environment with ``uv pip install --python`` and
-then the app is discovered through the package's ``agilab.apps`` entry point.
-Refresh ``PROJECT`` or restart AGILAB if the new project is not listed
-immediately. This PyPI path is separate from ``APPS_REPOSITORY``, which remains
-the source-checkout route for external app repositories.
+For a trusted app project published as a PyPI ``agi-app-*`` package, use either
+the web UI or the packaged CLI. In the UI, open ``PROJECT``, expand
+``Install PyPI app``, choose a promoted catalog package or enter an exact
+package requirement, run ``Check PyPI app``, review Python compatibility,
+wheel/sdist availability, entry-point metadata, hashes, and advertised
+provenance/signature status, then confirm and click ``Install PyPI app``.
+AGILAB installs the package into the current Python environment with
+``uv pip install --python`` and discovers the project through the package's
+``agilab.apps`` entry point. The same expander lists installed PyPI app packages
+and can update or remove them after explicit confirmation.
+
+The CLI exposes the same management surface::
+
+    agilab app search weather
+    agilab app check agi-app-weather-forecast
+    agilab app install agi-app-weather-forecast
+    agilab app list
+    agilab app update agi-app-weather-forecast
+    agilab app remove agi-app-weather-forecast
+
+Refresh ``PROJECT`` or restart AGILAB if a newly installed or removed project is
+not reflected immediately. This PyPI path is separate from ``APPS_REPOSITORY``,
+which remains the source-checkout route for external app repositories.
 
 Shared or team adoption check
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

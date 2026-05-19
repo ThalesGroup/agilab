@@ -13,6 +13,7 @@
 
 import sys
 import argparse
+import importlib
 import os
 from pathlib import Path
 
@@ -23,7 +24,6 @@ import ast
 import networkx as nx
 import numpy as np
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import glob
 import json
@@ -88,6 +88,26 @@ logger = AgiLogger.get_logger(__name__)
 _TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
 _HEATMAP_NUMBA_KERNEL: Any | None = None
 _HEATMAP_NUMBA_KERNEL_ATTEMPTED = False
+_MATPLOTLIB_IMPORT_ERROR: ModuleNotFoundError | None = None
+
+
+def _get_cmap(name: str, lut: int | None = None):
+    global _MATPLOTLIB_IMPORT_ERROR
+    try:
+        matplotlib = importlib.import_module("matplotlib")
+        registry = getattr(matplotlib, "colormaps", None)
+        if registry is not None:
+            cmap = registry.get_cmap(name)
+            return cmap.resampled(lut) if lut is not None and hasattr(cmap, "resampled") else cmap
+        cm = importlib.import_module("matplotlib.cm")
+        if lut is None:
+            return cm.get_cmap(name)
+        return cm.get_cmap(name, lut)
+    except ModuleNotFoundError as exc:
+        _MATPLOTLIB_IMPORT_ERROR = exc
+        raise RuntimeError(
+            "matplotlib unavailable: install the page bundle dependencies to enable color maps."
+        ) from exc
 
 
 def _ensure_repo_on_path() -> None:
@@ -718,7 +738,7 @@ def _plot_selected_nodes_heatmap_timeline(
         return fig
 
     node_ids = timeline_df["node_id"].dropna().astype(str).drop_duplicates().tolist()
-    cmap = plt.get_cmap("tab10", max(1, len(node_ids)))
+    cmap = _get_cmap("tab10", max(1, len(node_ids)))
     if len(node_ids) == 1:
         title_text = f"{map_label} cloud intensity proxy at plane {node_ids[0]} over trajectory time"
     elif len(node_ids) == 2:
@@ -1844,7 +1864,7 @@ def _color_to_rgb(color_str: str, idx: int = 0) -> list[int]:
         rgba = mcolors.to_rgba(color_str)
         return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
     except Exception:
-        cmap = plt.get_cmap("tab10")
+        cmap = _get_cmap("tab10")
         rgba = cmap(idx % cmap.N)
         return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
 
@@ -2771,7 +2791,7 @@ def _plot_selected_node_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
         return fig
 
     bearer_values = timeline_df["bearer_path"].fillna("").replace("", "unrouted").unique().tolist()
-    cmap = plt.get_cmap("tab20", max(1, len(bearer_values)))
+    cmap = _get_cmap("tab20", max(1, len(bearer_values)))
     color_map = {
         bearer: ("#9e9e9e" if bearer == "unrouted" else mcolors.rgb2hex(cmap(i % max(1, len(bearer_values)))))
         for i, bearer in enumerate(sorted(bearer_values))
@@ -3081,7 +3101,7 @@ def create_network_graph(
             color = color_map.get(node, color_map.get(str(node)))
             node_colors[node] = _to_plotly_color(color) if color else "#888"
     else:
-        node_color_map = plt.get_cmap("tab20", len(unique_nodes))
+        node_color_map = _get_cmap("tab20", len(unique_nodes))
         node_colors = {node: mcolors.rgb2hex(node_color_map(i % 20)) for i, node in enumerate(unique_nodes)}
 
     symbol_labels = {
@@ -4299,7 +4319,7 @@ def page():
     color_map_ids = tuple(available_node_ids)
     color_map_sig = (flight_col, st.session_state.get("_prev_df_selection_sig"), color_map_ids)
     if "color_map" not in st.session_state or st.session_state.get("color_map_key") != color_map_sig:
-        color_map = plt.get_cmap("tab20", max(1, len(color_map_ids)))
+        color_map = _get_cmap("tab20", max(1, len(color_map_ids)))
         st.session_state.color_map = {
             flight_id: mcolors.rgb2hex(color_map(i % 20))
             for i, flight_id in enumerate(color_map_ids)

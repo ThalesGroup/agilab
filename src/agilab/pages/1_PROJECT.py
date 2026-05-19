@@ -122,6 +122,23 @@ ActionSpec = _action_execution_module.ActionSpec
 render_action_result = _action_execution_module.render_action_result
 run_streamlit_action = _action_execution_module.run_streamlit_action
 
+_pypi_app_packages_module = import_agilab_module(
+    "agilab.pypi_app_packages",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pypi_app_packages.py",
+    fallback_name="agilab_pypi_app_packages_fallback",
+)
+PYPI_APP_INSTALL_TIMEOUT_SECONDS = _pypi_app_packages_module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+_normalize_pypi_app_requirement = _pypi_app_packages_module.normalize_pypi_app_requirement
+_pypi_app_install_command = _pypi_app_packages_module.pypi_app_install_command
+_pypi_app_uninstall_command = _pypi_app_packages_module.pypi_app_uninstall_command
+_pypi_app_package_name = _pypi_app_packages_module.pypi_app_package_name
+_preflight_pypi_app_install = _pypi_app_packages_module.preflight_pypi_app_install
+_run_pypi_app_install = _pypi_app_packages_module.run_pypi_app_install
+_run_pypi_app_uninstall = _pypi_app_packages_module.run_pypi_app_uninstall
+_list_installed_pypi_apps = _pypi_app_packages_module.list_installed_pypi_apps
+_search_promoted_pypi_app_catalog = _pypi_app_packages_module.search_promoted_pypi_app_catalog
+
 _notebook_pipeline_import_module = import_agilab_module(
     "agilab.notebook_pipeline_import",
     current_file=__file__,
@@ -150,12 +167,6 @@ _pipeline_editor_module = import_agilab_module(
 _write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PYPI_APP_INSTALL_TIMEOUT_SECONDS = 15 * 60
-PYPI_APP_REQUIREMENT_RE = re.compile(
-    r"^(?P<name>agi-app-[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)"
-    r"(?P<specifier>(?:==|~=|>=|<=|!=|>|<)[A-Za-z0-9][A-Za-z0-9.*+!_-]*)?$",
-    re.IGNORECASE,
-)
 
 CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
@@ -798,47 +809,6 @@ def _finalize_cloned_project_environment(
     raise ValueError(f"Unknown clone environment strategy: {strategy}")
 
 
-def _normalize_pypi_app_requirement(raw_value: str) -> str:
-    """Return a conservative PyPI requirement for an ``agi-app-*`` package."""
-
-    value = str(raw_value or "").strip()
-    if not value:
-        raise ValueError("Enter an agi-app-* package name.")
-    if any(char.isspace() for char in value):
-        raise ValueError("Use one package requirement without spaces.")
-    match = PYPI_APP_REQUIREMENT_RE.fullmatch(value)
-    if match is None:
-        raise ValueError("Only agi-app-* package names or simple version pins are accepted.")
-    name = match.group("name").replace("_", "-").lower()
-    specifier = match.group("specifier") or ""
-    return f"{name}{specifier}"
-
-
-def _pypi_app_install_command(
-    requirement: str,
-    *,
-    python_executable: str | None = None,
-    uv_executable: str | None = None,
-) -> tuple[str, ...]:
-    uv = uv_executable or shutil.which("uv") or "uv"
-    return (
-        uv,
-        "--preview-features",
-        "extra-build-dependencies",
-        "pip",
-        "install",
-        "--python",
-        python_executable or sys.executable,
-        "--upgrade",
-        requirement,
-    )
-
-
-def _subprocess_tail(stdout: str, stderr: str, *, max_lines: int = 24) -> str:
-    lines = [line for line in (stdout + "\n" + stderr).splitlines() if line.strip()]
-    return "\n".join(lines[-max_lines:])
-
-
 def _install_pypi_app_package(
     raw_requirement: str,
     *,
@@ -855,40 +825,99 @@ def _install_pypi_app_package(
             next_action="Use a package name such as agi-app-weather-forecast.",
         )
 
-    command = _pypi_app_install_command(
+    completed = _run_pypi_app_install(
         requirement,
+        runner=runner,
         python_executable=python_executable,
         uv_executable=uv_executable,
     )
-    completed = runner(
-        command,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=PYPI_APP_INSTALL_TIMEOUT_SECONDS,
-        check=False,
-    )
-    output_tail = _subprocess_tail(
-        str(getattr(completed, "stdout", "") or ""),
-        str(getattr(completed, "stderr", "") or ""),
-    )
-    data = {
-        "requirement": requirement,
-        "command": list(command),
-        "returncode": int(getattr(completed, "returncode", 1)),
-        "output_tail": output_tail,
-    }
-    if data["returncode"] == 0:
+    data = completed.as_dict()
+    if completed.status == "success":
         return ActionResult.success(
             "PyPI app package installed.",
-            detail=output_tail or requirement,
+            detail=completed.output_tail or requirement,
             next_action="Refresh PROJECT or restart AGILAB, then select the new project.",
             data=data,
         )
     return ActionResult.error(
         "PyPI app package install failed.",
-        detail=output_tail or f"Command exited with {data['returncode']}.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
         next_action="Check the package name, Python version support, and PyPI availability.",
+        data=data,
+    )
+
+
+def _remove_pypi_app_package(
+    raw_requirement: str,
+    *,
+    runner=subprocess.run,
+    python_executable: str | None = None,
+    uv_executable: str | None = None,
+) -> ActionResult:
+    try:
+        package = _pypi_app_package_name(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "PyPI app package not removed.",
+            detail=str(exc),
+            next_action="Select an installed agi-app-* package.",
+        )
+
+    completed = _run_pypi_app_uninstall(
+        package,
+        runner=runner,
+        python_executable=python_executable,
+        uv_executable=uv_executable,
+    )
+    data = completed.as_dict()
+    if completed.status == "success":
+        return ActionResult.success(
+            "PyPI app package removed.",
+            detail=completed.output_tail or package,
+            next_action="Refresh PROJECT or restart AGILAB.",
+            data=data,
+        )
+    return ActionResult.error(
+        "PyPI app package remove failed.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
+        next_action="Check the package name and current Python environment.",
+        data=data,
+    )
+
+
+def _preflight_pypi_app_package(raw_requirement: str) -> ActionResult:
+    try:
+        preflight = _preflight_pypi_app_install(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "PyPI app package preflight did not run.",
+            detail=str(exc),
+            next_action="Use a package name such as agi-app-weather-forecast.",
+        )
+    data = preflight.as_dict()
+    metadata = preflight.metadata
+    checks = [f"{key}: {value}" for key, value in preflight.checks.items()]
+    detail_parts = [
+        f"Package: {preflight.package}",
+        f"Version: {metadata.version if metadata else 'unknown'}",
+        *checks,
+    ]
+    if metadata and metadata.package_url:
+        detail_parts.append(f"URL: {metadata.package_url}")
+    if metadata and metadata.publisher:
+        detail_parts.append(f"Publisher: {metadata.publisher}")
+    detail = "\n".join(detail_parts)
+    if preflight.status == "pass":
+        return ActionResult.success(
+            "PyPI app package preflight passed.",
+            detail=detail,
+            next_action="Review the package metadata, then install if it matches the expected app.",
+            data=data,
+        )
+    return ActionResult.error(
+        "PyPI app package preflight failed.",
+        detail=detail,
+        next_action="Use another package or wait for a compatible release.",
         data=data,
     )
 
@@ -903,26 +932,163 @@ def _refresh_projects_after_pypi_app_install(env) -> bool:
         st.session_state["env"] = env
         st.session_state["_env"] = env
         return True
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
         return False
+
+
+def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -> None:
+    if not preflight_payload:
+        return
+    metadata = preflight_payload.get("metadata")
+    checks = preflight_payload.get("checks")
+    rows: list[dict[str, str]] = []
+    if isinstance(metadata, dict):
+        rows.extend(
+            [
+                {"Field": "Package", "Value": str(metadata.get("package") or "")},
+                {"Field": "Version", "Value": str(metadata.get("version") or "")},
+                {"Field": "Requires-Python", "Value": str(metadata.get("requires_python") or "<none>")},
+                {"Field": "Wheel", "Value": "yes" if metadata.get("wheel_available") else "no"},
+                {"Field": "sdist", "Value": "yes" if metadata.get("sdist_available") else "no"},
+                {"Field": "Provenance", "Value": "yes" if metadata.get("provenance_available") else "not advertised"},
+                {"Field": "Signature", "Value": "yes" if metadata.get("signed_files") else "not advertised"},
+                {"Field": "Entry point", "Value": ", ".join(metadata.get("entry_points") or ()) or "not found"},
+                {"Field": "Publisher", "Value": str(metadata.get("publisher") or "not advertised")},
+                {"Field": "PyPI", "Value": str(metadata.get("package_url") or "")},
+            ]
+        )
+    if isinstance(checks, dict):
+        rows.extend({"Field": f"Check: {key}", "Value": str(value)} for key, value in checks.items())
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def _render_installed_pypi_app_manager(env) -> None:
+    installed = _list_installed_pypi_apps()
+    st.caption("Installed PyPI apps")
+    if not installed:
+        st.info("No installed agi-app-* packages were discovered.")
+        return
+    rows = [
+        {
+            "Package": app.package,
+            "Version": app.version,
+            "Provider": app.provider,
+            "Entry point": app.entry_point,
+            "Project": app.project_root,
+        }
+        for app in installed
+    ]
+    st.dataframe(rows, hide_index=True, width="stretch")
+    package_options = sorted({app.package for app in installed}, key=str.lower)
+    selected_package = st.selectbox(
+        "Installed package",
+        options=package_options,
+        key="project_pypi_app_installed_package",
+    )
+    confirmed = st.checkbox(
+        "Confirmed package management",
+        key="project_pypi_app_manage_confirmed",
+        help="Update or remove only packages you intentionally installed into this AGILAB environment.",
+    )
+    update_col, remove_col = st.columns(2)
+    with update_col:
+        update_clicked = st.button(
+            "Update PyPI app",
+            key="project_pypi_app_update",
+            disabled=not selected_package or not confirmed,
+            width="stretch",
+        )
+    with remove_col:
+        remove_clicked = st.button(
+            "Remove PyPI app",
+            key="project_pypi_app_remove",
+            disabled=not selected_package or not confirmed,
+            width="stretch",
+        )
+    if update_clicked:
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Update PyPI app",
+                start_message=f"Updating {selected_package}...",
+                failure_title="PyPI app package update failed.",
+                failure_next_action="Check the package and current Python environment.",
+            ),
+            lambda: _install_pypi_app_package(selected_package),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
+    if remove_clicked:
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Remove PyPI app",
+                start_message=f"Removing {selected_package}...",
+                failure_title="PyPI app package remove failed.",
+                failure_next_action="Check the package and current Python environment.",
+            ),
+            lambda: _remove_pypi_app_package(selected_package),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
 
 
 def _render_pypi_app_install_action(env) -> None:
     with st.sidebar.expander("Install PyPI app", expanded=False):
+        catalog_query = st.text_input(
+            "Catalog filter",
+            key="project_pypi_app_catalog_filter",
+            placeholder="weather",
+            help="Filter the promoted AGILAB app package catalog.",
+        )
+        catalog = _search_promoted_pypi_app_catalog(catalog_query)
+        catalog_options = ["", *catalog]
+        catalog_choice = st.selectbox(
+            "Catalog package",
+            options=catalog_options,
+            key="project_pypi_app_catalog_choice",
+        )
         raw_requirement = st.text_input(
             "Package",
             key="project_pypi_app_requirement",
             placeholder="agi-app-weather-forecast",
             help="Install one trusted agi-app-* package into the current AGILAB environment.",
         )
+        selected_requirement = str(raw_requirement or "").strip() or catalog_choice
         requirement = ""
-        if str(raw_requirement or "").strip():
+        if selected_requirement:
             try:
-                requirement = _normalize_pypi_app_requirement(raw_requirement)
+                requirement = _normalize_pypi_app_requirement(selected_requirement)
                 command = _pypi_app_install_command(requirement)
                 st.code(shlex.join(command), language="bash")
             except ValueError as exc:
                 st.warning(str(exc))
+
+        preflight_key = "project_pypi_app_preflight_payload"
+        check_clicked = st.button(
+            "Check PyPI app",
+            key="project_pypi_app_preflight",
+            disabled=not requirement,
+            width="stretch",
+        )
+        if check_clicked and requirement:
+            result = run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Check PyPI app",
+                    start_message=f"Checking {requirement}...",
+                    failure_title="PyPI app package preflight failed.",
+                    failure_next_action="Check the package name and PyPI availability.",
+                ),
+                lambda: _preflight_pypi_app_package(requirement),
+            )
+            st.session_state[preflight_key] = result.data
+
+        preflight_payload = st.session_state.get(preflight_key)
+        if isinstance(preflight_payload, dict):
+            payload_requirement = str(preflight_payload.get("requirement") or "")
+            if payload_requirement != requirement:
+                preflight_payload = None
+        _render_pypi_metadata_summary(preflight_payload if isinstance(preflight_payload, dict) else None)
 
         trusted = st.checkbox(
             "Reviewed package",
@@ -948,6 +1114,7 @@ def _render_pypi_app_install_action(env) -> None:
                 lambda: _install_pypi_app_package(requirement),
                 on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
             )
+        _render_installed_pypi_app_manager(env)
 
 
 def _repair_cloned_builtin_core_source_paths(

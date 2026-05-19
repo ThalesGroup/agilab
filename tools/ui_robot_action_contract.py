@@ -87,6 +87,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",
     ),
+    "Remove PyPI app": (
+        "trial-only",
+        "removes an installed external app package only after explicit user confirmation",
+    ),
     "Save .env": (
         "ignored",
         "writes local environment configuration and is covered by env-editor helper tests",
@@ -102,6 +106,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Undo last delete": (
         "trial-only",
         "stateful recovery action that appears only after selected delete-output flows",
+    ),
+    "Update PyPI app": (
+        "trial-only",
+        "updates an installed external app package only after explicit user confirmation",
     ),
     "Update key": (
         "ignored",

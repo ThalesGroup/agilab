@@ -109,6 +109,12 @@ def test_edge_selection_covers_empty_and_existing_path_branches(tmp_path: Path):
         "legacy_edges.json",
         [str(existing_edge_path)],
     ) == str(existing_edge_path)
+    fallback_edge_path = tmp_path / "fallback.gml"
+    fallback_edge_path.write_text("{}", encoding="utf-8")
+    assert edge_selection._preferred_recovery_candidate(
+        "legacy_edges.json",
+        [str(fallback_edge_path)],
+    ) == str(fallback_edge_path)
 
     direct_state = edge_selection.resolve_edges_picker_state(
         str(existing_edge_path),
@@ -124,6 +130,26 @@ def test_edge_selection_covers_empty_and_existing_path_branches(tmp_path: Path):
     assert existing_custom_state.choice == edge_selection.CUSTOM_OPTION
     assert existing_custom_state.custom_value == str(existing_edge_path)
     assert existing_custom_state.edges_clean == str(existing_edge_path)
+
+    preserved_existing_custom = edge_selection.resolve_edges_picker_state(
+        str(existing_edge_path),
+        [],
+        current_choice="stale-choice",
+        current_custom="typed/path.json",
+    )
+    assert preserved_existing_custom.choice == edge_selection.CUSTOM_OPTION
+    assert preserved_existing_custom.custom_value == "typed/path.json"
+    assert preserved_existing_custom.edges_clean == "typed/path.json"
+
+    preserved_missing_custom = edge_selection.resolve_edges_picker_state(
+        "/missing/custom/topology.json",
+        [],
+        current_choice="stale-choice",
+        current_custom="typed/missing.json",
+    )
+    assert preserved_missing_custom.choice == edge_selection.CUSTOM_OPTION
+    assert preserved_missing_custom.custom_value == "typed/missing.json"
+    assert preserved_missing_custom.edges_clean == "typed/missing.json"
 
 
 def test_edge_selection_path_exists_handles_filesystem_exceptions(monkeypatch):

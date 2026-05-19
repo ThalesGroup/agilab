@@ -395,7 +395,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
-    commands: list[tuple[str, str]] = []
+    commands: list[tuple[object, str]] = []
     port_checks = iter([False, True])
 
     class _FakeProcess:
@@ -416,7 +416,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
 
-    def _fake_exec_bg(_env, cmd: str, cwd: str, process_env=None):
+    def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
         commands.append((cmd, cwd))
         return _FakeProcess()
 
@@ -426,12 +426,18 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
 
     assert len(commands) == 1
     command, cwd = commands[0]
+    assert isinstance(command, list)
     assert cwd == str(project_root.resolve())
-    assert "jupyter lab --no-browser" in command
+    assert command[:3] == ["uv", "--quiet", "--preview-features"]
+    assert command[command.index("--project") + 1] == str(project_root.resolve())
+    assert f"--ServerApp.root_dir={project_root.resolve()}" in command
+    assert "jupyter" in command
+    assert "lab" in command
+    assert "--no-browser" in command
     assert str(notebook_path.resolve()) not in command
-    assert "--ServerApp.root_dir=" in command
-    assert "--ServerApp.tornado_settings=" in command
-    assert "frame-ancestors *;" in command
+    assert any(part.startswith("--ServerApp.tornado_settings=") for part in command)
+    assert any("frame-ancestors *;" in part for part in command)
+    assert not any("'" in part for part in command)
 
 
 def test_source_bootstrap_stamp_invalidates_when_core_path_changes(tmp_path: Path):
@@ -473,7 +479,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     module._write_page_sync_stamp(project_root)
     module._write_source_bootstrap_stamp(project_root, core_root)
 
-    commands: list[tuple[str, str]] = []
+    commands: list[tuple[object, str]] = []
     port_checks = iter([False, True])
 
     class _FakeProcess:
@@ -503,7 +509,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
 
-    def _fake_exec_bg(_env, cmd: str, cwd: str, process_env=None):
+    def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
         commands.append((cmd, cwd))
         return _FakeProcess()
 
@@ -513,11 +519,17 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
 
     assert len(commands) == 1
     command, cwd = commands[0]
+    assert isinstance(command, list)
     assert cwd == str(project_root.resolve())
-    assert "streamlit run" in command
+    assert "streamlit" in command
+    assert "run" in command
+    assert str(view_path) in command
+    assert "--active-app" in command
+    assert "flight_project" in command
     assert "sync" not in command
     assert "ensurepip" not in command
-    assert "pip install" not in command
+    assert "pip" not in command
+    assert not any("'" in part for part in command)
 
 
 def test_resolve_default_view_accepts_named_view(tmp_path: Path):
