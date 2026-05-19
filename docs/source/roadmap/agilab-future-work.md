@@ -224,9 +224,15 @@ Concrete items:
   snapshot, environment lock, artifact hashes, notebook import/export manifest,
   optional MLflow references, policy checks, and verifier results as one
   portable audit surface
+- define the lifecycle around that contract: build, test, version, compare,
+  promote, roll back, and archive evidence bundles with stable hashes and
+  explicit compatibility metadata
 - derive a graph-shaped evidence view that links claims, code, data, models,
   environments, runs, notebooks, artifacts, cards, MLflow handoff, and
   publication targets without requiring an external graph service by default
+- support reviewer-oriented evidence queries such as unsupported claims, stale
+  data sources, changed dependencies, policy failures, missing cards, and
+  baseline-vs-candidate deltas
 - keep MLflow integration focused on tracking, artifacts, model registry
   handoff, and comparison rather than replacing AGILab execution
 - define promotion-ready evidence bundles for apps, imported notebooks, and
@@ -251,11 +257,34 @@ Evidence Core roadmap:
   `publication`
 - generate deterministic JSON, JSON-LD, or GraphML exports from proof-pack
   evidence so reviewers can inspect lineage and audit claims outside the UI
+- include source manifests, schema or ontology mappings, evidence policies,
+  card metadata, reducer summaries, connector provenance, and imported-notebook
+  metadata when the originating app can provide them
 - design inspection and verification surfaces around the existing proof commands
   instead of adding a second execution runtime
+- make the lifecycle explicit in CLI and UI language: a bundle can be built,
+  checked, diffed, promoted, archived, or rejected without implying production
+  certification
 - keep the baseline local-first and file-based; graph databases, vector indexes,
   message buses, or workflow-control services should remain optional adapters
   until the portable evidence contract is stable
+
+Context-engineering gaps to close:
+
+- reusable workflow blueprints that capture stages, runtime parameters,
+  prompt/tool settings, connector requirements, expected artifacts, evidence
+  outputs, and smoke-test expectations
+- versioned prompt, tool, and agent configuration manifests that can be reviewed
+  and replayed with the same rigor as app code
+- schema and ontology mapping hooks for apps that transform unstructured or
+  semi-structured data into reviewable evidence, while keeping domain-specific
+  extraction optional
+- lightweight deployment or run-profile generation that writes the commands,
+  environment assumptions, and validation plan for local, notebook, cluster,
+  service, or demo runs without becoming a Kubernetes platform
+- observability-lite evidence for execution latency, failure source, queue or
+  worker backlog, artifact volume, token/cost metrics when an LLM is involved,
+  and service-health state when a long-running service is used
 
 Remaining state-of-the-art scope:
 
@@ -300,8 +329,13 @@ Concrete items:
 
 - keep public APIs, app templates, page metadata, connector models, reducer
   contracts, and workflow stage contracts explicit and tested
+- add flow blueprint contracts for reusable workflow presets, including the
+  app/page inputs, parameter schema, prompt/tool configuration, connector
+  requirements, expected artifacts, and evidence smoke
 - use design patterns to separate UI, orchestration, runtime execution,
   artifacts, and evidence generation
+- keep prompts, agent tools, MCP-style connectors, and runtime-tunable settings
+  versioned and reviewable instead of hidden in page state
 - add pattern-gated checks before new workflow or notebook-import behavior can
   bypass existing contracts
 - keep strict typing and focused tests on shared helpers that affect many apps
@@ -467,9 +501,13 @@ Acceptance gate:
 
 - run evidence, release decisions, compatibility reports, run diff, artifact
   provenance, and supply-chain evidence share stable schemas
+- evidence bundle lifecycle actions are explicit: build, verify, diff, promote,
+  archive, reject, and roll back
 - evidence bundles expose a graph-shaped index that links the run manifest,
   artifacts, notebook exports, optional MLflow references, policy results,
   cards, and human-readable claims
+- schema/ontology mappings and source manifests are captured when an app creates
+  derived evidence from structured, semi-structured, or unstructured inputs
 - evidence bundles can be consumed outside AGILab by reviewers, CI, MLflow, or
   platform teams
 - external graph, vector, streaming, or workflow-control infrastructure remains
@@ -505,6 +543,8 @@ Acceptance gate:
 
 - public app templates, page metadata, pipeline stages, notebook import roles,
   reducers, connectors, and evidence reports have focused tests
+- flow blueprints can be validated without launching the full UI, and they name
+  their prompts, tools, connectors, expected artifacts, and evidence reports
 - pattern-gated checks block new workflow behavior that bypasses the shared
   contracts
 - deprecations include a migration path and removal target
@@ -561,6 +601,11 @@ Acceptance gate:
 - MLflow remains the tracking and registry handoff path
 - OpenSearch/Grafana/Superset-style integrations consume AGILab evidence and
   telemetry instead of duplicating app logic
+- AGILab first emits a small, stable telemetry envelope for run latency, failure
+  source, worker backlog, artifact volume, LLM token/cost metrics when present,
+  and service-health state before adding dashboards
+- profile generators can write local, notebook, cluster, service, and demo run
+  instructions with expected validation commands and evidence outputs
 - production serving, drift detection, feature stores, and enterprise
   governance are framed as external platform integrations
 
@@ -576,6 +621,10 @@ Why later:
 - production multi-tenant claims without external identity, isolation, quotas,
   secrets management, audit, and monitoring controls
 - generic dashboards that are not tied to AGILab runs, artifacts, or decisions
+- always-on graph/vector/message-bus services as a requirement for local proof
+  generation before the file-based evidence contract is stable
+- runtime prompt/tool mutation without a versioned manifest, review trail, and
+  replay evidence
 - new app publishing when the app lacks a clear purpose, deterministic first
   run, README, evidence, and package metadata
 
