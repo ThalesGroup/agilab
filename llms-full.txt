@@ -1,0 +1,115 @@
+# AGILAB Agent Skills Full Index
+
+This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper discovery.
+
+## Compatibility
+
+- Standard: Agent Skills style `SKILL.md` folders
+- Works with: Codex, Claude Code, Aider, OpenCode
+- Maintenance: `tools/skill_security_scan.py`, `tools/codex_skills.py`, and `tools/agent_skill_catalog.py`
+
+## Skills
+
+- advanced-svg-system-design: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure. (.claude/skills/advanced-svg-system-design/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Advanced SVG System Design ## Overview Use this skill when a project needs more than SVG cleanup. Focus on building a durable diagram system: layout rules, reusable components,
+- agilab-code-statistics: Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds. (.claude/skills/agilab-code-statistics/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-04-29
+  preview: # AGILAB Code Statistics Use this skill to answer code-statistics questions quickly and reproducibly. Default to tracked files only, so ignored caches, virtualenvs, local datasets, generated docs output, and untracked scratch files do not distort the numbers.
+- agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
+- agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-07
+  preview: # AGILAB Example Maturity ## Goal Raise AGILAB packaged examples from internal smoke snippets to external-beta examples: readable, deterministic, copy/paste safe, aligned with docs, and
+- agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-17
+  preview: # Hugging Face Spaces Skill (AGILAB) Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space. The current source of truth is the sibling apps/docs checkout, normally `../thales_agilab` relative to the public `agilab` checkout:
+- agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
+- agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-09
+  preview: # Local LLM Skill (AGILAB) Use this skill when working on local/offline engines or prompts. ## Correctness-First Defaults - Prefer deterministic settings for code edits (lower temperature, explicit constraints).
+- agilab-product-reels: Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging. (.claude/skills/agilab-product-reels/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-07
+  preview: # Product Reels Skill (AGILAB) Use this skill when the user wants a short AGILAB teaser, technical benchmark reel, live-demo plan, or YouTube-ready demo package. ## Pick The Right Demo Type
+- agilab-pypi-release-maintenance: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item. (.claude/skills/agilab-pypi-release-maintenance/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # AGILAB PyPI Release Maintenance Use this skill only for AGILAB PyPI release cleanup and retention work. PyPI release deletion is destructive and cannot be undone from the repository. ## Scope
+- agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # AGILAB Release Verification Use this skill for release readiness, release execution checks, and post-release alignment. Its purpose is to prevent stale plans and false "all good" answers by checking the current code, current workflows, and public surfaces before making
+- agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
+- agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-16
+  preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
+- agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-19
+  preview: # Testing Skill (AGILAB) Use this skill when validating changes. ## Philosophy - For non-trivial diffs, start with
+- agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-18
+  preview: # AGILAB UI Robot Validation Use this skill when a change affects user-visible Streamlit behavior, page navigation, sidebar actions, wizard links, notebook import/upload flows, UI screenshots, or public demo evidence.
+- chat-export: Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling. (.claude/skills/chat-export/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Chat Export ## Overview Use this skill to turn a chat transcript into a reusable artifact with stable structure. Prefer the bundled script for file-based exports and repeated transformations.
+- codex-session-learning: Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory. (.claude/skills/codex-session-learning/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-04-16
+  preview: # Codex Session Learning Use this skill to convert prior Codex work into explicit reusable assets. The goal is not to pretend the agent has hidden long-term memory. The goal is to extract structured cases, reusable prompt patterns, and validation rules from
+- docs-publish-github-pages: Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end. (.claude/skills/docs-publish-github-pages/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Docs Publish GitHub Pages ## Overview Use this skill for GitHub Pages documentation pipelines. Focus on trigger logic, deploy behavior, version visibility, and what is actually published.
+- docx-figure-sync: Replace or update embedded figures in DOCX reports while preserving placement, sizing, and nearby captions. Use this skill when a user wants a figure updated inside a Word document, wants SVG/PNG media replaced without rebuilding the whole document manually, or needs related PDF regeneration only when explicitly requested. (.claude/skills/docx-figure-sync/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # DOCX Figure Sync ## Overview Use this skill for deterministic figure replacement inside existing DOCX reports. Prefer the surrounding document layout over ad hoc copy-paste.
+- notebook-to-agilab-project: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view. (.claude/skills/notebook-to-agilab-project/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-16
+  preview: # Notebook To AGILAB Project Use this skill when the source material is a small set of local notebooks and the goal is to turn them into an AGILAB-style workflow rather than keep a notebook-only delivery.
+- pipeline-concept-view: Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_stages.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page. (.claude/skills/pipeline-concept-view/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Workflow Concept View ## Overview Use this skill to separate semantic architecture from execution mechanics. The generic WORKFLOW page stays app-agnostic; the app contributes its own conceptual
+- plan-before-code: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out. (.claude/skills/plan-before-code/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-06
+  preview: # Plan Before Code Use this skill to force a planning pass before coding. The goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits, and catch bad assumptions before touching files.
+- repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-06
+  preview: # Repo Skill Maintenance Use this skill when working on the shared skill trees in `agilab`. The goal is to keep one canonical source for shared skills, keep the repo Codex mirror valid, and avoid the accidental bulk-sync regressions that can overwrite
+- report-qa-docx: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery. (.claude/skills/report-qa-docx/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Report QA DOCX ## Overview Use this skill for a pragmatic QA pass on report-style DOCX files. Focus on structural defects, wording drift, and figure/caption consistency.
+- scientific-svg-figures: Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter. (.claude/skills/scientific-svg-figures/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-04-15
+  preview: # Scientific SVG Figures Use this skill for technical figures that must explain a system, method, experiment, or result clearly at publication size. If the request is only a tiny readability fix on one existing SVG, use `svg-diagram-tuning` instead. If the work is about a whole reusable visual language across many diagrams, use `advanced-svg-system-design`. ## Quick Start
+- slides: Create and edit presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying slide content while preserving editable output, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution. (.claude/skills/slides/SKILL.md)
+  license: Apache-2.0 (see bundled LICENSE.txt)
+  preview: # Slides ## Overview Use PptxGenJS for slide authoring. Do not use `python-pptx` for deck generation unless the task is inspection-only; keep editable output in JavaScript and deliver both the `.pptx` and the source `.js`. Keep work in a task-local directory. Only copy final artifacts to the requested destination after rendering and validation pass.
+- slides-docx-align: Align a slide deck with a DOCX report while preserving each artifact’s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version. (.claude/skills/slides-docx-align/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # Slides DOCX Align ## Overview Use this skill when a report and a slide deck have drifted apart. Keep the deck usable while making the report and slides say the same thing.
+- svg-diagram-tuning: Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch. (.claude/skills/svg-diagram-tuning/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  preview: # SVG Diagram Tuning ## Overview Use this skill to improve an existing SVG diagram without changing its meaning. Focus on readability first: text, spacing, arrows, and visual hierarchy.
+- svg-diagrams: Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow. (.claude/skills/svg-diagrams/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-04-09
+  preview: # SVG diagrams Use this skill when creating or editing standalone SVG assets in the repo. ## Default workflow 1. Start from a fixed `viewBox` and explicit box geometry.

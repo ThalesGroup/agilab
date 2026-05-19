@@ -293,6 +293,17 @@ def test_skills_shortcut_syncs_then_validates_and_generates():
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
+        ["python3", "tools/agent_skill_catalog.py", "--apply"],
+        ["python3", "tools/generate_skill_badges.py"],
+        [
+            "python3",
+            "tools/skill_security_scan.py",
+            "--roots",
+            ".claude/skills",
+            ".codex/skills",
+            "--fail-on",
+            "critical",
+        ],
     ]
 
 

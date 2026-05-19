@@ -11,6 +11,7 @@ DOCS_SOURCE_GUARD_WORKFLOW_PATH = Path(".github/workflows/docs-source-guard.yaml
 DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
 ENSURE_ROADMAP_LABEL_WORKFLOW_PATH = Path(".github/workflows/ensure-roadmap-label.yaml")
 UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
+AGENT_SKILLS_SECURITY_WORKFLOW_PATH = Path(".github/workflows/agent-skills-security.yaml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
 
@@ -19,6 +20,7 @@ VALIDATION_WORKFLOW_PATHS = (
     COVERAGE_WORKFLOW_PATH,
     DOCS_SOURCE_GUARD_WORKFLOW_PATH,
     ENSURE_ROADMAP_LABEL_WORKFLOW_PATH,
+    AGENT_SKILLS_SECURITY_WORKFLOW_PATH,
 )
 
 VALIDATION_CONCURRENCY_GROUP = (
@@ -263,6 +265,23 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--summary-markdown test-results/ui-robot-matrix-aggregate/summary.md" in text
     assert "ui-robot-matrix-aggregate-${{ github.run_attempt }}" in text
     assert "AGILAB_DISABLE_BACKGROUND_SERVICES: \"1\"" in text
+
+
+def test_agent_skills_security_workflow_scans_changed_skill_dirs_only() -> None:
+    text = AGENT_SKILLS_SECURITY_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "name: agent-skills-security" in text
+    assert ".claude/skills/**" in text
+    assert ".codex/skills/**" in text
+    assert "Detect changed skill directories" in text
+    assert "git diff --name-only --diff-filter=ACMR" in text
+    assert "awk -F/" in text
+    assert "Scan changed skills" in text
+    assert "tools/skill_security_scan.py" in text
+    assert "--fail-on critical" in text
+    assert "--skill-dir" in text
+    assert "Prepare no-op scan report" in text
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
 
 
 def test_ui_robot_matrix_workflow_command_matches_local_workflow_parity() -> None:

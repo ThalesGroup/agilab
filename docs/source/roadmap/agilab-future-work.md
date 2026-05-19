@@ -311,6 +311,35 @@ Remaining state-of-the-art scope:
 - enterprise controls for shared deployments: secrets backend integration,
   authentication, RBAC, audit logs, and tenant isolation
 
+Agent skills and resource evidence hardening:
+
+- keep the public agent discovery surface generated from the repo-managed skill
+  source of truth: `AGENT_SKILLS.md`, `llms.txt`, `llms-full.txt`, and the
+  `Skills` / `Standard` / `Works with` badges must remain generated artifacts,
+  not hand-maintained marketing copy
+- add explicit compatibility metadata to each repo-managed skill: supported
+  agents, required tools, write/network/subprocess expectations, local service
+  assumptions, secret/environment requirements, and expected evidence outputs
+- close the current skill-scan hygiene gaps by replacing private absolute paths
+  with placeholders and by documenting deliberate network or environment access
+  in skill metadata rather than leaving it implicit in instructions
+- mature the skill security scanner from a deterministic local guard into a
+  review surface: baseline or allow-list support, SARIF output, sticky PR
+  comments, severity policy, and optional comparison with external agent-skill
+  scanners before enforcing stronger gates
+- attach a `resource_snapshot.json` to agent runs, first-proof runs, heavy page
+  proofs, and release evidence when resource state explains scheduling,
+  reproducibility, or performance choices
+- feed resource snapshots and cluster inventory into scheduler recommendations
+  and future autoscale decisions, while keeping autoscale behavior explicit and
+  auditable rather than silently changing execution topology
+- extend `agilab agent-run` evidence so skill identity, skill version, resource
+  snapshot, permission decisions, changed files, command timeline, and resulting
+  proof artifacts can be replayed or reviewed together
+- publish agent-surface validation as release evidence: generated catalogs,
+  badge freshness, changed-skill scan reports, and resource snapshot checks
+  should be archived alongside SBOM, `pip-audit`, hashes, and provenance
+
 Done means:
 
 - an experiment can be reviewed, compared, promoted, or rejected from evidence
