@@ -69,6 +69,9 @@ EVIDENCE_SCHEMA = "agilab.pytorch_playground_evidence.v1"
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 CUSTOM_PRESET = "Custom / shared link"
 DEFAULT_PRESET = "Instant wow: clean circles"
+TRAINED_CONFIG_STATE_KEY = "pytorch_playground_trained_config"
+TRAINED_PRESET_STATE_KEY = "pytorch_playground_trained_preset"
+SHARED_CONFIG_SIGNATURE_STATE_KEY = "pytorch_playground_shared_signature"
 
 
 @dataclass(frozen=True)
@@ -303,6 +306,56 @@ def _preset_story(label: str, shared_config: PlaygroundConfig | None = None) -> 
     if label == CUSTOM_PRESET and shared_config is not None:
         return "Loaded from the URL token. Adjust any control to fork the experiment."
     return PRESET_STORIES.get(label, PRESET_STORIES[CUSTOM_PRESET])
+
+
+def _config_state_payload(config: PlaygroundConfig) -> dict[str, Any]:
+    return _config_payload(config)["config"]
+
+
+def _config_signature(config: PlaygroundConfig) -> str:
+    return json.dumps(_config_state_payload(config), sort_keys=True, separators=(",", ":"))
+
+
+def _session_state_get(key: str, default: Any = None) -> Any:
+    state = getattr(st, "session_state", None)
+    if state is None:
+        return default
+    try:
+        return state.get(key, default)
+    except AttributeError:
+        try:
+            return state[key]
+        except KeyError:
+            return default
+
+
+def _session_state_set(key: str, value: Any) -> None:
+    state = getattr(st, "session_state", None)
+    if state is not None:
+        state[key] = value
+
+
+def _resolve_trained_config(
+    current_config: PlaygroundConfig,
+    preset_label: str,
+    *,
+    train_requested: bool,
+    force_refresh: bool = False,
+) -> tuple[PlaygroundConfig, str, bool]:
+    stored_payload = _session_state_get(TRAINED_CONFIG_STATE_KEY)
+    if stored_payload is None or train_requested or force_refresh:
+        _session_state_set(TRAINED_CONFIG_STATE_KEY, _config_state_payload(current_config))
+        _session_state_set(TRAINED_PRESET_STATE_KEY, preset_label)
+        return current_config, preset_label, False
+
+    if not isinstance(stored_payload, Mapping):
+        stored_payload = _config_state_payload(current_config)
+        _session_state_set(TRAINED_CONFIG_STATE_KEY, stored_payload)
+        _session_state_set(TRAINED_PRESET_STATE_KEY, preset_label)
+
+    trained_config = _config_from_payload({"config": stored_payload})
+    trained_preset = str(_session_state_get(TRAINED_PRESET_STATE_KEY, preset_label))
+    return trained_config, trained_preset, _config_signature(current_config) != _config_signature(trained_config)
 
 
 def _make_dataset(config: PlaygroundConfig) -> pd.DataFrame:
@@ -1062,6 +1115,54 @@ def _render_page_styles() -> None:
 .agilab-pt-section span {
   color: #94a3b8;
 }
+.agilab-pt-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.6rem 0 1rem;
+}
+.agilab-pt-step {
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 18px;
+  padding: 0.85rem 0.9rem;
+  background: rgba(15, 23, 42, 0.58);
+}
+.agilab-pt-step-active {
+  border-color: rgba(251, 191, 36, 0.64);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.55), rgba(15, 23, 42, 0.62));
+}
+.agilab-pt-step-ready {
+  border-color: rgba(34, 197, 94, 0.46);
+}
+.agilab-pt-step strong {
+  color: #f8fafc;
+  display: block;
+}
+.agilab-pt-step span {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+.agilab-pt-insight {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 18px;
+  padding: 0.9rem;
+  background: rgba(8, 13, 26, 0.66);
+  min-height: 7rem;
+}
+.agilab-pt-insight strong {
+  color: #e0f2fe;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.agilab-pt-insight span {
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+@media (max-width: 860px) {
+  .agilab-pt-guide {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
 """,
         unsafe_allow_html=True,
@@ -1119,6 +1220,77 @@ def _metric_card(label: str, value: str, note: str) -> str:
         f'<div class="agilab-pt-note">{html.escape(note)}</div>'
         "</div>"
     )
+
+
+def _guide_step(title: str, text: str, css_class: str) -> str:
+    return (
+        f'<div class="agilab-pt-step {html.escape(css_class)}">'
+        f"<strong>{html.escape(title)}</strong>"
+        f"<span>{html.escape(text)}</span>"
+        "</div>"
+    )
+
+
+def _render_guided_flow(*, pending_changes: bool, result_status: str) -> None:
+    first_class = "agilab-pt-step-active" if pending_changes else "agilab-pt-step-ready"
+    first_text = "Controls changed. Press Train / refresh to update charts." if pending_changes else "Run evidence matches the current charts."
+    second_class = "agilab-pt-step-ready" if result_status == "ok" else ""
+    third_class = "agilab-pt-step-ready" if result_status == "ok" and not pending_changes else ""
+    st.markdown(
+        '<div class="agilab-pt-guide">'
+        + _guide_step("1. Train", first_text, first_class)
+        + _guide_step("2. Inspect", "Read the boundary, curves, neurons, and terrain.", second_class)
+        + _guide_step("3. Reuse", "Download evidence or share the replay token.", third_class)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _performance_band(summary: Mapping[str, Any]) -> tuple[str, str]:
+    validation_accuracy = float(summary.get("validation_accuracy", 0.0) or 0.0)
+    if validation_accuracy >= 0.9:
+        return "Strong fit", "Validation accuracy is high enough for a clean visual demo."
+    if validation_accuracy >= 0.75:
+        return "Learning visible", "The model has learned structure; tune capacity or features to sharpen it."
+    return "Still searching", "Try a stronger preset, more epochs, or more informative features."
+
+
+def _gap_band(summary: Mapping[str, Any]) -> tuple[str, str]:
+    gap = _generalization_gap(summary)
+    if gap <= 0.05:
+        return "Generalizes well", "Train and validation accuracy stay close."
+    if gap <= 0.15:
+        return "Watch the gap", "There is mild overfit; reduce capacity or increase data/noise realism."
+    return "Likely overfit", "Training is ahead of validation; prefer simpler layers or more data."
+
+
+def _confidence_band(grid: pd.DataFrame) -> tuple[str, str]:
+    confidence = _confidence_score(grid)
+    if confidence >= 0.65:
+        return "Decisive boundary", "Most grid cells are far from the 0.5 indecision frontier."
+    if confidence >= 0.35:
+        return "Boundary forming", "The surface is readable but still uncertain around several regions."
+    return "Soft boundary", "The network is unsure; inspect features, epochs, and hidden-layer capacity."
+
+
+def _render_interpretation_cards(result: Mapping[str, Any]) -> None:
+    summary = result.get("summary", {})
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    cards = [
+        _performance_band(summary),
+        _gap_band(summary),
+        _confidence_band(grid),
+    ]
+    columns = st.columns(3)
+    for column, (title, text) in zip(columns, cards, strict=False):
+        with column:
+            st.markdown(
+                '<div class="agilab-pt-insight">'
+                f"<strong>{html.escape(title)}</strong>"
+                f"<span>{html.escape(text)}</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
@@ -1498,6 +1670,9 @@ def main() -> None:
         batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
         grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
         seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
+        st.markdown("### Run")
+        train_requested = st.button("Train / refresh", type="primary", width="stretch")
+        st.caption("Controls are staged. Charts and evidence update only when you train.")
 
     try:
         hidden_layers = _parse_hidden_layers(hidden_raw)
@@ -1520,13 +1695,31 @@ def main() -> None:
         feature_names=tuple(feature_names or DEFAULT_FEATURES),
         grid_size=grid_size,
     )
-    config_dict = asdict(config)
-    result = _cached_train(config_dict)
-    _render_hero(active_app, preset_label, config)
+    shared_signature = _config_signature(shared_config) if shared_config is not None else ""
+    previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
+    force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
+    _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
+    trained_config, trained_preset, pending_changes = _resolve_trained_config(
+        config,
+        preset_label,
+        train_requested=train_requested,
+        force_refresh=force_shared_refresh,
+    )
+    trained_config_dict = asdict(trained_config)
+    result = _cached_train(trained_config_dict)
+    with st.sidebar:
+        st.caption(f"Charts show: {trained_preset}")
+        if pending_changes:
+            st.warning("Pending changes. Press Train / refresh to update the run.")
+    _render_hero(active_app, trained_preset, trained_config)
     if result["status"] == "missing_torch":
         st.error(result["detail"])
+    if pending_changes:
+        st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
 
-    _render_summary(config, result)
+    _render_summary(trained_config, result)
+    _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
+    _render_interpretation_cards(result)
     landscape_result: dict[str, Any] = {
         "status": "not_computed",
         "detail": "",
@@ -1544,17 +1737,17 @@ def main() -> None:
         left, right = st.columns([2, 1])
         with left:
             st.plotly_chart(
-                _decision_figure(result["samples"], result["grid"], config.grid_size),
-                use_container_width=True,
+                _decision_figure(result["samples"], result["grid"], trained_config.grid_size),
+                width="stretch",
                 config={"displayModeBar": False},
             )
         with right:
             st.plotly_chart(
                 _history_figure(result["history"]),
-                use_container_width=True,
+                width="stretch",
                 config={"displayModeBar": False},
             )
-            st.dataframe(result["history"].tail(8), use_container_width=True, hide_index=True)
+            st.dataframe(result["history"].tail(8), width="stretch", hide_index=True)
 
     with activations_tab:
         network_layers = _result_frame(result, "network_layers", _empty_network_layers())
@@ -1563,8 +1756,8 @@ def main() -> None:
             "Network internals",
             "Compare layer weight magnitudes, then inspect one hidden neuron activation map at a time.",
         )
-        st.plotly_chart(_network_figure(network_layers), use_container_width=True, config={"displayModeBar": False})
-        st.dataframe(network_layers, use_container_width=True, hide_index=True)
+        st.plotly_chart(_network_figure(network_layers), width="stretch", config={"displayModeBar": False})
+        st.dataframe(network_layers, width="stretch", hide_index=True)
         if activation_maps.empty:
             st.info("Hidden activation maps are available after a PyTorch run with at least one hidden layer.")
         else:
@@ -1581,7 +1774,7 @@ def main() -> None:
             with chart_area:
                 st.plotly_chart(
                     _activation_figure(activation_maps, selected_layer, selected_neuron),
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
 
@@ -1598,7 +1791,7 @@ def main() -> None:
         if result["status"] != "ok":
             st.info("Loss landscape is available after a successful PyTorch run.")
         elif compute_landscape:
-            landscape_result = _cached_loss_landscape(config_dict, int(landscape_resolution), float(landscape_span))
+            landscape_result = _cached_loss_landscape(trained_config_dict, int(landscape_resolution), float(landscape_span))
             landscape = _result_frame(landscape_result, "loss_landscape", _empty_loss_landscape())
             summary = landscape_result.get("landscape_summary", _loss_landscape_summary(landscape))
             with controls:
@@ -1608,10 +1801,10 @@ def main() -> None:
             with chart_area:
                 st.plotly_chart(
                     _loss_landscape_figure(landscape),
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
-                st.dataframe(landscape.sort_values("validation_loss").head(8), use_container_width=True, hide_index=True)
+                st.dataframe(landscape.sort_values("validation_loss").head(8), width="stretch", hide_index=True)
         else:
             st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
 
@@ -1625,14 +1818,14 @@ def main() -> None:
         if not landscape.empty:
             evidence_result["loss_landscape"] = landscape
             evidence_result["landscape_summary"] = landscape_result.get("landscape_summary", _loss_landscape_summary(landscape))
-        manifest = _build_evidence_manifest(config, evidence_result)
+        manifest = _build_evidence_manifest(trained_config, evidence_result)
         st.download_button(
             "Download evidence pack",
-            data=_build_evidence_pack(config, evidence_result),
+            data=_build_evidence_pack(trained_config, evidence_result),
             file_name="pytorch_playground_evidence.zip",
             mime="application/zip",
         )
-        st.code(f"?pytorch_playground={_encode_share_config(config)}", language="text")
+        st.code(f"?pytorch_playground={_encode_share_config(trained_config)}", language="text")
         st.json(manifest)
 
 

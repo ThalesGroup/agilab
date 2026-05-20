@@ -144,6 +144,42 @@ def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
     assert module._preset_config(module.CUSTOM_PRESET, config) == config
     assert "URL token" in module._preset_story(module.CUSTOM_PRESET, config)
     assert module._safe_key_fragment("Hard mode: spiral") == "hard_mode_spiral"
+    assert module._config_state_payload(config)["hidden_layers"] == [16, 8]
+    assert module._config_signature(config) == module._config_signature(decoded)
+
+
+def test_pytorch_playground_training_state_stages_control_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(module, "st", fake_st)
+    first = module.PlaygroundConfig(dataset="circles", seed=1)
+    second = module.PlaygroundConfig(dataset="spiral", seed=2)
+
+    trained, preset, pending = module._resolve_trained_config(
+        first,
+        module.DEFAULT_PRESET,
+        train_requested=False,
+    )
+    assert trained == first
+    assert preset == module.DEFAULT_PRESET
+    assert pending is False
+
+    trained, _preset, pending = module._resolve_trained_config(
+        second,
+        "Hard mode: spiral",
+        train_requested=False,
+    )
+    assert trained == first
+    assert pending is True
+
+    trained, preset, pending = module._resolve_trained_config(
+        second,
+        "Hard mode: spiral",
+        train_requested=True,
+    )
+    assert trained == second
+    assert preset == "Hard mode: spiral"
+    assert pending is False
 
 
 def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -615,11 +651,13 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
     class FakeStreamlit:
         def __init__(self, *, hidden_raw: str = "8,8", checkbox: bool = False):
             self.query_params = {}
+            self.session_state: dict[str, object] = {}
             self.sidebar = FakeContext()
             self.hidden_raw = hidden_raw
             self.checkbox_value = checkbox
             self.errors: list[str] = []
             self.infos: list[str] = []
+            self.warnings: list[str] = []
             self.downloads: list[bytes] = []
             self.json_payloads: list[dict[str, object]] = []
 
@@ -637,6 +675,9 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
 
         def error(self, message, **_kwargs):
             self.errors.append(str(message))
+
+        def warning(self, message, **_kwargs):
+            self.warnings.append(str(message))
 
         def stop(self):
             raise StopRender()
@@ -665,6 +706,9 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
 
         def checkbox(self, *_args, **_kwargs):
             return self.checkbox_value
+
+        def button(self, *_args, **_kwargs):
+            return False
 
         def plotly_chart(self, *_args, **_kwargs):
             return None
@@ -753,6 +797,7 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
     class FakeStreamlit:
         def __init__(self):
             self.query_params = {}
+            self.session_state: dict[str, object] = {}
             self.sidebar = FakeContext()
             self.downloads: list[bytes] = []
             self.json_payloads: list[dict[str, object]] = []
@@ -770,6 +815,9 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
             return None
 
         def error(self, *_args, **_kwargs):
+            return None
+
+        def warning(self, *_args, **_kwargs):
             return None
 
         def stop(self):
@@ -799,6 +847,9 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
 
         def checkbox(self, *_args, **_kwargs):
             return True
+
+        def button(self, *_args, **_kwargs):
+            return False
 
         def plotly_chart(self, *_args, **_kwargs):
             return None
