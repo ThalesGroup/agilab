@@ -143,7 +143,7 @@ preflight checks and explicit role review. Notebook export takes an AGILAB
 WORKFLOW pipeline and writes a runnable ``agi-core`` notebook that preserves
 the saved stage contract. Import helps you enter AGILAB; export helps you leave
 the UI or hand off the work without losing it, while still running on the
-stable, production-grade core technology.
+stable core runtime.
 
 Packages, apps, and release evidence
 ------------------------------------

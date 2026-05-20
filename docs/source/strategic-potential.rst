@@ -49,44 +49,44 @@ production stack a team already trusts. AGILAB supports that goal at the
 workbench layer: repeatable setup, controlled execution, artifacts, evidence,
 and handoff.
 
-Audit scorecard
----------------
+Evidence scorecard
+------------------
 
 .. list-table::
    :header-rows: 1
    :widths: 28 16 56
 
    * - Dimension
-     - Audit score
+     - Evidence status
      - Rationale
    * - Open-source community fit
-     - ``4.3 / 5``
+     - Strong
      - Strong fit when AGILAB is framed as a reusable workbench that helps
        practitioners turn experiments into reproducible, reviewable,
        transferable workflows without forcing a specific production platform.
    * - Unique value
-     - ``4.0 / 5``
+     - Strong
      - Differentiation is strongest around ``run orchestration + evidence +
        reproducibility``. Generic dashboards, production serving, and model
        registry functions are not the core wedge.
    * - Enabler power
-     - ``4.0 / 5``
+     - Strong
      - AGILAB standardizes the path from notebook/script to controlled
        execution, artifacts, analysis, and portable handoff. The workflow is
        valuable because users keep their work even if they later leave the
        AGILAB UI or distributed runtime.
    * - Readiness and maturity
-     - ``3.1 / 5``
+     - Maturing
      - Local and distributed execution evidence exists, but UI routes,
        integrations, fresh-machine validation, and operational polish still
        need continued hardening.
    * - Enterprise-critical deployment readiness
-     - ``2.6 / 5``
+     - Handoff only
      - AGILAB is not safe as-is as the sole production MLOps control plane,
        regulated model-serving stack, governance layer, online monitor, or
        audit-trail owner.
    * - External proof and market signal
-     - ``2.5 / 5``
+     - Early public signal
      - Public PyPI, GitHub, release proof, provenance, and docs are useful
        signals, but broad external adoption and third-party validation are not
        yet established.
@@ -164,8 +164,8 @@ optimization examples can teach that shape, but they should not be described as
 certified decentralized MARL or critical-fleet validation until public evidence
 exists.
 
-Score movement rule
--------------------
+Score update criteria
+---------------------
 
 Do not raise the score because the wording is better. Raise it only when public
 evidence closes a listed gap.
@@ -209,6 +209,19 @@ Close these gaps before claiming a higher score:
 - evidence commands that no longer pass or no longer match documented claims
 - production-serving, governance, audit, or certification language not backed by
   shipped evidence
+
+Community validation wanted
+---------------------------
+
+The most useful community contributions are evidence-bearing validations:
+
+- fresh-machine first proofs on additional operating systems and Python
+  versions
+- cluster runs with explicit shared storage and documented network assumptions
+- notebook import/export round trips from real notebooks
+- app/page examples that use only public APIs and current project templates
+- security hardening reports for shared workstations, exposed UI routes, or
+  remote-worker setups
 
 Recommended positioning
 -----------------------
