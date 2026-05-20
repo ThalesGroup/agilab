@@ -22,9 +22,8 @@ please upgrade to the latest release before requesting a patch.
 - GitHub Issues, Discussions, pull requests, and README issue links are only for non-sensitive
   product bugs, support questions, and post-fix follow-up. They are not vulnerability intake
   channels.
-- If private reporting is not available to you, contact your usual Thales representative or submit
-  a request via <https://cpl.thalesgroup.com/fr/contact-us> and ask for a private AGILAB security
-  intake.
+- If private reporting is not available to you, ask the maintainers for a private
+  AGILAB security intake channel without sharing exploit details publicly.
 - Do not include exploit code, secrets, detailed proof-of-concept material, or sensitive logs in a
   public issue, pull request, discussion, or comment.
 - Include only non-sensitive routing details in the first contact:
@@ -36,8 +35,9 @@ please upgrade to the latest release before requesting a patch.
 - Public GitHub issues are only for non-sensitive post-fix advisories or follow-up after a private
   report has been triaged. They are not an initial vulnerability disclosure channel.
 
-We will acknowledge receipt within **two business days**. If you do not hear back, please resend your
-message or reach out through your usual Thales representative.
+We will acknowledge receipt within **two business days**. If you do not hear
+back, please resend your message through the same private channel or ask the
+maintainers for an alternate private contact route.
 
 ## Coordinated Disclosure
 
@@ -157,7 +157,7 @@ organization's security requirements in mind. At minimum:
   pages lag behind a published release, republish the documentation and re-run the docs-source guard
   before using the page as audit evidence.
 
-For end-to-end secure deployments or bespoke threat modelling, please engage your Thales security
-contact or submit a request via <https://cpl.thalesgroup.com/fr/contact-us>.
+For end-to-end secure deployments or bespoke threat modelling, engage the
+security team responsible for your deployment environment.
 
 Thanks for helping us keep AGILAB and its community secure.

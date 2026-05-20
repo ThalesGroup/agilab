@@ -63,7 +63,8 @@ the next lane.
 Do not use public GitHub issues, discussions, pull requests, or comments for
 suspected vulnerabilities. Follow `SECURITY.md` and use GitHub Private
 Vulnerability Reporting when available. If private reporting is unavailable,
-request a private AGILAB security intake through your usual Thales contact.
+request a private AGILAB security intake through a maintainer contact or
+another private channel listed by the project.
 
 Before moving from a single-user proof to a shared workstation, internal
 cluster, public UI, external apps repository, or sensitive data, archive a

@@ -43,8 +43,8 @@ AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
 It turns notebooks and scripts into executable, portable, evidence-backed apps
 while preserving a notebook export path.
 That export is an `agi-core` runtime handoff: you can continue to run the saved
-project and stage contract with only the stable, production-grade core
-technology, without depending on the AGILAB UI or distributed worker layer.
+project and stage contract with only the stable core runtime, without depending
+on the AGILAB UI or distributed worker layer.
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface. Those apps can run locally or on distributed
 workers, and the workflow stays portable: export it back to an `agi-core`
@@ -73,7 +73,7 @@ notebook / MLflow / UI handoff
 The flow is reversible where it matters for long-term reuse: WORKFLOW can export
 the saved pipeline as a runnable `agi-core` supervisor notebook, so the code,
 stage order, runtime hints, and review context remain usable through the stable,
-production-grade core technology if the AGILAB UI or distributed runtime is no
+core runtime if the AGILAB UI or distributed runtime is no
 longer the right interface for that work.
 
 Start with the public browser preview or the demo chooser:
@@ -163,9 +163,10 @@ plaintext local secrets, and profile-specific SBOM / `pip-audit` evidence.
 Do not use public GitHub issues, discussions, pull requests, or comments for
 suspected vulnerabilities. Use the private reporting path in
 [SECURITY.md](SECURITY.md); if GitHub Private Vulnerability Reporting is not
-available to you, request a private AGILAB security intake through your usual
-Thales contact or the Thales contact form. The public issue tracker is only for
-non-sensitive bugs, support questions, and post-fix follow-up.
+available to you, request a private AGILAB security intake through a maintainer
+contact or another private channel listed by the project. The public issue
+tracker is only for non-sensitive bugs, support questions, and post-fix
+follow-up.
 
 For adoption boundaries and the shared-use hardening checklist, see
 [Security and adoption](https://thalesgroup.github.io/agilab/security-adoption.html).
@@ -438,7 +439,7 @@ They cover project setup, environment management, execution, and result analysis
 The evidence and limits are maintained in the
 [compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html).
-The strategic score movement rule is tracked in the
+The strategic evidence criteria are tracked in the
 [strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
 ## Read Next

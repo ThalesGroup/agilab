@@ -226,7 +226,7 @@ For a first pass through the UI, follow this sequence exactly:
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
    a runnable ``agi-core`` notebook for review, handoff, or reuse if the AGILAB
    UI or distributed runtime is no longer the interface you want to keep. This
-   keeps execution on the stable, production-grade core technology.
+   keeps execution on the stable core runtime.
 6. In :doc:`experiment-help`, import or regenerate that snippet as a WORKFLOW
    stage instead of retyping it.
 

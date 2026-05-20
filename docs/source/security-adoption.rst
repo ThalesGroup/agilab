@@ -13,10 +13,10 @@ Do not use public GitHub issues, discussions, pull requests, or comments for
 suspected vulnerabilities.
 
 Use GitHub Private Vulnerability Reporting when it is available for the
-repository. If that private channel is unavailable to you, contact your usual
-Thales representative or use the Thales contact form and ask for a private
-AGILAB security intake. Share reproduction steps, exploit details, secrets, or
-sensitive logs only after a private channel has been confirmed.
+repository. If that private channel is unavailable to you, ask the maintainers
+for a private AGILAB security intake channel without sharing exploit details
+publicly. Share reproduction steps, exploit details, secrets, or sensitive logs
+only after a private channel has been confirmed.
 
 Public GitHub issues are for non-sensitive product bugs, support questions, and
 post-fix follow-up only.
