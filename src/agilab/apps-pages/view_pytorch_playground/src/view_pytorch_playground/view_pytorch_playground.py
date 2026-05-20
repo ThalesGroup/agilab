@@ -8,6 +8,7 @@ import argparse
 import base64
 import binascii
 import hashlib
+import html
 import io
 import json
 import zipfile
@@ -46,7 +47,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_gui.pagelib import render_logo
+from agi_gui.pagelib import render_logo  # noqa: E402
 
 
 PAGE_TITLE = "PyTorch playground"
@@ -66,6 +67,8 @@ OPTIMIZERS = ("Adam", "SGD")
 CONFIG_SCHEMA = "agilab.pytorch_playground_config.v1"
 EVIDENCE_SCHEMA = "agilab.pytorch_playground_evidence.v1"
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
+CUSTOM_PRESET = "Custom / shared link"
+DEFAULT_PRESET = "Instant wow: clean circles"
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,65 @@ class PlaygroundConfig:
     seed: int = 7
     feature_names: tuple[str, ...] = DEFAULT_FEATURES
     grid_size: int = 80
+
+
+PLAYGROUND_PRESETS: dict[str, PlaygroundConfig] = {
+    CUSTOM_PRESET: PlaygroundConfig(),
+    "Instant wow: clean circles": PlaygroundConfig(
+        dataset="circles",
+        sample_count=320,
+        noise=0.08,
+        hidden_layers=(12, 12),
+        learning_rate=0.035,
+        epochs=90,
+        grid_size=88,
+        seed=11,
+    ),
+    "Feature puzzle: XOR": PlaygroundConfig(
+        dataset="xor",
+        sample_count=352,
+        noise=0.06,
+        hidden_layers=(16, 8),
+        activation="relu",
+        learning_rate=0.025,
+        epochs=120,
+        feature_names=("x1", "x2", "x1_x2", "x1_squared", "x2_squared"),
+        grid_size=84,
+        seed=19,
+    ),
+    "Hard mode: spiral": PlaygroundConfig(
+        dataset="spiral",
+        sample_count=448,
+        noise=0.10,
+        hidden_layers=(24, 16, 8),
+        activation="tanh",
+        learning_rate=0.02,
+        epochs=160,
+        batch_size=48,
+        feature_names=("x1", "x2", "sin_x1", "sin_x2", "x1_x2"),
+        grid_size=96,
+        seed=29,
+    ),
+    "Fast baseline: gaussian": PlaygroundConfig(
+        dataset="gaussian",
+        sample_count=256,
+        noise=0.14,
+        hidden_layers=(6,),
+        learning_rate=0.04,
+        epochs=60,
+        feature_names=("x1", "x2"),
+        grid_size=72,
+        seed=5,
+    ),
+}
+
+PRESET_STORIES: dict[str, str] = {
+    CUSTOM_PRESET: "Use the current controls, or open a shared configuration token.",
+    "Instant wow: clean circles": "A compact nonlinear boundary that should become visibly crisp in one run.",
+    "Feature puzzle: XOR": "Shows why engineered features and hidden layers matter.",
+    "Hard mode: spiral": "A harder visual challenge for seeing capacity, noise, and loss terrain.",
+    "Fast baseline: gaussian": "A quick sanity check where a tiny network should separate the classes.",
+}
 
 
 def _resolve_active_app() -> Path | None:
@@ -225,6 +287,22 @@ def _config_from_query_params(params: Mapping[str, Any]) -> PlaygroundConfig | N
         if decoded is not None:
             return decoded
     return None
+
+
+def _safe_key_fragment(raw: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_") or "custom"
+
+
+def _preset_config(label: str, shared_config: PlaygroundConfig | None = None) -> PlaygroundConfig:
+    if label == CUSTOM_PRESET and shared_config is not None:
+        return shared_config
+    return PLAYGROUND_PRESETS.get(label, PLAYGROUND_PRESETS[CUSTOM_PRESET])
+
+
+def _preset_story(label: str, shared_config: PlaygroundConfig | None = None) -> str:
+    if label == CUSTOM_PRESET and shared_config is not None:
+        return "Loaded from the URL token. Adjust any control to fork the experiment."
+    return PRESET_STORIES.get(label, PRESET_STORIES[CUSTOM_PRESET])
 
 
 def _make_dataset(config: PlaygroundConfig) -> pd.DataFrame:
@@ -900,6 +978,190 @@ def _build_evidence_pack(config: PlaygroundConfig, result: Mapping[str, Any]) ->
     return _deterministic_zip_bytes(files)
 
 
+def _render_page_styles() -> None:
+    st.markdown(
+        """
+<style>
+.agilab-pt-hero {
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 28px;
+  padding: 1.45rem 1.55rem;
+  margin: 0.25rem 0 1rem;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(56, 189, 248, 0.34), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(251, 113, 133, 0.28), transparent 30%),
+    linear-gradient(135deg, rgba(8, 18, 34, 0.96), rgba(15, 23, 42, 0.90));
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.28);
+}
+.agilab-pt-kicker {
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.agilab-pt-hero h1 {
+  color: #f8fafc;
+  font-size: clamp(2.0rem, 5vw, 4.5rem);
+  line-height: 0.95;
+  margin: 0.25rem 0 0.7rem;
+}
+.agilab-pt-hero p {
+  color: #cbd5e1;
+  font-size: 1.02rem;
+  max-width: 62rem;
+  margin: 0;
+}
+.agilab-pt-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+.agilab-pt-chip {
+  border: 1px solid rgba(226, 232, 240, 0.22);
+  border-radius: 999px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0.38rem 0.72rem;
+  font-size: 0.82rem;
+}
+.agilab-pt-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 22px;
+  padding: 1rem;
+  min-height: 9.25rem;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(8, 13, 26, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.agilab-pt-card strong {
+  display: block;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.agilab-pt-value {
+  color: #f8fafc;
+  font-size: 2rem;
+  font-weight: 800;
+  margin: 0.2rem 0 0.25rem;
+}
+.agilab-pt-note {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+.agilab-pt-section {
+  border-left: 4px solid #38bdf8;
+  padding: 0.25rem 0 0.25rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+.agilab-pt-section strong {
+  color: #e2e8f0;
+}
+.agilab-pt-section span {
+  color: #94a3b8;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _format_percent(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+    if not np.isfinite(number):
+        number = 0.0
+    return f"{max(0.0, min(1.0, number)) * 100:.0f}%"
+
+
+def _confidence_score(grid: pd.DataFrame) -> float:
+    if grid.empty or "probability" not in grid:
+        return 0.0
+    probabilities = grid["probability"].to_numpy(dtype=float)
+    if probabilities.size == 0:
+        return 0.0
+    return float(np.mean(np.abs(probabilities - 0.5) * 2.0))
+
+
+def _class_balance(samples: pd.DataFrame) -> str:
+    if samples.empty or "target" not in samples:
+        return "no samples"
+    counts = samples["target"].value_counts(normalize=True)
+    if counts.empty:
+        return "no samples"
+    majority = float(counts.max())
+    minority = float(counts.min())
+    return f"{minority * 100:.0f}/{majority * 100:.0f}% class split"
+
+
+def _parameter_count(layers: pd.DataFrame) -> int:
+    if layers.empty or "parameters" not in layers:
+        return 0
+    return int(pd.to_numeric(layers["parameters"], errors="coerce").fillna(0).sum())
+
+
+def _generalization_gap(summary: Mapping[str, Any]) -> float:
+    train_accuracy = float(summary.get("train_accuracy", 0.0) or 0.0)
+    validation_accuracy = float(summary.get("validation_accuracy", 0.0) or 0.0)
+    gap = train_accuracy - validation_accuracy
+    return gap if np.isfinite(gap) else 0.0
+
+
+def _metric_card(label: str, value: str, note: str) -> str:
+    return (
+        '<div class="agilab-pt-card">'
+        f"<strong>{html.escape(label)}</strong>"
+        f'<div class="agilab-pt-value">{html.escape(value)}</div>'
+        f'<div class="agilab-pt-note">{html.escape(note)}</div>'
+        "</div>"
+    )
+
+
+def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
+    chips = [
+        f"dataset: {config.dataset}",
+        f"features: {len(config.feature_names)}",
+        f"network: {'-'.join(str(width) for width in config.hidden_layers) or 'linear'}",
+        f"epochs: {config.epochs}",
+    ]
+    if active_app is not None:
+        chips.insert(0, f"app: {active_app.name}")
+    chip_html = "".join(f'<span class="agilab-pt-chip">{html.escape(chip)}</span>' for chip in chips)
+    st.markdown(
+        f"""
+<div class="agilab-pt-hero">
+  <div class="agilab-pt-kicker">Neural boundary lab</div>
+  <h1>{html.escape(PAGE_TITLE)}</h1>
+  <p>
+    Pick a visual challenge, train a real PyTorch classifier, then inspect the
+    decision surface, neuron activations, loss terrain, and reproducible evidence pack.
+  </p>
+  <div class="agilab-pt-strip">
+    <span class="agilab-pt-chip">{html.escape(preset_label)}</span>
+    {chip_html}
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_section_intro(title: str, text: str) -> None:
+    st.markdown(
+        f"""
+<div class="agilab-pt-section">
+  <strong>{html.escape(title)}</strong><br>
+  <span>{html.escape(text)}</span>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 def _grid_axes(grid: pd.DataFrame, fallback_grid_size: int) -> tuple[np.ndarray, np.ndarray]:
     if grid.empty:
         return np.array([], dtype=float), np.array([], dtype=float)
@@ -926,15 +1188,28 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
                 x=x_axis,
                 y=y_axis,
                 z=z,
-                colorscale=[[0.0, "#2f6f9f"], [0.5, "#f6f7f8"], [1.0, "#c44e52"]],
-                contours={"start": 0.0, "end": 1.0, "size": 0.1},
-                opacity=0.68,
+                colorscale=[[0.0, "#0ea5e9"], [0.48, "#111827"], [0.52, "#f8fafc"], [1.0, "#fb7185"]],
+                contours={"start": 0.0, "end": 1.0, "size": 0.05, "coloring": "heatmap"},
+                opacity=0.82,
                 showscale=False,
                 hoverinfo="skip",
+                name="class probability",
+            )
+        )
+        figure.add_trace(
+            go.Contour(
+                x=x_axis,
+                y=y_axis,
+                z=z,
+                contours={"start": 0.5, "end": 0.5, "size": 0.5, "coloring": "lines"},
+                line={"width": 3, "color": "#f8fafc"},
+                showscale=False,
+                hoverinfo="skip",
+                name="decision boundary",
             )
         )
 
-    colors = {0: "#2f6f9f", 1: "#c44e52"}
+    colors = {0: "#38bdf8", 1: "#fb7185"}
     for class_id, group in samples.groupby("target", sort=True):
         figure.add_trace(
             go.Scatter(
@@ -942,15 +1217,28 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
                 y=group["x2"],
                 mode="markers",
                 name=f"class {class_id}",
-                marker={"size": 8, "color": colors.get(int(class_id), "#4b5563"), "line": {"width": 0.5, "color": "#ffffff"}},
+                marker={
+                    "size": 9,
+                    "color": colors.get(int(class_id), "#cbd5e1"),
+                    "opacity": 0.92,
+                    "line": {"width": 1.1, "color": "rgba(255,255,255,0.78)"},
+                },
             )
         )
     figure.update_layout(
         height=560,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
-        xaxis={"range": [-1.35, 1.35], "scaleanchor": "y", "zeroline": False},
-        yaxis={"range": [-1.35, 1.35], "zeroline": False},
-        legend={"orientation": "h", "y": 1.02},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.92)",
+        font={"color": "#dbeafe"},
+        xaxis={
+            "range": [-1.35, 1.35],
+            "scaleanchor": "y",
+            "zeroline": False,
+            "gridcolor": "rgba(148, 163, 184, 0.12)",
+        },
+        yaxis={"range": [-1.35, 1.35], "zeroline": False, "gridcolor": "rgba(148, 163, 184, 0.12)"},
+        legend={"orientation": "h", "y": 1.02, "font": {"color": "#dbeafe"}},
     )
     return figure
 
@@ -958,12 +1246,35 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
 def _history_figure(history: pd.DataFrame) -> go.Figure:
     figure = go.Figure()
     if not history.empty:
-        figure.add_trace(go.Scatter(x=history["epoch"], y=history["train_loss"], mode="lines", name="train loss", yaxis="y"))
         figure.add_trace(
-            go.Scatter(x=history["epoch"], y=history["validation_loss"], mode="lines", name="validation loss", yaxis="y")
+            go.Scatter(
+                x=history["epoch"],
+                y=history["train_loss"],
+                mode="lines",
+                name="train loss",
+                yaxis="y",
+                line={"color": "#38bdf8", "width": 3},
+            )
         )
         figure.add_trace(
-            go.Scatter(x=history["epoch"], y=history["train_accuracy"], mode="lines", name="train accuracy", yaxis="y2")
+            go.Scatter(
+                x=history["epoch"],
+                y=history["validation_loss"],
+                mode="lines",
+                name="validation loss",
+                yaxis="y",
+                line={"color": "#fb7185", "width": 3},
+            )
+        )
+        figure.add_trace(
+            go.Scatter(
+                x=history["epoch"],
+                y=history["train_accuracy"],
+                mode="lines",
+                name="train accuracy",
+                yaxis="y2",
+                line={"color": "#a7f3d0", "width": 2, "dash": "dot"},
+            )
         )
         figure.add_trace(
             go.Scatter(
@@ -972,13 +1283,19 @@ def _history_figure(history: pd.DataFrame) -> go.Figure:
                 mode="lines",
                 name="validation accuracy",
                 yaxis="y2",
+                line={"color": "#fde68a", "width": 2, "dash": "dot"},
             )
         )
     figure.update_layout(
         height=280,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
-        yaxis={"title": "loss"},
-        yaxis2={"title": "accuracy", "overlaying": "y", "side": "right", "range": [0, 1.05]},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.86)",
+        font={"color": "#dbeafe"},
+        yaxis={"title": "loss", "gridcolor": "rgba(148, 163, 184, 0.14)"},
+        yaxis2={"title": "accuracy", "overlaying": "y", "side": "right", "range": [0, 1.05], "showgrid": False},
+        xaxis={"gridcolor": "rgba(148, 163, 184, 0.10)"},
+        legend={"orientation": "h", "y": 1.12},
     )
     return figure
 
@@ -998,7 +1315,7 @@ def _activation_figure(activation_maps: pd.DataFrame, layer: int, neuron: int) -
                 x=x_axis,
                 y=y_axis,
                 z=z,
-                colorscale="Viridis",
+                colorscale=[[0.0, "#020617"], [0.35, "#0ea5e9"], [0.7, "#facc15"], [1.0, "#fb7185"]],
                 contours={"coloring": "heatmap"},
                 colorbar={"title": "activation"},
             )
@@ -1006,8 +1323,16 @@ def _activation_figure(activation_maps: pd.DataFrame, layer: int, neuron: int) -
     figure.update_layout(
         height=420,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
-        xaxis={"range": [-1.35, 1.35], "scaleanchor": "y", "zeroline": False},
-        yaxis={"range": [-1.35, 1.35], "zeroline": False},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.90)",
+        font={"color": "#dbeafe"},
+        xaxis={
+            "range": [-1.35, 1.35],
+            "scaleanchor": "y",
+            "zeroline": False,
+            "gridcolor": "rgba(148, 163, 184, 0.12)",
+        },
+        yaxis={"range": [-1.35, 1.35], "zeroline": False, "gridcolor": "rgba(148, 163, 184, 0.12)"},
     )
     return figure
 
@@ -1016,12 +1341,16 @@ def _network_figure(layers: pd.DataFrame) -> go.Figure:
     figure = go.Figure()
     if not layers.empty:
         labels = [f"{row.kind} {int(row.layer)}" for row in layers.itertuples()]
-        figure.add_trace(go.Bar(x=labels, y=layers["weight_max_abs"], name="max |weight|"))
-        figure.add_trace(go.Bar(x=labels, y=layers["bias_max_abs"], name="max |bias|"))
+        figure.add_trace(go.Bar(x=labels, y=layers["weight_max_abs"], name="max |weight|", marker_color="#38bdf8"))
+        figure.add_trace(go.Bar(x=labels, y=layers["bias_max_abs"], name="max |bias|", marker_color="#fbbf24"))
     figure.update_layout(
         height=260,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
-        yaxis={"title": "magnitude"},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.84)",
+        font={"color": "#dbeafe"},
+        yaxis={"title": "magnitude", "gridcolor": "rgba(148, 163, 184, 0.13)"},
+        xaxis={"gridcolor": "rgba(148, 163, 184, 0.08)"},
         barmode="group",
         legend={"orientation": "h", "y": 1.08},
     )
@@ -1039,76 +1368,136 @@ def _loss_landscape_figure(landscape: pd.DataFrame) -> go.Figure:
             .to_numpy()
         )
         figure.add_trace(
-            go.Contour(
+            go.Surface(
                 x=alpha_axis,
                 y=beta_axis,
                 z=z,
-                colorscale="Cividis",
-                contours={"coloring": "heatmap"},
+                colorscale=[[0.0, "#22c55e"], [0.45, "#facc15"], [1.0, "#ef4444"]],
                 colorbar={"title": "val. loss"},
+                opacity=0.94,
             )
         )
         best = landscape.loc[landscape["validation_loss"].idxmin()]
+        center_candidates = landscape[landscape["is_center"]]
+        center = center_candidates.iloc[0] if not center_candidates.empty else landscape.iloc[len(landscape) // 2]
         figure.add_trace(
-            go.Scatter(
+            go.Scatter3d(
                 x=[0.0],
                 y=[0.0],
+                z=[center["validation_loss"]],
                 mode="markers",
                 name="final weights",
                 marker={"size": 11, "color": "#ffffff", "line": {"width": 2, "color": "#1f2937"}},
             )
         )
         figure.add_trace(
-            go.Scatter(
+            go.Scatter3d(
                 x=[best["alpha"]],
                 y=[best["beta"]],
+                z=[best["validation_loss"]],
                 mode="markers",
                 name="best nearby",
-                marker={"size": 10, "color": "#e11d48", "symbol": "x"},
+                marker={"size": 8, "color": "#38bdf8", "symbol": "diamond"},
             )
         )
     figure.update_layout(
         height=460,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
-        xaxis={"title": "direction alpha", "zeroline": True},
-        yaxis={"title": "direction beta", "zeroline": True},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.90)",
+        font={"color": "#dbeafe"},
+        scene={
+            "xaxis": {"title": "direction alpha", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "yaxis": {"title": "direction beta", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "zaxis": {"title": "validation loss", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "camera": {"eye": {"x": 1.45, "y": -1.55, "z": 0.95}},
+        },
         legend={"orientation": "h", "y": 1.05},
     )
     return figure
 
 
-def _render_summary(summary: dict[str, Any]) -> None:
+def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None:
+    summary = result.get("summary", {})
+    samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    network_layers = _result_frame(result, "network_layers", _empty_network_layers())
+    gap = _generalization_gap(summary)
     columns = st.columns(4)
-    columns[0].metric("Samples", summary.get("samples", 0))
-    columns[1].metric("Features", summary.get("features", 0))
-    columns[2].metric("Train acc.", f"{summary.get('train_accuracy', 0.0):.2f}")
-    columns[3].metric("Validation acc.", f"{summary.get('validation_accuracy', 0.0):.2f}")
+    cards = [
+        _metric_card("Validation", _format_percent(summary.get("validation_accuracy", 0.0)), f"gap vs train: {gap:+.1%}"),
+        _metric_card("Boundary confidence", _format_percent(_confidence_score(grid)), "mean distance from indecision"),
+        _metric_card("Model size", f"{_parameter_count(network_layers):,}", f"{len(config.hidden_layers)} hidden layer(s)"),
+        _metric_card("Dataset", f"{int(summary.get('samples', len(samples))):,}", _class_balance(samples)),
+    ]
+    for column, card in zip(columns, cards, strict=False):
+        with column:
+            st.markdown(card, unsafe_allow_html=True)
 
 
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide")
     render_logo()
+    _render_page_styles()
     active_app = _resolve_active_app()
     shared_config = _config_from_query_params(st.query_params)
-    defaults = shared_config or PlaygroundConfig()
-    st.title(PAGE_TITLE)
-    if active_app is not None:
-        st.caption(active_app.name)
 
     with st.sidebar:
-        dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset))
-        sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32)
-        noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01)
-        train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05)
-        feature_names = st.multiselect("Features", FEATURES, default=list(defaults.feature_names))
-        hidden_raw = st.text_input("Hidden layers", value=",".join(str(width) for width in defaults.hidden_layers))
-        activation = st.selectbox("Activation", ACTIVATIONS, index=ACTIVATIONS.index(defaults.activation))
-        optimizer = st.selectbox("Optimizer", OPTIMIZERS, index=OPTIMIZERS.index(defaults.optimizer))
-        learning_rate = st.slider("Learning rate", 0.001, 0.2, defaults.learning_rate, step=0.001, format="%.3f")
-        epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10)
-        batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8)
-        grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4)
-        seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1)
+        st.markdown("### Challenge")
+        preset_labels = tuple(PLAYGROUND_PRESETS)
+        preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
+        preset_label = st.selectbox(
+            "Challenge preset",
+            preset_labels,
+            index=preset_index,
+            help="Preset only seeds the controls; every value stays editable.",
+        )
+        defaults = _preset_config(preset_label, shared_config)
+        preset_key = _safe_key_fragment(preset_label)
+        st.caption(_preset_story(preset_label, shared_config))
+        st.markdown("### Dataset")
+        dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
+        sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
+        noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
+        train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
+        feature_names = st.multiselect(
+            "Features",
+            FEATURES,
+            default=list(defaults.feature_names),
+            key=f"pt_features_{preset_key}",
+        )
+        st.markdown("### Network")
+        hidden_raw = st.text_input(
+            "Hidden layers",
+            value=",".join(str(width) for width in defaults.hidden_layers),
+            key=f"pt_layers_{preset_key}",
+            help="Comma-separated widths, for example 16,8.",
+        )
+        activation = st.selectbox(
+            "Activation",
+            ACTIVATIONS,
+            index=ACTIVATIONS.index(defaults.activation),
+            key=f"pt_activation_{preset_key}",
+        )
+        optimizer = st.selectbox(
+            "Optimizer",
+            OPTIMIZERS,
+            index=OPTIMIZERS.index(defaults.optimizer),
+            key=f"pt_optimizer_{preset_key}",
+        )
+        learning_rate = st.slider(
+            "Learning rate",
+            0.001,
+            0.2,
+            defaults.learning_rate,
+            step=0.001,
+            format="%.3f",
+            key=f"pt_lr_{preset_key}",
+        )
+        epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
+        batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
+        grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
+        seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
 
     try:
         hidden_layers = _parse_hidden_layers(hidden_raw)
@@ -1133,10 +1522,11 @@ def main() -> None:
     )
     config_dict = asdict(config)
     result = _cached_train(config_dict)
+    _render_hero(active_app, preset_label, config)
     if result["status"] == "missing_torch":
         st.error(result["detail"])
 
-    _render_summary(result["summary"])
+    _render_summary(config, result)
     landscape_result: dict[str, Any] = {
         "status": "not_computed",
         "detail": "",
@@ -1144,9 +1534,13 @@ def main() -> None:
         "landscape_summary": _loss_landscape_summary(_empty_loss_landscape()),
     }
     decision_tab, activations_tab, landscape_tab, evidence_tab = st.tabs(
-        ["Decision", "Activations", "Loss landscape", "Evidence"]
+        ["Boundary lab", "Neuron lens", "Loss terrain", "Evidence pack"]
     )
     with decision_tab:
+        _render_section_intro(
+            "Decision boundary",
+            "The bright contour is the 0.5 frontier; points show the training sample classes.",
+        )
         left, right = st.columns([2, 1])
         with left:
             st.plotly_chart(
@@ -1165,6 +1559,10 @@ def main() -> None:
     with activations_tab:
         network_layers = _result_frame(result, "network_layers", _empty_network_layers())
         activation_maps = _result_frame(result, "activation_maps", _empty_activation_maps())
+        _render_section_intro(
+            "Network internals",
+            "Compare layer weight magnitudes, then inspect one hidden neuron activation map at a time.",
+        )
         st.plotly_chart(_network_figure(network_layers), use_container_width=True, config={"displayModeBar": False})
         st.dataframe(network_layers, use_container_width=True, hide_index=True)
         if activation_maps.empty:
@@ -1188,6 +1586,10 @@ def main() -> None:
                 )
 
     with landscape_tab:
+        _render_section_intro(
+            "Loss terrain",
+            "Compute a deterministic 3D projection around the final weights to see whether the solution sits in a valley.",
+        )
         controls, chart_area = st.columns([1, 3])
         with controls:
             landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
@@ -1214,6 +1616,10 @@ def main() -> None:
             st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
 
     with evidence_tab:
+        _render_section_intro(
+            "Evidence export",
+            "Download the deterministic ZIP or copy the query token to replay the same playground configuration.",
+        )
         evidence_result = dict(result)
         landscape = _result_frame(landscape_result, "loss_landscape", _empty_loss_landscape())
         if not landscape.empty:

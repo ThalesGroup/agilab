@@ -140,6 +140,10 @@ def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
     assert sanitized.activation == module.PlaygroundConfig().activation
     assert sanitized.optimizer == module.PlaygroundConfig().optimizer
     assert sanitized.feature_names == ("x1", "x2")
+    assert module._preset_config(module.DEFAULT_PRESET).dataset == "circles"
+    assert module._preset_config(module.CUSTOM_PRESET, config) == config
+    assert "URL token" in module._preset_story(module.CUSTOM_PRESET, config)
+    assert module._safe_key_fragment("Hard mode: spiral") == "hard_mode_spiral"
 
 
 def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -357,12 +361,20 @@ def test_pytorch_playground_evidence_and_figure_helpers_cover_fallbacks(monkeypa
     assert module._loss_landscape(config)["status"] == "missing_torch"
     assert module._result_frame({}, "missing", samples) is samples
     assert module._json_safe({"bad": np.float64(float("nan")), "count": np.int64(3)}) == {"bad": None, "count": 3}
+    assert module._format_percent(0.812) == "81%"
+    assert module._confidence_score(irregular_grid) == pytest.approx(0.5333333333333333)
+    assert module._confidence_score(pd.DataFrame(columns=["x1", "x2"])) == 0.0
+    assert module._class_balance(samples) == "50/50% class split"
+    assert module._class_balance(pd.DataFrame()) == "no samples"
+    assert module._parameter_count(layers) == 9
+    assert module._parameter_count(module._empty_network_layers()) == 0
+    assert module._generalization_gap({"train_accuracy": 0.9, "validation_accuracy": 0.75}) == pytest.approx(0.15)
 
     x_axis, y_axis = module._grid_axes(irregular_grid, 5)
     assert len(x_axis) == 2
     assert len(y_axis) == 2
     assert module._grid_axes(pd.DataFrame(), 5)[0].size == 0
-    assert len(module._decision_figure(samples, irregular_grid, 5).data) == 3
+    assert len(module._decision_figure(samples, irregular_grid, 5).data) == 4
     assert len(module._decision_figure(samples, pd.DataFrame(columns=["x1", "x2", "probability"]), 5).data) == 2
     assert len(module._history_figure(history).data) == 4
     assert len(module._history_figure(pd.DataFrame()).data) == 0
@@ -620,6 +632,9 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
         def caption(self, *_args, **_kwargs):
             return None
 
+        def markdown(self, *_args, **_kwargs):
+            return None
+
         def error(self, message, **_kwargs):
             self.errors.append(str(message))
 
@@ -749,6 +764,9 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
             return None
 
         def caption(self, *_args, **_kwargs):
+            return None
+
+        def markdown(self, *_args, **_kwargs):
             return None
 
         def error(self, *_args, **_kwargs):
