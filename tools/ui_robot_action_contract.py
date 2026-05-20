@@ -103,6 +103,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "ignored",
         "starts an external local service and is not deterministic in CI robots",
     ),
+    "Train / refresh": (
+        "trial-only",
+        "runs page-local PyTorch training; focused playground tests cover state and evidence without making generic robots train",
+    ),
     "Undo last delete": (
         "trial-only",
         "stateful recovery action that appears only after selected delete-output flows",
