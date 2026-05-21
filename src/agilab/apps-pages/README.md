@@ -5,6 +5,10 @@ active app and its exported datasets.
 
 Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/agi-gui`.
 
+Looking for the PyTorch playground or loss landscape? Use
+`view_pytorch_playground`. The loss-landscape projection is a tab inside that
+page, not a separate `view_loss_landscape` directory.
+
 Quick start (dev checkout):
 
 - view_maps

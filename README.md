@@ -88,6 +88,14 @@ Start with the public browser preview or the demo chooser:
 - [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
+## Featured Optional Analysis Pages
+
+- [PyTorch Playground](src/agilab/apps-pages/view_pytorch_playground)
+  (`agi-page-pytorch-playground`) is the opt-in classifier playground for
+  synthetic datasets, hidden-layer activation maps, network diagnostics, and
+  the **Loss landscape** tab. Loss landscape is inside this page; it is not a
+  separate `view_loss_landscape` GitHub folder.
+
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
 <p>
