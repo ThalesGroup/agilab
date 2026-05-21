@@ -6,7 +6,8 @@ active app and its exported datasets.
 Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/agi-gui`.
 
 Looking for the PyTorch playground or loss landscape? Use
-`view_pytorch_playground`. The loss-landscape projection is a tab inside that
+`view_pytorch_playground`. It is a standalone opt-in playground, not a generic
+app-agnostic analysis page. The loss-landscape projection is a tab inside that
 page, not a separate `view_loss_landscape` directory.
 
 Quick start (dev checkout):
@@ -72,7 +73,7 @@ Experimental and opt-in views:
 
 - view_pytorch_playground
   - uv run streamlit run src/agilab/apps-pages/view_pytorch_playground/src/view_pytorch_playground/view_pytorch_playground.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
-  - PyTorch-based classifier playground for synthetic datasets with shareable configs, hidden-layer activation maps, network diagnostics, optional loss-landscape projection, and a hashed evidence-pack download. It is published as the standalone `agi-page-pytorch-playground` package and intentionally not part of the public `agi-pages` umbrella because `torch` is a heavy runtime dependency.
+  - PyTorch-based classifier playground for synthetic datasets with shareable configs, hidden-layer activation maps, network diagnostics, optional loss-landscape projection, and a hashed evidence-pack download. It is published as `agi-page-pytorch-playground`, is a standalone opt-in playground rather than a generic app-agnostic analysis page, and is intentionally not part of the public `agi-pages` umbrella because `torch` is a heavy runtime dependency.
 
 ## Repository Pages (optional)
 
