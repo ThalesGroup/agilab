@@ -199,7 +199,10 @@ weakening the protected-release check.
 When retention cleanup runs from GitHub Actions against many split packages:
 
 - PyPI may require an unrecognized-login confirmation URL from the same runner
-  IP before direct web fallback can delete releases.
+  IP before direct web fallback can delete releases. The workflow expects that
+  URL in the repository Actions variable `PYPI_CONFIRM_LOGIN_URL`; if the
+  variable is absent or stale, the cleanup will wait for the configured timeout
+  and then fail without deleting anything.
 - `pypi-cleanup` can fail to parse PyPI's release delete form with `No CSFR`
   / `No CSRF`; the direct web fallback is the intended recovery route.
 - When PyPI 2FA uses TOTP, do not reuse the same generated code across package
@@ -211,6 +214,57 @@ When retention cleanup runs from GitHub Actions against many split packages:
 - Remove temporary confirmation handoff variables or short-lived reader tokens
   after the run. Keep only the normal release-prune credentials that are part
   of the repository maintenance contract.
+
+## Deprecated Package Cleanup
+
+Use this when a stale PyPI project remains visible after a package rename or
+package-split cleanup, for example an old page package whose source path no
+longer exists in the current repository.
+
+First prove the package is really deprecated:
+
+- check the current release plan and package split contract;
+- verify the PyPI project metadata live, especially `project_urls.Source`;
+- confirm the source path referenced by PyPI no longer exists or is no longer a
+  publish target;
+- identify the replacement package name, if any.
+
+Do not confuse a deprecated package with a package that is expected but missing
+from PyPI. For example, if the release plan expects `agi-app-...` but PyPI
+returns 404 for it, that package needs publication, not deletion.
+
+Current-matrix cleanup wrappers such as `tools/pypi_publish.py --packages ...`
+only accept packages that still belong to the current release plan. If the stale
+PyPI project is no longer in the matrix, use `tools/pypi_release_retention.py`
+or `pypi-cleanup` directly against the exact legacy PyPI project name.
+
+For a stale package with several releases, prefer this sequence:
+
+1. Query the exact visible releases from live PyPI JSON.
+2. Run a `pypi-cleanup --query-only` dry-run with exact version regexes.
+3. Delete older releases one exact version at a time, protecting the latest
+   temporarily if using the retention workflow.
+4. Verify live PyPI JSON after every successful deletion.
+
+Deleting the final remaining release is effectively PyPI project removal. Treat
+that as a separate owner action: do not use `--delete-project` from automation
+unless the operator explicitly confirms the package name, understands that the
+project reservation may be affected, and has valid PyPI web credentials.
+
+If cleanup is blocked:
+
+- local `pypi-cleanup` login failure means local web credentials are invalid or
+  PyPI is rejecting that device/session;
+- GitHub Actions failure after `No CSFR` / `No CSRF` plus a login redirect means
+  PyPI likely needs an unrecognized-login confirmation URL;
+- fetch the URL from the PyPI email, then set it for the next retry:
+
+```bash
+gh variable set PYPI_CONFIRM_LOGIN_URL --repo ThalesGroup/agilab --body '<pypi-confirm-login-url>'
+```
+
+After the workflow consumes the URL, remove or rotate the variable so future
+cleanup runs do not reuse an expired confirmation link.
 
 ## Publication Reuse Behavior
 
