@@ -26,7 +26,7 @@ configuration trains the clean-circles preset and exports evidence under
 The app also keeps a local Streamlit playground surface for interactive review:
 
 ```bash
-uv run streamlit run src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+uv run streamlit run src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
 ```
 
 ## Expected Inputs

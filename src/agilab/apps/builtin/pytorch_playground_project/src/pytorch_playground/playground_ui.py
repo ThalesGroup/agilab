@@ -1063,111 +1063,127 @@ def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None
             st.markdown(card, unsafe_allow_html=True)
 
 
-def main() -> None:
+def main(
+    *,
+    config_override: PlaygroundConfig | None = None,
+    preset_label: str | None = None,
+    interactive_controls: bool = True,
+    compute_loss_landscape: bool | None = None,
+    landscape_resolution: int = 21,
+    landscape_span: float = 0.75,
+) -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide")
     render_logo()
     _render_page_styles()
     active_app = _resolve_active_app()
     shared_config = _config_from_query_params(st.query_params)
 
-    with st.sidebar:
-        st.markdown("### Challenge")
-        preset_labels = tuple(PLAYGROUND_PRESETS)
-        preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
-        preset_label = st.selectbox(
-            "Challenge preset",
-            preset_labels,
-            index=preset_index,
-            help="Preset only seeds the controls; every value stays editable.",
-        )
-        defaults = _preset_config(preset_label, shared_config)
-        preset_key = _safe_key_fragment(preset_label)
-        st.caption(_preset_story(preset_label, shared_config))
-        st.markdown("### Dataset")
-        dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
-        sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
-        noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
-        train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
-        feature_names = st.multiselect(
-            "Features",
-            FEATURES,
-            default=list(defaults.feature_names),
-            key=f"pt_features_{preset_key}",
-        )
-        st.markdown("### Network")
-        hidden_raw = st.text_input(
-            "Hidden layers",
-            value=",".join(str(width) for width in defaults.hidden_layers),
-            key=f"pt_layers_{preset_key}",
-            help="Comma-separated widths, for example 16,8.",
-        )
-        activation = st.selectbox(
-            "Activation",
-            ACTIVATIONS,
-            index=ACTIVATIONS.index(defaults.activation),
-            key=f"pt_activation_{preset_key}",
-        )
-        optimizer = st.selectbox(
-            "Optimizer",
-            OPTIMIZERS,
-            index=OPTIMIZERS.index(defaults.optimizer),
-            key=f"pt_optimizer_{preset_key}",
-        )
-        learning_rate = st.slider(
-            "Learning rate",
-            0.001,
-            0.2,
-            defaults.learning_rate,
-            step=0.001,
-            format="%.3f",
-            key=f"pt_lr_{preset_key}",
-        )
-        epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
-        batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
-        grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
-        seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
-        st.markdown("### Run")
-        train_requested = st.button("Train / refresh", type="primary", width="stretch")
-        st.caption("Controls are staged. Charts and evidence update only when you train.")
+    if interactive_controls:
+        with st.sidebar:
+            st.markdown("### Challenge")
+            preset_labels = tuple(PLAYGROUND_PRESETS)
+            preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
+            preset_label = st.selectbox(
+                "Challenge preset",
+                preset_labels,
+                index=preset_index,
+                help="Preset only seeds the controls; every value stays editable.",
+            )
+            defaults = _preset_config(preset_label, shared_config)
+            preset_key = _safe_key_fragment(preset_label)
+            st.caption(_preset_story(preset_label, shared_config))
+            st.markdown("### Dataset")
+            dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
+            sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
+            noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
+            train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
+            feature_names = st.multiselect(
+                "Features",
+                FEATURES,
+                default=list(defaults.feature_names),
+                key=f"pt_features_{preset_key}",
+            )
+            st.markdown("### Network")
+            hidden_raw = st.text_input(
+                "Hidden layers",
+                value=",".join(str(width) for width in defaults.hidden_layers),
+                key=f"pt_layers_{preset_key}",
+                help="Comma-separated widths, for example 16,8.",
+            )
+            activation = st.selectbox(
+                "Activation",
+                ACTIVATIONS,
+                index=ACTIVATIONS.index(defaults.activation),
+                key=f"pt_activation_{preset_key}",
+            )
+            optimizer = st.selectbox(
+                "Optimizer",
+                OPTIMIZERS,
+                index=OPTIMIZERS.index(defaults.optimizer),
+                key=f"pt_optimizer_{preset_key}",
+            )
+            learning_rate = st.slider(
+                "Learning rate",
+                0.001,
+                0.2,
+                defaults.learning_rate,
+                step=0.001,
+                format="%.3f",
+                key=f"pt_lr_{preset_key}",
+            )
+            epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
+            batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
+            grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
+            seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
+            st.markdown("### Run")
+            train_requested = st.button("Train / refresh", type="primary", width="stretch")
+            st.caption("Controls are staged. Charts and evidence update only when you train.")
 
-    try:
-        hidden_layers = _parse_hidden_layers(hidden_raw)
-    except ValueError as exc:
-        st.error(str(exc))
-        st.stop()
+        try:
+            hidden_layers = _parse_hidden_layers(hidden_raw)
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
 
-    config = PlaygroundConfig(
-        dataset=dataset,
-        sample_count=sample_count,
-        noise=noise,
-        train_ratio=train_ratio,
-        hidden_layers=hidden_layers,
-        activation=activation,
-        optimizer=optimizer,
-        learning_rate=learning_rate,
-        epochs=epochs,
-        batch_size=batch_size,
-        seed=int(seed),
-        feature_names=tuple(feature_names or DEFAULT_FEATURES),
-        grid_size=grid_size,
-    )
-    shared_signature = _config_signature(shared_config) if shared_config is not None else ""
-    previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
-    force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
-    _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
-    trained_config, trained_preset, pending_changes = _resolve_trained_config(
-        config,
-        preset_label,
-        train_requested=train_requested,
-        force_refresh=force_shared_refresh,
-    )
+        config = PlaygroundConfig(
+            dataset=dataset,
+            sample_count=sample_count,
+            noise=noise,
+            train_ratio=train_ratio,
+            hidden_layers=hidden_layers,
+            activation=activation,
+            optimizer=optimizer,
+            learning_rate=learning_rate,
+            epochs=epochs,
+            batch_size=batch_size,
+            seed=int(seed),
+            feature_names=tuple(feature_names or DEFAULT_FEATURES),
+            grid_size=grid_size,
+        )
+        shared_signature = _config_signature(shared_config) if shared_config is not None else ""
+        previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
+        force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
+        _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
+        trained_config, trained_preset, pending_changes = _resolve_trained_config(
+            config,
+            str(preset_label),
+            train_requested=train_requested,
+            force_refresh=force_shared_refresh,
+        )
+    else:
+        trained_config = config_override or PlaygroundConfig()
+        trained_preset = preset_label or "ORCHESTRATE args"
+        pending_changes = False
     trained_config_dict = asdict(trained_config)
     result = _cached_train(trained_config_dict)
-    with st.sidebar:
-        st.caption(f"Charts show: {trained_preset}")
-        if pending_changes:
-            st.warning("Pending changes. Press Train / refresh to update the run.")
+    if interactive_controls:
+        with st.sidebar:
+            st.caption(f"Charts show: {trained_preset}")
+            if pending_changes:
+                st.warning("Pending changes. Press Train / refresh to update the run.")
     _render_hero(active_app, trained_preset, trained_config)
+    if not interactive_controls:
+        st.caption("Charts use the persisted ORCHESTRATE arguments for this app.")
     if result["status"] == "missing_torch":
         st.error(result["detail"])
     elif result["status"] != "ok":
@@ -1243,9 +1259,14 @@ def main() -> None:
         )
         controls, chart_area = st.columns([1, 3])
         with controls:
-            landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
-            landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
-            compute_landscape = st.checkbox("Compute landscape", value=False)
+            if interactive_controls:
+                landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
+                landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
+                compute_landscape = st.checkbox("Compute landscape", value=False)
+            else:
+                compute_landscape = bool(compute_loss_landscape)
+                st.metric("Resolution", int(landscape_resolution))
+                st.metric("Span", f"{float(landscape_span):.2f}")
         if result["status"] != "ok":
             st.info("Loss landscape is available after a successful PyTorch run.")
         elif compute_landscape:
@@ -1264,7 +1285,10 @@ def main() -> None:
                 )
                 st.dataframe(landscape.sort_values("validation_loss").head(8), width="stretch", hide_index=True)
         else:
-            st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
+            if interactive_controls:
+                st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
+            else:
+                st.info("Enable Loss landscape in ORCHESTRATE to evaluate a deterministic 2D projection.")
 
     with evidence_tab:
         _render_section_intro(

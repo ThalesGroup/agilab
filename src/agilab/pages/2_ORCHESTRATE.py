@@ -181,6 +181,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.app_surface",
+    {
+        "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
+        "render_app_surface": "render_app_surface",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "app_surface.py",
+    fallback_name="agilab_app_surface_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_page_helpers",
     {
         "app_install_status": "_orchestrate_app_install_status",
@@ -1767,31 +1778,45 @@ async def _render_distribution_panel(
         snippet_exists = app_args_form.exists()
         snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
 
-        toggle_key = "toggle_edit_ui"
-        if toggle_key not in st.session_state:
-            st.session_state[toggle_key] = not snippet_not_empty
+        surface_rendered = False
+        if configured_app_surface_entrypoint(project_path) is not None:
+            try:
+                with _with_app_args_env(args_env):
+                    surface_rendered = render_app_surface(
+                        project_path,
+                        mode="configure",
+                        env=args_env,
+                        container=st,
+                    )
+            except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+                st.warning(e)
 
-        st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
+        if not surface_rendered:
+            toggle_key = "toggle_edit_ui"
+            if toggle_key not in st.session_state:
+                st.session_state[toggle_key] = not snippet_not_empty
 
-        if st.session_state[toggle_key]:
-            with _with_app_args_env(args_env):
-                render_generic_ui()
-            if not snippet_exists:
-                with open(app_args_form, "w") as st_src:
-                    st_src.write("")
-        else:
-            if snippet_exists and snippet_not_empty:
-                try:
-                    with _with_app_args_env(args_env):
-                        runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
-                except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
-                    st.warning(e)
-            else:
+            st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
+
+            if st.session_state[toggle_key]:
                 with _with_app_args_env(args_env):
                     render_generic_ui()
                 if not snippet_exists:
                     with open(app_args_form, "w") as st_src:
                         st_src.write("")
+            else:
+                if snippet_exists and snippet_not_empty:
+                    try:
+                        with _with_app_args_env(args_env):
+                            runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
+                    except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+                        st.warning(e)
+                else:
+                    with _with_app_args_env(args_env):
+                        render_generic_ui()
+                    if not snippet_exists:
+                        with open(app_args_form, "w") as st_src:
+                            st_src.write("")
 
         if bool(cluster_params.get("cluster_enabled", False)):
             # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).

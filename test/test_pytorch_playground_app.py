@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 from types import SimpleNamespace
 import zipfile
 
@@ -16,6 +17,9 @@ import pytest
 
 MODULE_PATH = Path(
     "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+)
+APP_SURFACE_PATH = Path(
+    "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py"
 )
 INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
 README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
@@ -72,6 +76,86 @@ def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_fir
             if name == "pytorch_playground" or name.startswith("pytorch_playground."):
                 sys.modules.pop(name, None)
         sys.modules.update(original_modules)
+
+
+def test_app_surface_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
+    script_dir = APP_SURFACE_PATH.resolve().parent
+    project_src = PROJECT_SRC.resolve()
+    original_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "pytorch_playground" or name.startswith("pytorch_playground.")
+    }
+    for name in original_modules:
+        sys.modules.pop(name, None)
+
+    fake_path = [
+        str(script_dir),
+        str(project_src),
+        *[
+            entry
+            for entry in sys.path
+            if entry not in {str(script_dir), str(project_src)}
+        ],
+    ]
+    monkeypatch.setattr(sys, "path", fake_path)
+
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_path_order_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        imported_package = importlib.import_module("pytorch_playground")
+        assert sys.path[0] == str(project_src)
+        assert Path(imported_package.__file__).name == "__init__.py"
+    finally:
+        sys.modules.pop(spec.name, None)
+        for name in list(sys.modules):
+            if name == "pytorch_playground" or name.startswith("pytorch_playground."):
+                sys.modules.pop(name, None)
+        sys.modules.update(original_modules)
+
+
+def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_analysis_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    calls: list[dict[str, object]] = []
+    fake_config = SimpleNamespace(dataset="circles")
+    fake_args = SimpleNamespace(
+        compute_loss_landscape=True,
+        landscape_resolution=17,
+        landscape_span=0.4,
+    )
+    fake_app_args = SimpleNamespace(to_playground_config=lambda args: fake_config)
+    fake_playground_ui = SimpleNamespace(main=lambda **kwargs: calls.append(kwargs))
+    fake_package = ModuleType("pytorch_playground")
+    fake_package.app_args = fake_app_args
+    fake_package.playground_ui = fake_playground_ui
+
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (SimpleNamespace(), fake_args))
+
+    try:
+        module.render(mode="analysis")
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert calls == [
+        {
+            "config_override": fake_config,
+            "preset_label": "ORCHESTRATE args",
+            "interactive_controls": False,
+            "compute_loss_landscape": True,
+            "landscape_resolution": 17,
+            "landscape_span": 0.4,
+        }
+    ]
 
 
 def test_cached_train_uses_isolated_subprocess_in_streamlit_context() -> None:
@@ -910,9 +994,9 @@ def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
 
     assert settings["cluster"]["workers"] == {"127.0.0.1": 1}
     assert settings["pages"]["restrict_to_view_module"] is True
-    assert settings["pages"]["view_module"] == ["view_app_ui"]
-    assert settings["pages"]["view_app_ui"]["entrypoint"] == "pytorch_playground/playground_ui.py"
-    assert settings["pages"]["view_app_ui"]["title"] == "PyTorch Playground"
+    assert settings["pages"]["view_module"] == []
+    assert settings["app_surface"]["entrypoint"] == "pytorch_playground/app_surface.py"
+    assert settings["app_surface"]["title"] == "PyTorch Playground"
 
 
 def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
@@ -934,6 +1018,9 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "key=key" in source
     assert "st.json(" not in source
     assert ".multiselect(" not in source
+    assert "def _render_wide_args_form" in source
+    assert ".columns(" in source
+    assert "Loss landscape" in source
 
 
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
