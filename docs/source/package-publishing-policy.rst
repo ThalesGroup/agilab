@@ -93,7 +93,7 @@ installed apps without the monorepo checkout once that package is installed:
 - ``agi-app-global-dag``
 - ``agi-app-weather-forecast``
 - ``agi-app-pytorch-playground``
-- ``agi-app-tescia-diagnostic-project``
+- ``agi-app-tescia-diagnostic``
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
@@ -101,7 +101,7 @@ Nine app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
 ``agi-app-global-dag``, ``agi-app-weather-forecast``,
-``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic-project``, and
+``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic``, and
 ``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
 artifacts and kept in the GitHub Release distribution archive until it is
@@ -421,11 +421,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-pytorch-playground``
-   * - ``agi-app-tescia-diagnostic-project``
+   * - ``agi-app-tescia-diagnostic``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-tescia-diagnostic-project``
+     - ``pypi-agi-app-tescia-diagnostic``
    * - ``agi-app-uav-queue-project``
      - ``ThalesGroup``
      - ``agilab``
@@ -499,7 +499,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-app-global-dag``
 - ``pypi-agi-app-weather-forecast``
 - ``pypi-agi-app-pytorch-playground``
-- ``pypi-agi-app-tescia-diagnostic-project``
+- ``pypi-agi-app-tescia-diagnostic``
 - ``pypi-agi-app-uav-queue-project``
 - ``pypi-agi-app-uav-relay-queue``
 - ``pypi-agi-apps``

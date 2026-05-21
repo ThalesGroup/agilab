@@ -33,7 +33,7 @@ def test_dependabot_visibility_covers_python_and_github_actions() -> None:
         "agi-app-flight-telemetry",
         "agi-app-global-dag",
         "agi-app-weather-forecast",
-        "agi-app-tescia-diagnostic-project",
+        "agi-app-tescia-diagnostic",
         "agi-app-uav-queue-project",
         "agi-app-uav-relay-queue",
     ):
@@ -84,7 +84,7 @@ def test_readmes_explain_production_dependency_and_evidence_boundaries() -> None
             "Do not use public GitHub issues",
             "SECURITY.md",
             "## Dependency And Supply-Chain Boundaries",
-            "Cluster/Dask dependencies are currently part of the base package",
+            "Cluster/Dask support is intentionally part of the base runtime",
             "Dependabot watches",
             "CycloneDX SBOM artifacts",
             "tools/profile_supply_chain_scan.py",

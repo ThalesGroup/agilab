@@ -84,7 +84,7 @@ App packages
    agi-app-global-dag <agi-app-global-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
    agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
-   agi-app-tescia-diagnostic-project <agi-app-tescia-diagnostic-project-licenses>
+   agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
    agi-app-uav-queue-project <agi-app-uav-queue-project-licenses>
    agi-app-uav-relay-queue <agi-app-uav-relay-queue-licenses>
    agi-apps <agi-apps-licenses>

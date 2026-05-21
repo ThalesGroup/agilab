@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_SLUG = 'tescia_diagnostic'
 PROJECT_NAME = 'tescia_diagnostic_project'
-PACKAGE_NAME = 'agi-app-tescia-diagnostic-project'
+PACKAGE_NAME = 'agi-app-tescia-diagnostic'
 
 
 def package_root() -> Path:

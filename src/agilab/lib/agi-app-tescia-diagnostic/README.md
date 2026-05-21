@@ -1,10 +1,10 @@
-# agi-app-tescia-diagnostic-project
+# agi-app-tescia-diagnostic
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-app-tescia-diagnostic-project.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-tescia-diagnostic-project/)
-[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-tescia-diagnostic-project.svg)](https://pypi.org/project/agi-app-tescia-diagnostic-project/)
-[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-tescia-diagnostic-project)](https://opensource.org/licenses/BSD-3-Clause)
+[![PyPI version](https://img.shields.io/pypi/v/agi-app-tescia-diagnostic.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-tescia-diagnostic/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-tescia-diagnostic.svg)](https://pypi.org/project/agi-app-tescia-diagnostic/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-tescia-diagnostic)](https://opensource.org/licenses/BSD-3-Clause)
 
-`agi-app-tescia-diagnostic-project` packages the `tescia_diagnostic_project`
+`agi-app-tescia-diagnostic` packages the `tescia_diagnostic_project`
 AGILAB app. It is a diagnostic-method example that turns weak assumptions,
 evidence, candidate fixes, and regression plans into structured artifacts.
 
@@ -16,7 +16,7 @@ can draft new cases, but validated scoring remains explicit and reproducible.
 
 ## Installed Project
 
-The distribution name is `agi-app-tescia-diagnostic-project`; the AGILAB
+The distribution name is `agi-app-tescia-diagnostic`; the AGILAB
 project name is `tescia_diagnostic_project`. The package exposes both
 `tescia_diagnostic` and `tescia_diagnostic_project` through the `agilab.apps`
 entry point group, so `AgiEnv(app="tescia_diagnostic_project")` resolves the
@@ -25,7 +25,7 @@ project without a monorepo checkout.
 ## Install
 
 ```bash
-pip install agi-app-tescia-diagnostic-project
+pip install agi-app-tescia-diagnostic
 ```
 
 The `agi-apps` umbrella pulls this package on Python 3.13+ because the TeSciA
