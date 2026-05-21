@@ -94,6 +94,16 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
+import_agilab_symbols(
+    globals(),
+    "agilab.ui_performance",
+    {
+        "ui_discovery_cache_enabled": "ui_discovery_cache_enabled",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
+    fallback_name="agilab_ui_performance_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -108,7 +118,6 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
-from agilab.ui_performance import ui_discovery_cache_enabled
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
@@ -1449,6 +1458,70 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
     return result
 
 
+_APP_UI_PAGE_KEY = "view_app_ui"
+
+
+def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+    if active_app_path is None:
+        return None
+    settings_path = active_app_path / "src" / "app_settings.toml"
+    try:
+        with open(settings_path, "rb") as f:
+            seed_cfg = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    pages = seed_cfg.get("pages")
+    if not isinstance(pages, dict):
+        return None
+    page_cfg = pages.get(_APP_UI_PAGE_KEY)
+    if not isinstance(page_cfg, dict):
+        return None
+    entrypoint = page_cfg.get("entrypoint")
+    if not isinstance(entrypoint, str) or not entrypoint.strip():
+        return None
+    declared = {"entrypoint": entrypoint.strip()}
+    title = page_cfg.get("title")
+    if isinstance(title, str) and title.strip():
+        declared["title"] = title.strip()
+    return declared
+
+
+def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict) -> bool:
+    """Copy an app-owned ANALYSIS UI declaration into stale per-user settings."""
+    declared = _declared_app_ui_page_config(active_app_path)
+    if declared is None:
+        return False
+
+    pages = cfg.setdefault("pages", {})
+    if not isinstance(pages, dict):
+        cfg["pages"] = pages = {}
+
+    raw_page_cfg = pages.get(_APP_UI_PAGE_KEY)
+    has_page_cfg = (
+        isinstance(raw_page_cfg, dict)
+        and isinstance(raw_page_cfg.get("entrypoint"), str)
+        and bool(raw_page_cfg.get("entrypoint", "").strip())
+    )
+    if has_page_cfg:
+        return False
+
+    raw_modules = pages.get("view_module")
+    modules = (
+        [
+            value.strip()
+            for value in raw_modules
+            if isinstance(value, str) and value.strip()
+        ]
+        if isinstance(raw_modules, list)
+        else []
+    )
+    if _APP_UI_PAGE_KEY not in modules:
+        modules.insert(0, _APP_UI_PAGE_KEY)
+    pages["view_module"] = _dedupe_preserve_order(modules)
+    pages[_APP_UI_PAGE_KEY] = declared
+    return True
+
+
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
     """Migrate stale per-user analysis settings after app defaults change."""
     if project not in {"flight", "flight_telemetry_project"}:
@@ -2314,6 +2387,7 @@ async def main():
 
     # Where to store selected pages per project
     project = env.app
+    active_app_path = _active_app_path_for_env(env)
     app_settings = env.resolve_user_app_settings_file(project)
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
@@ -2335,7 +2409,12 @@ async def main():
     cfg = _read_config(app_settings)
     if "pages" not in cfg:
         cfg["pages"] = {}
+    migrated_cfg = False
+    if _migrate_declared_app_ui_page_config(active_app_path, cfg):
+        migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
+        migrated_cfg = True
+    if migrated_cfg:
         _write_config(app_settings, cfg)
     configured_views: list[str] = [
         str(v)
@@ -2386,7 +2465,6 @@ async def main():
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
 
-    active_app_path = _active_app_path_for_env(env)
     notebook_lookup = discover_project_notebooks(active_app_path)
     notebook_names = list(notebook_lookup.keys())
     notebook_selection_key = f"notebook_selection__{project or 'default'}"
