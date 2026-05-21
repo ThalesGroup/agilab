@@ -108,6 +108,7 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
+from agilab.ui_performance import ui_discovery_cache_enabled
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
@@ -1058,7 +1059,7 @@ _NOTEBOOK_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], dict[str, Path]]] =
 
 def _analysis_discovery_cache_enabled(environ: Any = os.environ) -> bool:
     value = str(environ.get(ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV, "")).strip().lower()
-    return value not in {"1", "true", "yes", "on"}
+    return value not in {"1", "true", "yes", "on"} and ui_discovery_cache_enabled(environ)
 
 
 def _directory_tree_signature(root: Path, *, file_suffixes: tuple[str, ...]) -> tuple[Any, ...]:

@@ -16,6 +16,12 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
+from agilab.ui_performance import (
+    UI_TIMING_SESSION_KEY,
+    UI_TIMING_TRACE_ENV_KEY,
+    record_ui_timing_span,
+    ui_timing_trace_enabled,
+)
 
 try:
     from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
@@ -352,13 +358,67 @@ def _render_page_load_timing(
     perf_counter: Callable[[], float] = time.perf_counter,
 ) -> None:
     """Render opt-in page load timing without adding default UI noise."""
+    elapsed_ms = max(0.0, (perf_counter() - started_at) * 1000.0)
+    if ui_timing_trace_enabled():
+        _record_ui_timing_span(
+            page_label,
+            started_at,
+            category="page",
+            streamlit=streamlit,
+            perf_counter=perf_counter,
+        )
+        _render_ui_timing_trace(streamlit=streamlit)
     if not _page_load_timing_enabled():
         return
-    elapsed_ms = max(0.0, (perf_counter() - started_at) * 1000.0)
     try:
         streamlit.sidebar.caption(f"{page_label} loaded in {elapsed_ms:.0f} ms")
     except (AttributeError, RuntimeError, TypeError, ValueError):
         logger.info("%s loaded in %.0f ms", page_label, elapsed_ms)
+
+
+def _record_ui_timing_span(
+    label: str,
+    started_at: float,
+    *,
+    category: str,
+    streamlit: Any = st,
+    perf_counter: Callable[[], float] = time.perf_counter,
+) -> None:
+    if not ui_timing_trace_enabled():
+        return
+    record_ui_timing_span(
+        getattr(streamlit, "session_state", {}),
+        label=label,
+        started_at=started_at,
+        category=category,
+        perf_counter=perf_counter,
+    )
+
+
+def _render_ui_timing_trace(*, streamlit: Any = st, max_spans: int = 6) -> None:
+    if not ui_timing_trace_enabled():
+        return
+    try:
+        spans = list(streamlit.session_state.get(UI_TIMING_SESSION_KEY, ()))
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return
+    if not spans:
+        return
+    lines = []
+    for span in spans[-max(1, max_spans) :]:
+        try:
+            label = str(span.get("label", ""))
+            category = str(span.get("category", ""))
+            elapsed_ms = float(span.get("elapsed_ms", "0") or 0.0)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        lines.append(f"{label} [{category}] {elapsed_ms:.0f} ms")
+    if not lines:
+        return
+    try:
+        streamlit.sidebar.caption("UI trace: " + " | ".join(lines))
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        logger.info("UI trace: %s", " | ".join(lines))
 
 
 def get_about_content() -> dict[str, str]:
@@ -816,13 +876,17 @@ def _render_about_page_entry() -> None:
     started_at = time.perf_counter()
     resources_path = _about_resources_path()
     _render_navigation_page_shell(resources_path)
+    bootstrap_started_at = time.perf_counter()
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    _record_ui_timing_span("ABOUT:bootstrap", bootstrap_started_at, category="bootstrap")
     if env is None:
         return
+    render_started_at = time.perf_counter()
     show_banner_and_intro(resources_path, env)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
     page(env)
+    _record_ui_timing_span("ABOUT:render", render_started_at, category="render")
     _render_page_load_timing("ABOUT", started_at)
 
 
@@ -831,10 +895,14 @@ def _render_settings_page_entry() -> None:
     started_at = time.perf_counter()
     resources_path = _about_resources_path()
     _render_navigation_page_shell(resources_path)
+    bootstrap_started_at = time.perf_counter()
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    _record_ui_timing_span("SETTINGS:bootstrap", bootstrap_started_at, category="bootstrap")
     if env is None:
         return
+    render_started_at = time.perf_counter()
     settings_page(env)
+    _record_ui_timing_span("SETTINGS:render", render_started_at, category="render")
     _render_page_load_timing("SETTINGS", started_at)
 
 
@@ -926,17 +994,25 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
 
     def _run_page() -> None:
         started_at = time.perf_counter()
+        page_label = page_file.stem
+        bootstrap_started_at = time.perf_counter()
         if _ensure_navigation_environment(_about_resources_path(), rerun_after_bootstrap=True) is None:
+            _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
             return
+        _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
+        import_started_at = time.perf_counter()
         module = _load_page_module(page_file)
+        _record_ui_timing_span(f"{page_label}:import", import_started_at, category="import")
         main_fn = getattr(module, "main", None)
         if main_fn is None:
             raise AttributeError(f"Page {page_file} does not expose a main() function")
+        render_started_at = time.perf_counter()
         if inspect.iscoroutinefunction(main_fn):
             asyncio.run(main_fn())
         else:
             main_fn()
-        _render_page_load_timing(page_file.stem, started_at)
+        _record_ui_timing_span(f"{page_label}:render", render_started_at, category="render")
+        _render_page_load_timing(page_label, started_at)
 
     _run_page.__name__ = f"run_{page_file.stem}"
     return _run_page
