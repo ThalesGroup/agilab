@@ -52,9 +52,15 @@ def _resolve_active_app_path(active_app: Path | None = None) -> Path | None:
     if active_app is not None:
         candidate = Path(active_app).expanduser()
         return candidate.resolve() if candidate.exists() else None
-    from pytorch_playground.core import _resolve_active_app
 
-    return _resolve_active_app()
+    for index, arg in enumerate(sys.argv):
+        if arg == "--active-app" and index + 1 < len(sys.argv):
+            candidate = Path(sys.argv[index + 1]).expanduser()
+            return candidate.resolve() if candidate.exists() else None
+        if arg.startswith("--active-app="):
+            candidate = Path(arg.split("=", 1)[1]).expanduser()
+            return candidate.resolve() if candidate.exists() else None
+    return None
 
 
 def _load_orchestrate_args(active_app_path: Path):
@@ -64,6 +70,50 @@ def _load_orchestrate_args(active_app_path: Path):
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     args_model = app_args.ensure_defaults(app_args.load_args(env.app_settings_file), env=env)
     return env, args_model
+
+
+def _append_unique_path(paths: list[Path], path: Path) -> None:
+    try:
+        resolved = path.expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        resolved = path.expanduser()
+    if resolved not in paths:
+        paths.append(resolved)
+
+
+def _analysis_evidence_dirs(env: Any, args_model: Any, active_app_path: Path) -> list[Path]:
+    paths: list[Path] = []
+    export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+    for target in (
+        str(getattr(env, "target", "") or ""),
+        str(getattr(env, "app", "") or ""),
+        active_app_path.name,
+    ):
+        if target:
+            _append_unique_path(paths, export_root / target / "pytorch_playground")
+
+    data_out = Path(getattr(args_model, "data_out", "pytorch_playground/evidence"))
+    if not data_out.is_absolute():
+        resolve_share_path = getattr(env, "resolve_share_path", None)
+        if callable(resolve_share_path):
+            data_out = Path(resolve_share_path(data_out))
+    _append_unique_path(paths, data_out)
+    return paths
+
+
+def _has_evidence(paths: list[Path]) -> bool:
+    return any((path / "manifest.json").is_file() for path in paths)
+
+
+def _render_missing_evidence(paths: list[Path]) -> None:
+    import streamlit as st
+
+    st.set_page_config(page_title="PyTorch Playground", layout="wide")
+    st.title("PyTorch Playground")
+    st.info("No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS.")
+    if paths:
+        st.caption("Checked evidence locations:")
+        st.code("\n".join(str(path) for path in paths), language="text")
 
 
 def render(
@@ -81,13 +131,20 @@ def render(
         return
     if surface_mode in {"analysis", "full"}:
         active_app_path = _resolve_active_app_path(active_app)
-        from pytorch_playground import app_args, playground_ui
 
         if active_app_path is None:
+            from pytorch_playground import playground_ui
+
             playground_ui.main()
             return
         try:
-            _, args_model = _load_orchestrate_args(active_app_path)
+            runtime_env, args_model = _load_orchestrate_args(active_app_path)
+            evidence_dirs = _analysis_evidence_dirs(runtime_env, args_model, active_app_path)
+            if not _has_evidence(evidence_dirs):
+                _render_missing_evidence(evidence_dirs)
+                return
+            from pytorch_playground import app_args, playground_ui
+
             config = app_args.to_playground_config(args_model)
         except Exception as exc:
             import streamlit as st
@@ -101,6 +158,7 @@ def render(
             compute_loss_landscape=args_model.compute_loss_landscape,
             landscape_resolution=args_model.landscape_resolution,
             landscape_span=args_model.landscape_span,
+            evidence_dirs=evidence_dirs,
         )
         return
     raise ValueError(f"Unsupported PyTorch Playground app surface mode: {mode}")
