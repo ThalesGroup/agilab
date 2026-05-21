@@ -15,8 +15,9 @@ pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.
 
 Looking for the PyTorch playground or loss landscape? Use
-``view_pytorch_playground``. The loss-landscape projection is a tab inside that
-page, not a separate ``view_loss_landscape`` package.
+``view_pytorch_playground``. It is a standalone opt-in playground, not a
+generic app-agnostic analysis page. The loss-landscape projection is a tab
+inside that page, not a separate ``view_loss_landscape`` package.
 
 What is a page bundle?
 ----------------------
@@ -140,8 +141,8 @@ pulled by the umbrella dependency graph.
      - ``agi-page-pytorch-playground``
      - Interactive PyTorch classifier playground with Loss landscape tab and
        evidence-pack export.
-     - Standalone published page package; intentionally outside ``agi-pages``
-       because ``torch`` is a heavy runtime dependency.
+     - Standalone opt-in playground package; intentionally outside
+       ``agi-pages`` because ``torch`` is a heavy runtime dependency.
    * - ``view_queue_resilience``
      - ``agi-page-queue-health``
      - Queue occupancy, delay, drop, route, and run-metadata evidence.
@@ -319,8 +320,8 @@ PyTorch classifier playground for small synthetic datasets.
 - Output: training curves, hidden-layer activation maps, network diagnostics,
   Loss landscape tab, and a hashed evidence-pack download.
 - It is published as the standalone ``agi-page-pytorch-playground`` package but
-  remains outside the ``agi-pages`` umbrella because ``torch`` is a heavy runtime
-  dependency.
+  is not a generic app-agnostic analysis page; it remains outside the
+  ``agi-pages`` umbrella because ``torch`` is a heavy runtime dependency.
 
 Producer example for distributed runs
 -------------------------------------

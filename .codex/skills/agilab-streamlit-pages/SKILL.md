@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-16
+  updated: 2026-05-21
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -13,6 +13,22 @@ Use this skill when editing:
 - `src/agilab/pages/*.py`
 - `src/agilab/apps-pages/*/src/*/*.py`
 - custom `app_args_form.py` views in AGILAB-managed app repos
+
+## Apps-Pages Versus Apps Boundary
+
+- Treat `apps-pages` as app-agnostic analysis sidecars by default. A page should
+  inspect artifacts, manifests, metrics, or settings from the selected active
+  app; it should not own the domain workflow.
+- Before promoting a Streamlit surface as an apps-page, check whether it
+  generates its own dataset, trains a model, runs an optimizer, owns evidence
+  generation, or encodes project-specific semantics. If yes, it is probably an
+  app project with a companion analysis page, not a generic page bundle.
+- If a self-contained teaching surface must stay under `apps-pages` for
+  packaging or launch reasons, document it as an explicit opt-in playground or
+  exception. Do not describe it as a generic app-agnostic view.
+- Prefer the split architecture when the surface has both execution and review
+  concerns: the app owns reproducible execution and artifact/evidence export;
+  the page reads those artifacts and renders the analysis.
 
 ## Session State Rules (Avoid Common Crashes)
 
