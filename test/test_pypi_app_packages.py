@@ -53,6 +53,7 @@ def test_requirement_normalization_commands_and_catalog_search():
     )
     assert module.pypi_app_package_name("agi-app-weather-forecast==2026.5.18") == "agi-app-weather-forecast"
     assert module.search_promoted_pypi_app_catalog("weather") == ("agi-app-weather-forecast",)
+    assert module.search_promoted_pypi_app_catalog("tescia") == ("agi-app-tescia-diagnostic-project",)
     assert module.pypi_app_install_command(
         "agi-app-weather-forecast",
         python_executable="/tmp/python",
