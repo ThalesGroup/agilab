@@ -35,9 +35,14 @@ root.
 
 ## Run In AGILAB
 
-Select `pytorch_playground_project`, open `ORCHESTRATE`, tune the sidebar
-fields, then run `INSTALL` and `RUN`. Enable loss-landscape computation
-only when you want the heavier 3D projection in the evidence bundle.
+Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
+PyTorch Playground surface. That surface contains the interactive controls,
+decision boundary, training curves, neuron/loss views, and evidence download.
+
+Open `ORCHESTRATE` when you want the reproducible AGILAB execution path: tune
+the sidebar fields, then run `INSTALL` and `RUN`. Enable loss-landscape
+computation only when you want the heavier 3D projection in the evidence
+bundle.
 
 ## Expected Inputs
 
@@ -59,4 +64,6 @@ auditable.
 ## Scope
 
 This is an educational reproducibility app. It is not a production trainer,
-model registry, serving stack, or generic app-agnostic analysis page.
+model registry, serving stack, or generic app-agnostic analysis page. The
+PyTorch-specific UI stays inside the app project; reusable apps-pages remain
+optional artifact readers for shared contracts.

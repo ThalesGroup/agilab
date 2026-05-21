@@ -232,6 +232,16 @@ def test_view_training_analysis_builds_one_trace_per_run_and_metric() -> None:
     assert colors_by_run["routing_2"] != colors_by_run["routing_20"]
     assert colors_by_run["routing_12"] != colors_by_run["routing_20"]
 
+    embedded_fig = module._build_scalar_figure(
+        scalar_df,
+        ["rollout/ep_rew_mean", "train/approx_kl"],
+        "step",
+        embed_mode=True,
+    )
+    assert embedded_fig.layout.autosize is True
+    assert embedded_fig.layout.height > fig.layout.height
+    assert embedded_fig.layout.legend.orientation == "h"
+
 
 def test_view_training_analysis_normalizes_page_settings_and_paths(tmp_path: Path) -> None:
     module = _load_module()
@@ -245,10 +255,26 @@ def test_view_training_analysis_normalizes_page_settings_and_paths(tmp_path: Pat
 
     share_dir = tmp_path / "share"
     export_dir = tmp_path / "export"
-    env = SimpleNamespace(share_root_path=lambda: str(share_dir), AGILAB_EXPORT_ABS=str(export_dir))
+    export_target = export_dir / "pytorch_playground"
+    export_target.mkdir(parents=True)
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        target="pytorch_playground",
+        share_root_path=lambda: str(share_dir),
+        AGILAB_EXPORT_ABS=str(export_dir),
+    )
     assert module._resolve_base_path(env, "AGI_CLUSTER_SHARE", "").resolve() == share_dir.resolve()
     assert module._resolve_base_path(env, "AGILAB_EXPORT", "").resolve() == export_dir.resolve()
     assert module._resolve_base_path(env, "CUSTOM", "~/custom-root") == Path("~/custom-root").expanduser()
+    assert module._query_param_value({"embed": ["true"]}, "embed") == "true"
+    assert module._is_embed_mode({"embed": "true"})
+    assert not module._is_embed_mode({"embed": "false"})
+    assert (
+        module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "", embed_mode=True)
+        == "pytorch_playground"
+    )
+    assert module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "manual", embed_mode=True) == "manual"
+    assert module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "", embed_mode=False) == ""
 
     assert module._relative_label(tmp_path / "base" / "child", tmp_path / "base") == "child"
     assert module._relative_label(tmp_path / "outside", tmp_path / "base") == "outside"
@@ -684,7 +710,11 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
         )
 
     monkeypatch.setattr(module, "_load_scalar_frame", fake_load_scalar_frame)
-    monkeypatch.setattr(module, "_build_scalar_figure", lambda df, tags, axis: {"tags": tags, "axis": axis, "rows": len(df)})
+    monkeypatch.setattr(
+        module,
+        "_build_scalar_figure",
+        lambda df, tags, axis, **_kwargs: {"tags": tags, "axis": axis, "rows": len(df)},
+    )
 
     module.main()
 
@@ -695,6 +725,115 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
     assert "trainer_rels = [" in written
     assert "selected_tags = [" in written
     assert "\"metric/a\"" in written
+
+
+def test_view_training_analysis_embedded_mode_autoscales_export_target(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    target_root = export_root / "pytorch_playground"
+    trainer_dir = target_root / "pytorch_playground"
+    run_file = trainer_dir / "data" / "training_history.csv"
+    run_file.parent.mkdir(parents=True)
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        target="pytorch_playground",
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    page_configs: list[dict] = []
+    markdown_calls: list[tuple[str, bool]] = []
+    captions: list[str] = []
+    plotted: list[tuple[object, str]] = []
+    discovered_roots: list[Path] = []
+
+    def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+        if label == "X axis":
+            return "step"
+        return options[index]
+
+    def sidebar_multiselect(label, options, default=None, key=None):
+        if label == "Trainer outputs":
+            return list(options)
+        if label == "TensorBoard run folders":
+            return list(options)
+        if label == "TensorBoard variables":
+            return ["train_loss"]
+        return list(default or [])
+
+    module.st = SimpleNamespace(
+        query_params={"embed": "true", "active_app": "pytorch_playground_project"},
+        session_state={"env": env},
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            selectbox=sidebar_selectbox,
+            multiselect=sidebar_multiselect,
+        ),
+        set_page_config=lambda **kwargs: page_configs.append(kwargs),
+        markdown=lambda body, unsafe_allow_html=False: markdown_calls.append((body, unsafe_allow_html)),
+        title=lambda *args, **kwargs: None,
+        caption=captions.append,
+        warning=lambda *args, **kwargs: None,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda fig, width=None: plotted.append((fig, width)),
+        stop=_stop,
+    )
+    monkeypatch.setattr(
+        module,
+        "render_logo",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("logo is hidden in embed mode")),
+    )
+
+    def fake_discover_training_roots(data_root: Path) -> list[Path]:
+        discovered_roots.append(data_root)
+        return [trainer_dir]
+
+    monkeypatch.setattr(module, "_discover_training_roots", fake_discover_training_roots)
+    monkeypatch.setattr(module, "_discover_run_labels", lambda trainers, data_root: {"training_history": run_file})
+    monkeypatch.setattr(
+        module,
+        "_load_scalar_frame",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {
+                "tag": ["train_loss", "train_loss"],
+                "step": [1, 2],
+                "wall_time": [10.0, 11.0],
+                "relative_time_s": [0.0, 1.0],
+                "timestamp": pd.to_datetime([10.0, 11.0], unit="s"),
+                "value": [0.8, 0.4],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_build_scalar_figure",
+        lambda df, tags, axis, *, embed_mode=False: {
+            "tags": tags,
+            "axis": axis,
+            "rows": len(df),
+            "embed_mode": embed_mode,
+        },
+    )
+
+    module.main()
+
+    assert page_configs == [{"layout": "wide", "initial_sidebar_state": "collapsed"}]
+    assert markdown_calls and markdown_calls[0][1] is True
+    assert captions == ["Training analysis"]
+    assert discovered_roots == [target_root.resolve()]
+    assert module.st.session_state["base_dir_choice"] == "AGILAB_EXPORT"
+    assert module.st.session_state["datadir_rel"] == "pytorch_playground"
+    assert plotted == [
+        (
+            {"tags": ["train_loss"], "axis": "step", "rows": 2, "embed_mode": True},
+            "stretch",
+        )
+    ]
 
 
 def test_view_training_analysis_handles_active_app_and_settings_error_paths(monkeypatch, tmp_path: Path) -> None:
