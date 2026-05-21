@@ -105,6 +105,35 @@ def test_view_app_ui_runs_app_main_with_active_app_argument(monkeypatch: pytest.
     assert marker.read_text(encoding="utf-8") == f"{ui}|--active-app|{app}"
 
 
+def test_view_app_ui_runs_app_main_with_script_local_imports(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    app = tmp_path / "demo_project"
+    ui = app / "src" / "demo" / "ui.py"
+    marker = tmp_path / "local_import.txt"
+    ui.parent.mkdir(parents=True)
+    (ui.parent / "core.py").write_text("VALUE = 'script-local-core'\n", encoding="utf-8")
+    ui.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import core",
+                "def main():",
+                f"    Path({str(marker)!r}).write_text(core.VALUE, encoding='utf-8')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    module._run_app_ui(ui, app)
+
+    assert marker.read_text(encoding="utf-8") == "script-local-core"
+    assert sys.path[:2] == [str((app / "src").resolve()), str(ui.parent.resolve())]
+
+
 def test_view_app_ui_reorders_path_and_rejects_entrypoint_without_main(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -121,7 +150,7 @@ def test_view_app_ui_reorders_path_and_rejects_entrypoint_without_main(
         module._run_app_ui(ui, app)
 
     assert sys.argv == previous_argv
-    assert sys.path[:2] == [str(app / "src"), "existing"]
+    assert sys.path[:3] == [str(app / "src"), str(ui.parent), "existing"]
 
 
 def test_view_app_ui_load_module_reports_missing_spec_and_cleans_failed_import(
