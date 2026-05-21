@@ -36,6 +36,215 @@ def _load_module():
     return module
 
 
+def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
+    script_dir = MODULE_PATH.resolve().parent
+    project_src = PROJECT_SRC.resolve()
+    original_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "pytorch_playground" or name.startswith("pytorch_playground.")
+    }
+    for name in original_modules:
+        sys.modules.pop(name, None)
+
+    fake_path = [
+        str(script_dir),
+        str(project_src),
+        *[
+            entry
+            for entry in sys.path
+            if entry not in {str(script_dir), str(project_src)}
+        ],
+    ]
+    monkeypatch.setattr(sys, "path", fake_path)
+
+    spec = importlib.util.spec_from_file_location("pytorch_playground_streamlit_path_order_test", MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        assert sys.path[0] == str(project_src)
+        assert module._playground_core.__name__ == "pytorch_playground.core"
+    finally:
+        sys.modules.pop(spec.name, None)
+        for name in list(sys.modules):
+            if name == "pytorch_playground" or name.startswith("pytorch_playground."):
+                sys.modules.pop(name, None)
+        sys.modules.update(original_modules)
+
+
+def test_cached_train_uses_isolated_subprocess_in_streamlit_context() -> None:
+    module = _load_module()
+    if module.torch is None:
+        pytest.skip("torch is not installed in this validation environment")
+
+    from streamlit.testing.v1 import AppTest
+
+    module_path = str(MODULE_PATH.resolve())
+    script = f"""
+from dataclasses import asdict
+import importlib.util
+from pathlib import Path
+import sys
+
+import streamlit as st
+
+path = Path({module_path!r})
+spec = importlib.util.spec_from_file_location("pytorch_playground_streamlit_subprocess_regression", path)
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+config = module.PlaygroundConfig(sample_count=64, epochs=1, grid_size=12, hidden_layers=(4,))
+result = module._cached_train(asdict(config))
+st.write(f"status={{result['status']}}")
+st.write(f"backend={{result['summary'].get('backend')}}")
+"""
+    app = AppTest.from_string(script, default_timeout=60)
+    app.run()
+
+    assert list(app.exception) == []
+    assert [item.value for item in app.markdown] == ["status=ok", "backend=torch"]
+
+
+def test_isolated_runner_success_serializes_request_and_pythonpath(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=24, epochs=1, grid_size=8, hidden_layers=(4,))
+    captured: dict[str, object] = {}
+
+    def fake_run(cmd, **kwargs):
+        input_path = Path(cmd[-2])
+        output_path = Path(cmd[-1])
+        request = module.pickle.loads(input_path.read_bytes())
+        captured["request"] = request
+        captured["pythonpath"] = kwargs["env"]["PYTHONPATH"]
+        output_path.write_bytes(
+            module.pickle.dumps(
+                {"ok": True, "result": {"status": "ok", "summary": {"backend": "torch"}}},
+                protocol=module.pickle.HIGHEST_PROTOCOL,
+            )
+        )
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    result = module._run_core_in_subprocess("train", config)
+
+    assert result["status"] == "ok"
+    assert result["summary"]["backend"] == "torch"
+    assert captured["request"]["action"] == "train"
+    assert captured["request"]["config"]["hidden_layers"] == (4,)
+    assert str(module._APP_SRC) in str(captured["pythonpath"]).split(module.os.pathsep)
+
+
+def test_isolated_runner_failure_paths_return_displayable_error_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=20, epochs=1, grid_size=8)
+
+    def timeout_run(*_args, **_kwargs):
+        raise module.subprocess.TimeoutExpired(cmd="python", timeout=180)
+
+    monkeypatch.setattr(module.subprocess, "run", timeout_run)
+    train_timeout = module._run_core_in_subprocess("train", config)
+    landscape_timeout = module._run_core_in_subprocess("loss_landscape", config, resolution=5, span=0.2)
+
+    assert train_timeout["status"] == "error"
+    assert "timed out after 180" in train_timeout["detail"]
+    assert train_timeout["samples"].shape[0] == 20
+    assert landscape_timeout["status"] == "error"
+    assert landscape_timeout["loss_landscape"].empty
+
+    def nonzero_run(_cmd, **_kwargs):
+        return SimpleNamespace(returncode=7, stderr="fatal line\n")
+
+    monkeypatch.setattr(module.subprocess, "run", nonzero_run)
+    train_nonzero = module._run_core_in_subprocess("train", config)
+    nonzero_result = module._run_core_in_subprocess("loss_landscape", config, resolution=5, span=0.2)
+    assert train_nonzero["status"] == "error"
+    assert train_nonzero["history"].empty
+    assert nonzero_result["status"] == "error"
+    assert "exit code 7" in nonzero_result["detail"]
+    assert "fatal line" in nonzero_result["detail"]
+
+    def payload_run(payload):
+        def fake_run(cmd, **_kwargs):
+            Path(cmd[-1]).write_bytes(module.pickle.dumps(payload, protocol=module.pickle.HIGHEST_PROTOCOL))
+            return SimpleNamespace(returncode=0, stderr="")
+
+        return fake_run
+
+    monkeypatch.setattr(module.subprocess, "run", payload_run({"ok": False, "error_type": "ValueError", "error": "bad payload"}))
+    failed_payload = module._run_core_in_subprocess("train", config)
+    assert failed_payload["status"] == "error"
+    assert "ValueError: bad payload" in failed_payload["detail"]
+
+    monkeypatch.setattr(module.subprocess, "run", payload_run(["not", "a", "mapping"]))
+    malformed_payload = module._run_core_in_subprocess("loss_landscape", config, resolution=5, span=0.2)
+    assert malformed_payload["status"] == "error"
+    assert malformed_payload["landscape_summary"]["status"] == "error"
+
+    monkeypatch.setattr(module.subprocess, "run", payload_run({"ok": True, "result": []}))
+    invalid_result = module._run_core_in_subprocess("train", config)
+    invalid_landscape = module._run_core_in_subprocess("loss_landscape", config, resolution=5, span=0.2)
+    assert invalid_result["status"] == "error"
+    assert "runner returned an invalid payload" in invalid_result["detail"]
+    assert invalid_landscape["status"] == "error"
+    assert invalid_landscape["loss_landscape"].empty
+
+
+def test_cached_train_and_loss_landscape_route_to_isolated_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=28, epochs=1, grid_size=8, seed=101)
+    calls: list[tuple[str, int | None, float | None]] = []
+
+    def fake_run_core(action, _config, *, resolution=None, span=None):
+        calls.append((action, resolution, span))
+        if action == "train":
+            return {"status": "ok", "summary": {"backend": "isolated"}}
+        return {"status": "ok", "loss_landscape": pd.DataFrame(), "landscape_summary": {"points": 0}}
+
+    monkeypatch.setattr(module, "_use_isolated_torch_training", lambda: True)
+    monkeypatch.setattr(module, "_run_core_in_subprocess", fake_run_core)
+
+    train_result = module._cached_train(module.asdict(config))
+    landscape_result = module._cached_loss_landscape(module.asdict(config), resolution=7, span=0.3)
+
+    assert train_result["summary"]["backend"] == "isolated"
+    assert landscape_result["landscape_summary"]["points"] == 0
+    assert calls == [("train", None, None), ("loss_landscape", 7, 0.3)]
+
+
+def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    fake_st = SimpleNamespace(session_state={module.TRAINED_CONFIG_STATE_KEY: "bad payload"})
+    monkeypatch.setattr(module, "st", fake_st)
+
+    config = module.PlaygroundConfig(sample_count=64, epochs=10, grid_size=12)
+    trained, preset, pending = module._resolve_trained_config(
+        config,
+        module.DEFAULT_PRESET,
+        train_requested=False,
+    )
+
+    assert trained == config
+    assert preset == module.DEFAULT_PRESET
+    assert pending is False
+    assert module._streamlit_script_context_active() is False
+    assert module._session_state_get("missing", "fallback") == "fallback"
+    monkeypatch.setattr(module, "st", SimpleNamespace())
+    assert module._session_state_get("missing", "fallback") == "fallback"
+    assert module._format_percent("bad") == "0%"
+    assert module._format_percent(float("nan")) == "0%"
+    assert module._confidence_score(pd.DataFrame({"probability": []})) == 0.0
+    assert module._class_balance(pd.DataFrame({"target": []})) == "no samples"
+    assert module._performance_band({"validation_accuracy": 0.95})[0] == "Strong fit"
+    assert module._performance_band({"validation_accuracy": 0.80})[0] == "Learning visible"
+    assert module._gap_band({"train_accuracy": 0.90, "validation_accuracy": 0.80})[0] == "Watch the gap"
+    assert module._gap_band({"train_accuracy": 0.95, "validation_accuracy": 0.70})[0] == "Likely overfit"
+    assert module._confidence_band(pd.DataFrame({"probability": [0.1, 0.9]}))[0] == "Decisive boundary"
+    assert module._confidence_band(pd.DataFrame({"probability": [0.30, 0.70]}))[0] == "Boundary forming"
+
+
 def _runtime_payload_files(root: Path) -> set[Path]:
     return {
         path.relative_to(root)
