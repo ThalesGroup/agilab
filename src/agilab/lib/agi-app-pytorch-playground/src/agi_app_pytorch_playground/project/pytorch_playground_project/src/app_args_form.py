@@ -14,7 +14,7 @@ if str(_HERE) not in sys.path:
 
 from agi_env.streamlit_args import load_args_state, persist_args
 from pytorch_playground import app_args
-from pytorch_playground.core import ACTIVATIONS, DATASETS, FEATURES, OPTIMIZERS, _coerce_feature_names
+from pytorch_playground.core import ACTIVATIONS, DATASETS, OPTIMIZERS, _coerce_feature_names
 
 APP_FORM_ID = "pytorch_playground_args"
 
@@ -80,10 +80,8 @@ def _selectbox(container: Any, env: Any, name: str, label: str, options: tuple[s
 
 
 def _feature_names(container: Any, env: Any, value: str) -> str:
-    key = _field_key(env, "feature_names")
-    _seed_widget_value(key, list(_coerce_feature_names(value)))
-    selected = container.multiselect("Feature names", options=list(FEATURES), key=key)
-    return ",".join(str(item) for item in selected) if selected else app_args.DEFAULT_FEATURE_NAMES
+    selected = _coerce_feature_names(value)
+    return _text_input(container, env, "feature_names", "Feature names", ",".join(selected))
 
 
 def _render_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
