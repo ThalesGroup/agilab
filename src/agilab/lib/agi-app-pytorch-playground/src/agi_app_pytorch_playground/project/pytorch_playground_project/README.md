@@ -13,14 +13,20 @@ deterministic ZIP bundle.
 
 ## Run In AGILAB
 
-Select `pytorch_playground_project`, open `ORCHESTRATE`, adjust the sidebar
-fields, then run `INSTALL` and `RUN`. The default configuration trains the
-clean-circles preset and exports evidence under `pytorch_playground/evidence`.
+Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
+PyTorch Playground surface. That single surface contains the interactive
+controls, decision boundary, training curves, neuron/loss views, and evidence
+download.
+
+Open `ORCHESTRATE` when you want the reproducible AGILAB execution path:
+adjust the sidebar fields, then run `INSTALL` and `RUN`. The default
+configuration trains the clean-circles preset and exports evidence under
+`pytorch_playground/evidence`.
 
 The app also keeps a local Streamlit playground surface for interactive review:
 
 ```bash
-uv run streamlit run src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+uv run streamlit run src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
 ```
 
 ## Expected Inputs
@@ -46,5 +52,7 @@ The worker writes:
 ## Scope
 
 This is a reproducible educational app for neural-network behavior and loss
-landscape inspection. It is not a model-serving platform, production training
-pipeline, or generic app-agnostic analysis page.
+landscape inspection. It owns its PyTorch-specific UI inside the app project;
+generic apps-pages are only optional artifact readers such as cross-run scalar
+inspection. It is not a model-serving platform, production training pipeline,
+or generic app-agnostic analysis page.

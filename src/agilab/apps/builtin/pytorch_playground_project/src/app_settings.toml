@@ -36,8 +36,9 @@ max_unhealthy = 0
 max_restart_rate = 0.25
 
 [pages]
-view_module = ["view_app_ui"]
+restrict_to_view_module = true
+view_module = []
 
-[pages.view_app_ui]
+[app_surface]
 title = "PyTorch Playground"
-entrypoint = "pytorch_playground/playground_ui.py"
+entrypoint = "pytorch_playground/app_surface.py"

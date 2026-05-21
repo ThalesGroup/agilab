@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 from types import SimpleNamespace
 import zipfile
 
@@ -16,6 +17,9 @@ import pytest
 
 MODULE_PATH = Path(
     "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+)
+APP_SURFACE_PATH = Path(
+    "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py"
 )
 INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
 README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
@@ -72,6 +76,129 @@ def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_fir
             if name == "pytorch_playground" or name.startswith("pytorch_playground."):
                 sys.modules.pop(name, None)
         sys.modules.update(original_modules)
+
+
+def test_app_surface_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
+    script_dir = APP_SURFACE_PATH.resolve().parent
+    project_src = PROJECT_SRC.resolve()
+    original_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "pytorch_playground" or name.startswith("pytorch_playground.")
+    }
+    for name in original_modules:
+        sys.modules.pop(name, None)
+
+    fake_path = [
+        str(script_dir),
+        str(project_src),
+        *[
+            entry
+            for entry in sys.path
+            if entry not in {str(script_dir), str(project_src)}
+        ],
+    ]
+    monkeypatch.setattr(sys, "path", fake_path)
+
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_path_order_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        imported_package = importlib.import_module("pytorch_playground")
+        assert sys.path[0] == str(project_src)
+        assert Path(imported_package.__file__).name == "__init__.py"
+    finally:
+        sys.modules.pop(spec.name, None)
+        for name in list(sys.modules):
+            if name == "pytorch_playground" or name.startswith("pytorch_playground."):
+                sys.modules.pop(name, None)
+        sys.modules.update(original_modules)
+
+
+def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_analysis_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    calls: list[dict[str, object]] = []
+    fake_config = SimpleNamespace(dataset="circles")
+    fake_args = SimpleNamespace(
+        compute_loss_landscape=True,
+        landscape_resolution=17,
+        landscape_span=0.4,
+    )
+    fake_app_args = SimpleNamespace(to_playground_config=lambda args: fake_config)
+    fake_playground_ui = SimpleNamespace(main=lambda **kwargs: calls.append(kwargs))
+    fake_package = ModuleType("pytorch_playground")
+    fake_package.app_args = fake_app_args
+    fake_package.playground_ui = fake_playground_ui
+    evidence_dirs = [PROJECT_PATH.resolve() / "evidence"]
+
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (SimpleNamespace(), fake_args))
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
+    monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
+
+    try:
+        module.render(mode="analysis")
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert calls == [
+        {
+            "config_override": fake_config,
+            "preset_label": "ORCHESTRATE args",
+            "interactive_controls": False,
+            "compute_loss_landscape": True,
+            "landscape_resolution": 17,
+            "landscape_span": 0.4,
+            "evidence_dirs": evidence_dirs,
+        }
+    ]
+
+
+def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, tmp_path: Path):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_no_evidence_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    evidence_dirs = [tmp_path / "missing-evidence"]
+    rendered: list[list[Path]] = []
+
+    fake_package = ModuleType("pytorch_playground")
+
+    def fail_on_import(_name: str):
+        raise AssertionError("playground_ui should not be imported before evidence exists")
+
+    fake_package.__getattr__ = fail_on_import  # type: ignore[attr-defined]
+
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
+    monkeypatch.setattr(
+        module,
+        "_load_orchestrate_args",
+        lambda _active_app_path: (
+            SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="pytorch_playground_project"),
+            SimpleNamespace(data_out=tmp_path / "evidence"),
+        ),
+    )
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
+    monkeypatch.setattr(module, "_has_evidence", lambda _paths: False)
+    monkeypatch.setattr(module, "_render_missing_evidence", lambda paths: rendered.append(list(paths)))
+
+    try:
+        module.render(mode="analysis")
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert rendered == [evidence_dirs]
 
 
 def test_cached_train_uses_isolated_subprocess_in_streamlit_context() -> None:
@@ -449,6 +576,77 @@ def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.
     np.testing.assert_allclose(ndarray_features, np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32))
 
 
+def _minimal_playground_result(module, config) -> dict[str, object]:
+    samples = module._make_dataset(config)
+    history = pd.DataFrame(
+        {
+            "epoch": [0],
+            "train_loss": [0.5],
+            "validation_loss": [0.6],
+            "train_accuracy": [0.75],
+            "validation_accuracy": [0.7],
+        }
+    )
+    grid = pd.DataFrame(
+        {
+            "x1": [-1.0, 1.0, -1.0, 1.0],
+            "x2": [-1.0, -1.0, 1.0, 1.0],
+            "probability": [0.1, 0.9, 0.2, 0.8],
+        }
+    )
+    loss_landscape = pd.DataFrame(
+        [
+            {
+                "alpha": -0.2,
+                "beta": -0.2,
+                "train_loss": 0.62,
+                "validation_loss": 0.68,
+                "train_accuracy": 0.65,
+                "validation_accuracy": 0.6,
+                "is_center": False,
+            },
+            {
+                "alpha": 0.0,
+                "beta": 0.0,
+                "train_loss": 0.5,
+                "validation_loss": 0.55,
+                "train_accuracy": 0.75,
+                "validation_accuracy": 0.7,
+                "is_center": True,
+            },
+        ],
+        columns=module._empty_loss_landscape().columns,
+    )
+    return {
+        "status": "ok",
+        "detail": "",
+        "samples": samples,
+        "history": history,
+        "grid": grid,
+        "network_layers": module._empty_network_layers(),
+        "activation_maps": module._empty_activation_maps(),
+        "loss_landscape": loss_landscape,
+        "landscape_summary": module._loss_landscape_summary(loss_landscape),
+        "summary": {
+            "backend": "persisted",
+            "samples": int(len(samples)),
+            "features": int(len(config.feature_names)),
+            "train_accuracy": 0.75,
+            "validation_accuracy": 0.7,
+            "validation_loss": 0.55,
+        },
+    }
+
+
+def _write_playground_evidence_dir(module, root: Path, config, result: dict[str, object]) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for relative_path, payload in module._evidence_artifact_files(config, result).items():
+        target = root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payload)
+    (root / "manifest.json").write_bytes(module._json_bytes(module._build_evidence_manifest(config, result)))
+
+
 def test_pytorch_playground_evidence_pack_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -516,6 +714,138 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
     assert manifest["landscape_summary"]["center_validation_loss"] == pytest.approx(0.6)
     assert manifest["artifacts"]["data/samples.csv"]["sha256"] == hashlib.sha256(sample_bytes).hexdigest()
     assert manifest["artifacts"]["model/loss_landscape.csv"]["sha256"] == hashlib.sha256(landscape_bytes).hexdigest()
+
+
+def test_pytorch_playground_loads_latest_evidence_result(tmp_path: Path) -> None:
+    module = _load_module()
+    old_config = module.PlaygroundConfig(dataset="circles", sample_count=64, grid_size=12, seed=3)
+    latest_config = module.PlaygroundConfig(dataset="spiral", sample_count=96, grid_size=16, seed=7)
+    old_dir = tmp_path / "old"
+    latest_dir = tmp_path / "latest"
+
+    _write_playground_evidence_dir(module, old_dir, old_config, _minimal_playground_result(module, old_config))
+    _write_playground_evidence_dir(
+        module,
+        latest_dir,
+        latest_config,
+        _minimal_playground_result(module, latest_config),
+    )
+    module.os.utime(old_dir / "manifest.json", (1, 1))
+    module.os.utime(latest_dir / "manifest.json", (2, 2))
+
+    loaded = module._load_latest_evidence_result([old_dir, latest_dir])
+
+    assert loaded is not None
+    config, result, evidence_root = loaded
+    assert evidence_root == latest_dir
+    assert config.dataset == "spiral"
+    assert config.sample_count == 96
+    assert result["status"] == "ok"
+    assert result["summary"]["backend"] == "persisted"
+    assert len(result["samples"]) == 96
+    assert len(result["loss_landscape"]) == 2
+
+
+def test_pytorch_playground_analysis_uses_evidence_without_training(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.query_params = {}
+            self.session_state: dict[str, object] = {}
+            self.sidebar = FakeContext()
+            self.captions: list[str] = []
+            self.downloads: list[bytes] = []
+            self.code_payloads: list[tuple[str, str | None]] = []
+
+        def set_page_config(self, **_kwargs):
+            return None
+
+        def title(self, *_args, **_kwargs):
+            return None
+
+        def caption(self, message, **_kwargs):
+            self.captions.append(str(message))
+
+        def markdown(self, *_args, **_kwargs):
+            return None
+
+        def error(self, *_args, **_kwargs):
+            return None
+
+        def warning(self, *_args, **_kwargs):
+            return None
+
+        def info(self, *_args, **_kwargs):
+            return None
+
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeContext() for _ in range(count)]
+
+        def tabs(self, labels):
+            return [FakeContext() for _ in labels]
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def download_button(self, _label, data, **_kwargs):
+            self.downloads.append(data)
+            return False
+
+        def code(self, body, **kwargs):
+            self.code_payloads.append((str(body), kwargs.get("language")))
+            return None
+
+    evidence_dir = tmp_path / "evidence"
+    config = module.PlaygroundConfig(dataset="spiral", sample_count=64, grid_size=12, seed=21)
+    _write_playground_evidence_dir(module, evidence_dir, config, _minimal_playground_result(module, config))
+
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda: None)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: PROJECT_PATH.resolve())
+    monkeypatch.setattr(
+        module,
+        "_cached_train",
+        lambda _payload: (_ for _ in ()).throw(AssertionError("analysis must not train on render")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cached_loss_landscape",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("analysis must not compute landscape on render")),
+    )
+
+    module.main(
+        interactive_controls=False,
+        compute_loss_landscape=True,
+        evidence_dirs=[evidence_dir],
+    )
+
+    assert any(str(evidence_dir) in caption for caption in fake_st.captions)
+    assert fake_st.downloads
+    manifest = next(json.loads(body) for body, language in fake_st.code_payloads if language == "json")
+    assert manifest["backend"] == "persisted"
+    assert manifest["row_counts"]["samples"] == 64
 
 
 def test_pytorch_playground_loss_landscape_summary_marks_center_and_best() -> None:
@@ -909,9 +1239,10 @@ def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
     settings = tomllib.loads((PROJECT_PATH / "src" / "app_settings.toml").read_text(encoding="utf-8"))
 
     assert settings["cluster"]["workers"] == {"127.0.0.1": 1}
-    assert settings["pages"]["view_module"] == ["view_app_ui"]
-    assert settings["pages"]["view_app_ui"]["entrypoint"] == "pytorch_playground/playground_ui.py"
-    assert settings["pages"]["view_app_ui"]["title"] == "PyTorch Playground"
+    assert settings["pages"]["restrict_to_view_module"] is True
+    assert settings["pages"]["view_module"] == []
+    assert settings["app_surface"]["entrypoint"] == "pytorch_playground/app_surface.py"
+    assert settings["app_surface"]["title"] == "PyTorch Playground"
 
 
 def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
@@ -921,7 +1252,9 @@ def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
     payload_pyproject = tomllib.loads((PACKAGE_PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert source_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+    assert source_pyproject["tool"]["agilab"]["app"]["service_mode"] is False
     assert payload_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+    assert payload_pyproject["tool"]["agilab"]["app"]["service_mode"] is False
 
 
 def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> None:
@@ -933,6 +1266,9 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "key=key" in source
     assert "st.json(" not in source
     assert ".multiselect(" not in source
+    assert "def _render_wide_args_form" in source
+    assert ".columns(" in source
+    assert "Loss landscape" in source
 
 
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:

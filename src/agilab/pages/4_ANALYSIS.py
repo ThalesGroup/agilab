@@ -104,6 +104,18 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
     fallback_name="agilab_ui_performance_fallback",
 )
+import_agilab_symbols(
+    globals(),
+    "agilab.app_surface",
+    {
+        "app_surface_config": "app_surface_config",
+        "app_surface_title": "app_surface_title",
+        "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "app_surface.py",
+    fallback_name="agilab_app_surface_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -195,6 +207,9 @@ _ANALYSIS_VIEW_PROFILES = {
         "Use after dimensionality-reduction workflows.",
     ),
 }
+
+_APP_SURFACE_HIDE_QUERY_PARAM = "hide_app_surface"
+_TRUTHY_QUERY_VALUES = {"1", "true", "yes", "on"}
 
 _ANALYSIS_ARTIFACT_SUFFIXES = {
     ".csv",
@@ -1466,7 +1481,7 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
 _APP_UI_PAGE_KEY = "view_app_ui"
 
 
-def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+def _declared_app_pages_config(active_app_path: Path | None) -> dict[str, Any] | None:
     if active_app_path is None:
         return None
     settings_path = active_app_path / "src" / "app_settings.toml"
@@ -1477,6 +1492,13 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
         return None
     pages = seed_cfg.get("pages")
     if not isinstance(pages, dict):
+        return None
+    return pages
+
+
+def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+    pages = _declared_app_pages_config(active_app_path)
+    if pages is None:
         return None
     page_cfg = pages.get(_APP_UI_PAGE_KEY)
     if not isinstance(page_cfg, dict):
@@ -1493,6 +1515,7 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
 
 def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict) -> bool:
     """Copy an app-owned ANALYSIS UI declaration into stale per-user settings."""
+    seed_pages = _declared_app_pages_config(active_app_path)
     declared = _declared_app_ui_page_config(active_app_path)
     if declared is None:
         return False
@@ -1500,6 +1523,7 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
     pages = cfg.setdefault("pages", {})
     if not isinstance(pages, dict):
         cfg["pages"] = pages = {}
+    changed = False
 
     raw_page_cfg = pages.get(_APP_UI_PAGE_KEY)
     has_page_cfg = (
@@ -1507,8 +1531,9 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
         and isinstance(raw_page_cfg.get("entrypoint"), str)
         and bool(raw_page_cfg.get("entrypoint", "").strip())
     )
-    if has_page_cfg:
-        return False
+    if not has_page_cfg:
+        pages[_APP_UI_PAGE_KEY] = declared
+        changed = True
 
     raw_modules = pages.get("view_module")
     modules = (
@@ -1520,11 +1545,85 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
         if isinstance(raw_modules, list)
         else []
     )
-    if _APP_UI_PAGE_KEY not in modules:
-        modules.insert(0, _APP_UI_PAGE_KEY)
-    pages["view_module"] = _dedupe_preserve_order(modules)
-    pages[_APP_UI_PAGE_KEY] = declared
-    return True
+    seed_restricts_views = bool(seed_pages and seed_pages.get("restrict_to_view_module") is True)
+    seed_modules = (
+        [
+            value.strip()
+            for value in seed_pages.get("view_module", [])
+            if isinstance(value, str) and value.strip()
+        ]
+        if isinstance(seed_pages, dict) and isinstance(seed_pages.get("view_module"), list)
+        else []
+    )
+    if seed_restricts_views:
+        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
+        if pages.get("restrict_to_view_module") is not True:
+            pages["restrict_to_view_module"] = True
+            changed = True
+        if pages.get("view_module") != desired_modules:
+            pages["view_module"] = desired_modules
+            changed = True
+    else:
+        if _APP_UI_PAGE_KEY not in modules:
+            modules.insert(0, _APP_UI_PAGE_KEY)
+        desired_modules = _dedupe_preserve_order(modules)
+        if pages.get("view_module") != desired_modules:
+            pages["view_module"] = desired_modules
+            changed = True
+    return changed
+
+
+def _migrate_declared_app_surface_config(active_app_path: Path | None, cfg: dict) -> bool:
+    """Copy an app-owned surface declaration and hide legacy page bridges."""
+    declared = app_surface_config(active_app_path)
+    if not declared:
+        return False
+
+    changed = False
+    if cfg.get("app_surface") != declared:
+        cfg["app_surface"] = declared
+        changed = True
+
+    pages = cfg.setdefault("pages", {})
+    if not isinstance(pages, dict):
+        cfg["pages"] = pages = {}
+        changed = True
+
+    seed_pages = _declared_app_pages_config(active_app_path)
+    seed_restricts_views = bool(seed_pages and seed_pages.get("restrict_to_view_module") is True)
+    seed_modules = (
+        [
+            value.strip()
+            for value in seed_pages.get("view_module", [])
+            if isinstance(value, str) and value.strip()
+        ]
+        if isinstance(seed_pages, dict) and isinstance(seed_pages.get("view_module"), list)
+        else []
+    )
+    if seed_restricts_views:
+        desired_modules = _dedupe_preserve_order(seed_modules)
+        if pages.get("restrict_to_view_module") is not True:
+            pages["restrict_to_view_module"] = True
+            changed = True
+        if pages.get("view_module") != desired_modules:
+            pages["view_module"] = desired_modules
+            changed = True
+
+    if _declared_app_ui_page_config(active_app_path) is None:
+        raw_modules = pages.get("view_module")
+        if isinstance(raw_modules, list):
+            desired_modules = [
+                value
+                for value in raw_modules
+                if not (isinstance(value, str) and value.strip() == _APP_UI_PAGE_KEY)
+            ]
+            if pages.get("view_module") != desired_modules:
+                pages["view_module"] = desired_modules
+                changed = True
+        if _APP_UI_PAGE_KEY in pages:
+            del pages[_APP_UI_PAGE_KEY]
+            changed = True
+    return changed
 
 
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
@@ -1663,6 +1762,35 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         st.error(f"Failed to render view: {exc}")
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
+    return True
+
+
+def _is_legacy_app_ui_route(current_page: str | None) -> bool:
+    if not current_page:
+        return False
+    value = str(current_page).strip()
+    if not value:
+        return False
+    path = Path(value)
+    return path.stem == _APP_UI_PAGE_KEY or _APP_UI_PAGE_KEY in path.parts
+
+
+def _is_app_surface_overview_requested(current_page: str | None) -> bool:
+    return str(current_page or "").strip().lower() == "main"
+
+
+def _consume_legacy_app_ui_route_for_app_surface(
+    current_page: str | None,
+    active_app_path: Path | None,
+) -> bool:
+    """Treat stale view_app_ui deep links as app-surface links when the app declares one."""
+    if not _is_legacy_app_ui_route(current_page):
+        return False
+    if configured_app_surface_entrypoint(active_app_path) is None:
+        return False
+    for key in ("current_page", _APP_SURFACE_HIDE_QUERY_PARAM):
+        if key in st.query_params:
+            del st.query_params[key]
     return True
 
 
@@ -2361,6 +2489,35 @@ def _write_config(path: Path, cfg: dict):
     except (OSError, ValueError) as e:
         st.error(f"Error updating configuration: {e}")
 
+
+def _query_param_is_truthy(value: object) -> bool:
+    if isinstance(value, (list, tuple)):
+        value = value[-1] if value else ""
+    return str(value or "").strip().lower() in _TRUTHY_QUERY_VALUES
+
+
+async def _render_configured_app_surface(
+    active_app_path: Path | None,
+    cfg: dict,
+    *,
+    current_page: str | None = None,
+) -> bool:
+    entrypoint = configured_app_surface_entrypoint(active_app_path, cfg)
+    if entrypoint is None:
+        return False
+    if _is_app_surface_overview_requested(current_page):
+        return False
+    if _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM)):
+        return False
+    surface_config = app_surface_config(active_app_path, cfg)
+    await render_view_page(
+        entrypoint,
+        title=app_surface_title(surface_config),
+        back_query_params={_APP_SURFACE_HIDE_QUERY_PARAM: "true"},
+    )
+    return True
+
+
 async def main():
     # Navigation by query param
     qp = st.query_params
@@ -2403,6 +2560,8 @@ async def main():
     pages_root = Path(env.AGILAB_PAGES_ABS)
 
     # Route: only render a child surface when the param is concrete, not "main"/empty
+    if _consume_legacy_app_ui_route_for_app_surface(current_page, active_app_path):
+        current_page = None
     if await _render_selected_notebook_route(current_notebook):
         return
     if await _render_selected_view_route(current_page):
@@ -2417,10 +2576,14 @@ async def main():
     migrated_cfg = False
     if _migrate_declared_app_ui_page_config(active_app_path, cfg):
         migrated_cfg = True
+    if _migrate_declared_app_surface_config(active_app_path, cfg):
+        migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
         migrated_cfg = True
     if migrated_cfg:
         _write_config(app_settings, cfg)
+    if await _render_configured_app_surface(active_app_path, cfg, current_page=current_page):
+        return
     configured_views: list[str] = [
         str(v)
         for v in cfg.get("pages", {}).get("view_module", [])
@@ -2665,20 +2828,31 @@ async def render_notebook_page(notebook_path: Path):
     st.iframe(url, height=900)
 
 
-async def render_view_page(view_path: Path):
+async def render_view_page(
+    view_path: Path,
+    *,
+    title: str | None = None,
+    show_back: bool = True,
+    back_query_params: dict[str, str] | None = None,
+):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
     env = st.session_state['env']
     # Hide THIS page's sidebar while a child view is displayed
     _hide_parent_sidebar()
 
-    back_col, title_col, _ = st.columns([1, 6, 1])
-    with back_col:
-        if st.button("← Back to Analysis", type="primary"):
-            st.session_state["current_page"] = "main"
-            st.query_params["current_page"] = "main"
-            st.rerun()
-    with title_col:
-        st.subheader(f"View: `{view_path.stem}`")
+    if show_back:
+        back_col, title_col, _ = st.columns([1, 6, 1])
+        with back_col:
+            if st.button("← Back to Analysis", type="primary"):
+                st.session_state["current_page"] = "main"
+                st.query_params["current_page"] = "main"
+                for key, value in (back_query_params or {}).items():
+                    st.query_params[key] = value
+                st.rerun()
+        with title_col:
+            st.subheader(title or f"View: `{view_path.stem}`")
+    else:
+        st.subheader(title or view_path.stem.replace("_", " ").title())
 
     # --- sidecar per-view run + iframe embed ---
     # Unique key for port hashing (works even if two Page share the same filename)

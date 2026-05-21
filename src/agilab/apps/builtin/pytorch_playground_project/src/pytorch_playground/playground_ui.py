@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -475,6 +475,87 @@ def _cached_loss_landscape(payload: dict[str, Any], resolution: int, span: float
     if _use_isolated_torch_training():
         return _run_core_in_subprocess("loss_landscape", config, resolution=resolution, span=span)
     return _loss_landscape(config, resolution=resolution, span=span)
+
+
+def _read_json_file(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _read_evidence_frame(path: Path, empty: pd.DataFrame) -> pd.DataFrame:
+    try:
+        return pd.read_csv(path)
+    except (OSError, ValueError, pd.errors.EmptyDataError, pd.errors.ParserError):
+        return empty.copy()
+
+
+def _load_evidence_result(evidence_dir: Path) -> tuple[PlaygroundConfig, dict[str, Any], Path] | None:
+    root = Path(evidence_dir).expanduser()
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        return None
+
+    manifest = _read_json_file(manifest_path)
+    config_payload = manifest.get("config")
+    if not isinstance(config_payload, Mapping):
+        config_payload = _read_json_file(root / "config" / "playground_config.json").get("config", {})
+    config = _config_from_payload({"config": config_payload})
+
+    samples = _read_evidence_frame(root / "data" / "samples.csv", pd.DataFrame(columns=["x1", "x2", "target"]))
+    history = _read_evidence_frame(
+        root / "data" / "training_history.csv",
+        pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+    )
+    grid = _read_evidence_frame(root / "data" / "decision_grid.csv", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    network_layers = _read_evidence_frame(root / "model" / "network_layers.csv", _empty_network_layers())
+    activation_maps = _read_evidence_frame(root / "model" / "hidden_activation_maps.csv", _empty_activation_maps())
+    loss_landscape = _read_evidence_frame(root / "model" / "loss_landscape.csv", _empty_loss_landscape())
+    summary_payload = _read_json_file(root / "summary" / "run_summary.json")
+
+    summary = manifest.get("summary")
+    if not isinstance(summary, Mapping):
+        summary = summary_payload.get("summary", {})
+    landscape_summary = manifest.get("landscape_summary")
+    if not isinstance(landscape_summary, Mapping):
+        landscape_summary = summary_payload.get("landscape_summary", _loss_landscape_summary(loss_landscape))
+
+    return (
+        config,
+        {
+            "status": "ok",
+            "detail": "",
+            "samples": samples,
+            "history": history,
+            "grid": grid,
+            "network_layers": network_layers,
+            "activation_maps": activation_maps,
+            "loss_landscape": loss_landscape,
+            "summary": dict(summary) if isinstance(summary, Mapping) else {},
+            "landscape_summary": dict(landscape_summary) if isinstance(landscape_summary, Mapping) else {},
+        },
+        root,
+    )
+
+
+def _load_latest_evidence_result(
+    evidence_dirs: Sequence[str | Path] | None,
+) -> tuple[PlaygroundConfig, dict[str, Any], Path] | None:
+    candidates: list[tuple[float, Path]] = []
+    for raw_path in evidence_dirs or ():
+        root = Path(raw_path).expanduser()
+        manifest_path = root / "manifest.json"
+        try:
+            candidates.append((manifest_path.stat().st_mtime, root))
+        except OSError:
+            continue
+    for _mtime, root in sorted(candidates, reverse=True):
+        loaded = _load_evidence_result(root)
+        if loaded is not None:
+            return loaded
+    return None
 
 
 def _render_page_styles() -> None:
@@ -1063,111 +1144,137 @@ def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None
             st.markdown(card, unsafe_allow_html=True)
 
 
-def main() -> None:
+def main(
+    *,
+    config_override: PlaygroundConfig | None = None,
+    preset_label: str | None = None,
+    interactive_controls: bool = True,
+    compute_loss_landscape: bool | None = None,
+    landscape_resolution: int = 21,
+    landscape_span: float = 0.75,
+    evidence_dirs: Sequence[str | Path] | None = None,
+) -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide")
     render_logo()
     _render_page_styles()
     active_app = _resolve_active_app()
     shared_config = _config_from_query_params(st.query_params)
 
-    with st.sidebar:
-        st.markdown("### Challenge")
-        preset_labels = tuple(PLAYGROUND_PRESETS)
-        preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
-        preset_label = st.selectbox(
-            "Challenge preset",
-            preset_labels,
-            index=preset_index,
-            help="Preset only seeds the controls; every value stays editable.",
-        )
-        defaults = _preset_config(preset_label, shared_config)
-        preset_key = _safe_key_fragment(preset_label)
-        st.caption(_preset_story(preset_label, shared_config))
-        st.markdown("### Dataset")
-        dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
-        sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
-        noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
-        train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
-        feature_names = st.multiselect(
-            "Features",
-            FEATURES,
-            default=list(defaults.feature_names),
-            key=f"pt_features_{preset_key}",
-        )
-        st.markdown("### Network")
-        hidden_raw = st.text_input(
-            "Hidden layers",
-            value=",".join(str(width) for width in defaults.hidden_layers),
-            key=f"pt_layers_{preset_key}",
-            help="Comma-separated widths, for example 16,8.",
-        )
-        activation = st.selectbox(
-            "Activation",
-            ACTIVATIONS,
-            index=ACTIVATIONS.index(defaults.activation),
-            key=f"pt_activation_{preset_key}",
-        )
-        optimizer = st.selectbox(
-            "Optimizer",
-            OPTIMIZERS,
-            index=OPTIMIZERS.index(defaults.optimizer),
-            key=f"pt_optimizer_{preset_key}",
-        )
-        learning_rate = st.slider(
-            "Learning rate",
-            0.001,
-            0.2,
-            defaults.learning_rate,
-            step=0.001,
-            format="%.3f",
-            key=f"pt_lr_{preset_key}",
-        )
-        epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
-        batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
-        grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
-        seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
-        st.markdown("### Run")
-        train_requested = st.button("Train / refresh", type="primary", width="stretch")
-        st.caption("Controls are staged. Charts and evidence update only when you train.")
+    if interactive_controls:
+        with st.sidebar:
+            st.markdown("### Challenge")
+            preset_labels = tuple(PLAYGROUND_PRESETS)
+            preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
+            preset_label = st.selectbox(
+                "Challenge preset",
+                preset_labels,
+                index=preset_index,
+                help="Preset only seeds the controls; every value stays editable.",
+            )
+            defaults = _preset_config(preset_label, shared_config)
+            preset_key = _safe_key_fragment(preset_label)
+            st.caption(_preset_story(preset_label, shared_config))
+            st.markdown("### Dataset")
+            dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
+            sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
+            noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
+            train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
+            feature_names = st.multiselect(
+                "Features",
+                FEATURES,
+                default=list(defaults.feature_names),
+                key=f"pt_features_{preset_key}",
+            )
+            st.markdown("### Network")
+            hidden_raw = st.text_input(
+                "Hidden layers",
+                value=",".join(str(width) for width in defaults.hidden_layers),
+                key=f"pt_layers_{preset_key}",
+                help="Comma-separated widths, for example 16,8.",
+            )
+            activation = st.selectbox(
+                "Activation",
+                ACTIVATIONS,
+                index=ACTIVATIONS.index(defaults.activation),
+                key=f"pt_activation_{preset_key}",
+            )
+            optimizer = st.selectbox(
+                "Optimizer",
+                OPTIMIZERS,
+                index=OPTIMIZERS.index(defaults.optimizer),
+                key=f"pt_optimizer_{preset_key}",
+            )
+            learning_rate = st.slider(
+                "Learning rate",
+                0.001,
+                0.2,
+                defaults.learning_rate,
+                step=0.001,
+                format="%.3f",
+                key=f"pt_lr_{preset_key}",
+            )
+            epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
+            batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
+            grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
+            seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
+            st.markdown("### Run")
+            train_requested = st.button("Train / refresh", type="primary", width="stretch")
+            st.caption("Controls are staged. Charts and evidence update only when you train.")
 
-    try:
-        hidden_layers = _parse_hidden_layers(hidden_raw)
-    except ValueError as exc:
-        st.error(str(exc))
-        st.stop()
+        try:
+            hidden_layers = _parse_hidden_layers(hidden_raw)
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
 
-    config = PlaygroundConfig(
-        dataset=dataset,
-        sample_count=sample_count,
-        noise=noise,
-        train_ratio=train_ratio,
-        hidden_layers=hidden_layers,
-        activation=activation,
-        optimizer=optimizer,
-        learning_rate=learning_rate,
-        epochs=epochs,
-        batch_size=batch_size,
-        seed=int(seed),
-        feature_names=tuple(feature_names or DEFAULT_FEATURES),
-        grid_size=grid_size,
-    )
-    shared_signature = _config_signature(shared_config) if shared_config is not None else ""
-    previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
-    force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
-    _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
-    trained_config, trained_preset, pending_changes = _resolve_trained_config(
-        config,
-        preset_label,
-        train_requested=train_requested,
-        force_refresh=force_shared_refresh,
-    )
+        config = PlaygroundConfig(
+            dataset=dataset,
+            sample_count=sample_count,
+            noise=noise,
+            train_ratio=train_ratio,
+            hidden_layers=hidden_layers,
+            activation=activation,
+            optimizer=optimizer,
+            learning_rate=learning_rate,
+            epochs=epochs,
+            batch_size=batch_size,
+            seed=int(seed),
+            feature_names=tuple(feature_names or DEFAULT_FEATURES),
+            grid_size=grid_size,
+        )
+        shared_signature = _config_signature(shared_config) if shared_config is not None else ""
+        previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
+        force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
+        _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
+        trained_config, trained_preset, pending_changes = _resolve_trained_config(
+            config,
+            str(preset_label),
+            train_requested=train_requested,
+            force_refresh=force_shared_refresh,
+        )
+    else:
+        evidence_result = _load_latest_evidence_result(evidence_dirs)
+        if evidence_result is None:
+            trained_config = config_override or PlaygroundConfig()
+            _render_hero(active_app, preset_label or "ORCHESTRATE args", trained_config)
+            st.info("No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS.")
+            return
+        trained_config, result, evidence_root = evidence_result
+        trained_preset = preset_label or "Latest ORCHESTRATE evidence"
+        pending_changes = False
+        st.caption(f"Loaded evidence from `{evidence_root}`.")
+
     trained_config_dict = asdict(trained_config)
-    result = _cached_train(trained_config_dict)
-    with st.sidebar:
-        st.caption(f"Charts show: {trained_preset}")
-        if pending_changes:
-            st.warning("Pending changes. Press Train / refresh to update the run.")
+    if interactive_controls:
+        result = _cached_train(trained_config_dict)
+    if interactive_controls:
+        with st.sidebar:
+            st.caption(f"Charts show: {trained_preset}")
+            if pending_changes:
+                st.warning("Pending changes. Press Train / refresh to update the run.")
     _render_hero(active_app, trained_preset, trained_config)
+    if not interactive_controls:
+        st.caption("Charts use the persisted ORCHESTRATE arguments for this app.")
     if result["status"] == "missing_torch":
         st.error(result["detail"])
     elif result["status"] != "ok":
@@ -1178,11 +1285,12 @@ def main() -> None:
     _render_summary(trained_config, result)
     _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
     _render_interpretation_cards(result)
+    loaded_landscape = _result_frame(result, "loss_landscape", _empty_loss_landscape())
     landscape_result: dict[str, Any] = {
         "status": "not_computed",
         "detail": "",
-        "loss_landscape": _empty_loss_landscape(),
-        "landscape_summary": _loss_landscape_summary(_empty_loss_landscape()),
+        "loss_landscape": loaded_landscape,
+        "landscape_summary": result.get("landscape_summary", _loss_landscape_summary(loaded_landscape)),
     }
     decision_tab, activations_tab, landscape_tab, evidence_tab = st.tabs(
         ["Boundary lab", "Neuron lens", "Loss terrain", "Evidence pack"]
@@ -1243,13 +1351,23 @@ def main() -> None:
         )
         controls, chart_area = st.columns([1, 3])
         with controls:
-            landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
-            landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
-            compute_landscape = st.checkbox("Compute landscape", value=False)
+            if interactive_controls:
+                landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
+                landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
+                compute_landscape = st.checkbox("Compute landscape", value=False)
+            else:
+                compute_landscape = bool(compute_loss_landscape)
+                st.metric("Resolution", int(landscape_resolution))
+                st.metric("Span", f"{float(landscape_span):.2f}")
         if result["status"] != "ok":
             st.info("Loss landscape is available after a successful PyTorch run.")
         elif compute_landscape:
-            landscape_result = _cached_loss_landscape(trained_config_dict, int(landscape_resolution), float(landscape_span))
+            if interactive_controls:
+                landscape_result = _cached_loss_landscape(
+                    trained_config_dict,
+                    int(landscape_resolution),
+                    float(landscape_span),
+                )
             landscape = _result_frame(landscape_result, "loss_landscape", _empty_loss_landscape())
             summary = landscape_result.get("landscape_summary", _loss_landscape_summary(landscape))
             with controls:
@@ -1264,7 +1382,10 @@ def main() -> None:
                 )
                 st.dataframe(landscape.sort_values("validation_loss").head(8), width="stretch", hide_index=True)
         else:
-            st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
+            if interactive_controls:
+                st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
+            else:
+                st.info("Enable Loss landscape in ORCHESTRATE to evaluate a deterministic 2D projection.")
 
     with evidence_tab:
         _render_section_intro(

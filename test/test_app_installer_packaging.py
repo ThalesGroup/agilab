@@ -347,6 +347,18 @@ def test_app_template_pre_prompts_are_generic_and_dependency_neutral() -> None:
             assert fragment not in prompt_text, f"{prompt_path.relative_to(ROOT).as_posix()} contains {fragment!r}"
 
 
+def test_builtin_app_pre_prompts_are_workflow_message_lists() -> None:
+    prompt_paths = sorted(BUILTIN_APPS_ROOT.glob("*/src/pre_prompt.json"))
+    assert prompt_paths
+
+    for prompt_path in prompt_paths:
+        payload = json.loads(prompt_path.read_text(encoding="utf-8"))
+        assert isinstance(payload, list), prompt_path.relative_to(ROOT).as_posix()
+        assert all(isinstance(item, dict) for item in payload), prompt_path.relative_to(ROOT).as_posix()
+        assert all(isinstance(item.get("role"), str) for item in payload), prompt_path.relative_to(ROOT).as_posix()
+        assert all(isinstance(item.get("content"), str) for item in payload), prompt_path.relative_to(ROOT).as_posix()
+
+
 def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
     tracked = _git_paths("ls-files")
     visible_untracked = _git_paths("ls-files", "--others", "--exclude-standard")
