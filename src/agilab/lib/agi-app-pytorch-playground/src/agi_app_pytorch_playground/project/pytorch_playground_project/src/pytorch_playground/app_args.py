@@ -102,7 +102,7 @@ def ensure_defaults(args: PytorchPlaygroundArgs, **_: Any) -> PytorchPlaygroundA
 
 
 def to_playground_config(args: PytorchPlaygroundArgs):
-    from .playground_ui import PlaygroundConfig, _coerce_feature_names, _parse_hidden_layers
+    from .core import PlaygroundConfig, _coerce_feature_names, _parse_hidden_layers
 
     return PlaygroundConfig(
         dataset=args.dataset,
