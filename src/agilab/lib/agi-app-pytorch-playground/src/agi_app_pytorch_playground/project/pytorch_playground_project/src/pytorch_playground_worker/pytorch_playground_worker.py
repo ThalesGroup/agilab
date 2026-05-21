@@ -14,7 +14,7 @@ import pandas as pd
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
 from pytorch_playground import PytorchPlaygroundArgs, to_playground_config
-from pytorch_playground.playground_ui import (
+from pytorch_playground.core import (
     _build_evidence_manifest,
     _build_evidence_pack,
     _evidence_artifact_files,
@@ -75,7 +75,7 @@ class PytorchPlaygroundWorker(PandasWorker):
         self.args.data_out = data_out
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
-            shutil.rmtree(self.data_out)
+            shutil.rmtree(self.data_out, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.artifact_dir = _artifact_dir(self.env, "pytorch_playground")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
