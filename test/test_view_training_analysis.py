@@ -57,6 +57,25 @@ def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> N
     run_dirs = module._discover_run_directories(trainer_b_root)
     assert run_dirs == [trainer_b_root.resolve(), trainer_b_run.resolve()]
 
+    artifact_root = tmp_path / "pipeline" / "pytorch_playground" / "data"
+    artifact_root.mkdir(parents=True)
+    (artifact_root / "training_history.csv").write_text(
+        "epoch,train_loss,validation_loss\n1,0.4,0.5\n",
+        encoding="utf-8",
+    )
+
+    assert module._discover_training_history_roots(tmp_path / "pipeline") == [
+        tmp_path / "pipeline" / "pytorch_playground"
+    ]
+    assert module._discover_training_roots(tmp_path / "pipeline") == sorted(
+        [
+            tmp_path / "pipeline" / "pytorch_playground",
+            tmp_path / "pipeline" / "trainer_a",
+            tmp_path / "pipeline" / "trainer_b",
+        ],
+        key=lambda path: path.as_posix(),
+    )
+
 
 def test_view_training_analysis_labels_runs_across_multiple_trainers(tmp_path: Path) -> None:
     module = _load_module()
@@ -321,6 +340,36 @@ def test_view_training_analysis_handles_tensorboard_helper_edge_cases(monkeypatc
     assert module._load_scalar_frame(str(tmp_path)).empty
 
 
+def test_view_training_analysis_loads_training_history_csv_as_scalars(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_root = tmp_path / "export" / "pytorch_playground" / "pytorch_playground"
+    history_file = trainer_root / "data" / "training_history.csv"
+    history_file.parent.mkdir(parents=True)
+    history_file.write_text(
+        "epoch,train_loss,validation_loss,train_accuracy,note\n"
+        "1,0.8,0.9,0.55,warmup\n"
+        "2,0.4,0.5,0.75,better\n",
+        encoding="utf-8",
+    )
+
+    run_labels = module._discover_run_labels([trainer_root], tmp_path / "export")
+    assert run_labels == {"training_history": history_file.resolve()}
+
+    module._load_scalar_frame.clear()
+    scalar_df = module._load_scalar_frame(str(history_file))
+
+    assert scalar_df[["tag", "step", "value"]].to_dict("records") == [
+        {"tag": "train_accuracy", "step": 1, "value": 0.55},
+        {"tag": "train_accuracy", "step": 2, "value": 0.75},
+        {"tag": "train_loss", "step": 1, "value": 0.8},
+        {"tag": "train_loss", "step": 2, "value": 0.4},
+        {"tag": "validation_loss", "step": 1, "value": 0.9},
+        {"tag": "validation_loss", "step": 2, "value": 0.5},
+    ]
+    assert scalar_df["relative_time_s"].tolist() == [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+
+
 def test_view_training_analysis_additional_helper_and_entrypoint_branches(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
@@ -508,7 +557,7 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
     monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", FakeEnv)
-    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [])
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
 
     with pytest.raises(_StopCalled):
         module.main()
@@ -518,7 +567,7 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
     assert module.st.session_state["input_datadir"] == ""
     assert module.st.session_state["datadir_rel"] == ""
     assert module.st.session_state[module.X_AXIS_KEY] == "step"
-    assert any("No TensorBoard trainers found" in message for message in warnings_seen)
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
 
 
 def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_path: Path) -> None:
@@ -578,7 +627,7 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
         stop=_stop,
     )
     monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
     monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
 
     def fake_load_scalar_frame(run_dir_str: str) -> pd.DataFrame:
@@ -727,16 +776,16 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
     monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
 
     module.st = _base_st()
-    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [])
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
     with pytest.raises(_StopCalled):
         module.main()
-    assert any("No TensorBoard trainers found" in message for message in warnings_seen)
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
 
     warnings_seen.clear()
     trainer_dir = data_root / "trainer_a"
     trainer_dir.mkdir()
     module.st = _base_st()
-    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
     monkeypatch.setattr(module, "_discover_run_directories", lambda root: [])
     with pytest.raises(_StopCalled):
         module.main()
@@ -803,7 +852,7 @@ def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(mon
         )
 
     monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "_discover_tensorboard_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
     monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
 
     module.st = _base_st([], [])

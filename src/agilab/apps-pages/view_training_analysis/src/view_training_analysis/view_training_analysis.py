@@ -46,6 +46,8 @@ RUN_ROOTS_KEY = f"{PAGE_KEY}_run_roots"
 TRAINERS_KEY = f"{PAGE_KEY}_trainers"
 TAGS_KEY = f"{PAGE_KEY}_tags"
 X_AXIS_KEY = f"{PAGE_KEY}_x_axis"
+TRAINING_HISTORY_REL = Path("data/training_history.csv")
+SCALAR_FRAME_COLUMNS = ["tag", "step", "wall_time", "value"]
 
 
 def _ensure_repo_on_path() -> None:
@@ -195,6 +197,24 @@ def _discover_tensorboard_roots(data_root: Path) -> list[Path]:
     return sorted(trainer_roots, key=lambda path: path.as_posix())
 
 
+def _discover_training_history_roots(data_root: Path) -> list[Path]:
+    if not data_root.exists():
+        return []
+    roots: set[Path] = set()
+    for history_file in data_root.rglob(TRAINING_HISTORY_REL.name):
+        if history_file.is_file() and history_file.parent.name == TRAINING_HISTORY_REL.parent.name:
+            roots.add(history_file.parent.parent.resolve())
+    return sorted(roots, key=lambda path: path.as_posix())
+
+
+def _discover_training_roots(data_root: Path) -> list[Path]:
+    roots = {
+        *(_discover_tensorboard_roots(data_root)),
+        *(_discover_training_history_roots(data_root)),
+    }
+    return sorted(roots, key=lambda path: path.as_posix())
+
+
 def _discover_run_directories(tensorboard_dir: Path) -> list[Path]:
     if not tensorboard_dir.exists():
         return []
@@ -255,9 +275,13 @@ def _discover_run_labels(
     run_entries: list[tuple[Path, Path, str]] = []
     for trainer_root in sorted(trainer_roots, key=lambda path: path.as_posix()):
         tensorboard_dir = trainer_root / "tensorboard"
-        for run_dir in _discover_run_directories(tensorboard_dir):
+        run_dirs = _discover_run_directories(tensorboard_dir)
+        for run_dir in run_dirs:
             run_label = _relative_label(run_dir, tensorboard_dir)
             run_entries.append((trainer_root, run_dir, run_label))
+        history_file = trainer_root / TRAINING_HISTORY_REL
+        if not run_dirs and history_file.is_file():
+            run_entries.append((trainer_root, history_file.resolve(), "training_history"))
 
     if not include_trainer_prefix:
         return {run_label: run_dir for _, run_dir, run_label in run_entries}
@@ -322,8 +346,74 @@ def _load_event_accumulator():
     return EventAccumulator
 
 
+def _empty_scalar_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=SCALAR_FRAME_COLUMNS)
+
+
+def _load_training_history_frame(history_file: Path) -> pd.DataFrame:
+    try:
+        history = pd.read_csv(history_file)
+    except (OSError, pd.errors.EmptyDataError, pd.errors.ParserError):
+        return _empty_scalar_frame()
+    if history.empty:
+        return _empty_scalar_frame()
+
+    if "epoch" in history.columns:
+        step_values = pd.to_numeric(history["epoch"], errors="coerce")
+    elif "step" in history.columns:
+        step_values = pd.to_numeric(history["step"], errors="coerce")
+    else:
+        step_values = pd.Series(range(len(history)), index=history.index, dtype="float64")
+
+    if "wall_time" in history.columns:
+        wall_time_values = pd.to_numeric(history["wall_time"], errors="coerce")
+    else:
+        wall_time_values = step_values.astype("float64")
+
+    numeric_metrics: dict[str, pd.Series] = {}
+    for column in history.columns:
+        if column in {"epoch", "step", "wall_time", "relative_time_s", "timestamp"}:
+            continue
+        values = pd.to_numeric(history[column], errors="coerce")
+        if values.notna().any():
+            numeric_metrics[str(column)] = values
+
+    rows: list[dict[str, Any]] = []
+    for row_index, row in history.iterrows():
+        step = step_values.loc[row_index]
+        wall_time = wall_time_values.loc[row_index]
+        if pd.isna(step):
+            continue
+        if pd.isna(wall_time):
+            wall_time = step
+        for column, values in numeric_metrics.items():
+            value = values.loc[row_index]
+            if pd.isna(value):
+                continue
+            rows.append(
+                {
+                    "tag": str(column),
+                    "step": int(step),
+                    "wall_time": float(wall_time),
+                    "value": float(value),
+                }
+            )
+
+    df = pd.DataFrame(rows, columns=SCALAR_FRAME_COLUMNS)
+    if df.empty:
+        return df
+    df = df.sort_values(["tag", "step", "wall_time"], kind="stable").reset_index(drop=True)
+    df["relative_time_s"] = df["wall_time"] - float(df["wall_time"].min())
+    df["timestamp"] = pd.to_datetime(df["wall_time"], unit="s", utc=True).dt.tz_convert(None)
+    return df
+
+
 @st.cache_data(show_spinner=False)
 def _load_scalar_frame(run_dir_str: str) -> pd.DataFrame:
+    run_path = Path(run_dir_str)
+    if run_path.is_file() and run_path.name == TRAINING_HISTORY_REL.name:
+        return _load_training_history_frame(run_path)
+
     EventAccumulator = _load_event_accumulator()
     accumulator = EventAccumulator(run_dir_str)
     accumulator.Reload()
@@ -428,7 +518,7 @@ def main() -> None:
     render_logo("Training Analysis")
     st.title("Training analysis")
     st.caption(
-        "Browse TensorBoard scalar logs from one or more trainer outputs and plot the metrics you need."
+        "Browse TensorBoard scalar logs or AGILAB training-history artifacts and plot the metrics you need."
     )
 
     page_state = _get_page_state()
@@ -474,9 +564,9 @@ def main() -> None:
         _persist_app_settings(env)
         st.stop()
 
-    trainer_roots = _discover_tensorboard_roots(data_root)
+    trainer_roots = _discover_training_roots(data_root)
     if not trainer_roots:
-        st.warning(f"No TensorBoard trainers found under {data_root}.")
+        st.warning(f"No TensorBoard or training-history outputs found under {data_root}.")
         page_state.update(
             {
                 "base_dir_choice": base_choice,
