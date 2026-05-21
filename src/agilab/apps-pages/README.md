@@ -7,8 +7,9 @@ Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/a
 
 Looking for the PyTorch playground or loss landscape? Use the built-in
 `pytorch_playground_project`. It is a reproducible app project, not a generic
-app-agnostic analysis page. The loss-landscape projection is part of that
-project, not a separate `view_loss_landscape` directory.
+app-agnostic analysis page. The generic `view_app_ui` bridge lets ANALYSIS
+display the app-owned playground UI without moving training logic into
+apps-pages.
 
 Quick start (dev checkout):
 
@@ -57,6 +58,10 @@ Quick start (dev checkout):
 - view_inference_analysis
   - uv run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Generic allocations comparison page for `allocations_steps.{json,jsonl,ndjson,csv,parquet}` exports. It can aggregate metrics such as mean `delivered_bandwidth` across multiple folders and plot them side by side.
+
+- view_app_ui
+  - uv run streamlit run src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+  - Generic bridge for app-owned Streamlit UIs declared in `[pages.view_app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
 
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_telemetry_project`).

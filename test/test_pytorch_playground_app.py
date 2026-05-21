@@ -909,6 +909,9 @@ def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
     settings = tomllib.loads((PROJECT_PATH / "src" / "app_settings.toml").read_text(encoding="utf-8"))
 
     assert settings["cluster"]["workers"] == {"127.0.0.1": 1}
+    assert settings["pages"]["view_module"] == ["view_app_ui"]
+    assert settings["pages"]["view_app_ui"]["entrypoint"] == "pytorch_playground/playground_ui.py"
+    assert settings["pages"]["view_app_ui"]["title"] == "PyTorch Playground"
 
 
 def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:

@@ -50,6 +50,7 @@ PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
 
 
 PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
+    ("agi-page-app-ui", "src/agilab/apps-pages/view_app_ui"),
     ("agi-page-simplex-map", "src/agilab/apps-pages/view_barycentric"),
     ("agi-page-decision-evidence", "src/agilab/apps-pages/view_data_io_decision"),
     ("agi-page-timeseries-forecast", "src/agilab/apps-pages/view_forecast_analysis"),
