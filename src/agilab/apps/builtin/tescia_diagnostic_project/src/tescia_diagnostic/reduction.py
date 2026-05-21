@@ -45,6 +45,7 @@ _REQUIRED_PAYLOAD_KEYS = (
 def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
     case_ids: set[str] = set()
     selected_fix_ids: set[str] = set()
+    case_count = 0
     evidence_sum = 0.0
     regression_sum = 0.0
     student_score_sum = 0.0
@@ -53,6 +54,7 @@ def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
 
     for partial in partials:
         payload = partial.payload
+        case_count += int(payload["case_count"])
         case_ids.update(str(item) for item in payload["case_ids"])
         selected_fix_ids.update(str(item) for item in payload["selected_fix_ids"] if item)
         evidence_sum += float(payload["evidence_quality_sum"])
@@ -61,9 +63,9 @@ def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
         actionable_count += int(payload["actionable_count"])
         needs_more_evidence_count += int(payload["needs_more_evidence_count"])
 
-    case_count = len(case_ids)
     return {
         "case_count": case_count,
+        "unique_case_count": len(case_ids),
         "actionable_count": actionable_count,
         "needs_more_evidence_count": needs_more_evidence_count,
         "evidence_quality_mean": round(evidence_sum / case_count, 4) if case_count else 0.0,

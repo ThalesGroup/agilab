@@ -42,6 +42,7 @@ PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
     "agi-app-flight-telemetry",
     "agi-app-global-dag",
     "agi-app-weather-forecast",
+    "agi-app-tescia-diagnostic-project",
     "agi-app-uav-relay-queue",
 )
 
