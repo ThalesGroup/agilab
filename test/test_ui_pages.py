@@ -832,7 +832,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Active project" not in markdown_text
     assert "Scheduler" not in markdown_text
     assert "Mode" not in markdown_text
-    assert all("Run mode " not in str(item.value) for item in at.info)
+    assert any("Run mode " in str(item.value) for item in at.info)
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
     assert "Settings</div>" not in markdown_text
 
@@ -928,6 +928,63 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(mock_ui_env
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "agi-space" not in markdown_text
     assert str(source_project / ".venv") in markdown_text
+
+
+def test_execute_page_keeps_run_button_visible_before_install(mock_ui_env):
+    """ORCHESTRATE should show a disabled RUN action before INSTALL finishes."""
+
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {"cluster_enabled": False}}
+    _seed_env_editor_state(at, env)
+
+    at.run()
+
+    assert not at.exception
+    run_button = at.button(key="run_btn")
+    assert run_button.label == "RUN"
+    assert getattr(run_button, "disabled", None) is True
+    assert "Run INSTALL first" in _page_text(at)
+
+
+def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env):
+    """Workerless apps should not expose a CHECK distribute snippet or action."""
+
+    apps_dir = mock_ui_env["apps_dir"]
+    project_dir = apps_dir / "workerless_project"
+    manager_dir = project_dir / "src" / "workerless"
+    manager_dir.mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text(
+        "[project]\nname = 'workerless-project'\nrequires-python = '>=3.11'\n"
+        "\n[tool.agilab.app]\nruntime = 'local'\nworkerless = true\n",
+        encoding="utf-8",
+    )
+    (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
+    (project_dir / "src" / "app_args_form.py").write_text("", encoding="utf-8")
+    (manager_dir / "__init__.py").write_text("from .workerless import Workerless\n", encoding="utf-8")
+    (manager_dir / "workerless.py").write_text(
+        "class Workerless:\n    def __init__(self, env, **kwargs):\n        self.env = env\n",
+        encoding="utf-8",
+    )
+
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
+    env = AgiEnv(apps_path=apps_dir, app="workerless_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {"cluster_enabled": False}}
+    at.session_state["orchestrate:notebook_snippet:workerless_project:distribution"] = "stale"
+    _seed_env_editor_state(at, env)
+
+    at.run()
+
+    assert not at.exception
+    assert "CHECK distribute" not in _all_button_labels(at)
+    assert "Generated CHECK distribute snippet" not in _page_text(at)
+    assert "orchestrate:notebook_snippet:workerless_project:distribution" not in at.session_state
 
 
 def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui_env):

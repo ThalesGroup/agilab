@@ -14,7 +14,7 @@ deterministic ZIP bundle.
 ## Run In AGILAB
 
 Select `pytorch_playground_project`, open `ORCHESTRATE`, adjust the sidebar
-fields, then run `INSTALL` and `EXECUTE`. The default configuration trains the
+fields, then run `INSTALL` and `RUN`. The default configuration trains the
 clean-circles preset and exports evidence under `pytorch_playground/evidence`.
 
 The app also keeps a local Streamlit playground surface for interactive review:

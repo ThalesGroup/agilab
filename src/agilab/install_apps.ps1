@@ -269,6 +269,53 @@ function Test-PageProject {
     return [bool]$sourceMatch
 }
 
+function Test-AppDeclaresWorkerless {
+    param([string]$AppPath)
+    if ([string]::IsNullOrWhiteSpace($AppPath)) {
+        return $false
+    }
+    $pyproject = Join-PathSafe $AppPath "pyproject.toml"
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf)) {
+        return $false
+    }
+    $inSection = $false
+    foreach ($line in Get-Content -LiteralPath $pyproject -ErrorAction SilentlyContinue) {
+        $trimmed = ([string]$line).Trim()
+        if ($trimmed -eq "[tool.agilab.app]") {
+            $inSection = $true
+            continue
+        }
+        if ($trimmed.StartsWith("[") -and $trimmed.EndsWith("]")) {
+            $inSection = $false
+            continue
+        }
+        if ($inSection -and $trimmed -match '^workerless\s*=\s*true\s*(#.*)?$') {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-AppProject {
+    param([string]$AppPath)
+    if ([string]::IsNullOrWhiteSpace($AppPath) -or -not (Test-Path -LiteralPath $AppPath -PathType Container)) {
+        return $false
+    }
+    $appName = Split-Path -Leaf (Normalize-PathInput $AppPath)
+    if ([string]::IsNullOrWhiteSpace($appName) -or -not $appName.EndsWith("_project", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    $managerName = $appName.Substring(0, $appName.Length - "_project".Length)
+    $pyproject = Join-PathSafe $AppPath "pyproject.toml"
+    $manager = Join-PathSafe $AppPath "src" $managerName ("{0}.py" -f $managerName)
+    $worker = Join-PathSafe $AppPath "src" ("{0}_worker" -f $managerName) ("{0}_worker.py" -f $managerName)
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $manager -PathType Leaf)) {
+        return $false
+    }
+    return (Test-Path -LiteralPath $worker -PathType Leaf) -or (Test-AppDeclaresWorkerless -AppPath $AppPath)
+}
+
 function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
@@ -640,7 +687,9 @@ if ($forceBuiltinOnly) {
     $SkipRepositoryApps = $true
 } 
 if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
-    $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
+    $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' |
+        Where-Object { Test-AppProject -AppPath $_.FullName } |
+        ForEach-Object { $_.Name }
 }
 
 $includedPages = if ($SkipRepositoryPages) { $builtinPages } else { $builtinPages + $repositoryPages }

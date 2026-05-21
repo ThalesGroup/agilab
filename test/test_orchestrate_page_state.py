@@ -412,6 +412,24 @@ def test_orchestrate_execute_workflow_state_reports_missing_install_paths(tmp_pa
     assert "installation is incomplete" in state.combo_action.disabled_reason
 
 
+def test_orchestrate_execute_workflow_state_skips_worker_env_for_workerless_apps(tmp_path):
+    project_path = tmp_path / "project"
+    (project_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=None,
+        worker_env_required=False,
+    )
+
+    assert state.worker_venv_path is None
+    assert state.missing_install_paths == ()
+    assert state.run_action.enabled is True
+    assert state.combo_action.enabled is True
+
+
 def test_orchestrate_execute_workflow_state_blocks_missing_command(tmp_path):
     project_path = tmp_path / "project"
     worker_env_path = tmp_path / "wenv"
@@ -429,7 +447,7 @@ def test_orchestrate_execute_workflow_state_blocks_missing_command(tmp_path):
     assert state.missing_install_paths == ()
     assert state.run_action.enabled is False
     assert state.combo_action.enabled is False
-    assert "No EXECUTE command configured" in state.run_action.disabled_reason
+    assert "No RUN command configured" in state.run_action.disabled_reason
 
 
 def test_orchestrate_execute_workflow_state_blocks_serve_mode(tmp_path):
@@ -482,7 +500,7 @@ def test_orchestrate_run_artifact_state_blocks_deleted_or_missing_outputs():
 
     assert deleted.status is orchestrate_page_state.OrchestrateRunArtifactStatus.DELETED
     assert deleted.load_action.enabled is False
-    assert "Run EXECUTE again" in deleted.load_action.disabled_reason
+    assert "Click RUN again" in deleted.load_action.disabled_reason
     assert deleted.delete_action.enabled is False
     assert deleted.export_action.enabled is False
     assert missing.status is orchestrate_page_state.OrchestrateRunArtifactStatus.MISSING
@@ -598,7 +616,7 @@ def test_orchestrate_combined_workflow_state_reports_distribute_ready_and_genera
     assert distribute_ready.runnable is False
     assert generated.phase is orchestrate_page_state.OrchestrateWorkflowPhase.DISTRIBUTION_GENERATED
     assert generated.distribution_generated is True
-    assert "No EXECUTE command configured" in generated.blocked_reason
+    assert "No RUN command configured" in generated.blocked_reason
 
 
 def test_orchestrate_combined_workflow_state_reports_runnable(tmp_path):

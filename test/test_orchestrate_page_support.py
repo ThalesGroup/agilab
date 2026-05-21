@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -152,6 +153,148 @@ def test_build_run_snippet_uses_stages_and_accepts_legacy_args_key():
                 "stages": [{"name": "current"}],
             },
         )
+
+
+def test_supports_distribution_preview_requires_worker_runtime(tmp_path: Path):
+    worker_path = tmp_path / "apps" / "demo_project" / "src" / "demo_worker" / "demo_worker.py"
+    worker_path.parent.mkdir(parents=True)
+    worker_path.write_text("class DemoWorker: pass\n", encoding="utf-8")
+    workerless_app = tmp_path / "apps" / "workerless_project"
+    workerless_app.mkdir(parents=True)
+    (workerless_app / "pyproject.toml").write_text(
+        "[project]\nname='workerless-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    hidden_preview_app = tmp_path / "apps" / "pytorch_playground_project"
+    hidden_preview_app.mkdir(parents=True)
+    (hidden_preview_app / "pyproject.toml").write_text(
+        "[project]\nname='pytorch-playground-project'\n\n[tool.agilab.app]\ndistribution_preview=false\n",
+        encoding="utf-8",
+    )
+
+    assert orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(base_worker_cls="PandasWorker")
+    )
+    assert orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(worker_path=worker_path)
+    )
+    assert not orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(worker_path=tmp_path / "apps" / "missing_worker.py")
+    )
+    assert orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(
+            active_app=tmp_path / "apps" / "demo_project",
+            target_worker="demo_worker",
+        )
+    )
+    assert not orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(
+            active_app=workerless_app,
+            target_worker="workerless_worker",
+            base_worker_cls="PandasWorker",
+        )
+    )
+    assert not orchestrate_page_support.supports_distribution_preview(
+        SimpleNamespace(active_app=hidden_preview_app, base_worker_cls="PandasWorker")
+    )
+
+
+def test_workerless_snippets_use_manager_only_contract(tmp_path: Path):
+    active_app = tmp_path / "apps" / "simple_project"
+    active_app.mkdir(parents=True)
+    (active_app / "pyproject.toml").write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        active_app=active_app,
+        app="simple_project",
+        target="simple",
+        target_class="Simple",
+        python_version="3.13",
+        is_source_env=False,
+    )
+
+    install_snippet = orchestrate_page_support.build_install_snippet(
+        env=env,
+        verbose=1,
+        mode=6,
+        scheduler="None",
+        workers="None",
+        workers_data_path="None",
+    )
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        run_args={"title": "Demo"},
+    )
+
+    assert "AGI.install" not in install_snippet
+    assert "'sync'" in install_snippet
+    assert "AGI.run" not in run_snippet
+    assert 'MANAGER_MODULE = "simple"' in run_snippet
+    assert 'MANAGER_CLASS = "Simple"' in run_snippet
+    assert 'RUN_PARAMS = json.loads(\'{"title": "Demo"}\')' in run_snippet
+
+
+def test_workerless_contract_helpers_cover_path_and_metadata_edges(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BadPathLike(os.PathLike):
+        def __fspath__(self):
+            raise ValueError("bad path")
+
+    assert orchestrate_page_support._project_root_from_env_or_path(BadPathLike()) is None
+    assert orchestrate_page_support._project_root_from_env_or_path(
+        SimpleNamespace(active_app=BadPathLike())
+    ) is None
+
+    invalid_app = tmp_path / "invalid_project"
+    invalid_app.mkdir()
+    (invalid_app / "pyproject.toml").write_text("[tool.agilab.app\n", encoding="utf-8")
+    assert orchestrate_page_support.app_declares_workerless(invalid_app) is False
+    assert orchestrate_page_support.app_distribution_preview_enabled(invalid_app) is True
+
+    app_without_contract = tmp_path / "no_contract_project"
+    app_without_contract.mkdir()
+    (app_without_contract / "pyproject.toml").write_text("[tool]\nagilab = []\n", encoding="utf-8")
+    assert orchestrate_page_support.app_declares_workerless(app_without_contract) is False
+
+    worker_path = tmp_path / "apps" / "demo_project" / "src" / "demo_worker" / "demo_worker.py"
+    target_candidate = tmp_path / "apps" / "target_project" / "src" / "target_worker" / "target_worker.py"
+    original_is_file = Path.is_file
+
+    def _is_file_or_raise(self):
+        if self in {worker_path, target_candidate}:
+            raise OSError("probe failed")
+        return original_is_file(self)
+
+    with monkeypatch.context() as path_monkeypatch:
+        path_monkeypatch.setattr(Path, "is_file", _is_file_or_raise)
+        assert not orchestrate_page_support.supports_distribution_preview(
+            SimpleNamespace(worker_path=worker_path)
+        )
+        assert not orchestrate_page_support.supports_distribution_preview(
+            SimpleNamespace(active_app=target_candidate.parents[2], target_worker="target_worker")
+        )
+
+    assert orchestrate_page_support._class_name_from_module("") == "App"
+    assert orchestrate_page_support._class_name_from_module("utility-app") == "UtilityApp"
+    assert orchestrate_page_support._workerless_manager_module(
+        SimpleNamespace(target="", app="demo_project")
+    ) == "demo"
+    assert orchestrate_page_support._workerless_manager_module(
+        SimpleNamespace(target="", app="utility-app")
+    ) == "utility_app"
+    assert orchestrate_page_support._workerless_manager_module(SimpleNamespace(target="", app="")) == "app"
+    assert orchestrate_page_support._workerless_manager_class(
+        SimpleNamespace(target_class=""), "utility-app"
+    ) == "UtilityApp"
 
 
 def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
@@ -311,6 +454,37 @@ def test_merge_app_settings_sources_ignores_session_only_cluster_snapshot():
 
     assert merged["args"] == {"data_in": "session/input"}
     assert merged["cluster"] == {}
+
+
+def test_merge_app_settings_sources_covers_non_mapping_and_success_overrides():
+    assert orchestrate_page_support.merge_app_settings_sources("bad", "bad") == {
+        "args": {},
+        "cluster": {},
+    }
+    assert orchestrate_page_support.merge_app_settings_sources(
+        {"args": {"from_file": True}, "cluster": "bad"},
+        "bad",
+    ) == {
+        "args": {"from_file": True},
+        "cluster": {},
+    }
+    assert orchestrate_page_support.merge_app_settings_sources(
+        {"args": "bad"},
+        {"args": {"from_session": True}},
+    ) == {
+        "args": {"from_session": True},
+        "cluster": {},
+    }
+    assert orchestrate_page_support.merge_app_settings_sources({"args": "bad"}, {}) == {
+        "args": "bad",
+        "cluster": {},
+    }
+    assert orchestrate_page_support.resolve_project_change_args_override(
+        is_args_from_ui=True,
+        args_project="demo_project",
+        previous_project="demo_project",
+        app_settings_snapshot={"args": {"sample_count": 128}},
+    ) == {"sample_count": 128}
 
 
 def test_resolve_requested_run_mode_switches_between_single_and_benchmark_modes():
@@ -842,6 +1016,28 @@ def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_pa
     assert orchestrate_page_support.is_app_installed(env) is False
 
 
+def test_app_install_status_workerless_requires_only_manager_env(tmp_path: Path) -> None:
+    active_app = tmp_path / "simple_project"
+    active_app.mkdir(parents=True)
+    (active_app / "pyproject.toml").write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    worker_root = tmp_path / "wenv" / "simple_worker"
+    _seed_fake_venv_modules(active_app / ".venv", "agi_env")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["workerless"] is True
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
+    assert status["worker_exists"] is True
+    assert status["worker_venv"] is None
+    assert status["worker_problem"] == "workerless app; no worker environment required"
+    assert orchestrate_page_support.is_app_installed(env) is True
+
+
 def test_app_install_status_reports_missing_env_and_python(tmp_path: Path, monkeypatch) -> None:
     missing_venv = tmp_path / "missing"
     missing_status = orchestrate_page_support._venv_import_status(missing_venv, ("agi_env",))
@@ -855,6 +1051,14 @@ def test_app_install_status_reports_missing_env_and_python(tmp_path: Path, monke
     assert python_missing_status["exists"] is True
     assert python_missing_status["missing_modules"] == ("python",)
     assert "python executable is missing" in python_missing_status["problem"]
+
+    with monkeypatch.context() as path_monkeypatch:
+        path_monkeypatch.setattr(orchestrate_page_support.os, "name", "nt")
+        windows_venv = tmp_path / "windows-venv"
+        windows_site = windows_venv / "Lib" / "site-packages"
+        windows_site.mkdir(parents=True)
+        assert orchestrate_page_support._venv_python_path(windows_venv) == windows_venv / "Scripts" / "python.exe"
+        assert orchestrate_page_support._venv_site_package_dirs(windows_venv) == (windows_site,)
 
     lib_root = tmp_path / "lib-root"
     assert orchestrate_page_support._module_available_on_root(lib_root, "standalone") is False
@@ -1083,6 +1287,29 @@ def test_update_log_helper_updates_session_state_and_trims_output():
     assert sink.calls[-1][0][0] == "line 3\nline 4"
     assert sink.calls[-1][1]["language"] == "python"
     assert sink.calls[-1][1]["height"] == 160
+
+
+def test_update_log_helper_renders_empty_message_without_appending_log_text():
+    sink = _CaptureCodeSink()
+    session_state: dict[str, object] = {}
+    traceback_state = {"active": False}
+
+    orchestrate_page_support.update_log(
+        session_state,
+        sink,
+        "",
+        max_lines=3,
+        cluster_verbose=2,
+        traceback_state=traceback_state,
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        is_dask_shutdown_noise_fn=orchestrate_page_support.is_dask_shutdown_noise,
+        log_display_max_lines=2,
+        live_log_min_height=120,
+    )
+
+    assert session_state["log_text"] == ""
+    assert sink.calls[-1][0][0] == ""
+    assert sink.calls[-1][1]["height"] == 120
 
 
 def test_update_log_helper_ignores_traceback_and_dask_noise_at_low_verbosity():

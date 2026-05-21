@@ -41,6 +41,7 @@ def _runtime_payload_files(root: Path) -> set[Path]:
         path.relative_to(root)
         for path in root.rglob("*")
         if path.is_file()
+        and path.suffix not in {".c", ".pyx", ".so"}
         and "__pycache__" not in path.parts
         and ".venv" not in path.parts
         and path.suffix != ".pyc"
@@ -701,6 +702,16 @@ def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
     assert settings["cluster"]["workers"] == {"127.0.0.1": 1}
 
 
+def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
+    import tomllib
+
+    source_pyproject = tomllib.loads((PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
+    payload_pyproject = tomllib.loads((PACKAGE_PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert source_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+    assert payload_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+
+
 def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> None:
     source = (PROJECT_PATH / "src" / "app_args_form.py").read_text(encoding="utf-8")
 
@@ -781,10 +792,10 @@ def test_pytorch_playground_worker_exports_real_torch_evidence_when_available(
     worker.args = args_module.PytorchPlaygroundArgs(
         data_out=tmp_path / "out",
         dataset="gaussian",
-        sample_count=40,
+        sample_count=64,
         hidden_layers="4",
         feature_names="x1,x2",
-        epochs=2,
+        epochs=10,
         batch_size=16,
         grid_size=12,
         compute_loss_landscape=True,
@@ -1144,14 +1155,33 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
     assert manifest["schema"] == module.EVIDENCE_SCHEMA
 
 
-def test_pytorch_playground_app_provider_and_package_docs() -> None:
+def test_pytorch_playground_app_provider_and_package_docs(tmp_path: Path) -> None:
     spec = importlib.util.spec_from_file_location("agi_app_pytorch_playground_init_test_module", INIT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.project_root() == (INIT_PATH.parent / "project" / "pytorch_playground_project").resolve()
+    source_root = INIT_PATH.resolve().parents[4] / "apps" / "builtin" / "pytorch_playground_project"
+    assert module.project_root() == source_root.resolve()
+
+    fake_package_root = (
+        tmp_path
+        / ".venv"
+        / "lib"
+        / "python3.13"
+        / "site-packages"
+        / "agi_app_pytorch_playground"
+    )
+    fake_payload = fake_package_root / "project" / "pytorch_playground_project"
+    fake_payload.mkdir(parents=True, exist_ok=True)
+    original_file = module.__file__
+    try:
+        module.__file__ = str(fake_package_root / "__init__.py")
+        assert module.project_root() == fake_payload
+    finally:
+        module.__file__ = original_file
+
     assert module.metadata()["project"] == "pytorch_playground_project"
     readme = README_PATH.read_text(encoding="utf-8")
     assert "pytorch_playground_project" in readme

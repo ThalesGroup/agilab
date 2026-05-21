@@ -26,6 +26,9 @@ Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
+[tool.agilab.app]
+distribution_preview = false
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

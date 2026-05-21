@@ -106,7 +106,7 @@ Recovery::
 
 If that fails, run the pages directly::
 
-    uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+    uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 
 Then verify the built-in app can be resolved by path::
 
