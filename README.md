@@ -88,14 +88,13 @@ Start with the public browser preview or the demo chooser:
 - [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
-## Featured Opt-In Playground
+## Featured Opt-In App
 
-- [PyTorch Playground](src/agilab/apps-pages/view_pytorch_playground)
-  (`agi-page-pytorch-playground`) is the opt-in classifier playground for
+- [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project)
+  is the opt-in classifier playground app for
   synthetic datasets, hidden-layer activation maps, network diagnostics, and
-  the **Loss landscape** tab. It is not a generic app-agnostic analysis page
-  like the normal `agi-pages` bundle, and loss landscape is not a separate
-  `view_loss_landscape` GitHub folder.
+  the **Loss landscape** view. It is a reproducible app project, not a generic
+  app-agnostic analysis page, and loss landscape is part of that project.
 
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
@@ -320,18 +319,18 @@ Current packaging policy is conservative:
 - Promoted app payloads live in per-app packages such as
   `agi-app-mission-decision`, `agi-app-pandas-execution`,
   `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
-  `agi-app-weather-forecast`, `agi-app-tescia-diagnostic-project`, and
-  `agi-app-uav-relay-queue`; `agi-apps` is the umbrella catalog/example package
+  `agi-app-weather-forecast`, `agi-app-pytorch-playground`,
+  `agi-app-tescia-diagnostic-project`, and `agi-app-uav-relay-queue`;
+  `agi-apps` is the umbrella catalog/example package
   pulled in by the `ui` and `examples` extras.
 - Public analysis page bundles use decoupled `agi-page-*` package names such
   as `agi-page-feature-attribution`; `agi-pages` is the provider package pulled
   in by the `ui` and `pages` extras.
-- The optional PyTorch playground is published as `agi-page-pytorch-playground`
-  and lives in
-  [`src/agilab/apps-pages/view_pytorch_playground`](src/agilab/apps-pages/view_pytorch_playground).
-  It is a standalone opt-in playground rather than a generic app-agnostic
-  analysis page; its loss-landscape projection is a tab inside that page, not a
-  separate `view_loss_landscape` bundle.
+- The optional PyTorch playground lives in
+  [`src/agilab/apps/builtin/pytorch_playground_project`](src/agilab/apps/builtin/pytorch_playground_project).
+  It is a reproducible app project rather than a generic app-agnostic analysis
+  page; its loss-landscape projection is part of that project, not a separate
+  `view_loss_landscape` bundle.
 - Larger optional stacks must stay behind extras, and release evidence must
   include SBOM / `pip-audit` data for the actual enabled profile.
 - `agi-cluster` remains in the base runtime by design. A separate minimal

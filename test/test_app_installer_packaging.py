@@ -121,6 +121,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-flight-telemetry": "flight_telemetry_project",
     "agi-app-global-dag": "global_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
+    "agi-app-pytorch-playground": "pytorch_playground_project",
     "agi-app-tescia-diagnostic-project": "tescia_diagnostic_project",
     "agi-app-uav-queue-project": "uav_queue_project",
     "agi-app-uav-relay-queue": "uav_relay_queue_project",
@@ -275,6 +276,7 @@ def test_app_templates_keep_runtime_contracts_explicit() -> None:
     templates = sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir())
     assert templates
 
+    workerless_templates = {"simple_app_template"}
     forbidden_python_fragments = (
         "AGI._env",
         "warnings.filterwarnings",
@@ -291,7 +293,12 @@ def test_app_templates_keep_runtime_contracts_explicit() -> None:
             for operator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
                 name = name.split(operator, 1)[0].strip()
             dependencies.add(name)
-        assert {"agi-cluster", "agi-env", "agi-node", "pydantic", "streamlit"} <= dependencies
+        assert {"agi-env", "pydantic", "streamlit"} <= dependencies
+        if template.name in workerless_templates:
+            assert {"agi-cluster", "agi-node"}.isdisjoint(dependencies), template.name
+            assert not any(template.glob("src/*_worker")), template.name
+        else:
+            assert {"agi-cluster", "agi-node"} <= dependencies, template.name
         assert "filterwarnings" not in pyproject.get("tool", {}).get("mypy", {})
 
         cluster_settings = tomllib.loads((template / "src/app_settings.toml").read_text(encoding="utf-8"))["cluster"]

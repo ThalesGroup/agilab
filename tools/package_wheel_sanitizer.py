@@ -21,6 +21,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-app-flight-telemetry",
         "agi-app-global-dag",
         "agi-app-weather-forecast",
+        "agi-app-pytorch-playground",
         "agi-app-tescia-diagnostic-project",
         "agi-app-uav-queue-project",
         "agi-app-uav-relay-queue",
@@ -37,7 +38,6 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-page-promotion-gate",
         "agi-page-feature-attribution",
         "agi-page-training-report",
-        "agi-page-pytorch-playground",
     }
 )
 

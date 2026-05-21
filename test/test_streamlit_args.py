@@ -103,6 +103,18 @@ def test_render_form_handles_various_field_types(dummy_streamlit):
     assert dummy_streamlit.number_inputs[1][1]["step"] == pytest.approx(0.25)
 
 
+def test_render_form_can_target_sidebar_container(dummy_streamlit):
+    sidebar = DummyStreamlit()
+
+    values = streamlit_args.render_form(DemoArgs(), container=sidebar)
+
+    assert values["name"] == "text:Name"
+    assert sidebar.text_inputs == ["Name", "Location", "Timestamp", "Optional Text"]
+    assert sidebar.number_inputs
+    assert dummy_streamlit.text_inputs == []
+    assert dummy_streamlit.number_inputs == []
+
+
 def test_load_args_state_reads_settings(tmp_path, dummy_streamlit):
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(

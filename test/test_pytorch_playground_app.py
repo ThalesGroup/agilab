@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import importlib.util
 import json
 from pathlib import Path
@@ -14,14 +15,16 @@ import pytest
 
 
 MODULE_PATH = Path(
-    "src/agilab/apps-pages/view_pytorch_playground/src/view_pytorch_playground/view_pytorch_playground.py"
+    "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
 )
-INIT_PATH = Path("src/agilab/apps-pages/view_pytorch_playground/src/view_pytorch_playground/__init__.py")
-README_PATH = Path("src/agilab/apps-pages/README.md")
+INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
+README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
+PROJECT_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project")
+PROJECT_SRC = PROJECT_PATH / "src"
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("view_pytorch_playground_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -187,11 +190,11 @@ def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.
 
     active_app = tmp_path / "active_app"
     active_app.mkdir()
-    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py", "--active-app", str(active_app)])
+    monkeypatch.setattr(sys, "argv", ["playground_ui.py", "--active-app", str(active_app)])
     assert module._resolve_active_app() == active_app.resolve()
-    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py", "--active-app", str(tmp_path / "missing")])
+    monkeypatch.setattr(sys, "argv", ["playground_ui.py", "--active-app", str(tmp_path / "missing")])
     assert module._resolve_active_app() is None
-    monkeypatch.setattr(sys, "argv", ["view_pytorch_playground.py"])
+    monkeypatch.setattr(sys, "argv", ["playground_ui.py"])
     assert module._resolve_active_app() is None
 
     default = module.PlaygroundConfig()
@@ -280,6 +283,7 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
         landscape_bytes = archive.read("model/loss_landscape.csv")
 
     assert manifest["schema"] == module.EVIDENCE_SCHEMA
+    assert manifest["app"] == "pytorch_playground_project"
     assert manifest["config_schema"] == module.CONFIG_SCHEMA
     assert manifest["row_counts"]["samples"] == 32
     assert manifest["row_counts"]["loss_landscape"] == 2
@@ -632,6 +636,54 @@ def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
     assert landscape_result["landscape_summary"]["points"] == 25
 
 
+def test_pytorch_playground_app_args_convert_to_playground_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    app_args = importlib.import_module("pytorch_playground.app_args")
+
+    args = app_args.PytorchPlaygroundArgs(
+        hidden_layers="4, 2",
+        feature_names="x1, missing, sin_x2",
+        sample_count=96,
+    )
+    config = app_args.to_playground_config(args)
+
+    assert config.hidden_layers == (4, 2)
+    assert config.feature_names == ("x1", "sin_x2")
+    assert config.sample_count == 96
+
+
+def test_pytorch_playground_worker_exports_evidence_without_torch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    ui_module = importlib.import_module("pytorch_playground.playground_ui")
+    worker_module = importlib.import_module("pytorch_playground_worker.pytorch_playground_worker")
+    args_module = importlib.import_module("pytorch_playground.app_args")
+    monkeypatch.setattr(ui_module, "torch", None)
+    monkeypatch.setattr(ui_module, "nn", None)
+
+    worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    worker.args = args_module.PytorchPlaygroundArgs(
+        data_out=tmp_path / "out",
+        sample_count=64,
+        epochs=10,
+        grid_size=12,
+        reset_target=True,
+    ).model_dump(mode="json")
+    worker.env = SimpleNamespace(target="pytorch_playground_project", AGILAB_EXPORT_ABS=tmp_path / "export")
+    worker._worker_id = 0
+
+    worker.start()
+    summary = worker.work_pool("pytorch_playground")
+
+    assert summary.iloc[0]["backend"] == "missing"
+    manifest = json.loads((tmp_path / "out" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["app"] == "pytorch_playground_project"
+    assert (tmp_path / "out" / "pytorch_playground_evidence.zip").is_file()
+    assert (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground" / "manifest.json").is_file()
+
+
 def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
 
@@ -962,15 +1014,16 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
     assert fake_st.json_payloads[0]["schema"] == module.EVIDENCE_SCHEMA
 
 
-def test_pytorch_playground_bundle_root_and_opt_in_package_docs() -> None:
-    spec = importlib.util.spec_from_file_location("view_pytorch_playground_init_test_module", INIT_PATH)
+def test_pytorch_playground_app_provider_and_package_docs() -> None:
+    spec = importlib.util.spec_from_file_location("agi_app_pytorch_playground_init_test_module", INIT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
-    assert module.bundle_root() == INIT_PATH.parent.resolve()
+    assert module.project_root() == (INIT_PATH.parent / "project" / "pytorch_playground_project").resolve()
+    assert module.metadata()["project"] == "pytorch_playground_project"
     readme = README_PATH.read_text(encoding="utf-8")
-    assert "view_pytorch_playground" in readme
-    assert "agi-page-pytorch-playground" in readme
-    assert "not part of the public `agi-pages` umbrella" in readme
+    assert "pytorch_playground_project" in readme
+    assert "agi-app-pytorch-playground" in readme
+    assert "generic app-agnostic analysis page" in readme

@@ -655,7 +655,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             stamp_path = dataset_root / ".agilab_dataset_stamp"
 
             existing_files = (
-                [p for p in dataset_root.rglob("*") if p.is_file() and p != stamp_path]
+                [p for p in dataset_root.rglob("*") if p != stamp_path and p.is_file()]
                 if dataset_root.exists()
                 else []
             )

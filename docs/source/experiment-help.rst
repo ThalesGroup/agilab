@@ -153,7 +153,9 @@ Execution is intentionally conservative:
   subprocess so parallel ready stages do not share the in-process ``AGI`` class
   state.
 * Workspace drafts and custom DAGs remain preview-only until they are promoted
-  into a checked-in app template with an explicit controlled execution contract.
+  into a checked-in worker app template with an explicit controlled execution
+  contract. Workerless app templates are still valid AGILAB apps, but they do
+  not imply distributed DAG execution.
 
 The technical JSON contract still uses stable field names so plans remain
 portable:
@@ -171,9 +173,9 @@ portable:
   evidence. This keeps cross-app DAG execution auditable instead of relying on
   hidden defaults.
 * ``produces`` and ``consumes`` declare the artifact contract between stages.
-  Executable app templates must declare at least one produced artifact per
-  controlled stage so the runner can publish evidence and unlock downstream
-  stages.
+  Distributed executable app templates must declare at least one produced
+  artifact per controlled stage so the runner can publish evidence and unlock
+  downstream stages.
 
 Use the smoke validator before a live two-node run:
 

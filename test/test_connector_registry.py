@@ -206,10 +206,10 @@ def test_connector_registry_missing_and_unportable_paths(tmp_path, monkeypatch) 
     def broken_relative_check(self: Path, other: Path) -> bool:
         raise RuntimeError("simulated relative path failure")
 
-    monkeypatch.setattr(Path, "is_relative_to", broken_relative_check)
-
-    outside = tmp_path / "outside" / "artifact.txt"
-    assert registry.portable_label(outside) == str(outside)
+    with monkeypatch.context() as context:
+        context.setattr(Path, "is_relative_to", broken_relative_check)
+        outside = tmp_path / "outside" / "artifact.txt"
+        assert registry.portable_label(outside) == str(outside)
 
 
 def test_connector_registry_can_build_without_target_or_pages_root(tmp_path) -> None:

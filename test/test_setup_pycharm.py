@@ -591,7 +591,7 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     )
 
     manager_test = _read_generated_config(tmp_path, "_flight_telemetry_test_manager.xml")
-    assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_manager.py")
+    assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_telemetry_manager.py")
 
 
 def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:

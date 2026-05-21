@@ -29,6 +29,25 @@ Use this skill when editing:
 - Prefer the split architecture when the surface has both execution and review
   concerns: the app owns reproducible execution and artifact/evidence export;
   the page reads those artifacts and renders the analysis.
+- AGILAB app projects do not always need workers. Use a workerless app template
+  for local/UI prototypes, notebook-derived tools, explainers, and reports that
+  can write artifacts from the manager process. Use a worker template only when
+  the app needs AGILAB Install/Execute worker deployment, Dask, worker-specific
+  dependencies, or a distributed task plan.
+
+## App Args Forms And Sidebar Controls
+
+- Custom `app_args_form.py` views are app UI, not apps-pages. Use them when an
+  app needs persisted execution fields in ORCHESTRATE.
+- For compact app-specific controls, use `agi_env.streamlit_args.render_form`
+  with an explicit container such as `st.sidebar`:
+  `render_form(defaults_model, container=st.sidebar)`.
+- Keep the capability generic in `agi_env.streamlit_args`; do not hard-code a
+  project name or page bundle just because one app wants sidebar controls.
+- If a Streamlit surface owns training, optimization, generated data, or
+  evidence export, make it an app project first. Keep any app-owned standalone
+  Streamlit surface under that app project unless a separate generic analysis
+  page reads only exported artifacts.
 
 ## Session State Rules (Avoid Common Crashes)
 

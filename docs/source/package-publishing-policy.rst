@@ -61,14 +61,10 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-promotion-gate``
 - ``agi-page-feature-attribution``
 - ``agi-page-training-report``
-- ``agi-page-pytorch-playground``
 
 These packages are built as both wheels and source distributions. Their names
 stay app-agnostic because page bundles must be reusable by AGILAB apps and
 exported notebooks.
-``agi-page-pytorch-playground`` is an explicit opt-in teaching page and is not
-included in the ``agi-pages`` umbrella dependency graph because it carries the
-heavier PyTorch runtime.
 
 Published page-bundle umbrella package
 --------------------------------------
@@ -95,15 +91,17 @@ installed apps without the monorepo checkout once that package is installed:
 - ``agi-app-flight-telemetry``
 - ``agi-app-global-dag``
 - ``agi-app-weather-forecast``
+- ``agi-app-pytorch-playground``
 - ``agi-app-tescia-diagnostic-project``
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
-Eight app payload packages are promoted to PyPI in the current release plan:
+Nine app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
 ``agi-app-global-dag``, ``agi-app-weather-forecast``,
-``agi-app-tescia-diagnostic-project``, and ``agi-app-uav-relay-queue``. The
+``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic-project``, and
+``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
 artifacts and kept in the GitHub Release distribution archive until it is
 explicitly promoted. The payload is staged during package build, with local
@@ -362,11 +360,6 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-training-report``
-   * - ``agi-page-pytorch-playground``
-     - ``ThalesGroup``
-     - ``agilab``
-     - ``pypi-publish.yaml``
-     - ``pypi-agi-page-pytorch-playground``
    * - ``agi-pages``
      - ``ThalesGroup``
      - ``agilab``
@@ -417,6 +410,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-weather-forecast``
+   * - ``agi-app-pytorch-playground``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-app-pytorch-playground``
    * - ``agi-app-tescia-diagnostic-project``
      - ``ThalesGroup``
      - ``agilab``
@@ -486,7 +484,6 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-page-promotion-gate``
 - ``pypi-agi-page-feature-attribution``
 - ``pypi-agi-page-training-report``
-- ``pypi-agi-page-pytorch-playground``
 - ``pypi-agi-pages``
 - ``pypi-agi-app-mission-decision``
 - ``pypi-agi-app-pandas-execution``
@@ -494,6 +491,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-app-flight-telemetry``
 - ``pypi-agi-app-global-dag``
 - ``pypi-agi-app-weather-forecast``
+- ``pypi-agi-app-pytorch-playground``
 - ``pypi-agi-app-tescia-diagnostic-project``
 - ``pypi-agi-app-uav-queue-project``
 - ``pypi-agi-app-uav-relay-queue``

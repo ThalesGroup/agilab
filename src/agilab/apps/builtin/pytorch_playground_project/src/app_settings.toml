@@ -1,0 +1,39 @@
+[args]
+data_out = "pytorch_playground/evidence"
+dataset = "circles"
+sample_count = 320
+noise = 0.08
+train_ratio = 0.75
+hidden_layers = "12,12"
+activation = "tanh"
+optimizer = "Adam"
+learning_rate = 0.035
+epochs = 90
+batch_size = 32
+seed = 11
+feature_names = "x1,x2,x1_squared,x2_squared,x1_x2"
+grid_size = 88
+compute_loss_landscape = false
+landscape_resolution = 21
+landscape_span = 0.75
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[pages]
+view_module = []

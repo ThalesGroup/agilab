@@ -46,6 +46,12 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
         "package": "agi_app_weather_forecast",
     },
     {
+        "project": "pytorch_playground_project",
+        "slug": "pytorch_playground",
+        "distribution": "agi-app-pytorch-playground",
+        "package": "agi_app_pytorch_playground",
+    },
+    {
         "project": "tescia_diagnostic_project",
         "slug": "tescia_diagnostic",
         "distribution": "agi-app-tescia-diagnostic-project",
