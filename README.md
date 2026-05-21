@@ -51,6 +51,11 @@ workers, and the workflow stays portable: export it back to an `agi-core`
 notebook, inspect or adapt the Python stages, and hand off tracking evidence to
 MLflow when that integration is enabled.
 
+You do not need a cluster to get AGILAB's core value. The primary adoption path
+is local: turn a notebook or script into a replayable app with evidence,
+artifacts, analysis views, and a notebook or MLflow handoff. Cluster execution is
+a scale-out option after that local proof works.
+
 Use it to keep experimental AI work:
 
 - **one-command setup**
