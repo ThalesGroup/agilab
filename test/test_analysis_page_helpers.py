@@ -184,6 +184,23 @@ def test_discover_views_uses_cache_until_directory_signature_changes(tmp_path: P
     assert calls == [pages_root.resolve(), pages_root.resolve()]
 
 
+def test_discover_views_skips_scaffold_templates(tmp_path: Path):
+    module = _load_analysis_module()
+    module._VIEW_DISCOVERY_CACHE.clear()
+    pages_root = tmp_path / "apps-pages"
+    real_view_root = pages_root / "view_real" / "src" / "view_real"
+    template_root = pages_root / "templates" / "analysis_page_template" / "src" / "view_demo"
+    real_view_root.mkdir(parents=True)
+    template_root.mkdir(parents=True)
+    real_view = (real_view_root / "view_real.py").resolve()
+    template_view = (template_root / "view_demo.py").resolve()
+    real_view.write_text("def main(): pass\n", encoding="utf-8")
+    template_view.write_text("def main(): pass\n", encoding="utf-8")
+
+    assert module.discover_views(pages_root) == [real_view]
+    assert module._find_view_entry("templates", pages_root) is None
+
+
 def test_discover_project_notebooks_uses_cache_until_directory_signature_changes(
     tmp_path: Path,
     monkeypatch,
