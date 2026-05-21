@@ -1049,6 +1049,7 @@ _ANALYSIS_DISCOVERY_SKIP_DIRS = {
     ".ruff_cache",
     ".venv",
     "__pycache__",
+    "templates",
     "venv",
 }
 _VIEW_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], tuple[Path, ...]]] = {}
@@ -1120,7 +1121,11 @@ def _discover_views_uncached(pages_dir: Path) -> list[Path]:
         return []
 
     for entry in pages_dir.iterdir():
-        if entry.name.startswith(".") or entry.name.startswith("_"):
+        if (
+            entry.name in _ANALYSIS_DISCOVERY_SKIP_DIRS
+            or entry.name.startswith(".")
+            or entry.name.startswith("_")
+        ):
             continue
         if entry.is_dir():
             entrypoint = _find_view_entrypoint(entry)
@@ -1212,6 +1217,9 @@ def _find_view_entrypoint(view_root: Path) -> Path | None:
             return None
         return view_root.resolve()
 
+    if view_root.name in _ANALYSIS_DISCOVERY_SKIP_DIRS:
+        return None
+
     module = view_root.name
     candidates: list[Path] = [
         view_root / "src" / module / (module + ".py"),
@@ -1241,7 +1249,7 @@ def _find_view_entrypoint(view_root: Path) -> Path | None:
     # Fallback: for custom or cloned pages where folder/module names differ, pick a
     # deterministic entry script under the page bundle.
     fallback_files = []
-    skip_dir = {".venv", "venv", ".git", ".pytest_cache", "__pycache__", ".mypy_cache"}
+    skip_dir = set(_ANALYSIS_DISCOVERY_SKIP_DIRS)
     for dirpath, dirnames, filenames in os.walk(view_root):
         dirnames[:] = [
             d
