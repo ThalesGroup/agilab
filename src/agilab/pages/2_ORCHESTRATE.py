@@ -74,6 +74,7 @@ import_agilab_symbols(
         "serialize_args_payload": "serialize_args_payload",
         "strip_ansi": "strip_ansi",
         "supports_distribution_preview": "supports_distribution_preview",
+        "supports_service_mode": "supports_service_mode",
         "update_distribution_payload": "update_distribution_payload",
         "workplan_selection_key": "workplan_selection_key",
     },
@@ -1967,6 +1968,12 @@ async def _render_distribution_panel(
                     st.caption("Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute.")
 
 
+def _execution_mode_options(env: Any) -> tuple[str, ...]:
+    if supports_service_mode(env):
+        return ("Run now", "Serve")
+    return ("Run now",)
+
+
 async def _render_run_panels(
     env: Any,
     *,
@@ -1992,14 +1999,19 @@ async def _render_run_panels(
     st.session_state.setdefault("run_log_cache", "")
 
     execution_view_key = f"orchestrate_execution_view__{env.app}"
-    execution_view = compact_choice(
-        st,
-        "Execution mode",
-        ("Run now", "Serve"),
-        key=execution_view_key,
-        help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
-        fallback="radio",
-    )
+    execution_options = _execution_mode_options(env)
+    if len(execution_options) > 1:
+        execution_view = compact_choice(
+            st,
+            "Execution mode",
+            execution_options,
+            key=execution_view_key,
+            help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
+            fallback="radio",
+        )
+    else:
+        execution_view = "Run now"
+        st.caption("Service mode is not available for this app.")
     show_run_panel = execution_view == "Run now"
     show_submit_panel = execution_view == "Serve"
 

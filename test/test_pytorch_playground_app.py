@@ -1006,7 +1006,9 @@ def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
     payload_pyproject = tomllib.loads((PACKAGE_PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert source_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+    assert source_pyproject["tool"]["agilab"]["app"]["service_mode"] is False
     assert payload_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
+    assert payload_pyproject["tool"]["agilab"]["app"]["service_mode"] is False
 
 
 def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> None:

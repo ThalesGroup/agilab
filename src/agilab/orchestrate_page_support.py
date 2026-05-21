@@ -142,6 +142,13 @@ def app_distribution_preview_enabled(env_or_path: Any) -> bool:
     return app.get("distribution_preview") is not False
 
 
+def supports_service_mode(env_or_path: Any) -> bool:
+    """Return whether ORCHESTRATE should expose persistent service controls."""
+
+    app = _agilab_app_contract(env_or_path)
+    return app.get("service_mode") is not False
+
+
 def _agilab_app_contract(env_or_path: Any) -> Mapping[str, Any]:
     project_root = _project_root_from_env_or_path(env_or_path)
     if project_root is None:

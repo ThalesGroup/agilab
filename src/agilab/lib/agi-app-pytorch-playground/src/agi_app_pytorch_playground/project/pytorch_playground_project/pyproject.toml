@@ -28,6 +28,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.agilab.app]
 distribution_preview = false
+service_mode = false
 
 [build-system]
 requires = ["setuptools"]

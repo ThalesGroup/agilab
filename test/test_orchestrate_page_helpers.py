@@ -1909,6 +1909,16 @@ def test_benchmark_display_date_uses_mtime_fallback(tmp_path: Path, monkeypatch)
     assert date_value == module.datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def test_execution_mode_options_hide_serve_when_app_disables_service_mode(monkeypatch):
+    module = _load_orchestrate_module()
+
+    monkeypatch.setattr(module, "supports_service_mode", lambda _env: False)
+    assert module._execution_mode_options(SimpleNamespace(app="pytorch_playground_project")) == ("Run now",)
+
+    monkeypatch.setattr(module, "supports_service_mode", lambda _env: True)
+    assert module._execution_mode_options(SimpleNamespace(app="flight_telemetry_project")) == ("Run now", "Serve")
+
+
 def test_benchmark_display_date_returns_empty_string_when_stat_fails(tmp_path: Path, monkeypatch):
     module = _load_orchestrate_module()
     benchmark = tmp_path / "benchmark.json"
