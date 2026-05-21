@@ -163,7 +163,7 @@ pulled by the umbrella dependency graph.
      - Included in ``agi-pages``.
    * - ``view_training_analysis``
      - ``agi-page-training-report``
-     - Training run and TensorBoard scalar browser.
+     - Training run scalar browser for TensorBoard logs and AGILAB training-history CSV artifacts.
      - Included in ``agi-pages``.
 
 view_barycentric
@@ -304,7 +304,8 @@ view_training_analysis
 
 Training evidence page for scalar logs and model-training runs.
 
-- Input: TensorBoard-compatible scalar folders under an app export directory.
+- Input: TensorBoard-compatible scalar folders or ``data/training_history.csv``
+  artifacts under an app export directory.
 - Output: run selector, scalar trends, and training metadata for comparison.
 
 view_autoencoder_latentspace
