@@ -28,9 +28,10 @@ project without a monorepo checkout.
 pip install agi-app-tescia-diagnostic-project
 ```
 
-This package is not pulled by the `agi-apps` umbrella until it is promoted for a
-release. Install it directly when validating the diagnostic app package from an
-index or a locally built wheel.
+The `agi-apps` umbrella pulls this package on Python 3.13+ because the TeSciA
+diagnostic app uses the same Python floor as its packaged worker environment.
+Install it directly when validating the diagnostic app package from an index or
+a locally built wheel.
 
 ## Run In AGILAB
 

@@ -6,6 +6,21 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
+CASE_SCHEMA = "agilab.tescia_diagnostic.cases.v1"
+
+_REQUIRED_CASE_FIELDS = {
+    "case_id",
+    "symptom",
+    "proposed_diagnosis",
+    "root_cause",
+    "plain_repro",
+    "weak_assumptions",
+    "evidence",
+    "candidate_fixes",
+    "regression_tests",
+}
+
+
 def _as_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -21,6 +36,62 @@ def _weighted_mean(rows: Sequence[Mapping[str, Any]], key: str) -> float:
     if not rows:
         return 0.0
     return round(sum(_as_float(row.get(key)) for row in rows) / len(rows), 4)
+
+
+def _require_float_range(value: Any, *, field: str, case_id: str) -> None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Case {case_id!r} field {field!r} must be numeric.") from exc
+    if not 0.0 <= number <= 1.0:
+        raise ValueError(f"Case {case_id!r} field {field!r} must be between 0.0 and 1.0.")
+
+
+def validate_case_payload(payload: Mapping[str, Any], *, expected_case_count: int | None = None) -> dict[str, Any]:
+    """Validate a TeSciA case file and return a normalized payload."""
+
+    if payload.get("schema") != CASE_SCHEMA:
+        raise ValueError(f"Diagnostic cases must declare schema {CASE_SCHEMA!r}.")
+    cases = payload.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("Diagnostic cases must include a non-empty cases list.")
+    if expected_case_count is not None and len(cases) != expected_case_count:
+        raise ValueError(f"Diagnostic cases contain {len(cases)} case(s), expected {expected_case_count}.")
+
+    normalized_cases: list[dict[str, Any]] = []
+    for index, case in enumerate(cases):
+        if not isinstance(case, Mapping):
+            raise ValueError(f"Case #{index + 1} must be an object.")
+        case_id = str(case.get("case_id", f"case_{index + 1}"))
+        missing = sorted(field for field in _REQUIRED_CASE_FIELDS if field not in case)
+        if missing:
+            raise ValueError(f"Case {case_id!r} is missing fields: {', '.join(missing)}.")
+
+        evidence = case.get("evidence")
+        fixes = case.get("candidate_fixes")
+        tests = case.get("regression_tests")
+        if not isinstance(evidence, list) or len(evidence) < 2:
+            raise ValueError(f"Case {case_id!r} must include at least two evidence items.")
+        if not isinstance(fixes, list) or len(fixes) < 2:
+            raise ValueError(f"Case {case_id!r} must include at least two candidate fixes.")
+        if not isinstance(tests, list) or len(tests) < 2:
+            raise ValueError(f"Case {case_id!r} must include at least two regression tests.")
+
+        for row in evidence:
+            if not isinstance(row, Mapping):
+                raise ValueError(f"Case {case_id!r} has invalid evidence.")
+            _require_float_range(row.get("confidence"), field="evidence.confidence", case_id=case_id)
+            _require_float_range(row.get("relevance"), field="evidence.relevance", case_id=case_id)
+        for fix in fixes:
+            if not isinstance(fix, Mapping):
+                raise ValueError(f"Case {case_id!r} has invalid candidate fix.")
+            _require_float_range(fix.get("expected_impact"), field="fix.expected_impact", case_id=case_id)
+            _require_float_range(fix.get("blast_radius"), field="fix.blast_radius", case_id=case_id)
+            _require_float_range(fix.get("reversibility"), field="fix.reversibility", case_id=case_id)
+
+        normalized_cases.append(dict(case))
+
+    return {"schema": CASE_SCHEMA, "cases": normalized_cases}
 
 
 def evidence_quality(case: Mapping[str, Any]) -> float:
@@ -174,10 +245,12 @@ def summarize_report(report: Mapping[str, Any], *, worker_id: int = 0, source_fi
 
 
 __all__ = [
+    "CASE_SCHEMA",
     "diagnose_case",
     "evidence_quality",
     "rank_candidate_fixes",
     "regression_coverage",
     "student_score",
     "summarize_report",
+    "validate_case_payload",
 ]
