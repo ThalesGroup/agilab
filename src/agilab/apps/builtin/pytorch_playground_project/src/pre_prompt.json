@@ -1,0 +1,4 @@
+{
+  "description": "PyTorch Playground trains a small classifier on generated data and exports reproducible evidence.",
+  "suggested_prompt": "Tune the playground configuration, run it, and compare the exported evidence manifest with the previous run."
+}

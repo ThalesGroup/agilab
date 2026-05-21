@@ -30,6 +30,7 @@ APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-app-flight-telemetry", "src/agilab/lib/agi-app-flight-telemetry"),
     ("agi-app-global-dag", "src/agilab/lib/agi-app-global-dag"),
     ("agi-app-weather-forecast", "src/agilab/lib/agi-app-weather-forecast"),
+    ("agi-app-pytorch-playground", "src/agilab/lib/agi-app-pytorch-playground"),
     ("agi-app-tescia-diagnostic-project", "src/agilab/lib/agi-app-tescia-diagnostic-project"),
     ("agi-app-uav-queue-project", "src/agilab/lib/agi-app-uav-queue-project"),
     ("agi-app-uav-relay-queue", "src/agilab/lib/agi-app-uav-relay-queue"),
@@ -42,6 +43,7 @@ PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
     "agi-app-flight-telemetry",
     "agi-app-global-dag",
     "agi-app-weather-forecast",
+    "agi-app-pytorch-playground",
     "agi-app-tescia-diagnostic-project",
     "agi-app-uav-relay-queue",
 )
@@ -61,7 +63,6 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-page-promotion-gate", "src/agilab/apps-pages/view_release_decision"),
     ("agi-page-feature-attribution", "src/agilab/apps-pages/view_shap_explanation"),
     ("agi-page-training-report", "src/agilab/apps-pages/view_training_analysis"),
-    ("agi-page-pytorch-playground", "src/agilab/apps-pages/view_pytorch_playground"),
 )
 
 

@@ -21,8 +21,29 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-import streamlit as st
+try:  # pragma: no cover - optional in headless worker/test environments
+    import plotly.graph_objects as go
+except Exception:  # pragma: no cover - app UI installs plotly, workers do not need it
+    go = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional in headless worker/test environments
+    import streamlit as st
+except Exception:  # pragma: no cover - workers import evidence helpers without Streamlit
+    class _StreamlitStub:
+        query_params: dict[str, object] = {}
+        session_state: dict[str, object] = {}
+
+        @staticmethod
+        def cache_data(*_args, **_kwargs):
+            def _decorator(func):
+                return func
+
+            return _decorator
+
+        def __getattr__(self, name: str):
+            raise RuntimeError(f"Streamlit is required to render the PyTorch playground UI: {name}")
+
+    st = _StreamlitStub()  # type: ignore[assignment]
 
 try:  # pragma: no cover - exercised conditionally in environments with torch
     import torch
@@ -47,7 +68,11 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_gui.pagelib import render_logo  # noqa: E402
+try:  # noqa: E402
+    from agi_gui.pagelib import render_logo
+except Exception:  # pragma: no cover - headless worker/test environments
+    def render_logo() -> None:
+        return None
 
 
 PAGE_TITLE = "PyTorch playground"
@@ -72,6 +97,24 @@ DEFAULT_PRESET = "Instant wow: clean circles"
 TRAINED_CONFIG_STATE_KEY = "pytorch_playground_trained_config"
 TRAINED_PRESET_STATE_KEY = "pytorch_playground_trained_preset"
 SHARED_CONFIG_SIGNATURE_STATE_KEY = "pytorch_playground_shared_signature"
+
+
+class _FallbackPlotlyFigure(dict):
+    @property
+    def data(self) -> tuple[object, ...]:
+        return tuple(self.get("data", ()))
+
+
+def _plotly_unavailable_figure(kind: str, trace_count: int = 0) -> _FallbackPlotlyFigure:
+    return _FallbackPlotlyFigure(
+        {
+            "data": [{"type": "scatter", "x": [], "y": []} for _ in range(max(0, int(trace_count)))],
+            "layout": {
+                "title": f"{kind} chart unavailable",
+                "template": "plotly_dark",
+            },
+        }
+    )
 
 
 @dataclass(frozen=True)
@@ -696,7 +739,7 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
         samples = _make_dataset(config)
         return {
             "status": "missing_torch",
-            "detail": "Install the page bundle dependencies to enable PyTorch training.",
+            "detail": "Install the app dependencies to enable PyTorch training.",
             "samples": samples,
             "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
             "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
@@ -836,7 +879,7 @@ def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: flo
     if torch is None or nn is None:
         return {
             "status": "missing_torch",
-            "detail": "Install the page bundle dependencies to enable the loss landscape.",
+            "detail": "Install the app dependencies to enable the loss landscape.",
             "loss_landscape": _empty_loss_landscape(),
             "landscape_summary": _loss_landscape_summary(_empty_loss_landscape()),
         }
@@ -996,7 +1039,7 @@ def _build_evidence_manifest(config: PlaygroundConfig, result: Mapping[str, Any]
     return {
         "schema": EVIDENCE_SCHEMA,
         "config_schema": CONFIG_SCHEMA,
-        "page": PAGE_TITLE,
+        "app": "pytorch_playground_project",
         "backend": result.get("summary", {}).get("backend", "unknown"),
         "torch_version": getattr(torch, "__version__", None) if torch is not None else None,
         "config": _config_payload(config)["config"],
@@ -1347,6 +1390,9 @@ def _grid_axes(grid: pd.DataFrame, fallback_grid_size: int) -> tuple[np.ndarray,
 
 
 def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) -> go.Figure:
+    if go is None:
+        trace_count = len(tuple(samples.groupby("target", sort=True))) + (2 if not grid.empty else 0)
+        return _plotly_unavailable_figure("Decision boundary", trace_count)  # type: ignore[return-value]
     figure = go.Figure()
     if not grid.empty:
         x_axis, y_axis = _grid_axes(grid, grid_size)
@@ -1416,6 +1462,8 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
 
 
 def _history_figure(history: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Training history", 4 if not history.empty else 0)  # type: ignore[return-value]
     figure = go.Figure()
     if not history.empty:
         figure.add_trace(
@@ -1473,6 +1521,9 @@ def _history_figure(history: pd.DataFrame) -> go.Figure:
 
 
 def _activation_figure(activation_maps: pd.DataFrame, layer: int, neuron: int) -> go.Figure:
+    if go is None:
+        selected = activation_maps[(activation_maps["layer"] == layer) & (activation_maps["neuron"] == neuron)]
+        return _plotly_unavailable_figure("Activation map", 1 if not selected.empty else 0)  # type: ignore[return-value]
     figure = go.Figure()
     selected = activation_maps[(activation_maps["layer"] == layer) & (activation_maps["neuron"] == neuron)]
     if not selected.empty:
@@ -1510,6 +1561,8 @@ def _activation_figure(activation_maps: pd.DataFrame, layer: int, neuron: int) -
 
 
 def _network_figure(layers: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Network diagnostics", 2 if not layers.empty else 0)  # type: ignore[return-value]
     figure = go.Figure()
     if not layers.empty:
         labels = [f"{row.kind} {int(row.layer)}" for row in layers.itertuples()]
@@ -1530,6 +1583,8 @@ def _network_figure(layers: pd.DataFrame) -> go.Figure:
 
 
 def _loss_landscape_figure(landscape: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Loss landscape", 3 if not landscape.empty else 0)  # type: ignore[return-value]
     figure = go.Figure()
     if not landscape.empty:
         alpha_axis = np.array(sorted(landscape["alpha"].unique()), dtype=float)

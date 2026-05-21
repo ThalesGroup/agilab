@@ -67,7 +67,6 @@ UI and page packages
    agi-page-promotion-gate <agi-page-promotion-gate-licenses>
    agi-page-feature-attribution <agi-page-feature-attribution-licenses>
    agi-page-training-report <agi-page-training-report-licenses>
-   agi-page-pytorch-playground <agi-page-pytorch-playground-licenses>
    agi-pages <agi-pages-licenses>
 
 App packages
@@ -83,6 +82,7 @@ App packages
    agi-app-flight-telemetry <agi-app-flight-telemetry-licenses>
    agi-app-global-dag <agi-app-global-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
+   agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
    agi-app-tescia-diagnostic-project <agi-app-tescia-diagnostic-project-licenses>
    agi-app-uav-queue-project <agi-app-uav-queue-project-licenses>
    agi-app-uav-relay-queue <agi-app-uav-relay-queue-licenses>

@@ -130,9 +130,11 @@ agilab
 
 - **Project & Page Isolation:**
 
-  - Create full AGILab *apps* from templates; each ships with its own
+  - Create full AGILab *apps* from templates; workerless templates support
+    local/UI prototypes, while worker templates add AGILAB Install/Execute and
+    distributed-runtime wiring. Each template ships with its own
     ``pyproject.toml`` / ``uv_config.toml`` so ``uv`` provisions a dedicated
-    virtual environment during Install.
+    virtual environment for the project.
   - Build additional **page bundles** (standalone dashboards) that
     live under ``src/agilab/apps-pages``. Every bundle carries its own
     ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
@@ -147,7 +149,9 @@ single notebook but less ceremony than a production MLOps platform:
 That supports an ``Engineering prototyping`` score of ``4.0 / 5`` in the
 current public evaluation snapshot.
 
-- app templates and cloned projects provide a repeatable manager/worker shape
+- app templates and cloned projects provide two explicit shapes: workerless
+  local/UI apps for simple prototypes, and manager/worker apps for distributed
+  execution
 - app and page bundles keep dependencies isolated through their own
   ``pyproject.toml`` / ``uv`` environments
 - ``app_args_form.py`` and ``app_settings.toml`` give prototypes a typed,

@@ -31,7 +31,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-core==2026.05.20", "agi-app-mission-decision==2026.05.20", "agi-app-pandas-execution==2026.05.20", "agi-app-polars-execution==2026.05.20", "agi-app-flight-telemetry==2026.05.20", "agi-app-global-dag==2026.05.20", "agi-app-weather-forecast==2026.05.20", "agi-app-tescia-diagnostic-project==2026.05.20; python_version >= '3.13'", "agi-app-uav-relay-queue==2026.05.20; python_version >= '3.13'"]
+dependencies = ["agi-core==2026.05.20", "agi-app-mission-decision==2026.05.20", "agi-app-pandas-execution==2026.05.20", "agi-app-polars-execution==2026.05.20", "agi-app-flight-telemetry==2026.05.20", "agi-app-global-dag==2026.05.20", "agi-app-weather-forecast==2026.05.20", "agi-app-pytorch-playground==2026.05.20; python_version >= '3.12'", "agi-app-tescia-diagnostic-project==2026.05.20; python_version >= '3.13'", "agi-app-uav-relay-queue==2026.05.20; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -81,6 +81,10 @@ dev = [
 
 [tool.uv.sources.agi-app-weather-forecast]
     path = "../agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-pytorch-playground]
+    path = "../agi-app-pytorch-playground"
     editable = true
 
 [tool.uv.sources.agi-app-tescia-diagnostic-project]

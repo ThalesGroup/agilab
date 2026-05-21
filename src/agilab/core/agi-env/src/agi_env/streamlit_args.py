@@ -66,12 +66,13 @@ def _constraint_value(field, constraint_type, attr: str) -> Any | None:
     return None
 
 
-def render_form(model: BaseModel) -> dict[str, Any]:
+def render_form(model: BaseModel, *, container: Any | None = None) -> dict[str, Any]:
     """Render Streamlit widgets for each field in ``model`` and return values."""
 
     from datetime import date, datetime
     from pathlib import Path as _Path
 
+    ui = container or st
     values: dict[str, Any] = {}
     fields = type(model).model_fields
 
@@ -84,21 +85,21 @@ def render_form(model: BaseModel) -> dict[str, Any]:
         if origin is not None:
             if origin is list:
                 options = list(get_args(annotation))
-                st.write(f"Unsupported field type for '{label}', falling back to text input")
-                values[name] = st.text_area(label, value=str(current))
+                ui.write(f"Unsupported field type for '{label}', falling back to text input")
+                values[name] = ui.text_area(label, value=str(current))
                 continue
 
             if origin is tuple:
-                values[name] = st.text_area(label, value=str(current))
+                values[name] = ui.text_area(label, value=str(current))
                 continue
 
             if origin is type(None):
-                values[name] = st.text_input(label, value=str(current or ""))
+                values[name] = ui.text_input(label, value=str(current or ""))
                 continue
 
         if origin is None and annotation is not None:
             if annotation is bool:
-                values[name] = st.checkbox(label, value=bool(current))
+                values[name] = ui.checkbox(label, value=bool(current))
                 continue
 
             if annotation in (int,):
@@ -112,7 +113,7 @@ def render_form(model: BaseModel) -> dict[str, Any]:
                     kwargs["min_value"] = int(ge_value)
                 if le_value is not None:
                     kwargs["max_value"] = int(le_value)
-                values[name] = st.number_input(label, **kwargs)
+                values[name] = ui.number_input(label, **kwargs)
                 continue
 
             if annotation in (float,):
@@ -127,32 +128,32 @@ def render_form(model: BaseModel) -> dict[str, Any]:
                     kwargs["min_value"] = float(ge_value)
                 if le_value is not None:
                     kwargs["max_value"] = float(le_value)
-                values[name] = st.number_input(label, **kwargs)
+                values[name] = ui.number_input(label, **kwargs)
                 continue
 
             if annotation in (str,):
-                values[name] = st.text_input(label, value=str(current))
+                values[name] = ui.text_input(label, value=str(current))
                 continue
 
             if annotation in (_Path, Path):
-                values[name] = st.text_input(label, value=str(current))
+                values[name] = ui.text_input(label, value=str(current))
                 continue
 
             if annotation in (date,):
-                values[name] = st.date_input(label, value=current)
+                values[name] = ui.date_input(label, value=current)
                 continue
 
             if annotation in (datetime,):
-                values[name] = st.text_input(label, value=current.isoformat() if current else "")
+                values[name] = ui.text_input(label, value=current.isoformat() if current else "")
                 continue
 
         if origin is Literal:
             options = list(get_args(annotation))
             index = options.index(current) if current in options else 0
-            values[name] = st.selectbox(label, options=options, index=index)
+            values[name] = ui.selectbox(label, options=options, index=index)
             continue
 
-        values[name] = st.text_input(label, value=str(current))
+        values[name] = ui.text_input(label, value=str(current))
 
     return values
 
