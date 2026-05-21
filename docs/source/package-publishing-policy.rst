@@ -99,15 +99,16 @@ installed apps without the monorepo checkout once that package is installed:
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
-Seven app payload packages are promoted to PyPI in the current release plan:
+Eight app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
-``agi-app-global-dag``, ``agi-app-weather-forecast``, and
-``agi-app-uav-relay-queue``. The remaining app project payloads are also built
-as wheel and source-distribution artifacts and kept in the GitHub Release
-distribution archive until they are explicitly promoted. The payload is staged
-during package build, with local virtual environments, compiled artifacts,
-locks, and generated build outputs excluded.
+``agi-app-global-dag``, ``agi-app-weather-forecast``,
+``agi-app-tescia-diagnostic-project``, and ``agi-app-uav-relay-queue``. The
+remaining app project payload is also built as wheel and source-distribution
+artifacts and kept in the GitHub Release distribution archive until it is
+explicitly promoted. The payload is staged during package build, with local
+virtual environments, compiled artifacts, locks, and generated build outputs
+excluded.
 
 End users can add a trusted promoted app package to an existing AGILAB
 environment from ``PROJECT`` through ``Install PyPI app`` or from the CLI with

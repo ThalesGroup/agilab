@@ -316,6 +316,37 @@ def test_tescia_reduce_contract_merges_case_summaries(monkeypatch) -> None:
     assert 85.0 <= artifact.payload["student_score_mean"] <= 100.0
 
 
+def test_tescia_reduce_contract_counts_duplicate_case_runs(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import build_reduce_artifact, partial_from_diagnostic_summary
+
+    first = {
+        "case_id": "duplicate_case",
+        "status": "actionable",
+        "root_cause": "root cause",
+        "selected_fix_id": "strong_fix",
+        "evidence_quality": 0.9,
+        "regression_coverage": 0.8,
+        "student_score": 90.0,
+        "weak_assumption_count": 1,
+        "regression_step_count": 2,
+    }
+    second = {**first, "status": "needs_more_evidence", "student_score": 50.0}
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_diagnostic_summary(first, partial_id="first"),
+            partial_from_diagnostic_summary(second, partial_id="second"),
+        )
+    )
+
+    assert artifact.payload["case_count"] == 2
+    assert artifact.payload["unique_case_count"] == 1
+    assert artifact.payload["case_ids"] == ["duplicate_case"]
+    assert artifact.payload["student_score_mean"] == 70.0
+
+
 def test_tescia_manager_seeds_sample_and_builds_distribution(monkeypatch, tmp_path) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -429,3 +460,19 @@ def test_tescia_worker_exports_json_csv_and_reduce_artifacts(monkeypatch, tmp_pa
     ).is_file()
     export_root = env.AGILAB_EXPORT_ABS / env.target / "tescia_diagnostic"
     assert (export_root / "pipeline_dag_stale_preview" / "pipeline_dag_stale_preview_diagnostic_summary.csv").is_file()
+
+
+def test_tescia_worker_rejects_invalid_case_file(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic_worker import TesciaDiagnosticWorker
+
+    payload = json.loads(SAMPLE_CASES.read_text(encoding="utf-8"))
+    payload["cases"][0]["candidate_fixes"][0]["expected_impact"] = 1.5
+    case_file = tmp_path / "bad_cases.json"
+    case_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    worker = TesciaDiagnosticWorker()
+
+    with pytest.raises(ValueError, match="Invalid TeSciA diagnostic file.*between 0.0 and 1.0"):
+        worker._load_cases(case_file)
