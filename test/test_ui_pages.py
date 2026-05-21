@@ -753,6 +753,39 @@ def test_page_load_timing_is_opt_in_sidebar_diagnostic(monkeypatch):
     assert captions == ["PROJECT loaded in 123 ms"]
 
 
+def test_ui_timing_trace_records_phase_spans_without_page_load_caption(monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    captions = []
+    fake_streamlit = SimpleNamespace(
+        sidebar=SimpleNamespace(caption=captions.append),
+        session_state={},
+    )
+
+    monkeypatch.delenv(main_page.PAGE_LOAD_TIMING_ENV_KEY, raising=False)
+    monkeypatch.setenv(main_page.UI_TIMING_TRACE_ENV_KEY, "1")
+    main_page._record_ui_timing_span(
+        "PROJECT:bootstrap",
+        10.0,
+        category="bootstrap",
+        streamlit=fake_streamlit,
+        perf_counter=lambda: 10.015,
+    )
+    main_page._render_page_load_timing(
+        "PROJECT",
+        10.0,
+        streamlit=fake_streamlit,
+        perf_counter=lambda: 10.123,
+    )
+
+    assert fake_streamlit.session_state[main_page.UI_TIMING_SESSION_KEY][0] == {
+        "label": "PROJECT:bootstrap",
+        "category": "bootstrap",
+        "elapsed_ms": "15.0",
+    }
+    assert any("PROJECT:bootstrap [bootstrap] 15 ms" in caption for caption in captions)
+    assert all(caption != "PROJECT loaded in 123 ms" for caption in captions)
+
+
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
     home_root = mock_ui_env["apps_dir"].parent
     env_file = home_root / ".agilab" / ".env"

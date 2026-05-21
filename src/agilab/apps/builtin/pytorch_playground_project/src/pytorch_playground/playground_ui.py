@@ -6,11 +6,15 @@ from __future__ import annotations
 
 import html
 import json
+import os
+import pickle
+import re
+import subprocess
+import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-import re
-import sys
 from typing import Any
 
 import numpy as np
@@ -39,6 +43,13 @@ except Exception:  # pragma: no cover - workers import evidence helpers without 
 
     st = _StreamlitStub()  # type: ignore[assignment]
 
+
+def _prepend_sys_path(path: Path) -> None:
+    entry = str(path)
+    sys.path[:] = [existing for existing in sys.path if existing != entry]
+    sys.path.insert(0, entry)
+
+
 def _ensure_repo_on_path() -> None:
     here = Path(__file__).resolve()
     for parent in here.parents:
@@ -55,8 +66,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 _APP_SRC = Path(__file__).resolve().parents[1]
-if str(_APP_SRC) not in sys.path:
-    sys.path.insert(0, str(_APP_SRC))
+_prepend_sys_path(_APP_SRC)
 
 try:  # noqa: E402
     import pytorch_playground.core as _playground_core
@@ -210,6 +220,205 @@ def __getattr__(name: str) -> Any:
 
 
 PAGE_TITLE = "PyTorch playground"
+
+
+_ISOLATED_CORE_RUNNER = r"""
+from __future__ import annotations
+
+import pickle
+import sys
+from pathlib import Path
+
+from pytorch_playground.core import PlaygroundConfig, _loss_landscape, _train_playground
+
+
+def _config_from_payload(payload: dict[str, object]) -> PlaygroundConfig:
+    return PlaygroundConfig(
+        dataset=str(payload["dataset"]),
+        sample_count=int(payload["sample_count"]),
+        noise=float(payload["noise"]),
+        train_ratio=float(payload["train_ratio"]),
+        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
+        activation=str(payload["activation"]),
+        optimizer=str(payload["optimizer"]),
+        learning_rate=float(payload["learning_rate"]),
+        epochs=int(payload["epochs"]),
+        batch_size=int(payload["batch_size"]),
+        seed=int(payload["seed"]),
+        feature_names=tuple(str(value) for value in payload["feature_names"]),
+        grid_size=int(payload["grid_size"]),
+    )
+
+
+input_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+request = pickle.loads(input_path.read_bytes())
+try:
+    config = _config_from_payload(request["config"])
+    if request["action"] == "train":
+        result = _train_playground(config)
+    elif request["action"] == "loss_landscape":
+        result = _loss_landscape(
+            config,
+            resolution=int(request["resolution"]),
+            span=float(request["span"]),
+        )
+    else:
+        raise ValueError(f"Unknown isolated playground action: {request['action']}")
+except BaseException as exc:
+    output = {"ok": False, "error_type": type(exc).__name__, "error": str(exc)}
+else:
+    output = {"ok": True, "result": result}
+
+output_path.write_bytes(pickle.dumps(output, protocol=pickle.HIGHEST_PROTOCOL))
+"""
+
+
+def _config_from_cache_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
+    return PlaygroundConfig(
+        dataset=str(payload["dataset"]),
+        sample_count=int(payload["sample_count"]),
+        noise=float(payload["noise"]),
+        train_ratio=float(payload["train_ratio"]),
+        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
+        activation=str(payload["activation"]),
+        optimizer=str(payload["optimizer"]),
+        learning_rate=float(payload["learning_rate"]),
+        epochs=int(payload["epochs"]),
+        batch_size=int(payload["batch_size"]),
+        seed=int(payload["seed"]),
+        feature_names=tuple(str(value) for value in payload["feature_names"]),
+        grid_size=int(payload["grid_size"]),
+    )
+
+
+def _streamlit_script_context_active() -> bool:
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except Exception:
+        return False
+    return get_script_run_ctx(suppress_warning=True) is not None
+
+
+def _use_isolated_torch_training() -> bool:
+    return torch is not None and nn is not None and _streamlit_script_context_active()
+
+
+def _tail_diagnostic(text: str, *, line_limit: int = 8, char_limit: int = 1600) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[-line_limit:])[:char_limit]
+
+
+def _training_error_result(config: PlaygroundConfig, detail: str) -> dict[str, Any]:
+    samples = _make_dataset(config)
+    return {
+        "status": "error",
+        "detail": detail,
+        "samples": samples,
+        "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+        "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+        "network_layers": _empty_network_layers(),
+        "activation_maps": _empty_activation_maps(),
+        "summary": {
+            "backend": "error",
+            "samples": int(len(samples)),
+            "features": int(len(config.feature_names)),
+        },
+    }
+
+
+def _loss_landscape_error_result(detail: str) -> dict[str, Any]:
+    return {
+        "status": "error",
+        "detail": detail,
+        "loss_landscape": _empty_loss_landscape(),
+        "landscape_summary": {"status": "error", "points": 0},
+    }
+
+
+def _format_isolated_runner_failure(
+    action: str,
+    *,
+    returncode: int | None = None,
+    error: str = "",
+    stderr: str = "",
+) -> str:
+    detail = f"PyTorch {action.replace('_', ' ')} failed in the isolated Streamlit UI runner"
+    if returncode is not None:
+        detail = f"{detail} (exit code {returncode})"
+    diagnostics = _tail_diagnostic("\n".join(part for part in (error, stderr) if part))
+    if diagnostics:
+        detail = f"{detail}: {diagnostics}"
+    else:
+        detail = f"{detail}."
+    return detail
+
+
+def _run_core_in_subprocess(
+    action: str,
+    config: PlaygroundConfig,
+    *,
+    resolution: int | None = None,
+    span: float | None = None,
+) -> dict[str, Any]:
+    request = {
+        "action": action,
+        "config": asdict(config),
+        "resolution": int(resolution or 0),
+        "span": float(span or 0.0),
+    }
+    with tempfile.TemporaryDirectory(prefix="agilab-pytorch-playground-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        input_path = tmp_path / "request.pkl"
+        output_path = tmp_path / "response.pkl"
+        input_path.write_bytes(pickle.dumps(request, protocol=pickle.HIGHEST_PROTOCOL))
+        env = os.environ.copy()
+        project_src = str(_APP_SRC)
+        python_path = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = project_src if not python_path else os.pathsep.join((project_src, python_path))
+        env.setdefault("PYTHONFAULTHANDLER", "1")
+        try:
+            completed = subprocess.run(
+                [sys.executable, "-c", _ISOLATED_CORE_RUNNER, str(input_path), str(output_path)],
+                cwd=str(_APP_SRC.parent),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            detail = _format_isolated_runner_failure(action, error=f"timed out after {exc.timeout} seconds")
+            if action == "train":
+                return _training_error_result(config, detail)
+            return _loss_landscape_error_result(detail)
+
+        if completed.returncode != 0 or not output_path.is_file():
+            detail = _format_isolated_runner_failure(action, returncode=completed.returncode, stderr=completed.stderr)
+            if action == "train":
+                return _training_error_result(config, detail)
+            return _loss_landscape_error_result(detail)
+
+        response = pickle.loads(output_path.read_bytes())
+
+    if not isinstance(response, Mapping) or not response.get("ok"):
+        detail = _format_isolated_runner_failure(
+            action,
+            error=f"{response.get('error_type', 'Error')}: {response.get('error', '')}" if isinstance(response, Mapping) else "",
+        )
+        if action == "train":
+            return _training_error_result(config, detail)
+        return _loss_landscape_error_result(detail)
+
+    result = response.get("result")
+    if not isinstance(result, dict):
+        detail = _format_isolated_runner_failure(action, error="runner returned an invalid payload")
+        if action == "train":
+            return _training_error_result(config, detail)
+        return _loss_landscape_error_result(detail)
+    return result
+
+
 def _session_state_get(key: str, default: Any = None) -> Any:
     state = getattr(st, "session_state", None)
     if state is None:
@@ -254,41 +463,17 @@ def _resolve_trained_config(
 
 @st.cache_data(show_spinner=False)
 def _cached_train(payload: dict[str, Any]) -> dict[str, Any]:
-    config = PlaygroundConfig(
-        dataset=str(payload["dataset"]),
-        sample_count=int(payload["sample_count"]),
-        noise=float(payload["noise"]),
-        train_ratio=float(payload["train_ratio"]),
-        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
-        activation=str(payload["activation"]),
-        optimizer=str(payload["optimizer"]),
-        learning_rate=float(payload["learning_rate"]),
-        epochs=int(payload["epochs"]),
-        batch_size=int(payload["batch_size"]),
-        seed=int(payload["seed"]),
-        feature_names=tuple(str(value) for value in payload["feature_names"]),
-        grid_size=int(payload["grid_size"]),
-    )
+    config = _config_from_cache_payload(payload)
+    if _use_isolated_torch_training():
+        return _run_core_in_subprocess("train", config)
     return _train_playground(config)
 
 
 @st.cache_data(show_spinner=False)
 def _cached_loss_landscape(payload: dict[str, Any], resolution: int, span: float) -> dict[str, Any]:
-    config = PlaygroundConfig(
-        dataset=str(payload["dataset"]),
-        sample_count=int(payload["sample_count"]),
-        noise=float(payload["noise"]),
-        train_ratio=float(payload["train_ratio"]),
-        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
-        activation=str(payload["activation"]),
-        optimizer=str(payload["optimizer"]),
-        learning_rate=float(payload["learning_rate"]),
-        epochs=int(payload["epochs"]),
-        batch_size=int(payload["batch_size"]),
-        seed=int(payload["seed"]),
-        feature_names=tuple(str(value) for value in payload["feature_names"]),
-        grid_size=int(payload["grid_size"]),
-    )
+    config = _config_from_cache_payload(payload)
+    if _use_isolated_torch_training():
+        return _run_core_in_subprocess("loss_landscape", config, resolution=resolution, span=span)
     return _loss_landscape(config, resolution=resolution, span=span)
 
 
@@ -985,6 +1170,8 @@ def main() -> None:
     _render_hero(active_app, trained_preset, trained_config)
     if result["status"] == "missing_torch":
         st.error(result["detail"])
+    elif result["status"] != "ok":
+        st.error(str(result.get("detail", "PyTorch training failed.")))
     if pending_changes:
         st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
 
