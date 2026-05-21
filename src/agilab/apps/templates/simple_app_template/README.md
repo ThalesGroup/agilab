@@ -20,7 +20,7 @@ Choose this template for:
 - reports and explainers
 - apps that generate artifacts directly from the manager process
 
-Choose a worker template instead when the app needs AGILAB `INSTALL`/`EXECUTE`
+Choose a worker template instead when the app needs AGILAB `INSTALL`/`RUN`
 worker deployment, Dask, worker-specific dependencies, or a distributed task
 plan.
 
@@ -40,7 +40,7 @@ From the repository root, create the app from PROJECT, select it, then open the
 app argument form:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 ```
 
 This template is intentionally workerless. Add a worker template only when the

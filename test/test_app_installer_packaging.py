@@ -172,6 +172,22 @@ def _load_app_project_build_support():
     return module
 
 
+def test_app_package_entry_points_prefer_source_checkout_builtin_projects() -> None:
+    for distribution, project_name in sorted(APP_PROJECT_BY_DISTRIBUTION.items()):
+        init_candidates = sorted((ROOT / "src/agilab/lib" / distribution / "src").glob("agi_app_*/__init__.py"))
+        assert len(init_candidates) == 1, distribution
+        init_path = init_candidates[0]
+        module_name = f"{init_path.parent.name}_project_root_test"
+        sys.modules.pop(module_name, None)
+        spec = importlib.util.spec_from_file_location(module_name, init_path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+
+        assert module.project_root() == (BUILTIN_APPS_ROOT / project_name).resolve()
+
+
 def test_app_project_payload_build_helper_ignores_generated_app_dirs() -> None:
     support = _load_app_project_build_support()
 
@@ -287,6 +303,10 @@ def test_app_templates_keep_runtime_contracts_explicit() -> None:
     )
     for template in templates:
         pyproject = tomllib.loads((template / "pyproject.toml").read_text(encoding="utf-8"))
+        authors = pyproject["project"].get("authors", [])
+        assert authors, template.name
+        assert all(author.get("email") != "your email" for author in authors), template.name
+        assert all("@" in author.get("email", "") for author in authors), template.name
         dependencies = set()
         for dependency in pyproject["project"]["dependencies"]:
             name = dependency.split(";", 1)[0].split("[", 1)[0].strip()
@@ -446,6 +466,74 @@ def test_install_state_cache_hits_only_when_fingerprint_and_venvs_match(
     assert reason == "install fingerprint changed"
 
 
+def test_install_state_cache_for_workerless_apps_requires_only_manager_venv(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "simple_project"
+    app_src = app_path / "src" / "simple"
+    app_src.mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    (app_src / "simple.py").write_text("print('manager')\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv" / "simple_worker"
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="simple_project",
+        target="simple",
+        target_worker="simple_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+    )
+
+    _seed_venv_python(app_path)
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+
+def test_validate_app_definition_accepts_declared_workerless_app_without_worker(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "simple_project"
+    manager_path = app_path / "src" / "simple" / "simple.py"
+    manager_path.parent.mkdir(parents=True)
+    manager_path.write_text("class Simple: ...\n", encoding="utf-8")
+    pyproject = app_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        is_worker_env=False,
+        active_app=app_path,
+        app="simple_project",
+        manager_pyproject=pyproject,
+        manager_path=manager_path,
+        worker_path=app_path / "src" / "simple_worker" / "simple_worker.py",
+        target_worker_class="SimpleWorker",
+        base_worker_cls=None,
+    )
+
+    module.validate_app_definition(env)
+
+
 def test_install_state_cache_misses_when_dataset_payload_is_missing(
     tmp_path: Path,
     monkeypatch,
@@ -521,6 +609,50 @@ def test_install_main_skips_agi_install_on_cache_hit(tmp_path: Path, monkeypatch
 
     assert asyncio.run(module.main()) == 0
     assert calls == []
+
+
+def test_install_main_syncs_workerless_app_without_agi_install(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "simple_project"
+    manager_path = app_path / "src" / "simple" / "simple.py"
+    manager_path.parent.mkdir(parents=True)
+    manager_path.write_text("class Simple: ...\n", encoding="utf-8")
+    pyproject = app_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        is_worker_env=False,
+        active_app=app_path,
+        app="simple_project",
+        manager_pyproject=pyproject,
+        manager_path=manager_path,
+        worker_path=app_path / "src" / "simple_worker" / "simple_worker.py",
+        target_worker_class="SimpleWorker",
+        base_worker_cls=None,
+        wenv_abs=tmp_path / "wenv" / "simple_worker",
+    )
+    calls: list[str] = []
+
+    class FakeAGI:
+        DASK_MODE = 4
+        CYTHON_MODE = 2
+
+        @staticmethod
+        async def install(**_kwargs):
+            calls.append("install")
+
+    monkeypatch.setattr(sys, "argv", ["install.py", str(app_path)])
+    monkeypatch.setattr(module, "AgiEnv", lambda **_kwargs: env)
+    monkeypatch.setattr(module, "AGI", FakeAGI)
+    monkeypatch.setattr(module, "ensure_data_storage", lambda _env: None)
+    monkeypatch.setattr(module, "_install_state_matches", lambda *_args, **_kwargs: (False, "test miss"))
+    monkeypatch.setattr(module, "_write_install_state", lambda *_args, **_kwargs: calls.append("state"))
+    monkeypatch.setattr(module, "sync_workerless_manager_env", lambda _env: calls.append("sync"))
+
+    assert asyncio.run(module.main()) == 0
+    assert calls == ["sync", "state"]
 
 
 def test_packaged_agi_example_scripts_are_compile_safe() -> None:

@@ -160,6 +160,17 @@ def _load_manifest(path: Path) -> ManifestSnapshot:
     )
 
 
+def _manifest_declares_workerless(path: Path) -> bool:
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError):
+        return False
+    tool = data.get("tool", {})
+    agilab = tool.get("agilab", {}) if isinstance(tool, dict) else {}
+    app = agilab.get("app", {}) if isinstance(agilab, dict) else {}
+    return isinstance(app, dict) and app.get("workerless") is True
+
+
 def _parse_dependencies(raw_dependencies: Any) -> dict[str, DependencySpec]:
     parsed: dict[str, DependencySpec] = {}
     if not isinstance(raw_dependencies, list):
@@ -236,6 +247,7 @@ def analyze_contract(
     manager_snapshot: ManifestSnapshot | None = None
     worker_source_snapshot: ManifestSnapshot | None = None
     worker_copy_snapshot: ManifestSnapshot | None = None
+    workerless = False
 
     if not manager_manifest.exists():
         findings.append(
@@ -260,8 +272,13 @@ def analyze_contract(
                     details=[str(manager_manifest)],
                 )
             )
+        else:
+            workerless = _manifest_declares_workerless(manager_manifest)
 
-    if worker_source is None:
+    if workerless:
+        worker_source_manifest = None
+        worker_copy_manifest = None
+    elif worker_source is None:
         worker_source_manifest, worker_source_error = _find_worker_source_manifest(app_root)
         if worker_source_error:
             findings.append(
@@ -301,41 +318,42 @@ def analyze_contract(
                     )
                 )
 
-    worker_copy_manifest = (
-        _normalize_project_path(worker_copy) if worker_copy is not None else _infer_worker_copy_manifest(app_root)
-    )
-    if worker_copy_manifest is None:
-        findings.append(
-            Finding(
-                key="missing-worker-copy-manifest",
-                severity="error",
-                category=APP_LOCAL_STATUS,
-                summary="Could not infer the copied worker pyproject.toml location; pass --worker-copy explicitly.",
-            )
+    if not workerless:
+        worker_copy_manifest = (
+            _normalize_project_path(worker_copy) if worker_copy is not None else _infer_worker_copy_manifest(app_root)
         )
-    elif not worker_copy_manifest.exists():
-        findings.append(
-            Finding(
-                key="missing-worker-copy-manifest",
-                severity="error",
-                category=APP_LOCAL_STATUS,
-                summary="Copied worker pyproject.toml is missing.",
-                details=[str(worker_copy_manifest)],
-            )
-        )
-    else:
-        try:
-            worker_copy_snapshot = _load_manifest(worker_copy_manifest)
-        except (tomllib.TOMLDecodeError, InvalidRequirement, OSError, UnicodeDecodeError) as exc:
+        if worker_copy_manifest is None:
             findings.append(
                 Finding(
-                    key="invalid-worker-copy-manifest",
+                    key="missing-worker-copy-manifest",
                     severity="error",
                     category=APP_LOCAL_STATUS,
-                    summary=f"Copied worker pyproject.toml could not be parsed: {exc}",
+                    summary="Could not infer the copied worker pyproject.toml location; pass --worker-copy explicitly.",
+                )
+            )
+        elif not worker_copy_manifest.exists():
+            findings.append(
+                Finding(
+                    key="missing-worker-copy-manifest",
+                    severity="error",
+                    category=APP_LOCAL_STATUS,
+                    summary="Copied worker pyproject.toml is missing.",
                     details=[str(worker_copy_manifest)],
                 )
             )
+        else:
+            try:
+                worker_copy_snapshot = _load_manifest(worker_copy_manifest)
+            except (tomllib.TOMLDecodeError, InvalidRequirement, OSError, UnicodeDecodeError) as exc:
+                findings.append(
+                    Finding(
+                        key="invalid-worker-copy-manifest",
+                        severity="error",
+                        category=APP_LOCAL_STATUS,
+                        summary=f"Copied worker pyproject.toml could not be parsed: {exc}",
+                        details=[str(worker_copy_manifest)],
+                    )
+                )
 
     findings.extend(_compare_source_manifests(manager_snapshot, worker_source_snapshot))
     findings.extend(_compare_manager_manifest(manager_snapshot))

@@ -855,7 +855,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
     assert fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "success"
     assert ("rerun_fragment_or_app", "called") in fake_st.messages
-    assert ("markdown", "#### 5. Execute and inspect outputs") in fake_st.messages
+    assert ("markdown", "#### 5. Run and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)
 
     fake_st.button_calls.clear()
@@ -1376,7 +1376,7 @@ async def test_render_execute_section_load_after_failed_run_shows_failure_not_mi
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 
-    assert any(kind == "info" and "Latest EXECUTE failed" in msg for kind, msg in fake_st.messages)
+    assert any(kind == "info" and "Latest RUN failed" in msg for kind, msg in fake_st.messages)
     assert not any(kind == "warning" and "No previewable output found yet" in msg for kind, msg in fake_st.messages)
 
 
@@ -1568,7 +1568,7 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 
-    assert any(kind == "info" and "Run EXECUTE again" in msg for kind, msg in fake_st.messages)
+    assert any(kind == "info" and "Click RUN again" in msg for kind, msg in fake_st.messages)
 
     combo_st = _FakeStreamlit(
         {
@@ -1590,7 +1590,7 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
         deps=_make_execute_deps(combo_st.messages, combo_st.session_state),
     )
 
-    assert any(kind == "error" and "No EXECUTE command configured" in msg for kind, msg in combo_st.messages)
+    assert any(kind == "error" and "No RUN command configured" in msg for kind, msg in combo_st.messages)
     assert "_combo_load_trigger" not in combo_st.session_state
     assert "_combo_export_trigger" not in combo_st.session_state
 
@@ -1629,7 +1629,7 @@ async def test_render_execute_section_uses_artifact_state_for_load_and_delete_bu
     load_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "load_data_main")
     delete_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "delete_data_main")
     assert load_call["disabled"] is True
-    assert "Run EXECUTE again" in str(load_call["help"])
+    assert "Click RUN again" in str(load_call["help"])
     assert delete_call["disabled"] is True
 
     loaded_st = _FakeStreamlit(
