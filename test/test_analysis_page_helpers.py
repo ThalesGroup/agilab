@@ -649,6 +649,39 @@ def test_migrate_legacy_analysis_page_config_preserves_custom_flight_defaults():
     assert cfg["pages"] == {"default_view": "view_default", "view_module": []}
 
 
+def test_migrate_declared_app_ui_page_config_adds_app_ui_once(tmp_path: Path):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                'view_module = ["view_app_ui"]',
+                "",
+                "[pages.view_app_ui]",
+                'title = "Demo UI"',
+                'entrypoint = "demo/ui.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {"pages": {"view_module": []}}
+
+    changed = module._migrate_declared_app_ui_page_config(app, cfg)
+    second_changed = module._migrate_declared_app_ui_page_config(app, cfg)
+
+    assert changed is True
+    assert second_changed is False
+    assert cfg["pages"]["view_module"] == ["view_app_ui"]
+    assert cfg["pages"]["view_app_ui"] == {
+        "title": "Demo UI",
+        "entrypoint": "demo/ui.py",
+    }
+
+
 def test_configured_view_options_restricts_to_declared_available_views(tmp_path: Path):
     module = _load_analysis_module()
     view_maps = tmp_path / "view_maps.py"

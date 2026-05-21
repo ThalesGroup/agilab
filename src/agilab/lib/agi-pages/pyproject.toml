@@ -116,6 +116,10 @@ dev = [
     path = "../../apps-pages/view_shap_explanation"
     editable = true
 
+[tool.uv.sources.agi-page-app-ui]
+    path = "../../apps-pages/view_app_ui"
+    editable = true
+
 [tool.uv.sources.agi-page-training-report]
     path = "../../apps-pages/view_training_analysis"
     editable = true

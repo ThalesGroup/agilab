@@ -60,6 +60,7 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-scenario-cockpit``
 - ``agi-page-promotion-gate``
 - ``agi-page-feature-attribution``
+- ``agi-page-app-ui``
 - ``agi-page-training-report``
 
 These packages are built as both wheels and source distributions. Their names
@@ -355,6 +356,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-feature-attribution``
+   * - ``agi-page-app-ui``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-app-ui``
    * - ``agi-page-training-report``
      - ``ThalesGroup``
      - ``agilab``
@@ -483,6 +489,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-page-scenario-cockpit``
 - ``pypi-agi-page-promotion-gate``
 - ``pypi-agi-page-feature-attribution``
+- ``pypi-agi-page-app-ui``
 - ``pypi-agi-page-training-report``
 - ``pypi-agi-pages``
 - ``pypi-agi-app-mission-decision``
