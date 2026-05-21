@@ -652,16 +652,59 @@ def test_pytorch_playground_app_args_convert_to_playground_config(monkeypatch: p
     assert config.sample_count == 96
 
 
+def test_pytorch_playground_distribution_marks_extra_workers_idle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    manager_module = importlib.import_module("pytorch_playground.pytorch_playground")
+
+    manager = manager_module.PytorchPlayground.__new__(manager_module.PytorchPlayground)
+    work_plan, metadata, id_name, count_name, label = manager.build_distribution(3)
+
+    assert work_plan == [[["pytorch_playground"]], [], []]
+    assert metadata == [[{"run": "pytorch_playground", "work_items": 1}], [], []]
+    assert (id_name, count_name, label) == ("run", "work_items", "items")
+
+
+def test_pytorch_playground_analysis_artifact_dir_uses_env_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    manager_module = importlib.import_module("pytorch_playground.pytorch_playground")
+
+    manager = manager_module.PytorchPlayground.__new__(manager_module.PytorchPlayground)
+    manager.env = SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path, app="custom_playground")
+
+    assert manager.analysis_artifact_dir == tmp_path / "custom_playground" / "pytorch_playground"
+
+
+def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
+    import tomllib
+
+    settings = tomllib.loads((PROJECT_PATH / "src" / "app_settings.toml").read_text(encoding="utf-8"))
+
+    assert settings["cluster"]["workers"] == {"127.0.0.1": 1}
+
+
+def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> None:
+    source = (PROJECT_PATH / "src" / "app_args_form.py").read_text(encoding="utf-8")
+
+    assert "render_form(" not in source
+    assert "APP_FORM_ID" in source
+    assert "def _field_key" in source
+    assert "key=key" in source
+    assert "st.json(" not in source
+
+
 def test_pytorch_playground_worker_exports_evidence_without_torch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
-    ui_module = importlib.import_module("pytorch_playground.playground_ui")
+    core_module = importlib.import_module("pytorch_playground.core")
     worker_module = importlib.import_module("pytorch_playground_worker.pytorch_playground_worker")
     args_module = importlib.import_module("pytorch_playground.app_args")
-    monkeypatch.setattr(ui_module, "torch", None)
-    monkeypatch.setattr(ui_module, "nn", None)
+    monkeypatch.setattr(core_module, "torch", None)
+    monkeypatch.setattr(core_module, "nn", None)
 
     worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
     worker.args = args_module.PytorchPlaygroundArgs(
@@ -711,7 +754,7 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
             self.infos: list[str] = []
             self.warnings: list[str] = []
             self.downloads: list[bytes] = []
-            self.json_payloads: list[dict[str, object]] = []
+            self.code_payloads: list[tuple[str, str | None]] = []
 
         def set_page_config(self, **_kwargs):
             return None
@@ -778,12 +821,12 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
             self.downloads.append(data)
             return False
 
-        def code(self, *_args, **_kwargs):
+        def code(self, body, **kwargs):
+            self.code_payloads.append((str(body), kwargs.get("language")))
             return None
 
         def json(self, payload, **_kwargs):
-            self.json_payloads.append(payload)
-            return None
+            raise AssertionError(f"st.json should not be used by PyTorch Playground: {payload!r}")
 
     def empty_result(status: str = "ok") -> dict[str, object]:
         return {
@@ -814,7 +857,8 @@ def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: py
     module.main()
     assert any("Hidden activation maps" in message for message in ok_st.infos)
     assert any("Enable computation" in message for message in ok_st.infos)
-    assert ok_st.json_payloads[0]["row_counts"]["loss_landscape"] == 0
+    manifest = next(json.loads(body) for body, language in ok_st.code_payloads if language == "json")
+    assert manifest["row_counts"]["loss_landscape"] == 0
 
     missing_st = FakeStreamlit(checkbox=True)
     monkeypatch.setattr(module, "st", missing_st)
@@ -852,7 +896,7 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
             self.session_state: dict[str, object] = {}
             self.sidebar = FakeContext()
             self.downloads: list[bytes] = []
-            self.json_payloads: list[dict[str, object]] = []
+            self.code_payloads: list[tuple[str, str | None]] = []
 
         def set_page_config(self, **_kwargs):
             return None
@@ -919,12 +963,12 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
             self.downloads.append(data)
             return False
 
-        def code(self, *_args, **_kwargs):
+        def code(self, body, **kwargs):
+            self.code_payloads.append((str(body), kwargs.get("language")))
             return None
 
         def json(self, payload, **_kwargs):
-            self.json_payloads.append(payload)
-            return None
+            raise AssertionError(f"st.json should not be used by PyTorch Playground: {payload!r}")
 
     fake_st = FakeStreamlit()
     config = module.PlaygroundConfig(sample_count=64, grid_size=12, hidden_layers=(2,))
@@ -1011,7 +1055,8 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
     module.main()
 
     assert fake_st.downloads
-    assert fake_st.json_payloads[0]["schema"] == module.EVIDENCE_SCHEMA
+    manifest = next(json.loads(body) for body, language in fake_st.code_payloads if language == "json")
+    assert manifest["schema"] == module.EVIDENCE_SCHEMA
 
 
 def test_pytorch_playground_app_provider_and_package_docs() -> None:
