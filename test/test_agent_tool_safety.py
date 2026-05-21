@@ -128,6 +128,8 @@ def test_permission_tiers_honor_explicit_metadata() -> None:
 
     assert decision.allowed is False
     assert decision.tier == "standard"
+    assert module.classify_tool_permission("summarize_context") == "safe"
+    assert module.classify_tool_permission("archive_project", {"permission_level": "yolo"}) == "operator"
 
 
 def test_tool_hook_set_can_skip_and_rewrite_tool_results() -> None:

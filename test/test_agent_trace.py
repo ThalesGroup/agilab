@@ -88,6 +88,26 @@ def test_agent_trace_store_writes_redacted_append_only_events(tmp_path: Path) ->
     assert artifact["event_types"] == ["session_start", "tool_done"]
 
 
+def test_agent_trace_store_reuses_existing_meta_and_auto_initializes(tmp_path: Path) -> None:
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="agent-run", agent="codex")
+
+    first_meta = store.initialize({"safe": "visible"})
+    second_meta = store.initialize({"ignored": "after-create"})
+    event = store.append("session_start", status="pass")
+
+    assert second_meta == first_meta
+    assert second_meta["metadata"] == {"safe": "visible"}
+    assert event.sequence == 1
+
+    lazy_root = tmp_path / "lazy"
+    lazy_store = module.AgentTraceStore(lazy_root, run_id="lazy-run")
+    lazy_event = lazy_store.append("session_start")
+
+    assert lazy_event.sequence == 1
+    assert lazy_store.meta_path.exists()
+
+
 def test_agent_trace_rejects_unknown_events_and_validates_sequence(tmp_path: Path) -> None:
     module = _load_module()
     store = module.AgentTraceStore(tmp_path, run_id="run")
@@ -135,7 +155,9 @@ def test_load_trace_events_ignores_invalid_lines(tmp_path: Path) -> None:
     events_path.write_text(
         "\n".join(
             [
+                "",
                 "{not-json",
+                json.dumps(["not", "an", "event"]),
                 json.dumps(
                     {
                         "schema": module.TRACE_SCHEMA,
@@ -154,3 +176,21 @@ def test_load_trace_events_ignores_invalid_lines(tmp_path: Path) -> None:
     )
 
     assert [event.sequence for event in module.load_trace_events(tmp_path)] == [1]
+
+
+def test_agent_trace_summaries_tolerate_missing_or_invalid_files(tmp_path: Path) -> None:
+    module = _load_module()
+    trace_root = tmp_path / "trace"
+    trace_root.mkdir()
+    (trace_root / module.META_FILENAME).write_text("{not json", encoding="utf-8")
+
+    summary = module.summarize_trace(trace_root)
+    artifact = module.trace_artifact_payload(trace_root)
+
+    assert summary.run_id == ""
+    assert summary.event_count == 0
+    assert summary.first_event == ""
+    assert summary.status == ""
+    assert artifact["event_count"] == 0
+    assert artifact["event_types"] == []
+    assert artifact["exists"] is False
