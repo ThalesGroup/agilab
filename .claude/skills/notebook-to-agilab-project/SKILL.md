@@ -3,7 +3,7 @@ name: notebook-to-agilab-project
 description: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-16
+  updated: 2026-05-21
 ---
 
 # Notebook To AGILAB Project
@@ -28,12 +28,21 @@ delivery.
 
 ## Surface choice contract
 
+- Choose an AGILAB app project when the workflow owns execution:
+  dataset generation, training, optimization, model state, reproducible run
+  evidence, or project-specific semantics. Add a page only as the review layer
+  that reads the app's exported artifacts.
 - Choose an AGI page when the analysis is becoming part of the app contract:
   repeatable dashboard, review screen, demo, validation evidence, or
   `agi-page-*` package. This enables non-notebook users, stable demos,
   CI-backed artifact checks, and releaseable page packaging. The cost is that
   the page bundle, dependencies, and exported artifact contract must be
   maintained.
+- Do not classify a self-contained training playground as a generic page just
+  because it is implemented in Streamlit. If it remains packaged as a page for
+  a teaching/demo reason, document it as an explicit opt-in exception and keep a
+  follow-up split plan if the workflow should become reproducible AGILAB app
+  behavior.
 - Choose notebooks or AGI snippets when the work is still code-centric:
   exploration, debugging, cell reruns, migration from an existing notebook,
   reusable snippets, or technical handoff. Reuse depends on the

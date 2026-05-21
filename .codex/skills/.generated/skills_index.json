@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-19T16:44:21Z",
+  "generated_at_utc": "2026-05-21T07:11:17Z",
   "tool": "tools/codex_skills.py",
   "count": 28,
   "skills": [
@@ -95,7 +95,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-16",
+      "updated": "2026-05-21",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
     },
@@ -151,7 +151,7 @@
       "name": "notebook-to-agilab-project",
       "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-16",
+      "updated": "2026-05-21",
       "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
       "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
     },

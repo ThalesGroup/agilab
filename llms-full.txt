@@ -55,7 +55,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
 - agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-16
+  updated: 2026-05-21
   preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -80,7 +80,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # DOCX Figure Sync ## Overview Use this skill for deterministic figure replacement inside existing DOCX reports. Prefer the surrounding document layout over ad hoc copy-paste.
 - notebook-to-agilab-project: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view. (.claude/skills/notebook-to-agilab-project/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-16
+  updated: 2026-05-21
   preview: # Notebook To AGILAB Project Use this skill when the source material is a small set of local notebooks and the goal is to turn them into an AGILAB-style workflow rather than keep a notebook-only delivery.
 - pipeline-concept-view: Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_stages.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page. (.claude/skills/pipeline-concept-view/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
