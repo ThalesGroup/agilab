@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -303,6 +304,7 @@ def validate_app_definition(env: AgiEnv) -> None:
     if env.is_worker_env:
         return
 
+    workerless = app_declares_workerless(env)
     missing: list[str] = []
     manager_pyproject = getattr(env, "manager_pyproject", None)
     manager_path = getattr(env, "manager_path", None)
@@ -312,24 +314,61 @@ def validate_app_definition(env: AgiEnv) -> None:
         missing.append(f"pyproject={manager_pyproject}")
     if isinstance(manager_path, Path) and not manager_path.exists():
         missing.append(f"manager={manager_path}")
-    if isinstance(worker_path, Path) and not worker_path.exists():
+    if not workerless and isinstance(worker_path, Path) and not worker_path.exists():
         missing.append(f"worker={worker_path}")
 
     if missing:
         target = getattr(env, "app", "<app>")
         target_worker_class = getattr(env, "target_worker_class", "<worker class>")
+        contract_hint = (
+            "Define the manager module under the app's src/ directory."
+            if workerless
+            else f"Define {target_worker_class} and the manager module under the app's src/ directory."
+        )
         raise RuntimeError(
             f"App '{target}' is missing required sources ({', '.join(missing)}). "
-            f"Define {target_worker_class} and the manager module under the app's src/ directory."
+            f"{contract_hint}"
         )
 
     base_worker_cls = getattr(env, "base_worker_cls", None)
-    if not base_worker_cls:
+    if not workerless and not base_worker_cls:
         target_worker_class = getattr(env, "target_worker_class", "<worker class>")
         raise RuntimeError(
             f"Unable to determine base worker class for {target_worker_class}. "
             "Ensure the worker inherits from a supported AGI base worker."
         )
+
+
+def _project_root_from_env_or_path(env_or_path: object) -> Path | None:
+    if isinstance(env_or_path, (str, os.PathLike)):
+        try:
+            return Path(env_or_path)
+        except (TypeError, ValueError, RuntimeError):
+            return None
+    active_app = getattr(env_or_path, "active_app", None)
+    if active_app not in (None, ""):
+        try:
+            return Path(active_app)
+        except (TypeError, ValueError, RuntimeError):
+            return None
+    return None
+
+
+def app_declares_workerless(env_or_path: object) -> bool:
+    """Return whether the app pyproject explicitly opts into manager-only install."""
+
+    project_root = _project_root_from_env_or_path(env_or_path)
+    if project_root is None:
+        return False
+    pyproject = project_root / "pyproject.toml"
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+    tool = data.get("tool", {})
+    agilab = tool.get("agilab", {}) if isinstance(tool, dict) else {}
+    app = agilab.get("app", {}) if isinstance(agilab, dict) else {}
+    return isinstance(app, dict) and app.get("workerless") is True
 
 
 def _truthy(value: object) -> bool:
@@ -406,9 +445,10 @@ def _required_install_venvs_ready(env: AgiEnv) -> tuple[bool, str]:
     active_app = Path(getattr(env, "active_app", ""))
     if not _project_python(active_app).exists():
         return False, f"manager venv missing at {active_app / '.venv'}"
-    wenv_abs = Path(getattr(env, "wenv_abs", ""))
-    if not _project_python(wenv_abs).exists():
-        return False, f"worker venv missing at {wenv_abs / '.venv'}"
+    if not app_declares_workerless(env):
+        wenv_abs = Path(getattr(env, "wenv_abs", ""))
+        if not _project_python(wenv_abs).exists():
+            return False, f"worker venv missing at {wenv_abs / '.venv'}"
     dataset_ready, dataset_reason = _dataset_payload_ready(env)
     if not dataset_ready:
         return False, dataset_reason
@@ -493,6 +533,40 @@ def _uv_version(uv_cmd: object) -> str:
     return (completed.stdout or completed.stderr or command).strip()
 
 
+def _workerless_uv_sync_command(env: AgiEnv) -> list[str]:
+    command = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "sync",
+        "--project",
+        str(Path(getattr(env, "active_app", "")).expanduser()),
+    ]
+    python_version = str(getattr(env, "python_version", "") or os.environ.get("AGI_PYTHON_VERSION", "")).strip()
+    if python_version:
+        command.extend(["-p", python_version])
+    return command
+
+
+def _child_uv_env() -> dict[str, str]:
+    child_env = os.environ.copy()
+    child_env.pop("UV_RUN_RECURSION_DEPTH", None)
+    child_env.pop("VIRTUAL_ENV", None)
+    return child_env
+
+
+def sync_workerless_manager_env(env: AgiEnv) -> None:
+    """Install a manager-only app environment without invoking worker deployment."""
+
+    command = _workerless_uv_sync_command(env)
+    try:
+        completed = subprocess.run(command, check=False, env=_child_uv_env())
+    except OSError as exc:
+        raise RuntimeError(f"Unable to run workerless app sync command {command!r}: {exc}") from exc
+    if completed.returncode != 0:
+        raise RuntimeError(f"Workerless app sync failed with exit code {completed.returncode}: {command!r}")
+
+
 def _compute_install_fingerprint(
     env: AgiEnv,
     *,
@@ -520,6 +594,7 @@ def _compute_install_fingerprint(
         "app": str(getattr(env, "app", "")),
         "target": str(getattr(env, "target", "")),
         "target_worker": str(getattr(env, "target_worker", "")),
+        "workerless": app_declares_workerless(env),
         "active_app": active_app.as_posix(),
         "wenv_abs": Path(getattr(env, "wenv_abs", "")).expanduser().resolve(strict=False).as_posix(),
         "app_data_rel": str(getattr(env, "app_data_rel", "")),
@@ -662,15 +737,22 @@ async def main():
             )
             return 0
 
-    await AGI.install(
-        env=app_env,
-        scheduler=scheduler,
-        # scheduler="192.168.20.122",
-        # workers={"192.168.20.130":1},
-        # workers_data_path="/home/agi/data",
-        verbose=args.verbose,
-        modes_enabled=modes_enabled,
-    )
+    if app_declares_workerless(app_env):
+        try:
+            sync_workerless_manager_env(app_env)
+        except RuntimeError as err:
+            print(f"[ERROR] {err}", file=sys.stderr)
+            return 1
+    else:
+        await AGI.install(
+            env=app_env,
+            scheduler=scheduler,
+            # scheduler="192.168.20.122",
+            # workers={"192.168.20.130":1},
+            # workers_data_path="/home/agi/data",
+            verbose=args.verbose,
+            modes_enabled=modes_enabled,
+        )
     try:
         _write_install_state(
             app_env,
@@ -681,7 +763,7 @@ async def main():
         print(f"[WARN] Unable to write install-state cache: {exc}", file=sys.stderr)
 
     local_user = getpass.getuser()
-    ssh_user = (app_env.user or "").strip()
+    ssh_user = str(getattr(app_env, "user", "") or "").strip()
     if ssh_user and ssh_user != local_user:
         repo_root = Path(__file__).resolve().parents[3]
         agi_core_dist = repo_root / "src/agilab/core/agi-core/dist"

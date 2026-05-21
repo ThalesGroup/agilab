@@ -224,6 +224,32 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
         except (TypeError, RuntimeError, ValueError, OSError):
             return
 
+    def source_checkout_project(candidate: Path) -> Path:
+        if candidate.parent.name != "project":
+            return candidate
+        package_dir = candidate.parent.parent
+        if not package_dir.name.startswith("agi_app_"):
+            return candidate
+        package_src = package_dir.parent
+        package_root = package_src.parent
+        if package_src.name != "src" or not package_root.name.startswith("agi-app-"):
+            return candidate
+        roots: list[Any] = [getattr(env, "builtin_apps_path", None)]
+        apps_root = getattr(env, "apps_path", None)
+        if apps_root:
+            try:
+                roots.append(Path(apps_root) / "builtin")
+            except (TypeError, RuntimeError, ValueError):
+                pass
+        for root in roots:
+            try:
+                source_candidate = (Path(root) / candidate.name).resolve()
+            except (TypeError, RuntimeError, ValueError, OSError):
+                continue
+            if source_candidate.exists():
+                return source_candidate
+        return candidate
+
     if provided.is_absolute():
         candidates.append(provided)
     else:
@@ -257,6 +283,7 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
             candidate = candidate.resolve()
         except OSError:
             continue
+        candidate = source_checkout_project(candidate)
         if candidate.exists():
             return candidate
     return None

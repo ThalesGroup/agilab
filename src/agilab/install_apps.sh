@@ -297,6 +297,18 @@ app_dir_on_disk() {
   fi
 }
 
+app_declares_workerless() {
+  local app_dir="$1"
+  local pyproject="$app_dir/pyproject.toml"
+  [[ -f "$pyproject" ]] || return 1
+  awk '
+    /^[[:space:]]*\[tool\.agilab\.app\][[:space:]]*$/ { in_section = 1; next }
+    /^[[:space:]]*\[/ { in_section = 0 }
+    in_section && /^[[:space:]]*workerless[[:space:]]*=[[:space:]]*true[[:space:]]*(#.*)?$/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$pyproject"
+}
+
 app_has_required_sources() {
   local app_dir="$1"
   local app_name manager_name
@@ -309,7 +321,8 @@ app_has_required_sources() {
   manager="$app_dir/src/$manager_name/$manager_name.py"
   worker="$app_dir/src/${manager_name}_worker/${manager_name}_worker.py"
 
-  [[ -f "$pyproject" && -f "$manager" && -f "$worker" ]]
+  [[ -f "$pyproject" && -f "$manager" ]] || return 1
+  [[ -f "$worker" ]] || app_declares_workerless "$app_dir"
 }
 
 page_has_required_sources() {

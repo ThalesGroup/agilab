@@ -32,6 +32,9 @@ agi-node = { path = "../../../core/agi-node", editable = true }
 agi-cluster = { path = "../../../core/agi-cluster", editable = true }
 agi-gui = { path = "../../../lib/agi-gui", editable = true }
 
+[tool.agilab.app]
+distribution_preview = false
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

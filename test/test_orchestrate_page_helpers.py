@@ -520,8 +520,31 @@ def test_orchestrate_notebook_document_exports_current_recipe():
         "Notebook import remains on the WORKFLOW page" in "".join(cell["source"])
         for cell in document["cells"]
     )
+    assert any(
+        "INSTALL prepares environments and RUN executes" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
     assert ["".join(cell["source"]) for cell in code_cells] == ["print('install')\n", "print('run')\n"]
+
+
+def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
+    module = _load_orchestrate_module()
+    env = SimpleNamespace(app="demo_project", target="demo")
+
+    document = module._orchestrate_notebook_document(
+        env,
+        [
+            ("INSTALL", "print('install')"),
+            ("CHECK distribute", "print('check')"),
+            ("RUN", "print('run')"),
+        ],
+    )
+
+    assert any(
+        "CHECK distribute previews work" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
 
 
 def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
@@ -541,6 +564,20 @@ def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
 
     assert fake_st.expanders == [("Notebook", False)]
     assert fake_st.downloads == []
+    assert fake_st.infos == ["No orchestration snippets are available yet. Configure INSTALL or RUN first."]
+
+
+def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exists(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    fake_st = _NotebookExpanderStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    worker_path = tmp_path / "src" / "demo_worker" / "demo_worker.py"
+    worker_path.parent.mkdir(parents=True)
+    worker_path.write_text("class DemoWorker: pass\n", encoding="utf-8")
+    env = SimpleNamespace(target="fallback_project", worker_path=worker_path)
+
+    module._render_orchestrate_notebook_expander(env)
+
     assert fake_st.infos == [
         "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
     ]
@@ -1128,6 +1165,25 @@ def test_install_status_warning_reports_existing_stale_environment():
     label, caption = module._runtime_status_label(install_status)
     assert label == "Needs INSTALL"
     assert caption == "missing modules: agi_cluster"
+
+
+def test_install_status_workerless_labels_skip_worker_staleness():
+    module = _load_orchestrate_module()
+    install_status = {
+        "workerless": True,
+        "manager_ready": True,
+        "worker_ready": True,
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_problem": "",
+        "worker_problem": "worker path not configured",
+    }
+
+    assert module._install_status_warning_message(install_status) is None
+    assert module._runtime_status_label(install_status) == (
+        "Ready",
+        "Manager environment can import AGILAB runtime packages.",
+    )
 
 
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):

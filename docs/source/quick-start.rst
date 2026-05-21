@@ -166,7 +166,7 @@ machine-readable proof record.
 
    .. code-block:: bash
 
-      uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+      uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 
    Local UI is intended to stay on loopback. If you intentionally expose it through
    a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real protection

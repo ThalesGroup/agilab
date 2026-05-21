@@ -1008,6 +1008,35 @@ def test_bootstrap_normalize_active_app_input_finds_builtin_project_name(tmp_pat
     assert bootstrap.normalize_active_app_input(env, "flight_telemetry_project") == active_app.resolve()
 
 
+def test_bootstrap_normalize_active_app_input_prefers_builtin_over_source_package_payload(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    repo_root = tmp_path / "repo"
+    apps_path = repo_root / "src" / "agilab" / "apps"
+    builtin_path = apps_path / "builtin"
+    active_app = builtin_path / "pytorch_playground_project"
+    payload_app = (
+        repo_root
+        / "src"
+        / "agilab"
+        / "lib"
+        / "agi-app-pytorch-playground"
+        / "src"
+        / "agi_app_pytorch_playground"
+        / "project"
+        / "pytorch_playground_project"
+    )
+    active_app.mkdir(parents=True)
+    payload_app.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        builtin_apps_path=builtin_path,
+        apps_repository_root=None,
+        projects={"pytorch_playground_project"},
+    )
+
+    assert bootstrap.normalize_active_app_input(env, str(payload_app)) == active_app.resolve()
+
+
 def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"

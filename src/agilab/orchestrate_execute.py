@@ -110,6 +110,14 @@ _orchestrate_page_state = import_agilab_module(
 build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
 build_orchestrate_run_artifact_state = _orchestrate_page_state.build_orchestrate_run_artifact_state
 
+_orchestrate_page_support = import_agilab_module(
+    "agilab.orchestrate_page_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_support.py",
+    fallback_name="agilab_orchestrate_page_support_fallback",
+)
+app_declares_workerless = _orchestrate_page_support.app_declares_workerless
+
 _pinned_expander = import_agilab_module(
     "agilab.pinned_expander",
     current_file=__file__,
@@ -432,6 +440,7 @@ async def render_execute_section(
         cmd=cmd,
         project_path=project_path,
         worker_env_path=getattr(env, "wenv_abs", None),
+        worker_env_required=not app_declares_workerless(env),
     )
     dag_based_app = _is_dag_based_app(env, app_state_name)
 
@@ -605,7 +614,7 @@ async def render_execute_section(
             run_label = (
                 "Run workflow"
                 if dag_based_app
-                else ("Run benchmark" if st.session_state.get("benchmark") else "Run")
+                else ("RUN benchmark" if st.session_state.get("benchmark") else "RUN")
             )
             readiness_actions = [
                 (
@@ -675,7 +684,7 @@ async def render_execute_section(
                     disabled=not artifact_state.delete_action.enabled,
                     width="stretch",
                     help=artifact_state.delete_action.disabled_reason
-                    or "Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+                    or "Clear the cached dataframe preview so the next load reflects a fresh RUN.",
                 )
 
             if not dag_based_app and _update_delete_confirm_state(
@@ -742,13 +751,13 @@ async def render_execute_section(
             ):
                 _queue_execute_action("combo")
         else:
-            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.")
+            st.info("`Serve` mode selected. Switch to `Run now` to access RUN / LOAD actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
-        st.markdown("#### 5. Execute and inspect outputs")
+        st.markdown("#### 5. Run and inspect outputs")
         if dag_based_app:
             st.caption("Run the selected DAG workflow. Inspect stage artifacts and run evidence from WORKFLOW.")
         else:
@@ -775,7 +784,7 @@ async def render_execute_section(
     if show_run_panel and load_clicked:
         load_action = _current_artifact_state().load_action
         if st.session_state.get("_last_execute_failed"):
-            st.info("Latest EXECUTE failed. Check Run logs, fix the failure, then rerun before loading output.")
+            st.info("Latest RUN failed. Check Run logs, fix the failure, then rerun before loading output.")
         elif not load_action.enabled:
             st.info(load_action.disabled_reason)
         else:
@@ -963,7 +972,7 @@ async def render_execute_section(
                 st.error(f"Failed to delete {file_path}: {exc}")
 
         if not deleted:
-            st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
+            st.info("Dataframe preview cleared. Click RUN then LOAD to refresh with new output.")
         st.session_state[delete_undo_key] = undo_payload
 
     if show_run_panel and run_clicked:
@@ -1031,7 +1040,7 @@ async def render_execute_section(
             "detail": str(project_path),
         },
         {
-            "label": "Run workflow" if dag_based_app else "Run",
+            "label": "Run workflow" if dag_based_app else "RUN",
             "state": "done" if latest_log_path or existing_run_log else (
                 "ready" if execute_state.run_action.enabled else "blocked"
             ),
@@ -1240,4 +1249,4 @@ async def render_execute_section(
         st.session_state.selected_cols = []
         st.session_state.check_all = False
         if controls_visible and not dag_based_app:
-            st.info("No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.")
+            st.info("No data loaded yet. Click LOAD after RUN to populate it before export.")

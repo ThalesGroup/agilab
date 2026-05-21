@@ -15,7 +15,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 - **Use `uv` for all runs** so dependencies resolve in managed envs:
   - `uv --preview-features extra-build-dependencies run python …`
-  - `uv --preview-features extra-build-dependencies run streamlit …`
+  - `uv --preview-features extra-build-dependencies run --extra ui streamlit …`
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
@@ -186,7 +186,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
 - Impact triage for planned paths:
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files src/agilab/orchestrate_execute.py test/test_orchestrate_execute.py`
-- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
+- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - First-adoption handoff:

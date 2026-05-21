@@ -382,7 +382,7 @@ CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
 git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
 cd "$CHECKOUT"
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 ```
 
 On native Windows, prefer the published package route below. The source checkout
