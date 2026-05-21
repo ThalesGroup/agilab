@@ -20,7 +20,11 @@ MODULE_PATH = Path(
 INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
 README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
 PROJECT_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project")
+PACKAGE_PROJECT_PATH = Path(
+    "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project"
+)
 PROJECT_SRC = PROJECT_PATH / "src"
+EXPECTED_SOURCE_PAYLOAD_DIFFS = {Path("pytorch_playground_worker/pyproject.toml")}
 
 
 def _load_module():
@@ -30,6 +34,18 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _runtime_payload_files(root: Path) -> set[Path]:
+    return {
+        path.relative_to(root)
+        for path in root.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and ".venv" not in path.parts
+        and path.suffix != ".pyc"
+        and not any(part.endswith(".egg-info") for part in path.parts)
+    }
 
 
 def test_pytorch_playground_dataset_generation_is_deterministic() -> None:
@@ -693,6 +709,28 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "def _field_key" in source
     assert "key=key" in source
     assert "st.json(" not in source
+    assert ".multiselect(" not in source
+
+
+def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
+    source_root = PROJECT_PATH / "src"
+    payload_root = PACKAGE_PROJECT_PATH / "src"
+    source_files = _runtime_payload_files(source_root)
+    payload_files = _runtime_payload_files(payload_root)
+
+    assert source_files == payload_files
+
+    mismatches = [
+        str(relative)
+        for relative in sorted(source_files - EXPECTED_SOURCE_PAYLOAD_DIFFS)
+        if (source_root / relative).read_bytes() != (payload_root / relative).read_bytes()
+    ]
+    assert mismatches == []
+
+    source_worker_manifest = (source_root / "pytorch_playground_worker" / "pyproject.toml").read_text(encoding="utf-8")
+    payload_worker_manifest = (payload_root / "pytorch_playground_worker" / "pyproject.toml").read_text(encoding="utf-8")
+    assert "[tool.uv.sources]" in source_worker_manifest
+    assert "[tool.uv.sources]" not in payload_worker_manifest
 
 
 def test_pytorch_playground_worker_exports_evidence_without_torch(
@@ -725,6 +763,53 @@ def test_pytorch_playground_worker_exports_evidence_without_torch(
     assert manifest["app"] == "pytorch_playground_project"
     assert (tmp_path / "out" / "pytorch_playground_evidence.zip").is_file()
     assert (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground" / "manifest.json").is_file()
+
+
+def test_pytorch_playground_worker_exports_real_torch_evidence_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    core_module = importlib.import_module("pytorch_playground.core")
+    if core_module.torch is None:
+        pytest.skip("torch is not installed in this validation environment")
+
+    worker_module = importlib.import_module("pytorch_playground_worker.pytorch_playground_worker")
+    args_module = importlib.import_module("pytorch_playground.app_args")
+
+    worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    worker.args = args_module.PytorchPlaygroundArgs(
+        data_out=tmp_path / "out",
+        dataset="gaussian",
+        sample_count=40,
+        hidden_layers="4",
+        feature_names="x1,x2",
+        epochs=2,
+        batch_size=16,
+        grid_size=12,
+        compute_loss_landscape=True,
+        landscape_resolution=5,
+        landscape_span=0.2,
+        reset_target=True,
+    ).model_dump(mode="json")
+    worker.env = SimpleNamespace(target="pytorch_playground_project", AGILAB_EXPORT_ABS=tmp_path / "export")
+    worker._worker_id = 0
+
+    worker.start()
+    summary = worker.work_pool("pytorch_playground")
+
+    assert summary.iloc[0]["backend"] == "torch"
+    assert summary.iloc[0]["loss_landscape_points"] == 25
+    manifest = json.loads((tmp_path / "out" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["backend"] == "torch"
+    assert manifest["row_counts"]["training_history"] >= 2
+    assert manifest["row_counts"]["decision_grid"] == 144
+    assert manifest["row_counts"]["loss_landscape"] == 25
+    assert manifest["torch_version"]
+    archive_path = tmp_path / "out" / "pytorch_playground_evidence.zip"
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        assert "manifest.json" in archive.namelist()
+        assert json.loads(archive.read("manifest.json").decode("utf-8"))["backend"] == "torch"
 
 
 def test_pytorch_playground_main_covers_empty_and_error_ui_paths(monkeypatch: pytest.MonkeyPatch) -> None:

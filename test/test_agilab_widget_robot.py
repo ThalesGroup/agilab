@@ -1783,6 +1783,16 @@ def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None
         kind="http.500",
         detail="HTTP 500 https://demo/api/run",
     )
+    module._record_browser_issue(
+        issues,
+        kind="http.404",
+        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/health",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="http.404",
+        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/host-config",
+    )
 
     assert issues == [
         {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
