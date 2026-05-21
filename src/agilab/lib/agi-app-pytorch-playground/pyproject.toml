@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.20"
+version = "2026.05.21"
 name = "agi-app-pytorch-playground"
 description = "AGILAB PyTorch playground app for reproducible neural-network experiments"
 requires-python = ">=3.12"
