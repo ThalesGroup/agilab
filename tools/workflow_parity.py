@@ -51,7 +51,7 @@ AGI_GUI_COVERAGE_CHUNKS = (
     "reports",
 )
 AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
-AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 10.0
+AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 30.0
 UI_ROBOT_MATRIX_SHARDS = (
     (
         "core",
