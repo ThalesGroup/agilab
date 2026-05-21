@@ -50,7 +50,7 @@ def test_supply_chain_attestation_report_passes_contract(supply_chain_attestatio
     assert report["summary"]["app_lib_release_graph_aligned"] is True
     assert report["summary"]["aligned_internal_dependency_pins"] is True
     assert report["summary"]["mismatched_internal_dependency_pin_count"] == 0
-    assert report["summary"]["builtin_app_pyproject_count"] == 11
+    assert report["summary"]["builtin_app_pyproject_count"] == 12
     assert report["summary"]["package_data_pattern_count"] >= 1
     assert report["summary"]["builtin_payload_file_count"] >= 1
     assert report["summary"]["builtin_payload_bytes"] >= 1
@@ -134,6 +134,7 @@ def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_at
         "meteo_forecast_project",
         "mission_decision_project",
         "mycode_project",
+        "pytorch_playground_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",

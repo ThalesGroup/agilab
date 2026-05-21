@@ -354,10 +354,6 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/apps-pages/view_training_analysis"
     editable = true
 
-[tool.uv.sources.agi-page-pytorch-playground]
-    path = "./src/agilab/apps-pages/view_pytorch_playground"
-    editable = true
-
 [tool.uv.sources.agi-apps]
     path = "./src/agilab/lib/agi-apps"
     editable = true
@@ -384,6 +380,10 @@ ydata-profiling = ["standard-imghdr"]
 
 [tool.uv.sources.agi-app-weather-forecast]
     path = "./src/agilab/lib/agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-pytorch-playground]
+    path = "./src/agilab/lib/agi-app-pytorch-playground"
     editable = true
 
 [tool.uv.sources.agi-app-tescia-diagnostic-project]
