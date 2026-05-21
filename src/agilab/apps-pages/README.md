@@ -53,7 +53,7 @@ Quick start (dev checkout):
 
 - view_training_analysis
   - uv run streamlit run src/agilab/apps-pages/view_training_analysis/src/view_training_analysis/view_training_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
-  - Generic TensorBoard scalar browser for any app that exports trainer logs under a `tensorboard/` folder.
+  - Generic scalar browser for apps that export TensorBoard logs under `tensorboard/` or AGILAB training history under `data/training_history.csv`.
 
 - view_inference_analysis
   - uv run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
