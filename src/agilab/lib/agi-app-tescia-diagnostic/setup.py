@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 from pathlib import Path
 
 from setuptools import setup
@@ -8,7 +9,8 @@ from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.sdist import sdist as _sdist
 
 APP_PROJECT = 'tescia_diagnostic_project'
-PACKAGE_IMPORT = 'agi_app_tescia_diagnostic_project'
+PACKAGE_IMPORT = 'agi_app_tescia_diagnostic'
+LEGACY_PACKAGE_IMPORTS = ('agi_app_tescia_diagnostic_project',)
 
 
 def _load_build_support():
@@ -32,9 +34,16 @@ def _copy_payload(target_root: Path) -> None:
         print(f"[{PACKAGE_IMPORT}] sanitized packaged app manifest: {pyproject_path}")
 
 
+def _remove_legacy_build_outputs(build_root: Path) -> None:
+    for legacy_package in LEGACY_PACKAGE_IMPORTS:
+        shutil.rmtree(build_root / legacy_package, ignore_errors=True)
+
+
 class build_py(_build_py):
     def run(self):
+        _remove_legacy_build_outputs(Path(self.build_lib))
         super().run()
+        _remove_legacy_build_outputs(Path(self.build_lib))
         _copy_payload(Path(self.build_lib) / PACKAGE_IMPORT / "project")
 
 

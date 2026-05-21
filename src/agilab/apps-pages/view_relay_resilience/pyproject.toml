@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-relay-health"
-version = "2026.05.21"
+version = "2026.05.21.post1"
 description = "AGILAB page bundle for relay health and resilience evidence."
 readme = { text = "AGILAB page bundle for relay health and resilience evidence.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -33,6 +33,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

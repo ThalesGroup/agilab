@@ -320,7 +320,7 @@ Current packaging policy is conservative:
   `agi-app-mission-decision`, `agi-app-pandas-execution`,
   `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
   `agi-app-weather-forecast`, `agi-app-pytorch-playground`,
-  `agi-app-tescia-diagnostic-project`, and `agi-app-uav-relay-queue`;
+  `agi-app-tescia-diagnostic`, and `agi-app-uav-relay-queue`;
   `agi-apps` is the umbrella catalog/example package
   pulled in by the `ui` and `examples` extras.
 - Public analysis page bundles use decoupled `agi-page-*` package names such

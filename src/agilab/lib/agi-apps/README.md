@@ -9,7 +9,7 @@ distributions. Promoted app payloads now live in focused PyPI packages:
 `agi-app-mission-decision`, `agi-app-pandas-execution`,
 `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
 `agi-app-weather-forecast`, `agi-app-pytorch-playground`,
-`agi-app-tescia-diagnostic-project`, and `agi-app-uav-relay-queue`.
+`agi-app-tescia-diagnostic`, and `agi-app-uav-relay-queue`.
 
 The umbrella keeps the lightweight `agilab.apps.install` helper and
 `agilab.examples` learning assets. It also bundles `mycode_project` as the

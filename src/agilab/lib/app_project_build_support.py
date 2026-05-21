@@ -54,8 +54,8 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
         "project": "tescia_diagnostic_project",
         "slug": "tescia_diagnostic",
-        "distribution": "agi-app-tescia-diagnostic-project",
-        "package": "agi_app_tescia_diagnostic_project",
+        "distribution": "agi-app-tescia-diagnostic",
+        "package": "agi_app_tescia_diagnostic",
     },
     {
         "project": "uav_queue_project",

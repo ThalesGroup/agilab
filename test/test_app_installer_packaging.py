@@ -122,7 +122,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-global-dag": "global_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",
-    "agi-app-tescia-diagnostic-project": "tescia_diagnostic_project",
+    "agi-app-tescia-diagnostic": "tescia_diagnostic_project",
     "agi-app-uav-queue-project": "uav_queue_project",
     "agi-app-uav-relay-queue": "uav_relay_queue_project",
 }

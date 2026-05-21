@@ -159,7 +159,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-tescia-diagnostic-project"
+    directory: "/src/agilab/lib/agi-app-tescia-diagnostic"
     schedule:
       interval: "weekly"
       day: "monday"
