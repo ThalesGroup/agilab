@@ -2518,27 +2518,6 @@ async def _render_configured_app_surface(
     return True
 
 
-def _render_configured_app_surface_launcher(
-    active_app_path: Path | None,
-    cfg: dict,
-    *,
-    current_page: str | None = None,
-) -> None:
-    should_show = _query_param_is_truthy(
-        st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM)
-    ) or _is_app_surface_overview_requested(current_page)
-    if not should_show:
-        return
-    entrypoint = configured_app_surface_entrypoint(active_app_path, cfg)
-    if entrypoint is None:
-        return
-    surface_title = app_surface_title(app_surface_config(active_app_path, cfg))
-    if st.button(f"Open {surface_title}", type="primary"):
-        for key in (_APP_SURFACE_HIDE_QUERY_PARAM, "current_page"):
-            if key in st.query_params:
-                del st.query_params[key]
-        st.rerun()
-
 async def main():
     # Navigation by query param
     qp = st.query_params
@@ -2605,7 +2584,6 @@ async def main():
         _write_config(app_settings, cfg)
     if await _render_configured_app_surface(active_app_path, cfg, current_page=current_page):
         return
-    _render_configured_app_surface_launcher(active_app_path, cfg, current_page=current_page)
     configured_views: list[str] = [
         str(v)
         for v in cfg.get("pages", {}).get("view_module", [])

@@ -483,38 +483,6 @@ def test_legacy_view_app_ui_route_opens_declared_app_surface(tmp_path: Path, mon
     assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
 
 
-def test_configured_app_surface_launcher_reopens_surface(tmp_path: Path, monkeypatch):
-    module = _load_analysis_module()
-    app = tmp_path / "demo_project"
-    surface = app / "src" / "demo" / "app_surface.py"
-    surface.parent.mkdir(parents=True)
-    surface.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
-
-    def _raise_rerun():
-        raise RuntimeError("rerun")
-
-    fake_st = SimpleNamespace(
-        query_params={module._APP_SURFACE_HIDE_QUERY_PARAM: "true", "current_page": "main"},
-        button=lambda *_args, **_kwargs: True,
-        rerun=_raise_rerun,
-    )
-
-    monkeypatch.setattr(module, "st", fake_st)
-
-    try:
-        module._render_configured_app_surface_launcher(
-            app,
-            {"app_surface": {"title": "Demo Surface", "entrypoint": "demo/app_surface.py"}},
-        )
-    except RuntimeError as exc:
-        assert str(exc) == "rerun"
-    else:
-        raise AssertionError("App surface launcher should rerun the Streamlit page")
-
-    assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
-    assert "current_page" not in fake_st.query_params
-
-
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     project_root = tmp_path / "apps" / "flight_telemetry_project"
