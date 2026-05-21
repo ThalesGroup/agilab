@@ -110,6 +110,7 @@ def _load_module(path: Path) -> ModuleType:
 
 
 def _run_app_ui(entrypoint: Path, active_app: Path) -> None:
+    _prepend_sys_path(entrypoint.parent)
     _prepend_sys_path(active_app / "src")
     previous_argv = list(sys.argv)
     sys.argv = [str(entrypoint), "--active-app", str(active_app)]
