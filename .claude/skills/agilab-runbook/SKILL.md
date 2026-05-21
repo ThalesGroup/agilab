@@ -45,6 +45,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `~/.agilab/.env` keys such as `APPS_PATH` and `IS_SOURCE_ENV`. Restart Streamlit after
   fixing bootstrap code because `st.session_state["env"]` and `env.active_app` can retain
   stale paths across reruns.
+- **Source Streamlit launches must be non-mutating by default**: if starting
+  `agilab run (dev)` prints `Uninstalled ...` or `Installed ...`, inspect both
+  the outer run-config command and any launcher-spawned inner `uv run` command.
+  The selected default app is not the cause; uv is reconciling the project
+  environment or the `ui` extra. Runtime launchers should preserve `UV_NO_SYNC`
+  and use `uv run --no-sync` for the inner Streamlit command. Do dependency
+  bootstrap explicitly with `uv sync --extra ui` or a clearly named sync flag
+  before launch, not silently during normal UI startup.
 - **PyPI app management**: promoted public apps can be managed through the PROJECT page
   `Install PyPI app` flow or `agilab app search/check/install/list/update/remove`.
   This route installs `agi-app-*` packages into the selected Python environment and
