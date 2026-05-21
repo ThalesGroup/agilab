@@ -125,6 +125,10 @@ pulled by the umbrella dependency graph.
      - ``agi-page-inference-report``
      - Allocation and inference-result comparison across exported runs.
      - Included in ``agi-pages``.
+   * - ``view_app_ui``
+     - ``agi-page-app-ui``
+     - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
+     - Included in ``agi-pages``.
    * - ``view_maps``
      - ``agi-page-geospatial-map``
      - 2D map viewer for geolocated datasets.
@@ -266,6 +270,16 @@ Inference and allocation comparison page for producer-agnostic result exports.
   form.
 - Output: side-by-side run metrics, delivered-bandwidth aggregates, and
   allocation charts.
+
+view_app_ui
+^^^^^^^^^^^
+
+Generic bridge for app-owned interactive Streamlit UIs.
+
+- Input: an active app with ``[pages.view_app_ui].entrypoint`` configured in
+  ``app_settings.toml``.
+- Output: the app-owned UI rendered inside ANALYSIS while the app keeps
+  control of training, execution semantics, and evidence artifacts.
 
 view_release_decision
 ^^^^^^^^^^^^^^^^^^^^^
