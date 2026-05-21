@@ -556,7 +556,7 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append(
-            "  uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py"
+            "  uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py"
         )
         lines.append("  then follow PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS with flight_telemetry_project")
     else:

@@ -36,7 +36,7 @@ root.
 ## Run In AGILAB
 
 Select `pytorch_playground_project`, open `ORCHESTRATE`, tune the sidebar
-fields, then run `INSTALL` and `EXECUTE`. Enable loss-landscape computation
+fields, then run `INSTALL` and `RUN`. Enable loss-landscape computation
 only when you want the heavier 3D projection in the evidence bundle.
 
 ## Expected Inputs

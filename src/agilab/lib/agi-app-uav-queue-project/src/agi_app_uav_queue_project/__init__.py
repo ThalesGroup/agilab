@@ -14,11 +14,10 @@ def package_root() -> Path:
 
 
 def project_root() -> Path:
-    packaged_root = package_root() / "project" / PROJECT_NAME
-    if packaged_root.exists():
-        return packaged_root
     source_root = Path(__file__).resolve().parents[4] / "apps" / "builtin" / PROJECT_NAME
-    return source_root if source_root.exists() else packaged_root
+    if source_root.exists():
+        return source_root
+    return package_root() / "project" / PROJECT_NAME
 
 
 def metadata() -> dict[str, str]:

@@ -82,6 +82,56 @@ fi
     return completed.stdout.splitlines()
 
 
+def _write_app_project(app_dir: Path, *, worker: bool = True, workerless: bool = False, manager: bool = True) -> None:
+    app_dir.mkdir(parents=True)
+    manager_name = app_dir.name.removesuffix("_project")
+    pyproject_lines = [
+        "[project]",
+        f'name = "{app_dir.name.replace("_", "-")}"',
+        'version = "0.1.0"',
+        'requires-python = ">=3.11"',
+    ]
+    if workerless:
+        pyproject_lines.extend(["", "[tool.agilab.app]", 'runtime = "local"', "workerless = true"])
+    (app_dir / "pyproject.toml").write_text("\n".join(pyproject_lines) + "\n", encoding="utf-8")
+    if manager:
+        manager_dir = app_dir / "src" / manager_name
+        manager_dir.mkdir(parents=True)
+        (manager_dir / f"{manager_name}.py").write_text("class App: ...\n", encoding="utf-8")
+    if worker:
+        worker_dir = app_dir / "src" / f"{manager_name}_worker"
+        worker_dir.mkdir(parents=True)
+        (worker_dir / f"{manager_name}_worker.py").write_text("class Worker: ...\n", encoding="utf-8")
+
+
+def _run_discover_app_projects(apps_root: Path) -> list[str]:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    start = script_text.index("app_declares_workerless() {")
+    end = script_text.index("\npage_has_required_sources()", start)
+    function_body = script_text[start:end]
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+{function_body}
+declare -a apps=()
+while IFS= read -r -d '' dir; do
+  dir_name="$(basename -- "$dir")"
+  if app_has_required_sources "$dir"; then
+    apps+=("$dir_name")
+  fi
+done < <(find "$1" -mindepth 1 -maxdepth 1 -type d -name '*_project' -print0)
+if (( ${{#apps[@]}} )); then
+  printf '%s\n' "${{apps[@]}}" | sort
+fi
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script, "app_discovery_test", str(apps_root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.splitlines()
+
+
 def _run_refresh_repository_link(dest: Path, target: Path) -> str:
     script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
     start = script_text.index("backup_existing_path() {")
@@ -149,6 +199,16 @@ def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Pat
     (pages_root / "view_notes").mkdir(parents=True)
 
     assert _run_discover_page_projects(pages_root) == ["view_demo"]
+
+
+def test_app_discovery_accepts_declared_workerless_projects(tmp_path: Path) -> None:
+    apps_root = tmp_path / "apps"
+    _write_app_project(apps_root / "worker_project", worker=True)
+    _write_app_project(apps_root / "workerless_project", worker=False, workerless=True)
+    _write_app_project(apps_root / "incomplete_project", worker=False)
+    _write_app_project(apps_root / "missing_manager_project", manager=False)
+
+    assert _run_discover_app_projects(apps_root) == ["worker_project", "workerless_project"]
 
 
 @pytest.mark.parametrize(

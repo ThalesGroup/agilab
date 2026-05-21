@@ -52,7 +52,7 @@ Current public matrix
      - No SSH, no private apps, no packaged install
    * - Web UI local first proof
      - validated
-     - ``uv run streamlit run src/agilab/main_page.py``
+     - ``uv run --extra ui streamlit run src/agilab/main_page.py``
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
        with fresh output under ``~/log/execute/flight_telemetry/``
      - Not a remote cluster proof
