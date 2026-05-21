@@ -110,6 +110,34 @@ def test_live_state_updates_read_existing_dependency_view(tmp_path: Path) -> Non
     ]
 
 
+def test_live_state_updates_core_handles_malformed_optional_rows() -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_live_state_updates_core_edge_test_module")
+
+    issue = core_module._issue("dependency", "bad dependency")
+    proof = core_module.LiveStateUpdateProof(
+        ok=False,
+        issues=(issue,),
+        path="/tmp/live.json",
+        dependency_view_path="/tmp/dependency.json",
+        live_state_updates={"updates": "bad", "summary": "bad"},
+        reloaded_updates={},
+    )
+
+    payload = proof.as_dict()
+    assert payload["issues"] == [{"level": "error", "location": "dependency", "message": "bad dependency"}]
+    assert payload["round_trip_ok"] is False
+    assert payload["update_count"] == 0
+    assert payload["unit_update_count"] == 0
+    assert payload["artifact_update_count"] == 0
+    assert payload["dependency_update_count"] == 0
+    assert payload["action_update_count"] == 0
+    assert core_module._node_rows({"nodes": "bad"}) == ()
+    assert core_module._edge_rows({"edges": "bad"}) == ()
+    assert core_module._artifact_flow_rows({"artifact_flow": "bad"}) == ()
+    assert core_module._action_ids_for_prefix({"action_ids": "bad"}, "retry") == []
+    assert core_module._queue_metrics_flow(({"artifact": "other"},)) == {}
+
+
 def test_live_state_updates_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_module(
         REPORT_PATH,

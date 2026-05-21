@@ -7,16 +7,40 @@ import asyncio
 import inspect
 import json
 import os
+import importlib
+import importlib.resources as importlib_resources
 import importlib.util
 import textwrap
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
+from agilab.ui_performance import (
+    UI_TIMING_SESSION_KEY,
+    UI_TIMING_TRACE_ENV_KEY,
+    record_ui_timing_span,
+    ui_timing_trace_enabled,
+)
+
+try:
+    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+except ModuleNotFoundError:
+    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
+        "agilab_streamlit_theme_env_local",
+        _streamlit_theme_env_path,
+    )
+    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
+    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
+    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
+    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
 
 logger = AgiLogger.get_logger(__name__)
 
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
+apply_streamlit_theme_environment(packaged_streamlit_config_path(__file__))
 
 import streamlit as st
 _public_bind_guard_path = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
@@ -143,49 +167,98 @@ try:
 except _import_guard_module.MixedCheckoutImportError as exc:
     _stop_for_import_guard_error(exc)
 
-_about_env_editor = _import_agilab_module_or_stop(
+_AGILAB_ROOT = Path(__file__).resolve().parent
+
+
+class _LazyAgilabModule:
+    """Import heavier page helper modules only when their attributes are used."""
+
+    def __init__(self, module_name: str, *, fallback_path: Path, fallback_name: str) -> None:
+        object.__setattr__(self, "_lazy_module_name", module_name)
+        object.__setattr__(self, "_lazy_fallback_path", fallback_path)
+        object.__setattr__(self, "_lazy_fallback_name", fallback_name)
+        object.__setattr__(self, "_lazy_module", None)
+
+    def _load(self) -> Any:
+        module = object.__getattribute__(self, "_lazy_module")
+        if module is None:
+            module = _import_agilab_module_or_stop(
+                object.__getattribute__(self, "_lazy_module_name"),
+                current_file=__file__,
+                fallback_path=object.__getattribute__(self, "_lazy_fallback_path"),
+                fallback_name=object.__getattribute__(self, "_lazy_fallback_name"),
+            )
+            object.__setattr__(self, "_lazy_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_lazy_"):
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name.startswith("_lazy_"):
+            object.__delattr__(self, name)
+            return
+        delattr(self._load(), name)
+
+    def __repr__(self) -> str:
+        module_name = object.__getattribute__(self, "_lazy_module_name")
+        loaded = object.__getattribute__(self, "_lazy_module") is not None
+        return f"<_LazyAgilabModule {module_name!r} loaded={loaded}>"
+
+
+_about_env_editor = _LazyAgilabModule(
     "agilab.about_page.env_editor",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "about_page" / "env_editor.py",
+    fallback_path=_AGILAB_ROOT / "about_page" / "env_editor.py",
     fallback_name="agilab_about_page_env_editor_fallback",
 )
-_about_layout = _import_agilab_module_or_stop(
+_about_layout = _LazyAgilabModule(
     "agilab.about_page.layout",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "about_page" / "layout.py",
+    fallback_path=_AGILAB_ROOT / "about_page" / "layout.py",
     fallback_name="agilab_about_page_layout_fallback",
 )
-_about_onboarding = _import_agilab_module_or_stop(
+_about_onboarding = _LazyAgilabModule(
     "agilab.about_page.onboarding",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "about_page" / "onboarding.py",
+    fallback_path=_AGILAB_ROOT / "about_page" / "onboarding.py",
     fallback_name="agilab_about_page_onboarding_fallback",
 )
-_about_bootstrap = _import_agilab_module_or_stop(
+_about_bootstrap = _LazyAgilabModule(
     "agilab.about_page.bootstrap",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "about_page" / "bootstrap.py",
+    fallback_path=_AGILAB_ROOT / "about_page" / "bootstrap.py",
     fallback_name="agilab_about_page_bootstrap_fallback",
 )
-
-_env_file_utils_module = _import_agilab_module_or_stop(
+_env_file_utils_module = _LazyAgilabModule(
     "agilab.env_file_utils",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "env_file_utils.py",
+    fallback_path=_AGILAB_ROOT / "env_file_utils.py",
     fallback_name="agilab_env_file_utils_fallback",
 )
-_load_env_file_map = _env_file_utils_module.load_env_file_map
-
-_runtime_diagnostics_module = _import_agilab_module_or_stop(
+_runtime_diagnostics_module = _LazyAgilabModule(
     "agilab.runtime_diagnostics",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "runtime_diagnostics.py",
+    fallback_path=_AGILAB_ROOT / "runtime_diagnostics.py",
     fallback_name="agilab_runtime_diagnostics_fallback",
 )
-GLOBAL_DIAGNOSTICS_ENV_KEY = _runtime_diagnostics_module.GLOBAL_DIAGNOSTICS_ENV_KEY
-diagnostics_widget_key = _runtime_diagnostics_module.diagnostics_widget_key
-global_diagnostics_verbose = _runtime_diagnostics_module.global_diagnostics_verbose
-render_runtime_diagnostics_control = _runtime_diagnostics_module.render_runtime_diagnostics_control
+GLOBAL_DIAGNOSTICS_ENV_KEY = "AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE"
+
+
+def _load_env_file_map(*args: Any, **kwargs: Any) -> Any:
+    return _env_file_utils_module.load_env_file_map(*args, **kwargs)
+
+
+def diagnostics_widget_key(*args: Any, **kwargs: Any) -> str:
+    return _runtime_diagnostics_module.diagnostics_widget_key(*args, **kwargs)
+
+
+def global_diagnostics_verbose(*args: Any, **kwargs: Any) -> int:
+    return _runtime_diagnostics_module.global_diagnostics_verbose(*args, **kwargs)
+
+
+def render_runtime_diagnostics_control(*args: Any, **kwargs: Any) -> int:
+    return _runtime_diagnostics_module.render_runtime_diagnostics_control(*args, **kwargs)
 
 _page_docs_module = _import_agilab_module_or_stop(
     "agilab.page_docs",
@@ -196,21 +269,26 @@ _page_docs_module = _import_agilab_module_or_stop(
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
 docs_menu_url = _page_docs_module.docs_menu_url
 
-_pinned_expander_module = _import_agilab_module_or_stop(
+_pinned_expander_module = _LazyAgilabModule(
     "agilab.pinned_expander",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_path=_AGILAB_ROOT / "pinned_expander.py",
     fallback_name="agilab_pinned_expander_fallback",
 )
-render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
 
-_workflow_ui_module = _import_agilab_module_or_stop(
+
+def render_pinned_expanders(*args: Any, **kwargs: Any) -> Any:
+    return _pinned_expander_module.render_pinned_expanders(*args, **kwargs)
+
+
+_workflow_ui_module = _LazyAgilabModule(
     "agilab.workflow_ui",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_path=_AGILAB_ROOT / "workflow_ui.py",
     fallback_name="agilab_workflow_ui_fallback",
 )
-render_page_context = _workflow_ui_module.render_page_context
+
+
+def render_page_context(*args: Any, **kwargs: Any) -> Any:
+    return _workflow_ui_module.render_page_context(*args, **kwargs)
 
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
@@ -225,13 +303,122 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.credential_store_support import store_cluster_credentials
-from agi_gui.ui_support import detect_agilab_version, read_theme_css, store_last_active_app
-from agi_gui.ux_widgets import compact_choice
+_LAZY_IMPORT_ATTR_CACHE: Dict[tuple[str, str], Any] = {}
 
-FIRST_PROOF_PROJECT = _about_onboarding.FIRST_PROOF_PROJECT
-FIRST_PROOF_COMPATIBILITY_SLICE = _about_onboarding.FIRST_PROOF_COMPATIBILITY_SLICE
-FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _about_onboarding.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+
+def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
+    cache_key = (module_name, attr_name)
+    if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(importlib.import_module(module_name), attr_name)
+    return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def store_cluster_credentials(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_env.credential_store_support", "store_cluster_credentials")(*args, **kwargs)
+
+
+def detect_agilab_version(*args: Any, **kwargs: Any) -> str:
+    return _lazy_import_attr("agi_gui.ui_support", "detect_agilab_version")(*args, **kwargs)
+
+
+def read_theme_css(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ui_support", "read_theme_css")(*args, **kwargs)
+
+
+def store_last_active_app(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ui_support", "store_last_active_app")(*args, **kwargs)
+
+
+def compact_choice(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ux_widgets", "compact_choice")(*args, **kwargs)
+
+
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
+FIRST_PROOF_COMPATIBILITY_SLICE = "Source checkout first proof"
+FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
+    "AGI_install_",
+    "AGI_run_",
+    "AGI_get_",
+)
+_NAVIGATION_PAGE_ROUTES: Dict[str, Any] = {}
+_PAGE_MODULE_CACHE: Dict[Path, tuple[int, int, str, Any]] = {}
+PAGE_LOAD_TIMING_ENV_KEY = "AGILAB_PAGE_LOAD_TIMING"
+
+
+def _page_load_timing_enabled(environ: Any = os.environ) -> bool:
+    value = str(environ.get(PAGE_LOAD_TIMING_ENV_KEY, "")).strip().lower()
+    return value in {"1", "true", "yes", "on", "debug"}
+
+
+def _render_page_load_timing(
+    page_label: str,
+    started_at: float,
+    *,
+    streamlit: Any = st,
+    perf_counter: Callable[[], float] = time.perf_counter,
+) -> None:
+    """Render opt-in page load timing without adding default UI noise."""
+    elapsed_ms = max(0.0, (perf_counter() - started_at) * 1000.0)
+    if ui_timing_trace_enabled():
+        _record_ui_timing_span(
+            page_label,
+            started_at,
+            category="page",
+            streamlit=streamlit,
+            perf_counter=perf_counter,
+        )
+        _render_ui_timing_trace(streamlit=streamlit)
+    if not _page_load_timing_enabled():
+        return
+    try:
+        streamlit.sidebar.caption(f"{page_label} loaded in {elapsed_ms:.0f} ms")
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        logger.info("%s loaded in %.0f ms", page_label, elapsed_ms)
+
+
+def _record_ui_timing_span(
+    label: str,
+    started_at: float,
+    *,
+    category: str,
+    streamlit: Any = st,
+    perf_counter: Callable[[], float] = time.perf_counter,
+) -> None:
+    if not ui_timing_trace_enabled():
+        return
+    record_ui_timing_span(
+        getattr(streamlit, "session_state", {}),
+        label=label,
+        started_at=started_at,
+        category=category,
+        perf_counter=perf_counter,
+    )
+
+
+def _render_ui_timing_trace(*, streamlit: Any = st, max_spans: int = 6) -> None:
+    if not ui_timing_trace_enabled():
+        return
+    try:
+        spans = list(streamlit.session_state.get(UI_TIMING_SESSION_KEY, ()))
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return
+    if not spans:
+        return
+    lines = []
+    for span in spans[-max(1, max_spans) :]:
+        try:
+            label = str(span.get("label", ""))
+            category = str(span.get("category", ""))
+            elapsed_ms = float(span.get("elapsed_ms", "0") or 0.0)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        lines.append(f"{label} [{category}] {elapsed_ms:.0f} ms")
+    if not lines:
+        return
+    try:
+        streamlit.sidebar.caption("UI trace: " + " | ".join(lines))
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        logger.info("UI trace: %s", " | ".join(lines))
 
 
 def get_about_content() -> dict[str, str]:
@@ -292,15 +479,18 @@ def render_sidebar_version(version: str) -> None:
     st.sidebar.caption(version_label)
 
 
-def render_sidebar_documentation_link() -> None:
-    """Keep the Main Page sidebar useful without mixing in execution state."""
+def render_sidebar_settings_link() -> None:
+    """Keep persistent runtime controls and docs reachable from the sidebar."""
+    settings_url = "/SETTINGS"
     docs_url = docs_menu_url("agilab-help.html")
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
+        markdown_fn(f"[Settings]({settings_url})")
         markdown_fn(f"[Documentation]({docs_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
+        caption_fn(f"Settings: {settings_url}")
         caption_fn(f"Documentation: {docs_url}")
 
 
@@ -335,7 +525,7 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
 
 
 def _activate_newcomer_first_proof_project(env: Any, project_path: Path) -> bool:
-    """Switch the current app to the built-in flight project and persist the choice."""
+    """Switch the current app to the built-in flight-telemetry project and persist the choice."""
     changed = _apply_active_app_request(env, str(project_path))
     try:
         st.query_params["active_app"] = env.app
@@ -379,7 +569,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
     _about_onboarding.render_newcomer_first_proof(
         env,
         activate_project=_activate_newcomer_first_proof_project,
-        display_landing_page=display_landing_page,
+        page_routes=_NAVIGATION_PAGE_ROUTES,
     )
 
 
@@ -422,8 +612,11 @@ def openai_status_banner(env: Any) -> None:
     _sync_layout_module()
     _about_layout.openai_status_banner(env, env_file_path=ENV_FILE_PATH)
 
-ENV_FILE_PATH = _about_env_editor.ENV_FILE_PATH
-TEMPLATE_ENV_PATH = _about_env_editor.TEMPLATE_ENV_PATH
+ENV_FILE_PATH = Path.home() / ".agilab/.env"
+try:
+    TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
+except (ModuleNotFoundError, FileNotFoundError, AttributeError, OSError):
+    TEMPLATE_ENV_PATH = None
 
 
 def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
@@ -536,25 +729,33 @@ def _store_global_runtime_diagnostics_verbose(env: Any, verbose: int) -> None:
     st.session_state["cluster_verbose"] = verbose
 
 
-def _render_global_runtime_diagnostics(env: Any) -> None:
+def _render_global_runtime_diagnostics(env: Any, container: Any | None = None) -> None:
     current_verbose = _global_runtime_diagnostics_verbose(env)
     settings: Dict[str, Any] = {"cluster": {"verbose": current_verbose}}
-    with st.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
-        diagnostics_container.caption(
-            "Global log detail reused by ORCHESTRATE, WORKFLOW, generated snippets, and CLI runs."
-        )
-        selected_verbose = render_runtime_diagnostics_control(
-            st,
-            diagnostics_container,
-            settings,
-            app_name="global",
-            compact_choice_fn=compact_choice,
-            key=diagnostics_widget_key("global"),
-        )
+    diagnostics_container = container
+    if diagnostics_container is None:
+        with st.expander("Runtime diagnostics", expanded=False) as expander_container:
+            selected_verbose = _render_global_runtime_diagnostics_control(expander_container, settings)
+    else:
+        selected_verbose = _render_global_runtime_diagnostics_control(diagnostics_container, settings)
     if selected_verbose != current_verbose:
         _store_global_runtime_diagnostics_verbose(env, selected_verbose)
     else:
         st.session_state["cluster_verbose"] = selected_verbose
+
+
+def _render_global_runtime_diagnostics_control(container: Any, settings: Dict[str, Any]) -> int:
+    container.caption(
+        "Global log detail reused by ORCHESTRATE, WORKFLOW, generated snippets, and CLI runs."
+    )
+    return render_runtime_diagnostics_control(
+        st,
+        container,
+        settings,
+        app_name="global",
+        compact_choice_fn=compact_choice,
+        key=diagnostics_widget_key("global"),
+    )
 
 
 def _refresh_env_from_file(env: Any) -> None:
@@ -567,27 +768,46 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     _about_env_editor._render_env_editor(env, help_file)
 
 
-def page(env: Any) -> None:
-    """Render the main landing page controls and footer for the lab."""
+def _render_navigation_context(env: Any, *, page_label: str) -> None:
     try:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-    render_sidebar_documentation_link()
+    render_sidebar_settings_link()
     render_pinned_expanders(st)
-    render_page_context(st, page_label="MAIN_PAGE", env=env)
+    render_page_context(st, page_label=page_label, env=env)
 
-    with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
-        _render_env_editor(env)
 
-    _render_global_runtime_diagnostics(env)
-
-    _sync_layout_module()
-    _about_layout.render_footer()
+def _seed_session_runtime_defaults(env: Any) -> None:
     if "TABLE_MAX_ROWS" not in st.session_state:
         st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
     if "GUI_SAMPLING" not in st.session_state:
         st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
+
+def page(env: Any) -> None:
+    """Render the main landing page controls and footer for the lab."""
+    _render_navigation_context(env, page_label="MAIN_PAGE")
+    _sync_layout_module()
+    _about_layout.render_footer()
+    _seed_session_runtime_defaults(env)
+
+
+def settings_page(env: Any) -> None:
+    """Render persistent environment and diagnostics settings."""
+    _render_navigation_context(env, page_label="SETTINGS")
+    st.markdown("## Settings")
+    st.caption(
+        "Persistent environment variables and global runtime diagnostics for AGILAB actions."
+    )
+    st.markdown("#### Runtime diagnostics")
+    _render_global_runtime_diagnostics(env, container=st)
+    st.divider()
+    st.markdown(f"#### Environment variables ({ENV_FILE_PATH.expanduser()})")
+    _render_env_editor(env)
+    _sync_layout_module()
+    _about_layout.render_footer()
+    _seed_session_runtime_defaults(env)
 
 
 def _about_resources_path() -> Path:
@@ -627,16 +847,12 @@ def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstra
     return env
 
 
-# ------------------------- Main Entrypoint -------------------------
-
-def _render_about_page_entry() -> None:
-    """Initialise the main page and display the landing UI."""
+def _render_navigation_page_shell(resources_path: Path) -> None:
     st.set_page_config(
         page_title="AGILab",
         menu_items=get_about_content(),
         layout="wide",
     )
-    resources_path = _about_resources_path()
     try:
         inject_theme(resources_path)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
@@ -652,54 +868,151 @@ def _render_about_page_entry() -> None:
         unsafe_allow_html=True
     )
 
+
+# ------------------------- Main Entrypoint -------------------------
+
+def _render_about_page_entry() -> None:
+    """Initialise the main page and display the landing UI."""
+    started_at = time.perf_counter()
+    resources_path = _about_resources_path()
+    _render_navigation_page_shell(resources_path)
+    bootstrap_started_at = time.perf_counter()
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    _record_ui_timing_span("ABOUT:bootstrap", bootstrap_started_at, category="bootstrap")
     if env is None:
         return
+    render_started_at = time.perf_counter()
     show_banner_and_intro(resources_path, env)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
     page(env)
+    _record_ui_timing_span("ABOUT:render", render_started_at, category="render")
+    _render_page_load_timing("ABOUT", started_at)
+
+
+def _render_settings_page_entry() -> None:
+    """Initialise the settings page and display persistent runtime controls."""
+    started_at = time.perf_counter()
+    resources_path = _about_resources_path()
+    _render_navigation_page_shell(resources_path)
+    bootstrap_started_at = time.perf_counter()
+    env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    _record_ui_timing_span("SETTINGS:bootstrap", bootstrap_started_at, category="bootstrap")
+    if env is None:
+        return
+    render_started_at = time.perf_counter()
+    settings_page(env)
+    _record_ui_timing_span("SETTINGS:render", render_started_at, category="render")
+    _render_page_load_timing("SETTINGS", started_at)
 
 
 def _navigation_pages() -> list[Any]:
-    """Return the supported visible pages while keeping the main page hidden from the page list."""
+    """Return the supported navigation pages."""
     root = Path(__file__).resolve().parent
     pages_root = root / "pages"
-    return [
-        st.Page(
-            _render_about_page_entry,
-            title="Main Page",
-            url_path="",
-            default=True,
-            visibility="hidden",
-        ),
-        st.Page(pages_root / "1_PROJECT.py", title="PROJECT", url_path="PROJECT", visibility="hidden"),
-        st.Page(_page_file_runner(pages_root / "2_ORCHESTRATE.py"), title="ORCHESTRATE", url_path="ORCHESTRATE"),
-        st.Page(_page_file_runner(pages_root / "3_WORKFLOW.py"), title="WORKFLOW", url_path="WORKFLOW"),
-        st.Page(_page_file_runner(pages_root / "4_ANALYSIS.py"), title="ANALYSIS", url_path="ANALYSIS"),
-    ]
+    main_page = st.Page(
+        _render_about_page_entry,
+        title="ABOUT",
+        url_path="",
+        default=True,
+        visibility="hidden",
+    )
+    settings_nav_page = st.Page(
+        pages_root / "0_SETTINGS.py",
+        title="SETTINGS",
+        url_path="SETTINGS",
+        visibility="hidden",
+    )
+    project_page = st.Page(
+        _page_file_runner(pages_root / "1_PROJECT.py"),
+        title="PROJECT",
+        url_path="PROJECT",
+        visibility="hidden",
+    )
+    orchestrate_page = st.Page(
+        _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
+        title="ORCHESTRATE",
+        url_path="ORCHESTRATE",
+    )
+    workflow_page = st.Page(
+        _page_file_runner(pages_root / "3_WORKFLOW.py"),
+        title="WORKFLOW",
+        url_path="WORKFLOW",
+    )
+    analysis_page = st.Page(
+        _page_file_runner(pages_root / "4_ANALYSIS.py"),
+        title="ANALYSIS",
+        url_path="ANALYSIS",
+    )
+    _NAVIGATION_PAGE_ROUTES.clear()
+    _NAVIGATION_PAGE_ROUTES.update(
+        {
+            "settings": settings_nav_page,
+            "project": project_page,
+            "orchestrate": orchestrate_page,
+            "workflow": workflow_page,
+            "analysis": analysis_page,
+        }
+    )
+    return [main_page, settings_nav_page, project_page, orchestrate_page, workflow_page, analysis_page]
+
+
+def _page_module_name(page_file: Path) -> str:
+    return f"_agilab_streamlit_page_{abs(hash(str(page_file)))}"
+
+
+def _load_page_module(page_file: Path) -> Any:
+    """Load a Streamlit page module once per source version to reduce rerun latency."""
+    resolved_page = page_file.resolve()
+    stat = resolved_page.stat()
+    cached = _PAGE_MODULE_CACHE.get(resolved_page)
+    if (
+        os.environ.get("AGILAB_DISABLE_PAGE_MODULE_CACHE") != "1"
+        and cached is not None
+        and cached[0] == stat.st_mtime_ns
+        and cached[1] == stat.st_size
+    ):
+        return cached[3]
+
+    module_name = cached[2] if cached is not None else _page_module_name(resolved_page)
+    spec = importlib.util.spec_from_file_location(module_name, resolved_page)
+    if spec is None or spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load page from {resolved_page}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    _PAGE_MODULE_CACHE[resolved_page] = (stat.st_mtime_ns, stat.st_size, module_name, module)
+    return module
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:
     """Run a guarded Streamlit page file through ``st.Page`` without changing the page contract."""
 
     def _run_page() -> None:
+        started_at = time.perf_counter()
+        page_label = page_file.stem
+        bootstrap_started_at = time.perf_counter()
         if _ensure_navigation_environment(_about_resources_path(), rerun_after_bootstrap=True) is None:
+            _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
             return
-        module_name = f"_agilab_streamlit_page_{abs(hash(page_file.resolve()))}"
-        spec = importlib.util.spec_from_file_location(module_name, page_file)
-        if spec is None or spec.loader is None:
-            raise ModuleNotFoundError(f"Unable to load page from {page_file}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
+        _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
+        import_started_at = time.perf_counter()
+        module = _load_page_module(page_file)
+        _record_ui_timing_span(f"{page_label}:import", import_started_at, category="import")
         main_fn = getattr(module, "main", None)
         if main_fn is None:
             raise AttributeError(f"Page {page_file} does not expose a main() function")
+        render_started_at = time.perf_counter()
         if inspect.iscoroutinefunction(main_fn):
             asyncio.run(main_fn())
         else:
             main_fn()
+        _record_ui_timing_span(f"{page_label}:render", render_started_at, category="render")
+        _render_page_load_timing(page_label, started_at)
 
     _run_page.__name__ = f"run_{page_file.stem}"
     return _run_page

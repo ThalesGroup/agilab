@@ -73,6 +73,11 @@ def test_background_process_manager_normalize_cwd_handles_invalid_values():
             raise RuntimeError("boom")
 
     assert manager._normalize_cwd(BrokenPath()) is None
+    assert manager._command_argv(["python", "-V"]) == ["python", "-V"]
+    with pytest.raises(ValueError, match="Shell metacharacters"):
+        manager._command_argv("echo bad; rm -rf /tmp/nope")
+    with pytest.raises(ValueError, match="must not be empty"):
+        manager._command_argv([])
 
 
 def test_background_process_manager_normalize_cwd_propagates_unexpected_value_error():
@@ -127,12 +132,13 @@ def test_background_env_from_prefixes_translates_export_and_assignments(monkeypa
 
     env = background_jobs_support.background_env_from_prefixes(
         'export PATH="$HOME/.local/bin:$PATH";',
-        "DASK_DISTRIBUTED__LOGGING__distributed=critical ",
+        "DASK_DISTRIBUTED__LOGGING__distributed=critical not-an-assignment 1BAD=value",
         base_env={"PATH": "/usr/bin", "HOME": "/home/demo"},
     )
 
     assert env["PATH"] == "/home/demo/.local/bin:/usr/bin"
     assert env["DASK_DISTRIBUTED__LOGGING__distributed"] == "critical"
+    assert "1BAD" not in env
 
 
 def test_exec_bg_raises_when_background_job_fails():

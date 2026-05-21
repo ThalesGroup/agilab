@@ -6,9 +6,19 @@ from pathlib import Path
 
 
 REPORT_PATH = Path("tools/data_connector_view_surface_report.py").resolve()
+CORE_PATH = Path("src/agilab/data_connector_view_surface.py").resolve()
 
 
 def _load_module(path: Path, name: str):
+    src_root = Path.cwd() / "src"
+    src_root_text = str(src_root)
+    if src_root_text not in sys.path:
+        sys.path.insert(0, src_root_text)
+    package = sys.modules.get("agilab")
+    package_paths = getattr(package, "__path__", None)
+    package_path = str(src_root / "agilab")
+    if package_paths is not None and package_path not in list(package_paths):
+        package_paths.append(package_path)
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -78,3 +88,56 @@ def test_data_connector_view_surface_persists_surfaces(tmp_path: Path) -> None:
         "external_artifact_traceability_panel",
     }
     assert all(surface["status"] == "ready" for surface in payload["view_surfaces"])
+
+
+def test_data_connector_view_surface_core_reports_missing_surfaces_and_relative_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module(CORE_PATH, "data_connector_view_surface_core_edges_test_module")
+
+    text, read_issues = module._read_text(tmp_path / "missing_page.py")
+    assert text == ""
+    assert read_issues and "unable to read release decision page" in read_issues[0]["message"]
+    assert module._has_all("alpha beta", ("alpha", "gamma")) is False
+
+    monkeypatch.setattr(module, "load_app_settings", lambda _path: {})
+    monkeypatch.setattr(module, "load_connector_catalog", lambda _path: {"connectors": []})
+    monkeypatch.setattr(
+        module,
+        "build_data_connector_live_ui",
+        lambda **_kwargs: {
+            "run_status": "not_ready",
+            "summary": {"network_probe_count": 0},
+            "render_payload": {
+                "summary": {
+                    "connector_card_count": 0,
+                    "page_binding_count": 0,
+                    "health_probe_status_count": 0,
+                    "operator_opt_in_required_for_health": False,
+                    "network_probe_count": 0,
+                },
+                "health_probes": [],
+            },
+            "streamlit_calls": [],
+        },
+    )
+    page = tmp_path / "repo" / "release_page.py"
+    page.parent.mkdir(parents=True)
+    page.write_text("render_connector_live_ui\n", encoding="utf-8")
+
+    state = module.build_data_connector_view_surface(
+        repo_root=tmp_path / "repo",
+        settings_path=Path("settings.toml"),
+        catalog_path=Path("connectors.toml"),
+        release_decision_page=Path("release_page.py"),
+    )
+
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["missing_view_surface_count"] == 4
+    assert {issue["location"] for issue in state["issues"]} >= {
+        "connector_state_provenance_panel",
+        "connector_health_status_panel",
+        "import_export_provenance_panel",
+        "external_artifact_traceability_panel",
+    }

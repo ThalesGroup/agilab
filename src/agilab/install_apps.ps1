@@ -36,6 +36,23 @@ function Write-Color {
     Write-Host $Message -ForegroundColor $fg
 }
 
+function Set-UvLinkMode {
+    $requested = if ($env:AGILAB_UV_LINK_MODE) {
+        $env:AGILAB_UV_LINK_MODE
+    } elseif ($env:UV_LINK_MODE) {
+        $env:UV_LINK_MODE
+    } else {
+        "hardlink"
+    }
+    if ($requested -notin @("clone", "copy", "hardlink", "symlink")) {
+        throw "Invalid uv link mode '$requested'. Expected one of: clone, copy, hardlink, symlink."
+    }
+    $env:UV_LINK_MODE = $requested
+    Write-Color BLUE "uv link mode: $env:UV_LINK_MODE"
+}
+
+Set-UvLinkMode
+
 function Import-DotEnv {
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return }
@@ -194,6 +211,111 @@ function Resolve-AppDirectoryName {
     return $null
 }
 
+function Test-PageProject {
+    param([string]$PagePath)
+    if ([string]::IsNullOrWhiteSpace($PagePath) -or -not (Test-Path -LiteralPath $PagePath -PathType Container)) {
+        return $false
+    }
+
+    $pageName = Split-Path -Leaf (Normalize-PathInput $PagePath)
+    if ([string]::IsNullOrWhiteSpace($pageName)) {
+        return $false
+    }
+    if ($pageName.StartsWith(".", [System.StringComparison]::Ordinal) -or
+        $pageName -eq ".venv" -or
+        $pageName -eq "__pycache__" -or
+        $pageName -eq "templates" -or
+        $pageName -like "*.previous.*") {
+        return $false
+    }
+
+    $pyproject = Join-PathSafe $PagePath "pyproject.toml"
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf)) {
+        return $false
+    }
+
+    $pyprojectText = [string](Get-Content -LiteralPath $pyproject -Raw -ErrorAction SilentlyContinue)
+    if (-not $pyprojectText.Contains('[project.entry-points."agilab.pages"]')) {
+        return $false
+    }
+
+    $directCandidates = @(
+        (Join-PathSafe $PagePath ("{0}.py" -f $pageName)),
+        (Join-PathSafe $PagePath "main.py"),
+        (Join-PathSafe $PagePath "app.py"),
+        (Join-PathSafe $PagePath "src" $pageName ("{0}.py" -f $pageName)),
+        (Join-PathSafe $PagePath "src" $pageName "main.py"),
+        (Join-PathSafe $PagePath "src" $pageName "app.py")
+    )
+    foreach ($candidate in $directCandidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $true
+        }
+    }
+
+    $srcRoot = Join-PathSafe $PagePath "src"
+    if (-not (Test-Path -LiteralPath $srcRoot -PathType Container)) {
+        return $false
+    }
+
+    $sourceMatch = Get-ChildItem -LiteralPath $srcRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -eq ("{0}.py" -f $pageName) -or
+            $_.Name -eq "main.py" -or
+            $_.Name -eq "app.py" -or
+            $_.Name -like "view_*.py"
+        } |
+        Select-Object -First 1
+    return [bool]$sourceMatch
+}
+
+function Test-AppDeclaresWorkerless {
+    param([string]$AppPath)
+    if ([string]::IsNullOrWhiteSpace($AppPath)) {
+        return $false
+    }
+    $pyproject = Join-PathSafe $AppPath "pyproject.toml"
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf)) {
+        return $false
+    }
+    $inSection = $false
+    foreach ($line in Get-Content -LiteralPath $pyproject -ErrorAction SilentlyContinue) {
+        $trimmed = ([string]$line).Trim()
+        if ($trimmed -eq "[tool.agilab.app]") {
+            $inSection = $true
+            continue
+        }
+        if ($trimmed.StartsWith("[") -and $trimmed.EndsWith("]")) {
+            $inSection = $false
+            continue
+        }
+        if ($inSection -and $trimmed -match '^workerless\s*=\s*true\s*(#.*)?$') {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-AppProject {
+    param([string]$AppPath)
+    if ([string]::IsNullOrWhiteSpace($AppPath) -or -not (Test-Path -LiteralPath $AppPath -PathType Container)) {
+        return $false
+    }
+    $appName = Split-Path -Leaf (Normalize-PathInput $AppPath)
+    if ([string]::IsNullOrWhiteSpace($appName) -or -not $appName.EndsWith("_project", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    $managerName = $appName.Substring(0, $appName.Length - "_project".Length)
+    $pyproject = Join-PathSafe $AppPath "pyproject.toml"
+    $manager = Join-PathSafe $AppPath "src" $managerName ("{0}.py" -f $managerName)
+    $worker = Join-PathSafe $AppPath "src" ("{0}_worker" -f $managerName) ("{0}_worker.py" -f $managerName)
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $manager -PathType Leaf)) {
+        return $false
+    }
+    return (Test-Path -LiteralPath $worker -PathType Leaf) -or (Test-AppDeclaresWorkerless -AppPath $AppPath)
+}
+
 function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
@@ -244,6 +366,50 @@ function ConvertTo-List {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return @() }
     return ($Value -split '[,\\s;]+' | Where-Object { $_ -ne '' })
+}
+
+function Test-PageVenvPython {
+    param([string]$PagePath)
+    $posixPython = Join-PathSafe $PagePath ".venv" "bin" "python"
+    $windowsPython = Join-PathSafe $PagePath ".venv" "Scripts" "python.exe"
+    return (Test-Path -LiteralPath $posixPython -PathType Leaf) -or
+        (Test-Path -LiteralPath $windowsPython -PathType Leaf)
+}
+
+function Get-PageSyncFingerprint {
+    param([string]$PagePath)
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add(("python={0}" -f $env:AGI_PYTHON_VERSION))
+    foreach ($relativePath in @("pyproject.toml", "uv.lock", "uv.toml")) {
+        $file = Join-PathSafe $PagePath $relativePath
+        if (Test-Path -LiteralPath $file -PathType Leaf) {
+            $item = Get-Item -LiteralPath $file
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $lines.Add(("{0}:{1}:{2}" -f $relativePath, $hash, $item.Length))
+        } else {
+            $lines.Add(("{0}:missing" -f $relativePath))
+        }
+    }
+    return ($lines -join "`n") + "`n"
+}
+
+function Test-PageSyncFresh {
+    param([string]$PagePath)
+    if (-not (Test-PageVenvPython $PagePath)) {
+        return $false
+    }
+    $stamp = Join-PathSafe $PagePath ".venv" ".agilab-sync-stamp"
+    if (-not (Test-Path -LiteralPath $stamp -PathType Leaf)) {
+        return $false
+    }
+    return ([string](Get-Content -LiteralPath $stamp -Raw)) -eq (Get-PageSyncFingerprint $PagePath)
+}
+
+function Write-PageSyncStamp {
+    param([string]$PagePath)
+    $stamp = Join-PathSafe $PagePath ".venv" ".agilab-sync-stamp"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stamp) | Out-Null
+    Set-Content -LiteralPath $stamp -Value (Get-PageSyncFingerprint $PagePath) -NoNewline -Encoding UTF8
 }
 
 function Invoke-UvPreview {
@@ -411,7 +577,7 @@ if (-not [string]::IsNullOrWhiteSpace($pagesOverride)) {
     $builtinPages = ConvertTo-List $env:BUILTIN_PAGES
     Write-Color BLUE ("(Pages) Override enabled via BUILTIN_PAGES: {0}" -f ($builtinPages -join ' '))
 } elseif (Test-Path -LiteralPath $PAGES_DEST_BASE) {
-    Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory | Where-Object { $_.Name -ne '.venv' } | ForEach-Object {
+    Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory | Where-Object { Test-PageProject $_.FullName } | ForEach-Object {
         if (-not ($builtinPages -contains $_.Name)) {
             $builtinPages += $_.Name
         }
@@ -421,12 +587,12 @@ if (-not [string]::IsNullOrWhiteSpace($pagesOverride)) {
 $repositoryPages = @()
 if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) {
     $repositoryPages = Get-ChildItem -LiteralPath $PAGES_TARGET_BASE -Directory |
-        Where-Object { $_.Name -ne '.venv' } |
+        Where-Object { Test-PageProject $_.FullName } |
         ForEach-Object { $_.Name }
 }
 
 $DefaultAppsOrder = @(
-    'flight_project',
+    'flight_telemetry_project',
     'flight_trajectory_project',
     'flowsynth_project',
     'ilp_project',
@@ -472,7 +638,7 @@ function Order-ByPreference {
     return [string[]]$ordered.ToArray()
 }
 
-$builtinApps = @('mycode_project', 'flight_project', 'uav_relay_queue_project')
+$builtinApps = @('mycode_project', 'flight_telemetry_project', 'uav_relay_queue_project')
 $appsOverride = $env:BUILTIN_APPS_OVERRIDE
 $promptForApps = $true
 $forceAllApps = $false
@@ -521,7 +687,9 @@ if ($forceBuiltinOnly) {
     $SkipRepositoryApps = $true
 } 
 if (-not $SkipRepositoryApps -and (Test-Path -LiteralPath $APPS_TARGET_BASE)) {
-    $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' | ForEach-Object { $_.Name }
+    $repositoryApps = Get-ChildItem -LiteralPath $APPS_TARGET_BASE -Directory -Filter '*_project' |
+        Where-Object { Test-AppProject -AppPath $_.FullName } |
+        ForEach-Object { $_.Name }
 }
 
 $includedPages = if ($SkipRepositoryPages) { $builtinPages } else { $builtinPages + $repositoryPages }
@@ -736,16 +904,27 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
     Push-Location $appsPagesRoot
     foreach ($page in $includedPages) {
         Write-Color BLUE ("Installing {0}..." -f $page)
-        if (-not (Test-Path -LiteralPath $page)) {
+        $pagePath = Join-PathSafe $appsPagesRoot $page
+        if (-not (Test-Path -LiteralPath $pagePath -PathType Container)) {
             Write-Color YELLOW ("Skipping page '{0}': directory not found." -f $page)
             $status = 1
             continue
         }
-        Push-Location $page
-        $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
-        if ($exit -ne 0) {
-            Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
-            $status = 1
+        if (-not (Test-PageProject $pagePath)) {
+            Write-Color YELLOW ("Skipping page '{0}': not an installable AGILAB page project." -f $page)
+            continue
+        }
+        Push-Location $pagePath
+        if (Test-PageSyncFresh $pagePath) {
+            Write-Color GREEN ("✓ '{0}' page environment already up to date." -f $page)
+        } else {
+            $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
+            if ($exit -ne 0) {
+                Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
+                $status = 1
+            } else {
+                Write-PageSyncStamp $pagePath
+            }
         }
         Pop-Location
     }

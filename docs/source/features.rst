@@ -64,14 +64,14 @@ agi-core
     schema.
   - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     benchmark reduce artefacts through that shared contract; the user-facing
-    ``flight_project`` emits trajectory-summary reduce artefacts;
-    ``meteo_forecast_project`` emits forecast-metrics reduce artefacts; and
+    ``flight_telemetry_project`` emits trajectory-summary reduce artefacts;
+    ``weather_forecast_project`` emits forecast-metrics reduce artefacts; and
     ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
     ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.
   - The Release Decision evidence view discovers those artefacts, validates
     their schema, and displays reducer name, partial count, artifact path,
     benchmark row/source/execution fields, flight row/aircraft/speed fields,
-    meteo forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR fields
+    weather forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR fields
     when present.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
@@ -130,9 +130,11 @@ agilab
 
 - **Project & Page Isolation:**
 
-  - Create full AGILab *apps* from templates; each ships with its own
+  - Create full AGILab *apps* from templates; workerless templates support
+    local/UI prototypes, while worker templates add AGILAB Install/Execute and
+    distributed-runtime wiring. Each template ships with its own
     ``pyproject.toml`` / ``uv_config.toml`` so ``uv`` provisions a dedicated
-    virtual environment during Install.
+    virtual environment for the project.
   - Build additional **page bundles** (standalone dashboards) that
     live under ``src/agilab/apps-pages``. Every bundle carries its own
     ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
@@ -144,7 +146,12 @@ Engineering prototyping evidence
 AGILab is strongest for engineering prototypes that need more structure than a
 single notebook but less ceremony than a production MLOps platform:
 
-- app templates and cloned projects provide a repeatable manager/worker shape
+That supports an ``Engineering prototyping`` score of ``4.0 / 5`` in the
+current public evaluation snapshot.
+
+- app templates and cloned projects provide two explicit shapes: workerless
+  local/UI apps for simple prototypes, and manager/worker apps for distributed
+  execution
 - app and page bundles keep dependencies isolated through their own
   ``pyproject.toml`` / ``uv`` environments
 - ``app_args_form.py`` and ``app_settings.toml`` give prototypes a typed,
@@ -166,8 +173,10 @@ single notebook but less ceremony than a production MLOps platform:
   owns a ``notebook_import_views.toml`` manifest it also writes a
   ``notebook_import_view_plan.json`` sidecar that matches declared views to
   artifact paths without inferring UI intent from notebook cells; the
-  ``WORKFLOW`` upload path now prepares that preview first and only replaces
-  ``lab_stages.toml`` after explicit confirmation
+  ``WORKFLOW`` upload path now prepares that preview first, lets the operator
+  choose an import scope of all runnable cells or one focused cell promoted as
+  an AGILAB stage, and only replaces ``lab_stages.toml`` after explicit
+  confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
   ``lab_stages.toml -> supervisor notebook -> import -> lab_stages preview`` so
@@ -242,12 +251,12 @@ single notebook but less ceremony than a production MLOps platform:
 - the Analysis page can generate minimal page bundles so a prototype can gain a
   shareable dashboard without becoming a full product
 - the landing page first-proof wizard now routes newcomers through one
-  validated ``flight_project`` source-checkout proof, reads
+  validated ``flight_telemetry_project`` source-checkout proof, reads
   ``run_manifest.json``, and shows a manifest-driven remediation checklist
   with exact evidence commands when the proof is missing, invalid, incomplete,
   or failing
 - ``tools/newcomer_first_proof.py --json`` writes
-  ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
+  ``~/log/execute/flight_telemetry/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
   decision view can consume as promotion evidence
 - the revision traceability report validates
@@ -266,10 +275,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/supply_chain_attestation_report.py --compact`` in
   ``supply_chain_static_attestation`` mode against
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
-  lockfile, license, bundled AGI core versions, exact internal dependency pins,
-  built-in app versions, built-in app internal dependency lower bounds, and
-  built-in app manifests plus package payload inventory and package payload
-  budgets without formal supply-chain attestation claims
+  lockfile, license, bundled AGI core versions, exact bundle dependency pins,
+  app/page payload package versions, built-in app payload versions, runtime
+  dependency lower bounds, and built-in app manifests plus package payload inventory
+  and package payload budgets without formal supply-chain
+  attestation claims
 - the security hygiene report validates
   ``tools/security_hygiene_report.py --compact`` in
   ``agilab.security_hygiene.v1`` mode; it checks the public security policy,
@@ -281,8 +291,8 @@ single notebook but less ceremony than a production MLOps platform:
 - the public proof scenario report validates
   ``tools/public_proof_scenarios.py --compact`` in
   ``agilab.public_proof_scenarios.v1`` mode; it records the three bounded
-  public proof routes: ``flight_project`` local first proof,
-  ``meteo_forecast_project`` hosted forecast proof, and the MLflow tracking
+  public proof routes: ``flight_telemetry_project`` local first proof,
+  ``weather_forecast_project`` hosted forecast proof, and the MLflow tracking
   contract, and can attach runtime JSON from
   ``--first-proof-json`` and ``--hf-smoke-json`` artifacts when CI or a release
   run provides them
@@ -295,10 +305,11 @@ single notebook but less ceremony than a production MLOps platform:
 - the repository knowledge index report validates
   ``tools/repository_knowledge_report.py --compact`` in
   ``repository_knowledge_static_index`` mode against
-  ``agilab.repository_knowledge_index.v1``; it indexes code, tools, official
-  docs, root runbooks, and package manifests while excluding generated
-  artifacts and keeping the generated wiki as an exploration aid rather than
-  the source of truth
+  ``agilab.repository_knowledge_index.v1``; it indexes code, tools, root tests,
+  official docs, root runbooks, and package manifests, emits
+  deterministic file, line, size, kind, and suffix statistics, excludes
+  generated artifacts, and keeps the generated wiki as an exploration aid
+  rather than the source of truth
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
@@ -339,7 +350,7 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``uav_queue_project`` to ``uav_relay_queue_project`` through an explicit
   ``queue_metrics`` handoff, and the supplemental
   ``docs/source/data/multi_app_dag_portfolio_sample.json`` broadens contract
-  coverage across ``flight_project``, ``meteo_forecast_project``,
+  coverage across ``flight_telemetry_project``, ``weather_forecast_project``,
   ``execution_pandas_project``, and ``execution_polars_project``
 - the global pipeline DAG report now assembles that cross-app contract with the
   app-local ``pipeline_view.dot`` files using
@@ -358,14 +369,13 @@ to the same contract, artifact names, stable node IDs, and provenance.
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
 - the WORKFLOW page exposes the same runner-state contract in an expanded
-  ``Multi-app DAG orchestration`` surface; operators can select a
-  ``agilab.multi_app_dag.v1`` contract, edit stages and artifact handoffs
-  through selector-driven workspace drafts and read-only summaries, validate
-  it without hand-editing docs files, reset the persisted preview state,
-  inspect readiness KPIs, next action, execution scope, app/artifact graph,
-  missing or available handoffs, preview exact distributed stage requests
-  before submission, and dispatch the next runnable unit into ``running`` state
-  without claiming that the downstream app has executed
+  ``Workflow graph`` surface; operators can choose project workflow or
+  multi-app DAG scope, edit steps, created outputs, and used outputs through
+  selector-driven workspace drafts and read-only summaries, validate the plan
+  without hand-editing docs files, reset the persisted preview state, inspect
+  readiness KPIs, optional graph and output details, preview exact distributed
+  stage requests before submission, and preview the next ready step without
+  claiming that the downstream app has executed
 - the distributed DAG stage smoke validator writes dry-run or live execution
   evidence with ``tools/dag_distributed_stage_smoke.py --compact``; it checks
   explicit ``nodes[].execution`` request fields, the ORCHESTRATE-derived
@@ -413,10 +423,8 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``operator UI components`` for status, unit cards, dependency graph, update
   timeline, action controls, and artifacts that render persisted state and support operator actions through a static HTML proof
 
-That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because additional external replication and future
-app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear.
+For the score rationale that maps these capabilities to AGILab's MLOps
+positioning, see :doc:`agilab-mlops-positioning`.
 
 Production-readiness controls
 -----------------------------
@@ -432,6 +440,9 @@ production platform:
   routes that still need broader certification
 - ``tools/service_health_check.py`` evaluates service status against SLA
   thresholds and can emit JSON or Prometheus-compatible output
+- ``tools/controlled_pilot_readiness_report.py --compact`` packages the
+  controlled-pilot readiness proof for service health, persisted artifacts,
+  public-bind controls, secret redaction, and explicit failure modes
 - the release-decision analysis page compares baseline and candidate bundles,
   resolves artifact/log/export roots through the shared connector path registry,
   gates on the first-proof ``run_manifest.json``, imports external manifest
@@ -457,11 +468,11 @@ production platform:
   covers downloaded GitLab CI and generic provider ZIP archives without live
   provider API access
 - the same evidence view surfaces reducer artifacts from benchmark distributed
-  runs, meteo forecast results, and UAV queue-family results, including
+  runs, weather forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed
 - ``SECURITY.md`` provides the public vulnerability-reporting and deployment
   hardening baseline
 
-That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+That supports a ``Production readiness`` score of ``3.2 / 5``. It is not scored
 higher because AGILab remains a research and engineering workbench rather than
 a production serving, monitoring, governance, or certification platform.

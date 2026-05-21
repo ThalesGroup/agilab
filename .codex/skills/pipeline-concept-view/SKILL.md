@@ -31,6 +31,18 @@ view and clearer workflow semantics.
 7. Update execution labels if the conceptual view or stage review reveals naming drift.
 8. Keep behavior unchanged unless the user explicitly wants runtime changes.
 
+## Artifact Traceability
+
+- Keep execution ordering and artifact evidence separate: use `DagWorker` for
+  dependency order, and use the shared `ArtifactContract` inherited by workers
+  for produced artifacts and metrics.
+- Prefer standard worker manifests from `record_artifact(...)`,
+  `record_metric(...)`, and `write_manifest(...)` over app-specific ad hoc JSON
+  when a conceptual view needs to point to generated outputs.
+- In conceptual diagrams, label durable outputs by business meaning
+  (`forecast_summary`, `validation_metrics`, `scenario_report`) rather than by
+  transient file names.
+
 ## Naming Boundary
 
 - Keep `pipeline_view.dot` / `pipeline_view.json` as the file contract unless the

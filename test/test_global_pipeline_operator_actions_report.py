@@ -99,6 +99,32 @@ def test_operator_actions_read_existing_live_state_updates(tmp_path: Path) -> No
             assert artifact["packets_generated"] > 0
 
 
+def test_operator_actions_core_handles_malformed_action_refresh() -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_operator_actions_core_edge_test_module")
+
+    issue = core_module._issue("actions", "bad actions")
+    proof = core_module.OperatorActionProof(
+        ok=False,
+        issues=(issue,),
+        path="/tmp/actions.json",
+        live_state_updates_path="/tmp/live.json",
+        operator_actions={"summary": "bad"},
+        reloaded_actions={},
+    )
+
+    payload = proof.as_dict()
+    assert payload["issues"] == [{"level": "error", "location": "actions", "message": "bad actions"}]
+    assert payload["round_trip_ok"] is False
+    assert payload["action_request_count"] == 0
+    assert payload["completed_action_count"] == 0
+    assert payload["retry_execution_count"] == 0
+    assert payload["partial_rerun_execution_count"] == 0
+    assert payload["real_action_execution_count"] == 0
+    assert core_module._action_refresh({"updates": "bad"}) == {}
+    assert core_module._action_refresh({"updates": [{"kind": "other"}]}) == {}
+    assert core_module._action_refresh({"updates": [{"kind": "operator_actions_update", "payload": "bad"}]}) == {}
+
+
 def test_operator_actions_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_module(
         REPORT_PATH,

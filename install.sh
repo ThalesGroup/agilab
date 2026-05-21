@@ -42,6 +42,21 @@ export PATH="$HOME/.local/bin:$PATH"
 
 UV="uv --preview-features extra-build-dependencies"
 
+configure_uv_link_mode() {
+    local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
+    case "$requested" in
+        clone|copy|hardlink|symlink) ;;
+        *)
+            echo -e "${RED}Invalid uv link mode '${requested}'. Expected one of: clone, copy, hardlink, symlink.${NC}"
+            exit 1
+            ;;
+    esac
+    export UV_LINK_MODE="$requested"
+    echo -e "${BLUE}uv link mode: ${UV_LINK_MODE}${NC}"
+}
+
+configure_uv_link_mode
+
 run_remote_shell_installer() {
     local url="$1"
     local label="$2"
@@ -111,6 +126,15 @@ INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
 NO_REMOTE_INSTALLERS="${AGILAB_NO_REMOTE_INSTALLERS:-0}"
 DRY_RUN=0
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
+
+env_truthy() {
+    local raw
+    raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    case "$raw" in
+        1|true|yes|on|enabled) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 read_env_var() {
     local file="$1"
@@ -1288,6 +1312,8 @@ print_dry_run_plan() {
     echo "test_core: ${TEST_CORE_FLAG}"
     echo "test_apps: ${TEST_APPS_FLAG}"
     echo "skip_offline: ${SKIP_OFFLINE}"
+    echo "refresh_locks: ${AGILAB_REFRESH_LOCKS:-0}"
+    echo "refresh_worker_envs: ${AGILAB_REFRESH_WORKER_ENVS:-0}"
     echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
     echo "no_remote_installers: ${NO_REMOTE_INSTALLERS}"
     echo "non_interactive: ${NON_INTERACTIVE}"
@@ -1310,6 +1336,8 @@ usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-cluster-share <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
+  echo "       Set AGILAB_REFRESH_LOCKS=1 to delete uv.lock files before resolving"
+  echo "       Set AGILAB_REFRESH_WORKER_ENVS=1 to remove per-app worker environments before install"
   echo "       [--no-remote-installers]  Refuse downloaded shell installers such as uv/Ollama/Homebrew bootstrap scripts"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
     exit 1
@@ -1452,7 +1480,11 @@ fi
 #    exit 1
 #fi
 
-find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+if env_truthy "${AGILAB_REFRESH_LOCKS:-0}"; then
+    find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+else
+    find . \( -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+fi
 
 check_internet
 guard_ephemeral_validation_env
@@ -1471,11 +1503,12 @@ maybe_run_core_tests
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
 $UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
-$UV pip install -e src/agilab/core/agi-env
-$UV pip install -e src/agilab/core/agi-node
-$UV pip install -e src/agilab/core/agi-cluster
-$UV pip install -e src/agilab/core/agi-core
-$UV pip install -e .
+$UV pip install --upgrade --no-deps \
+    -e src/agilab/core/agi-env \
+    -e src/agilab/core/agi-node \
+    -e src/agilab/core/agi-cluster \
+    -e src/agilab/core/agi-core \
+    -e .
 popd > /dev/null
 
 maybe_run_root_tests

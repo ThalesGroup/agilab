@@ -5,7 +5,7 @@ agi-gui API
 lives under ``src/agilab/lib/agi-gui`` so UI dependencies stay separate from
 the core runtime packages used by worker-only environments.
 
-Use ``agi-gui`` when building or running AGILAB pages, apps-pages bundles, or
+Use ``agi-gui`` when building or running AGILAB pages, page bundles, or
 local web UI sessions. Use ``agi-env`` directly for headless worker/runtime
 contexts that do not render Streamlit UI.
 

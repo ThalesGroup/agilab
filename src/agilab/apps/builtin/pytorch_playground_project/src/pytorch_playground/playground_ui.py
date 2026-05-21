@@ -1,0 +1,1291 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2026, Jean-Pierre Morard, THALES SIX GTS France SAS
+
+from __future__ import annotations
+
+import html
+import json
+import os
+import pickle
+import re
+import subprocess
+import sys
+import tempfile
+from collections.abc import Mapping
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+try:  # pragma: no cover - optional in headless worker/test environments
+    import plotly.graph_objects as go
+except Exception:  # pragma: no cover - app UI installs plotly, workers do not need it
+    go = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional in headless worker/test environments
+    import streamlit as st
+except Exception:  # pragma: no cover - workers import evidence helpers without Streamlit
+    class _StreamlitStub:
+        query_params: dict[str, object] = {}
+        session_state: dict[str, object] = {}
+
+        @staticmethod
+        def cache_data(*_args, **_kwargs):
+            def _decorator(func):
+                return func
+
+            return _decorator
+
+        def __getattr__(self, name: str):
+            raise RuntimeError(f"Streamlit is required to render the PyTorch playground UI: {name}")
+
+    st = _StreamlitStub()  # type: ignore[assignment]
+
+
+def _prepend_sys_path(path: Path) -> None:
+    entry = str(path)
+    sys.path[:] = [existing for existing in sys.path if existing != entry]
+    sys.path.insert(0, entry)
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
+_APP_SRC = Path(__file__).resolve().parents[1]
+_prepend_sys_path(_APP_SRC)
+
+try:  # noqa: E402
+    import pytorch_playground.core as _playground_core
+    from pytorch_playground.core import (
+        ACTIVATIONS,
+        CONFIG_SCHEMA,
+        CUSTOM_PRESET,
+        DATASETS,
+        DEFAULT_FEATURES,
+        DEFAULT_PRESET,
+        EVIDENCE_SCHEMA,
+        FEATURES,
+        OPTIMIZERS,
+        PLAYGROUND_PRESETS,
+        PRESET_STORIES,
+        SHARED_CONFIG_SIGNATURE_STATE_KEY,
+        TRAINED_CONFIG_STATE_KEY,
+        TRAINED_PRESET_STATE_KEY,
+        PlaygroundConfig,
+        _build_evidence_manifest,
+        _build_evidence_pack,
+        _coerce_feature_names,
+        _config_from_payload,
+        _config_from_query_params,
+        _config_payload,
+        _config_signature,
+        _config_state_payload,
+        _decode_share_config,
+        _empty_activation_maps,
+        _empty_loss_landscape,
+        _empty_network_layers,
+        _encode_share_config,
+        _json_safe,
+        _loss_landscape,
+        _loss_landscape_summary,
+        _make_dataset,
+        _parse_hidden_layers,
+        _plotly_unavailable_figure,
+        _preset_config,
+        _preset_story,
+        _resolve_active_app,
+        _result_frame,
+        _safe_key_fragment,
+        _train_playground,
+    )
+except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
+    import core as _playground_core
+    from core import (
+        ACTIVATIONS,
+        CONFIG_SCHEMA,
+        CUSTOM_PRESET,
+        DATASETS,
+        DEFAULT_FEATURES,
+        DEFAULT_PRESET,
+        EVIDENCE_SCHEMA,
+        FEATURES,
+        OPTIMIZERS,
+        PLAYGROUND_PRESETS,
+        PRESET_STORIES,
+        SHARED_CONFIG_SIGNATURE_STATE_KEY,
+        TRAINED_CONFIG_STATE_KEY,
+        TRAINED_PRESET_STATE_KEY,
+        PlaygroundConfig,
+        _build_evidence_manifest,
+        _build_evidence_pack,
+        _coerce_feature_names,
+        _config_from_payload,
+        _config_from_query_params,
+        _config_payload,
+        _config_signature,
+        _config_state_payload,
+        _decode_share_config,
+        _empty_activation_maps,
+        _empty_loss_landscape,
+        _empty_network_layers,
+        _encode_share_config,
+        _json_safe,
+        _loss_landscape,
+        _loss_landscape_summary,
+        _make_dataset,
+        _parse_hidden_layers,
+        _plotly_unavailable_figure,
+        _preset_config,
+        _preset_story,
+        _resolve_active_app,
+        _result_frame,
+        _safe_key_fragment,
+        _train_playground,
+    )
+
+try:  # noqa: E402
+    from agi_gui.pagelib import render_logo
+except Exception:  # pragma: no cover - headless worker/test environments
+    def render_logo() -> None:
+        return None
+
+
+torch = _playground_core.torch
+nn = _playground_core.nn
+
+
+def _call_core(name: str, *args, **kwargs):
+    previous_torch = _playground_core.torch
+    previous_nn = _playground_core.nn
+    _playground_core.torch = torch
+    _playground_core.nn = nn
+    try:
+        return getattr(_playground_core, name)(*args, **kwargs)
+    finally:
+        _playground_core.torch = previous_torch
+        _playground_core.nn = previous_nn
+
+
+def _activation_module(name: str):
+    return _call_core("_activation_module", name)
+
+
+def _build_model(input_dim: int, config: PlaygroundConfig):
+    return _call_core("_build_model", input_dim, config)
+
+
+def _hidden_activation_maps(*args, **kwargs) -> pd.DataFrame:
+    return _call_core("_hidden_activation_maps", *args, **kwargs)
+
+
+def _network_layers(model) -> pd.DataFrame:
+    return _call_core("_network_layers", model)
+
+
+def _prepare_training_data(config: PlaygroundConfig) -> dict[str, Any]:
+    return _call_core("_prepare_training_data", config)
+
+
+def _decision_grid(*args, **kwargs) -> pd.DataFrame:
+    return _call_core("_decision_grid", *args, **kwargs)
+
+
+def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
+    return _call_core("_train_playground", config)
+
+
+def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: float = 0.75) -> dict[str, Any]:
+    return _call_core("_loss_landscape", config, resolution=resolution, span=span)
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        return getattr(_playground_core, name)
+    except AttributeError as exc:
+        raise AttributeError(name) from exc
+
+
+PAGE_TITLE = "PyTorch playground"
+
+
+_ISOLATED_CORE_RUNNER = r"""
+from __future__ import annotations
+
+import pickle
+import sys
+from pathlib import Path
+
+from pytorch_playground.core import PlaygroundConfig, _loss_landscape, _train_playground
+
+
+def _config_from_payload(payload: dict[str, object]) -> PlaygroundConfig:
+    return PlaygroundConfig(
+        dataset=str(payload["dataset"]),
+        sample_count=int(payload["sample_count"]),
+        noise=float(payload["noise"]),
+        train_ratio=float(payload["train_ratio"]),
+        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
+        activation=str(payload["activation"]),
+        optimizer=str(payload["optimizer"]),
+        learning_rate=float(payload["learning_rate"]),
+        epochs=int(payload["epochs"]),
+        batch_size=int(payload["batch_size"]),
+        seed=int(payload["seed"]),
+        feature_names=tuple(str(value) for value in payload["feature_names"]),
+        grid_size=int(payload["grid_size"]),
+    )
+
+
+input_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+request = pickle.loads(input_path.read_bytes())
+try:
+    config = _config_from_payload(request["config"])
+    if request["action"] == "train":
+        result = _train_playground(config)
+    elif request["action"] == "loss_landscape":
+        result = _loss_landscape(
+            config,
+            resolution=int(request["resolution"]),
+            span=float(request["span"]),
+        )
+    else:
+        raise ValueError(f"Unknown isolated playground action: {request['action']}")
+except BaseException as exc:
+    output = {"ok": False, "error_type": type(exc).__name__, "error": str(exc)}
+else:
+    output = {"ok": True, "result": result}
+
+output_path.write_bytes(pickle.dumps(output, protocol=pickle.HIGHEST_PROTOCOL))
+"""
+
+
+def _config_from_cache_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
+    return PlaygroundConfig(
+        dataset=str(payload["dataset"]),
+        sample_count=int(payload["sample_count"]),
+        noise=float(payload["noise"]),
+        train_ratio=float(payload["train_ratio"]),
+        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
+        activation=str(payload["activation"]),
+        optimizer=str(payload["optimizer"]),
+        learning_rate=float(payload["learning_rate"]),
+        epochs=int(payload["epochs"]),
+        batch_size=int(payload["batch_size"]),
+        seed=int(payload["seed"]),
+        feature_names=tuple(str(value) for value in payload["feature_names"]),
+        grid_size=int(payload["grid_size"]),
+    )
+
+
+def _streamlit_script_context_active() -> bool:
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except Exception:
+        return False
+    return get_script_run_ctx(suppress_warning=True) is not None
+
+
+def _use_isolated_torch_training() -> bool:
+    return torch is not None and nn is not None and _streamlit_script_context_active()
+
+
+def _tail_diagnostic(text: str, *, line_limit: int = 8, char_limit: int = 1600) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[-line_limit:])[:char_limit]
+
+
+def _training_error_result(config: PlaygroundConfig, detail: str) -> dict[str, Any]:
+    samples = _make_dataset(config)
+    return {
+        "status": "error",
+        "detail": detail,
+        "samples": samples,
+        "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+        "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+        "network_layers": _empty_network_layers(),
+        "activation_maps": _empty_activation_maps(),
+        "summary": {
+            "backend": "error",
+            "samples": int(len(samples)),
+            "features": int(len(config.feature_names)),
+        },
+    }
+
+
+def _loss_landscape_error_result(detail: str) -> dict[str, Any]:
+    return {
+        "status": "error",
+        "detail": detail,
+        "loss_landscape": _empty_loss_landscape(),
+        "landscape_summary": {"status": "error", "points": 0},
+    }
+
+
+def _format_isolated_runner_failure(
+    action: str,
+    *,
+    returncode: int | None = None,
+    error: str = "",
+    stderr: str = "",
+) -> str:
+    detail = f"PyTorch {action.replace('_', ' ')} failed in the isolated Streamlit UI runner"
+    if returncode is not None:
+        detail = f"{detail} (exit code {returncode})"
+    diagnostics = _tail_diagnostic("\n".join(part for part in (error, stderr) if part))
+    if diagnostics:
+        detail = f"{detail}: {diagnostics}"
+    else:
+        detail = f"{detail}."
+    return detail
+
+
+def _run_core_in_subprocess(
+    action: str,
+    config: PlaygroundConfig,
+    *,
+    resolution: int | None = None,
+    span: float | None = None,
+) -> dict[str, Any]:
+    request = {
+        "action": action,
+        "config": asdict(config),
+        "resolution": int(resolution or 0),
+        "span": float(span or 0.0),
+    }
+    with tempfile.TemporaryDirectory(prefix="agilab-pytorch-playground-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        input_path = tmp_path / "request.pkl"
+        output_path = tmp_path / "response.pkl"
+        input_path.write_bytes(pickle.dumps(request, protocol=pickle.HIGHEST_PROTOCOL))
+        env = os.environ.copy()
+        project_src = str(_APP_SRC)
+        python_path = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = project_src if not python_path else os.pathsep.join((project_src, python_path))
+        env.setdefault("PYTHONFAULTHANDLER", "1")
+        try:
+            completed = subprocess.run(
+                [sys.executable, "-c", _ISOLATED_CORE_RUNNER, str(input_path), str(output_path)],
+                cwd=str(_APP_SRC.parent),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            detail = _format_isolated_runner_failure(action, error=f"timed out after {exc.timeout} seconds")
+            if action == "train":
+                return _training_error_result(config, detail)
+            return _loss_landscape_error_result(detail)
+
+        if completed.returncode != 0 or not output_path.is_file():
+            detail = _format_isolated_runner_failure(action, returncode=completed.returncode, stderr=completed.stderr)
+            if action == "train":
+                return _training_error_result(config, detail)
+            return _loss_landscape_error_result(detail)
+
+        response = pickle.loads(output_path.read_bytes())
+
+    if not isinstance(response, Mapping) or not response.get("ok"):
+        detail = _format_isolated_runner_failure(
+            action,
+            error=f"{response.get('error_type', 'Error')}: {response.get('error', '')}" if isinstance(response, Mapping) else "",
+        )
+        if action == "train":
+            return _training_error_result(config, detail)
+        return _loss_landscape_error_result(detail)
+
+    result = response.get("result")
+    if not isinstance(result, dict):
+        detail = _format_isolated_runner_failure(action, error="runner returned an invalid payload")
+        if action == "train":
+            return _training_error_result(config, detail)
+        return _loss_landscape_error_result(detail)
+    return result
+
+
+def _session_state_get(key: str, default: Any = None) -> Any:
+    state = getattr(st, "session_state", None)
+    if state is None:
+        return default
+    try:
+        return state.get(key, default)
+    except AttributeError:
+        try:
+            return state[key]
+        except KeyError:
+            return default
+
+
+def _session_state_set(key: str, value: Any) -> None:
+    state = getattr(st, "session_state", None)
+    if state is not None:
+        state[key] = value
+
+
+def _resolve_trained_config(
+    current_config: PlaygroundConfig,
+    preset_label: str,
+    *,
+    train_requested: bool,
+    force_refresh: bool = False,
+) -> tuple[PlaygroundConfig, str, bool]:
+    stored_payload = _session_state_get(TRAINED_CONFIG_STATE_KEY)
+    if stored_payload is None or train_requested or force_refresh:
+        _session_state_set(TRAINED_CONFIG_STATE_KEY, _config_state_payload(current_config))
+        _session_state_set(TRAINED_PRESET_STATE_KEY, preset_label)
+        return current_config, preset_label, False
+
+    if not isinstance(stored_payload, Mapping):
+        stored_payload = _config_state_payload(current_config)
+        _session_state_set(TRAINED_CONFIG_STATE_KEY, stored_payload)
+        _session_state_set(TRAINED_PRESET_STATE_KEY, preset_label)
+
+    trained_config = _config_from_payload({"config": stored_payload})
+    trained_preset = str(_session_state_get(TRAINED_PRESET_STATE_KEY, preset_label))
+    return trained_config, trained_preset, _config_signature(current_config) != _config_signature(trained_config)
+
+
+@st.cache_data(show_spinner=False)
+def _cached_train(payload: dict[str, Any]) -> dict[str, Any]:
+    config = _config_from_cache_payload(payload)
+    if _use_isolated_torch_training():
+        return _run_core_in_subprocess("train", config)
+    return _train_playground(config)
+
+
+@st.cache_data(show_spinner=False)
+def _cached_loss_landscape(payload: dict[str, Any], resolution: int, span: float) -> dict[str, Any]:
+    config = _config_from_cache_payload(payload)
+    if _use_isolated_torch_training():
+        return _run_core_in_subprocess("loss_landscape", config, resolution=resolution, span=span)
+    return _loss_landscape(config, resolution=resolution, span=span)
+
+
+def _render_page_styles() -> None:
+    st.markdown(
+        """
+<style>
+.agilab-pt-hero {
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-left: 4px solid #38bdf8;
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  margin: 0.25rem 0 1rem;
+  background: rgba(12, 18, 32, 0.92);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.22);
+}
+.agilab-pt-kicker {
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.agilab-pt-hero h1 {
+  color: #f8fafc;
+  font-size: 2.35rem;
+  line-height: 1.05;
+  margin: 0.2rem 0 0.55rem;
+}
+.agilab-pt-hero p {
+  color: #cbd5e1;
+  font-size: 1.02rem;
+  max-width: 62rem;
+  margin: 0;
+}
+.agilab-pt-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+.agilab-pt-chip {
+  border: 1px solid rgba(226, 232, 240, 0.22);
+  border-radius: 8px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0.34rem 0.58rem;
+  font-size: 0.82rem;
+}
+.agilab-pt-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  padding: 1rem;
+  min-height: 9.25rem;
+  background: rgba(11, 18, 32, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.agilab-pt-card strong {
+  display: block;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.agilab-pt-value {
+  color: #f8fafc;
+  font-size: 2rem;
+  font-weight: 800;
+  margin: 0.2rem 0 0.25rem;
+}
+.agilab-pt-note {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+.agilab-pt-section {
+  border-left: 4px solid #38bdf8;
+  padding: 0.25rem 0 0.25rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+.agilab-pt-section strong {
+  color: #e2e8f0;
+}
+.agilab-pt-section span {
+  color: #94a3b8;
+}
+.agilab-pt-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.6rem 0 1rem;
+}
+.agilab-pt-step {
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 8px;
+  padding: 0.85rem 0.9rem;
+  background: rgba(15, 23, 42, 0.58);
+}
+.agilab-pt-step-active {
+  border-color: rgba(251, 191, 36, 0.64);
+  background: rgba(88, 55, 16, 0.38);
+}
+.agilab-pt-step-ready {
+  border-color: rgba(34, 197, 94, 0.46);
+}
+.agilab-pt-step strong {
+  color: #f8fafc;
+  display: block;
+}
+.agilab-pt-step span {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+.agilab-pt-insight {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 8px;
+  padding: 0.9rem;
+  background: rgba(8, 13, 26, 0.66);
+  min-height: 7rem;
+}
+.agilab-pt-insight strong {
+  color: #e0f2fe;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.agilab-pt-insight span {
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+@media (max-width: 860px) {
+  .agilab-pt-guide {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _format_percent(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+    if not np.isfinite(number):
+        number = 0.0
+    return f"{max(0.0, min(1.0, number)) * 100:.0f}%"
+
+
+def _confidence_score(grid: pd.DataFrame) -> float:
+    if grid.empty or "probability" not in grid:
+        return 0.0
+    probabilities = grid["probability"].to_numpy(dtype=float)
+    if probabilities.size == 0:
+        return 0.0
+    return float(np.mean(np.abs(probabilities - 0.5) * 2.0))
+
+
+def _class_balance(samples: pd.DataFrame) -> str:
+    if samples.empty or "target" not in samples:
+        return "no samples"
+    counts = samples["target"].value_counts(normalize=True)
+    if counts.empty:
+        return "no samples"
+    majority = float(counts.max())
+    minority = float(counts.min())
+    return f"{minority * 100:.0f}/{majority * 100:.0f}% class split"
+
+
+def _parameter_count(layers: pd.DataFrame) -> int:
+    if layers.empty or "parameters" not in layers:
+        return 0
+    return int(pd.to_numeric(layers["parameters"], errors="coerce").fillna(0).sum())
+
+
+def _generalization_gap(summary: Mapping[str, Any]) -> float:
+    train_accuracy = float(summary.get("train_accuracy", 0.0) or 0.0)
+    validation_accuracy = float(summary.get("validation_accuracy", 0.0) or 0.0)
+    gap = train_accuracy - validation_accuracy
+    return gap if np.isfinite(gap) else 0.0
+
+
+def _metric_card(label: str, value: str, note: str) -> str:
+    return (
+        '<div class="agilab-pt-card">'
+        f"<strong>{html.escape(label)}</strong>"
+        f'<div class="agilab-pt-value">{html.escape(value)}</div>'
+        f'<div class="agilab-pt-note">{html.escape(note)}</div>'
+        "</div>"
+    )
+
+
+def _guide_step(title: str, text: str, css_class: str) -> str:
+    return (
+        f'<div class="agilab-pt-step {html.escape(css_class)}">'
+        f"<strong>{html.escape(title)}</strong>"
+        f"<span>{html.escape(text)}</span>"
+        "</div>"
+    )
+
+
+def _render_guided_flow(*, pending_changes: bool, result_status: str) -> None:
+    first_class = "agilab-pt-step-active" if pending_changes else "agilab-pt-step-ready"
+    first_text = "Controls changed. Press Train / refresh to update charts." if pending_changes else "Run evidence matches the current charts."
+    second_class = "agilab-pt-step-ready" if result_status == "ok" else ""
+    third_class = "agilab-pt-step-ready" if result_status == "ok" and not pending_changes else ""
+    st.markdown(
+        '<div class="agilab-pt-guide">'
+        + _guide_step("1. Train", first_text, first_class)
+        + _guide_step("2. Inspect", "Read the boundary, curves, neurons, and terrain.", second_class)
+        + _guide_step("3. Reuse", "Download evidence or share the replay token.", third_class)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _performance_band(summary: Mapping[str, Any]) -> tuple[str, str]:
+    validation_accuracy = float(summary.get("validation_accuracy", 0.0) or 0.0)
+    if validation_accuracy >= 0.9:
+        return "Strong fit", "Validation accuracy is high enough for a clean visual demo."
+    if validation_accuracy >= 0.75:
+        return "Learning visible", "The model has learned structure; tune capacity or features to sharpen it."
+    return "Still searching", "Try a stronger preset, more epochs, or more informative features."
+
+
+def _gap_band(summary: Mapping[str, Any]) -> tuple[str, str]:
+    gap = _generalization_gap(summary)
+    if gap <= 0.05:
+        return "Generalizes well", "Train and validation accuracy stay close."
+    if gap <= 0.15:
+        return "Watch the gap", "There is mild overfit; reduce capacity or increase data/noise realism."
+    return "Likely overfit", "Training is ahead of validation; prefer simpler layers or more data."
+
+
+def _confidence_band(grid: pd.DataFrame) -> tuple[str, str]:
+    confidence = _confidence_score(grid)
+    if confidence >= 0.65:
+        return "Decisive boundary", "Most grid cells are far from the 0.5 indecision frontier."
+    if confidence >= 0.35:
+        return "Boundary forming", "The surface is readable but still uncertain around several regions."
+    return "Soft boundary", "The network is unsure; inspect features, epochs, and hidden-layer capacity."
+
+
+def _render_interpretation_cards(result: Mapping[str, Any]) -> None:
+    summary = result.get("summary", {})
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    cards = [
+        _performance_band(summary),
+        _gap_band(summary),
+        _confidence_band(grid),
+    ]
+    columns = st.columns(3)
+    for column, (title, text) in zip(columns, cards, strict=False):
+        with column:
+            st.markdown(
+                '<div class="agilab-pt-insight">'
+                f"<strong>{html.escape(title)}</strong>"
+                f"<span>{html.escape(text)}</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
+    chips = [
+        f"dataset: {config.dataset}",
+        f"features: {len(config.feature_names)}",
+        f"network: {'-'.join(str(width) for width in config.hidden_layers) or 'linear'}",
+        f"epochs: {config.epochs}",
+    ]
+    if active_app is not None:
+        chips.insert(0, f"app: {active_app.name}")
+    chip_html = "".join(f'<span class="agilab-pt-chip">{html.escape(chip)}</span>' for chip in chips)
+    st.markdown(
+        f"""
+<div class="agilab-pt-hero">
+  <div class="agilab-pt-kicker">Neural boundary lab</div>
+  <h1>{html.escape(PAGE_TITLE)}</h1>
+  <p>
+    Pick a visual challenge, train a real PyTorch classifier, then inspect the
+    decision surface, neuron activations, loss terrain, and reproducible evidence pack.
+  </p>
+  <div class="agilab-pt-strip">
+    <span class="agilab-pt-chip">{html.escape(preset_label)}</span>
+    {chip_html}
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_section_intro(title: str, text: str) -> None:
+    st.markdown(
+        f"""
+<div class="agilab-pt-section">
+  <strong>{html.escape(title)}</strong><br>
+  <span>{html.escape(text)}</span>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _grid_axes(grid: pd.DataFrame, fallback_grid_size: int) -> tuple[np.ndarray, np.ndarray]:
+    if grid.empty:
+        return np.array([], dtype=float), np.array([], dtype=float)
+    x_axis = np.array(sorted(grid["x1"].unique()), dtype=float)
+    y_axis = np.array(sorted(grid["x2"].unique()), dtype=float)
+    if len(x_axis) * len(y_axis) == len(grid):
+        return x_axis, y_axis
+    size = int(round(np.sqrt(len(grid)))) or max(1, int(fallback_grid_size))
+    axis = np.linspace(-1.35, 1.35, size)
+    return axis, axis
+
+
+def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) -> go.Figure:
+    if go is None:
+        trace_count = len(tuple(samples.groupby("target", sort=True))) + (2 if not grid.empty else 0)
+        return _plotly_unavailable_figure("Decision boundary", trace_count)  # type: ignore[return-value]
+    figure = go.Figure()
+    if not grid.empty:
+        x_axis, y_axis = _grid_axes(grid, grid_size)
+        z = (
+            grid.pivot_table(index="x2", columns="x1", values="probability", aggfunc="mean")
+            .reindex(index=y_axis, columns=x_axis)
+            .to_numpy()
+        )
+        figure.add_trace(
+            go.Contour(
+                x=x_axis,
+                y=y_axis,
+                z=z,
+                colorscale=[[0.0, "#0ea5e9"], [0.48, "#111827"], [0.52, "#f8fafc"], [1.0, "#fb7185"]],
+                contours={"start": 0.0, "end": 1.0, "size": 0.05, "coloring": "heatmap"},
+                opacity=0.82,
+                showscale=False,
+                hoverinfo="skip",
+                name="class probability",
+            )
+        )
+        figure.add_trace(
+            go.Contour(
+                x=x_axis,
+                y=y_axis,
+                z=z,
+                contours={"start": 0.5, "end": 0.5, "size": 0.5, "coloring": "lines"},
+                line={"width": 3, "color": "#f8fafc"},
+                showscale=False,
+                hoverinfo="skip",
+                name="decision boundary",
+            )
+        )
+
+    colors = {0: "#38bdf8", 1: "#fb7185"}
+    for class_id, group in samples.groupby("target", sort=True):
+        figure.add_trace(
+            go.Scatter(
+                x=group["x1"],
+                y=group["x2"],
+                mode="markers",
+                name=f"class {class_id}",
+                marker={
+                    "size": 9,
+                    "color": colors.get(int(class_id), "#cbd5e1"),
+                    "opacity": 0.92,
+                    "line": {"width": 1.1, "color": "rgba(255,255,255,0.78)"},
+                },
+            )
+        )
+    figure.update_layout(
+        height=560,
+        margin={"l": 12, "r": 12, "t": 12, "b": 12},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.92)",
+        font={"color": "#dbeafe"},
+        xaxis={
+            "range": [-1.35, 1.35],
+            "scaleanchor": "y",
+            "zeroline": False,
+            "gridcolor": "rgba(148, 163, 184, 0.12)",
+        },
+        yaxis={"range": [-1.35, 1.35], "zeroline": False, "gridcolor": "rgba(148, 163, 184, 0.12)"},
+        legend={"orientation": "h", "y": 1.02, "font": {"color": "#dbeafe"}},
+    )
+    return figure
+
+
+def _history_figure(history: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Training history", 4 if not history.empty else 0)  # type: ignore[return-value]
+    figure = go.Figure()
+    if not history.empty:
+        figure.add_trace(
+            go.Scatter(
+                x=history["epoch"],
+                y=history["train_loss"],
+                mode="lines",
+                name="train loss",
+                yaxis="y",
+                line={"color": "#38bdf8", "width": 3},
+            )
+        )
+        figure.add_trace(
+            go.Scatter(
+                x=history["epoch"],
+                y=history["validation_loss"],
+                mode="lines",
+                name="validation loss",
+                yaxis="y",
+                line={"color": "#fb7185", "width": 3},
+            )
+        )
+        figure.add_trace(
+            go.Scatter(
+                x=history["epoch"],
+                y=history["train_accuracy"],
+                mode="lines",
+                name="train accuracy",
+                yaxis="y2",
+                line={"color": "#a7f3d0", "width": 2, "dash": "dot"},
+            )
+        )
+        figure.add_trace(
+            go.Scatter(
+                x=history["epoch"],
+                y=history["validation_accuracy"],
+                mode="lines",
+                name="validation accuracy",
+                yaxis="y2",
+                line={"color": "#fde68a", "width": 2, "dash": "dot"},
+            )
+        )
+    figure.update_layout(
+        height=280,
+        margin={"l": 12, "r": 12, "t": 12, "b": 12},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.86)",
+        font={"color": "#dbeafe"},
+        yaxis={"title": "loss", "gridcolor": "rgba(148, 163, 184, 0.14)"},
+        yaxis2={"title": "accuracy", "overlaying": "y", "side": "right", "range": [0, 1.05], "showgrid": False},
+        xaxis={"gridcolor": "rgba(148, 163, 184, 0.10)"},
+        legend={"orientation": "h", "y": 1.12},
+    )
+    return figure
+
+
+def _activation_figure(activation_maps: pd.DataFrame, layer: int, neuron: int) -> go.Figure:
+    if go is None:
+        selected = activation_maps[(activation_maps["layer"] == layer) & (activation_maps["neuron"] == neuron)]
+        return _plotly_unavailable_figure("Activation map", 1 if not selected.empty else 0)  # type: ignore[return-value]
+    figure = go.Figure()
+    selected = activation_maps[(activation_maps["layer"] == layer) & (activation_maps["neuron"] == neuron)]
+    if not selected.empty:
+        x_axis, y_axis = _grid_axes(selected.rename(columns={"activation": "probability"}), 12)
+        z = (
+            selected.pivot_table(index="x2", columns="x1", values="activation", aggfunc="mean")
+            .reindex(index=y_axis, columns=x_axis)
+            .to_numpy()
+        )
+        figure.add_trace(
+            go.Contour(
+                x=x_axis,
+                y=y_axis,
+                z=z,
+                colorscale=[[0.0, "#020617"], [0.35, "#0ea5e9"], [0.7, "#facc15"], [1.0, "#fb7185"]],
+                contours={"coloring": "heatmap"},
+                colorbar={"title": "activation"},
+            )
+        )
+    figure.update_layout(
+        height=420,
+        margin={"l": 12, "r": 12, "t": 12, "b": 12},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.90)",
+        font={"color": "#dbeafe"},
+        xaxis={
+            "range": [-1.35, 1.35],
+            "scaleanchor": "y",
+            "zeroline": False,
+            "gridcolor": "rgba(148, 163, 184, 0.12)",
+        },
+        yaxis={"range": [-1.35, 1.35], "zeroline": False, "gridcolor": "rgba(148, 163, 184, 0.12)"},
+    )
+    return figure
+
+
+def _network_figure(layers: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Network diagnostics", 2 if not layers.empty else 0)  # type: ignore[return-value]
+    figure = go.Figure()
+    if not layers.empty:
+        labels = [f"{row.kind} {int(row.layer)}" for row in layers.itertuples()]
+        figure.add_trace(go.Bar(x=labels, y=layers["weight_max_abs"], name="max |weight|", marker_color="#38bdf8"))
+        figure.add_trace(go.Bar(x=labels, y=layers["bias_max_abs"], name="max |bias|", marker_color="#fbbf24"))
+    figure.update_layout(
+        height=260,
+        margin={"l": 12, "r": 12, "t": 12, "b": 12},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.84)",
+        font={"color": "#dbeafe"},
+        yaxis={"title": "magnitude", "gridcolor": "rgba(148, 163, 184, 0.13)"},
+        xaxis={"gridcolor": "rgba(148, 163, 184, 0.08)"},
+        barmode="group",
+        legend={"orientation": "h", "y": 1.08},
+    )
+    return figure
+
+
+def _loss_landscape_figure(landscape: pd.DataFrame) -> go.Figure:
+    if go is None:
+        return _plotly_unavailable_figure("Loss landscape", 3 if not landscape.empty else 0)  # type: ignore[return-value]
+    figure = go.Figure()
+    if not landscape.empty:
+        alpha_axis = np.array(sorted(landscape["alpha"].unique()), dtype=float)
+        beta_axis = np.array(sorted(landscape["beta"].unique()), dtype=float)
+        z = (
+            landscape.pivot_table(index="beta", columns="alpha", values="validation_loss", aggfunc="mean")
+            .reindex(index=beta_axis, columns=alpha_axis)
+            .to_numpy()
+        )
+        figure.add_trace(
+            go.Surface(
+                x=alpha_axis,
+                y=beta_axis,
+                z=z,
+                colorscale=[[0.0, "#22c55e"], [0.45, "#facc15"], [1.0, "#ef4444"]],
+                colorbar={"title": "val. loss"},
+                opacity=0.94,
+            )
+        )
+        best = landscape.loc[landscape["validation_loss"].idxmin()]
+        center_candidates = landscape[landscape["is_center"]]
+        center = center_candidates.iloc[0] if not center_candidates.empty else landscape.iloc[len(landscape) // 2]
+        figure.add_trace(
+            go.Scatter3d(
+                x=[0.0],
+                y=[0.0],
+                z=[center["validation_loss"]],
+                mode="markers",
+                name="final weights",
+                marker={"size": 11, "color": "#ffffff", "line": {"width": 2, "color": "#1f2937"}},
+            )
+        )
+        figure.add_trace(
+            go.Scatter3d(
+                x=[best["alpha"]],
+                y=[best["beta"]],
+                z=[best["validation_loss"]],
+                mode="markers",
+                name="best nearby",
+                marker={"size": 8, "color": "#38bdf8", "symbol": "diamond"},
+            )
+        )
+    figure.update_layout(
+        height=460,
+        margin={"l": 12, "r": 12, "t": 12, "b": 12},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(7, 13, 28, 0.90)",
+        font={"color": "#dbeafe"},
+        scene={
+            "xaxis": {"title": "direction alpha", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "yaxis": {"title": "direction beta", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "zaxis": {"title": "validation loss", "gridcolor": "rgba(148, 163, 184, 0.18)"},
+            "camera": {"eye": {"x": 1.45, "y": -1.55, "z": 0.95}},
+        },
+        legend={"orientation": "h", "y": 1.05},
+    )
+    return figure
+
+
+def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None:
+    summary = result.get("summary", {})
+    samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    network_layers = _result_frame(result, "network_layers", _empty_network_layers())
+    gap = _generalization_gap(summary)
+    columns = st.columns(4)
+    cards = [
+        _metric_card("Validation", _format_percent(summary.get("validation_accuracy", 0.0)), f"gap vs train: {gap:+.1%}"),
+        _metric_card("Boundary confidence", _format_percent(_confidence_score(grid)), "mean distance from indecision"),
+        _metric_card("Model size", f"{_parameter_count(network_layers):,}", f"{len(config.hidden_layers)} hidden layer(s)"),
+        _metric_card("Dataset", f"{int(summary.get('samples', len(samples))):,}", _class_balance(samples)),
+    ]
+    for column, card in zip(columns, cards, strict=False):
+        with column:
+            st.markdown(card, unsafe_allow_html=True)
+
+
+def main() -> None:
+    st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+    render_logo()
+    _render_page_styles()
+    active_app = _resolve_active_app()
+    shared_config = _config_from_query_params(st.query_params)
+
+    with st.sidebar:
+        st.markdown("### Challenge")
+        preset_labels = tuple(PLAYGROUND_PRESETS)
+        preset_index = 0 if shared_config is not None else preset_labels.index(DEFAULT_PRESET)
+        preset_label = st.selectbox(
+            "Challenge preset",
+            preset_labels,
+            index=preset_index,
+            help="Preset only seeds the controls; every value stays editable.",
+        )
+        defaults = _preset_config(preset_label, shared_config)
+        preset_key = _safe_key_fragment(preset_label)
+        st.caption(_preset_story(preset_label, shared_config))
+        st.markdown("### Dataset")
+        dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
+        sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
+        noise = st.slider("Noise", 0.0, 0.5, defaults.noise, step=0.01, key=f"pt_noise_{preset_key}")
+        train_ratio = st.slider("Train split", 0.5, 0.95, defaults.train_ratio, step=0.05, key=f"pt_split_{preset_key}")
+        feature_names = st.multiselect(
+            "Features",
+            FEATURES,
+            default=list(defaults.feature_names),
+            key=f"pt_features_{preset_key}",
+        )
+        st.markdown("### Network")
+        hidden_raw = st.text_input(
+            "Hidden layers",
+            value=",".join(str(width) for width in defaults.hidden_layers),
+            key=f"pt_layers_{preset_key}",
+            help="Comma-separated widths, for example 16,8.",
+        )
+        activation = st.selectbox(
+            "Activation",
+            ACTIVATIONS,
+            index=ACTIVATIONS.index(defaults.activation),
+            key=f"pt_activation_{preset_key}",
+        )
+        optimizer = st.selectbox(
+            "Optimizer",
+            OPTIMIZERS,
+            index=OPTIMIZERS.index(defaults.optimizer),
+            key=f"pt_optimizer_{preset_key}",
+        )
+        learning_rate = st.slider(
+            "Learning rate",
+            0.001,
+            0.2,
+            defaults.learning_rate,
+            step=0.001,
+            format="%.3f",
+            key=f"pt_lr_{preset_key}",
+        )
+        epochs = st.slider("Epochs", 10, 300, defaults.epochs, step=10, key=f"pt_epochs_{preset_key}")
+        batch_size = st.slider("Batch size", 8, 256, defaults.batch_size, step=8, key=f"pt_batch_{preset_key}")
+        grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
+        seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
+        st.markdown("### Run")
+        train_requested = st.button("Train / refresh", type="primary", width="stretch")
+        st.caption("Controls are staged. Charts and evidence update only when you train.")
+
+    try:
+        hidden_layers = _parse_hidden_layers(hidden_raw)
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    config = PlaygroundConfig(
+        dataset=dataset,
+        sample_count=sample_count,
+        noise=noise,
+        train_ratio=train_ratio,
+        hidden_layers=hidden_layers,
+        activation=activation,
+        optimizer=optimizer,
+        learning_rate=learning_rate,
+        epochs=epochs,
+        batch_size=batch_size,
+        seed=int(seed),
+        feature_names=tuple(feature_names or DEFAULT_FEATURES),
+        grid_size=grid_size,
+    )
+    shared_signature = _config_signature(shared_config) if shared_config is not None else ""
+    previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
+    force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
+    _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
+    trained_config, trained_preset, pending_changes = _resolve_trained_config(
+        config,
+        preset_label,
+        train_requested=train_requested,
+        force_refresh=force_shared_refresh,
+    )
+    trained_config_dict = asdict(trained_config)
+    result = _cached_train(trained_config_dict)
+    with st.sidebar:
+        st.caption(f"Charts show: {trained_preset}")
+        if pending_changes:
+            st.warning("Pending changes. Press Train / refresh to update the run.")
+    _render_hero(active_app, trained_preset, trained_config)
+    if result["status"] == "missing_torch":
+        st.error(result["detail"])
+    elif result["status"] != "ok":
+        st.error(str(result.get("detail", "PyTorch training failed.")))
+    if pending_changes:
+        st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
+
+    _render_summary(trained_config, result)
+    _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
+    _render_interpretation_cards(result)
+    landscape_result: dict[str, Any] = {
+        "status": "not_computed",
+        "detail": "",
+        "loss_landscape": _empty_loss_landscape(),
+        "landscape_summary": _loss_landscape_summary(_empty_loss_landscape()),
+    }
+    decision_tab, activations_tab, landscape_tab, evidence_tab = st.tabs(
+        ["Boundary lab", "Neuron lens", "Loss terrain", "Evidence pack"]
+    )
+    with decision_tab:
+        _render_section_intro(
+            "Decision boundary",
+            "The bright contour is the 0.5 frontier; points show the training sample classes.",
+        )
+        left, right = st.columns([2, 1])
+        with left:
+            st.plotly_chart(
+                _decision_figure(result["samples"], result["grid"], trained_config.grid_size),
+                width="stretch",
+                config={"displayModeBar": False},
+            )
+        with right:
+            st.plotly_chart(
+                _history_figure(result["history"]),
+                width="stretch",
+                config={"displayModeBar": False},
+            )
+            st.dataframe(result["history"].tail(8), width="stretch", hide_index=True)
+
+    with activations_tab:
+        network_layers = _result_frame(result, "network_layers", _empty_network_layers())
+        activation_maps = _result_frame(result, "activation_maps", _empty_activation_maps())
+        _render_section_intro(
+            "Network internals",
+            "Compare layer weight magnitudes, then inspect one hidden neuron activation map at a time.",
+        )
+        st.plotly_chart(_network_figure(network_layers), width="stretch", config={"displayModeBar": False})
+        st.dataframe(network_layers, width="stretch", hide_index=True)
+        if activation_maps.empty:
+            st.info("Hidden activation maps are available after a PyTorch run with at least one hidden layer.")
+        else:
+            controls, chart_area = st.columns([1, 3])
+            with controls:
+                layer_options = sorted(int(value) for value in activation_maps["layer"].unique())
+                selected_layer = st.selectbox("Layer", layer_options)
+                layer_maps = activation_maps[activation_maps["layer"] == selected_layer]
+                neuron_options = sorted(int(value) for value in layer_maps["neuron"].unique())
+                selected_neuron = st.selectbox("Neuron", neuron_options)
+                selected = layer_maps[layer_maps["neuron"] == selected_neuron]["activation"]
+                st.metric("Mean", f"{selected.mean():.3f}")
+                st.metric("Range", f"{selected.min():.3f} / {selected.max():.3f}")
+            with chart_area:
+                st.plotly_chart(
+                    _activation_figure(activation_maps, selected_layer, selected_neuron),
+                    width="stretch",
+                    config={"displayModeBar": False},
+                )
+
+    with landscape_tab:
+        _render_section_intro(
+            "Loss terrain",
+            "Compute a deterministic 3D projection around the final weights to see whether the solution sits in a valley.",
+        )
+        controls, chart_area = st.columns([1, 3])
+        with controls:
+            landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
+            landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
+            compute_landscape = st.checkbox("Compute landscape", value=False)
+        if result["status"] != "ok":
+            st.info("Loss landscape is available after a successful PyTorch run.")
+        elif compute_landscape:
+            landscape_result = _cached_loss_landscape(trained_config_dict, int(landscape_resolution), float(landscape_span))
+            landscape = _result_frame(landscape_result, "loss_landscape", _empty_loss_landscape())
+            summary = landscape_result.get("landscape_summary", _loss_landscape_summary(landscape))
+            with controls:
+                st.metric("Points", summary.get("points", 0))
+                st.metric("Sharpness", f"{summary.get('sharpness', 0.0):.3f}")
+                st.metric("Best delta", f"{summary.get('best_delta', 0.0):.3f}")
+            with chart_area:
+                st.plotly_chart(
+                    _loss_landscape_figure(landscape),
+                    width="stretch",
+                    config={"displayModeBar": False},
+                )
+                st.dataframe(landscape.sort_values("validation_loss").head(8), width="stretch", hide_index=True)
+        else:
+            st.info("Enable computation to evaluate a deterministic 2D loss projection around the trained weights.")
+
+    with evidence_tab:
+        _render_section_intro(
+            "Evidence export",
+            "Download the deterministic ZIP or copy the query token to replay the same playground configuration.",
+        )
+        evidence_result = dict(result)
+        landscape = _result_frame(landscape_result, "loss_landscape", _empty_loss_landscape())
+        if not landscape.empty:
+            evidence_result["loss_landscape"] = landscape
+            evidence_result["landscape_summary"] = landscape_result.get("landscape_summary", _loss_landscape_summary(landscape))
+        manifest = _build_evidence_manifest(trained_config, evidence_result)
+        st.download_button(
+            "Download evidence pack",
+            data=_build_evidence_pack(trained_config, evidence_result),
+            file_name="pytorch_playground_evidence.zip",
+            mime="application/zip",
+        )
+        st.code(f"?pytorch_playground={_encode_share_config(trained_config)}", language="text")
+        st.code(json.dumps(_json_safe(manifest), indent=2, sort_keys=True), language="json")
+
+
+if __name__ == "__main__":
+    main()

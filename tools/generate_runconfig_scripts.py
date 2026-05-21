@@ -65,13 +65,23 @@ def classify_group(name: str, script: str, params: str, workdir: str) -> str:
 
 
 def tracked_runconfigs(repo_root: Path, runconfig_dir: Path) -> list[Path]:
-    """Return git-tracked run configuration XML files.
+    """Return versioned or newly added run configuration XML files.
 
-    This prevents local, ignored `_*.xml` configs from leaking into generated scripts.
+    This prevents local, ignored `_*.xml` configs from leaking into generated scripts
+    while still allowing wrappers to be regenerated before a renamed config is committed.
     """
+    rel_pattern = str(runconfig_dir.relative_to(repo_root) / "*.xml")
     try:
-        proc = subprocess.run(
-            ["git", "ls-files", "--", str(runconfig_dir.relative_to(repo_root) / "*.xml")],
+        tracked_proc = subprocess.run(
+            ["git", "ls-files", "--", rel_pattern],
+            cwd=repo_root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        untracked_proc = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", rel_pattern],
             cwd=repo_root,
             check=True,
             text=True,
@@ -80,10 +90,21 @@ def tracked_runconfigs(repo_root: Path, runconfig_dir: Path) -> list[Path]:
         )
     except Exception:
         return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
-    paths = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    paths = sorted(
+        {
+            line.strip()
+            for output in (tracked_proc.stdout, untracked_proc.stdout)
+            for line in output.splitlines()
+            if line.strip()
+        }
+    )
     if not paths:
         return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
-    existing = [repo_root / p for p in sorted(paths) if (repo_root / p).exists()]
+    existing = [
+        repo_root / p
+        for p in paths
+        if (repo_root / p).exists() and not Path(p).name.startswith("_")
+    ]
     if existing:
         return existing
     return sorted(runconfig_dir.glob("*.xml"), key=lambda p: p.name)
@@ -158,8 +179,16 @@ def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> 
             script_lines.append(f'cd "{workdir_expanded}"')
         if envs:
             for key, value in envs:
+                if key == "VIRTUAL_ENV":
+                    continue
                 value_expanded = expand_macros(value)
                 script_lines.append(f'export {key}="{value_expanded}"')
+        script_lines.extend(
+            [
+                "# Let uv select the run-config project .venv instead of a stale activated shell.",
+                "unset VIRTUAL_ENV",
+            ]
+        )
         script_lines.append(cmd)
         script_lines.append("")
 

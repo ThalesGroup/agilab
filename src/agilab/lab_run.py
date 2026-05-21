@@ -19,7 +19,22 @@ import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'` or install `agi-gui`."
+try:
+    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+except ModuleNotFoundError:
+    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
+        "agilab_streamlit_theme_env_local",
+        _streamlit_theme_env_path,
+    )
+    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
+    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
+    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
+    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
+
+UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 _PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
 _PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
     "agilab_ui_public_bind_guard_local",
@@ -31,6 +46,14 @@ _PUBLIC_BIND_GUARD_MODULE = importlib.util.module_from_spec(_PUBLIC_BIND_GUARD_S
 _PUBLIC_BIND_GUARD_SPEC.loader.exec_module(_PUBLIC_BIND_GUARD_MODULE)
 PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
 enforce_public_bind_policy = _PUBLIC_BIND_GUARD_MODULE.enforce_public_bind_policy
+
+
+def _streamlit_config_path() -> Path:
+    return packaged_streamlit_config_path(__file__)
+
+
+def _ensure_streamlit_config_file(environ=os.environ) -> None:
+    apply_streamlit_theme_environment(_streamlit_config_path(), environ=environ)
 
 
 def _detect_repo_root(start: Path) -> Path | None:
@@ -117,10 +140,43 @@ def _run_first_proof(argv: list[str]) -> int:
     return first_proof_cli.main(argv)
 
 
+def _run_agent_run(argv: list[str]) -> int:
+    from agilab import agent_run
+
+    return agent_run.main(argv)
+
+
 def _run_security_check(argv: list[str]) -> int:
     from agilab import security_check
 
     return security_check.main(argv)
+
+
+def _run_adoption_report(argv: list[str]) -> int:
+    from agilab import adoption_report
+
+    return adoption_report.main(argv)
+
+
+def _run_evidence_contract(argv: list[str]) -> int:
+    from agilab import evidence_contract
+
+    return evidence_contract.main(argv)
+
+
+def _run_env(argv: list[str]) -> int:
+    if argv[:1] == ["footprint"]:
+        from agilab import env_footprint
+
+        return env_footprint.main(argv[1:])
+
+    raise SystemExit("agilab env: supported commands: footprint")
+
+
+def _run_app(argv: list[str]) -> int:
+    from agilab import pypi_app_packages
+
+    return pypi_app_packages.main(argv)
 
 
 def _missing_ui_dependencies() -> list[str]:
@@ -128,6 +184,7 @@ def _missing_ui_dependencies() -> list[str]:
     for module_name, distribution_name in (
         ("streamlit", "streamlit"),
         ("agi_gui", "agi-gui"),
+        ("agilab.apps", "agi-apps"),
     ):
         if importlib.util.find_spec(module_name) is None:
             missing.append(distribution_name)
@@ -159,8 +216,32 @@ def main(argv: list[str] | None = None) -> int:
         return _run_doctor(raw_argv[1:])
     if raw_argv[:1] in (["first-proof"], ["first_proof"]):
         return _run_first_proof(raw_argv[1:])
+    if raw_argv[:1] in (["agent-run"], ["agent_run"]):
+        return _run_agent_run(raw_argv[1:])
+    if raw_argv[:1] == ["dry-run"]:
+        return _run_first_proof(["--dry-run", *raw_argv[1:]])
     if raw_argv[:1] in (["security-check"], ["security_check"]):
         return _run_security_check(raw_argv[1:])
+    if raw_argv[:1] in (["adoption-report"], ["adoption_report"]):
+        return _run_adoption_report(raw_argv[1:])
+    if raw_argv[:1] in (
+        ["prove"],
+        ["verify"],
+        ["replay"],
+        ["export-lineage"],
+        ["export_lineage"],
+        ["policy-check"],
+        ["policy_check"],
+        ["cards"],
+        ["metadata-store"],
+        ["metadata_store"],
+    ):
+        command = raw_argv[0].replace("_", "-")
+        return _run_evidence_contract([command, *raw_argv[1:]])
+    if raw_argv[:1] == ["env"]:
+        return _run_env(raw_argv[1:])
+    if raw_argv[:1] == ["app"]:
+        return _run_app(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."
@@ -210,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
         new_argv.append("--")
         new_argv.extend(custom_args)
 
+    _ensure_streamlit_config_file()
     sys.argv = new_argv
     stcli = _load_streamlit_cli()
     return stcli.main()

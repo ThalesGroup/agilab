@@ -50,8 +50,9 @@ Each run exports:
 
 1. Select `uav_relay_queue_project` in `PROJECT`.
 2. Run it from `ORCHESTRATE`.
-3. Inspect queue artifacts in `view_uav_relay_queue_analysis`.
-4. Inspect topology and trajectories in `view_maps_network`.
+3. Inspect scenario artifacts in `view_scenario_cockpit`.
+4. Inspect relay resilience in `view_relay_resilience`.
+5. Inspect topology and trajectories in `view_maps_network`.
 
 ## What this teases in AGILAB
 

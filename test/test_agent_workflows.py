@@ -70,3 +70,56 @@ def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -
     assert "AGILAB_OPENCODE_AGENT" in opencode_text
     assert "agilab-build" in opencode_text
     assert "agilab-review" in opencode_text
+
+
+def test_agent_run_evidence_command_is_documented() -> None:
+    agent_workflows = (REPO_ROOT / "tools" / "agent_workflows.md").read_text(encoding="utf-8")
+    public_docs = (REPO_ROOT / "docs" / "source" / "agent-workflows.rst").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    for text in (agent_workflows, public_docs, readme):
+        assert "agilab agent-run --agent codex" in text
+        assert "agilab.agent_run.v1" in text
+        assert "agilab.agent_trace.v1" in text
+        assert "~/log/agents/" in text
+    for text in (agent_workflows, readme):
+        assert "--protocol-adapter" in text
+        assert "--capability" in text
+        assert "metadata-only" in text
+    assert "trace_agent_run" in agent_workflows
+    assert "agent_events.ndjson" in agent_workflows
+    assert "permission tiers" in agent_workflows
+    assert "agilab.agent_run.trace_agent_run()" in readme
+
+
+def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> None:
+    agent_workflows = (REPO_ROOT / "tools" / "agent_workflows.md").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    pypi_readme = (REPO_ROOT / "README.pypi.md").read_text(encoding="utf-8")
+
+    for badge in ("skills.svg", "agent-standard.svg", "agent-works-with.svg", "agent-api.svg"):
+        assert badge in readme
+        assert badge in pypi_readme
+
+    assert "AGENT_SKILLS.md" in readme
+    assert "AGENT_SKILLS.md" in agent_workflows
+    assert "llms.txt" in agent_workflows
+    assert "llms-full.txt" in agent_workflows
+    assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
+    assert "agilab.resource_snapshot.v1" in agent_workflows
+    assert "python tools/skill_security_scan.py --changed-only --fail-on critical" in agent_workflows
+
+
+def test_agent_skill_hardening_gaps_are_on_the_public_roadmap() -> None:
+    roadmap = (REPO_ROOT / "docs" / "source" / "roadmap" / "agilab-future-work.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Agent skills and resource evidence hardening" in roadmap
+    assert "AGENT_SKILLS.md" in roadmap
+    assert "compatibility metadata" in roadmap
+    assert "SARIF output" in roadmap
+    assert "sticky PR" in roadmap
+    assert "resource_snapshot.json" in roadmap
+    assert "future autoscale decisions" in roadmap
+    assert "agilab agent-run" in roadmap

@@ -5,6 +5,11 @@ AGILab reads its configuration from environment variables. You can set them glob
 ``$HOME/.agilab/.env`` or per-session before launching the web interface / AGI installers. The table below
 summarises the supported keys.
 
+In the web interface, open **Settings** from the landing sidebar to edit the
+persisted ``$HOME/.agilab/.env`` values and choose the global runtime
+diagnostics level. Settings is intentionally reachable as a utility route
+rather than shown as one of the workflow pages.
+
 .. list-table:: Runtime configuration
    :header-rows: 1
 
@@ -17,7 +22,7 @@ summarises the supported keys.
        Replace ``$AGILAB_CHECKOUT`` with the checkout you are actually running;
        AGILAB does not require the source tree directory to be named ``agilab``.
    * - ``APP_DEFAULT``
-     - ``flight_project``
+     - ``flight_telemetry_project``
      - App loaded when no explicit project is provided.
    * - ``AGI_PYTHON_VERSION``
      - ``3.13``
@@ -99,13 +104,35 @@ summarises the supported keys.
      - ``ollama``
      - Local assistant mode. ``ollama`` uses direct local generation; ``rag``
        enables the Universal Offline AI Chatbot document RAG path.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY``
+     - ``1``
+     - Enables local WORKFLOW recipe-memory retrieval. When enabled, the code
+       assistant mines validated ``lab_steps.toml`` entries, supervisor
+       notebooks, and the local recipe-card store, then adds matching examples
+       to the model-facing prompt. Saved lab questions remain unchanged.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_PATH``
+     - ``~/.agilab/pipeline_recipe_memory/cards.jsonl``
+     - Local JSONL recipe-card store used for snippets that AGILAB validates
+       during the dataframe auto-fix loop. The store is provider-neutral and can
+       be reused with OpenAI, Mistral, OpenAI-compatible gateways, GPT-OSS, or
+       Ollama-backed models.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_ROOTS``
+     - unset
+     - Optional ``os.pathsep``-separated list of extra directories or files to
+       mine for recipe cards. AGILAB already considers the selected
+       ``lab_steps.toml``, active app, dataframe directory, and built-in app
+       examples.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_INCLUDE_CANDIDATES``
+     - ``0``
+     - Includes unvalidated candidate snippets in retrieval when set to a
+       truthy value. Leave disabled for normal use so only validated or executed
+       recipes influence generation.
    * - ``AGI_CLUSTER_SHARE``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. Prefer the relative
        user-scoped form so mixed macOS/Linux/Windows nodes can resolve it under
-       their own home directory. When cluster mode is enabled, this value is
-       applied to ``AGI_CLUSTER_SHARE``; ORCHESTRATE and remote deployment
-       re-root home-based absolute paths such as ``/Users/<user>/...`` or
+       their own home directory. ORCHESTRATE and remote deployment re-root
+       home-based absolute paths such as ``/Users/<user>/...`` or
        ``C:\Users\<user>\...`` to the portable suffix before writing worker
        settings. Operators can still override it with an explicit mounted path
        such as ``/mnt/agilab`` when the same mount point exists on every node.
@@ -162,6 +189,24 @@ summarises the supported keys.
        Supported acknowledgement values are ``process``, ``container``, or
        ``vm``. Leave unset unless generated-code execution is actually isolated
        from personal files, secrets, network, and unbounded CPU/RAM/time.
+       For shared use, prefer ``container`` or ``vm``. If ``process`` is used,
+       also enforce process resource/filesystem/network/secret limits and set
+       ``AGILAB_GENERATED_CODE_PROCESS_LIMITS=1`` so the adoption gate can
+       distinguish a bounded process runner from a same-process acknowledgement.
+   * - ``AGILAB_GENERATED_CODE_PROCESS_LIMITS``
+     - unset
+     - Explicit evidence flag for process-mode generated-code execution. Set to
+       ``1`` only when the operator has enforced CPU/RAM/time, filesystem,
+       network, and secret boundaries around the generated-code process.
+   * - ``AGILAB_APPS_REPOSITORY_ALLOWLIST``
+     - unset
+     - Comma-, semicolon-, or newline-separated list of exact reviewed
+       ``APPS_REPOSITORY`` origin URLs accepted by
+       ``agilab security-check --profile shared``.
+   * - ``AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE``
+     - unset
+     - Optional newline-separated allowlist file for reviewed external apps
+       repository origins. ``#`` comments and blank lines are ignored.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).

@@ -82,7 +82,7 @@ def service_action_sequence(app: str = DEFAULT_APP) -> list[dict[str, str]]:
     return [
         {
             "action": "start",
-            "call": f'await AGI.serve(env, action="start", mode=AGI.DASK_MODE)',
+            "call": 'await AGI.serve(env, action="start", mode=AGI.DASK_MODE)',
             "operator_meaning": f"Start persistent worker loops for {app}.",
         },
         {

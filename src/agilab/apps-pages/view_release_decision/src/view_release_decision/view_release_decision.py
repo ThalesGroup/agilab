@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import hashlib
 import importlib.util
 import json
@@ -66,12 +67,13 @@ CI_ARTIFACT_HARVEST_FILENAME = "ci_artifact_harvest.json"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
 MANIFEST_SIGNATURE_SUFFIXES = (".sig", ".minisig", ".asc")
-APP_DEFAULT_METRICS_GLOBS = {
-    "meteo_forecast_project": "**/forecast_metrics.json",
-}
-APP_DEFAULT_REQUIRED_PATTERNS = {
-    "meteo_forecast_project": ("forecast_metrics.json", "forecast_predictions.csv"),
-}
+PAGE_SETTINGS_SECTION = "view_release_decision"
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "release_decision_datadir",
+    "release_decision_metrics_glob",
+    "release_decision_required_patterns",
+    "release_decision_run_manifest_path",
+)
 
 
 def _load_run_manifest_module() -> Any:
@@ -114,7 +116,7 @@ def _connector_path_registry(env: AgiEnv) -> ConnectorPathRegistry:
     return build_connector_path_registry(
         env,
         target=str(env.target),
-        first_proof_target="flight",
+        first_proof_target="flight_telemetry",
         run_manifest_filename=RUN_MANIFEST_FILENAME,
     )
 
@@ -123,19 +125,77 @@ def _default_artifact_root(env: AgiEnv) -> Path:
     return _connector_path_registry(env).path("artifact_root")
 
 
+def _active_app_root(env: AgiEnv) -> Path | None:
+    raw_active_app = getattr(env, "active_app", None)
+    if raw_active_app:
+        return Path(raw_active_app).expanduser()
+    raw_apps_path = getattr(env, "apps_path", None)
+    raw_app = getattr(env, "app", "")
+    if raw_apps_path and raw_app:
+        return Path(raw_apps_path).expanduser() / str(raw_app)
+    return None
+
+
+def _release_page_settings(env: AgiEnv) -> Mapping[str, Any]:
+    active_app_root = _active_app_root(env)
+    if active_app_root is None:
+        return {}
+    settings_paths = (
+        active_app_root / "src" / "app_settings.toml",
+        active_app_root / "app_settings.toml",
+    )
+    for settings_path in settings_paths:
+        if not settings_path.is_file():
+            continue
+        try:
+            settings = load_app_settings(settings_path)
+        except Exception:
+            continue
+        pages = settings.get("pages", {})
+        if isinstance(pages, Mapping):
+            page_settings = pages.get(PAGE_SETTINGS_SECTION, {})
+            if isinstance(page_settings, Mapping):
+                return page_settings
+        page_settings = settings.get(PAGE_SETTINGS_SECTION, {})
+        if isinstance(page_settings, Mapping):
+            return page_settings
+    return {}
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [line.strip() for line in value.splitlines() if line.strip()]
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
 def _default_metrics_glob(env: AgiEnv) -> str:
-    return APP_DEFAULT_METRICS_GLOBS.get(str(env.app), "**/*metrics*.json")
+    page_settings = _release_page_settings(env)
+    value = page_settings.get("metrics_glob", "")
+    return str(value).strip() or "**/*metrics*.json"
 
 
 def _default_required_patterns(env: AgiEnv) -> list[str]:
-    patterns = APP_DEFAULT_REQUIRED_PATTERNS.get(str(env.app))
-    if patterns:
-        return list(patterns)
-    return ["*.json"]
+    return _string_list(_release_page_settings(env).get("required_patterns")) or ["*.json"]
 
 
 def _default_run_manifest_path(env: AgiEnv) -> Path:
     return _connector_path_registry(env).path("first_proof_manifest")
+
+
+def _session_app_scope_key(env: AgiEnv) -> str:
+    return f"{getattr(env, 'app', '')}:{getattr(env, 'active_app', '')}"
+
+
+def _reset_app_scoped_session_defaults(streamlit: Any, env: AgiEnv) -> None:
+    current_scope = _session_app_scope_key(env)
+    scope_key = "release_decision_app_scope"
+    if streamlit.session_state.get(scope_key) == current_scope:
+        return
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        streamlit.session_state.pop(key, None)
+    streamlit.session_state[scope_key] = current_scope
 
 
 def _dedupe_paths(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
@@ -1886,6 +1946,7 @@ if "env" not in st.session_state:
     st.session_state["env"] = env
 else:
     env = st.session_state["env"]
+_reset_app_scoped_session_defaults(st, env)
 
 render_logo("Release Decision")
 st.title("Release decision")
@@ -1897,50 +1958,50 @@ connector_registry = _connector_path_registry(env)
 connector_registry_rows = connector_registry.as_rows()
 connector_registry_summary = connector_registry.summary()
 default_root = connector_registry.path("artifact_root")
+st.session_state.setdefault("release_decision_datadir", str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("release_decision_datadir", str(default_root)),
     key="release_decision_datadir",
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
+st.session_state.setdefault("release_decision_metrics_glob", _default_metrics_glob(env))
 metrics_pattern = st.sidebar.text_input(
     "Metrics glob",
-    value=st.session_state.setdefault("release_decision_metrics_glob", _default_metrics_glob(env)),
     key="release_decision_metrics_glob",
+)
+st.session_state.setdefault(
+    "release_decision_required_patterns",
+    "\n".join(_default_required_patterns(env)),
 )
 required_patterns_value = st.sidebar.text_area(
     "Required artifact patterns",
-    value=st.session_state.setdefault(
-        "release_decision_required_patterns",
-        "\n".join(_default_required_patterns(env)),
-    ),
     key="release_decision_required_patterns",
     height=100,
 )
+st.session_state.setdefault("release_decision_tolerance_pct", 0.0)
 tolerance_pct = float(
     st.sidebar.number_input(
         "Allowed regression tolerance (%)",
         min_value=0.0,
         max_value=100.0,
-        value=float(st.session_state.setdefault("release_decision_tolerance_pct", 0.0)),
         step=1.0,
         key="release_decision_tolerance_pct",
     )
 )
 required_patterns = [line.strip() for line in required_patterns_value.splitlines() if line.strip()]
+st.session_state.setdefault(
+    "release_decision_run_manifest_path",
+    str(_default_run_manifest_path(env)),
+)
 run_manifest_path_value = st.sidebar.text_input(
     "First-proof run manifest",
-    value=st.session_state.setdefault(
-        "release_decision_run_manifest_path",
-        str(_default_run_manifest_path(env)),
-    ),
     key="release_decision_run_manifest_path",
 )
 default_run_manifest_path = Path(run_manifest_path_value).expanduser()
+st.session_state.setdefault("release_decision_manifest_import_args", "")
 manifest_import_args_value = st.sidebar.text_area(
     "Imported run manifest evidence",
-    value=st.session_state.setdefault("release_decision_manifest_import_args", ""),
     key="release_decision_manifest_import_args",
     height=90,
     help=(
@@ -1948,9 +2009,9 @@ manifest_import_args_value = st.sidebar.text_area(
         "`--manifest /path/run_manifest.json --manifest-dir /path/to/evidence`."
     ),
 )
+st.session_state.setdefault("release_decision_ci_artifact_harvest_args", "")
 ci_artifact_harvest_args_value = st.sidebar.text_area(
     "CI artifact harvest evidence",
-    value=st.session_state.setdefault("release_decision_ci_artifact_harvest_args", ""),
     key="release_decision_ci_artifact_harvest_args",
     height=80,
     help=(

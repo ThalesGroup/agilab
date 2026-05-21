@@ -130,7 +130,7 @@ def test_public_app_tree_rejects_tracked_non_public_entries(tmp_path: Path) -> N
         return subprocess.CompletedProcess(
             argv,
             0,
-            "src/agilab/apps/builtin/flight_project/pyproject.toml\0"
+            "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml\0"
             "src/agilab/apps/private_project/pyproject.toml\0",
             "",
         )
@@ -153,7 +153,7 @@ def test_public_app_tree_allows_ignored_local_private_entries(tmp_path: Path) ->
             return subprocess.CompletedProcess(
                 argv,
                 0,
-                "src/agilab/apps/builtin/flight_project/pyproject.toml\0",
+                "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml\0",
                 "",
             )
         if argv == ["git", "-C", str(tmp_path), "check-ignore", "--quiet", "src/agilab/apps/private_project"]:
@@ -261,7 +261,7 @@ def test_final_gate_requires_network_and_clean_tree(tmp_path: Path) -> None:
             return subprocess.CompletedProcess(
                 argv,
                 0,
-                "src/agilab/apps/builtin/flight_project/pyproject.toml\0",
+                "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml\0",
                 "",
             )
         raise AssertionError(f"unexpected command: {argv}")

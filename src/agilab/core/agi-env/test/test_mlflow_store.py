@@ -10,6 +10,10 @@ import pytest
 from agi_env import mlflow_store
 
 
+def _patch_mlflow_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(mlflow_store, "mlflow_cli_argv", lambda args, **_kwargs: ["mlflow", *args])
+
+
 def test_get_mlflow_module_handles_missing_and_present_module(monkeypatch: pytest.MonkeyPatch):
     original_import = builtins.__import__
 
@@ -30,6 +34,27 @@ def test_get_mlflow_module_handles_missing_and_present_module(monkeypatch: pytes
 
     monkeypatch.setattr(builtins, "__import__", _present_mlflow)
     assert mlflow_store.get_mlflow_module() is fake_mlflow
+
+
+def test_mlflow_optional_import_handles_broken_transitive_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def _broken_mlflow(name, *args, **kwargs):
+        if name == "mlflow":
+            raise TypeError("Descriptors cannot be created directly.")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _broken_mlflow)
+    assert mlflow_store.get_mlflow_module() is None
+
+
+def test_mlflow_exception_type_loader_handles_import_crash() -> None:
+    def _broken_import(_name: str):
+        raise TypeError("Descriptors cannot be created directly.")
+
+    assert mlflow_store._load_mlflow_exception_type(_broken_import) is None
 
 
 def test_mlflow_path_helpers_and_legacy_detection(tmp_path: Path):
@@ -211,7 +236,10 @@ def test_repair_mlflow_default_experiment_db_closes_connection_on_early_return(t
     assert closed["value"] is True
 
 
-def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_path: Path):
+def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     db_path = tmp_path / "mlflow.db"
     conn = sqlite3.connect(db_path)
     try:
@@ -227,6 +255,7 @@ def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_pat
         run_calls.append(cmd)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    _patch_mlflow_cli(monkeypatch)
     mlflow_store.ensure_mlflow_sqlite_schema_current(
         db_path,
         checked_uris=checked_uris,
@@ -237,7 +266,7 @@ def test_ensure_mlflow_sqlite_schema_current_adds_checked_uri_on_success(tmp_pat
         sys_executable="python-test",
     )
 
-    assert run_calls == [["python-test", "-m", "mlflow", "db", "upgrade", "sqlite:///mlflow.db"]]
+    assert run_calls == [["mlflow", "db", "upgrade", "sqlite:///mlflow.db"]]
     assert checked_uris == {"sqlite:///mlflow.db"}
 
 
@@ -310,7 +339,10 @@ def test_handle_mlflow_schema_upgrade_result_covers_success_reset_and_failure(tm
         )
 
 
-def test_ensure_mlflow_sqlite_schema_current_resets_or_raises_on_upgrade_failure(tmp_path: Path):
+def test_ensure_mlflow_sqlite_schema_current_resets_or_raises_on_upgrade_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     db_path = tmp_path / "mlflow.db"
     conn = sqlite3.connect(db_path)
     try:
@@ -324,6 +356,7 @@ def test_ensure_mlflow_sqlite_schema_current_resets_or_raises_on_upgrade_failure
     def _schema_reset_run(_cmd, **_kwargs):
         return SimpleNamespace(returncode=1, stdout="", stderr="schema-reset needed")
 
+    _patch_mlflow_cli(monkeypatch)
     mlflow_store.ensure_mlflow_sqlite_schema_current(
         db_path,
         checked_uris=set(),
@@ -554,7 +587,10 @@ def test_migrate_legacy_mlflow_filestore_if_needed_skips_when_backend_exists_or_
     assert legacy_checks == [tracking_dir]
 
 
-def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_failure(tmp_path: Path):
+def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
     db_path = tracking_dir / "mlflow.db"
@@ -564,6 +600,7 @@ def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_
         run_calls.append(cmd)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    _patch_mlflow_cli(monkeypatch)
     mlflow_store._migrate_legacy_mlflow_filestore_if_needed(
         tracking_dir,
         db_path=db_path,
@@ -574,8 +611,6 @@ def test_migrate_legacy_mlflow_filestore_if_needed_runs_migration_and_raises_on_
     )
 
     assert run_calls == [[
-        "python-test",
-        "-m",
         "mlflow",
         "migrate-filestore",
         "--source",
@@ -661,7 +696,10 @@ def test_prepare_mlflow_backend_migrates_then_finalizes(tmp_path: Path):
     ]
 
 
-def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_experiment(tmp_path: Path):
+def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_experiment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
     db_path = tracking_dir / "mlflow.db"
@@ -673,6 +711,7 @@ def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_e
         run_calls.append(cmd)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    _patch_mlflow_cli(monkeypatch)
     backend_uri = mlflow_store.ensure_mlflow_backend_ready(
         tracking_dir,
         resolve_mlflow_backend_db_fn=lambda _tracking_dir: db_path,
@@ -687,8 +726,6 @@ def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_e
 
     assert backend_uri == "sqlite:///mlflow.db"
     assert run_calls == [[
-        "python-test",
-        "-m",
         "mlflow",
         "migrate-filestore",
         "--source",
@@ -700,13 +737,17 @@ def test_ensure_mlflow_backend_ready_migrates_legacy_store_and_repairs_default_e
     assert repair_calls == [(db_path, (tracking_dir / "artifacts").as_uri())]
 
 
-def test_ensure_mlflow_backend_ready_raises_when_filestore_migration_fails(tmp_path: Path):
+def test_ensure_mlflow_backend_ready_raises_when_filestore_migration_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     tracking_dir = tmp_path / "tracking"
     tracking_dir.mkdir()
 
     def _run_cmd(_cmd, **_kwargs):
         return SimpleNamespace(returncode=1, stdout="", stderr="migration failed")
 
+    _patch_mlflow_cli(monkeypatch)
     with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
         mlflow_store.ensure_mlflow_backend_ready(
             tracking_dir,

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 
@@ -25,7 +26,7 @@ def test_public_builtin_apps_are_sorted_project_directories() -> None:
     apps = module.public_builtin_apps()
 
     assert apps == sorted(apps)
-    assert any(path.name == "flight_project" for path in apps)
+    assert any(path.name == "flight_telemetry_project" for path in apps)
     assert all(path.name.endswith("_project") for path in apps)
 
 
@@ -35,10 +36,11 @@ def test_resolve_apps_accepts_all_names_and_paths(tmp_path) -> None:
     custom.mkdir()
 
     all_apps = module.resolve_apps("all")
-    selected = module.resolve_apps(f"flight_project,{custom}")
+    selected = module.resolve_apps(f"flight_telemetry_project,uav_relay_queue,{custom}")
 
     assert len(all_apps) >= 2
-    assert any(Path(app).name == "flight_project" for app in selected)
+    assert any(Path(app).name == "flight_telemetry_project" for app in selected)
+    assert any(Path(app).name == "uav_relay_queue_project" for app in selected)
     assert custom.resolve() in selected
 
 
@@ -48,6 +50,58 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
     assert module.resolve_pages("all") == list(module.DEFAULT_PAGES)
     assert module.resolve_pages("none") == []
     assert module.resolve_pages("PROJECT, ANALYSIS") == ["PROJECT", "ANALYSIS"]
+
+
+def test_settings_page_has_stable_robot_expectations() -> None:
+    module = _load_module()
+
+    assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == (
+        "SETTINGS",
+        "Settings",
+        "Runtime diagnostics",
+        "Environment variables",
+    )
+    assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
+
+
+def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
+    module = _load_module()
+
+    url = module.append_route_query(
+        "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project",
+        "start=notebook-import",
+    )
+
+    assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project&start=notebook-import"
+
+
+def test_streamlit_health_failure_detail_includes_process_output() -> None:
+    module = _load_module()
+
+    class _Health:
+        detail = "not ready"
+
+    class _Process:
+        @staticmethod
+        def poll() -> int:
+            return 2
+
+    class _Server:
+        process = _Process()
+
+        @staticmethod
+        def output_tail() -> str:
+            return "Traceback: missing dependency"
+
+    detail = module._streamlit_health_failure_detail(
+        _Health(),
+        _Server(),
+        base_url="http://127.0.0.1:8501",
+    )
+
+    assert "not ready" in detail
+    assert "process exited with 2" in detail
+    assert "Traceback: missing dependency" in detail
     assert module.resolve_pages("HOME,PROJECT") == ["", "PROJECT"]
     assert module.page_label("") == "HOME"
     assert module.DEFAULT_WIDGET_TIMEOUT_SECONDS < module.DEFAULT_TIMEOUT_SECONDS
@@ -67,6 +121,127 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.missing_selected_action_policy == "fail"
     assert args.assert_orchestrate_artifacts is False
     assert args.assert_workflow_artifacts is False
+    assert args.assert_analysis_artifacts is False
+    assert args.viewport_width == module.DEFAULT_VIEWPORT_WIDTH
+    assert args.viewport_height == module.DEFAULT_VIEWPORT_HEIGHT
+    assert args.fresh_browser_context_per_page is False
+    assert args.keyboard_focus_check is False
+    assert args.layout_integrity_check is False
+    assert args.accessibility_check is False
+    assert args.browser_error_check is False
+    assert args.above_fold_check is False
+    assert args.visual_mask_dynamic_regions is False
+    assert args.success_screenshot is False
+    assert args.failure_bundle_dir is None
+    assert args.trace_dir is None
+    assert args.har_dir is None
+    assert args.video_dir is None
+    assert args.max_first_render_seconds == 0.0
+    assert args.max_widgets_ready_seconds == 0.0
+    assert args.max_action_settle_seconds == 0.0
+
+
+def test_widget_robot_context_artifact_labels_are_filesystem_safe() -> None:
+    module = _load_module()
+
+    assert module._context_artifact_label("flight/project:ANALYSIS") == "flight-project-ANALYSIS"
+    assert module._context_artifact_label("") == "context"
+
+
+def test_robot_context_records_optional_playwright_artifacts(tmp_path) -> None:
+    module = _load_module()
+    captured: dict[str, object] = {}
+    starts: list[dict[str, object]] = []
+    stops: list[dict[str, object]] = []
+    closed: list[bool] = []
+
+    class _Tracing:
+        def start(self, **kwargs):
+            starts.append(kwargs)
+
+        def stop(self, **kwargs):
+            stops.append(kwargs)
+
+    class _Context:
+        tracing = _Tracing()
+
+        @staticmethod
+        def close() -> None:
+            closed.append(True)
+
+    class _Browser:
+        @staticmethod
+        def new_context(**kwargs):
+            captured.update(kwargs)
+            return _Context()
+
+    trace_dir = tmp_path / "traces"
+    har_dir = tmp_path / "hars"
+    video_dir = tmp_path / "videos"
+    context = module._new_robot_context(
+        _Browser(),
+        viewport_width=1280,
+        viewport_height=720,
+        artifact_label="flight/PROJECT",
+        trace_dir=trace_dir,
+        har_dir=har_dir,
+        video_dir=video_dir,
+    )
+
+    assert context is not None
+    assert captured["viewport"] == {"width": 1280, "height": 720}
+    assert captured["record_har_path"] == str(har_dir / "flight-PROJECT.har")
+    assert captured["record_video_dir"] == str(video_dir / "flight-PROJECT")
+    assert starts == [{"screenshots": True, "snapshots": True, "sources": True}]
+    assert trace_dir.is_dir()
+    assert har_dir.is_dir()
+    assert (video_dir / "flight-PROJECT").is_dir()
+
+    module._close_robot_context(
+        context,
+        artifact_label="flight/PROJECT",
+        trace_dir=trace_dir,
+    )
+
+    assert stops == [{"path": str(trace_dir / "flight-PROJECT.zip")}]
+    assert closed == [True]
+    assert module._context_artifact_label("") == "context"
+
+
+def test_robot_context_trace_failures_do_not_hide_context_close(tmp_path) -> None:
+    module = _load_module()
+    closed: list[bool] = []
+
+    class _Tracing:
+        @staticmethod
+        def start(**_kwargs):
+            raise RuntimeError("trace start failed")
+
+        @staticmethod
+        def stop(**_kwargs):
+            raise RuntimeError("trace stop failed")
+
+    class _Context:
+        tracing = _Tracing()
+
+        @staticmethod
+        def close() -> None:
+            closed.append(True)
+
+    class _Browser:
+        @staticmethod
+        def new_context(**_kwargs):
+            return _Context()
+
+    context = module._new_robot_context(
+        _Browser(),
+        viewport_width=800,
+        viewport_height=600,
+        trace_dir=tmp_path / "trace",
+    )
+    module._close_robot_context(context, trace_dir=tmp_path / "trace")
+
+    assert closed == [True]
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -94,13 +269,335 @@ def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None
 def test_widget_robot_main_rejects_remote_artifact_assertions() -> None:
     module = _load_module()
 
-    for flag in ("--assert-orchestrate-artifacts", "--assert-workflow-artifacts"):
+    for flag in ("--assert-orchestrate-artifacts", "--assert-workflow-artifacts", "--assert-analysis-artifacts"):
         try:
             module.main(["--url", "http://localhost:8501", flag])
         except SystemExit as exc:
             assert exc.code == 2
         else:
             raise AssertionError(f"expected parser rejection for remote artifact assertions with {flag}")
+
+
+def test_widget_robot_main_forwards_artifact_capture_dirs(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(module, "resolve_apps", lambda _value: ["flight_telemetry_project"])
+    monkeypatch.setattr(module, "resolve_pages", lambda _value: [""])
+    monkeypatch.setattr(module, "resolve_apps_pages", lambda _value: [])
+
+    def _fake_sweep_app(**kwargs):
+        captured.update(kwargs)
+        page = module.PageSweep(
+            app="flight_telemetry_project",
+            page="HOME",
+            success=True,
+            duration_seconds=0.1,
+            widget_count=1,
+            main_widget_count=1,
+            sidebar_widget_count=0,
+            interacted_count=0,
+            probed_count=1,
+            skipped_count=0,
+            failed_count=0,
+            url="http://local",
+            failures=[],
+            skips=[],
+        )
+        kwargs["on_page_result"](page)
+        return [page]
+
+    monkeypatch.setattr(module, "sweep_app", _fake_sweep_app)
+
+    exit_code = module.main(
+        [
+            "--apps",
+            "flight_telemetry_project",
+            "--pages",
+            "HOME",
+            "--apps-pages",
+            "none",
+            "--trace-dir",
+            str(tmp_path / "traces"),
+            "--har-dir",
+            str(tmp_path / "hars"),
+            "--video-dir",
+            str(tmp_path / "videos"),
+            "--quiet-progress",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["trace_dir"] == (tmp_path / "traces").resolve()
+    assert captured["har_dir"] == (tmp_path / "hars").resolve()
+    assert captured["video_dir"] == (tmp_path / "videos").resolve()
+    assert '"success": true' in capsys.readouterr().out
+
+
+def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> None:
+    module = _load_module()
+    failure = module.WidgetProbe(
+        "flight_telemetry_project",
+        "ANALYSIS",
+        "browser_error",
+        "pageerror",
+        "failed",
+        "broken callback",
+        "http://demo",
+    )
+
+    bundle = module._write_failure_bundle(
+        root=tmp_path,
+        page=None,
+        web_robot=None,
+        app_name="flight/telemetry project",
+        display="ANALYSIS:widgets",
+        status="failed",
+        target_url="http://demo/analysis",
+        failures=[failure],
+        skips=[],
+        browser_issues=[{"kind": "pageerror", "detail": "broken callback"}],
+        command_argv=["agilab_widget_robot.py", "--json"],
+    )
+
+    assert bundle == tmp_path / "flight-telemetry-project" / "ANALYSIS-widgets"
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == module.FAILURE_BUNDLE_SCHEMA
+    assert manifest["status"] == "failed"
+    assert manifest["failures"][0]["detail"] == "broken callback"
+    assert manifest["command"] == ["agilab_widget_robot.py", "--json"]
+
+
+def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
+    module = _load_module()
+
+    probe = module._keyboard_focus_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        focusable_count=5,
+        visited_labels=["INSTALL", "INSTALL", "INSTALL"],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "keyboard_focus"
+    assert "expected at least" in probe.detail
+
+
+def test_keyboard_focus_result_probe_accepts_unique_visible_targets() -> None:
+    module = _load_module()
+
+    probe = module._keyboard_focus_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        focusable_count=5,
+        visited_labels=["PROJECT", "ORCHESTRATE", "ANALYSIS"],
+    )
+
+    assert probe.status == "interacted"
+    assert "unique visible focus" in probe.detail
+
+
+def test_layout_integrity_result_probe_reports_first_issue() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+        issues=[{"kind": "text_overflow", "label": "Run", "detail": "text width exceeds container"}],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "layout_integrity"
+    assert "text_overflow" in probe.detail
+
+
+def test_layout_integrity_result_probe_accepts_clean_geometry() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+        issues=[],
+    )
+
+    assert probe.status == "interacted"
+    assert "no obvious overflow" in probe.detail
+
+
+def test_accessibility_result_probe_reports_first_issue() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[{"kind": "missing_accessible_name", "label": "button", "detail": "visible control has no name"}],
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "accessibility"
+    assert "missing_accessible_name" in probe.detail
+
+
+def test_accessibility_result_probe_accepts_clean_semantics() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[],
+    )
+
+    assert probe.status == "interacted"
+    assert "ARIA references" in probe.detail
+
+
+def test_browser_error_check_probe_records_clean_capture() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=[
+            {"kind": "console.warning", "detail": "favicon failed to load resource"},
+            {"kind": "console.error", "detail": "ignored earlier traceback"},
+        ],
+        start_index=2,
+    )
+
+    assert probe is not None
+    assert probe.status == "interacted"
+    assert probe.kind == "browser_error"
+    assert "no relevant console" in probe.detail
+
+
+def test_browser_error_check_probe_skips_when_existing_failure_probe_handles_issue() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=[{"kind": "pageerror", "detail": "TypeError: broken callback"}],
+        start_index=0,
+    )
+
+    assert probe is None
+
+
+def test_browser_error_check_probe_fails_when_capture_is_missing() -> None:
+    module = _load_module()
+
+    probe = module._browser_error_check_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        browser_issues=None,
+        start_index=0,
+    )
+
+    assert probe is not None
+    assert probe.status == "failed"
+    assert "capture was not attached" in probe.detail
+
+
+def test_accessibility_probe_wraps_collector_shape_errors() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/PROJECT"
+
+        @staticmethod
+        def evaluate(_script: str) -> dict[str, str]:
+            return {"unexpected": "payload"}
+
+    probe = module._accessibility_probe(_Page(), app_name="flight_telemetry_project", display="PROJECT")
+
+    assert probe.status == "failed"
+    assert probe.kind == "accessibility"
+    assert "collector_error" in probe.detail
+
+
+def test_above_fold_result_probe_reports_missing_primary_target() -> None:
+    module = _load_module()
+
+    probe = module._above_fold_result_probe(
+        app_name="flight_telemetry_project",
+        display="ORCHESTRATE",
+        url="http://demo/ORCHESTRATE",
+        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
+        seen_labels=("ORCHESTRATE", "INSTALL"),
+        fold=900,
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "above_fold"
+    assert "EXECUTE" in probe.detail
+
+
+def test_above_fold_result_probe_accepts_primary_targets() -> None:
+    module = _load_module()
+
+    probe = module._above_fold_result_probe(
+        app_name="flight_telemetry_project",
+        display="ORCHESTRATE",
+        url="http://demo/ORCHESTRATE",
+        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
+        seen_labels=("ORCHESTRATE", "INSTALL action", "EXECUTE action"),
+        fold=900,
+    )
+
+    assert probe.status == "interacted"
+    assert "primary targets visible" in probe.detail
+
+
+def test_above_fold_probe_reports_collector_exception() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+
+        @staticmethod
+        def evaluate(_script: str) -> None:
+            raise RuntimeError("js disabled")
+
+    probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
+
+    assert probe.status == "failed"
+    assert probe.kind == "above_fold"
+    assert "collector failed" in probe.detail
+
+
+def test_above_fold_probe_filters_targets_by_initial_fold() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+
+        @staticmethod
+        def evaluate(_script: str) -> dict[str, object]:
+            return {
+                "fold": 800,
+                "targets": [
+                    {"label": "ORCHESTRATE", "inFold": True},
+                    {"label": "INSTALL", "inFold": True},
+                    {"label": "EXECUTE", "inFold": False},
+                ],
+            }
+
+    probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
+
+    assert probe.status == "failed"
+    assert "EXECUTE" in probe.detail
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -145,7 +642,8 @@ def test_configured_apps_pages_for_app_reads_app_settings() -> None:
     routes = module.configured_apps_pages_for_app(app)
 
     assert [route.name for route in routes] == [
-        "view_uav_relay_queue_analysis",
+        "view_scenario_cockpit",
+        "view_relay_resilience",
         "view_maps_network",
     ]
 
@@ -153,8 +651,13 @@ def test_configured_apps_pages_for_app_reads_app_settings() -> None:
 def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     module = _load_module()
 
-    assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
-    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
+    assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
+        "flight_telemetry_project",
+        "flight_telemetry",
+    }
+    assert module.active_app_aliases("uav_relay_queue") == {"uav_relay_queue", "uav_relay_queue_project"}
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight_telemetry", "/tmp/flight_telemetry_project")
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=uav_relay_queue_project", "uav_relay_queue")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
 
@@ -168,8 +671,8 @@ def test_normalize_remote_url_maps_huggingface_space_page_to_runtime() -> None:
     module = _load_module()
 
     assert (
-        module.normalize_remote_url("https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_project")
-        == "https://jpmorard-agilab.hf.space/?active_app=flight_project"
+        module.normalize_remote_url("https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project")
+        == "https://jpmorard-agilab.hf.space/?active_app=flight_telemetry_project"
     )
     assert module.normalize_remote_url("jpmorard-agilab.hf.space") == "https://jpmorard-agilab.hf.space/"
 
@@ -211,12 +714,12 @@ def test_seed_public_demo_artifacts_creates_forecast_evidence(tmp_path) -> None:
     share_root = tmp_path / "share"
 
     module.seed_public_demo_artifacts(
-        "meteo_forecast_project",
+        "weather_forecast_project",
         export_root=export_root,
         share_root=share_root,
     )
 
-    forecast_root = export_root / "meteo_forecast" / "forecast_analysis"
+    forecast_root = export_root / "weather_forecast" / "forecast_analysis"
     assert sorted(path.name for path in forecast_root.iterdir()) == ["baseline", "candidate"]
     assert (forecast_root / "baseline" / "forecast_metrics.json").is_file()
     assert (forecast_root / "candidate" / "forecast_predictions.csv").is_file()
@@ -232,7 +735,7 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
 
     seeded = module.build_seeded_server_env(
         _WebRobot(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         runtime_root=tmp_path,
         seed_demo_artifacts=True,
     )
@@ -241,7 +744,7 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
     assert seeded.env["AGI_EXPORT_DIR"] == str(tmp_path / "export")
     assert seeded.env["AGI_LOCAL_SHARE"] == str(tmp_path / "localshare")
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
-    assert (tmp_path / "localshare" / "flight" / "dataframe" / "00_robot_flight.csv").is_file()
+    assert (tmp_path / "localshare" / "flight_telemetry" / "dataframe" / "00_robot_flight.csv").is_file()
 
 
 def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypatch) -> None:
@@ -257,7 +760,7 @@ def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypa
 
     seeded = module.build_seeded_server_env(
         _WebRobot(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         runtime_root=tmp_path / "runtime",
         seed_demo_artifacts=False,
         runtime_isolation="current-home",
@@ -281,8 +784,8 @@ def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> No
     )
 
     context = module.build_orchestrate_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={},
     )
@@ -301,8 +804,8 @@ def test_build_workflow_artifact_context_uses_agilab_env_file(tmp_path) -> None:
     env_file.write_text("AGI_EXPORT_DIR=exports\n", encoding="utf-8")
 
     context = module.build_workflow_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={},
     )
@@ -319,8 +822,8 @@ def test_build_workflow_artifact_context_prefers_robot_server_env(tmp_path) -> N
     env_file.write_text("AGI_EXPORT_DIR=stale-home-export\n", encoding="utf-8")
 
     context = module.build_workflow_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={"AGI_EXPORT_DIR": str(tmp_path / "robot-export")},
     )
@@ -350,11 +853,11 @@ def test_workflow_page_artifact_validation_skips_apps_without_source_stages(tmp_
 
 def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -373,14 +876,14 @@ def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tm
 
 def test_workflow_page_artifact_validation_requires_versioned_export_contract(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
-    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[flight]\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -399,14 +902,14 @@ def test_workflow_page_artifact_validation_requires_versioned_export_contract(tm
 
 def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
-    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -423,11 +926,61 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
     assert "restored and versioned" in probes[0].detail
 
 
+def test_analysis_artifact_validation_requires_first_proof_outputs(tmp_path) -> None:
+    module = _load_module()
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_analysis_artifacts(
+        context=context,
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "no first-proof output/export artifacts" in probes[0].detail
+
+
+def test_analysis_artifact_validation_accepts_existing_first_proof_outputs(tmp_path) -> None:
+    module = _load_module()
+    output_file = tmp_path / "localshare" / "flight_telemetry" / "dataframe" / "proof.csv"
+    output_file.parent.mkdir(parents=True)
+    output_file.write_text("value\n1\n", encoding="utf-8")
+    export_file = tmp_path / "export" / "flight_telemetry" / "proof.json"
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text('{"ok": true}\n', encoding="utf-8")
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_analysis_artifacts(
+        context=context,
+        display="ANALYSIS",
+        url="http://demo/ANALYSIS",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "first-proof artifacts available" in probes[0].detail
+
+
 def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -> None:
     module = _load_module()
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
@@ -448,13 +1001,13 @@ def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -
 def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -> None:
     module = _load_module()
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
     before_logs = module._snapshot_workflow_run_logs(context)
-    log_file = tmp_path / "log" / "execute" / "flight" / "pipeline_20260508.log"
+    log_file = tmp_path / "log" / "execute" / "flight_telemetry" / "pipeline_20260508.log"
     log_file.parent.mkdir(parents=True)
     log_file.write_text("Run workflow started\n", encoding="utf-8")
 
@@ -474,8 +1027,8 @@ def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -
 def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_path) -> None:
     module = _load_module()
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
         share_root=tmp_path / "localshare",
@@ -501,15 +1054,15 @@ def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> Non
     module = _load_module()
     export_root = tmp_path / "export"
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=export_root,
         share_root=tmp_path / "localshare",
         cluster_share_root=tmp_path / "clustershare",
     )
     before_export = module._snapshot_artifact_files(module._orchestrate_export_roots(context))
-    export_file = export_root / "flight" / "export.csv"
+    export_file = export_root / "flight_telemetry" / "export.csv"
     export_file.parent.mkdir(parents=True)
     export_file.write_text("value\n1\n", encoding="utf-8")
 
@@ -531,12 +1084,12 @@ def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> Non
 def test_orchestrate_artifact_validation_accepts_existing_manual_export(tmp_path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
-    export_file = export_root / "flight" / "export.csv"
+    export_file = export_root / "flight_telemetry" / "export.csv"
     export_file.parent.mkdir(parents=True)
     export_file.write_text("value\n1\n", encoding="utf-8")
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=export_root,
         share_root=tmp_path / "localshare",
@@ -563,14 +1116,14 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
     module = _load_module()
     share_root = tmp_path / "localshare"
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
         share_root=share_root,
         cluster_share_root=tmp_path / "clustershare",
     )
-    output_file = share_root / "flight" / "dataframe" / "part-0.csv"
+    output_file = share_root / "flight_telemetry" / "dataframe" / "part-0.csv"
     output_file.parent.mkdir(parents=True)
     output_file.write_text("value\n1\n", encoding="utf-8")
     output_roots = module._orchestrate_output_roots(context)
@@ -598,7 +1151,7 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
 def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
@@ -608,8 +1161,8 @@ def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share
     )
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["Run -> Load -> Export"],
@@ -628,15 +1181,15 @@ def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share
 def test_current_home_action_preflight_allows_disabled_cluster_with_missing_share(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
     env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["INSTALL"],
@@ -651,7 +1204,7 @@ def test_current_home_action_preflight_allows_disabled_cluster_with_missing_shar
 def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path, monkeypatch) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    worker_root = fake_home / "wenv" / "meteo_forecast_worker"
+    worker_root = fake_home / "wenv" / "weather_forecast_worker"
     worker_root.mkdir(parents=True)
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
@@ -677,8 +1230,8 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
     monkeypatch.setattr(module.subprocess, "run", fake_run)
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="meteo_forecast_project",
-        active_app_query="meteo_forecast_project",
+        app_name="weather_forecast_project",
+        active_app_query="weather_forecast_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["Run -> Load -> Export"],
@@ -689,14 +1242,14 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
 
     assert detail is not None
     assert "environment_blocked" in detail
-    assert "meteo_forecast_project" in detail
-    assert "meteo_forecast_worker" in detail
+    assert "weather_forecast_project" in detail
+    assert "weather_forecast_worker" in detail
     assert "skforecast" in detail
     assert "Run INSTALL" in detail
     assert calls
     argv = calls[0]["argv"]
     assert argv[:6] == ["/usr/bin/uv", "--quiet", "run", "--no-sync", "--project", str(worker_root)]
-    assert argv[-1] == "meteo_forecast_worker"
+    assert argv[-1] == "weather_forecast_worker"
     assert calls[0]["cwd"] == worker_root
 
 
@@ -705,8 +1258,8 @@ def test_current_home_action_preflight_does_not_block_install_when_worker_missin
     fake_home = tmp_path / "home"
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="meteo_forecast_project",
-        active_app_query="meteo_forecast_project",
+        app_name="weather_forecast_project",
+        active_app_query="weather_forecast_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["INSTALL"],
@@ -723,15 +1276,15 @@ def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_p
     fake_home = tmp_path / "home"
     share = fake_home / "share"
     share.mkdir(parents=True)
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
     env_file.write_text(f"AGI_CLUSTER_SHARE={share}\nAGI_LOCAL_SHARE={share}\n", encoding="utf-8")
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["CHECK distribute"],
@@ -772,10 +1325,10 @@ def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
 
 def test_summarize_counts_interactions_and_failures() -> None:
     module = _load_module()
-    failure = module.WidgetProbe("flight_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo", "sidebar")
+    failure = module.WidgetProbe("flight_telemetry_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo", "sidebar")
     pages = [
         module.PageSweep(
-            app="flight_project",
+            app="flight_telemetry_project",
             page="PROJECT",
             success=False,
             duration_seconds=1.0,
@@ -789,6 +1342,10 @@ def test_summarize_counts_interactions_and_failures() -> None:
             url="http://demo",
             failures=[failure],
             skips=[],
+            combination_space_count=4,
+            combination_count=4,
+            combination_failed_count=1,
+            combination_skipped_count=0,
         )
     ]
 
@@ -801,13 +1358,56 @@ def test_summarize_counts_interactions_and_failures() -> None:
     assert summary.interacted_count == 1
     assert summary.probed_count == 1
     assert summary.failed_count == 1
+    assert summary.combination_space_count == 4
+    assert summary.combination_count == 4
+    assert summary.combination_failed_count == 1
     assert summary.within_target is False
+
+
+def test_summarize_reports_skipped_widgets_without_failing_sweep() -> None:
+    module = _load_module()
+    skip = module.WidgetProbe(
+        "flight_telemetry_project",
+        "WORKFLOW",
+        "segmented_control",
+        "Safe actions",
+        "skipped",
+        "not enabled",
+        "http://demo",
+    )
+    pages = [
+        module.PageSweep(
+            app="flight_telemetry_project",
+            page="WORKFLOW",
+            success=True,
+            duration_seconds=1.0,
+            widget_count=3,
+            main_widget_count=3,
+            sidebar_widget_count=0,
+            interacted_count=1,
+            probed_count=1,
+            skipped_count=1,
+            failed_count=0,
+            url="http://demo",
+            failures=[],
+            skips=[skip],
+            status="passed",
+        )
+    ]
+
+    summary = module.summarize(pages, app_count=1, target_seconds=10.0)
+
+    assert summary.success is True
+    assert summary.within_target is True
+    assert summary.skipped_count == 1
+    assert summary.failed_count == 0
+    assert summary.pages[0].skips == [skip]
 
 
 def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     module = _load_module()
     passed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -822,7 +1422,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
         status="passed",
     )
     failed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="WORKFLOW",
         success=False,
         duration_seconds=1.0,
@@ -832,7 +1432,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
         skipped_count=0,
         failed_count=1,
         url="http://demo",
-        failures=[module.WidgetProbe("flight_project", "WORKFLOW", "page", "", "failed", "boom", "http://demo")],
+        failures=[module.WidgetProbe("flight_telemetry_project", "WORKFLOW", "page", "", "failed", "boom", "http://demo")],
         skips=[],
         status="failed",
     )
@@ -845,14 +1445,14 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
 
     resumed = module.load_completed_page_results(progress_log)
     assert reported == [passed, failed]
-    assert resumed[module.page_result_key("flight_project", "PROJECT")] == passed
-    assert module.page_result_key("flight_project", "WORKFLOW") not in resumed
+    assert resumed[module.page_result_key("flight_telemetry_project", "PROJECT")] == passed
+    assert module.page_result_key("flight_telemetry_project", "WORKFLOW") not in resumed
 
 
 def test_write_summary_json_includes_page_status(tmp_path) -> None:
     module = _load_module()
     page = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -887,6 +1487,185 @@ def test_page_watchdog_helper_raises_when_deadline_expired() -> None:
         raise AssertionError("expected PageWatchdogTimeout")
 
 
+def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> None:
+    module = _load_module()
+    widgets = [
+        {
+            "id": "show-advanced",
+            "kind": "checkbox",
+            "label": "Show advanced",
+            "checked": False,
+            "testid": "stCheckbox",
+            "path": "input:nth-of-type(1)",
+            "scope": "main",
+        },
+        {
+            "id": "cluster",
+            "kind": "toggle",
+            "label": "Cluster mode",
+            "checked": True,
+            "testid": "stToggle",
+            "path": "input:nth-of-type(2)",
+            "scope": "sidebar",
+        },
+        {
+            "id": "local-radio",
+            "kind": "radio",
+            "label": "Execution backend",
+            "name": "backend",
+            "value": "local",
+            "checked": True,
+            "testid": "stRadio",
+            "path": "input:nth-of-type(3)",
+            "scope": "main",
+        },
+        {
+            "id": "cluster-radio",
+            "kind": "radio",
+            "label": "Execution backend",
+            "name": "backend",
+            "value": "cluster",
+            "checked": False,
+            "testid": "stRadio",
+            "path": "input:nth-of-type(4)",
+            "scope": "main",
+        },
+    ]
+
+    controls = module.collect_static_widget_combination_controls(widgets)
+
+    assert [control.kind for control in controls] == ["checkbox", "toggle", "radio"]
+    assert [choice.checked for choice in controls[0].choices] == [False, True]
+    assert [choice.default for choice in controls[1].choices] == [False, True]
+    assert [choice.value for choice in controls[2].choices] == ["local", "cluster"]
+    assert [choice.default for choice in controls[2].choices] == [True, False]
+
+
+def test_project_switching_selectbox_is_excluded_from_combination_controls() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+    widgets = [
+        {
+            "id": "project",
+            "kind": "selectbox",
+            "label": "Project flight_telemetry_project",
+            "scope": "sidebar",
+            "disabled": False,
+        },
+        {
+            "id": "cluster",
+            "kind": "checkbox",
+            "label": "Enable cluster",
+            "scope": "main",
+            "checked": False,
+            "disabled": False,
+        },
+    ]
+
+    controls, probes = module.collect_widget_combination_controls(
+        _Page(),
+        widgets,
+        app_name="flight_telemetry_project",
+        page_name="ORCHESTRATE",
+        timeout_ms=1000,
+        max_options_per_widget=8,
+    )
+
+    assert [control.label for control in controls] == ["Enable cluster"]
+    assert probes == []
+
+
+def test_dynamic_selectboxes_are_excluded_from_exhaustive_combinations() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+        def locator(self, *_args: object, **_kwargs: object) -> object:
+            raise AssertionError("selectbox options must not be queried for combination setup")
+
+    widgets = [
+        {
+            "id": "workflow-view",
+            "kind": "selectbox",
+            "label": "Workflow view",
+            "scope": "main",
+            "disabled": False,
+        },
+        {
+            "id": "cluster",
+            "kind": "toggle",
+            "label": "Enable cluster",
+            "scope": "main",
+            "checked": False,
+            "disabled": False,
+        },
+    ]
+
+    controls, probes = module.collect_widget_combination_controls(
+        _Page(),
+        widgets,
+        app_name="flight_telemetry_project",
+        page_name="WORKFLOW",
+        timeout_ms=1000,
+        max_options_per_widget=8,
+    )
+
+    assert [control.kind for control in controls] == ["toggle"]
+    assert [control.label for control in controls] == ["Enable cluster"]
+    assert probes == []
+
+
+def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() -> None:
+    module = _load_module()
+    checkbox = module.WidgetControl(
+        "advanced",
+        "checkbox",
+        "Show advanced",
+        (
+            module.WidgetChoice("advanced", "checkbox", "Show advanced", "off", {}, checked=False),
+            module.WidgetChoice("advanced", "checkbox", "Show advanced", "on", {}, checked=True),
+        ),
+    )
+    backend = module.WidgetControl(
+        "backend",
+        "radio",
+        "Backend",
+        (
+            module.WidgetChoice("backend", "radio", "Backend", "local", {}, checked=True),
+            module.WidgetChoice("backend", "radio", "Backend", "cluster", {}, checked=True),
+            module.WidgetChoice("backend", "radio", "Backend", "remote", {}, checked=True),
+        ),
+    )
+
+    plan = module.build_widget_combination_plan((checkbox, backend), max_combinations=10)
+    truncated = module.build_widget_combination_plan((checkbox, backend), max_combinations=4)
+
+    assert plan.total_count == 6
+    assert len(plan.combinations) == 6
+    assert plan.truncated is False
+    assert [choice.value for choice in plan.combinations[0]] == ["off", "local"]
+    assert truncated.total_count == 6
+    assert len(truncated.combinations) == 4
+    assert truncated.truncated is True
+
+
+def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> None:
+    module = _load_module()
+
+    args = module.build_parser().parse_args([])
+
+    assert args.combination_mode == "exhaustive"
+    assert args.action_button_policy == "safe-click"
+    assert args.max_combinations > 0
+    assert args.max_options_per_widget > 0
+    assert args.discovery_passes == 2
+    assert args.max_action_clicks_per_page > 0
+
+
 def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     module = _load_module()
     main_widget = {
@@ -916,6 +1695,9 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "stToast" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert "fatalTextNeedles" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert "diagnostic" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
+    assert "install finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert "install finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "install finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
 
 
 def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
@@ -934,6 +1716,15 @@ def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
             values = set(re.findall(r'"([^"]+)"', array_body))
             assert broad_needles.isdisjoint(values)
             assert "distribution build failed" in values
+            assert "install finished with errors" in values
+
+
+def test_action_log_feedback_collector_catches_install_finished_with_errors() -> None:
+    module = _load_module()
+
+    assert '"install finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert '"finished with errors"' in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert '"installation failed"' in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
 
 
 def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
@@ -982,11 +1773,59 @@ def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None
         kind="pageerror",
         detail="TypeError: broken widget callback",
     )
+    module._record_browser_issue(
+        issues,
+        kind="requestfailed",
+        detail="https://demo/agilab.js net::ERR_FAILED",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="http.500",
+        detail="HTTP 500 https://demo/api/run",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="http.404",
+        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/health",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="http.404",
+        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/host-config",
+    )
 
     assert issues == [
         {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
         {"kind": "pageerror", "detail": "TypeError: broken widget callback"},
+        {"kind": "requestfailed", "detail": "https://demo/agilab.js net::ERR_FAILED"},
+        {"kind": "http.500", "detail": "HTTP 500 https://demo/api/run"},
     ]
+
+
+def test_browser_issue_capture_hooks_network_events() -> None:
+    module = _load_module()
+    callbacks = {}
+
+    class _Page:
+        def on(self, event, callback):
+            callbacks[event] = callback
+
+    class _Request:
+        url = "https://demo/api/data"
+
+        def failure(self):
+            return {"errorText": "net::ERR_FAILED"}
+
+    class _Response:
+        status = 503
+        url = "https://demo/api/run"
+
+    issues = module._attach_browser_issue_capture(_Page())
+    callbacks["requestfailed"](_Request())
+    callbacks["response"](_Response())
+
+    assert {"kind": "requestfailed", "detail": "https://demo/api/data net::ERR_FAILED"} in issues
+    assert {"kind": "http.503", "detail": "HTTP 503 https://demo/api/run"} in issues
 
 
 def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
@@ -999,7 +1838,7 @@ def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
 
     appended = module._append_browser_issue_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         browser_issues=issues,
@@ -1017,7 +1856,7 @@ def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
     module = _load_module()
     probes = [
         module.WidgetProbe(
-            "flight_project",
+            "flight_telemetry_project",
             "ORCHESTRATE",
             "button",
             "Run -> Load -> Export",
@@ -1029,7 +1868,7 @@ def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
 
     module._append_missing_selected_action_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         click_action_labels=["Run -> Load -> Export"],
@@ -1060,7 +1899,7 @@ def test_missing_selected_action_probe_still_fails_found_unfired_label_when_abse
     module = _load_module()
     probes = [
         module.WidgetProbe(
-            "flight_project",
+            "flight_telemetry_project",
             "ORCHESTRATE",
             "button",
             "Run -> Load -> Export",
@@ -1072,7 +1911,7 @@ def test_missing_selected_action_probe_still_fails_found_unfired_label_when_abse
 
     module._append_missing_selected_action_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         click_action_labels=["Run -> Load -> Export"],
@@ -1152,7 +1991,7 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
     try:
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export"],
@@ -1244,7 +2083,7 @@ def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_pa
     try:
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export", "EXPORT dataframe"],
@@ -1298,7 +2137,7 @@ def test_probe_selected_actions_first_allows_idle_settle_for_already_ready_load(
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="data_io_2026_project",
+            app_name="mission_decision_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Load output", "EXPORT dataframe"],
@@ -1352,7 +2191,7 @@ def test_probe_selected_actions_first_stops_after_selected_action_failure(tmp_pa
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export", "Load output"],
@@ -1459,7 +2298,7 @@ def test_probe_selected_actions_first_allows_idle_settle_for_confirm_delete(tmp_
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Confirm delete"],
@@ -1482,12 +2321,15 @@ def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -
     module = _load_module()
 
     class _Locator:
+        def __init__(self, count_value: int = 1):
+            self.count_value = count_value
+
         @property
         def first(self):
             return self
 
         def count(self):
-            return 1
+            return self.count_value
 
         def inner_text(self, timeout):
             return ""
@@ -1523,7 +2365,7 @@ def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -
 
     probes = module._probe_selected_actions_first(
         _Page(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         widget_timeout_ms=100,
         click_action_labels=["Delete output"],
@@ -1568,7 +2410,7 @@ def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction
             return None
 
     class _Page:
-        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def evaluate(self, script):
             if script == module.OPEN_EXPANDERS_JS:
@@ -1596,7 +2438,7 @@ def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction
 
     probes = module._collect_and_probe_current_view(
         _Page(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="ORCHESTRATE",
         widget_timeout_ms=100,
         interaction_mode="full",
@@ -1672,8 +2514,8 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="PROJECT",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -1697,7 +2539,7 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
 def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
@@ -1719,7 +2561,7 @@ def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_pat
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             return None
@@ -1763,8 +2605,8 @@ def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_pat
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -1811,7 +2653,7 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             return None
@@ -1852,8 +2694,8 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -1895,7 +2737,7 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             browser_issues.append({"kind": "pageerror", "detail": "TypeError: broken widget callback"})
@@ -1937,8 +2779,8 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -1960,6 +2802,174 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
     assert result.failures[0].kind == "browser_error"
     assert result.failures[0].label == "pageerror"
     assert "broken widget callback" in result.failures[0].detail
+
+
+def test_performance_budget_probe_fails_when_budget_is_exceeded() -> None:
+    module = _load_module()
+
+    probe = module._performance_budget_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        label="widgets_ready",
+        seconds=2.5,
+        budget_seconds=1.0,
+        url="http://demo",
+    )
+
+    assert probe.kind == "performance"
+    assert probe.status == "failed"
+    assert "exceeded" in probe.detail
+
+
+def test_success_screenshot_probe_records_evidence(tmp_path) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+    class _WebRobot:
+        @staticmethod
+        def _screenshot(page, screenshot_dir, label):
+            path = screenshot_dir / f"{label}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"png")
+            return str(path)
+
+    probe = module._capture_success_screenshot_probe(
+        _Page(),
+        web_robot=_WebRobot(),
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        screenshot_dir=tmp_path,
+    )
+
+    assert probe is not None
+    assert probe.kind == "screenshot"
+    assert probe.status == "probed"
+    assert "success screenshot=" in probe.detail
+
+
+def test_success_screenshot_probe_masks_dynamic_regions_when_requested(tmp_path) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+        def __init__(self) -> None:
+            self.evaluated_scripts = []
+
+        def evaluate(self, script):
+            self.evaluated_scripts.append(script)
+            return 1
+
+    class _WebRobot:
+        @staticmethod
+        def _screenshot(page, screenshot_dir, label):
+            path = screenshot_dir / f"{label}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"png")
+            return str(path)
+
+    page = _Page()
+    probe = module._capture_success_screenshot_probe(
+        page,
+        web_robot=_WebRobot(),
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        screenshot_dir=tmp_path,
+        visual_mask_dynamic_regions=True,
+    )
+
+    assert probe is not None
+    assert probe.status == "probed"
+    assert page.evaluated_scripts == [module.VISUAL_MASK_DYNAMIC_REGIONS_JS]
+
+
+def test_browser_history_probe_checks_back_forward_and_active_app_route() -> None:
+    module = _load_module()
+    visited: list[str] = []
+
+    class _Health:
+        success = True
+        detail = "ok"
+
+    class _FakeWebRobot:
+        @staticmethod
+        def build_page_url(base_url, page_name, *, active_app=None, current_page=None):
+            return f"{base_url.rstrip('/')}/{page_name}?active_app={active_app}"
+
+        @staticmethod
+        def assert_page_healthy(*_args, **_kwargs):
+            return _Health()
+
+    class _Page:
+        url = "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project"
+
+        def goto(self, url, **_kwargs):
+            self.url = url
+            visited.append(url)
+
+        def go_back(self, **_kwargs):
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
+            visited.append("BACK")
+
+        def go_forward(self, **_kwargs):
+            self.url = "http://127.0.0.1:8501/ANALYSIS?active_app=flight_telemetry_project"
+            visited.append("FORWARD")
+
+        def evaluate(self, script):
+            if script == module.THEME_STATE_COLLECTOR_JS:
+                return {
+                    "app": {"backgroundColor": "rgb(8, 17, 31)"},
+                    "body": {"backgroundColor": "rgb(8, 17, 31)"},
+                    "rootBackground": "rgb(8, 17, 31)",
+                }
+            return {}
+
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        probe = module._browser_history_probe(
+            _Page(),
+            web_robot=_FakeWebRobot(),
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
+            display="PROJECT",
+            timeout_ms=100,
+            widget_timeout_ms=100,
+            screenshot_dir=None,
+            route_query="",
+        )
+    finally:
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert probe.kind == "browser_history"
+    assert probe.status == "interacted"
+    assert "PROJECT -> ORCHESTRATE -> ANALYSIS" == probe.label
+    assert "dark theme" in probe.detail
+    assert visited[-2:] == ["BACK", "FORWARD"]
+
+
+def test_dark_theme_status_fails_for_light_background() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            assert script == module.THEME_STATE_COLLECTOR_JS
+            return {
+                "app": {"backgroundColor": "rgb(255, 255, 255)"},
+                "body": {"backgroundColor": "rgb(255, 255, 255)"},
+                "rootBackground": "rgb(255, 255, 255)",
+            }
+
+    ok, detail = module._dark_theme_status(_Page())
+
+    assert ok is False
+    assert "dark theme was not preserved" in detail
 
 
 def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
@@ -1988,9 +2998,9 @@ def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
     module.normalize_remote_url = lambda _value: _value
     try:
         pages = module.sweep_remote_app(
-            app="flight_project",
+            app="flight_telemetry_project",
             base_url="http://remote",
-            active_app_query="flight_project",
+            active_app_query="flight_telemetry_project",
             pages=[],
             apps_pages=[],
             remote_app_root="/app",
@@ -2061,8 +3071,8 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
     try:
         result = module.sweep_direct_apps_page(
             web_robot=_FakeWebRobot(),
-            app_name="flight_project",
-            active_app="flight_project",
+            app_name="flight_telemetry_project",
+            active_app="flight_telemetry_project",
             route=route,
             timeout=10.0,
             widget_timeout=1.0,
@@ -2088,7 +3098,7 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
 def test_render_human_reports_sidebar_widget_counts() -> None:
     module = _load_module()
     page = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -2102,13 +3112,17 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
         url="http://demo",
         failures=[],
         skips=[],
+        combination_space_count=2,
+        combination_count=2,
     )
     summary = module.summarize([page], app_count=1, target_seconds=10.0)
 
     report = module.render_human(summary)
 
     assert "widgets=3 main=2 sidebar=1" in report
-    assert "flight_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
+    assert "combinations: space=2 executed=2" in report
+    assert "flight_telemetry_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
+    assert "combinations=2/2" in report
 
 
 def test_action_buttons_are_probed_by_default(tmp_path) -> None:
@@ -2155,6 +3169,196 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert status == "probed"
     assert "callback not fired" in detail
     assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_safe_action_click_classifier_allows_navigation_and_denies_risky_actions() -> None:
+    module = _load_module()
+
+    assert module.safe_action_click_reason({"kind": "button", "label": "View maps"})
+    assert module.safe_action_click_reason({"kind": "button", "label": "view_forecast_analysis"})
+    assert module.safe_action_click_reason({"kind": "download_button", "label": "Download CSV"})
+    assert module.safe_action_click_reason({"kind": "button", "label": "RUN pipeline"}) is None
+    assert module.safe_action_click_reason({"kind": "form_submit_button", "label": "Create project"}) is None
+
+
+def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        url = "http://demo"
+
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator(0)
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    budget = [1]
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "safe", "kind": "button", "label": "View maps"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        action_timeout_ms=100,
+        action_click_budget=budget,
+    )
+
+    assert status == "interacted"
+    assert "guarded safe action" in detail
+    assert budget == [0]
+    assert clicks == [{"timeout": 100}]
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "risky", "kind": "button", "label": "RUN pipeline"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        action_timeout_ms=100,
+        action_click_budget=[1],
+    )
+
+    assert status == "probed"
+    assert "guarded safe-click policy" in detail
+    assert clicks[-1] == {"timeout": 100, "trial": True}
+
+
+def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[str] = []
+
+    class _Locator:
+        def __init__(self, widget_id: str):
+            self.widget_id = widget_id
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 0 if self.widget_id in {"exception", "spinner"} else 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(self.widget_id)
+
+        def input_value(self, timeout):
+            return ""
+
+        def fill(self, value, timeout):
+            pass
+
+    class _Page:
+        url = "http://demo"
+
+        def __init__(self):
+            self.evaluate_count = 0
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script in {
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            self.evaluate_count += 1
+            widgets = [
+                {
+                    "id": "view",
+                    "kind": "button",
+                    "label": "View details",
+                    "testid": "stButton",
+                    "path": "button:nth-of-type(1)",
+                    "scope": "main",
+                },
+            ]
+            if clicks:
+                widgets.append(
+                    {
+                        "id": "name",
+                        "kind": "text_input",
+                        "label": "Name",
+                        "testid": "stTextInput",
+                        "path": "input:nth-of-type(1)",
+                        "scope": "main",
+                    }
+                )
+            return widgets
+
+        def locator(self, selector):
+            if selector == "[data-testid='stException']":
+                return _Locator("exception")
+            if selector == "[data-testid='stSpinner']":
+                return _Locator("spinner")
+            if "name" in selector:
+                return _Locator("name")
+            return _Locator("view")
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    probes = module._collect_and_probe_current_view(
+        _Page(),
+        app_name="flight_telemetry_project",
+        page_name="PROJECT",
+        widget_timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        known=set(),
+        discovery_passes=2,
+        action_click_budget=[2],
+        action_timeout_ms=100,
+    )
+
+    assert [probe.kind for probe in probes] == ["button", "text_input"]
+    assert probes[0].status == "interacted"
+    assert probes[1].status == "interacted"
 
 
 def test_hidden_data_editor_after_collection_is_not_a_matrix_failure(tmp_path) -> None:
@@ -2597,9 +3801,212 @@ def test_selected_action_button_detects_failure_in_orchestration_log_expander(tm
     )
 
     assert status == "failed"
+    assert "action='CHECK distribute' status=error" in detail
     assert "Distribution build failed" in detail
+    assert "evidence_tail=" in detail
     assert action_log_calls["value"] >= 1
     assert clicks == [{"timeout": 1000}]
+
+
+def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "install", "kind": "button", "label": "INSTALL", "disabled": True}]
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "install", "kind": "button", "label": "INSTALL"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["INSTALL"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "failed"
+    assert "action='INSTALL' status=error" in detail
+    assert "no expected enabled follow-up action" in detail
+    assert clicks == [{"timeout": 100}]
+
+
+def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            pass
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "check", "kind": "button", "label": "CHECK distribute", "scope": "main"}]
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "install", "kind": "button", "label": "INSTALL"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["INSTALL"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "interacted"
+    assert "action='INSTALL' status=success" in detail
+    assert "enabled follow-up action 'CHECK distribute'" in detail
+
+
+def test_selected_action_fails_when_settle_budget_is_exceeded(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            pass
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+
+    def slow_success(page, **_kwargs):
+        time.sleep(0.002)
+        return None, True
+
+    module._wait_for_action_outcome = slow_success
+    try:
+        status, detail = module._probe_widget(
+            _Page(),
+            {"id": "run", "kind": "button", "label": "Run -> Load -> Export"},
+            timeout_ms=100,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+            restore_view=None,
+            max_action_settle_seconds=0.0001,
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert status == "failed"
+    assert "status=slow" in detail
+    assert "budget<=" in detail
 
 
 def test_selected_action_baseline_includes_stale_action_log_feedback() -> None:
@@ -2917,8 +4324,8 @@ def test_file_uploader_uses_ipynb_fixture_for_notebook_upload(tmp_path) -> None:
 def test_parse_csv_splits_and_strips_values() -> None:
     module = _load_module()
 
-    assert module.parse_csv(" flight_project, ,uav_queue_project,,flight\n") == [
-        "flight_project",
+    assert module.parse_csv(" flight_telemetry_project, ,uav_queue_project,,flight_telemetry\n") == [
+        "flight_telemetry_project",
         "uav_queue_project",
     ]
 
@@ -2947,10 +4354,13 @@ def test_resolve_apps_resolves_project_name_within_app_root(tmp_path) -> None:
 def test_active_app_slug_and_route_aliases() -> None:
     module = _load_module()
 
-    assert module.active_app_slug("/tmp%2Fflight_project") == "flight_project"
-    assert module.routed_active_app_slug("/foo?active_app=flight_project&x=1") == "flight_project"
+    assert module.active_app_slug("/tmp%2Fflight_telemetry_project") == "flight_telemetry_project"
+    assert module.routed_active_app_slug("/foo?active_app=flight_telemetry_project&x=1") == "flight_telemetry_project"
     assert module.routed_active_app_slug("/foo?x=1") is None
-    assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
+    assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
+        "flight_telemetry_project",
+        "flight_telemetry",
+    }
 
 
 def test_configured_apps_pages_for_app_with_invalid_settings_returns_empty(tmp_path) -> None:
@@ -3013,7 +4423,7 @@ def test_write_csv_and_json_helpers(tmp_path) -> None:
 def test_resume_page_if_available_returns_and_reports_match() -> None:
     module = _load_module()
     passed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -3035,9 +4445,9 @@ def test_resume_page_if_available_returns_and_reports_match() -> None:
     on_result: list[module.PageSweep] = []
 
     resumed = module._resume_page_if_available(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="PROJECT",
-        resume_page_results={module.page_result_key("flight_project", "PROJECT"): passed},
+        resume_page_results={module.page_result_key("flight_telemetry_project", "PROJECT"): passed},
         progress=_Progress(),
         on_page_result=on_result.append,
     )

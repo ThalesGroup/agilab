@@ -26,7 +26,7 @@ def test_scenario_catalog_contains_expected_builtins() -> None:
 
     assert "orchestrate-execute-import" in scenarios
     assert "runtime-distribution-import" in scenarios
-    assert "view-maps-network-import" in scenarios
+    assert "agi-page-network-map-import" in scenarios
     assert scenarios["base-worker-import"].command[0] == sys.executable
 
 

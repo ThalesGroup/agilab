@@ -142,6 +142,12 @@ def test_requirement_metadata_edge_cases(tmp_path: Path) -> None:
     assert venv_linker._version_ok(Requirement("demo"), _dist("demo", "not-a-version"))
     assert not venv_linker._version_ok(Requirement("demo>=1"), _dist("demo", "not-a-version"))
 
+    bad_project = tmp_path / "bad_project_table"
+    bad_project.mkdir()
+    (bad_project / ".venv").mkdir()
+    (bad_project / "pyproject.toml").write_text('project = "bad"\n', encoding="utf-8")
+    assert venv_linker.load_project_requirements(bad_project).dependencies == ()
+
 
 def test_candidate_requirements_are_checked_from_installed_packages(tmp_path: Path) -> None:
     target = tmp_path / "target_project"
@@ -277,6 +283,17 @@ def test_marker_mismatch_is_reported_as_skip() -> None:
     assert check.skipped == ('requests>=2; python_version < "3.0"',)
 
 
+def test_marker_evaluation_errors_are_treated_as_not_applicable() -> None:
+    class BadMarker:
+        def evaluate(self, _environment):
+            raise TypeError("bad marker")
+
+    class BadRequirement:
+        marker = BadMarker()
+
+    assert venv_linker._marker_applies(BadRequirement(), default_environment()) is False
+
+
 def test_recursive_requirement_stack_short_circuits_cycle() -> None:
     check = venv_linker.requirement_satisfied(
         Requirement("demo>=1"),
@@ -388,6 +405,34 @@ def test_install_project_no_deps_dry_run_does_not_call_uv(tmp_path: Path) -> Non
     )
 
 
+def test_install_project_no_deps_invokes_uv_when_not_dry_run(monkeypatch, tmp_path: Path) -> None:
+    calls = []
+    monkeypatch.setattr(venv_linker.subprocess, "run", lambda command, check: calls.append((command, check)))
+
+    venv_linker._install_project_no_deps(
+        uv="uv",
+        project_path=tmp_path / "project",
+        canonical_python=tmp_path / "canonical" / "bin" / "python",
+        dry_run=False,
+    )
+
+    assert calls == [
+        (
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(tmp_path / "canonical" / "bin" / "python"),
+                "--no-deps",
+                "-e",
+                str(tmp_path / "project"),
+            ],
+            True,
+        )
+    ]
+
+
 def test_apply_replaces_target_venv_with_symlink(tmp_path: Path) -> None:
     small = tmp_path / "small_project"
     large = tmp_path / "large_project"
@@ -479,6 +524,76 @@ def test_apply_rolls_back_target_venv_when_symlink_fails(monkeypatch, tmp_path: 
 
     assert (small / ".venv").is_dir()
     assert (small / ".venv" / "old.txt").read_text(encoding="utf-8") == "old env\n"
+    assert not list(small.glob(".venv.agilab-linking*"))
+
+
+def test_apply_removes_symlink_backup_after_success(tmp_path: Path) -> None:
+    small = tmp_path / "small_project"
+    large = tmp_path / "large_project"
+    _write_project(small, ["requests>=2"])
+    _write_project(large, ["requests>=2", "pandas>=2"])
+    (small / ".venv").rmdir()
+    old_target = tmp_path / "old_env"
+    old_target.mkdir()
+    (small / ".venv").symlink_to(old_target, target_is_directory=True)
+    action = venv_linker.LinkAction(
+        target_project=small,
+        target_venv=small / ".venv",
+        canonical_project=large,
+        canonical_venv=large / ".venv",
+        reason="test",
+        target_package_count=1,
+        canonical_package_count=2,
+    )
+    states = {(large / ".venv"): _state(large, [_dist("requests", "2.32.0"), _dist("pandas", "2.3.0")])}
+
+    venv_linker.apply_link_actions(
+        [action],
+        states,
+        dry_run=False,
+        install_projects=False,
+    )
+
+    assert (small / ".venv").is_symlink()
+    assert not list(small.glob(".venv.agilab-linking*"))
+
+
+def test_apply_rolls_back_when_failed_symlink_leaves_directory(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    small = tmp_path / "small_project"
+    large = tmp_path / "large_project"
+    _write_project(small, ["requests>=2"])
+    _write_project(large, ["requests>=2", "pandas>=2"])
+    action = venv_linker.LinkAction(
+        target_project=small,
+        target_venv=small / ".venv",
+        canonical_project=large,
+        canonical_venv=large / ".venv",
+        reason="test",
+        target_package_count=1,
+        canonical_package_count=2,
+    )
+    states = {(large / ".venv"): _state(large, [_dist("requests", "2.32.0"), _dist("pandas", "2.3.0")])}
+
+    def _leave_directory_then_raise(self: Path, *_args, **_kwargs) -> None:
+        if self == small / ".venv":
+            self.mkdir()
+            raise OSError("cannot link")
+        raise AssertionError(self)
+
+    monkeypatch.setattr(venv_linker.Path, "symlink_to", _leave_directory_then_raise)
+
+    with pytest.raises(OSError, match="cannot link"):
+        venv_linker.apply_link_actions(
+            [action],
+            states,
+            dry_run=False,
+            install_projects=False,
+        )
+
+    assert (small / ".venv").is_dir()
     assert not list(small.glob(".venv.agilab-linking*"))
 
 

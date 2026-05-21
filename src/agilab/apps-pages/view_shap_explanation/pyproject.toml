@@ -1,0 +1,40 @@
+[project]
+name = "agi-page-feature-attribution"
+version = "2026.05.20"
+description = "AGILAB page bundle for feature-attribution evidence."
+readme = { text = "AGILAB page bundle for feature-attribution evidence.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
+dependencies = [
+    "agi-gui>=2026.05.13,<2027.0",
+    "agi-node>=2026.05.13,<2027.0",
+    "pandas>=2.3.0",
+]
+
+[project.entry-points."agilab.pages"]
+view_shap_explanation = "view_shap_explanation:bundle_root"
+
+
+
+
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_shap_explanation"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[tool.uv.sources]
+agi-gui = { path = "../../lib/agi-gui", editable = true }
+agi-env = { path = "../../core/agi-env", editable = true }
+agi-node = { path = "../../core/agi-node", editable = true }

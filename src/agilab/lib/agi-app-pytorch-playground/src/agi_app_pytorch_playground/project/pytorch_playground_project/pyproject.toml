@@ -1,0 +1,34 @@
+[project]
+name = "pytorch_playground_project"
+version = "2026.05.20"
+description = "Built-in AGILab app for reproducible PyTorch classifier playground experiments."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "agi-env>=2026.05.20",
+    "agi-node>=2026.05.20",
+    "agi-cluster>=2026.05.20",
+    "agi-gui>=2026.05.20",
+    "numpy>=2.2",
+    "pandas>=2.3.0",
+    "plotly>=6.3.0",
+    "pydantic",
+    "streamlit>=1.56,<1.57",
+    "torch>=2.8.0",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/pytorch_playground_project"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[tool.agilab.app]
+distribution_preview = false
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

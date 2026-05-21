@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import importlib.util
 import json
@@ -8,19 +9,35 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = ROOT / "tools"
+sys.path.insert(0, str(TOOLS_ROOT))
+
+from package_split_contract import (
+    APP_PROJECT_PACKAGE_SPECS,
+    PAGE_BUNDLE_PACKAGE_SPECS,
+    PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+)
+
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
+APP_PROJECT_BUILD_SUPPORT = ROOT / "src/agilab/lib/app_project_build_support.py"
+ROOT_PYPROJECT = ROOT / "pyproject.toml"
+AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
+AGI_PAGES_PYPROJECT = ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
+AGI_PAGES_SOURCE_PACKAGE = ROOT / "src/agilab/lib/agi-pages/src/agi_pages"
 BUILTIN_APPS_ROOT = ROOT / "src/agilab/apps/builtin"
 APP_TEMPLATES_ROOT = ROOT / "src/agilab/apps/templates"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
+APPS_PAGES_ROOT = ROOT / "src/agilab/apps-pages"
 EXAMPLE_APPS = {
-    "data_io_2026": ("AGI_install_data_io_2026.py", "AGI_run_data_io_2026.py"),
-    "flight": ("AGI_install_flight.py", "AGI_run_flight.py"),
-    "meteo_forecast": ("AGI_install_meteo_forecast.py", "AGI_run_meteo_forecast.py"),
+    "mission_decision": ("AGI_install_mission_decision.py", "AGI_run_mission_decision.py"),
+    "flight_telemetry": ("AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"),
+    "weather_forecast": ("AGI_install_weather_forecast.py", "AGI_run_weather_forecast.py"),
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
 EXAMPLE_PREVIEWS = {
@@ -38,16 +55,21 @@ EXAMPLE_PREVIEWS = {
     "service_mode": ("preview_service_mode.py",),
     "train_then_serve": ("preview_train_then_serve.py",),
 }
+DEPRECATED_EXAMPLE_DIR_NAMES = {
+    "data_io_2026",
+    "flight",
+    "meteo_forecast",
+}
 BUILTIN_EXAMPLE_PAYLOADS = {
     "inter_project_dag": (
         BUILTIN_APPS_ROOT
         / "global_dag_project"
         / "dag_templates"
-        / "flight_to_meteo_global_dag.json"
+        / "flight_to_weather_global_dag.json"
     ),
     "mlflow_auto_tracking": (
         BUILTIN_APPS_ROOT
-        / "meteo_forecast_project"
+        / "weather_forecast_project"
         / "tracking_templates"
         / "mlflow_auto_tracking_run_config.json"
     ),
@@ -89,8 +111,31 @@ APP_GENERATED_DIRS = {
     "agilab",
     "build",
     "dist",
+    "notebooks",
 }
 APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
+APP_PROJECT_BY_DISTRIBUTION = {
+    "agi-app-mission-decision": "mission_decision_project",
+    "agi-app-pandas-execution": "execution_pandas_project",
+    "agi-app-polars-execution": "execution_polars_project",
+    "agi-app-flight-telemetry": "flight_telemetry_project",
+    "agi-app-global-dag": "global_dag_project",
+    "agi-app-weather-forecast": "weather_forecast_project",
+    "agi-app-pytorch-playground": "pytorch_playground_project",
+    "agi-app-tescia-diagnostic-project": "tescia_diagnostic_project",
+    "agi-app-uav-queue-project": "uav_queue_project",
+    "agi-app-uav-relay-queue": "uav_relay_queue_project",
+}
+APP_PACKAGE_README_REQUIRED_SECTIONS = (
+    "## Purpose",
+    "## Installed Project",
+    "## Install",
+    "## Run In AGILAB",
+    "## Expected Inputs",
+    "## Expected Outputs",
+    "## Change One Thing",
+    "## Scope",
+)
 
 
 def _expected_script_paths() -> list[Path]:
@@ -114,8 +159,79 @@ def _load_installer(monkeypatch, tmp_path: Path):
     return module
 
 
+def _load_app_project_build_support():
+    sys.modules.pop("agilab_app_project_build_support_test_module", None)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_app_project_build_support_test_module",
+        APP_PROJECT_BUILD_SUPPORT,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_app_package_entry_points_prefer_source_checkout_builtin_projects() -> None:
+    for distribution, project_name in sorted(APP_PROJECT_BY_DISTRIBUTION.items()):
+        init_candidates = sorted((ROOT / "src/agilab/lib" / distribution / "src").glob("agi_app_*/__init__.py"))
+        assert len(init_candidates) == 1, distribution
+        init_path = init_candidates[0]
+        module_name = f"{init_path.parent.name}_project_root_test"
+        sys.modules.pop(module_name, None)
+        spec = importlib.util.spec_from_file_location(module_name, init_path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+
+        assert module.project_root() == (BUILTIN_APPS_ROOT / project_name).resolve()
+
+
+def test_app_project_payload_build_helper_ignores_generated_app_dirs() -> None:
+    support = _load_app_project_build_support()
+
+    assert APP_GENERATED_DIRS <= support._EXCLUDED_PAYLOAD_DIRS
+
+
 def _builtin_app_dirs() -> list[Path]:
     return sorted(path for path in BUILTIN_APPS_ROOT.glob("*_project") if path.is_dir())
+
+
+def _root_package_data() -> list[str]:
+    pyproject = tomllib.loads(ROOT_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+
+
+def _agi_apps_package_data(package: str) -> list[str]:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["package-data"][package]
+
+
+def _agi_apps_excluded_data(package: str) -> list[str]:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["exclude-package-data"].get(package, [])
+
+
+def _agi_pages_package_data() -> list[str]:
+    pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"].get("package-data", {}).get("agi_pages", [])
+
+
+def _agi_app_project_pyproject(distribution: str) -> dict:
+    return tomllib.loads((ROOT / "src/agilab/lib" / distribution / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _builtin_project_pyproject(project_name: str) -> dict:
+    return tomllib.loads((BUILTIN_APPS_ROOT / project_name / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _python_floor(requires_python: str) -> tuple[int, int]:
+    prefix = ">="
+    assert requires_python.startswith(prefix), requires_python
+    version = requires_python.removeprefix(prefix).split(",", 1)[0]
+    major, minor, *_ = version.split(".")
+    return int(major), int(minor)
 
 
 def _packaged_app_dirs() -> list[Path]:
@@ -164,6 +280,73 @@ def test_packaged_apps_include_required_project_assets() -> None:
     assert not missing, "Missing packaged app project assets:\n" + "\n".join(missing)
 
 
+def test_app_template_python_files_compile_safe() -> None:
+    scripts = sorted(APP_TEMPLATES_ROOT.glob("*_template/src/**/*.py"))
+
+    assert scripts
+    for script in scripts:
+        py_compile.compile(str(script), doraise=True)
+
+
+def test_app_templates_keep_runtime_contracts_explicit() -> None:
+    templates = sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir())
+    assert templates
+
+    workerless_templates = {"simple_app_template"}
+    forbidden_python_fragments = (
+        "AGI._env",
+        "warnings.filterwarnings",
+        "Backward-compatible",
+        "Compatibility shim",
+        "legacy",
+        "data_uri",
+    )
+    for template in templates:
+        pyproject = tomllib.loads((template / "pyproject.toml").read_text(encoding="utf-8"))
+        authors = pyproject["project"].get("authors", [])
+        assert authors, template.name
+        assert all(author.get("email") != "your email" for author in authors), template.name
+        assert all("@" in author.get("email", "") for author in authors), template.name
+        dependencies = set()
+        for dependency in pyproject["project"]["dependencies"]:
+            name = dependency.split(";", 1)[0].split("[", 1)[0].strip()
+            for operator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+                name = name.split(operator, 1)[0].strip()
+            dependencies.add(name)
+        assert {"agi-env", "pydantic", "streamlit"} <= dependencies
+        if template.name in workerless_templates:
+            assert {"agi-cluster", "agi-node"}.isdisjoint(dependencies), template.name
+            assert not any(template.glob("src/*_worker")), template.name
+        else:
+            assert {"agi-cluster", "agi-node"} <= dependencies, template.name
+        assert "filterwarnings" not in pyproject.get("tool", {}).get("mypy", {})
+
+        cluster_settings = tomllib.loads((template / "src/app_settings.toml").read_text(encoding="utf-8"))["cluster"]
+        assert "cluster_enabled" in cluster_settings
+        assert {"workers_enable", "workers_enabled", "scheduler_enable"}.isdisjoint(cluster_settings)
+
+        for script in sorted((template / "src").glob("**/*.py")):
+            text = script.read_text(encoding="utf-8")
+            for fragment in forbidden_python_fragments:
+                assert fragment not in text, f"{script.relative_to(ROOT).as_posix()} contains {fragment!r}"
+
+
+def test_app_template_pre_prompts_are_generic_and_dependency_neutral() -> None:
+    templates = sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir())
+    assert templates
+
+    stale_fragments = ("mlflow", "sklearn", "scikit-learn", "df is already loaded")
+    for template in templates:
+        prompt_path = template / "src/pre_prompt.json"
+        payload = json.loads(prompt_path.read_text(encoding="utf-8"))
+        prompt_text = json.dumps(payload).lower()
+
+        assert isinstance(payload, list)
+        assert all(isinstance(item.get("role"), str) and isinstance(item.get("content"), str) for item in payload)
+        for fragment in stale_fragments:
+            assert fragment not in prompt_text, f"{prompt_path.relative_to(ROOT).as_posix()} contains {fragment!r}"
+
+
 def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
     tracked = _git_paths("ls-files")
     visible_untracked = _git_paths("ls-files", "--others", "--exclude-standard")
@@ -187,29 +370,289 @@ def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
 def test_seed_example_scripts_uses_packaged_examples_dir(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     package_root = tmp_path / "site-packages" / "agilab"
-    examples_dir = package_root / "examples" / "flight"
+    examples_dir = package_root / "examples" / "flight_telemetry"
     examples_dir.mkdir(parents=True)
-    (examples_dir / "AGI_install_flight.py").write_text("# install\n", encoding="utf-8")
-    (examples_dir / "AGI_run_flight.py").write_text("# run\n", encoding="utf-8")
+    (examples_dir / "AGI_install_flight_telemetry.py").write_text("# install\n", encoding="utf-8")
+    (examples_dir / "AGI_run_flight_telemetry.py").write_text("# run\n", encoding="utf-8")
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    module._seed_example_scripts("flight")
+    module._seed_example_scripts("flight_telemetry")
 
-    execute_dir = tmp_path / "home" / "log" / "execute" / "flight"
-    assert (execute_dir / "AGI_install_flight.py").read_text(encoding="utf-8") == "# install\n"
-    assert (execute_dir / "AGI_run_flight.py").read_text(encoding="utf-8") == "# run\n"
+    execute_dir = tmp_path / "home" / "log" / "execute" / "flight_telemetry"
+    assert (execute_dir / "AGI_install_flight_telemetry.py").read_text(encoding="utf-8") == "# install\n"
+    assert (execute_dir / "AGI_run_flight_telemetry.py").read_text(encoding="utf-8") == "# run\n"
 
 
 def test_app_dir_candidates_prefer_packaged_builtin_apps(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     package_root = tmp_path / "site-packages" / "agilab"
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
+    monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [])
 
-    assert module._app_dir_candidates("flight") == [
-        package_root / "apps" / "builtin" / "flight_project",
-        package_root / "apps" / "flight_project",
+    assert module._app_dir_candidates("flight_telemetry") == [
+        package_root / "apps" / "builtin" / "flight_telemetry_project",
+        package_root / "apps" / "flight_telemetry_project",
     ]
+
+
+def test_app_dir_candidates_include_installed_app_project_packages(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    package_root = tmp_path / "site-packages" / "agilab"
+    installed_root = tmp_path / "site-packages" / "agi_app_flight_telemetry" / "project" / "flight_telemetry_project"
+    monkeypatch.setattr(module, "_package_root", lambda: package_root)
+    monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [installed_root])
+
+    assert module._app_dir_candidates("flight")[-1] == installed_root
+
+
+def _seed_venv_python(project: Path) -> None:
+    python = project / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+
+
+def test_install_state_cache_hits_only_when_fingerprint_and_venvs_match(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "demo_project"
+    app_src = app_path / "src" / "demo"
+    worker_src = app_path / "src" / "demo_worker"
+    app_src.mkdir(parents=True)
+    worker_src.mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+    (app_src / "demo.py").write_text("print('manager')\n", encoding="utf-8")
+    (worker_src / "demo_worker.py").write_text("print('worker')\n", encoding="utf-8")
+    (worker_src / "pyproject.toml").write_text("[project]\nname='demo-worker'\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="demo_project",
+        target="demo",
+        target_worker="demo_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+    )
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")[0] is False
+
+    _seed_venv_python(app_path)
+    _seed_venv_python(wenv_abs)
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")[0] is False
+
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-project'\ndependencies=['numpy']\n",
+        encoding="utf-8",
+    )
+    hit, reason = module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")
+    assert hit is False
+    assert reason == "install fingerprint changed"
+
+
+def test_install_state_cache_for_workerless_apps_requires_only_manager_venv(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "simple_project"
+    app_src = app_path / "src" / "simple"
+    app_src.mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    (app_src / "simple.py").write_text("print('manager')\n", encoding="utf-8")
+    wenv_abs = tmp_path / "wenv" / "simple_worker"
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="simple_project",
+        target="simple",
+        target_worker="simple_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+    )
+
+    _seed_venv_python(app_path)
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+
+def test_validate_app_definition_accepts_declared_workerless_app_without_worker(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "simple_project"
+    manager_path = app_path / "src" / "simple" / "simple.py"
+    manager_path.parent.mkdir(parents=True)
+    manager_path.write_text("class Simple: ...\n", encoding="utf-8")
+    pyproject = app_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        is_worker_env=False,
+        active_app=app_path,
+        app="simple_project",
+        manager_pyproject=pyproject,
+        manager_path=manager_path,
+        worker_path=app_path / "src" / "simple_worker" / "simple_worker.py",
+        target_worker_class="SimpleWorker",
+        base_worker_cls=None,
+    )
+
+    module.validate_app_definition(env)
+
+
+def test_install_state_cache_misses_when_dataset_payload_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("AGILAB_INSTALL_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(module, "_uv_version", lambda _uv: "uv test")
+
+    app_path = tmp_path / "demo_project"
+    (app_path / "src" / "demo_worker").mkdir(parents=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+    dataset_archive = app_path / "src" / "demo_worker" / "dataset.7z"
+    dataset_archive.write_bytes(b"archive")
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+    share_root = tmp_path / "share"
+    data_root = share_root / "demo"
+    data_root.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        app="demo_project",
+        target="demo",
+        target_worker="demo_worker",
+        install_type=1,
+        is_source_env=False,
+        python_version="3.13",
+        pyvers_worker="3.13",
+        uv="uv",
+        uv_worker="uv",
+        dataset_archive=dataset_archive,
+        app_data_rel="demo",
+        share_root_path=lambda: share_root,
+    )
+    _seed_venv_python(app_path)
+    _seed_venv_python(wenv_abs)
+    module._write_install_state(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    hit, reason = module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")
+
+    assert hit is False
+    assert reason == f"dataset payload missing at {data_root}"
+
+    (data_root / "seeded.csv").write_text("ok\n", encoding="utf-8")
+
+    assert module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1") == (
+        True,
+        "install fingerprint unchanged",
+    )
+
+
+def test_install_main_skips_agi_install_on_cache_hit(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "demo_project"
+    wenv_abs = tmp_path / "wenv" / "demo_worker"
+    env = SimpleNamespace(active_app=app_path, wenv_abs=wenv_abs)
+    calls: list[str] = []
+
+    class FakeAGI:
+        DASK_MODE = 4
+        CYTHON_MODE = 2
+
+        @staticmethod
+        async def install(**_kwargs):
+            calls.append("install")
+
+    monkeypatch.setattr(sys, "argv", ["install.py", str(app_path)])
+    monkeypatch.setattr(module, "AgiEnv", lambda **_kwargs: env)
+    monkeypatch.setattr(module, "AGI", FakeAGI)
+    monkeypatch.setattr(module, "ensure_data_storage", lambda _env: None)
+    monkeypatch.setattr(module, "validate_app_definition", lambda _env: None)
+    monkeypatch.setattr(module, "_install_state_matches", lambda *_args, **_kwargs: (True, "test hit"))
+
+    assert asyncio.run(module.main()) == 0
+    assert calls == []
+
+
+def test_install_main_syncs_workerless_app_without_agi_install(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    app_path = tmp_path / "simple_project"
+    manager_path = app_path / "src" / "simple" / "simple.py"
+    manager_path.parent.mkdir(parents=True)
+    manager_path.write_text("class Simple: ...\n", encoding="utf-8")
+    pyproject = app_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname='simple-project'\n\n[tool.agilab.app]\nruntime='local'\nworkerless=true\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        is_worker_env=False,
+        active_app=app_path,
+        app="simple_project",
+        manager_pyproject=pyproject,
+        manager_path=manager_path,
+        worker_path=app_path / "src" / "simple_worker" / "simple_worker.py",
+        target_worker_class="SimpleWorker",
+        base_worker_cls=None,
+        wenv_abs=tmp_path / "wenv" / "simple_worker",
+    )
+    calls: list[str] = []
+
+    class FakeAGI:
+        DASK_MODE = 4
+        CYTHON_MODE = 2
+
+        @staticmethod
+        async def install(**_kwargs):
+            calls.append("install")
+
+    monkeypatch.setattr(sys, "argv", ["install.py", str(app_path)])
+    monkeypatch.setattr(module, "AgiEnv", lambda **_kwargs: env)
+    monkeypatch.setattr(module, "AGI", FakeAGI)
+    monkeypatch.setattr(module, "ensure_data_storage", lambda _env: None)
+    monkeypatch.setattr(module, "_install_state_matches", lambda *_args, **_kwargs: (False, "test miss"))
+    monkeypatch.setattr(module, "_write_install_state", lambda *_args, **_kwargs: calls.append("state"))
+    monkeypatch.setattr(module, "sync_workerless_manager_env", lambda _env: calls.append("sync"))
+
+    assert asyncio.run(module.main()) == 0
+    assert calls == ["sync", "state"]
 
 
 def test_packaged_agi_example_scripts_are_compile_safe() -> None:
@@ -248,12 +691,20 @@ def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
     assert scripts == _expected_script_paths()
 
 
+def test_packaged_example_catalog_has_no_deprecated_alias_dirs() -> None:
+    existing = {path.name for path in EXAMPLES_ROOT.iterdir() if path.is_dir()}
+
+    assert DEPRECATED_EXAMPLE_DIR_NAMES.isdisjoint(existing)
+
+
 def test_packaged_example_catalog_is_documented() -> None:
     catalog = EXAMPLES_ROOT / "README.md"
     assert catalog.is_file()
     catalog_text = catalog.read_text(encoding="utf-8")
     assert "## Learning Path" in catalog_text
+    assert "## Execution Map" in catalog_text
     assert "## What To Notice" in catalog_text
+    assert "## Validate The Examples" in catalog_text
     assert "## How To Read An Example" in catalog_text
 
     for example_name, script_names in EXAMPLE_APPS.items():
@@ -287,6 +738,11 @@ def test_packaged_example_catalog_is_documented() -> None:
         for file_name in file_names:
             assert (example_dir / file_name).is_file()
             assert file_name in readme_text
+        assert "uv --preview-features extra-build-dependencies run python" in readme_text
+        assert not any(
+            line.startswith("python src/agilab/examples/")
+            for line in readme_text.splitlines()
+        )
         for heading in (
             "## Purpose",
             "## What You Learn",
@@ -312,48 +768,226 @@ def test_packaged_example_readmes_teach_safe_adaptation() -> None:
 
 
 def test_packaged_example_readmes_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    package_data = _agi_apps_package_data("agilab.examples")
 
-    assert "examples/README.md" in package_data
-    assert "examples/*/README.md" in package_data
-    assert "examples/*/AGI_*.py" in package_data
-    assert "examples/inter_project_dag/*.py" in package_data
-    assert "examples/mlflow_auto_tracking/*.py" in package_data
-    assert "examples/notebook_to_dask/*.py" in package_data
-    assert "examples/notebook_to_dask/*.json" in package_data
-    assert "examples/notebook_to_dask/*.toml" in package_data
-    assert "examples/notebook_to_dask/*.ipynb" in package_data
-    assert "examples/notebook_quickstart/*.ipynb" in package_data
-    assert "examples/notebook_migrations/*/README.md" in package_data
-    assert "examples/notebook_migrations/*/analysis_artifacts/*.csv" in package_data
-    assert "examples/notebook_migrations/*/analysis_artifacts/*.json" in package_data
-    assert "examples/notebook_migrations/*/data/*.csv" in package_data
-    assert "examples/notebook_migrations/*/migrated_project/*.dot" in package_data
-    assert "examples/notebook_migrations/*/migrated_project/*.toml" in package_data
-    assert "examples/notebook_migrations/*/notebooks/*.ipynb" in package_data
-    assert "examples/resilience_failure_injection/*.py" in package_data
-    assert "examples/service_mode/*.py" in package_data
-    assert "examples/train_then_serve/*.py" in package_data
-
-
-def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
-    excluded_data = pyproject["tool"]["setuptools"]["exclude-package-data"]["agilab"]
-
-    assert "apps/builtin/*/src/*.json" in package_data
-    assert "apps/builtin/*/src/pre_prompt.json" not in excluded_data
+    assert "README.md" in package_data
+    assert "*/README.md" in package_data
+    assert "*/AGI_*.py" in package_data
+    assert "inter_project_dag/*.py" in package_data
+    assert "mlflow_auto_tracking/*.py" in package_data
+    assert "notebook_to_dask/*.py" in package_data
+    assert "notebook_to_dask/*.json" in package_data
+    assert "notebook_to_dask/*.toml" in package_data
+    assert "notebook_to_dask/*.ipynb" in package_data
+    assert "notebook_quickstart/*.ipynb" in package_data
+    assert "notebook_migrations/*/README.md" in package_data
+    assert "notebook_migrations/*/analysis_artifacts/*.csv" in package_data
+    assert "notebook_migrations/*/analysis_artifacts/*.json" in package_data
+    assert "notebook_migrations/*/data/*.csv" in package_data
+    assert "notebook_migrations/*/migrated_project/*.dot" in package_data
+    assert "notebook_migrations/*/migrated_project/*.toml" in package_data
+    assert "notebook_migrations/*/notebooks/*.ipynb" in package_data
+    assert "resilience_failure_injection/*.py" in package_data
+    assert "service_mode/*.py" in package_data
+    assert "train_then_serve/*.py" in package_data
 
 
-def test_packaged_builtin_app_dag_templates_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+def test_root_package_does_not_embed_builtin_apps_examples_or_pages() -> None:
+    package_data = _root_package_data()
 
-    assert "apps/builtin/*/dag_templates/*.json" in package_data
-    assert "apps/builtin/*/scenario_templates/*.json" in package_data
-    assert "apps/builtin/*/service_templates/*.json" in package_data
-    assert "apps/builtin/*/tracking_templates/*.json" in package_data
+    assert "apps/install.py" not in package_data
+    assert not any(pattern.startswith("apps/builtin/") for pattern in package_data)
+    assert not any(pattern.startswith("examples/") for pattern in package_data)
+    assert not any(pattern.startswith("apps-pages/") for pattern in package_data)
+
+
+def test_agi_pages_package_exposes_analysis_page_provider_and_umbrella_dependencies() -> None:
+    package_data = _agi_pages_package_data()
+    pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+    dependencies = set(pyproject["project"]["dependencies"])
+    dependency_text = " ".join(dependencies)
+
+    assert (APPS_PAGES_ROOT / "README.md").is_file()
+    assert (APPS_PAGES_ROOT / "__init__.py").is_file()
+    assert (APPS_PAGES_ROOT / "view_maps" / "pyproject.toml").is_file()
+    assert not any(pattern.startswith("*/") for pattern in package_data)
+    assert not any("src" in pattern for pattern in package_data)
+    assert (AGI_PAGES_SOURCE_PACKAGE / "__init__.py").is_file()
+    source_text = (AGI_PAGES_SOURCE_PACKAGE / "__init__.py").read_text(encoding="utf-8")
+    assert "PAGE_BUNDLE_ENTRYPOINT_GROUP" in source_text
+    assert "PUBLIC_PAGE_MODULES" in source_text
+    assert "view_maps" in source_text
+    assert any(dependency.startswith("agi-gui==") for dependency in dependencies)
+    assert all(
+        f"{distribution}==" not in dependency_text
+        for distribution, _ in PAGE_BUNDLE_PACKAGE_SPECS
+    )
+    assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
+    assert pyproject["tool"]["setuptools"]["packages"] == ["agi_pages"]
+
+
+def test_per_app_project_packages_expose_self_contained_project_payloads() -> None:
+    missing_entry_points: list[str] = []
+
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        pyproject = _agi_app_project_pyproject(distribution)
+        import_package = distribution.replace("-", "_")
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        slug = project_name.removesuffix("_project")
+
+        assert pyproject["tool"]["setuptools"]["packages"] == [import_package]
+        assert pyproject["tool"]["setuptools"]["package-data"][import_package] == ["project/**/*"]
+        entry_points = pyproject["project"]["entry-points"]["agilab.apps"]
+        if slug not in entry_points or project_name not in entry_points:
+            missing_entry_points.append(distribution)
+
+    assert not missing_entry_points
+
+
+def test_per_app_project_package_readmes_are_useful_for_pypi() -> None:
+    for distribution, project_path in APP_PROJECT_PACKAGE_SPECS:
+        package_dir = ROOT / project_path
+        readme = (package_dir / "README.md").read_text(encoding="utf-8")
+        pyproject = _agi_app_project_pyproject(distribution)
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        description = pyproject["project"]["description"]
+
+        assert len(readme.split()) >= 160, distribution
+        for section in APP_PACKAGE_README_REQUIRED_SECTIONS:
+            assert section in readme, f"{distribution}: missing {section}"
+        assert f"pip install {distribution}" in readme
+        assert project_name in readme
+        assert f'AgiEnv(app="{project_name}")' in readme
+        assert "Most users install these app packages through the umbrella" not in readme
+        assert "## Install\n\n```bash" in readme
+        assert len(description.split()) >= 7, distribution
+        assert "app project" not in description.lower()
+
+
+def test_per_app_project_package_python_floor_matches_payload() -> None:
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        package_pyproject = _agi_app_project_pyproject(distribution)
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        payload_pyproject = _builtin_project_pyproject(project_name)
+        package_floor = _python_floor(package_pyproject["project"]["requires-python"])
+        payload_floor = _python_floor(payload_pyproject["project"]["requires-python"])
+
+        assert package_floor == payload_floor, distribution
+
+        advertised_versions = {
+            tuple(int(part) for part in classifier.rsplit(" :: ", 1)[-1].split("."))
+            for classifier in package_pyproject["project"]["classifiers"]
+            if classifier.startswith("Programming Language :: Python :: 3.")
+        }
+        assert advertised_versions
+        assert min(advertised_versions) >= package_floor
+        assert package_floor in advertised_versions
+
+
+def test_builtin_app_worker_python_floor_matches_manager_payload() -> None:
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        project_root = BUILTIN_APPS_ROOT / project_name
+        manager_floor = _python_floor(_builtin_project_pyproject(project_name)["project"]["requires-python"])
+        worker_manifests = sorted(project_root.glob("src/*_worker/pyproject.toml"))
+
+        assert worker_manifests, distribution
+        for worker_manifest in worker_manifests:
+            worker_pyproject = tomllib.loads(worker_manifest.read_text(encoding="utf-8"))
+            worker_floor = _python_floor(worker_pyproject["project"]["requires-python"])
+            assert worker_floor == manager_floor, worker_manifest.relative_to(ROOT).as_posix()
+
+
+def test_app_project_payload_copy_produces_self_contained_project_dirs(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        target_root = tmp_path / distribution / "project"
+
+        changed = support.copy_app_project_payload(project_name, target_root)
+
+        payload_root = target_root / project_name
+        assert payload_root.is_dir(), distribution
+        for rel_path in (
+            "README.md",
+            "pyproject.toml",
+            "src/app_args_form.py",
+            "src/app_settings.toml",
+            "src/pre_prompt.json",
+        ):
+            assert (payload_root / rel_path).is_file(), f"{distribution}: missing {rel_path}"
+        assert any((payload_root / "src").glob("*/__init__.py")), distribution
+        assert list((payload_root / "src").glob("*_worker/pyproject.toml")), distribution
+        assert not any(part.name in APP_GENERATED_DIRS for part in payload_root.rglob("*") if part.is_dir())
+        assert not any(part.name in APP_GENERATED_NAMES for part in payload_root.rglob("*") if part.is_file())
+        assert not any(part.suffix in APP_GENERATED_SUFFIXES for part in payload_root.rglob("*") if part.is_file())
+        assert not list(payload_root.rglob("uv.lock"))
+        assert changed, f"{distribution}: expected packaged pyproject source sanitization"
+        for pyproject_path in payload_root.rglob("pyproject.toml"):
+            assert "[tool.uv.sources]" not in pyproject_path.read_text(encoding="utf-8")
+
+
+def test_agi_apps_umbrella_bundles_only_the_base_mycode_template() -> None:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    package_data = pyproject["tool"]["setuptools"]["package-data"]
+    dependencies = pyproject["project"]["dependencies"]
+
+    assert "install.py" in package_data["agilab.apps"]
+    builtin_patterns = [
+        pattern for pattern in package_data["agilab.apps"] if pattern.startswith("builtin/")
+    ]
+    assert builtin_patterns == ["builtin/mycode_project/**/*"]
+    dependency_text = " ".join(dependencies)
+    assert all(f"{distribution}==" in dependency_text for distribution in PROMOTED_APP_PROJECT_PACKAGE_NAMES)
+    assert all(
+        f"{distribution}==" not in dependency_text
+        for distribution, _ in APP_PROJECT_PACKAGE_SPECS
+        if distribution not in PROMOTED_APP_PROJECT_PACKAGE_NAMES
+    )
+
+
+def test_agi_apps_catalog_matches_per_app_packages() -> None:
+    catalog = json.loads((ROOT / "src/agilab/lib/agi-apps/src/agi_apps/catalog.json").read_text(encoding="utf-8"))
+    catalog_distributions = [item["distribution"] for item in catalog]
+
+    assert catalog_distributions == [distribution for distribution, _ in APP_PROJECT_PACKAGE_SPECS]
+
+
+def test_agi_apps_umbrella_copy_keeps_only_mycode_builtin_payload(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+
+    support.copy_agi_apps_umbrella_payload(tmp_path)
+
+    builtin_root = tmp_path / "agilab" / "apps" / "builtin"
+    assert (builtin_root / "mycode_project" / "pyproject.toml").is_file()
+    assert not (builtin_root / "flight_telemetry_project").exists()
+    assert not (builtin_root / "mycode_project" / ".venv").exists()
+    assert not (builtin_root / "mycode_project" / "uv.lock").exists()
+    assert not list((builtin_root / "mycode_project").rglob("*.pyx"))
+    assert not list((builtin_root / "mycode_project").rglob("*.c"))
+
+
+def test_agilab_apps_init_exposes_builtin_namespace_without_stale_docstring_code() -> None:
+    module_path = ROOT / "src/agilab/apps/__init__.py"
+    module_name = "agilab_apps_init_contract_test"
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        module_path,
+        submodule_search_locations=[str(module_path.parent)],
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(module_name, None)
+
+    doc = module.__doc__ or ""
+    assert "from __future__" not in doc
+    assert "if _BUILTIN_DIR.is_dir()" not in doc
+    assert list(module.__path__).count(str(BUILTIN_APPS_ROOT)) == 1
 
 
 def test_preview_example_payloads_live_with_builtin_apps() -> None:
@@ -384,20 +1018,20 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
 
     assert summary["example"] == "inter_project_dag"
     assert summary["dag"]["ok"] is True
-    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["dag"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert summary["units"] == [
         {
-            "app": "flight_project",
+            "app": "flight_telemetry_project",
             "depends_on": [],
             "dispatch_status": "runnable",
             "id": "flight_context",
             "produces": ["flight_reduce_summary"],
         },
         {
-            "app": "meteo_forecast_project",
+            "app": "weather_forecast_project",
             "depends_on": ["flight_context"],
             "dispatch_status": "blocked",
-            "id": "meteo_forecast_review",
+            "id": "weather_forecast_review",
             "produces": ["forecast_metrics"],
         },
     ]
@@ -405,17 +1039,17 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
         {
             "artifact": "flight_reduce_summary",
             "from": "flight_context",
-            "from_app": "flight_project",
+            "from_app": "flight_telemetry_project",
             "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
             "producer_status": "runnable",
             "source_path": "flight_analysis/reduce_summary_worker_0.json",
-            "to": "meteo_forecast_review",
-            "to_app": "meteo_forecast_project",
+            "to": "weather_forecast_review",
+            "to_app": "weather_forecast_project",
         }
     ]
     assert summary["runner_state"]["round_trip_ok"] is True
     assert summary["runner_state"]["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["after_first_dispatch"]["run_status"] == "running"
     assert summary["real_app_execution"] is False
@@ -435,14 +1069,14 @@ def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) 
 
     summary = module.build_preview(
         repo_root=ROOT,
-        dag_path=app_root / "dag_templates" / "flight_to_meteo_global_dag.json",
+        dag_path=app_root / "dag_templates" / "flight_to_weather_global_dag.json",
         output_path=tmp_path / "runner_state.json",
         now="2026-04-29T00:00:00Z",
     )
 
     assert summary["example"] == "global_dag_project"
     assert summary["dag"]["ok"] is True
-    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["dag"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["real_app_execution"] is False
     assert (tmp_path / "runner_state.json").is_file()
@@ -516,7 +1150,7 @@ def test_mlflow_auto_tracking_preview_writes_local_evidence_without_mlflow(tmp_p
     run_summary = Path(summary["local_evidence"]["run_summary"])
     assert run_summary.is_file()
     artifact = json.loads(run_summary.read_text(encoding="utf-8"))
-    assert artifact["app"] == "meteo_forecast_project"
+    assert artifact["app"] == "weather_forecast_project"
     assert artifact["pipeline"] == "notebook_migration_forecast"
     assert (tmp_path / "mlflow_auto_tracking" / "mlflow_tracking_preview.json").is_file()
 
@@ -761,7 +1395,7 @@ def test_packaged_builtin_examples_resolve_builtin_apps_root() -> None:
 def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path))
-    destination = tmp_path / "log" / "execute" / "flight" / "AGI_run_flight.py"
+    destination = tmp_path / "log" / "execute" / "flight_telemetry" / "AGI_run_flight_telemetry.py"
     destination.parent.mkdir(parents=True)
     destination.write_text(
         "\n".join(
@@ -777,11 +1411,11 @@ def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, mon
         encoding="utf-8",
     )
 
-    module._seed_example_scripts("flight")
+    module._seed_example_scripts("flight_telemetry")
 
     text = destination.read_text(encoding="utf-8")
     assert ' / "apps" / "builtin"' in text
-    assert text == (EXAMPLES_ROOT / "flight" / "AGI_run_flight.py").read_text(encoding="utf-8")
+    assert text == (EXAMPLES_ROOT / "flight_telemetry" / "AGI_run_flight_telemetry.py").read_text(encoding="utf-8")
 
 
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:
@@ -887,3 +1521,52 @@ def test_packaged_example_main_bodies_build_public_requests(tmp_path: Path, monk
             assert request.workers == {"127.0.0.1": 1}
             assert request.mode is not None
             assert "args" not in request.params
+
+
+def test_example_notebooks_use_current_agi_run_request_api() -> None:
+    legacy_execution_kwargs = {
+        "mode",
+        "modes_enabled",
+        "rapids_enabled",
+        "scheduler",
+        "workers",
+        "workers_data_path",
+    }
+    failures: list[str] = []
+
+    for notebook in sorted(EXAMPLES_ROOT.rglob("*.ipynb")):
+        payload = json.loads(notebook.read_text(encoding="utf-8"))
+        for cell_number, cell in enumerate(payload.get("cells", []), start=1):
+            if cell.get("cell_type") != "code":
+                continue
+            source = "".join(cell.get("source", []))
+            try:
+                tree = ast.parse(source)
+            except SyntaxError as exc:
+                failures.append(f"{notebook.relative_to(ROOT)} cell {cell_number}: {exc}")
+                continue
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if not (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "run"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "AGI"
+                ):
+                    continue
+                bad_kwargs = sorted(
+                    keyword.arg
+                    for keyword in node.keywords
+                    if keyword.arg in legacy_execution_kwargs
+                )
+                if bad_kwargs:
+                    failures.append(
+                        f"{notebook.relative_to(ROOT)} cell {cell_number}: "
+                        f"AGI.run uses legacy execution kwargs {bad_kwargs}; "
+                        "use request=RunRequest(...)"
+                    )
+
+    assert not failures, "\n".join(failures)

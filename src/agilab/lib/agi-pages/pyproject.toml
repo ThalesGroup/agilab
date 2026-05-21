@@ -1,0 +1,137 @@
+[project]
+version = "2026.05.20"
+name = "agi-pages"
+description = "AGILAB public analysis page umbrella and provider package"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "agilab",
+    "analysis",
+    "charts",
+    "streamlit",
+    "notebooks",
+    "evidence",
+    "dashboards",
+    "page-bundles",
+]
+
+dependencies = ["agi-gui==2026.05.20"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-pages"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv.sources.agi-gui]
+    path = "../agi-gui"
+    editable = true
+
+[tool.uv.sources.agi-page-simplex-map]
+    path = "../../apps-pages/view_barycentric"
+    editable = true
+
+[tool.uv.sources.agi-page-decision-evidence]
+    path = "../../apps-pages/view_data_io_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-timeseries-forecast]
+    path = "../../apps-pages/view_forecast_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-inference-report]
+    path = "../../apps-pages/view_inference_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-map]
+    path = "../../apps-pages/view_maps"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-3d]
+    path = "../../apps-pages/view_maps_3d"
+    editable = true
+
+[tool.uv.sources.agi-page-network-map]
+    path = "../../apps-pages/view_maps_network"
+    editable = true
+
+[tool.uv.sources.agi-page-queue-health]
+    path = "../../apps-pages/view_queue_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-relay-health]
+    path = "../../apps-pages/view_relay_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-scenario-cockpit]
+    path = "../../apps-pages/view_scenario_cockpit"
+    editable = true
+
+[tool.uv.sources.agi-page-promotion-gate]
+    path = "../../apps-pages/view_release_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-feature-attribution]
+    path = "../../apps-pages/view_shap_explanation"
+    editable = true
+
+[tool.uv.sources.agi-page-app-ui]
+    path = "../../apps-pages/view_app_ui"
+    editable = true
+
+[tool.uv.sources.agi-page-training-report]
+    path = "../../apps-pages/view_training_analysis"
+    editable = true
+
+[build-system]
+requires = ["setuptools>=82.0.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+package-dir = {"" = "src"}
+packages = ["agi_pages"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

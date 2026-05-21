@@ -108,7 +108,7 @@ Main Content Area
     ``app_args_form.py`` web snippet used to render a custom parameter UI
     in Orchestrate.
   - ``PRE-PROMPT`` serialises ``pre_prompt.json`` so you can tailor the prompt
-    used by the Pipeline assistant.
+    used by the WORKFLOW assistant.
 
 Troubleshooting and checks
 --------------------------

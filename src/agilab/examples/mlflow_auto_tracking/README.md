@@ -40,7 +40,7 @@ marks tracking as skipped.
 From a source checkout:
 
 ```bash
-python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py
 ```
 
 From an installed AGILAB package, locate the packaged script:
@@ -58,10 +58,10 @@ python preview_mlflow_auto_tracking.py
 ## Expected Input
 
 The script reads the built-in
-`meteo_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json`
+`weather_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json`
 contract with:
 
-- app: `meteo_forecast_project`
+- app: `weather_forecast_project`
 - pipeline: `notebook_migration_forecast`
 - model family: `skforecast_baseline`
 - deterministic metrics and artifact names

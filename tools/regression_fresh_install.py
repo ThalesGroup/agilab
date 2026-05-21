@@ -77,7 +77,7 @@ def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, st
 
         env = about.session_state["env"] if "env" in about.session_state else None
         if env is None:
-            env = AgiEnv(apps_path=apps_path, app="flight_project", verbose=0)
+            env = AgiEnv(apps_path=apps_path, app="flight_telemetry_project", verbose=0)
 
         orchestrate = AppTest.from_file(str(orchestrate_page), default_timeout=45)
         orchestrate.session_state["env"] = env

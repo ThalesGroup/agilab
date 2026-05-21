@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
 _REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
+_REMOTE_COMMAND_EXCEPTIONS = (OSError, RuntimeError)
 _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
 _SSHFS_INSTALL_HINT = (
     "sshfs is required to mount AGI_CLUSTER_SHARE on this worker. "
@@ -288,6 +289,19 @@ async def _legacy_intel_macos_dependency_specs(agi_cls: Any, ip: str, *, log: An
     return _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS
 
 
+async def _remote_project_has_pip(agi_cls: Any, ip: str, *, uv: str, wenv_rel: Path, pyvers: str) -> bool:
+    try:
+        await agi_cls.exec_ssh(
+            ip,
+            f'{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -c "import pip"',
+        )
+    except ConnectionError:
+        raise
+    except _REMOTE_COMMAND_EXCEPTIONS:
+        return False
+    return True
+
+
 def _latest_artifact_match(root: Path, pattern: str) -> Path | None:
     matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
     if not matches:
@@ -386,8 +400,11 @@ async def deploy_remote_worker(
     cmd = f"{uv} run -p {pyvers} python  {cli.as_posix()} unzip {wenv_rel.as_posix()}"
     await agi_cls.exec_ssh(ip, cmd)
 
-    cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
-    await agi_cls.exec_ssh(ip, cmd)
+    if await _remote_project_has_pip(agi_cls, ip, uv=uv, wenv_rel=wenv_rel, pyvers=pyvers):
+        log.info("[%s] pip is already available in %s; skipping ensurepip.", ip, wenv_rel.as_posix())
+    else:
+        cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
+        await agi_cls.exec_ssh(ip, cmd)
 
     compatibility_specs = await _legacy_intel_macos_dependency_specs(agi_cls, ip, log=log)
     if compatibility_specs:
@@ -407,10 +424,8 @@ async def deploy_remote_worker(
     def _pkg_ref(pkg: Union[str, Path]) -> str:
         return pkg.as_posix() if isinstance(pkg, Path) else str(pkg)
 
-    cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(env_pck)}"
-    await agi_cls.exec_ssh(ip, cmd)
-
-    cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(node_pck)}"
+    core_package_refs = " ".join(quote(_pkg_ref(pkg)) for pkg in (env_pck, node_pck))
+    cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {core_package_refs}"
     await agi_cls.exec_ssh(ip, cmd)
 
     if deployment_dask_support.dask_mode_enabled(agi_cls):

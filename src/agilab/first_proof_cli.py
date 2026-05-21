@@ -21,7 +21,8 @@ from agilab import run_manifest
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
+FIRST_PROOF_APP_DISTRIBUTION = "agi-app-flight-telemetry"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 DEFAULT_MAX_SECONDS = 10 * 60
 IGNORED_OUTPUT_PATTERNS = (
@@ -34,6 +35,12 @@ RUNTIME_DISTRIBUTIONS = (
     "agi-node",
     "agi-cluster",
     "agi-gui",
+    "agi-apps",
+    "agi-pages",
+    "agi-app-mission-decision",
+    FIRST_PROOF_APP_DISTRIBUTION,
+    "agi-app-weather-forecast",
+    "agi-app-uav-relay-queue",
 )
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DIAGNOSTIC_TAIL_LINES = 20
@@ -112,21 +119,60 @@ def write_agilab_path_marker() -> Path:
     return marker_path
 
 
+def _resolve_installed_first_proof_project() -> Path | None:
+    """Return the PyPI app-payload project when it is installed."""
+
+    try:
+        from agi_env.app_provider_registry import resolve_installed_app_project
+    except Exception:
+        return None
+
+    try:
+        project = resolve_installed_app_project(FIRST_PROOF_PROJECT)
+    except Exception:
+        return None
+    if project is None:
+        return None
+
+    try:
+        candidate = Path(project).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return candidate if (candidate / "pyproject.toml").is_file() else None
+
+
 def default_active_app() -> Path:
     candidates: list[Path] = []
     repo_root = _detect_repo_root()
     if repo_root is not None:
         candidates.append(repo_root / "src" / "agilab" / "apps" / "builtin" / FIRST_PROOF_PROJECT)
     candidates.append(PACKAGE_ROOT / "apps" / "builtin" / FIRST_PROOF_PROJECT)
+    installed_project = _resolve_installed_first_proof_project()
+    if installed_project is not None:
+        candidates.append(installed_project)
     for candidate in candidates:
         if (candidate / "pyproject.toml").is_file():
             return candidate.resolve()
     return candidates[-1].resolve()
 
 
+def default_core_smoke_target() -> Path:
+    """Return an existing path for core-only dry-run evidence."""
+
+    return _runtime_root().resolve()
+
+
 def resolve_active_app(path_value: str | None) -> Path:
     active_app = Path(path_value).expanduser().resolve() if path_value else default_active_app()
     if not active_app.exists():
+        if path_value is None:
+            raise FileNotFoundError(
+                "Default first-proof app not found: "
+                f"{active_app}. Install the public app payload with "
+                f"`python -m pip install {FIRST_PROOF_APP_DISTRIBUTION}` "
+                'or `python -m pip install "agilab[examples]"`, then rerun this command. '
+                "Alternatively pass --active-app /path/to/<app>_project."
+            )
         raise FileNotFoundError(f"Active app path not found: {active_app}")
     if not active_app.is_dir():
         raise NotADirectoryError(f"Active app path is not a directory: {active_app}")
@@ -185,8 +231,35 @@ def _preinit_smoke_code(active_app: Path) -> str:
 def _preinit_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package preinit smoke",
-        description="Import AGILAB packages and verify the built-in flight_project path.",
+        description="Import AGILAB packages and verify the active app path.",
         argv=(sys.executable, "-c", _preinit_smoke_code(active_app)),
+    )
+
+
+def _core_smoke_code() -> str:
+    return textwrap.dedent(
+        """
+        import importlib.metadata as md
+
+        import agilab
+        import agi_env
+        import agi_node
+        import agi_cluster
+        from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
+
+        print("agilab", md.version("agilab"))
+        print("agi-node", md.version("agi-node"))
+        print("agi-cluster-api", AGI.__name__, RunRequest.__name__, StageRequest.__name__)
+        print("core-smoke", "ok")
+        """
+    ).strip()
+
+
+def _core_smoke_command() -> ProofCommand:
+    return ProofCommand(
+        label="package preinit smoke",
+        description="Import AGILAB core packages without requiring packaged app or page assets.",
+        argv=(sys.executable, "-c", _core_smoke_code()),
     )
 
 
@@ -237,7 +310,7 @@ def _ui_smoke_code(active_app: Path) -> str:
 def _ui_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package ui smoke",
-        description="Boot the packaged main page and ORCHESTRATE page against flight_project.",
+        description="Boot the packaged main page and ORCHESTRATE page against the active app.",
         argv=(sys.executable, "-c", _ui_smoke_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -265,7 +338,7 @@ def _install_command(active_app: Path) -> ProofCommand:
 
 def _seeded_script_check_code(active_app: Path) -> str:
     app_slug = active_app.name.replace("_project", "")
-    required = ["AGI_install_flight.py", "AGI_run_flight.py"]
+    required = ["AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"]
     return textwrap.dedent(
         f"""
         from pathlib import Path
@@ -457,13 +530,17 @@ def _collect_existing_artifacts(output_dir: Path, manifest_path: Path) -> list[r
 def _executed_argv(
     *,
     active_app: Path,
+    dry_run: bool,
     with_install: bool,
     with_ui: bool,
     max_seconds: float,
     manifest_path: Path,
 ) -> tuple[str, ...]:
     argv: tuple[str, ...] = ("agilab", "first-proof", "--json")
-    if active_app.resolve() != default_active_app().resolve():
+    if dry_run:
+        argv = (*argv, "--dry-run")
+    default_target = default_core_smoke_target() if dry_run else default_active_app()
+    if active_app.resolve() != default_target.resolve():
         argv = (*argv, "--active-app", str(active_app))
     if with_install:
         argv = (*argv, "--with-install")
@@ -479,6 +556,7 @@ def _executed_argv(
 def build_run_manifest(
     *,
     active_app: Path,
+    dry_run: bool,
     with_install: bool,
     with_ui: bool,
     commands: Sequence[ProofCommand],
@@ -489,6 +567,7 @@ def build_run_manifest(
 ) -> run_manifest.RunManifest:
     failed_step = summary.get("failed_step")
     identity = runtime_identity()
+    recommended_project = dry_run or active_app.name == FIRST_PROOF_PROJECT
     validations = [
         run_manifest.RunManifestValidation(
             label="proof_steps",
@@ -521,21 +600,30 @@ def build_run_manifest(
         ),
         run_manifest.RunManifestValidation(
             label="recommended_project",
-            status="pass" if active_app.name == FIRST_PROOF_PROJECT else "fail",
-            summary="active app is the recommended public flight_project",
-            details={"active_app": str(active_app), "app_name": active_app.name},
+            status="pass" if recommended_project else "fail",
+            summary=(
+                "core-only dry-run does not require a public app payload"
+                if dry_run
+                else (
+                    "active app is the recommended public flight-telemetry project (`flight_telemetry_project`)"
+                    if recommended_project
+                    else f"active app is {active_app.name}; recommended public app is {FIRST_PROOF_PROJECT}"
+                )
+            ),
+            details={"active_app": str(active_app), "app_name": active_app.name, "dry_run": dry_run},
         ),
     ]
     status = "pass" if all(validation.status == "pass" for validation in validations) else "fail"
     output_dir = manifest_path.expanduser().parent
     return run_manifest.build_run_manifest(
         path_id=FIRST_PROOF_PATH_ID,
-        label="AGILAB first proof",
+        label="AGILAB first-proof",
         status=status,
         command=run_manifest.RunManifestCommand(
             label="agilab first-proof",
             argv=_executed_argv(
                 active_app=active_app,
+                dry_run=dry_run,
                 with_install=with_install,
                 with_ui=with_ui,
                 max_seconds=max_seconds,
@@ -564,6 +652,7 @@ def build_run_manifest(
 def render_human(
     *,
     active_app: Path,
+    dry_run: bool = False,
     with_install: bool,
     with_ui: bool,
     commands: Sequence[ProofCommand],
@@ -573,8 +662,11 @@ def render_human(
 ) -> str:
     lines = [
         "AGILAB first proof",
-        f"active app: {active_app}",
     ]
+    if dry_run and active_app.resolve() == default_core_smoke_target().resolve():
+        lines.append("active app: not required (core smoke only)")
+    else:
+        lines.append(f"active app: {active_app}")
     identity = runtime_identity()
     distributions = dict(identity.get("distributions", {}))
     agilab_version = distributions.get("agilab") or "unknown"
@@ -600,6 +692,8 @@ def render_human(
         f"target<={summary['target_seconds']:.2f}s "
         f"within_target={'yes' if summary['within_target'] else 'no'}"
     )
+    if dry_run:
+        lines.append("mode: dry-run (core smoke only)")
     lines.append(
         "scope: package/core API smoke"
         + (" + main/ORCHESTRATE page boot" if with_ui else "")
@@ -611,11 +705,13 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append("  run `agilab`")
-        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with flight_project")
+        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with the flight-telemetry project (`flight_telemetry_project`)")
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")
-        lines.append("  rerun with `agilab first-proof --json` when you need a support bundle input")
+        lines.append(
+            "  rerun with `agilab first-proof --json` when you need a support bundle input"
+        )
     return "\n".join(lines)
 
 
@@ -624,9 +720,14 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Run the fastest AGILAB first-proof smoke and write run_manifest.json."
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run only lightweight checks (no install or UI execution).",
+    )
+    parser.add_argument(
         "--active-app",
         default=None,
-        help="Path to the app project to validate. Defaults to the packaged built-in flight_project.",
+        help="Path to the app project to validate. Defaults to the packaged built-in flight-telemetry project (`flight_telemetry_project`).",
     )
     parser.add_argument(
         "--with-install",
@@ -660,9 +761,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.max_seconds <= 0:
         parser.error("--max-seconds must be greater than 0")
+    if args.dry_run and (args.with_install or args.with_ui):
+        parser.error("--dry-run cannot be combined with --with-install or --with-ui")
 
-    active_app = resolve_active_app(args.active_app)
-    commands = build_proof_commands(active_app, with_install=args.with_install, with_ui=args.with_ui)
+    with_install = False if args.dry_run else args.with_install
+    with_ui = False if args.dry_run else args.with_ui
+
+    core_only_dry_run = args.dry_run and args.active_app is None
+    active_app = default_core_smoke_target() if core_only_dry_run else resolve_active_app(args.active_app)
+    commands = [_core_smoke_command()] if core_only_dry_run else build_proof_commands(
+        active_app,
+        with_install=with_install,
+        with_ui=with_ui,
+    )
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
@@ -672,8 +783,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(
                     {
                         "active_app": str(active_app),
-                        "with_install": args.with_install,
-                        "with_ui": args.with_ui,
+                        "with_install": with_install,
+                        "with_ui": with_ui,
+                        "dry_run": args.dry_run,
                         "kpi_target_seconds": args.max_seconds,
                         "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
                         "runtime_identity": identity,
@@ -688,8 +800,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 render_human(
                     active_app=active_app,
-                    with_install=args.with_install,
-                    with_ui=args.with_ui,
+                    dry_run=args.dry_run,
+                    with_install=with_install,
+                    with_ui=with_ui,
                     commands=commands,
                     print_only=True,
                     max_seconds=args.max_seconds,
@@ -705,8 +818,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_manifest:
         manifest = build_run_manifest(
             active_app=active_app,
-            with_install=args.with_install,
-            with_ui=args.with_ui,
+            dry_run=args.dry_run,
+            with_install=with_install,
+            with_ui=with_ui,
             commands=commands,
             results=results,
             summary=summary,
@@ -719,8 +833,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         identity = runtime_identity()
         payload = {
             "active_app": str(active_app),
-            "with_install": args.with_install,
-            "with_ui": args.with_ui,
+            "with_install": with_install,
+            "with_ui": with_ui,
+            "dry_run": args.dry_run,
             "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
             "runtime_identity": identity,
             **summary,
@@ -736,8 +851,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             render_human(
                 active_app=active_app,
-                with_install=args.with_install,
-                with_ui=args.with_ui,
+                dry_run=args.dry_run,
+                with_install=with_install,
+                with_ui=with_ui,
                 commands=commands,
                 results=results,
                 max_seconds=args.max_seconds,

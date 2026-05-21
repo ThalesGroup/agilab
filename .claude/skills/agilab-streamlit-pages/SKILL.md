@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-10
+  updated: 2026-05-21
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -13,6 +13,41 @@ Use this skill when editing:
 - `src/agilab/pages/*.py`
 - `src/agilab/apps-pages/*/src/*/*.py`
 - custom `app_args_form.py` views in AGILAB-managed app repos
+
+## Apps-Pages Versus Apps Boundary
+
+- Treat `apps-pages` as app-agnostic analysis sidecars by default. A page should
+  inspect artifacts, manifests, metrics, or settings from the selected active
+  app; it should not own the domain workflow.
+- Before promoting a Streamlit surface as an apps-page, check whether it
+  generates its own dataset, trains a model, runs an optimizer, owns evidence
+  generation, or encodes project-specific semantics. If yes, it is probably an
+  app project with a companion analysis page, not a generic page bundle.
+- If a self-contained teaching surface must stay under `apps-pages` for
+  packaging or launch reasons, document it as an explicit opt-in playground or
+  exception. Do not describe it as a generic app-agnostic view.
+- Prefer the split architecture when the surface has both execution and review
+  concerns: the app owns reproducible execution and artifact/evidence export;
+  the page reads those artifacts and renders the analysis.
+- AGILAB app projects do not always need workers. Use a workerless app template
+  for local/UI prototypes, notebook-derived tools, explainers, and reports that
+  can write artifacts from the manager process. Use a worker template only when
+  the app needs AGILAB Install/Execute worker deployment, Dask, worker-specific
+  dependencies, or a distributed task plan.
+
+## App Args Forms And Sidebar Controls
+
+- Custom `app_args_form.py` views are app UI, not apps-pages. Use them when an
+  app needs persisted execution fields in ORCHESTRATE.
+- For compact app-specific controls, use `agi_env.streamlit_args.render_form`
+  with an explicit container such as `st.sidebar`:
+  `render_form(defaults_model, container=st.sidebar)`.
+- Keep the capability generic in `agi_env.streamlit_args`; do not hard-code a
+  project name or page bundle just because one app wants sidebar controls.
+- If a Streamlit surface owns training, optimization, generated data, or
+  evidence export, make it an app project first. Keep any app-owned standalone
+  Streamlit surface under that app project unless a separate generic analysis
+  page reads only exported artifacts.
 
 ## Session State Rules (Avoid Common Crashes)
 
@@ -95,7 +130,11 @@ Use this skill when editing:
   "not configured", or "no artifact discovered".
 - Use product-facing labels instead of internal implementation terms:
   - `Workflow graph` instead of `DAG shape`
-  - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
+  - `Stages` and `dependencies` for project workflow instead of graph-only jargon such as nodes and edges
+  - `Plan`, `steps`, `outputs`, `Creates`, and `Uses` for multi-app workplans
+    before technical DAG, artifact, node, or edge wording
+  - hide generated graphs behind an explicit `Show graph` control when the
+    graph can be too small to read
   - `Project name` when the widget selects a project
 - Derived header values must be computed locally from existing evidence when possible.
   For example, count ORCHESTRATE runs from `run_*.log` files under the app run
@@ -115,9 +154,35 @@ Use this skill when editing:
   selected view list. Persist the selected list in `pages.view_module`; remove stale
   `default_view`/`default_views` values only when that behavior is intentionally
   replaced by the new launcher model.
+- With `st.navigation`, `st.switch_page` targets must be the main app file or an
+  exact file under `pages/` relative to the Streamlit entrypoint. Do not hard-code
+  stale numeric filenames such as `pages/3_WORKFLOW.py`; route through central
+  page constants and add a focused test when a wizard button or deep link opens
+  another page.
+- For wizard/deep-link actions that need the destination page to open a drawer,
+  selector, upload area, or run action, set a non-widget intent key before
+  navigation and consume it once on the destination page. Clear the intent before
+  rerunning so the link cannot recursively navigate or keep the app in a loading
+  loop.
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
+
+## First-Proof Onboarding UX
+
+- Treat the first-proof panel as a new-user wizard, not as an expert shortcut
+  list. Every visible action must state whether it runs the built-in demo,
+  imports AGILAB's included notebook, or uploads the user's own notebook.
+- Do not hide packaged sample assets behind vague labels such as `example
+  notebook` when the user cannot know where that file is. Prefer explicit copy
+  such as `Create from built-in notebook`, say that no file needs to be found
+  or uploaded, and show the project that will be created.
+- Keep first-proof alternatives simple: the built-in demo lane should expose
+  install, run, and analysis actions; the notebook lane should expose the
+  included sample. Keep local notebook upload in PROJECT Create instead of
+  adding another direct uploader to the ABOUT wizard.
+- When changing first-proof labels, update ABOUT tests, PROJECT notebook-import
+  tests, newcomer docs, and stale-wording greps in the same change.
 
 ## App-Specific Page Defaults
 

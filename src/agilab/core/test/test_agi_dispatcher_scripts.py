@@ -235,6 +235,32 @@ def test_cython_type_preprocess_handles_complex_function_shapes():
     assert "\r\n        cdef Py_ssize_t count\r\n" in pyx_source
 
 
+def test_cython_type_preprocess_extra_safe_and_blocked_edges():
+    source = """
+def run(values):
+    flag: bool = True
+    ok = bool(values)
+    name_attr = values.count
+    mixed = 1.0
+    mixed = 1
+    blocked: object = 1.0
+    (pair := values)
+    return flag, name_attr, mixed, blocked, pair
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name: item.reason for item in preview.skipped}
+
+    assert ("ok", "bint") in typed
+    assert skipped["flag"] == "source annotation already provides a type hint"
+    assert "name_attr" in skipped
+    assert "mixed" in skipped
+    assert "blocked" in skipped
+    assert "pair" in skipped
+    assert type_preprocess_mod._call_name(type_preprocess_mod.ast.Constant(value=1)) is None
+
+
 def test_cython_type_preprocess_respects_global_and_nonlocal_targets():
     source = """
 def use_global():
@@ -2352,6 +2378,29 @@ def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, mon
         str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
     ]
     assert build_mod.sys.path == expected
+
+
+def test_build_inject_shared_site_packages_skips_foreign_home_checkout(tmp_path, monkeypatch):
+    fake_home = tmp_path / "home"
+    foreign_checkout = fake_home / "agilab"
+    current_checkout = tmp_path / "current"
+    source_file = current_checkout / "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
+    (foreign_checkout / "src/agilab").mkdir(parents=True)
+    (foreign_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    (current_checkout / "src/agilab").mkdir(parents=True)
+    (current_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(build_mod.sys, "path", [], raising=False)
+    monkeypatch.setattr(build_mod.sys, "version_info", SimpleNamespace(major=3, minor=13), raising=False)
+
+    build_mod._inject_shared_site_packages(source_file=source_file)
+
+    assert build_mod.sys.path == [
+        str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
+    ]
 
 
 def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path, monkeypatch):

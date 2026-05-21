@@ -150,6 +150,383 @@ def test_compute_benchmark_run_mode_lists_enabled_capability_combinations():
     ) == list(range(16))
 
 
+def test_orchestrate_cluster_helper_edge_branches(tmp_path, monkeypatch):
+    session_state = _State()
+    orchestrate_cluster.hydrate_cluster_widget_state(
+        session_state,
+        "demo",
+        {
+            "cluster_enabled": False,
+            "workers": "worker-a",
+            "auth_method": "password",
+            "ssh_key_path": "~/.ssh/id",
+        },
+        is_managed_pc=True,
+    )
+    keys = orchestrate_cluster.cluster_widget_keys("demo")
+    assert session_state[keys["rapids"]] is False
+    assert session_state[keys["workers"]] == "worker-a"
+    assert session_state[keys["use_key"]] is False
+    session_state_empty_workers = _State()
+    orchestrate_cluster.hydrate_cluster_widget_state(
+        session_state_empty_workers,
+        "demo_empty",
+        {"workers": None, "ssh_key_path": "~/.ssh/id"},
+        is_managed_pc=False,
+    )
+    empty_keys = orchestrate_cluster.cluster_widget_keys("demo_empty")
+    assert session_state_empty_workers[empty_keys["workers"]] == ""
+    assert session_state_empty_workers[empty_keys["use_key"]] is True
+
+    env_calls: list[tuple[str, str]] = []
+    orchestrate_cluster.persist_env_var_if_changed(
+        key="SAME",
+        value="value",
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={"SAME": "value"},
+    )
+    orchestrate_cluster.persist_env_var_if_changed(
+        key="NEW",
+        value=None,
+        set_env_var=lambda key, value: env_calls.append((key, value)),
+        agi_env_envars={"NEW": "old"},
+    )
+    assert env_calls == [("NEW", "")]
+
+    assert "not set" in orchestrate_cluster._describe_share_path(SimpleNamespace(agi_share_path=""))
+    assert orchestrate_cluster._describe_share_path(
+        SimpleNamespace(agi_share_path="share", share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("nope")))
+    ) == "share"
+    assert orchestrate_cluster._cluster_credentials_value("", use_ssh_key=True) == ""
+    assert orchestrate_cluster._cluster_credentials_value(" agi ", use_ssh_key=True) == "agi"
+    assert orchestrate_cluster._cluster_credentials_value("agi", password="secret", use_ssh_key=False) == "agi:secret"
+    assert orchestrate_cluster._is_empty_workers(None) is True
+    assert orchestrate_cluster._is_empty_workers({"127.0.0.1": 1}) is True
+    assert orchestrate_cluster._is_empty_workers(" none ") is True
+    assert orchestrate_cluster._is_empty_workers('{"worker": 2}') is False
+    assert orchestrate_cluster._is_empty_workers("not json") is False
+    assert orchestrate_cluster._is_empty_workers(42) is False
+    assert orchestrate_cluster._clean_path_text("' share '") == "share"
+    assert orchestrate_cluster._resolve_env_relative_path("", SimpleNamespace(home_abs=tmp_path)) is None
+    assert orchestrate_cluster._resolve_env_relative_path("\0bad", SimpleNamespace(home_abs=tmp_path)) is None
+    assert orchestrate_cluster._resolve_env_relative_path("share", SimpleNamespace(home_abs=tmp_path)) == (
+        tmp_path / "share"
+    ).resolve(strict=False)
+    assert orchestrate_cluster._home_relative_share_text("", SimpleNamespace(home_abs=tmp_path)) is None
+    assert orchestrate_cluster._workers_data_path_points_to_local_share("localshare", SimpleNamespace()) is True
+    env = SimpleNamespace(home_abs=tmp_path, AGI_LOCAL_SHARE="localshare")
+    assert orchestrate_cluster._workers_data_path_points_to_local_share(tmp_path / "localshare" / "app", env) is True
+    assert orchestrate_cluster._env_local_share_candidate(
+        SimpleNamespace(home_abs=tmp_path, AGI_LOCAL_SHARE="", envars={"AGI_LOCAL_SHARE": "localshare"})
+    ) == (tmp_path / "localshare").resolve(strict=False)
+    assert orchestrate_cluster._env_cluster_share_candidate(
+        SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE="", envars={"AGI_CLUSTER_SHARE": "clustershare"})
+    ) == (tmp_path / "clustershare").resolve(strict=False)
+    class _BadString:
+        def __str__(self):
+            raise ValueError("cannot stringify")
+
+    assert orchestrate_cluster._env_cluster_share_candidate(
+        SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE=_BadString())
+    ) is None
+
+    with monkeypatch.context() as resolve_monkeypatch:
+        original_resolve = Path.resolve
+
+        def _raise_for_cluster_share(self, *args, **kwargs):
+            if self == tmp_path / "resolve-fallback-share":
+                raise OSError("resolve failed")
+            return original_resolve(self, *args, **kwargs)
+
+        resolve_monkeypatch.setattr(Path, "resolve", _raise_for_cluster_share)
+        assert orchestrate_cluster._env_cluster_share_candidate(
+            SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE="resolve-fallback-share")
+        ) == tmp_path / "resolve-fallback-share"
+
+    assert orchestrate_cluster._env_cluster_share_candidate(
+        SimpleNamespace(AGI_CLUSTER_SHARE="", envars={}, share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")))
+    ) is None
+    share_file = tmp_path / "cluster-share-file"
+    share_file.write_text("not a directory", encoding="utf-8")
+    assert "not a directory" in orchestrate_cluster._cluster_share_problem(
+        SimpleNamespace(AGI_CLUSTER_SHARE=share_file, envars={})
+    )
+
+    class _BrokenMkdirPath(type(Path())):
+        def mkdir(self, *args, **kwargs):
+            raise OSError("mkdir denied")
+
+    with monkeypatch.context() as cluster_share_monkeypatch:
+        cluster_share_monkeypatch.setattr(
+            orchestrate_cluster,
+            "_env_cluster_share_candidate",
+            lambda _env: _BrokenMkdirPath(tmp_path / "missing-share"),
+        )
+        assert "could not be created" in orchestrate_cluster._cluster_share_problem(SimpleNamespace())
+        cluster_share_monkeypatch.setattr(
+            orchestrate_cluster,
+            "_env_cluster_share_candidate",
+            lambda _env: _BrokenMkdirPath(tmp_path / "missing-share-still-not-dir"),
+        )
+        cluster_share_monkeypatch.setattr(_BrokenMkdirPath, "mkdir", lambda self, *args, **kwargs: None)
+        assert "not a directory" in orchestrate_cluster._cluster_share_problem(SimpleNamespace())
+        cluster_share_monkeypatch.setattr(
+            orchestrate_cluster,
+            "_env_cluster_share_candidate",
+            lambda _env: _BrokenMkdirPath(share_file),
+        )
+        assert "not a directory" in orchestrate_cluster._cluster_share_problem(SimpleNamespace())
+        cluster_share_monkeypatch.setattr(orchestrate_cluster, "_env_cluster_share_candidate", lambda _env: None)
+        assert "no cluster share path" in orchestrate_cluster._cluster_share_problem(SimpleNamespace())
+
+    assert orchestrate_cluster._scheduler_host_score("") == (3, 1, "")
+    assert orchestrate_cluster._scheduler_host_score("worker.local")[0] == 2
+    assert orchestrate_cluster._scheduler_host_score("127.0.0.1")[0] == 3
+    assert orchestrate_cluster._select_lan_scheduler_host("bad") == ""
+    assert orchestrate_cluster._select_lan_scheduler_host(["", "127.0.0.1", "192.168.20.10"]) == "192.168.20.10"
+    assert orchestrate_cluster._env_cluster_share_candidate(
+        SimpleNamespace(share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("missing")))
+    ) is None
+    assert orchestrate_cluster._env_cluster_share_setting(
+        SimpleNamespace(home_abs=tmp_path, agi_share_path=tmp_path / "clustershare")
+    ) == "clustershare"
+    assert orchestrate_cluster._env_cluster_share_setting(
+        SimpleNamespace(share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("missing")))
+    ) is None
+    assert orchestrate_cluster._env_home_path(SimpleNamespace(home_abs=object())) is None
+    assert orchestrate_cluster._default_lan_discovery_cache_path(object()).parts[-2:] == (
+        ".agilab",
+        "lan_nodes.json",
+    )
+
+    cluster_file = tmp_path / "cluster-file"
+    cluster_file.write_text("not dir", encoding="utf-8")
+    assert "not a directory" in orchestrate_cluster._cluster_share_problem(
+        SimpleNamespace(AGI_CLUSTER_SHARE=cluster_file)
+    )
+    assert "no cluster share path" in orchestrate_cluster._cluster_share_problem(SimpleNamespace(AGI_CLUSTER_SHARE=""))
+    assert orchestrate_cluster._scheduler_host_score("") == (3, 1, "")
+    assert orchestrate_cluster._scheduler_host_score("scheduler.local") == (2, 0, "scheduler.local")
+    assert orchestrate_cluster._scheduler_host_score("8.8.8.8")[0] == 1
+    assert orchestrate_cluster._select_lan_scheduler_host("bad") == ""
+    assert orchestrate_cluster._select_lan_scheduler_host(["  ", ""]) == ""
+    assert orchestrate_cluster._select_lan_scheduler_host(["169.254.1.1", "192.168.20.111"]) == "192.168.20.111"
+    assert orchestrate_cluster._is_lan_autofill_host("") is False
+    assert orchestrate_cluster._is_lan_autofill_host("bad host") is False
+    assert orchestrate_cluster._is_lan_autofill_host("localhost") is False
+    assert orchestrate_cluster._is_lan_autofill_host("224.0.0.251") is False
+    assert orchestrate_cluster._is_lan_autofill_host("192.168.20.255") is False
+    assert orchestrate_cluster._is_lan_autofill_host("worker.local") is True
+    assert orchestrate_cluster._is_lan_worker_autofill_candidate({"host": "bad host", "status": "ready"}) is False
+    assert orchestrate_cluster._is_lan_worker_autofill_candidate({"host": "worker.local", "status": "ready"}) is True
+    assert orchestrate_cluster._is_lan_worker_autofill_candidate({"host": "worker.local", "status": "sshfs-missing"}) is False
+    assert orchestrate_cluster._clear_lan_discovery_cache(tmp_path / "missing.json") == (False, "missing")
+    cache_error_path = tmp_path / "cache-error.json"
+    cache_error_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(Path, "unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("denied")))
+    assert orchestrate_cluster._clear_lan_discovery_cache(cache_error_path) == (False, "denied")
+    assert orchestrate_cluster._scheduler_ssh_target_from_cluster_value("agi@[2001:db8::1]:8786") == "agi@2001:db8::1"
+    assert orchestrate_cluster._scheduler_ssh_target_from_cluster_value("192.168.20.111:8786") == "192.168.20.111"
+    assert orchestrate_cluster._scheduler_ssh_target_from_cluster_value("agi@192.168.20.111:8786") == "agi@192.168.20.111"
+    assert orchestrate_cluster._default_lan_discovery_cache_path(tmp_path) == (
+        tmp_path / orchestrate_cluster.LAN_DISCOVERY_CACHE
+    )
+
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "discover_lan_nodes",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("scan failed")),
+    )
+    assert orchestrate_cluster._refresh_lan_discovery_cache(tmp_path / "cache.json")[0] is False
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "discover_lan_nodes",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            nodes=[
+                SimpleNamespace(status="ready"),
+                SimpleNamespace(status="sshfs-missing"),
+            ]
+        ),
+    )
+    assert orchestrate_cluster._refresh_lan_discovery_cache(
+        tmp_path / "cache.json",
+        remote_user=" agi ",
+        scheduler="agi@192.168.20.111:8786",
+        manager_user="manager",
+    ) == (True, "LAN discovery refreshed: 2 node(s), 1 ready.")
+
+    bad_cache = tmp_path / "bad-cache.json"
+    bad_cache.write_text("not json", encoding="utf-8")
+    assert orchestrate_cluster._lan_discovery_cluster_defaults(bad_cache) == {}
+    list_cache = tmp_path / "list-cache.json"
+    list_cache.write_text("[]", encoding="utf-8")
+    assert orchestrate_cluster._lan_discovery_cluster_defaults(list_cache) == {}
+    non_list_nodes_cache = tmp_path / "non-list-nodes-cache.json"
+    non_list_nodes_cache.write_text(json.dumps({"nodes": "bad"}), encoding="utf-8")
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(non_list_nodes_cache) == set()
+    cache = tmp_path / "lan.json"
+    cache.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["169.254.1.2", "192.168.20.111"],
+                "nodes": [
+                    "bad",
+                    {"host": "worker-a", "status": "ready"},
+                    {"host": "worker-b", "status": "sshfs-missing"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert orchestrate_cluster._lan_discovery_cluster_defaults(cache) == {
+        "scheduler": "192.168.20.111:8786",
+        "workers": {"192.168.20.111": 1, "worker-a": 1},
+    }
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(cache) == {"worker-b"}
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(None) == set()
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(list_cache) == set()
+    assert orchestrate_cluster._workers_dict({"worker": "2", "bad": "x"}) == {"worker": 2}
+    assert orchestrate_cluster._workers_dict("not json") == {}
+    assert orchestrate_cluster._workers_dict("[1, 2]") == {}
+    assert orchestrate_cluster._workers_dict(None) == {}
+    cluster_params = {"workers": {"worker-a": 1, "worker-b": 1}}
+    orchestrate_cluster._prune_invalid_lan_workers(cluster_params, session_state, keys["workers"], {"worker-b"})
+    assert cluster_params["workers"] == {"worker-a": 1}
+    no_workers_params: dict[str, object] = {}
+    orchestrate_cluster._prune_invalid_lan_workers(no_workers_params, _State(), keys["workers"], {"missing"})
+    assert no_workers_params == {}
+    unchanged_params = {"workers": {"worker-a": 1}}
+    orchestrate_cluster._prune_invalid_lan_workers(unchanged_params, session_state, keys["workers"], {"missing"})
+    assert unchanged_params == {"workers": {"worker-a": 1}}
+
+    defaults = {"scheduler": "192.168.20.111:8786", "workers": {"worker-a": 1}, "workers_data_path": "clustershare"}
+    empty_params: dict[str, object] = {}
+    orchestrate_cluster._apply_lan_discovery_defaults(empty_params, session_state, keys, defaults={})
+    assert empty_params == {}
+    orchestrate_cluster._apply_lan_discovery_defaults(
+        {},
+        session_state,
+        keys,
+        defaults=defaults,
+        force=True,
+    )
+    assert session_state[keys["scheduler"]] == "192.168.20.111:8786"
+    assert json.loads(session_state[keys["workers"]]) == {"worker-a": 1}
+    assert session_state[keys["workers_data_path"]] == "clustershare"
+
+
+def test_cluster_advisor_recommends_workers_and_writes_evidence(tmp_path):
+    cache = tmp_path / "lan.json"
+    cache.write_text(
+        json.dumps(
+            {
+                "generated_at": 123.0,
+                "local_hosts": ["192.168.20.111"],
+                "nodes": [
+                    {
+                        "host": "worker-a",
+                        "status": "ready",
+                        "sources": ["known-hosts", "tcp-scan"],
+                        "score": 100,
+                        "cpu": "Intel Xeon; cores: 16",
+                        "ram": "32 GB",
+                        "gpu": "",
+                    },
+                    {
+                        "host": "worker-b",
+                        "status": "ready",
+                        "sources": ["known-hosts"],
+                        "score": 80,
+                        "cpu": "AMD EPYC; cores: 8",
+                        "ram": "4 GB",
+                        "gpu": "",
+                    },
+                    {
+                        "host": "worker-c",
+                        "status": "uv-missing",
+                        "sources": ["arp"],
+                        "score": 20,
+                        "cpu": "cores: 32",
+                        "ram": "64 GB",
+                        "gpu": "A100;H100",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        home_abs=tmp_path,
+        agi_share_path=tmp_path / "clustershare",
+    )
+
+    plan = orchestrate_cluster._cluster_advisor_plan(
+        cache,
+        {"scheduler": "", "workers": {"worker-a": 1}, "workers_data_path": ""},
+        env,
+    )
+
+    assert plan["schema"] == orchestrate_cluster.CLUSTER_ADVISOR_SCHEMA
+    assert plan["mode"] == "advisor_only"
+    assert plan["status"] == "ok"
+    assert plan["scheduler"] == "192.168.20.111:8786"
+    assert plan["workers_data_path"] == "clustershare"
+    assert plan["current_workers"] == {"worker-a": 1}
+    assert plan["recommended_workers"] == {
+        "192.168.20.111": 1,
+        "worker-a": 4,
+        "worker-b": 1,
+    }
+    assert plan["summary"]["recommended_total_workers"] == 6
+    assert plan["summary"]["excluded_node_count"] == 1
+    excluded = [item for item in plan["decisions"] if item["host"] == "worker-c"][0]
+    assert excluded["recommended_workers"] == 0
+    assert "uv-missing" in excluded["reasons"][0]
+    assert orchestrate_cluster._parse_cpu_cores("Apple M3; cores: 12") == 12
+    assert orchestrate_cluster._parse_ram_gb("512 MB") == 0.5
+    assert orchestrate_cluster._gpu_count("A100;H100") == 2
+
+    plan_path = tmp_path / ".agilab" / "cluster_plan.json"
+    written, message = orchestrate_cluster._write_cluster_advisor_plan(plan_path, plan)
+
+    assert written is True
+    assert message == str(plan_path)
+    written_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert written_plan["recommended_workers"]["worker-a"] == 4
+
+
+def test_cluster_advisor_reports_missing_or_unusable_discovery(tmp_path):
+    env = SimpleNamespace(app="demo_project")
+
+    missing_plan = orchestrate_cluster._cluster_advisor_plan(tmp_path / "missing.json", {}, env)
+
+    assert missing_plan["status"] == "missing_discovery"
+    assert missing_plan["recommended_workers"] == {}
+
+    cache = tmp_path / "lan.json"
+    cache.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["127.0.0.1"],
+                "nodes": [
+                    {
+                        "host": "worker.local",
+                        "status": "sshfs-missing",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    no_ready_plan = orchestrate_cluster._cluster_advisor_plan(cache, {}, env)
+
+    assert no_ready_plan["status"] == "no_ready_workers"
+    assert no_ready_plan["recommended_workers"] == {}
+    assert no_ready_plan["summary"]["excluded_node_count"] == 1
+
+
 def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
     env = SimpleNamespace(home_abs=tmp_path / "home" / "agi")
 
@@ -171,20 +548,20 @@ def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
 def test_resolve_project_change_args_override_only_preserves_matching_ui_args():
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=True,
-        args_project="flight_project",
-        previous_project="flight_project",
+        args_project="flight_telemetry_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) == {"foo": 1}
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=True,
         args_project="other_project",
-        previous_project="flight_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) is None
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=False,
-        args_project="flight_project",
-        previous_project="flight_project",
+        args_project="flight_telemetry_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) is None
 
@@ -579,6 +956,10 @@ def test_refresh_lan_discovery_cache_runs_discovery_with_scheduler_ssh_target(mo
     assert options.remote_user == "agi"
     assert options.scheduler == "192.168.20.111"
     assert options.manager_user == "manager"
+    assert options.tcp_timeout == orchestrate_cluster.LAN_UI_TCP_TIMEOUT
+    assert options.ssh_timeout == orchestrate_cluster.LAN_UI_SSH_TIMEOUT
+    assert options.max_hosts == orchestrate_cluster.LAN_UI_MAX_HOSTS
+    assert options.probe_workers == orchestrate_cluster.LAN_UI_PROBE_WORKERS
     assert options.cache_path == cache_path
 
 
@@ -956,6 +1337,79 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
     assert refresh_calls[0][1]["remote_user"] == "agi"
     assert refresh_calls[0][1]["scheduler"] == "10.0.0.10:8786"
     assert any("LAN discovery refreshed" in info for info in fake_st.infos)
+
+
+def test_render_cluster_settings_ui_builds_advisory_cluster_plan_without_applying(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    home = tmp_path / "agilab-home"
+    cache_path = home / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.20.111"],
+                "nodes": [
+                    {
+                        "host": "worker-a",
+                        "status": "ready",
+                        "sources": ["known-hosts", "tcp-scan"],
+                        "score": 100,
+                        "cpu": "cores: 16",
+                        "ram": "32 GB",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={
+            orchestrate_cluster._cluster_advisor_plan_key(app_name): True,
+        },
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: json.loads(raw),
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=home,
+        is_managed_pc=False,
+        agi_share_path=home / "clustershare",
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    plan_path = home / ".agilab" / "cluster_plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert plan["recommended_workers"] == {"192.168.20.111": 1, "worker-a": 4}
+    assert cluster["workers"]["worker-a"] == 1
+    assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.20.111": 1,\n  "worker-a": 1\n}'
+    assert any("Cluster plan written" in info for info in fake_st.infos)
+    assert any("recommended_workers" in text for text in fake_st.markdowns)
 
 
 def test_render_cluster_settings_ui_clear_lan_cache_button_deletes_inventory(monkeypatch, tmp_path):

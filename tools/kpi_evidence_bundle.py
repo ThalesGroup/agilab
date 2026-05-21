@@ -24,7 +24,7 @@ KPI_COMPONENT_SCORES = {
     "Ease of adoption": Decimal("4.0"),
     "Research experimentation": Decimal("4.0"),
     "Engineering prototyping": Decimal("4.0"),
-    "Production readiness": Decimal("3.0"),
+    "Production readiness": Decimal("3.2"),
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
@@ -170,7 +170,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         wizard_state = first_proof_wizard.newcomer_first_proof_state(
             SimpleNamespace(
                 apps_path=repo_root / "src" / "agilab" / "apps" / "builtin",
-                app="flight_project",
+                app="flight_telemetry_project",
                 AGILAB_LOG_ABS=repo_root / ".missing-first-proof-log",
             ),
             repo_root=repo_root,
@@ -178,7 +178,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         ok = (
             labels == ["preinit smoke", "source ui smoke"]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
-            and active_app.name == "flight_project"
+            and active_app.name == "flight_telemetry_project"
             and wizard_content["recommended_path_id"] == "source-checkout-first-proof"
             and wizard_content["actionable_route_ids"] == ["source-checkout-first-proof"]
             and wizard_content["documented_route_ids"] == ["notebook-quickstart"]
@@ -186,8 +186,8 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
             and wizard_content["run_manifest_filename"] == "run_manifest.json"
-            and [label for label, _ in wizard_content["stages"]] == [
-                "PROJECT",
+            and [label for label, _ in wizard_content["steps"]] == [
+                "DEMO",
                 "ORCHESTRATE",
                 "ANALYSIS",
             ]
@@ -207,7 +207,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "compatibility_status": wizard_content.get("compatibility_status"),
                 "compatibility_report_status": wizard_content.get("compatibility_report_status"),
                 "run_manifest_filename": wizard_content.get("run_manifest_filename"),
-                "stages": [label for label, _ in wizard_content.get("stages", [])],
+                "steps": [label for label, _ in wizard_content.get("steps", [])],
                 "remediation_status": wizard_state.get("remediation_status"),
                 "evidence_commands": wizard_state.get("evidence_commands"),
             },
@@ -281,7 +281,7 @@ def _check_run_manifest_contract(repo_root: Path) -> dict[str, Any]:
             and encoded["path_id"] == "source-checkout-first-proof"
             and encoded["status"] == "pass"
             and encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
-            and encoded["environment"]["app_name"] == "flight_project"
+            and encoded["environment"]["app_name"] == "flight_telemetry_project"
             and encoded["timing"]["target_seconds"] == 600.0
             and validation_labels == ["proof_steps", "target_seconds", "recommended_project"]
             and run_manifest.manifest_passed(manifest)
@@ -332,8 +332,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 10
-            and summary.get("app_fingerprint_count") == 10
+            and summary.get("builtin_app_count") == 12
+            and summary.get("app_fingerprint_count") == 12
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -375,10 +375,10 @@ def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any
             report.get("status") == "pass"
             and summary.get("schema") == "agilab.public_certification_profile.v1"
             and summary.get("certification_profile") == "bounded_public_evidence"
-            and summary.get("path_count") == 6
-            and summary.get("certified_public_evidence_count") == 5
+            and summary.get("path_count") == 7
+            and summary.get("certified_public_evidence_count") == 6
             and summary.get("documented_not_certified_count") == 1
-            and summary.get("certified_beyond_newcomer_operator_count") == 3
+            and summary.get("certified_beyond_newcomer_operator_count") == 4
             and summary.get("production_certification_claimed") is False
             and summary.get("formal_third_party_certification") is False
             and summary.get("command_execution_count") == 0
@@ -430,9 +430,11 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("core_release_graph_aligned") is True
             and summary.get("aligned_internal_dependency_pins") is True
             and summary.get("mismatched_internal_dependency_pin_count") == 0
-            and summary.get("page_lib_component_count") == 1
+            and summary.get("page_lib_component_count") == 2
             and summary.get("page_lib_release_graph_aligned") is True
-            and summary.get("builtin_app_pyproject_count") == 10
+            and summary.get("app_lib_component_count") == 1
+            and summary.get("app_lib_release_graph_aligned") is True
+            and summary.get("builtin_app_pyproject_count") == 12
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0
             and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
@@ -488,10 +490,19 @@ def _check_repository_knowledge_report(repo_root: Path) -> dict[str, Any]:
             and int(summary.get("indexed_file_count", 0) or 0) > 50
             and int(summary.get("python_file_count", 0) or 0) > 20
             and int(summary.get("tool_file_count", 0) or 0) > 10
+            and int(summary.get("test_file_count", 0) or 0) > 10
             and int(summary.get("docs_file_count", 0) or 0) > 10
             and int(summary.get("pyproject_count", 0) or 0) >= 8
             and int(summary.get("runbook_count", 0) or 0) >= 3
-            and summary.get("knowledge_map_count") == 4
+            and int(summary.get("total_line_count", 0) or 0) > 0
+            and int(summary.get("python_line_count", 0) or 0) > 0
+            and int(summary.get("docs_line_count", 0) or 0) > 0
+            and int(summary.get("test_line_count", 0) or 0) > 0
+            and int(summary.get("total_size_bytes", 0) or 0) > 0
+            and isinstance(summary.get("kind_counts"), dict)
+            and isinstance(summary.get("kind_line_counts"), dict)
+            and isinstance(summary.get("suffix_counts"), dict)
+            and summary.get("knowledge_map_count") == 5
             and int(summary.get("query_seed_count", 0) or 0) >= 4
             and summary.get("excluded_path_hit_count") == 0
             and summary.get("generated_wiki_source_of_truth") is False
@@ -514,8 +525,8 @@ def _check_repository_knowledge_report(repo_root: Path) -> dict[str, Any]:
         "Repository knowledge index report contract",
         ok,
         (
-            "repository knowledge report indexes code, docs, runbooks, and "
-            "manifests while preserving source-of-truth boundaries"
+            "repository knowledge report indexes code, tests, docs, runbooks, "
+            "manifests, and deterministic stats while preserving source-of-truth boundaries"
             if ok
             else "repository knowledge report is failing or disconnected"
         ),
@@ -2127,20 +2138,21 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "app_catalog_validation_only"
-            and summary.get("app_catalog_count") == 6
-            and summary.get("connector_count") == 18
-            and summary.get("page_connector_ref_count") == 11
-            and summary.get("legacy_path_count") == 12
+            and summary.get("app_catalog_count") == 7
+            and summary.get("connector_count") == 21
+            and summary.get("page_connector_ref_count") == 15
+            and summary.get("legacy_path_count") == 14
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("apps")
             == [
                 "execution_pandas_project",
                 "execution_polars_project",
-                "flight_project",
+                "flight_telemetry_project",
                 "meteo_forecast_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
+                "weather_forecast_project",
             ]
             and summary.get("round_trip_ok") is True
         )
@@ -2165,8 +2177,9 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
         evidence=[
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
-            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
             "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",
         ],
@@ -2182,8 +2195,10 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
         required_labels = {
             "streamlit health",
             "base app",
-            "flight project",
-            "flight view_maps",
+            "flight telemetry project",
+            "flight telemetry view_maps",
+            "weather forecast project",
+            "weather forecast view",
         }
         ok = (
             required_labels.issubset(labels)
@@ -2221,7 +2236,7 @@ def _check_web_robot_contract(repo_root: Path) -> dict[str, Any]:
         analysis_url = web_robot.build_page_url(
             "https://jpmorard-agilab.hf.space",
             "ANALYSIS",
-            active_app="flight_project",
+            active_app="flight_telemetry_project",
             current_page=remote_view,
         )
         ok = (
@@ -2284,7 +2299,7 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
     try:
         production_readiness_report = _load_tool_module(repo_root, "production_readiness_report")
         report = production_readiness_report.build_report(repo_root=repo_root, run_docs_profile=False)
-        ok = report.get("status") == "pass" and report.get("supported_score") == "3.0 / 5"
+        ok = report.get("status") == "pass" and report.get("supported_score") == "3.2 / 5"
         details = {
             "status": report.get("status"),
             "supported_score": report.get("supported_score"),
@@ -2299,7 +2314,7 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
         "Production-readiness report contract",
         ok,
         (
-            "production-readiness evidence report passes and preserves the 3.0 / 5 scope limit"
+            "production-readiness evidence report passes and supports the controlled-pilot 3.2 / 5 boundary"
             if ok
             else "production-readiness evidence report is failing or overclaiming"
         ),
@@ -2331,46 +2346,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         repo_root / "docs" / "source" / "quick-start.rst",
     ]
     required = {
-        "README.md": [
-            "tools/newcomer_first_proof.py --json",
-            "run_manifest.json",
-            "tools/reduce_contract_benchmark.py --json",
-            "tools/revision_traceability_report.py --compact",
-            "tools/public_certification_profile_report.py --compact",
-            "tools/supply_chain_attestation_report.py --compact",
-            "tools/repository_knowledge_report.py --compact",
-            "tools/run_diff_evidence_report.py --compact",
-            "tools/ci_artifact_harvest_report.py --compact",
-            "tools/github_actions_artifact_index.py --archive",
-            "tools/ci_provider_artifact_index.py --provider gitlab_ci --archive",
-            "tools/ci_provider_artifact_index.py --live-gitlab",
-            "tools/multi_app_dag_report.py --compact",
-            "tools/global_pipeline_dag_report.py --compact",
-            "tools/global_pipeline_execution_plan_report.py --compact",
-            "tools/global_pipeline_runner_state_report.py --compact",
-            "tools/global_pipeline_dispatch_state_report.py --compact",
-            "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
-            "tools/global_pipeline_operator_state_report.py --compact",
-            "tools/global_pipeline_dependency_view_report.py --compact",
-            "tools/global_pipeline_live_state_updates_report.py --compact",
-            "tools/global_pipeline_operator_actions_report.py --compact",
-            "tools/global_pipeline_operator_ui_report.py --compact",
-            "tools/notebook_pipeline_import_report.py --compact",
-            "tools/notebook_roundtrip_report.py --compact",
-            "tools/notebook_union_environment_report.py --compact",
-            "tools/data_connector_facility_report.py --compact",
-            "tools/data_connector_resolution_report.py --compact",
-            "tools/data_connector_health_report.py --compact",
-            "tools/data_connector_health_actions_report.py --compact",
-            "tools/data_connector_runtime_adapters_report.py --compact",
-            "tools/data_connector_live_endpoint_smoke_report.py --compact",
-            "tools/data_connector_ui_preview_report.py --compact",
-            "tools/data_connector_live_ui_report.py --compact",
-            "tools/data_connector_view_surface_report.py --compact",
-            "tools/data_connector_app_catalogs_report.py --compact",
-            "Overall public evaluation",
-            "compatibility matrix",
-        ],
+        "README.md": ["Overall public evaluation", "compatibility matrix"],
         "docs/source/compatibility-matrix.rst": [
             "AGILAB Hugging Face demo",
             "validated",
@@ -2434,9 +2410,9 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "Public docs evidence links",
         ok,
         (
-            "README and public docs expose the machine-readable evidence reports"
+            "README links to evidence pages and public docs expose the machine-readable evidence reports"
             if ok
-            else "README or public docs are missing evidence report references"
+            else "README evidence links or public docs evidence report references are missing"
         ),
         evidence=[str(path.relative_to(repo_root)) for path in paths],
         details=details,
@@ -2474,7 +2450,7 @@ def render_readme_summary(bundle: dict[str, Any]) -> str:
     production = components["Production readiness"]
     strategic = bundle["summary"]["strategic_potential_score"]
 
-    lines = ["Current CODEX 5.5 working summary, refreshed from the public KPI bundle:", ""]
+    lines = ["Current public evaluation summary, refreshed from the public KPI bundle:", ""]
     if adoption == research == prototyping:
         lines.append(
             f"- `{adoption}` for ease of adoption, research experimentation, "
@@ -2513,7 +2489,7 @@ def _replace_readme_summary_block(readme_text: str, bundle: dict[str, Any]) -> s
         return f"{readme_text[:start]}{generated}{readme_text[end:]}"
 
     pattern = re.compile(
-        r"Current CODEX 5\.5 working summary, refreshed from the public KPI bundle:\n\n"
+        r"Current (?:CODEX 5\.5 working|public evaluation) summary, refreshed from the public KPI bundle:\n\n"
         r"(?:- .+\n)+",
         re.MULTILINE,
     )

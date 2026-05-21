@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 def _import_agilab_module(module_name: str):
     module_path = Path(__file__).resolve().parents[1] / "src" / "agilab" / f"{module_name.rsplit('.', 1)[-1]}.py"
@@ -221,6 +223,7 @@ def test_panel_store_recovers_from_invalid_state_and_lists_sorted() -> None:
 
 def test_code_editor_pin_buttons_preserves_base_and_uses_response_types() -> None:
     base = {"buttons": [{"name": "CopyCustom"}], "meta": {"x": 1}}
+    list_base = [{"name": "ListCopy"}]
 
     unpin_buttons = pinned_expander.code_editor_pin_buttons(
         base,
@@ -232,14 +235,22 @@ def test_code_editor_pin_buttons_preserves_base_and_uses_response_types() -> Non
         pinned=False,
         pin_response="custom_pin",
     )
+    list_buttons = pinned_expander.code_editor_pin_buttons(list_base, pinned=False)
 
     assert base == {"buttons": [{"name": "CopyCustom"}], "meta": {"x": 1}}
+    assert list_base == [{"name": "ListCopy"}]
     assert isinstance(unpin_buttons, list)
     assert [button["name"] for button in unpin_buttons] == ["CopyCustom", "Unpin"]
     assert unpin_buttons[1]["commands"][1][1] == "custom_unpin"
     assert isinstance(pin_buttons, list)
     assert [button["name"] for button in pin_buttons] == ["Pin"]
     assert pin_buttons[0]["commands"][1][1] == "custom_pin"
+    assert [button["name"] for button in list_buttons] == ["ListCopy", "Pin"]
+
+
+def test_code_editor_pin_buttons_rejects_invalid_button_payload() -> None:
+    with pytest.raises(TypeError, match="code editor buttons must be"):
+        pinned_expander.code_editor_pin_buttons({"buttons": "bad"}, pinned=False)
 
 
 def test_upsert_truncates_body_and_combines_caption() -> None:
@@ -355,6 +366,23 @@ def test_render_pinnable_code_editor_handles_empty_and_non_dict_response() -> No
     assert editor_calls[-1]["height"] == 12
 
 
+def test_render_pinnable_code_editor_leaves_unknown_dict_response_unchanged() -> None:
+    fake_st = _FakeStreamlit()
+
+    response = pinned_expander.render_pinnable_code_editor(
+        fake_st,
+        lambda _body, **_kwargs: {"type": "unused"},
+        "logs",
+        title="Logs",
+        body="line",
+        key="logs-editor",
+    )
+
+    assert response == {"type": "unused"}
+    assert "logs" not in fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY]
+    assert ("rerun", "called") not in fake_st.events
+
+
 def test_render_pinnable_code_editor_unpins_existing_panel_from_toolbar() -> None:
     fake_st = _FakeStreamlit()
     pinned_expander.upsert_pinned_expander(fake_st.session_state, "logs", title="Logs", body="old")
@@ -411,6 +439,29 @@ def test_render_pinned_expanders_renders_markdown_and_text_with_container() -> N
     assert ("sidebar.markdown", "#### Pinned panels") in fake_st.events
     assert ("caption", "Markdown caption") in fake_st.events
     assert ("markdown", "**ready**") in fake_st.events
+    assert ("write", "plain text") in fake_st.events
+
+
+def test_render_pinned_expanders_tolerates_container_without_optional_header_methods() -> None:
+    fake_st = _FakeStreamlit()
+    container = SimpleNamespace(expander=lambda title, expanded=False: _FakeExpander(fake_st, title))
+    pinned_expander.upsert_pinned_expander(
+        fake_st.session_state,
+        "plain",
+        title="Plain",
+        body="plain text",
+        body_format="text",
+    )
+
+    pinned_expander.render_pinned_expanders(
+        fake_st,
+        container=container,
+        session_state=fake_st.session_state,
+    )
+
+    assert ("divider", "") not in fake_st.events
+    assert ("sidebar.markdown", "#### Pinned panels") not in fake_st.events
+    assert ("enter_expander", "Plain") in fake_st.events
     assert ("write", "plain text") in fake_st.events
 
 

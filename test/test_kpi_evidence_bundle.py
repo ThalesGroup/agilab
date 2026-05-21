@@ -93,7 +93,7 @@ def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
     summary = module.render_readme_summary(snapshot)
     components = snapshot["summary"]["score_components"]
 
-    assert "Current CODEX 5.5 working summary" in summary
+    assert "Current public evaluation summary" in summary
     assert (
         f"`{components['Ease of adoption']}` for ease of adoption, research experimentation, "
         "and engineering prototyping."
@@ -114,7 +114,7 @@ def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
                 "",
                 "## Evaluation Snapshot",
                 "",
-                "Current CODEX 5.5 working summary, refreshed from the public KPI bundle:",
+                "Current public evaluation summary, refreshed from the public KPI bundle:",
                 "",
                 "- stale",
                 "",
@@ -172,7 +172,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["run_manifest_filename"] == "run_manifest.json"
     assert wizard["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in wizard["evidence_commands"][1]
-    assert wizard["stages"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert wizard["steps"] == ["DEMO", "ORCHESTRATE", "ANALYSIS"]
 
 
 def test_run_manifest_contract_reports_stable_schema() -> None:
@@ -201,8 +201,8 @@ def test_revision_traceability_report_contract_fingerprints_repo() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert check["details"]["summary"]["execution_mode"] == "revision_traceability_static"
     assert check["details"]["summary"]["core_component_count"] == 5
-    assert check["details"]["summary"]["builtin_app_count"] == 10
-    assert check["details"]["summary"]["app_fingerprint_count"] == 10
+    assert check["details"]["summary"]["builtin_app_count"] == 12
+    assert check["details"]["summary"]["app_fingerprint_count"] == 12
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
@@ -218,10 +218,10 @@ def test_public_certification_profile_report_contract_bounds_scope() -> None:
         "agilab.public_certification_profile.v1"
     )
     assert check["details"]["summary"]["certification_profile"] == "bounded_public_evidence"
-    assert check["details"]["summary"]["path_count"] == 6
-    assert check["details"]["summary"]["certified_public_evidence_count"] == 5
+    assert check["details"]["summary"]["path_count"] == 7
+    assert check["details"]["summary"]["certified_public_evidence_count"] == 6
     assert check["details"]["summary"]["documented_not_certified_count"] == 1
-    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 3
+    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 4
     assert check["details"]["summary"]["production_certification_claimed"] is False
     assert check["details"]["summary"]["formal_third_party_certification"] is False
     assert check["details"]["summary"]["command_execution_count"] == 0
@@ -244,11 +244,11 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["license_present"] is True
     assert check["details"]["summary"]["core_component_count"] == 4
     assert check["details"]["summary"]["core_release_graph_aligned"] is True
-    assert check["details"]["summary"]["page_lib_component_count"] == 1
+    assert check["details"]["summary"]["page_lib_component_count"] == 2
     assert check["details"]["summary"]["page_lib_release_graph_aligned"] is True
     assert check["details"]["summary"]["aligned_internal_dependency_pins"] is True
     assert check["details"]["summary"]["mismatched_internal_dependency_pin_count"] == 0
-    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 10
+    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 12
     assert check["details"]["summary"]["aligned_builtin_app_versions"] is True
     assert check["details"]["summary"]["mismatched_builtin_app_version_count"] == 0
     assert check["details"]["summary"]["aligned_builtin_app_internal_dependency_bounds"] is True
@@ -280,10 +280,16 @@ def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
     )
     assert check["details"]["summary"]["indexed_file_count"] > 50
     assert check["details"]["summary"]["python_file_count"] > 20
+    assert check["details"]["summary"]["test_file_count"] > 10
     assert check["details"]["summary"]["docs_file_count"] > 10
     assert check["details"]["summary"]["pyproject_count"] >= 8
     assert check["details"]["summary"]["runbook_count"] >= 3
-    assert check["details"]["summary"]["knowledge_map_count"] == 4
+    assert check["details"]["summary"]["total_line_count"] > 0
+    assert check["details"]["summary"]["python_line_count"] > 0
+    assert check["details"]["summary"]["test_line_count"] > 0
+    assert check["details"]["summary"]["docs_line_count"] > 0
+    assert check["details"]["summary"]["total_size_bytes"] > 0
+    assert check["details"]["summary"]["knowledge_map_count"] == 5
     assert check["details"]["summary"]["query_seed_count"] >= 4
     assert check["details"]["summary"]["excluded_path_hit_count"] == 0
     assert check["details"]["summary"]["generated_wiki_source_of_truth"] is False
@@ -291,6 +297,7 @@ def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert "repository_knowledge_exclusion_guardrails" in check["details"]["check_ids"]
+    assert "repository_knowledge_statistics" in check["details"]["check_ids"]
     assert "repository_knowledge_source_of_truth_boundary" in check["details"]["check_ids"]
 
 
@@ -885,19 +892,20 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_app_catalogs.v1"
     assert check["details"]["summary"]["run_status"] == "validated"
     assert check["details"]["summary"]["execution_mode"] == "app_catalog_validation_only"
-    assert check["details"]["summary"]["app_catalog_count"] == 6
-    assert check["details"]["summary"]["connector_count"] == 18
-    assert check["details"]["summary"]["page_connector_ref_count"] == 11
-    assert check["details"]["summary"]["legacy_path_count"] == 12
+    assert check["details"]["summary"]["app_catalog_count"] == 7
+    assert check["details"]["summary"]["connector_count"] == 21
+    assert check["details"]["summary"]["page_connector_ref_count"] == 15
+    assert check["details"]["summary"]["legacy_path_count"] == 14
     assert check["details"]["summary"]["missing_ref_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["apps"] == [
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
+        "flight_telemetry_project",
         "meteo_forecast_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_project",
     ]
     assert "data_connector_app_catalogs_discovery" in check["details"]["check_ids"]
     assert "data_connector_app_catalogs_no_network" in check["details"]["check_ids"]
@@ -909,7 +917,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["checked_app_count"] == 8
+    assert check["details"]["checked_app_count"] == 10
     assert check["details"]["template_only_exemptions"] == {
         "global_dag_project": "cross-app DAG template preview with no concrete worker merge output",
         "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
@@ -951,8 +959,10 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                 for label in (
                     "streamlit health",
                     "base app",
-                    "flight project",
-                    "flight view_maps",
+                    "flight telemetry project",
+                    "flight telemetry view_maps",
+                    "weather forecast project",
+                    "weather forecast view",
                 )
             ]
 

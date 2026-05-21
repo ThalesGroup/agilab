@@ -214,10 +214,17 @@ def _coerce_verbose(value: Any) -> int:
     return coerce_diagnostics_verbose(value)
 
 
-def _missing_install_paths(manager_venv: Path, worker_venv: Path | None) -> tuple[str, ...]:
+def _missing_install_paths(
+    manager_venv: Path,
+    worker_venv: Path | None,
+    *,
+    worker_required: bool = True,
+) -> tuple[str, ...]:
     missing: list[str] = []
     if not manager_venv.exists():
         missing.append(f"manager venv `{manager_venv}`")
+    if not worker_required:
+        return tuple(missing)
     if worker_venv is None:
         missing.append("worker venv `<unknown>`")
     elif not worker_venv.exists():
@@ -392,18 +399,18 @@ def _execute_readiness(
         return OrchestrateActionReadiness(
             action=action,
             enabled=False,
-            disabled_reason="`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.",
+            disabled_reason="`Serve` mode selected. Switch to `Run now` to access RUN / LOAD / EXPORT actions.",
             missing_install_paths=missing_install_paths,
         )
     if not command_configured:
         return OrchestrateActionReadiness(
             action=action,
             enabled=False,
-            disabled_reason="No EXECUTE command configured; please configure it first.",
+            disabled_reason="No RUN command configured; please configure it first.",
             missing_install_paths=missing_install_paths,
         )
     if missing_install_paths:
-        action_label = "EXECUTE" if action is OrchestrateExecuteAction.RUN else "EXECUTE \u2192 LOAD \u2192 EXPORT"
+        action_label = "RUN" if action is OrchestrateExecuteAction.RUN else "RUN \u2192 LOAD \u2192 EXPORT"
         return OrchestrateActionReadiness(
             action=action,
             enabled=False,
@@ -424,11 +431,12 @@ def build_orchestrate_execute_workflow_state(
     cmd: str | None,
     project_path: Path | str,
     worker_env_path: Path | str | None,
+    worker_env_required: bool = True,
 ) -> OrchestrateExecuteWorkflowState:
     """Build the pure ORCHESTRATE execute/combo action state."""
     manager_venv = Path(project_path) / ".venv"
-    worker_venv = Path(worker_env_path) / ".venv" if worker_env_path else None
-    missing_paths = _missing_install_paths(manager_venv, worker_venv)
+    worker_venv = Path(worker_env_path) / ".venv" if worker_env_required and worker_env_path else None
+    missing_paths = _missing_install_paths(manager_venv, worker_venv, worker_required=worker_env_required)
     command_configured = bool(cmd)
     actions = {
         action: _execute_readiness(
@@ -470,27 +478,27 @@ def _run_artifact_readiness(
             return OrchestrateRunArtifactReadiness(
                 action=action,
                 enabled=False,
-                disabled_reason="No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.",
+                disabled_reason="No data loaded yet. Click LOAD after RUN to populate it before export.",
             )
         return OrchestrateRunArtifactReadiness(
             action=action,
             enabled=False,
-            disabled_reason="`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.",
+            disabled_reason="`Serve` mode selected. Switch to `Run now` to access RUN / LOAD actions.",
         )
     if action is OrchestrateRunArtifactAction.LOAD:
         if status is OrchestrateRunArtifactStatus.DELETED:
             return OrchestrateRunArtifactReadiness(
                 action=action,
                 enabled=False,
-                disabled_reason="Dataframe preview was deleted. Run EXECUTE again before loading a new export.",
+                disabled_reason="Dataframe preview was deleted. Click RUN again before loading a new export.",
             )
         return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
     if action is OrchestrateRunArtifactAction.DELETE:
         if not has_loaded_artifact:
             reason = (
-                "Dataframe preview was deleted. Run EXECUTE then LOAD to refresh with new output."
+                "Dataframe preview was deleted. Click RUN then LOAD to refresh with new output."
                 if status is OrchestrateRunArtifactStatus.DELETED
-                else "No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export."
+                else "No data loaded yet. Click LOAD after RUN to populate it before export."
             )
             return OrchestrateRunArtifactReadiness(action=action, enabled=False, disabled_reason=reason)
         return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
@@ -498,7 +506,7 @@ def _run_artifact_readiness(
         return OrchestrateRunArtifactReadiness(
             action=action,
             enabled=False,
-            disabled_reason="No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.",
+            disabled_reason="No data loaded yet. Click LOAD after RUN to populate it before export.",
         )
     return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
 

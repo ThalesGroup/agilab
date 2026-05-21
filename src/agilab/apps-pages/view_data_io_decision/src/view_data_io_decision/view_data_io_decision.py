@@ -32,7 +32,9 @@ _ensure_repo_on_path()
 from agi_env import AgiEnv
 from agi_gui.pagelib import render_logo
 
-RUN_SELECTION_KEY = "data_io_2026_selected_run"
+ARTIFACT_ROOT_KEY = "decision_evidence_artifact_root"
+RUN_SELECTION_KEY = "decision_evidence_selected_run"
+SUMMARY_GLOB_KEY = "decision_evidence_summary_glob"
 
 
 def _resolve_active_app() -> Path:
@@ -101,25 +103,25 @@ if "env" not in st.session_state:
 else:
     env = st.session_state["env"]
 
-render_logo("Data IO 2026 Decision")
-st.title("Data IO 2026 decision engine")
+render_logo("Decision Evidence")
+st.title("Decision evidence")
 st.caption(
-    "Inspect the public autonomous mission-data demo: pipeline generation, failure injection, "
-    "re-planning, and final decision evidence."
+    "Inspect exported decision artifacts: pipeline generation, failure injection, "
+    "re-planning, and final evidence."
 )
 
 default_root = _default_artifact_root(env)
+st.session_state.setdefault(ARTIFACT_ROOT_KEY, str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("data_io_2026_artifact_root", str(default_root)),
-    key="data_io_2026_artifact_root",
+    key=ARTIFACT_ROOT_KEY,
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
+st.session_state.setdefault(SUMMARY_GLOB_KEY, "**/*_summary_metrics.json")
 summary_pattern = st.sidebar.text_input(
     "Summary glob",
-    value=st.session_state.setdefault("data_io_2026_summary_glob", "**/*_summary_metrics.json"),
-    key="data_io_2026_summary_glob",
+    key=SUMMARY_GLOB_KEY,
 )
 
 if not artifact_root.exists():

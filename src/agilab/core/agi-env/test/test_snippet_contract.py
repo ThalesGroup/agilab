@@ -24,7 +24,12 @@ from agi_cluster.agi_distributor import AGI
 
     assert snippet_contract.is_generated_agi_snippet(code) is True
     assert snippet_contract.extract_snippet_api(code) == snippet_contract.CURRENT_SNIPPET_API
+    assert snippet_contract.extract_snippet_api_version(code) == snippet_contract.CURRENT_SNIPPET_API
     assert snippet_contract.is_supported_snippet_api(code) is True
+    assert snippet_contract.is_current_snippet_api(code) is True
+
+    assert snippet_contract.extract_snippet_api("# snippet_api: agi.snippet.v1\n") == snippet_contract.CURRENT_SNIPPET_API
+    assert snippet_contract.extract_snippet_api("AGILAB_SNIPPET_API_VERSION = 7\n") == "legacy.version.7"
 
 
 def test_plain_python_snippet_is_not_agi_contract_bound() -> None:
@@ -40,6 +45,9 @@ def test_require_supported_snippet_api_raises_cleanup_message_for_stale_versions
 
     with pytest.raises(RuntimeError, match="Clean up old generated AGI_\\*\\.py snippets"):
         snippet_contract.require_current_snippet_api("not-a-version")
+
+    with pytest.raises(RuntimeError, match="Clean up old generated AGI_\\*\\.py snippets"):
+        snippet_contract.require_current_snippet_api(snippet_contract.CURRENT_SNIPPET_API_VERSION)
 
 
 def test_stale_snippet_cleanup_message_includes_affected_paths() -> None:
@@ -73,3 +81,46 @@ def test_clean_stale_snippet_files_deletes_only_unsupported_generated_snippets(t
     assert not stale.exists()
     assert current.exists()
     assert plain.exists()
+
+
+def test_clean_stale_snippet_files_reports_bad_paths_and_delete_failures(tmp_path, monkeypatch) -> None:
+    stale = tmp_path / "AGI_run_stale.py"
+    stale.write_text("from agi_cluster.agi_distributor import AGI\nAGI.run(None)\n", encoding="utf-8")
+    unreadable = tmp_path / "AGI_unreadable.py"
+    unreadable.write_text("from agi_cluster.agi_distributor import AGI\nAGI.run(None)\n", encoding="utf-8")
+
+    original_path = snippet_contract.Path
+
+    class _PathFactory:
+        def __call__(self, value):
+            if value == object_marker:
+                raise TypeError("bad path")
+            return original_path(value)
+
+    object_marker = object()
+    monkeypatch.setattr(snippet_contract, "Path", _PathFactory())
+    deleted, failed = snippet_contract.clean_stale_snippet_files([object_marker])
+    assert deleted == []
+    assert failed == [original_path(str(object_marker))]
+
+    monkeypatch.setattr(snippet_contract, "Path", original_path)
+    original_read_text = original_path.read_text
+    monkeypatch.setattr(
+        original_path,
+        "read_text",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("read")) if self == unreadable else original_read_text(self, *args, **kwargs),
+    )
+    deleted, failed = snippet_contract.clean_stale_snippet_files([unreadable])
+    assert deleted == []
+    assert failed == [unreadable]
+
+    monkeypatch.setattr(original_path, "read_text", original_read_text)
+    original_unlink = original_path.unlink
+    monkeypatch.setattr(
+        original_path,
+        "unlink",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(OSError("unlink")) if self == stale else original_unlink(self, *args, **kwargs),
+    )
+    deleted, failed = snippet_contract.clean_stale_snippet_files([stale])
+    assert deleted == []
+    assert failed == [stale]

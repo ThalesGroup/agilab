@@ -50,3 +50,10 @@ view_module = [
     "view_forecast_analysis",
     "view_release_decision",
 ]
+
+[pages.view_release_decision]
+metrics_glob = "**/forecast_metrics.json"
+required_patterns = [
+    "forecast_metrics.json",
+    "forecast_predictions.csv",
+]

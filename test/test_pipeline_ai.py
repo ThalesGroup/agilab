@@ -61,6 +61,10 @@ pipeline_openai_compatible_direct = _load_module(
     "agilab.pipeline_openai_compatible_direct",
     "src/agilab/pipeline_openai_compatible.py",
 )
+pipeline_recipe_memory_direct = _load_module(
+    "agilab.pipeline_recipe_memory_direct",
+    "src/agilab/pipeline_recipe_memory.py",
+)
 pipeline_ai_uoaic_direct = _load_module(
     "agilab.pipeline_ai_uoaic_direct",
     "src/agilab/pipeline_ai_uoaic.py",
@@ -72,14 +76,11 @@ pipeline_ai_controls_direct = _load_module(
 
 
 @pytest.fixture(autouse=True)
-def reload_pipeline_ai_modules(isolate_home_for_root_tests):
-    """Keep the real pipeline_ai module graph clean across the full root suite."""
-    global pipeline_ai
-    _load_module("agilab.pipeline_ai_support", "src/agilab/pipeline_ai_support.py")
-    _load_module("agilab.pipeline_openai_compatible", "src/agilab/pipeline_openai_compatible.py")
-    _load_module("agilab.pipeline_ai_uoaic", "src/agilab/pipeline_ai_uoaic.py")
-    _load_module("agilab.pipeline_ai_controls", "src/agilab/pipeline_ai_controls.py")
-    pipeline_ai = _load_module("agilab.pipeline_ai", "src/agilab/pipeline_ai.py")
+def reset_pipeline_ai_test_state(isolate_home_for_root_tests):
+    """Keep per-test caches clean without reloading the full module graph."""
+    clear = getattr(pipeline_ai._ollama_available_models, "clear", None)
+    if callable(clear):
+        clear()
 
 
 def test_extract_code_splits_detail_and_python_block():
@@ -946,6 +947,14 @@ def test_load_uoaic_modules_record_read_failure_uses_generic_error(monkeypatch, 
 
 
 def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edges(monkeypatch):
+    readiness = pipeline_ai_support_direct.ollama_readiness(
+        "http://ollama",
+        "missing-model",
+        model_fetcher=lambda _endpoint: [f"model-{idx}" for idx in range(6)],
+    )
+    assert readiness.status == "model_missing"
+    assert "model-4, ..." in readiness.detail
+
     monkeypatch.setattr(
         pipeline_ai_support_direct,
         "_ollama_available_models",
@@ -992,6 +1001,23 @@ def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edg
         )
         == "fallback-model"
     )
+    assert pipeline_ai_support_direct.ollama_model_matches_family("", "qwen") is False
+    with pytest.raises(ValueError, match="Unsupported Ollama model family"):
+        pipeline_ai_support_direct._ollama_family_pattern("unknown-family")
+
+    monkeypatch.setattr(
+        pipeline_ai_support_direct,
+        "_ollama_available_models",
+        lambda _endpoint: ["qwen2.5:7b", "qwen/coder:latest"],
+    )
+    assert (
+        pipeline_ai_support_direct.default_ollama_family_model(
+            "http://ollama",
+            "qwen",
+            prefer_code=True,
+        )
+        == "qwen/coder:latest"
+    )
 
     with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="Syntax error"):
         pipeline_ai_support_direct._validate_code_safety("def broken(:\n    pass")
@@ -1029,6 +1055,37 @@ def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edg
     )
     with pytest.raises(pipeline_ai_support_direct._UnsafeCodeError, match="boom"):
         pipeline_ai_support_direct._exec_code_on_df("danger()", pd.DataFrame({"x": [1]}))
+
+
+def test_pipeline_ai_support_direct_gpt_oss_readiness_edges():
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    ready = pipeline_ai_support_direct.gpt_oss_readiness(
+        "http://127.0.0.1:8000",
+        urlopen_fn=lambda *_args, **_kwargs: _Response(),
+    )
+    assert ready.status == "ready"
+    assert ready.endpoint.endswith("/v1/responses")
+
+    bad_route = pipeline_ai_support_direct.gpt_oss_readiness(
+        "http://127.0.0.1:8000",
+        urlopen_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            urllib.error.HTTPError("http://127.0.0.1:8000/v1/responses", 500, "boom", hdrs=None, fp=None)
+        ),
+    )
+    assert bad_route.status == "service_unreachable"
+    assert "HTTP 500" in bad_route.detail
+
+    unreachable = pipeline_ai_support_direct.gpt_oss_readiness(
+        "http://127.0.0.1:8000",
+        urlopen_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(urllib.error.URLError("offline")),
+    )
+    assert unreachable.status == "service_unreachable"
 
 
 def test_pipeline_ai_support_direct_module_loads_uoaic_modules_with_default_dependencies(monkeypatch, tmp_path):
@@ -1869,6 +1926,87 @@ def test_configure_assistant_engine_selects_openai_compatible_endpoint(monkeypat
     assert fake_st.session_state["page"][3] == ""
 
 
+def test_configure_assistant_engine_clears_empty_openai_compatible_optional_values(monkeypatch):
+    class CompatibleSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            if label == "Assistant engine":
+                return "vLLM / OpenAI-compatible (self-hosted)"
+            raise AssertionError(label)
+
+        def text_input(self, label, value="", help=None):
+            values = {
+                "OpenAI-compatible base URL": "http://gpu-box:8000",
+                "OpenAI-compatible model": "served-model",
+                "OpenAI-compatible API key": "EMPTY",
+                "OpenAI-compatible temperature": "",
+                "OpenAI-compatible max tokens": "",
+            }
+            return values.get(label, value)
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.OPENAI_COMPAT_PROVIDER,
+            "openai_compat_temperature": "0.7",
+            "openai_compat_max_tokens": "1024",
+        },
+        sidebar=CompatibleSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    env = SimpleNamespace(
+        envars={
+            "AGILAB_LLM_TEMPERATURE": "0.7",
+            "AGILAB_LLM_MAX_TOKENS": "1024",
+        }
+    )
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+
+    assert provider == pipeline_ai.OPENAI_COMPAT_PROVIDER
+    assert "openai_compat_temperature" not in fake_st.session_state
+    assert "openai_compat_max_tokens" not in fake_st.session_state
+    assert "AGILAB_LLM_TEMPERATURE" not in env.envars
+    assert "AGILAB_LLM_MAX_TOKENS" not in env.envars
+
+
+def test_configure_assistant_engine_resets_invalid_mistral_reasoning_and_clears_temperature(monkeypatch):
+    class MistralSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            if label == "Assistant engine":
+                return "Mistral Medium 3.5 (online)"
+            if label == "Mistral reasoning":
+                assert options[index] == "high"
+                return options[index]
+            raise AssertionError(label)
+
+        def text_input(self, label, value="", help=None):
+            if label == "Mistral temperature":
+                return ""
+            return value
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.MISTRAL_PROVIDER,
+            "mistral_reasoning_effort": "unsupported",
+            "mistral_temperature": "0.9",
+        },
+        sidebar=MistralSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    env = SimpleNamespace(
+        envars={
+            "MISTRAL_REASONING_EFFORT": "unsupported",
+            "MISTRAL_TEMPERATURE": "0.9",
+        }
+    )
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+
+    assert provider == pipeline_ai.MISTRAL_PROVIDER
+    assert env.envars["MISTRAL_REASONING_EFFORT"] == "high"
+    assert "MISTRAL_TEMPERATURE" not in env.envars
+    assert "mistral_temperature" not in fake_st.session_state
+
+
 def test_gpt_oss_controls_start_button_persists_backend_checkpoint_and_flags(monkeypatch):
     messages: list[tuple[str, str]] = []
 
@@ -2202,6 +2340,46 @@ def test_ask_gpt_routes_to_selected_provider(monkeypatch):
     assert result[2:] == ["gpt-5", "print(2)", ""]
 
 
+def test_ask_gpt_augments_model_prompt_with_recipe_memory_but_preserves_question(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        """
+demo_project = [
+  { Q = "Calculate packet loss rate", C = "df['loss_rate'] = df['packet_loss'] / df['traffic_volume']", validation_status = "validated" }
+]
+""",
+        encoding="utf-8",
+    )
+    captured: dict[str, str] = {}
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "openai",
+            "steps_file": str(steps_file),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    def _chat_online(question, prompt, envars):
+        captured["question"] = question
+        return "```python\nprint('ok')\n```", "gpt-5"
+
+    monkeypatch.setattr(pipeline_ai, "chat_online", _chat_online)
+
+    result = pipeline_ai.ask_gpt(
+        "Compute packet loss rate",
+        Path("df.csv"),
+        "page",
+        {pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(tmp_path / "missing.jsonl")},
+    )
+
+    assert result[1] == "Compute packet loss rate"
+    assert result[2:] == ["gpt-5", "print('ok')", ""]
+    assert captured["question"].startswith("Compute packet loss rate")
+    assert "Relevant validated AGILAB recipe memory" in captured["question"]
+    assert "loss_rate" in captured["question"]
+
+
 def test_ask_gpt_safe_actions_returns_validated_contract_and_code(monkeypatch):
     captured: dict[str, object] = {}
     fake_st = SimpleNamespace(
@@ -2361,6 +2539,151 @@ def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypat
     assert payload["messages"][-1] == {"role": "user", "content": "question"}
 
 
+def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
+    captured: dict[str, object] = {}
+    settings = pipeline_ai.OpenAICompatibleSettings(
+        base_url="http://gpu-box:8000/v1",
+        api_key="secret-token",
+        model="served-model",
+        temperature=0.1,
+        max_tokens=None,
+        timeout_s=3.0,
+    )
+    assert pipeline_ai._openai_compatible_safe_error("bad secret-token", settings) == "bad <redacted>"
+
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    real_import = builtins.__import__
+
+    def import_without_openai(name, *args, **kwargs):
+        if name == "openai":
+            raise ImportError("missing openai")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_openai)
+    with pytest.raises(RuntimeError, match="missing openai"):
+        pipeline_ai.chat_openai_compatible("question", [], {})
+    assert any("optional AI dependency" in message for message in errors)
+
+    monkeypatch.setattr(builtins, "__import__", real_import)
+
+    class FakeOpenAIError(Exception):
+        pass
+
+    class FailingCompletions:
+        def create(self, **kwargs):
+            captured["payload"] = kwargs
+            raise FakeOpenAIError("endpoint rejected secret-token")
+
+    class FailingOpenAIClient:
+        def __init__(self, **kwargs):
+            captured["client"] = kwargs
+            self.chat = SimpleNamespace(completions=FailingCompletions())
+
+    fake_openai = ModuleType("openai")
+    fake_openai.OpenAI = FailingOpenAIClient
+    fake_openai.OpenAIError = FakeOpenAIError
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.setattr(pipeline_ai, "_load_env_file_map", lambda _path: {"AGILAB_LLM_MODEL": "env-model"})
+
+    with pytest.raises(RuntimeError, match="endpoint rejected"):
+        pipeline_ai.chat_openai_compatible(
+            "question",
+            [{"role": "assistant", "content": ""}],
+            {
+                "AGILAB_LLM_BASE_URL": "http://gpu-box:8000",
+                "AGILAB_LLM_API_KEY": "secret-token",
+            },
+        )
+    assert captured["payload"]["model"] == "env-model"
+    assert any("endpoint rejected <redacted>" in message for message in errors)
+
+    class BrokenOpenAIClient:
+        def __init__(self, **_kwargs):
+            raise RuntimeError("client boom sk-ABCD1234567890")
+
+    fake_openai.OpenAI = BrokenOpenAIClient
+    with pytest.raises(RuntimeError, match="client boom"):
+        pipeline_ai.chat_openai_compatible(
+            "question",
+            [],
+            {"AGILAB_LLM_BASE_URL": "http://gpu-box:8000"},
+        )
+    assert any("OpenAI-compatible endpoint failed" in message for message in errors)
+
+
+def test_mistral_online_env_update_and_api_error(monkeypatch):
+    errors: list[str] = []
+    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_load_env_file_map", lambda _path: {"MISTRAL_MODEL": "mistral-env"})
+    monkeypatch.setattr(pipeline_ai, "ensure_cached_mistral_api_key", lambda _envars: "mistral-secret")
+    monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda _key: False)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_call_mistral_chat_completion_impl",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.MistralApiError("mistral failed")),
+    )
+
+    envars: dict[str, str] = {}
+    with pytest.raises(RuntimeError, match="mistral failed"):
+        pipeline_ai.chat_mistral_online("question", [{"role": "assistant", "content": ""}], envars)
+
+    assert envars["MISTRAL_MODEL"] == "mistral-env"
+    assert any("Mistral API error" in message for message in errors)
+
+
+def test_generated_action_dataframe_and_empty_safe_response_paths(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "openai"})
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    assert pipeline_ai._dataframe_for_generated_actions(Path("df.csv"), load_df_cached=None) is None
+    assert pipeline_ai._dataframe_for_generated_actions("", load_df_cached=lambda *_args, **_kwargs: pd.DataFrame()) is None
+
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def _type_error_then_dataframe(*args, **kwargs):
+        calls.append((args, kwargs))
+        if kwargs:
+            raise TypeError("legacy loader")
+        return pd.DataFrame({"x": [1]})
+
+    loaded = pipeline_ai._dataframe_for_generated_actions(tmp_path / "df.csv", load_df_cached=_type_error_then_dataframe)
+    assert list(loaded["x"]) == [1]
+    assert calls[0][1] == {"with_index": False}
+    assert calls[1][1] == {}
+
+    assert (
+        pipeline_ai._dataframe_for_generated_actions(
+            tmp_path / "df.csv",
+            load_df_cached=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad load")),
+        )
+        is None
+    )
+    assert (
+        pipeline_ai._dataframe_for_generated_actions(
+            tmp_path / "df.csv",
+            load_df_cached=lambda *_args, **_kwargs: "not a dataframe",
+        )
+        is None
+    )
+
+    monkeypatch.setattr(pipeline_ai, "_call_selected_provider", lambda *_args, **_kwargs: ("", "empty-model"))
+    result = pipeline_ai.ask_gpt(
+        "derive x",
+        tmp_path / "df.csv",
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+
+    assert result[2] == "empty-model"
+    assert result[3] == ""
+    assert "empty response" in result[4]
+    assert result[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD] is None
+
+
 def test_maybe_autofix_generated_code_paths(monkeypatch):
     logs: list[str] = []
     fake_st = SimpleNamespace(
@@ -2432,6 +2755,45 @@ def test_maybe_autofix_generated_code_paths(monkeypatch):
     )
     assert code == "raise ValueError('boom')"
     assert any("no dataframe is loaded" in entry for entry in logs)
+
+
+def test_maybe_autofix_promotes_validated_recipe_memory(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY: True,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY: 1,
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    memory_path = tmp_path / "cards.jsonl"
+    env = SimpleNamespace(
+        envars={
+            pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(memory_path),
+            pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+        }
+    )
+
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="Create doubled x",
+        df_path=tmp_path / "df.csv",
+        index_page="page",
+        env=env,
+        merged_code="df['double_x'] = df['x'] * 2",
+        model_label="qwen3-coder",
+        detail="",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda _page: "placeholder",
+    )
+
+    assert (code, model, detail) == ("df['double_x'] = df['x'] * 2", "qwen3-coder", "")
+    cards = pipeline_recipe_memory_direct.load_recipe_cards_from_memory(memory_path)
+    assert len(cards) == 1
+    assert cards[0].intent == "Create doubled x"
+    assert cards[0].validation_status == "validated"
+    assert cards[0].output_columns == ("double_x",)
 
 
 def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_df_reload(monkeypatch):

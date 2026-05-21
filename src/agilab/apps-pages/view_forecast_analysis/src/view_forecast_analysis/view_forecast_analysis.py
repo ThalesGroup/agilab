@@ -92,21 +92,21 @@ st.caption(
 )
 
 default_root = _default_artifact_root(env)
+st.session_state.setdefault("forecast_analysis_datadir", str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("forecast_analysis_datadir", str(default_root)),
     key="forecast_analysis_datadir",
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
+st.session_state.setdefault("forecast_metrics_glob", "**/forecast_metrics.json")
 metrics_pattern = st.sidebar.text_input(
     "Metrics glob",
-    value=st.session_state.setdefault("forecast_metrics_glob", "**/forecast_metrics.json"),
     key="forecast_metrics_glob",
 )
+st.session_state.setdefault("forecast_predictions_glob", "**/forecast_predictions.csv")
 predictions_pattern = st.sidebar.text_input(
     "Predictions glob",
-    value=st.session_state.setdefault("forecast_predictions_glob", "**/forecast_predictions.csv"),
     key="forecast_predictions_glob",
 )
 

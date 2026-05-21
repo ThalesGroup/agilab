@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import copy
+import difflib
+import hashlib
+import importlib.util
 import json
 import logging
 import os
-from collections.abc import Iterable
+import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,8 +18,6 @@ import tomllib
 from code_editor import code_editor
 
 from agi_gui.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
-
-import importlib.util
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -83,6 +86,12 @@ _notebook_export_support_module = import_agilab_module(
 )
 build_notebook_document = _notebook_export_support_module.build_notebook_document
 build_notebook_export_context = _notebook_export_support_module.build_notebook_export_context
+build_notebook_export_handoff_markdown = _notebook_export_support_module.build_notebook_export_handoff_markdown
+build_notebook_export_manifest = _notebook_export_support_module.build_notebook_export_manifest
+notebook_export_json_text = _notebook_export_support_module.notebook_export_json_text
+notebook_export_handoff_path = _notebook_export_support_module.notebook_export_handoff_path
+notebook_export_manifest_path = _notebook_export_support_module.notebook_export_manifest_path
+verify_notebook_export_manifest = _notebook_export_support_module.verify_notebook_export_manifest
 pycharm_notebook_mirror_path = _notebook_export_support_module.pycharm_notebook_mirror_path
 pycharm_notebook_sitecustomize_text = _notebook_export_support_module.pycharm_notebook_sitecustomize_text
 
@@ -97,11 +106,22 @@ build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
 discover_notebook_import_view_manifest = _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
+normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
 write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
 write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
 write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
+NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
+NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS = {
+    "": "Select runtime role",
+    "manager": "Manager (local runpy)",
+    "worker": "Worker (AGILAB worker)",
+}
+NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL = {
+    label: role for role, label in NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS.items()
+}
 
 
 def _emit_streamlit_message(level: str, *args: Any, **kwargs: Any) -> None:
@@ -184,6 +204,466 @@ def _notebook_import_module_name(module_dir: Path) -> str:
     return module or "lab_stages"
 
 
+def _notebook_import_preview_is_safe(preview: Dict[str, Any]) -> bool:
+    preflight = preview.get("preflight", {})
+    return isinstance(preflight, dict) and preflight.get("safe_to_import") is True
+
+
+def _notebook_import_stage_identity(stage: Dict[str, Any], index: int) -> str:
+    stage_id = str(stage.get("id", "") or "").strip()
+    return stage_id or f"stage-{index}"
+
+
+def _notebook_import_stages(preview: Dict[str, Any]) -> list[Dict[str, Any]]:
+    notebook_import = preview.get("notebook_import", {})
+    stages = notebook_import.get("pipeline_stages", []) if isinstance(notebook_import, dict) else []
+    if not isinstance(stages, list):
+        return []
+    return [stage for stage in stages if isinstance(stage, dict)]
+
+
+def _notebook_import_stage_label(stage: Dict[str, Any], index: int) -> str:
+    stage_id = _notebook_import_stage_identity(stage, index)
+    source_cell_index = int(stage.get("source_cell_index", 0) or 0)
+    description = str(stage.get("description", "") or "").strip()
+    question = str(stage.get("question", "") or "").strip()
+    summary = description or question or stage_id
+    if len(summary) > 64:
+        summary = f"{summary[:61]}..."
+    return f"Cell {source_cell_index} ({stage_id}): {summary}"
+
+
+def _notebook_import_stage_options(preview: Dict[str, Any]) -> list[Dict[str, Any]]:
+    return [
+        {
+            "id": _notebook_import_stage_identity(stage, index),
+            "label": _notebook_import_stage_label(stage, index),
+            "stage": stage,
+        }
+        for index, stage in enumerate(_notebook_import_stages(preview), start=1)
+    ]
+
+
+def _notebook_import_stage_detail(stage: Dict[str, Any]) -> str:
+    source_cell_index = int(stage.get("source_cell_index", 0) or 0)
+    artifacts = _artifact_paths_from_notebook_stage(stage)
+    env_hints = _stage_env_hints_from_notebook_stage(stage)
+    artifact_text = ", ".join(artifacts[:3]) if artifacts else "none"
+    if len(artifacts) > 3:
+        artifact_text = f"{artifact_text}, +{len(artifacts) - 3} more"
+    env_text = ", ".join(env_hints[:4]) if env_hints else "none"
+    if len(env_hints) > 4:
+        env_text = f"{env_text}, +{len(env_hints) - 4} more"
+    return (
+        f"Selected cell {source_cell_index}; "
+        f"artifacts: {artifact_text}; "
+        f"environment hints: {env_text}."
+    )
+
+
+def _notebook_import_first_code_line(stage: Dict[str, Any]) -> str:
+    source_lines = stage.get("source_lines", [])
+    if not isinstance(source_lines, list):
+        return ""
+    for line in source_lines:
+        text = str(line).strip()
+        if text:
+            return text[:96] + ("..." if len(text) > 96 else "")
+    return ""
+
+
+def _notebook_import_runtime_role_cell_hint(stage: Dict[str, Any], index: int) -> str:
+    source_cell_index = int(stage.get("source_cell_index", index) or index)
+    first_line = _notebook_import_first_code_line(stage) or "code cell"
+    artifacts = _artifact_paths_from_notebook_stage(stage)
+    env_hints = _stage_env_hints_from_notebook_stage(stage)
+    return (
+        f"Cell {source_cell_index}: {first_line}; "
+        f"artifacts: {_notebook_import_string_list(artifacts, limit=3)}; "
+        f"environment hints: {_notebook_import_string_list(env_hints, limit=4)}."
+    )
+
+
+def _stage_env_hints_from_notebook_stage(stage: Dict[str, Any]) -> list[str]:
+    hints = stage.get("env_hints", [])
+    if not isinstance(hints, list):
+        return []
+    return [str(hint) for hint in hints if str(hint)]
+
+
+def _artifact_paths_from_notebook_stage(stage: Dict[str, Any]) -> list[str]:
+    references = stage.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _filter_notebook_import_for_stage_ids(
+    notebook_import: Dict[str, Any],
+    selected_stage_ids: Iterable[str],
+) -> Dict[str, Any]:
+    selected_ids = list(dict.fromkeys(str(stage_id) for stage_id in selected_stage_ids if str(stage_id)))
+    selected_id_set = set(selected_ids)
+    stages = notebook_import.get("pipeline_stages", [])
+    stage_list = stages if isinstance(stages, list) else []
+    selected_stages = [
+        dict(stage)
+        for index, stage in enumerate(stage_list, start=1)
+        if isinstance(stage, dict) and _notebook_import_stage_identity(stage, index) in selected_id_set
+    ]
+
+    context_ids: list[str] = []
+    env_hints: list[str] = []
+    artifact_references: list[Dict[str, Any]] = []
+    execution_count_present = 0
+    for stage in selected_stages:
+        for context_id in stage.get("context_ids", []):
+            context_id_text = str(context_id)
+            if context_id_text and context_id_text not in context_ids:
+                context_ids.append(context_id_text)
+        env_hints.extend(_stage_env_hints_from_notebook_stage(stage))
+        references = stage.get("artifact_references", [])
+        if isinstance(references, list):
+            artifact_references.extend(reference for reference in references if isinstance(reference, dict))
+        if stage.get("execution_count") is not None:
+            execution_count_present += 1
+
+    context_blocks = notebook_import.get("context_blocks", [])
+    context_block_list = context_blocks if isinstance(context_blocks, list) else []
+    selected_context_blocks = [
+        dict(block)
+        for block in context_block_list
+        if isinstance(block, dict) and str(block.get("id", "") or "") in context_ids
+    ]
+    unique_env_hints = sorted(dict.fromkeys(env_hints))
+    summary = dict(notebook_import.get("summary", {}) if isinstance(notebook_import.get("summary", {}), dict) else {})
+    summary.update(
+        {
+            "pipeline_stage_count": len(selected_stages),
+            "code_cell_count": len(selected_stages),
+            "context_block_count": len(selected_context_blocks),
+            "env_hint_count": len(unique_env_hints),
+            "artifact_reference_count": len(artifact_references),
+            "execution_count_present_count": execution_count_present,
+            "stage_ids": [str(stage.get("id", "") or "") for stage in selected_stages],
+            "context_ids": context_ids,
+            "selected_stage_ids": selected_ids,
+        }
+    )
+
+    source = dict(notebook_import.get("source", {}) if isinstance(notebook_import.get("source", {}), dict) else {})
+    source["selection_mode"] = "selected_notebook_cells"
+    source["selected_stage_ids"] = selected_ids
+    provenance = dict(
+        notebook_import.get("provenance", {})
+        if isinstance(notebook_import.get("provenance", {}), dict)
+        else {}
+    )
+    provenance["selection_mode"] = "selected_notebook_cells"
+    provenance["selected_stage_ids"] = selected_ids
+
+    filtered = dict(notebook_import)
+    filtered.update(
+        {
+            "source": source,
+            "summary": summary,
+            "pipeline_stages": selected_stages,
+            "context_blocks": selected_context_blocks,
+            "env_hints": unique_env_hints,
+            "artifact_references": artifact_references,
+            "provenance": provenance,
+        }
+    )
+    return filtered
+
+
+def _selected_notebook_import_preview(
+    preview: Dict[str, Any],
+    selected_stage_ids: Iterable[str] | None,
+) -> Dict[str, Any]:
+    selected_ids = [str(stage_id) for stage_id in (selected_stage_ids or []) if str(stage_id)]
+    if not selected_ids or NOTEBOOK_IMPORT_ALL_CELLS in selected_ids:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return preview
+    selected_import = _filter_notebook_import_for_stage_ids(notebook_import, selected_ids)
+    module = str(preview.get("module", "") or "lab_stages")
+    preflight = build_notebook_import_preflight(selected_import)
+    selected_preview = dict(preview)
+    selected_preview.update(
+        {
+            "cell_count": int(
+                selected_import.get("summary", {}).get("pipeline_stage_count", 0)
+                if isinstance(selected_import.get("summary", {}), dict)
+                else 0
+            ),
+            "notebook_import": selected_import,
+            "preflight": preflight,
+            "toml_content": build_lab_stages_preview(selected_import, module_name=module),
+            "contract": build_notebook_import_contract(
+                selected_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+            "selection_mode": "selected_notebook_cells",
+            "selected_stage_ids": selected_ids,
+        }
+    )
+    return selected_preview
+
+
+def _normalize_notebook_import_runtime_roles(
+    runtime_roles: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for raw_stage_id, raw_role in (runtime_roles or {}).items():
+        stage_id = str(raw_stage_id or "").strip()
+        role = normalize_notebook_runtime_role(raw_role)
+        if stage_id and role:
+            normalized[stage_id] = role
+    return normalized
+
+
+def _notebook_import_preview_with_runtime_roles(
+    preview: Dict[str, Any],
+    runtime_roles: Mapping[str, Any] | None,
+) -> Dict[str, Any]:
+    normalized_roles = _normalize_notebook_import_runtime_roles(runtime_roles)
+    if not normalized_roles:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, Mapping):
+        return preview
+
+    module = str(preview.get("module", "") or "lab_stages")
+    updated_import = apply_notebook_runtime_roles(notebook_import, normalized_roles)
+    preflight = build_notebook_import_preflight(updated_import)
+    selected_preview = dict(preview)
+    selected_preview.update(
+        {
+            "notebook_import": updated_import,
+            "preflight": preflight,
+            "toml_content": build_lab_stages_preview(updated_import, module_name=module),
+            "contract": build_notebook_import_contract(
+                updated_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+            "runtime_roles": normalized_roles,
+        }
+    )
+    return selected_preview
+
+
+def _notebook_import_runtime_role_summary(preview: Dict[str, Any]) -> str:
+    parts: list[str] = []
+    for index, stage in enumerate(_notebook_import_stages(preview), start=1):
+        stage_id = _notebook_import_stage_identity(stage, index)
+        role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        if not role:
+            continue
+        runtime = str(stage.get("runtime", "") or "")
+        suffix = f"/{runtime}" if runtime else ""
+        parts.append(f"{stage_id}={role}{suffix}")
+    return _notebook_import_string_list(parts, limit=6)
+
+
+def _notebook_import_missing_runtime_role_stage_ids(preview: Dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    for index, stage in enumerate(_notebook_import_stages(preview), start=1):
+        if normalize_notebook_runtime_role(stage.get("runtime_role")):
+            continue
+        missing.append(_notebook_import_stage_identity(stage, index))
+    return missing
+
+
+def _notebook_import_runtime_role_review_detail(preview: Dict[str, Any]) -> str:
+    missing = _notebook_import_missing_runtime_role_stage_ids(preview)
+    if not missing:
+        return ""
+    return f"Select Manager or Worker for: {_notebook_import_string_list(missing, limit=8)}."
+
+
+def _notebook_import_role_widget_key(index_page: str, stage_id: str, source_signature: str = "") -> str:
+    safe_signature = re.sub(r"[^A-Za-z0-9_]+", "_", source_signature).strip("_")
+    safe_stage_id = re.sub(r"[^A-Za-z0-9_]+", "_", stage_id).strip("_") or "stage"
+    if safe_signature:
+        return f"{index_page}__notebook_runtime_role_{safe_signature}_{safe_stage_id}"
+    return f"{index_page}__notebook_runtime_role_{safe_stage_id}"
+
+
+def _render_notebook_import_runtime_role_controls(
+    sidebar: Any,
+    preview: Dict[str, Any],
+    index_page: str,
+) -> dict[str, str]:
+    stage_options = _notebook_import_stage_options(preview)
+    if not stage_options:
+        return {}
+
+    expander = getattr(sidebar, "expander", None)
+    target = expander("Runtime role per cell", expanded=False) if callable(expander) else sidebar
+    caption = getattr(target, "caption", None)
+    if callable(caption):
+        caption("Select Manager or Worker for every runnable cell before writing the pipeline.")
+
+    selectbox = getattr(target, "selectbox", None)
+    if not callable(selectbox):
+        return {}
+
+    labels = list(NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL)
+    source_signature = str(preview.get("source_signature", "") or "")
+    selected_roles: dict[str, str] = {}
+    for index, option in enumerate(stage_options, start=1):
+        stage = option["stage"]
+        stage_id = str(option["id"])
+        current_role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        default_label = NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS.get(
+            current_role,
+            NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS[""],
+        )
+        try:
+            default_index = labels.index(default_label)
+        except ValueError:
+            default_index = 0
+        selected_label = selectbox(
+            f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
+            labels,
+            index=default_index,
+            key=_notebook_import_role_widget_key(index_page, stage_id, source_signature),
+            help=(
+                "Manager runs locally with runpy. Worker persists the stage for "
+                "AGILAB worker execution with agi.run."
+            ),
+        )
+        if callable(caption):
+            caption(_notebook_import_runtime_role_cell_hint(stage, index))
+        role = NOTEBOOK_IMPORT_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
+        if role:
+            selected_roles[stage_id] = role
+    return selected_roles
+
+
+def _notebook_import_string_list(value: Any, limit: int = 5) -> str:
+    if not isinstance(value, list):
+        return "none"
+    items = [str(item) for item in value if str(item)]
+    if not items:
+        return "none"
+    visible = items[:limit]
+    suffix = f", +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _notebook_import_toml_preview_text(preview: Dict[str, Any]) -> str:
+    toml_content = preview.get("toml_content", {})
+    if not isinstance(toml_content, dict):
+        return ""
+    prepared = _prepare_lab_stages_for_write(copy.deepcopy(toml_content))
+    return tomli_w.dumps(convert_paths_to_strings(prepared))
+
+
+def _notebook_import_write_preview_text(
+    preview: Dict[str, Any],
+    stages_file: Path,
+    *,
+    max_diff_lines: int = 80,
+) -> str:
+    """Return a compact, read-only preview of files changed by notebook import."""
+    preflight = preview.get("preflight", {})
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    contract = preview.get("contract", {})
+    artifact_contract = (
+        contract.get("artifact_contract", {}) if isinstance(contract, dict) else {}
+    )
+    stage_ids = [
+        _notebook_import_stage_identity(stage, index)
+        for index, stage in enumerate(_notebook_import_stages(preview), start=1)
+    ]
+    proposed_text = _notebook_import_toml_preview_text(preview)
+    try:
+        current_text = Path(stages_file).read_text(encoding="utf-8")
+    except OSError:
+        current_text = ""
+    diff_lines = list(
+        difflib.unified_diff(
+            current_text.splitlines(),
+            proposed_text.splitlines(),
+            fromfile=f"{Path(stages_file).name} (current)",
+            tofile=f"{Path(stages_file).name} (after import)",
+            lineterm="",
+        )
+    )
+    truncated = len(diff_lines) > max_diff_lines
+    if truncated:
+        diff_lines = diff_lines[:max_diff_lines] + [
+            f"... diff truncated, {len(diff_lines) - max_diff_lines} more line(s)"
+        ]
+
+    input_paths = artifact_contract.get("inputs", []) if isinstance(artifact_contract, dict) else []
+    output_paths = artifact_contract.get("outputs", []) if isinstance(artifact_contract, dict) else []
+    unknown_paths = artifact_contract.get("unknown", []) if isinstance(artifact_contract, dict) else []
+    lines = [
+        f"Stages to write: {int(summary.get('pipeline_stage_count', preview.get('cell_count', 0)) or 0)}",
+        f"Stage IDs: {_notebook_import_string_list(stage_ids)}",
+        f"Runtime roles: {_notebook_import_runtime_role_summary(preview)}",
+        f"Inputs: {_notebook_import_string_list(input_paths)}",
+        f"Outputs: {_notebook_import_string_list(output_paths)}",
+        f"Unclassified artifacts: {_notebook_import_string_list(unknown_paths)}",
+        (
+            "Sidecars: notebook_import_contract.json, "
+            "notebook_import_pipeline_view.json, "
+            "notebook_import_view_plan.json when a matching view manifest exists"
+        ),
+        "",
+        "lab_stages.toml diff:",
+    ]
+    lines.extend(diff_lines or ["No lab_stages.toml diff."])
+    return "\n".join(lines)
+
+
+def _render_notebook_import_write_preview(
+    sidebar: Any,
+    preview: Dict[str, Any],
+    stages_file: Path,
+) -> None:
+    expander = getattr(sidebar, "expander", None)
+    target = expander("What will be written", expanded=False) if callable(expander) else sidebar
+    preview_text = _notebook_import_write_preview_text(preview, stages_file)
+    code = getattr(target, "code", None)
+    if callable(code):
+        code(preview_text, language="diff")
+        return
+    caption = getattr(target, "caption", None)
+    if callable(caption):
+        caption(preview_text)
+
+
+def _notebook_import_blocking_detail(preflight: Any) -> str:
+    if not isinstance(preflight, dict):
+        return "Notebook preflight did not produce a valid report."
+    risks = preflight.get("risks", [])
+    if isinstance(risks, list):
+        messages: list[str] = []
+        for risk in risks:
+            if not isinstance(risk, dict) or risk.get("level") != "error":
+                continue
+            message = str(risk.get("message") or risk.get("rule") or "").strip()
+            if message:
+                messages.append(message)
+        if messages:
+            return "; ".join(messages[:3])
+    return "Notebook import preflight marked this notebook unsafe to import."
+
+
 def build_notebook_import_preview(
     uploaded_file: Any,
     module_dir: Path,
@@ -207,19 +687,24 @@ def build_notebook_import_preview(
 
     module = _notebook_import_module_name(module_dir)
     source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
-    notebook_import = build_notebook_pipeline_import(
-        notebook=notebook_content,
-        source_notebook=source_name,
-    )
-    preflight = build_notebook_import_preflight(notebook_import)
-    toml_content = build_lab_stages_preview(notebook_import, module_name=module)
-    contract = build_notebook_import_contract(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-    )
+    try:
+        notebook_import = build_notebook_pipeline_import(
+            notebook=notebook_content,
+            source_notebook=source_name,
+        )
+        preflight = build_notebook_import_preflight(notebook_import)
+        toml_content = build_lab_stages_preview(notebook_import, module_name=module)
+        contract = build_notebook_import_contract(
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        )
+    except (TypeError, ValueError) as exc:
+        _emit_streamlit_message("error", f"Invalid notebook format: {exc}")
+        return None
     return {
         "source_name": source_name,
+        "source_signature": hashlib.sha256(file_content.encode("utf-8")).hexdigest()[:16],
         "module": module,
         "cell_count": int(notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0),
         "toml_content": toml_content,
@@ -233,6 +718,8 @@ def write_notebook_import_preview(
     preview: Dict[str, Any],
     module_dir: Path,
     stages_file: Path,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> int:
     """Persist a previously built notebook import preview."""
     module_dir = Path(module_dir)
@@ -244,13 +731,22 @@ def write_notebook_import_preview(
     cell_count = int(preview.get("cell_count", 0) or 0)
 
     stages_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(stages_file, "wb") as toml_file:
-        tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+    temp_stages_file = stages_file.with_name(f".{stages_file.name}.{os.getpid()}.tmp")
+    try:
+        with open(temp_stages_file, "wb") as toml_file:
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+        temp_stages_file.replace(stages_file)
+    except (OSError, TypeError, ValueError):
+        try:
+            temp_stages_file.unlink()
+        except OSError:
+            pass
+        raise
 
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
     view_plan_path = module_dir / "notebook_import_view_plan.json"
-    view_manifest_path = discover_notebook_import_view_manifest(module_dir)
+    view_manifest_path = discover_notebook_import_view_manifest(view_manifest_dir or module_dir)
     write_notebook_import_contract(
         contract_path,
         notebook_import,
@@ -680,17 +1176,58 @@ def resolve_pycharm_notebook_path(
         return None
 
 
-def _write_notebook_json(notebook_data: Dict[str, Any], notebook_path: Path) -> None:
-    notebook_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(notebook_path, "w", encoding="utf-8") as nb_file:
-        json.dump(notebook_data, nb_file, indent=2)
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    try:
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            logger.warning("Unable to remove temporary notebook export file %s", tmp_path)
+
+
+def _write_json_atomic(payload: Dict[str, Any], path: Path) -> None:
+    _atomic_write_text(path, notebook_export_json_text(payload))
+
+
+def _write_notebook_json(
+    notebook_data: Dict[str, Any],
+    notebook_path: Path,
+    *,
+    mirror_path: Path | None = None,
+    sitecustomize_path: Path | None = None,
+) -> None:
+    _write_json_atomic(notebook_data, notebook_path)
+    handoff_path = notebook_export_handoff_path(notebook_path)
+    manifest = build_notebook_export_manifest(
+        notebook_data,
+        notebook_path,
+        mirror_path=mirror_path,
+        sitecustomize_path=sitecustomize_path,
+        handoff_path=handoff_path,
+    )
+    handoff_text = build_notebook_export_handoff_markdown(manifest)
+    manifest["handoff_sha256"] = hashlib.sha256(handoff_text.encode("utf-8")).hexdigest()
+    _atomic_write_text(handoff_path, handoff_text)
+    _write_json_atomic(manifest, notebook_export_manifest_path(notebook_path))
+    verification = verify_notebook_export_manifest(notebook_path)
+    if not verification.get("ok"):
+        failed = [
+            str(check.get("id", "unknown"))
+            for check in verification.get("checks", [])
+            if isinstance(check, dict) and check.get("status") != "pass"
+        ]
+        detail = ", ".join(failed) if failed else "unknown verification failure"
+        raise ValueError(f"Notebook export verification failed for {notebook_path}: {detail}")
 
 
 def _write_pycharm_sitecustomize(notebook_path: Path) -> None:
     sitecustomize_path = notebook_path.parent / "sitecustomize.py"
-    sitecustomize_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(sitecustomize_path, "w", encoding="utf-8") as stream:
-        stream.write(pycharm_notebook_sitecustomize_text())
+    _atomic_write_text(sitecustomize_path, pycharm_notebook_sitecustomize_text())
 
 
 def toml_to_notebook(
@@ -701,8 +1238,15 @@ def toml_to_notebook(
     """Convert TOML stage data to a Jupyter notebook file."""
     notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
     notebook_path = toml_path.with_suffix(".ipynb")
+    pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
+    sitecustomize_path = pycharm_path.parent / "sitecustomize.py" if pycharm_path is not None else None
     try:
-        _write_notebook_json(notebook_data, notebook_path)
+        _write_notebook_json(
+            notebook_data,
+            notebook_path,
+            mirror_path=pycharm_path,
+            sitecustomize_path=sitecustomize_path,
+        )
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save notebook: {e}")
         logger.error(
@@ -711,12 +1255,16 @@ def toml_to_notebook(
         )
         return
 
-    pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
     if pycharm_path is None:
         return
     if pycharm_path != notebook_path:
         try:
-            _write_notebook_json(notebook_data, pycharm_path)
+            _write_notebook_json(
+                notebook_data,
+                pycharm_path,
+                mirror_path=pycharm_path,
+                sitecustomize_path=sitecustomize_path,
+            )
         except (OSError, TypeError, ValueError) as exc:
             logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
             return
@@ -910,27 +1458,39 @@ def notebook_to_toml(
     uploaded_file: Any,
     toml_file_name: str,
     module_dir: Path,
-) -> int:
+    *,
+    view_manifest_dir: Path | None = None,
+) -> int | None:
     """Convert uploaded Jupyter notebook file to a TOML file."""
     preview = build_notebook_import_preview(uploaded_file, module_dir)
     if preview is None:
-        return 0
+        return None
+    if not _notebook_import_preview_is_safe(preview):
+        detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
+        return None
     try:
         stages_file = Path(module_dir) / toml_file_name
-        return write_notebook_import_preview(preview, module_dir, stages_file)
+        return write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=view_manifest_dir,
+        )
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(
             "Error writing TOML in notebook_to_toml: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
-        return int(preview.get("cell_count", 0) or 0)
+        return None
 
 
 def on_preview_notebook_import(
     key: str,
     module_dir: Path,
     index_page: str,
+    view_manifest_dir: Path | None = None,
 ) -> None:
     """Build a notebook import preview from the sidebar uploader without writing files."""
     uploaded_file = st.session_state.get(key)
@@ -965,6 +1525,10 @@ def confirm_notebook_import_preview(
     module_dir: Path,
     stages_file: Path,
     index_page: str,
+    *,
+    view_manifest_dir: Path | None = None,
+    selected_stage_ids: Iterable[str] | None = None,
+    runtime_roles: Mapping[str, Any] | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -972,17 +1536,51 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
+    preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+    preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
+    if not _notebook_import_preview_is_safe(preview):
+        detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
+        return 0
+    if not _notebook_import_preview_is_safe(preview_with_roles):
+        detail = _notebook_import_blocking_detail(preview_with_roles.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook runtime role review is blocked: {detail}")
+        return 0
+    if not _notebook_import_preview_is_safe(preview_to_write):
+        detail = _notebook_import_blocking_detail(preview_to_write.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook cell promotion is blocked: {detail}")
+        return 0
+    role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+    if role_detail:
+        _emit_streamlit_message("error", f"Notebook runtime role review is incomplete: {role_detail}")
+        return 0
     try:
-        cell_count = write_notebook_import_preview(preview, module_dir, stages_file)
+        cell_count = write_notebook_import_preview(
+            preview_to_write,
+            module_dir,
+            stages_file,
+            view_manifest_dir=view_manifest_dir,
+        )
     except (OSError, TypeError, ValueError) as exc:
         _emit_streamlit_message("error", f"Failed to save notebook import preview: {exc}")
         logger.error(
             "Error writing notebook import preview: %s",
             bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
-        return int(preview.get("cell_count", 0) or 0)
+        return 0
 
-    if cell_count > 0:
+    selected_ids = [
+        str(stage_id)
+        for stage_id in (selected_stage_ids or [])
+        if str(stage_id) and str(stage_id) != NOTEBOOK_IMPORT_ALL_CELLS
+    ]
+    if selected_ids and cell_count > 0:
+        target = "an AGILAB stage" if cell_count == 1 else "AGILAB stages"
+        _emit_streamlit_message(
+            "success",
+            f"Promoted {', '.join(selected_ids)} to {target}.",
+        )
+    elif cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
     else:
         _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
@@ -1003,6 +1601,8 @@ def render_notebook_import_preview(
     module_dir: Path,
     stages_file: Path,
     index_page: str,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> None:
     """Render confirm/cancel controls for the current notebook import preview."""
     preview = st.session_state.get(_notebook_import_preview_key(index_page))
@@ -1021,11 +1621,72 @@ def render_notebook_import_preview(
             f"{int(summary.get('output_count', 0) or 0)} output(s), "
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
         )
+    if not _notebook_import_preview_is_safe(preview):
+        error = getattr(sidebar, "error", None)
+        if callable(error):
+            error(f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}")
     button = getattr(sidebar, "button", None)
     if not callable(button):
         return
-    if button("Import preview", key=f"{index_page}__confirm_notebook_import"):
-        confirm_notebook_import_preview(module_dir, stages_file, index_page)
+    selected_stage_ids: list[str] | None = None
+    preview_to_write: Dict[str, Any] | None = None
+    role_detail = ""
+    if _notebook_import_preview_is_safe(preview):
+        runtime_roles = _render_notebook_import_runtime_role_controls(
+            sidebar,
+            preview,
+            index_page,
+        )
+        stage_options = _notebook_import_stage_options(preview)
+        selectbox = getattr(sidebar, "selectbox", None)
+        if stage_options and callable(selectbox):
+            all_label = "All runnable cells"
+            labels = [all_label, *[str(option["label"]) for option in stage_options]]
+            selected_label = selectbox(
+                "Notebook import scope",
+                labels,
+                key=f"{index_page}__notebook_import_stage",
+                help=(
+                    "Choose one cell for a focused AGILAB stage, or keep all cells "
+                    "for the full notebook import."
+                ),
+            )
+            if selected_label != all_label:
+                selected_option = next(
+                    (
+                        option
+                        for option in stage_options
+                        if str(option.get("label", "")) == str(selected_label)
+                    ),
+                    None,
+                )
+                if selected_option is not None:
+                    selected_stage_ids = [str(selected_option["id"])]
+                    if callable(caption):
+                        caption(_notebook_import_stage_detail(selected_option["stage"]))
+        preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+        preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
+        _render_notebook_import_write_preview(sidebar, preview_to_write, stages_file)
+        role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+        if role_detail:
+            warning = getattr(sidebar, "warning", None)
+            if callable(warning):
+                warning(f"Runtime review required: {role_detail}")
+    import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
+    import_ready = _notebook_import_preview_is_safe(preview) and preview_to_write is not None and not role_detail
+    if _notebook_import_preview_is_safe(preview) and button(
+        import_label,
+        key=f"{index_page}__confirm_notebook_import",
+        disabled=not import_ready,
+    ) and import_ready:
+        confirm_notebook_import_preview(
+            module_dir,
+            stages_file,
+            index_page,
+            view_manifest_dir=view_manifest_dir,
+            selected_stage_ids=selected_stage_ids,
+            runtime_roles=runtime_roles,
+        )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
 
@@ -1070,9 +1731,11 @@ def on_import_notebook(
         stages_file.name,
         module_dir,
     )
+    if cell_count is None:
+        return
     if cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
-    elif cell_count == 0:
+    else:
         _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
 
     if index_page in st.session_state and isinstance(st.session_state[index_page], list):

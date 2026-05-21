@@ -22,24 +22,29 @@ def test_next_free_port_retries_busy_candidates():
 
 def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     messages: list[str] = []
-    launched: list[tuple[list[str], str]] = []
+    launched: list[tuple[list[str], str, dict[str, object]]] = []
     session_state = {}
     env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+    original_mlflow_cli_argv = pagelib_runtime_support.mlflow_store.mlflow_cli_argv
+    pagelib_runtime_support.mlflow_store.mlflow_cli_argv = lambda args, **_kwargs: ["mlflow", *args]
 
-    started = pagelib_runtime_support.activate_mlflow(
-        env,
-        session_state=session_state,
-        streamlit=SimpleNamespace(error=lambda message: messages.append(str(message))),
-        logger=SimpleNamespace(info=lambda _message: None),
-        resolve_mlflow_tracking_dir_fn=lambda _env: tmp_path / ".mlflow",
-        ensure_default_mlflow_experiment_fn=lambda _path: "sqlite:///tmp/mlflow.db",
-        ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///tmp/mlflow.db",
-        resolve_mlflow_artifact_dir_fn=lambda _path: tmp_path / "artifacts",
-        next_free_port_fn=lambda: 50123,
-        wait_for_listen_port_fn=lambda _port: True,
-        subproc_fn=lambda command, cwd: launched.append((command, cwd)),
-        cwd=str(tmp_path),
-    )
+    try:
+        started = pagelib_runtime_support.activate_mlflow(
+            env,
+            session_state=session_state,
+            streamlit=SimpleNamespace(error=lambda message: messages.append(str(message))),
+            logger=SimpleNamespace(info=lambda _message: None),
+            resolve_mlflow_tracking_dir_fn=lambda _env: tmp_path / ".mlflow",
+            ensure_default_mlflow_experiment_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+            ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+            resolve_mlflow_artifact_dir_fn=lambda _path: tmp_path / "artifacts",
+            next_free_port_fn=lambda: 50123,
+            wait_for_listen_port_fn=lambda _port: True,
+            subproc_fn=lambda command, cwd, **kwargs: launched.append((command, cwd, kwargs)),
+            cwd=str(tmp_path),
+        )
+    finally:
+        pagelib_runtime_support.mlflow_store.mlflow_cli_argv = original_mlflow_cli_argv
 
     assert started is True
     assert session_state["server_started"] is True
@@ -47,8 +52,11 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     assert env.MLFLOW_TRACKING_DIR == str(tmp_path / ".mlflow")
     assert launched
     command = launched[0][0]
-    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    launch_kwargs = launched[0][2]
+    assert command[:2] == ["mlflow", "server"]
+    assert "-m" not in command
     assert command[command.index("--port") + 1] == "50123"
+    assert launch_kwargs["env"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
     assert messages == []
 
 
@@ -144,9 +152,17 @@ def test_pagelib_runtime_support_command_and_wait_helpers(tmp_path):
     ) is False
 
 
-def test_activate_mlflow_support_handles_none_timeout_and_runtime_failure(tmp_path):
+def test_activate_mlflow_support_handles_none_timeout_and_runtime_failure(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     messages: list[str] = []
     session_state = {}
+    monkeypatch.setattr(
+        pagelib_runtime_support.mlflow_store,
+        "mlflow_cli_argv",
+        lambda args, **_kwargs: ["mlflow", *args],
+    )
 
     assert pagelib_runtime_support.activate_mlflow(
         None,
@@ -197,6 +213,64 @@ def test_activate_mlflow_support_handles_none_timeout_and_runtime_failure(tmp_pa
     assert started is False
     assert any("Failed to start the MLflow server" in message for message in messages)
     assert any("Failed to start the server" in message for message in messages)
+
+
+def test_activate_mlflow_support_disables_autostart_when_cli_is_missing(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    errors: list[str] = []
+    warnings: list[str] = []
+    session_state = {}
+
+    def _missing_cli(_args, **_kwargs):
+        raise pagelib_runtime_support.mlflow_store.MissingMlflowCliError("install `agilab[mlflow]`")
+
+    monkeypatch.setattr(pagelib_runtime_support.mlflow_store, "mlflow_cli_argv", _missing_cli)
+
+    started = pagelib_runtime_support.activate_mlflow(
+        SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path),
+        session_state=session_state,
+        streamlit=SimpleNamespace(
+            error=lambda message: errors.append(str(message)),
+            warning=lambda message: warnings.append(str(message)),
+        ),
+        logger=SimpleNamespace(info=lambda _message: None),
+        resolve_mlflow_tracking_dir_fn=lambda _env: tmp_path / ".mlflow",
+        ensure_default_mlflow_experiment_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+        ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+        resolve_mlflow_artifact_dir_fn=lambda _path: tmp_path / "artifacts",
+        next_free_port_fn=lambda: 50123,
+        wait_for_listen_port_fn=lambda _port: True,
+        subproc_fn=lambda *_args: (_ for _ in ()).throw(AssertionError("server should not launch")),
+        cwd=str(tmp_path),
+    )
+
+    assert started is False
+    assert errors == []
+    assert warnings == ["MLflow is optional and was not started automatically. install `agilab[mlflow]`"]
+    assert session_state["server_started"] is False
+    assert session_state["mlflow_autostart_disabled"] is True
+    assert session_state["mlflow_status_message"] == "install `agilab[mlflow]`"
+
+    assert (
+        pagelib_runtime_support.activate_mlflow(
+            SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path),
+            session_state=session_state,
+            streamlit=SimpleNamespace(error=errors.append, warning=warnings.append),
+            logger=SimpleNamespace(info=lambda _message: None),
+            resolve_mlflow_tracking_dir_fn=lambda _env: tmp_path / ".mlflow",
+            ensure_default_mlflow_experiment_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+            ensure_mlflow_backend_ready_fn=lambda _path: "sqlite:///tmp/mlflow.db",
+            resolve_mlflow_artifact_dir_fn=lambda _path: tmp_path / "artifacts",
+            next_free_port_fn=lambda: 50123,
+            wait_for_listen_port_fn=lambda _port: True,
+            subproc_fn=lambda *_args: (_ for _ in ()).throw(AssertionError("server should not relaunch")),
+            cwd=str(tmp_path),
+        )
+        is False
+    )
+    assert len(warnings) == 1
 
 
 def test_activate_gpt_oss_support_clears_empty_checkpoint_and_extra_args(monkeypatch):

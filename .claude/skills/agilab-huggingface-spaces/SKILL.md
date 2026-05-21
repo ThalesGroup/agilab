@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-19
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -52,23 +52,50 @@ This is not a raw repo push and not a generic Space scaffold. The deploy script 
 
 Profile app/page sets:
 - `first-proof`
-  - apps: `flight_project`, `meteo_forecast_project`
+  - apps: `flight_telemetry_project`, `weather_forecast_project`
   - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
 - `advanced`
-  - apps: `data_io_2026_project`, `execution_pandas_project`,
-    `execution_polars_project`, `flight_project`, `meteo_forecast_project`,
-    `mycode_project`, `uav_queue_project`, `uav_relay_queue_project`
+  - apps: `execution_pandas_project`, `execution_polars_project`,
+    `flight_telemetry_project`, `global_dag_project`,
+    `mission_decision_project`, `mycode_project`, `tescia_diagnostic_project`,
+    `uav_queue_project`, `uav_relay_queue_project`,
+    `weather_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
-    `view_maps_network`, `view_release_decision`, `view_uav_queue_analysis`,
-    `view_uav_relay_queue_analysis`
+    `view_maps_network`, `view_queue_resilience`, `view_relay_resilience`,
+    `view_release_decision`
 
-The advanced profile installs every current built-in demo app, but it still
-avoids unrelated historical heavyweight pages that are not part of the current
-Advanced Proof Pack.
+The advanced profile installs the current Advanced Proof Pack demo set. Do not
+describe it as "every built-in app" unless the deploy script, README, and
+Dockerfile actually include every public built-in app at that release.
+
+## Profile Drift Guardrail
+
+Before every deploy, compare the profile app/page lists in
+`<apps-repo>/huggingface/hf_space_deploy.sh`, `README.md`,
+`README.advanced.md`, and `Dockerfile` with the actual public checkout:
+
+```bash
+find <agilab-checkout>/src/agilab/apps/builtin -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
+find <agilab-checkout>/src/agilab/apps-pages -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
+rg -n "flight_project|meteo_forecast_project|data_io_2026_project|view_uav_queue_analysis|view_uav_relay_queue_analysis" \
+  <apps-repo>/huggingface <agilab-checkout>/.claude/skills/agilab-huggingface-spaces <agilab-checkout>/.codex/skills/agilab-huggingface-spaces
+rg -n "flight_telemetry_project|weather_forecast_project|mission_decision_project" <apps-repo>/huggingface
+```
+
+If stale names appear, fix the sibling `huggingface` bundle first, then update
+this skill through `repo-skill-maintenance`. Do not deploy by adding aliases to
+paper over stale profile names; the Space profile should reference the current
+public app IDs directly.
 
 ## Runtime and Product Constraints
 
 Keep the skill aligned with the README contract:
+- the Space README presents AGILAB as an anti-lock-in reproducibility workbench,
+  not as a generic AI platform
+- the default and advanced Space cards both describe notebook export as an
+  `agi-core` runtime handoff: review, handoff, and reuse without the AGILAB UI
+  or distributed worker layer, while still relying on the stable core runtime
+  and the exported project's dependencies
 - the Space exposes the AGILAB Streamlit interface
 - Space mode is single-container only
 - local Dask multi-worker execution may be demonstrated inside that container
@@ -91,6 +118,16 @@ The current README advertises these Hugging Face secrets:
 - `CLUSTER_CREDENTIALS` — optional
 
 When updating docs or deploy instructions, keep the wording aligned with the README and do not invent new required secrets unless the Space contract actually changed.
+
+For the GitHub release workflow, distinguish Hugging Face Space runtime secrets
+from repository automation secrets. `HF_TOKEN` is required by the AGILAB release
+workflow to upload and validate the Space, but it is not a Space runtime secret
+advertised to end users. Verify it with `gh secret list -R ThalesGroup/agilab`
+and set it without printing the token when needed:
+
+```bash
+hf auth token | gh secret set HF_TOKEN -R ThalesGroup/agilab
+```
 
 ## Deployment Workflow
 
@@ -147,14 +184,22 @@ Before touching the Space deployment, verify:
 3. `hf auth whoami` succeeds, or `HF_TOKEN` is present.
 4. The current README, Dockerfile, and deploy script still agree on:
    - SDK type
+   - Space README metadata frontmatter uses Hugging Face-valid values, including
+     a literal emoji such as `emoji: 🧪` rather than an emoji name like `lab_coat`
    - exposed port
    - secret names
+   - Space-card metadata, including a real pictographic `emoji:` value such as
+     `🧪` rather than a textual alias like `lab_coat`
+   - anti-lock-in / `agi-core` notebook-export positioning
    - profile app/page lists
    - target repo content
+   - current public app IDs, especially `flight_telemetry_project`,
+     `weather_forecast_project`, and `mission_decision_project`
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
-   checkout has ignored private app symlinks, deploy from a temporary clean
-   worktree at `origin/main` rather than from the dirty checkout.
+   checkout has ignored private app symlinks, unrelated dirty files, or local
+   release-experiment commits, deploy from a temporary clean worktree at
+   `origin/main` rather than from the dirty checkout.
    Also verify LFS-backed built-in assets are present in that clean worktree
    before staging the Space.
 6. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
@@ -168,7 +213,6 @@ tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
 apps_repo="../thales_agilab"
 space_owner="<space-owner>"
 git worktree add --detach "$tmpdir" origin/main
-git -C "$tmpdir" lfs install --local
 git -C "$tmpdir" lfs pull
 find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
 "$apps_repo/huggingface/hf_space_deploy.sh" \
@@ -177,15 +221,31 @@ find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | so
   --space "$space_owner/agilab"
 ```
 
+Do not force-install Git LFS hooks in the temporary worktree. If
+`git lfs install --local` reports an existing repo pre-push hook, keep the hook
+untouched and run `git -C "$tmpdir" lfs pull` directly; deployment only needs
+the LFS-backed assets materialized, not a rewritten hook.
+
 Use `--profile advanced --space "$space_owner/agilab-advanced"` for the heavier
 Advanced Proof Pack companion Space.
 
-After upload, verify the Space cutover separately from the file upload:
+After upload, verify the Space cutover separately from the file upload. Hugging
+Face may report `No files have been modified since last commit` and return the
+previous Space commit when the staged runtime payload is already current; treat
+that as a valid no-op redeploy only if the deploy script verifier, public
+visibility check, runtime SHA check, and public smoke all pass.
 
 ```bash
 space_owner="<space-owner>"
 hf spaces info "$space_owner/agilab" --format json
 curl -I -L --max-time 20 "https://${space_owner}-agilab.hf.space/"
+```
+
+If `hf spaces info` hangs or the CLI is unreliable, query the public API as the
+runtime cutover fallback instead of guessing from upload success:
+
+```bash
+curl -fsSL "https://huggingface.co/api/spaces/${space_owner}/agilab"
 ```
 
 If the fix is about a deployed file, download that exact file from the Space and
@@ -226,6 +286,28 @@ raise SystemExit(1)
 PY
 ```
 
+After cutover, download the deployed files at the Space commit and verify that
+they match the intended release and profile:
+
+```bash
+space="<space-owner>/agilab"
+space_sha="<space-sha>"
+tmpdir=$(mktemp -d /tmp/agilab-hf-check.XXXXXX)
+hf download "$space" pyproject.toml README.md Dockerfile \
+  --repo-type space \
+  --revision "$space_sha" \
+  --local-dir "$tmpdir"
+rg -n '^version = |^name = ' "$tmpdir/pyproject.toml"
+rg -n 'Anti-lock-in|anti-lock-in|agi-core|core runtime|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
+  "$tmpdir/README.md" "$tmpdir/Dockerfile"
+```
+
+Treat an old `pyproject.toml` version, missing current app IDs, or stale app IDs
+such as `flight_project`, `meteo_forecast_project`, or `data_io_2026_project`
+in deployed profile files as a failed alignment, even if the live HTTP smoke passes. Treat
+missing anti-lock-in / `agi-core` notebook-export copy as a Space-card
+alignment failure, even when the runtime itself is healthy.
+
 If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:
 
@@ -247,16 +329,78 @@ After runtime cutover, run the public smoke:
 uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
 ```
 
+The Space source-tree verifier is an intentional deployment contract, not a
+generic linter. It must verify both public route behavior and the exact staged
+profile tree under `src/agilab/apps/builtin`; stale `active_app` URLs can still
+return HTTP 200 because AGILAB may fall back to a default app. If the smoke only
+checks route status, strengthen it before trusting a deployment. If it fails on
+an expected public core page such as `0_SETTINGS.py`, update
+`tools/hf_space_smoke.py` and `test/test_hf_space_smoke.py` first, run the
+targeted test, commit that guardrail fix, then rerun the deploy script:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q test/test_hf_space_smoke.py
+uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --space <space-owner>/agilab --tree-only --json
+```
+
+If the deployed Space README or deploy contract changed, also run the sibling
+apps/docs guardrail before committing the bundle:
+
+```bash
+cd <apps-repo>
+uv run pytest -q apps/test/test_hf_space_deploy_contract.py
+bash -n huggingface/hf_space_deploy.sh
+```
+
+## Release Workflow Recovery
+
+The public release workflow uses `tools/hf_space_release_sync.py`, not the
+sibling shell deploy script, for the automated release job. If the release has
+already published PyPI packages and release assets but the HF job failed, recover
+from a clean public worktree at the intended `origin/main` commit:
+
+```bash
+tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
+git worktree add --detach "$tmpdir" origin/main
+git -C "$tmpdir" lfs pull
+(
+  cd "$tmpdir"
+  HF_TOKEN="$(hf auth token)" \
+    uv --preview-features extra-build-dependencies run --python 3.13 \
+    python tools/hf_space_release_sync.py \
+    --repo-root "$tmpdir" \
+    --space <space-owner>/agilab \
+    --profile first-proof \
+    --dry-run \
+    --json
+  HF_TOKEN="$(hf auth token)" \
+    uv --preview-features extra-build-dependencies run --python 3.13 \
+    python tools/hf_space_release_sync.py \
+    --repo-root "$tmpdir" \
+    --space <space-owner>/agilab \
+    --profile first-proof \
+    --json
+)
+```
+
+Use the returned `hf_space_commit` for release proof. Do not remove the
+temporary worktree until runtime cutover, Space smoke, release proof refresh,
+and public docs verification have passed.
+
 If this deployment is part of a release, update release proof with the live
-Space commit after the smoke passes, then sync and push both docs repos:
+Space commit after the package examples smoke and Space smoke pass, then sync
+and push both docs repos:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
   --docs-source ../thales_agilab/docs/source \
   --refresh-from-local \
+  --github-release-tag <tag> \
+  --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
   --hf-space-commit <space-sha> \
   --render \
   --check \
+  --check-github-runs \
   --compact
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
   --source ../thales_agilab/docs/source \
@@ -265,9 +409,27 @@ uv --preview-features extra-build-dependencies run python tools/sync_docs_source
   --delete
 ```
 
+If the release tag changed, also refresh the canonical docs index release link
+before the mirror sync:
+
+```bash
+uv --preview-features extra-build-dependencies run python - <<'PY'
+from tools import pypi_publish
+pypi_publish.update_docs_index_release_link("v<release>")
+PY
+```
+
 Do not call the release fully synced until `runtime.stage` is `RUNNING`, the
 runtime SHA matches the uploaded Space SHA, `tools/hf_space_smoke.py --json`
-passes, and release proof records that Space SHA.
+passes, release proof records that Space SHA, the docs index points at the
+current release tag, the release-proof CI summaries do not mention stale tags,
+and the published docs page contains the new Space commit. Verify the last point
+against the published page, not only raw GitHub content:
+
+```bash
+curl -fsSL https://thalesgroup.github.io/agilab/release-proof.html | \
+  rg '<space-sha>|<tag>|old-tag-that-should-not-remain'
+```
 
 ## When Editing the Space Contract
 

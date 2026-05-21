@@ -25,11 +25,12 @@ commands with:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight_telemetry/run_manifest.json --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --artifact-index artifact_index.json --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
    uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json
    uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/controlled_pilot_readiness_report.py --compact
 
 Current public matrix
 ---------------------
@@ -46,26 +47,33 @@ Current public matrix
    * - Source checkout first proof
      - validated
      - ``uv run python tools/newcomer_first_proof.py``
-     - Public built-in ``flight_project`` path, local execution, and the
+     - Public built-in ``flight_telemetry_project`` path, local execution, and the
        recommended newcomer workflow
      - No SSH, no private apps, no packaged install
    * - Web UI local first proof
      - validated
-     - ``uv run streamlit run src/agilab/main_page.py``
+     - ``uv run --extra ui streamlit run src/agilab/main_page.py``
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
-       with fresh output under ``~/log/execute/flight/``
+       with fresh output under ``~/log/execute/flight_telemetry/``
      - Not a remote cluster proof
    * - AGILAB Hugging Face demo
      - validated
      - ``uv run python tools/hf_space_smoke.py --json``
      - Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including
-       flight and meteo route smoke plus a public app-tree guardrail
+       flight and weather route smoke plus a public app-tree guardrail
      - Hosted demo environment; availability depends on Hugging Face Spaces uptime; not a remote cluster proof
    * - Service-mode operator surface
      - validated
      - ORCHESTRATE service controls and health gate
      - Start / status / health / stop operator flow and SLA thresholds
      - Does not certify every remote topology or deployment policy
+   * - Controlled-pilot readiness gate
+     - validated
+     - ``uv run python tools/controlled_pilot_readiness_report.py --compact``
+     - Service health, persisted artifacts, public-bind controls, secret
+       redaction, and explicit health failure modes for controlled pilots
+     - Not production MLOps certification; no feature-store, online-monitoring,
+       drift-detection, enterprise-governance, or broad remote-topology claim
    * - Notebook quickstart
      - documented
      - ``src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb``
@@ -74,12 +82,12 @@ Current public matrix
      - Not the recommended first proof path
    * - Published package route
      - validated
-     - ``python -m pip install agilab`` then
+     - ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - Clean public base package install outside the source checkout, followed
-       by the packaged CLI/core first-proof smoke
-     - Validates the released package, not unmerged branch contents; less
-       representative than the source-checkout first proof
+     - Clean public package install with example apps outside the source
+       checkout, followed by the packaged CLI/core first-proof smoke
+     - Validates the released package and public example payload, not unmerged
+       branch contents; less representative than the source-checkout first proof
 
 Platform coverage snapshot
 --------------------------
@@ -99,14 +107,15 @@ Platform coverage snapshot
      - not a cloud or SSH-cluster certification
    * - Linux package
      - validated
-     - GitHub Actions clean install: ``python -m pip install agilab`` then
+     - GitHub Actions clean install: ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released base package, not the local web UI extra
+     - validates the latest released package plus public examples, not the
+       local web UI extra
    * - macOS package
      - validated
-     - GitHub Actions clean install: ``python -m pip install agilab`` then
+     - GitHub Actions clean install: ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released base package on the macOS runner, not
+     - validates the latest released package plus public examples on the macOS runner, not
        every local Homebrew/PyCharm setup or UI extra combination
    * - Windows / WSL2
      - validated for the clean package smoke; documented for WSL2/source flows
@@ -187,13 +196,13 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
 
 For source-checkout first proof evidence, ``tools/newcomer_first_proof.py
---json`` writes ``~/log/execute/flight/run_manifest.json``. The compatibility
+--json`` writes ``~/log/execute/flight_telemetry/run_manifest.json``. The compatibility
 report can ingest that manifest directly:
 
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py \
-     --manifest ~/log/execute/flight/run_manifest.json \
+     --manifest ~/log/execute/flight_telemetry/run_manifest.json \
      --compact
 
 The broader evidence tooling covers release metadata, supply-chain metadata,
@@ -202,7 +211,7 @@ decision exports. Keep those details in tool help, tests, and maintainer
 runbooks; this public page should stay a readable support-status map.
 
 The in-product first-proof wizard uses the same boundary: it routes newcomers
-to the source-checkout ``flight_project`` proof first, reads
+to the source-checkout ``flight_telemetry_project`` proof first, reads
 ``run_manifest.json``, and turns missing or failing evidence into a recovery
 checklist.
 

@@ -93,6 +93,33 @@ dependencies = ["numpy>=1.26"]
     assert any(finding.key == "worker-source-discovery" for finding in report.findings)
 
 
+def test_analyze_contract_accepts_workerless_app_without_worker_manifests(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "simple_project"
+
+    _write_manifest(
+        app_root / "pyproject.toml",
+        """
+[project]
+name = "simple_project"
+dependencies = ["agi-env", "pydantic"]
+
+[tool.agilab.app]
+runtime = "local"
+workerless = true
+""",
+    )
+
+    report = module.analyze_contract(app_path=app_root)
+
+    assert report.status == module.SAFE_STATUS
+    assert report.worker_source_manifest is None
+    assert report.worker_copy_manifest is None
+    assert not any(finding.key == "worker-source-discovery" for finding in report.findings)
+    assert not any(finding.key == "missing-worker-copy-manifest" for finding in report.findings)
+    assert not any(command.startswith("sed ") for command in report.recommended_commands)
+
+
 def test_analyze_contract_flags_exact_pin_injection_as_shared_core_issue(tmp_path) -> None:
     module = _load_module()
     app_root = tmp_path / "demo_project"

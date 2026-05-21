@@ -7,10 +7,671 @@ This page tracks planned work only.
 
 The goal here is to rank future work, not to restate the current feature set.
 
-## Recommended near-term execution order
+## Professional target
+
+AGILab should feel professional when a new team can trust the release, complete
+the first proof, import or export notebook work, diagnose failures, understand
+the security boundary, and hand evidence to another tool or reviewer without
+needing the original developer.
+
+The roadmap therefore prioritizes trust, clarity, and maintainability before
+adding larger product surfaces.
+
+### Professional scorecard
+
+Use this scorecard before promoting a release, demo, app, or major feature as
+professional-ready.
+
+| Area | Professional bar | Primary proof |
+| --- | --- | --- |
+| Release trust | Clean install, release proof, badges, PyPI, docs, and demo text agree | Release guard and release proof |
+| First-run UX | A newcomer can complete one local proof without guessing page actions | First-proof smoke and UI robot path |
+| Notebook bridge | Work can enter from notebooks and leave as reusable notebooks | Import/export round-trip evidence |
+| Failure clarity | Common failures are classified before raw tracebacks | Diagnostic tests and user-facing errors |
+| Security boundary | Shared, public, sensitive, and production use limits are explicit | Security check and adoption docs |
+| Team runtime | Cluster/share/service routes fail fast and explain remediation | Cluster/share/service health gates |
+| Evidence handoff | Runs, artifacts, compatibility, and promotion decisions are portable | Evidence bundle and release decision |
+| Maintainability | New features extend tested contracts instead of page-specific glue | Contract tests and pattern guardrails |
+| Ecosystem quality | Published apps are named, documented, installable, runnable, and scoped | App package smoke and README checks |
+
+### Phase plan
+
+Use phases as the product sequence. Dates can move; ordering should not move
+unless a higher-priority item is explicitly accepted as a risk.
+
+| Phase | Focus | Exit gate |
+| --- | --- | --- |
+| Phase 0 | Release trust and docs alignment | Clean release lane, fresh docs mirror, green badge guard, no stale public claims |
+| Phase 1 | Newcomer first proof and notebook parity | Built-in and notebook first proofs install, execute, and open analysis predictably |
+| Phase 2 | Diagnostics, security, and team readiness | Failures are classified; shared/team/cluster use has explicit checks and limits |
+| Phase 3 | Evidence and data integration | Promotion evidence, run diff, connectors, and provenance are consumable outside the UI |
+| Phase 4 | Maintainable extension model | Apps, pages, notebooks, connectors, reducers, and evidence reports follow stable contracts |
+| Phase 5 | Product expansion | Multi-app DAG, operator mode, observability, and MLOps handoff build on the stable baseline |
+
+### Sequencing rules
+
+- Fix release trust before adding feature breadth.
+- Fix first-run UX before asking users to try clusters or service mode.
+- Prove notebook import parity before advertising notebook migration broadly.
+- Add diagnostics before broadening team and cluster validation.
+- Add security and supply-chain gates before shared, exposed, or sensitive use.
+- Standardize evidence schemas before adding dashboards.
+- Stabilize extension contracts before publishing more apps.
+- Productize multi-app DAGs only after the first-run, runtime, evidence, and
+  contract layers are stable.
+
+## Professionalization priority order
+
+Use this order when the goal is to make AGILab feel professional, adoptable,
+and maintainable rather than just richer in features.
+
+### P0. Release and runtime integrity
+
+Goal:
+
+- every public release can be installed, launched, and validated from a clean
+  public environment without relying on the developer checkout
+
+Concrete items:
+
+- keep the release guard as the mandatory pre-tag path: install smoke,
+  first-proof, security check, docs mirror check, badge freshness, dependency
+  policy, and trusted-publisher contract
+- make imported-notebook projects part of the release smoke, not a separate
+  best-effort demo path
+- require each shipped notebook sample to create an installable and runnable app
+  equivalent to its packaged example
+- keep PyPI, GitHub release proof, public docs, and Hugging Face demo text
+  aligned before publication
+- keep the package-aware `pypi-publish` reuse gate healthy: detect expected
+  wheel/sdist artifacts before build, skip build, Trusted Publishing auth, and
+  upload when PyPI already exposes them, download reused files back into the
+  GitHub Release distribution bundle, and record their hashes in release
+  distribution evidence
+- fail fast on local-path, stale-worker, missing-share, or stale-app-repository
+  states instead of silently degrading
+
+Done means:
+
+- a clean install can run the default first proof and at least one imported
+  notebook project end to end
+- release proof points to the exact version, commands, evidence, and known
+  limitations
+- no release badge, docs mirror, dependency-policy, or trusted-publisher guard
+  is knowingly stale
+
+### P1. First-run product experience
+
+Goal:
+
+- a new user understands what to click, what will happen, and how to recover if
+  it fails
+
+Concrete items:
+
+- keep the landing page focused on the first proof and remove redundant call-to-action
+  clutter
+- make every wizard action direct: install really installs, execute really runs,
+  analysis opens the right result page, notebook import creates the project
+  without asking the user to locate packaged files
+- keep PROJECT sidebars and advanced controls out of the default path unless
+  they are needed for the current task
+- add deterministic error messages for install/run/delete/import flows and keep
+  spinners scoped to the action that is still running
+- keep examples small enough to finish locally before users attempt cluster,
+  service mode, or external app repositories
+
+Done means:
+
+- a user can complete the built-in first proof or the notebook first proof
+  without reading source code, finding hidden files, or guessing page actions
+
+### P2. Notebook interop and no-lock-in
+
+Goal:
+
+- teams can enter AGILab from notebooks and leave AGILab back to notebooks
+  without losing the useful work
+
+Concrete items:
+
+- provide one importable notebook for every public packaged example that is
+  suitable for notebook import
+- preserve explicit manager/worker role metadata while still requiring clear
+  cell-by-cell review when metadata is missing or ambiguous
+- name imported projects predictably, for example
+  `flight-telemetry-from-notebook-project`
+- keep notebook export positioned as the exit and handoff path, not just a
+  convenience download
+- round-trip the stage order, code, runtime hints, artifacts, and provenance
+  enough for review and reuse outside the AGILab UI
+
+Done means:
+
+- import and export are documented as a reversible adoption bridge: notebooks
+  can become AGILab projects, and AGILab work can be handed back as notebooks
+  when the workbench is no longer needed
+
+### P3. Security and supply-chain posture
+
+Goal:
+
+- AGILab is safe by default for controlled R&D and explicit about what remains
+  outside the default threat model
+
+Concrete items:
+
+- keep public UI binding local by default and document the reverse-proxy,
+  authentication, TLS, and network controls required for exposure
+- treat apps, notebooks, generated snippets, and external repositories as
+  executable code that needs review, allowlisting, and isolation
+- keep secrets out of command lines, logs, committed files, generated notebooks,
+  and release evidence
+- regenerate SBOM and dependency audit evidence for the actual install profiles
+  being adopted
+- keep PyPI trusted publishing and action pinning as mandatory release gates
+
+Done means:
+
+- the docs do not imply production, multi-tenant, regulated-data, or public
+  exposure readiness without the external controls required to make that true
+
+### P4. Team and cluster operation
+
+Goal:
+
+- shared-team and cluster use is diagnosable, bounded, and repeatable
+
+Concrete items:
+
+- make cluster share setup explicit and refuse cluster mode when no usable
+  shared path is configured
+- keep SSH, SSHFS, LAN discovery, remote path, and share-sentinel diagnostics
+  actionable from both CLI and UI
+- provide a small validation matrix for local, bare-metal cluster, VM-based
+  cluster, AI Lightning, Hugging Face, and cloud targets when evidence exists
+- add service-health gates for long-running service mode: idle policy,
+  unhealthy limit, restart-rate threshold, and machine-readable status
+- separate single-user convenience from multi-user isolation, quotas, and
+  account policy
+
+Done means:
+
+- a team can distinguish local failure, share failure, worker dependency
+  failure, scheduler failure, and service-health failure without reading
+  tracebacks first
+
+### P5. Evidence-driven MLOps bridge
+
+Goal:
+
+- AGILab stays a workbench, but hands clean evidence to the MLOps and platform
+  systems that own production
+- converge the existing evidence pieces into a portable proof capsule that can
+  be verified, compared, replayed, and handed to another tool without relying
+  on the original developer workspace
+
+Concrete items:
+
+- strengthen run evidence, release decisions, run diff, artifact provenance,
+  and compatibility profiles as first-class outputs
+- keep the first public proof-pack CLI layer small and verifiable:
+  `agilab prove`, `agilab verify`, `agilab replay`,
+  `agilab export-lineage`, `agilab policy-check`, `agilab cards`, and
+  `agilab metadata-store` operate on `run_manifest.json` and write plain JSON
+  evidence before AGILab claims a signed capsule archive
+- introduce an Evidence Core contract that bundles the run manifest, workflow
+  snapshot, environment lock, artifact hashes, notebook import/export manifest,
+  optional MLflow references, policy checks, and verifier results as one
+  portable audit surface
+- define the lifecycle around that contract: build, test, version, compare,
+  promote, roll back, and archive evidence bundles with stable hashes and
+  explicit compatibility metadata
+- derive a graph-shaped evidence view that links claims, code, data, models,
+  environments, runs, notebooks, artifacts, cards, MLflow handoff, and
+  publication targets without requiring an external graph service by default
+- support reviewer-oriented evidence queries such as unsupported claims, stale
+  data sources, changed dependencies, policy failures, missing cards, and
+  baseline-vs-candidate deltas
+- keep MLflow integration focused on tracking, artifacts, model registry
+  handoff, and comparison rather than replacing AGILab execution
+- define promotion-ready evidence bundles for apps, imported notebooks, and
+  cluster runs
+- add hooks for monitoring, drift, feature stores, orchestration engines, and
+  serving platforms without claiming those systems are built into AGILab
+
+Current shipped baseline:
+
+- proof-pack directory export from a run manifest with verification report,
+  policy report, OpenLineage-shaped JSON, RO-Crate metadata, OpenTelemetry-shaped
+  trace JSON, local metadata-store entry, and model/dataset/prompt/eval cards
+- replay is safe by default: it prints the recorded command unless the operator
+  explicitly passes `--execute`
+- policy-as-code starts with a small JSON/TOML gate over the manifest checks
+  instead of a full external policy engine
+
+Evidence Core roadmap:
+
+- define stable evidence node and edge types for `claim`, `code`, `data`,
+  `model`, `environment`, `run`, `notebook`, `artifact`, `policy`, `card`, and
+  `publication`
+- generate deterministic JSON, JSON-LD, or GraphML exports from proof-pack
+  evidence so reviewers can inspect lineage and audit claims outside the UI
+- include source manifests, schema or ontology mappings, evidence policies,
+  card metadata, reducer summaries, connector provenance, and imported-notebook
+  metadata when the originating app can provide them
+- design inspection and verification surfaces around the existing proof commands
+  instead of adding a second execution runtime
+- make the lifecycle explicit in CLI and UI language: a bundle can be built,
+  checked, diffed, promoted, archived, or rejected without implying production
+  certification
+- keep the baseline local-first and file-based; graph databases, vector indexes,
+  message buses, or workflow-control services should remain optional adapters
+  until the portable evidence contract is stable
+
+Context-engineering gaps to close:
+
+- reusable workflow blueprints that capture stages, runtime parameters,
+  prompt/tool settings, connector requirements, expected artifacts, evidence
+  outputs, and smoke-test expectations
+- versioned prompt, tool, and agent configuration manifests that can be reviewed
+  and replayed with the same rigor as app code
+- schema and ontology mapping hooks for apps that transform unstructured or
+  semi-structured data into reviewable evidence, while keeping domain-specific
+  extraction optional
+- lightweight deployment or run-profile generation that writes the commands,
+  environment assumptions, and validation plan for local, notebook, cluster,
+  service, or demo runs without becoming a Kubernetes platform
+- observability-lite evidence for execution latency, failure source, queue or
+  worker backlog, artifact volume, token/cost metrics when an LLM is involved,
+  and service-health state when a long-running service is used
+
+Remaining state-of-the-art scope:
+
+- signed `.agipack` archive with detached hashes, Sigstore/SLSA references, and
+  a verifier that can validate the archive without the source checkout
+- OpenLineage transport integration to emit events to an external lineage
+  backend, not only write an interoperable JSON payload
+- native OpenTelemetry SDK/OTLP instrumentation across Streamlit actions,
+  worker build, distributed execution, notebook export, MLflow handoff, and
+  agent runs
+- durable ML metadata backend, for example SQLite/Postgres/MLMD-compatible
+  storage, with query APIs for datasets, models, prompts, runs, artifacts, and
+  lineage
+- app-declared model cards, data cards, prompt cards, and evaluation cards with
+  domain metadata rather than evidence-only placeholders
+- richer policy-as-code, potentially OPA/Rego-compatible, for adoption gates,
+  promotion gates, release gates, and sensitive-data gates
+- capability-based sandboxing for generated code, notebooks, and agent runs:
+  explicit filesystem, network, secret, and subprocess scopes
+- first-class agent eval traces: prompt/tool/file/command timeline, permission
+  decisions, diff evidence, replay, scoring, and safety policy results
+- monitoring and drift handoff adapters for production systems without turning
+  AGILab into the production control plane
+- enterprise controls for shared deployments: secrets backend integration,
+  authentication, RBAC, audit logs, and tenant isolation
+
+Agent skills and resource evidence hardening:
+
+- keep the public agent discovery surface generated from the repo-managed skill
+  source of truth: `AGENT_SKILLS.md`, `llms.txt`, `llms-full.txt`, and the
+  `Skills` / `Standard` / `Works with` badges must remain generated artifacts,
+  not hand-maintained marketing copy
+- add explicit compatibility metadata to each repo-managed skill: supported
+  agents, required tools, write/network/subprocess expectations, local service
+  assumptions, secret/environment requirements, and expected evidence outputs
+- close the current skill-scan hygiene gaps by replacing private absolute paths
+  with placeholders and by documenting deliberate network or environment access
+  in skill metadata rather than leaving it implicit in instructions
+- mature the skill security scanner from a deterministic local guard into a
+  review surface: baseline or allow-list support, SARIF output, sticky PR
+  comments, severity policy, and optional comparison with external agent-skill
+  scanners before enforcing stronger gates
+- attach a `resource_snapshot.json` to agent runs, first-proof runs, heavy page
+  proofs, and release evidence when resource state explains scheduling,
+  reproducibility, or performance choices
+- feed resource snapshots and cluster inventory into scheduler recommendations
+  and future autoscale decisions, while keeping autoscale behavior explicit and
+  auditable rather than silently changing execution topology
+- extend `agilab agent-run` evidence so skill identity, skill version, resource
+  snapshot, permission decisions, changed files, command timeline, and resulting
+  proof artifacts can be replayed or reviewed together
+- publish agent-surface validation as release evidence: generated catalogs,
+  badge freshness, changed-skill scan reports, and resource snapshot checks
+  should be archived alongside SBOM, `pip-audit`, hashes, and provenance
+
+Done means:
+
+- an experiment can be reviewed, compared, promoted, or rejected from evidence
+  that is versioned, portable, and honest about its execution environment
+- the same evidence can be exported as a single proof capsule without claiming
+  production certification
+
+### P6. Extension architecture and maintainability
+
+Goal:
+
+- new apps, pages, connectors, and workflow features follow stable patterns
+  instead of accumulating one-off glue
+
+Concrete items:
+
+- keep public APIs, app templates, page metadata, connector models, reducer
+  contracts, and workflow stage contracts explicit and tested
+- add flow blueprint contracts for reusable workflow presets, including the
+  app/page inputs, parameter schema, prompt/tool configuration, connector
+  requirements, expected artifacts, and evidence smoke
+- use design patterns to separate UI, orchestration, runtime execution,
+  artifacts, and evidence generation
+- keep prompts, agent tools, MCP-style connectors, and runtime-tunable settings
+  versioned and reviewable instead of hidden in page state
+- add pattern-gated checks before new workflow or notebook-import behavior can
+  bypass existing contracts
+- keep strict typing and focused tests on shared helpers that affect many apps
+- document deprecations with migration paths and removal dates
+
+Done means:
+
+- future features can be added by extending clear contracts, not by duplicating
+  page-specific or app-specific behavior
+
+### P7. Ecosystem and distribution
+
+Goal:
+
+- AGILab is easy to adopt incrementally through public packages, app packages,
+  demos, and external repositories without locking users into one layout
+
+Concrete items:
+
+- keep PyPI packages for publishable apps small, named consistently, and backed
+  by trusted publishing
+- keep Hugging Face and public demos aligned with the same release evidence as
+  the repository
+- provide clear app repository update, install, rename, and migration behavior
+  instead of compatibility aliases for stale local copies
+- keep public app packaging and private app validation as separate lanes:
+  public `agi-app-*` packages use PyPI, entry points, wheel/sdist metadata, and
+  provenance checks; private or non-public apps still need a pinned validation
+  model that does not vendor private code into the public repository
+- evaluate a private-side app validation manifest that records the external app
+  repository origin, commit SHA, app path, runtime/package constraints, and
+  expected validation commands while preserving `APPS_REPOSITORY` symlinks as
+  the lightweight local-development shortcut
+- publish only examples that meet content-quality, install/run, README, and
+  notebook-import criteria
+
+Done means:
+
+- users can adopt one app, one notebook import, one demo, or the full workbench
+  without discovering different contracts for each path
+
+## Professional execution backlog
+
+Treat this as the delivery order. Lower-priority feature work should not
+displace higher-priority adoption, release, and safety work unless there is an
+explicit product decision.
+
+### Priority 1. Clean release lane
+
+Ship only when the public package, public docs, release proof, coverage badges,
+trusted publishing, Hugging Face copy, and first-proof commands all describe the
+same release.
+
+Acceptance gate:
+
+- `./dev release`, `./dev docs`, and the release proof report pass from a clean
+  checkout
+- the release proof names the exact version, validation routes, and known
+  non-certified environments
+- the publish workflow shows which split packages were uploaded and which were
+  intentionally reused because their wheel/sdist artifacts were unchanged
+- no manual release note, README, public docs page, or demo copy contradicts the
+  package that was published
+
+Why first:
+
+- professional adoption starts by trusting the published artifact, not by
+  trusting the developer machine
+
+### Priority 2. Notebook import parity
+
+Every public example that is advertised as importable from a notebook must ship
+with a notebook sample, deterministic metadata, and an imported-project smoke
+that proves `INSTALL` and `EXECUTE` behave like the original app.
+
+Acceptance gate:
+
+- each supported sample creates a predictably named
+  `<example>-from-notebook-project`
+- manager/worker cell roles are explicit or force review before project
+  creation
+- at least one imported notebook project is included in the release smoke
+
+Why now:
+
+- notebook import is a unique adoption bridge only if users can prove that the
+  imported project still runs
+
+### Priority 3. First-run wizard contract
+
+The default UI path must be direct: buttons perform the action they promise, and
+the next required user action is visible before navigation.
+
+Acceptance gate:
+
+- built-in first proof: select demo, install, execute, and analysis are all
+  direct and recoverable
+- notebook first proof: create from packaged notebook does not require the user
+  to find a hidden file
+- spinners, success messages, and failure messages are scoped to the action that
+  actually ran
+
+Why now:
+
+- first-run confusion makes the product feel experimental even when the backend
+  works
+
+### Priority 4. Runtime failure diagnostics
+
+Failures must classify themselves before showing raw tracebacks.
+
+Acceptance gate:
+
+- install/run/delete/import failures distinguish dependency, path, archive,
+  project-state, cluster-share, worker-copy, and scheduler failures
+- stale local app directories and stale worker environments produce actionable
+  remediation
+- corrupted archives and invalid imported notebooks fail fast with a concise
+  cause and a safe next step
+
+Why now:
+
+- professional users can tolerate failures; they cannot tolerate unclear
+  failures
+
+### Priority 5. Security and shared-use hardening
+
+Keep controlled local R&D easy, but make shared-team use conditional on explicit
+controls.
+
+Acceptance gate:
+
+- public bind, external app repositories, notebook import, generated code,
+  secrets, cluster accounts, and service mode each have an explicit guard or
+  operator checklist
+- security checks can emit machine-readable results for the selected install
+  profile
+- the docs continue to reject standalone production, public, multi-tenant, or
+  regulated-data claims without external hardening
+
+Why now:
+
+- adoption grows only if the boundary between safe default use and hardened use
+  stays explicit
+
+### Priority 6. Cluster and team operation
+
+Cluster mode should be a supported team workflow, not a best-effort advanced
+demo.
+
+Acceptance gate:
+
+- cluster requests fail when no usable shared path exists
+- SSH, SSHFS, LAN discovery, remote path, and share-sentinel checks are exposed
+  through CLI and UI diagnostics
+- validation evidence covers local, bare-metal cluster, VM cluster, AI
+  Lightning, Hugging Face, and cloud targets only where each route has actually
+  been tested
+
+Why now:
+
+- distributed execution is a core differentiator only when setup and failure
+  modes are operationally clear
+
+### Priority 7. Evidence and promotion workflow
+
+AGILab should make it easy to decide whether a run, app, notebook import, or
+cluster validation is ready to reuse, publish, or hand off.
+
+Acceptance gate:
+
+- run evidence, release decisions, compatibility reports, run diff, artifact
+  provenance, and supply-chain evidence share stable schemas
+- evidence bundle lifecycle actions are explicit: build, verify, diff, promote,
+  archive, reject, and roll back
+- evidence bundles expose a graph-shaped index that links the run manifest,
+  artifacts, notebook exports, optional MLflow references, policy results,
+  cards, and human-readable claims
+- schema/ontology mappings and source manifests are captured when an app creates
+  derived evidence from structured, semi-structured, or unstructured inputs
+- evidence bundles can be consumed outside AGILab by reviewers, CI, MLflow, or
+  platform teams
+- external graph, vector, streaming, or workflow-control infrastructure remains
+  optional; the local proof pack stays the portable baseline
+- promotion decisions state what passed, what failed, and what is out of scope
+
+Why now:
+
+- this is the bridge between a useful workbench and professional engineering
+  governance
+
+### Priority 8. Connector-backed data access
+
+Move data access from repeated path settings to declarative connectors.
+
+Acceptance gate:
+
+- SQL, OpenSearch/ELK, object storage, local paths, and simulation backends use
+  connector definitions instead of page-specific path glue where practical
+- connector health checks stay operator-triggered and do not leak credentials
+- import/export provenance names the connector and artifact source
+
+Why now:
+
+- professional workflows fail when data paths are machine-specific or invisible
+
+### Priority 9. Extension and design-pattern guardrails
+
+New app, page, workflow, notebook, connector, and reducer behavior should extend
+stable contracts instead of adding special cases.
+
+Acceptance gate:
+
+- public app templates, page metadata, pipeline stages, notebook import roles,
+  reducers, connectors, and evidence reports have focused tests
+- flow blueprints can be validated without launching the full UI, and they name
+  their prompts, tools, connectors, expected artifacts, and evidence reports
+- pattern-gated checks block new workflow behavior that bypasses the shared
+  contracts
+- deprecations include a migration path and removal target
+
+Why now:
+
+- long-term maintenance depends more on repeatable patterns than on another
+  feature page
+
+### Priority 10. Curated app ecosystem
+
+Publish fewer apps, but make every published app useful, named well, documented,
+installable, runnable, and importable when it claims notebook support.
+
+Acceptance gate:
+
+- app packages use consistent `agi-app-*` names, trusted publishing, and clean
+  metadata
+- private/non-public app validation has a reproducible pinned-revision option
+  for CI and release checks, while the local `APPS_REPOSITORY` symlink workflow
+  remains available for day-to-day development
+- example READMEs explain purpose, inputs, outputs, install/run path, notebook
+  import status, and limitations
+- app repository update behavior wins over stale local copies without hidden
+  compatibility aliases
+
+Why now:
+
+- app quality is the most visible proof that the platform contract works
+
+### Priority 11. Multi-app DAG productization
+
+Productize multi-app orchestration only after the release, first-run, notebook,
+diagnostic, and evidence layers are stable.
+
+Acceptance gate:
+
+- `WORKFLOW` can show, validate, and execute a product-level DAG with persisted
+  operator-visible state
+- retry, partial rerun, dependency visualization, and artifact handoff are
+  visible in the same operator surface
+- the shipped two-app executable DAG remains the regression baseline before
+  broader DAG coverage is claimed
+
+Why later:
+
+- multi-app DAGs are high-value, but they amplify every weak contract beneath
+  them
+
+### Priority 12. Observability and MLOps handoff
+
+Integrate with observability and MLOps platforms without claiming to replace
+them.
+
+Acceptance gate:
+
+- MLflow remains the tracking and registry handoff path
+- OpenSearch/Grafana/Superset-style integrations consume AGILab evidence and
+  telemetry instead of duplicating app logic
+- AGILab first emits a small, stable telemetry envelope for run latency, failure
+  source, worker backlog, artifact volume, LLM token/cost metrics when present,
+  and service-health state before adding dashboards
+- profile generators can write local, notebook, cluster, service, and demo run
+  instructions with expected validation commands and evidence outputs
+- production serving, drift detection, feature stores, and enterprise
+  governance are framed as external platform integrations
+
+Why later:
+
+- observability is most useful after run evidence and operational status are
+  already consistent
+
+### Explicit non-priorities until the above is stable
+
+- broad public OS, GPU, cloud, or network certification without matching run
+  evidence
+- production multi-tenant claims without external identity, isolation, quotas,
+  secrets management, audit, and monitoring controls
+- generic dashboards that are not tied to AGILab runs, artifacts, or decisions
+- always-on graph/vector/message-bus services as a requirement for local proof
+  generation before the file-based evidence contract is stable
+- runtime prompt/tool mutation without a versioned manifest, review trail, and
+  replay evidence
+- new app publishing when the app lacks a clear purpose, deterministic first
+  run, README, evidence, and package metadata
+
+## Feature sequencing after the professional baseline
 
 If the goal is near-term product sequencing rather than broad idea collection,
-use this order:
+use this order after the P0-P2 professionalization gates are under control:
 
 1. **Multi-app DAG orchestration productization**
    - let `WORKFLOW` represent one orchestrated DAG across the full workflow,
@@ -52,14 +713,14 @@ use this order:
      items in `0.003s` against a `5.0s` target
    - `execution_pandas_project` and `execution_polars_project` now emit named
      benchmark reduce artefacts through that contract
-   - `flight_project` now emits trajectory-summary reduce artefacts through
+   - `flight_telemetry_project` now emits trajectory-summary reduce artefacts through
      that contract
    - `uav_queue_project` now emits the same `reduce_summary_worker_<id>.json`
      artifact shape for queue metrics
    - `uav_relay_queue_project` now emits that shared queue-metrics reduce
      artifact shape too
-   - `meteo_forecast_project` now emits forecast-metrics reduce artefacts
-   - Release Decision now surfaces benchmark, flight, meteo forecast, and UAV
+   - `weather_forecast_project` now emits forecast-metrics reduce artefacts
+   - Release Decision now surfaces benchmark, flight, weather forecast, and UAV
      queue-family reduce artefacts as evidence
    - a repository guardrail now requires every non-template built-in app to
      expose a reducer contract
@@ -272,8 +933,8 @@ Current shipped baseline:
 - `docs/source/data/multi_app_dag_sample.json` links `uav_queue_project` to
   `uav_relay_queue_project` through the explicit `queue_metrics` handoff
 - `docs/source/data/multi_app_dag_portfolio_sample.json` broadens the
-  contract-only sample suite across `flight_project`,
-  `meteo_forecast_project`, `execution_pandas_project`, and
+  contract-only sample suite across `flight_telemetry_project`,
+  `weather_forecast_project`, `execution_pandas_project`, and
   `execution_polars_project`
 - `tools/multi_app_dag_report.py --compact` validates schema, checked-in app
   nodes, acyclic dependencies, docs references, artifact handoffs, and the
@@ -323,13 +984,12 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
-- the WORKFLOW page now includes an expanded `Multi-app DAG orchestration` surface that
-  can select a `agilab.multi_app_dag.v1` contract, edit stages and artifact
-  handoffs through selector-driven workspace drafts and read-only summaries,
-  validate it without hand-editing docs files, reset the persisted preview state,
-  show readiness KPIs, next action, execution scope, app/artifact dependencies,
-  list artifact handoffs, and dispatch the next runnable unit into `running`
-  state without claiming live app execution
+- the WORKFLOW page now includes an expanded `Workflow graph` surface that can
+  choose project workflow or multi-app DAG scope, edit steps, created outputs,
+  and used outputs through selector-driven workspace drafts and read-only
+  summaries, validate the plan without hand-editing docs files, reset the
+  persisted preview state, show readiness KPIs, optional graph and output
+  details, and preview the next ready step without claiming live app execution
 - `tools/global_pipeline_dispatch_state_report.py --compact` writes and reads
   back a persisted dispatch-state JSON proof, records `queue_baseline`
   completion, publishes `queue_metrics`, marks `relay_followup` runnable, and
@@ -418,8 +1078,6 @@ Suggested scope:
 
 - harden notebook-to-pipeline import beyond the initial report and upload path,
   including broader edge cases for exported supervisor notebooks
-- keep expanding notebook-native analysis surfaces or Voilà-style packaging
-  without duplicating the current apps-pages logic blindly
 - make notebook-native analysis surfaces or Voilà-style packaging possible
   without duplicating the current apps-pages logic blindly
 - preserve enough provenance so the notebook remains explainable
@@ -648,15 +1306,15 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- `execution_pandas_project`, `execution_polars_project`, `flight_project`,
-  `meteo_forecast_project`, `uav_queue_project`, and
+- `execution_pandas_project`, `execution_polars_project`, `flight_telemetry_project`,
+  `weather_forecast_project`, `uav_queue_project`, and
   `uav_relay_queue_project` write worker-scoped
   `reduce_summary_worker_<id>.json` artefacts through the shared contract
 - Release Decision surfaces those reduce artefacts with schema validation,
   reducer name, partial count, artifact path, benchmark row/source/execution
-  fields, flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
+  fields, flight row/aircraft/speed fields, weather forecast MAE/RMSE/MAPE
   fields, and UAV queue-family packet/PDR fields when present
-- aggregation outside the migrated benchmark, flight, meteo, and UAV
+- aggregation outside the migrated benchmark, flight, weather, and UAV
   queue-family apps is still mostly app-specific
 
 Current guardrail:
@@ -698,7 +1356,7 @@ Completed slices:
 
 - `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
-- `flight_project` now emits worker-scoped
+- `flight_telemetry_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for trajectory
   summary metrics
 - `uav_queue_project` now emits worker-scoped
@@ -707,7 +1365,7 @@ Completed slices:
 - `uav_relay_queue_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for relay queue
   summary metrics
-- `meteo_forecast_project` now emits worker-scoped
+- `weather_forecast_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for forecast
   quality metrics
 - Release Decision now discovers `reduce_summary_worker_*.json`, parses it with
@@ -884,8 +1542,9 @@ Current shipped baseline:
 - `tools/repository_knowledge_report.py --compact` validates
   `agilab.repository_knowledge_index.v1` in
   `repository_knowledge_static_index` mode
-- the report indexes local code, tools, official docs, root runbooks, and
-  package/app manifests with SHA-256 fingerprints and lightweight outlines
+- the report indexes local code, tools, root tests, official docs, root
+  runbooks, and package/app manifests with SHA-256 fingerprints, lightweight
+  outlines, and deterministic file, line, size, kind, and suffix statistics
 - generated artifacts, virtualenvs, build outputs, and distributions are
   excluded by contract
 - the report emits stable onboarding query seeds while explicitly keeping the
@@ -911,8 +1570,10 @@ Why it matters:
 
 Use this rule of thumb:
 
-- if the goal is near-term execution order rather than thematic discussion, use
-  the ordered list from **Recommended near-term execution order** first
+- if the goal is professionalization, use the ordered list from
+  **Professionalization priority order** first
+- if the professional baseline is already under control and the goal is feature
+  sequencing, use **Feature sequencing after the professional baseline**
 
 - choose **Experiment Cockpit** if the next need is better daily usability for
   engineers comparing runs
@@ -937,6 +1598,8 @@ Use this rule of thumb:
 - choose **Postgres + Superset** if the next need is curated KPI analytics
 - choose **Connector framework hardening and the data connector facility** if the
   next need is portability, SQL/ELK/data-system access, and reliable artefact flow
+- choose **Pinned private-app validation** if the next need is CI/release
+  reproducibility for non-public apps without publishing or vendoring their code
 - choose **DeepWiki/Open-style repository knowledge layer** if the next need is
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
@@ -966,11 +1629,16 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Multi-app DAG orchestration productization
-- Bidirectional notebook interop
-- Data connector facility
-- Reduce contract adoption
-- Intent-first operator mode
+- P0 release and runtime integrity
+- P1 first-run product experience
+- P2 notebook interop and no-lock-in
+- P3 security and supply-chain posture
+- P4 team and cluster operation
+- P5 pinned private-app validation for non-public app CI and release checks
+- Multi-app DAG orchestration productization, once the professional baseline is
+  stable
+- Data connector facility and connector-aware views, once first-run and
+  evidence paths are predictable
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next

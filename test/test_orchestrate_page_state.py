@@ -183,7 +183,7 @@ def test_orchestrate_page_state_blocks_cluster_share_warning():
 
 
 def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     cmd = "asyncio.run(main())"
 
     state = orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -194,7 +194,7 @@ def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="await main()",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -214,7 +214,7 @@ def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
 
 
 def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_env(tmp_path):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_telemetry_project"
     agi_cluster = tmp_path / "src" / "agilab" / "core" / "agi-cluster"
 
     state = orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -225,7 +225,7 @@ def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_en
         is_source_env=True,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=True,
         verbose=2,
         mode=15,
@@ -250,7 +250,7 @@ def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -265,7 +265,7 @@ def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
 
 
 def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp_path):
-    active_app = tmp_path / "apps" / "flight_project"
+    active_app = tmp_path / "apps" / "flight_telemetry_project"
 
     hidden = orchestrate_page_state.build_orchestrate_install_workflow_state(
         show_install=False,
@@ -275,7 +275,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -291,7 +291,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -307,7 +307,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
 
 
 def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
 
     state = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
         show_distribute=True,
@@ -321,7 +321,7 @@ def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
 
 
 def test_orchestrate_distribution_workflow_state_prefers_runtime_distribution_tree(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
     worker_env_path.mkdir(parents=True)
     runtime_plan = worker_env_path / "distribution_tree.json"
     legacy_plan = worker_env_path / "distribution.json"
@@ -345,7 +345,7 @@ def test_orchestrate_distribution_workflow_state_prefers_runtime_distribution_tr
 
 
 def test_orchestrate_distribution_workflow_state_blocks_hidden_missing_command_or_runtime(tmp_path):
-    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path = tmp_path / "wenv" / "flight_telemetry_worker"
 
     hidden = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
         show_distribute=False,
@@ -412,6 +412,24 @@ def test_orchestrate_execute_workflow_state_reports_missing_install_paths(tmp_pa
     assert "installation is incomplete" in state.combo_action.disabled_reason
 
 
+def test_orchestrate_execute_workflow_state_skips_worker_env_for_workerless_apps(tmp_path):
+    project_path = tmp_path / "project"
+    (project_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=None,
+        worker_env_required=False,
+    )
+
+    assert state.worker_venv_path is None
+    assert state.missing_install_paths == ()
+    assert state.run_action.enabled is True
+    assert state.combo_action.enabled is True
+
+
 def test_orchestrate_execute_workflow_state_blocks_missing_command(tmp_path):
     project_path = tmp_path / "project"
     worker_env_path = tmp_path / "wenv"
@@ -429,7 +447,7 @@ def test_orchestrate_execute_workflow_state_blocks_missing_command(tmp_path):
     assert state.missing_install_paths == ()
     assert state.run_action.enabled is False
     assert state.combo_action.enabled is False
-    assert "No EXECUTE command configured" in state.run_action.disabled_reason
+    assert "No RUN command configured" in state.run_action.disabled_reason
 
 
 def test_orchestrate_execute_workflow_state_blocks_serve_mode(tmp_path):
@@ -482,7 +500,7 @@ def test_orchestrate_run_artifact_state_blocks_deleted_or_missing_outputs():
 
     assert deleted.status is orchestrate_page_state.OrchestrateRunArtifactStatus.DELETED
     assert deleted.load_action.enabled is False
-    assert "Run EXECUTE again" in deleted.load_action.disabled_reason
+    assert "Click RUN again" in deleted.load_action.disabled_reason
     assert deleted.delete_action.enabled is False
     assert deleted.export_action.enabled is False
     assert missing.status is orchestrate_page_state.OrchestrateRunArtifactStatus.MISSING
@@ -506,8 +524,27 @@ def test_orchestrate_run_artifact_state_allows_graph_delete_but_not_export():
     assert state.stats_action.enabled is False
 
 
+def test_orchestrate_page_state_helper_edges(tmp_path):
+    assert orchestrate_page_state._coerce_int_tuple(["1", "bad", None, 2.0]) == (1, 2)
+    missing = orchestrate_page_state._missing_install_paths(tmp_path / "missing-manager", None)
+    assert "worker venv `<unknown>`" in missing
+
+    hidden_loaded = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=False,
+        loaded_dataframe=pd.DataFrame({"value": [1]}),
+    )
+    assert hidden_loaded.export_action.enabled is True
+
+    hidden_empty = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=False,
+        loaded_dataframe=None,
+    )
+    assert hidden_empty.export_action.enabled is False
+    assert "No data loaded yet" in hidden_empty.export_action.disabled_reason
+
+
 def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_telemetry_project"
     return orchestrate_page_state.build_orchestrate_install_workflow_state(
         show_install=show_install,
         cmd=cmd,
@@ -516,7 +553,7 @@ def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -579,7 +616,7 @@ def test_orchestrate_combined_workflow_state_reports_distribute_ready_and_genera
     assert distribute_ready.runnable is False
     assert generated.phase is orchestrate_page_state.OrchestrateWorkflowPhase.DISTRIBUTION_GENERATED
     assert generated.distribution_generated is True
-    assert "No EXECUTE command configured" in generated.blocked_reason
+    assert "No RUN command configured" in generated.blocked_reason
 
 
 def test_orchestrate_combined_workflow_state_reports_runnable(tmp_path):
@@ -595,3 +632,22 @@ def test_orchestrate_combined_workflow_state_reports_runnable(tmp_path):
     assert state.distribution_generated is True
     assert state.runnable is True
     assert state.blocked_reason == ""
+
+
+def test_orchestrate_combined_workflow_state_reports_installed_and_not_installed(tmp_path):
+    not_installed_root = tmp_path / "not-installed"
+    installed = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(cmd=None, worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=True),
+    )
+    not_installed = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(not_installed_root, show_install=False),
+        distribution_state=_distribution_state(show_distribute=False, worker_env_path=not_installed_root / "wenv"),
+        execute_state=_execute_state(not_installed_root, installed=False),
+    )
+
+    assert installed.phase is orchestrate_page_state.OrchestrateWorkflowPhase.INSTALLED
+    assert installed.blocked_reason
+    assert not_installed.phase is orchestrate_page_state.OrchestrateWorkflowPhase.NOT_INSTALLED
+    assert not_installed.blocked_reason

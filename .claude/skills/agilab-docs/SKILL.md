@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-05
+  updated: 2026-05-19
 ---
 
 # Docs Skill (AGILAB)
@@ -30,8 +30,11 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 1. Edit the canonical source file under `../thales_agilab/docs/source`.
 2. Sync the public mirror from the AGILAB repo root:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
-3. If the change touches an SVG diagram, validate the SVG as XML and confirm the
-   referencing `.rst` page still points to the intended file.
+3. If the change touches an SVG diagram, validate the SVG as XML, render a local
+   preview at the intended docs width, and confirm the referencing `.rst` page
+   still points to the intended file. Do not rely on XML validity alone; inspect
+   the rendered preview for clipped text, overlong labels, hidden cards, and
+   unreadable feedback arrows.
 4. Validate the mirror stamp before committing:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
 5. Rebuild or run the docs profile when the rendered page matters:
@@ -80,11 +83,21 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 ## Public Docs Constraint
 
 - Public documentation must not mention non-public apps/repositories.
+- Release-proof and install-proof docs that execute the packaged first proof
+  should use `agilab[examples]`, not bare `agilab`, because the base package is
+  intentionally lean while the demo proof depends on packaged example payloads.
+  When changing this command, update canonical docs, the public mirror, and any
+  compatibility/report guard that asserts the proof command.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
 - Public examples should teach the current public API shape. Prefer exported
   constants, request objects, and stable wrappers over private `AGI._*`
   internals, raw mode bitmasks, stale generated scripts, or legacy event-loop
   snippets.
+- When describing notebook export, position it as a runnable `agi-core` runtime
+  handoff, not as a UI-only fallback or a local sidecar feature. The public
+  claim is that users can keep stage order, runtime hints, review context, and
+  executable notebook code usable through the stable core runtime even when the
+  AGILAB UI or distributed runtime is not used.
 - When updating public examples, add or refresh a stale-snippet grep/test for the
   old pattern so outdated snippets do not reappear in README, `docs/source`,
   canonical docs, or Hugging Face copy.
@@ -96,6 +109,12 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Public demo copy must describe AGILAB's capabilities directly. Do not publish
   internal comparison language such as "beats <competitor>", "make it obsolete",
   or named internal competitor positioning.
+- Proof-pack docs must keep the shipped boundary clear. The current first layer
+  operates on `run_manifest.json` and writes JSON evidence through commands such
+  as `agilab prove`, `verify`, `replay`, `export-lineage`, `policy-check`,
+  `cards`, and `metadata-store`. Signed `.agipack` archives and stronger
+  external attestation remain roadmap unless the implementation and release
+  proof show they are shipped.
 
 ## Positioning Claim Guardrail
 
@@ -114,11 +133,43 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   it does not yet provide first-class runtime workflow-stage expansion in
   `WORKFLOW`.
 
+## Security / Adoption Audit Docs
+
+- When an audit points to security disclosure, shared-adoption, or production
+  boundary wording, check all public entry points together:
+  `SECURITY.md`, `README.md`, `README.pypi.md`, `ADOPTION.md`,
+  canonical `../thales_agilab/docs/source`, mirrored `docs/source`, and any
+  generated guardrail tests.
+- Never route suspected vulnerabilities to public GitHub issues, discussions,
+  pull requests, or comments. Public docs should route reporters to GitHub
+  Private Vulnerability Reporting when available, or to a private AGILAB security
+  intake through the usual Thales contact path.
+- Keep the audit-facing adoption boundary explicit:
+  controlled local evaluation, conditional shared/team use after hardening, and
+  no-go as a standalone production MLOps platform.
+- If adding or changing an audit/security page, add it to the canonical docs
+  toctree, sync the mirror, and update tests/guardrails so stale public-issue
+  disclosure wording such as `[SECURITY]` cannot reappear silently.
+- Run the security and docs checks that prove the public posture:
+  `uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact`,
+  the targeted audit/security docs tests, mirror stamp verification, and
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`.
+- After pushing docs changes, verify the published HTML page directly. Do not
+  call public docs aligned until the Pages workflow succeeds and the new text is
+  visible online.
+
 ## Build / Validate
 
 - Public mirror sync (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+- SVG docs figure preview:
+  - Parse the canonical and mirrored SVG with `xml.etree.ElementTree`.
+  - Prefer `rsvg-convert -w 1600 -o /tmp/<name>.png <figure>.svg` when available
+    because it matches the Sphinx/browser rendering path better than Quick Look.
+  - On macOS, `qlmanage -t -s 1600 -o /tmp <figure>.svg` is a useful second
+    preview, but check its aspect-ratio behavior before trusting layout.
+  - Inspect the PNG at full size; labels must fit their boxes at docs scale.
 - Docs alignment check without editing files:
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`

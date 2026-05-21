@@ -13,7 +13,7 @@ Core and UI packages
   headless environment utilities used by apps, workers, and installers.
 - ``agi_gui`` is the UI/page helper package under ``src/agilab/lib/agi-gui``. It
   depends on ``agi_env`` and adds the Streamlit-facing imports used by AGILAB
-  pages and apps-pages bundles.
+  pages and page bundles.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.
@@ -50,9 +50,11 @@ Working with the API
 App structure conventions
 -------------------------
 
-- Every app bundles a manager module under
-  ``src/agilab/apps/<app>_project/src/<app>/<app>.py`` and a worker module under
-  ``src/agilab/apps/<app>_project/src/<app>_worker/<app>_worker.py``.
+- Every app keeps its manager and worker modules inside the app project root.
+  Source built-ins live under ``src/agilab/apps/builtin/<project>``; packaged
+  app payloads live under ``src/agilab/lib/agi-app-*/.../project/<project>``.
+  Within that project root, the manager is under ``src/<app>/<app>.py`` and
+  the worker is under ``src/<app>_worker/<app>_worker.py``.
 - Test coverage mirrors that split: ``test/_test_<app>_manager.py`` drives the
   manager entry points, ``test/_test_<app>_worker.py`` exercises the worker, and
   ``app_test.py`` orchestrates the combined flow.

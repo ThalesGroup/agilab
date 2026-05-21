@@ -3,9 +3,23 @@ name: pypi-publish
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version tag for the release (e.g. v0.3.66 or 0.3.66)"
+      release_tag:
+        description: "GitHub Release tag only; distribution versions are read from pyproject.toml."
         required: true
+      packages:
+        description: "Optional comma- or space-separated package names to publish. Default: all."
+        required: false
+      roles:
+        description: "Optional comma- or space-separated package roles to publish. Default: all."
+        required: false
+      allow_post_release:
+        description: "Allow committed .postN versions on public PyPI only for a critical hotfix. Prefer TestPyPI or rc versions before final release."
+        required: false
+        type: boolean
+        default: false
+      post_release_reason:
+        description: "Critical hotfix justification required when allow_post_release is true."
+        required: false
   push:
     tags:
       - "v*.*.*"
@@ -23,13 +37,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.13"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -38,6 +53,11 @@ jobs:
 
       - name: Install uv
         run: python -m pip install --upgrade --no-cache-dir uv
+
+      - name: Install Playwright browser for frontend smoke
+        run: |
+          set -euxo pipefail
+          uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
 
       - name: Fail on accidental O.* version typos in published packages
         run: |
@@ -53,9 +73,11 @@ jobs:
           uv --preview-features extra-build-dependencies run python tools/workflow_parity.py \
             --profile agi-env \
             --profile agi-gui \
+            --profile ui-frontend-smoke \
             --profile agi-core-combined \
             --profile shared-core-typing \
-            --profile dependency-policy
+            --profile dependency-policy \
+            --profile release-proof
 
 
   release-evidence:
@@ -66,7 +88,9 @@ jobs:
       actions: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -98,7 +122,7 @@ jobs:
         run: |
           set -euxo pipefail
           for attempt in 1 2 3 4 5 6; do
-            uv --preview-features extra-build-dependencies run \
+            if uv --preview-features extra-build-dependencies run \
               python tools/github_actions_artifact_index.py \
               --live-github \
               --repo "$GITHUB_REPOSITORY" \
@@ -108,12 +132,13 @@ jobs:
               --source-machine "github-actions:${RUNNER_OS}-${RUNNER_ARCH}" \
               --download-dir "$RUNNER_TEMP/downloaded-evidence" \
               --output "$RUNNER_TEMP/artifact_index.json" \
-              --compact
-            if uv --preview-features extra-build-dependencies run \
-              python tools/ci_artifact_harvest_report.py \
-              --artifact-index "$RUNNER_TEMP/artifact_index.json" \
               --compact; then
-              break
+              if uv --preview-features extra-build-dependencies run \
+                python tools/ci_artifact_harvest_report.py \
+                --artifact-index "$RUNNER_TEMP/artifact_index.json" \
+                --compact; then
+                break
+              fi
             fi
             if [ "$attempt" = "6" ]; then
               exit 1
@@ -126,27 +151,142 @@ jobs:
             --no-default-manifests \
             --compact
 
+  supply-chain-evidence:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: python -m pip install --upgrade --no-cache-dir uv
+
+      - name: Generate per-profile SBOM and vulnerability evidence
+        run: |
+          set -euxo pipefail
+          mkdir -p test-results/supply-chain
+          uv --preview-features extra-build-dependencies run \
+            python tools/profile_supply_chain_scan.py \
+            --profile all \
+            --output-dir test-results/supply-chain \
+            --json > test-results/supply-chain/scan-plan.json
+          uv --preview-features extra-build-dependencies run \
+            python tools/profile_supply_chain_scan.py \
+            --profile all \
+            --output-dir test-results/supply-chain \
+            --run
+
+      - name: Upload supply-chain release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: supply-chain-release-evidence
+          path: test-results/supply-chain
+          if-no-files-found: error
+          retention-days: 90
+
+  release-plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      library_matrix: ${{ steps.release-plan.outputs.library_matrix }}
+      umbrella_package: ${{ steps.release-plan.outputs.umbrella_package }}
+      library_selected: ${{ steps.release-plan.outputs.library_selected }}
+      umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}
+      pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}
+      provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Render release package plan
+        id: release-plan
+        env:
+          RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
+          RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+        run: |
+          set -euxo pipefail
+          args=(
+            --github-output "$GITHUB_OUTPUT"
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+            --check-workflow .github/workflows/pypi-publish.yaml
+          )
+          if [ -n "${RELEASE_PACKAGES:-}" ]; then
+            args+=(--packages "$RELEASE_PACKAGES")
+          fi
+          if [ -n "${RELEASE_ROLES:-}" ]; then
+            args+=(--roles "$RELEASE_ROLES")
+          fi
+          python tools/release_plan.py "${args[@]}"
+
+      - name: Render PyPI trusted publisher contract
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --check-workflow .github/workflows/pypi-publish.yaml \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate public release cadence policy
+        env:
+          RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
+          RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          ALLOW_POST_RELEASE: ${{ github.event.inputs.allow_post_release || 'false' }}
+          POST_RELEASE_REASON: ${{ github.event.inputs.post_release_reason || '' }}
+        run: |
+          set -euxo pipefail
+          args=(--github-step-summary "$GITHUB_STEP_SUMMARY")
+          if [ -n "${RELEASE_PACKAGES:-}" ]; then
+            args+=(--packages "$RELEASE_PACKAGES")
+          fi
+          if [ -n "${RELEASE_ROLES:-}" ]; then
+            args+=(--roles "$RELEASE_ROLES")
+          fi
+          if [ "${ALLOW_POST_RELEASE:-false}" = "true" ]; then
+            args+=(--allow-post-release --post-release-reason "$POST_RELEASE_REASON")
+          fi
+          python tools/pypi_release_version_policy.py "${args[@]}"
 
   publish-library-packages:
     needs:
       - test
       - release-evidence
+      - supply-chain-evidence
+      - release-plan
+    if: ${{ needs.release-plan.outputs.library_selected == 'true' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}
     environment:
-      name: pypi
-      url: https://pypi.org/project/agilab/
+      name: ${{ matrix.pypi_environment }}
+      url: https://pypi.org/project/${{ matrix.pypi_project }}/
     permissions:
       contents: read
       id-token: write
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
       PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -156,61 +296,82 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      - name: Clean previous builds
-        run: |
-          rm -rf dist-library
-          rm -rf src/agilab/core/agi-env/dist
-          rm -rf src/agilab/lib/agi-gui/dist
-          rm -rf src/agilab/core/agi-node/dist
-          rm -rf src/agilab/core/agi-cluster/dist
-          rm -rf src/agilab/core/agi-core/dist
-
-      # Build + verify + publish to PyPI (official)
-      - name: Build agi-env
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-env --wheel
-      - name: Verify agi-env
-        run: twine check src/agilab/core/agi-env/dist/*
-
-      - name: Build agi-gui
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-gui --wheel
-      - name: Verify agi-gui
-        run: twine check src/agilab/lib/agi-gui/dist/*
-
-      - name: Build agi-node
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
-      - name: Verify agi-node
-        run: twine check src/agilab/core/agi-node/dist/*
-
-      - name: Build agi-cluster
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-cluster --wheel
-      - name: Verify agi-cluster
-        run: twine check src/agilab/core/agi-cluster/dist/*
-
-      - name: Build agi-core
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-core --wheel
-      - name: Verify agi-core
-        run: twine check src/agilab/core/agi-core/dist/*
-
-      - name: Collect library distributions
-        run: |
-          set -euxo pipefail
-          mkdir -p dist-library
-          cp src/agilab/core/agi-env/dist/* dist-library/
-          cp src/agilab/lib/agi-gui/dist/* dist-library/
-          cp src/agilab/core/agi-node/dist/* dist-library/
-          cp src/agilab/core/agi-cluster/dist/* dist-library/
-          cp src/agilab/core/agi-core/dist/* dist-library/
-
-      - name: Check whether library distributions already exist on PyPI
-        id: library-pypi-state
+      - name: Check whether ${{ matrix.package }} can reuse PyPI artifacts
+        id: library-pypi-reuse
+        if: matrix.publish_to_pypi == 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_distribution_state.py \
-            --dist-dir dist-library \
+            --package "${{ matrix.package }}" \
+            --project "${{ matrix.project }}" \
+            --artifact-policy "${{ matrix.artifact_policy }}" \
+            --github-output "$GITHUB_OUTPUT" \
+            --output-dir "test-results/release-artifacts/${{ matrix.package }}" \
+            --output-prefix "${{ matrix.package }}" \
+            --download-dir "${{ matrix.dist }}"
+
+      - name: Clean previous ${{ matrix.package }} build
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
+        run: rm -rf "${{ matrix.dist }}"
+
+      - name: Build ${{ matrix.package }}
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          if [ "${{ matrix.artifact_policy }}" = "wheel-only" ]; then
+            uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel
+          else
+            uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}"
+          fi
+
+      - name: Verify ${{ matrix.package }}
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
+        run: twine check "${{ matrix.dist }}"/*
+
+      - name: Record ${{ matrix.package }} release artifact hashes
+        if: matrix.publish_to_pypi != 'true' || steps.library-pypi-reuse.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/release_artifact_manifest.py \
+            --dist-dir "${{ matrix.dist }}" \
+            --package "${{ matrix.package }}" \
+            --artifact-policy "${{ matrix.artifact_policy }}" \
+            --output-dir "test-results/release-artifacts/${{ matrix.package }}" \
+            --output-prefix "${{ matrix.package }}"
+
+      - name: Check whether ${{ matrix.package }} distributions already exist on PyPI
+        id: library-pypi-state
+        if: matrix.publish_to_pypi == 'true' && steps.library-pypi-reuse.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --dist-dir "${{ matrix.dist }}" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Upload ${{ matrix.package }} public release distribution evidence
+        if: matrix.publish_to_pypi == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist-${{ matrix.package }}
+          path: |
+            ${{ matrix.dist }}/*
+            test-results/release-artifacts/${{ matrix.package }}/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload ${{ matrix.package }} workflow-only distribution evidence
+        if: matrix.publish_to_pypi != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: workflow-dist-${{ matrix.package }}
+          path: |
+            ${{ matrix.dist }}/*
+            test-results/release-artifacts/${{ matrix.package }}/*
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Ensure PyPI auth is configured for library packages
-        if: steps.library-pypi-state.outputs.all-exist != 'true'
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -220,30 +381,46 @@ jobs:
           echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
           exit 2
 
-      - name: Publish library packages to PyPI with trusted publishing
-        if: steps.library-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+      - name: Report trusted publisher claim for ${{ matrix.package }}
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --package "${{ matrix.package }}" \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+
+      # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
+      # project a distinct GitHub environment claim.
+      - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
-          packages-dir: dist-library/
+          packages-dir: ${{ matrix.dist }}
           skip-existing: true
   publish-agilab:
-    needs: publish-library-packages
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    needs:
+      - test
+      - release-evidence
+      - supply-chain-evidence
+      - release-plan
+      - publish-library-packages
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: pypi-agilab
       url: https://pypi.org/project/agilab/
     permissions:
       contents: read
       id-token: write
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
       PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -253,31 +430,70 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
+      - name: Check whether agilab can reuse PyPI artifacts
+        id: agilab-pypi-reuse
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --package agilab \
+            --project . \
+            --artifact-policy wheel+sdist \
+            --github-output "$GITHUB_OUTPUT" \
+            --output-dir test-results/release-artifacts/agilab \
+            --output-prefix agilab \
+            --download-dir dist
+
       - name: Clean previous builds
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: rm -rf dist
 
       - name: Remove symlinks (apps/ and views/)
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         shell: bash
         run: |
           set -euxo pipefail
           find src/agilab/apps src/agilab/views -type l -print -delete || true
 
       - name: Build agilab
-        run: uv --preview-features extra-build-dependencies build --wheel
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
+        run: uv --preview-features extra-build-dependencies build
 
       - name: Verify agilab
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: twine check dist/*
+
+      - name: Record agilab release artifact hashes
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/release_artifact_manifest.py \
+            --dist-dir dist \
+            --package agilab \
+            --artifact-policy wheel+sdist \
+            --output-dir test-results/release-artifacts/agilab \
+            --output-prefix agilab
 
       - name: Check whether agilab distribution already exists on PyPI
         id: agilab-pypi-state
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_distribution_state.py \
             --dist-dir dist \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Upload agilab release distribution evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist-agilab
+          path: |
+            dist/*
+            test-results/release-artifacts/agilab/*
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Ensure PyPI auth is configured for agilab
-        if: steps.agilab-pypi-state.outputs.all-exist != 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -287,9 +503,273 @@ jobs:
           echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
           exit 2
 
+      - name: Report trusted publisher claim for agilab
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --package agilab \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+
       - name: Publish agilab to PyPI with trusted publishing
-        if: steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: dist/
           skip-existing: true
+
+  pypi-provenance-evidence:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    needs:
+      - test
+      - release-evidence
+      - supply-chain-evidence
+      - release-plan
+      - publish-library-packages
+      - publish-agilab
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify published PyPI provenance
+        run: |
+          set -euxo pipefail
+          mkdir -p test-results/pypi-provenance
+          args=(
+            --json
+            --attempts 12
+            --retry-delay 10
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+          )
+          for package in ${PROVENANCE_PACKAGES}; do
+            args+=(--package "$package")
+          done
+          python tools/pypi_provenance_check.py "${args[@]}" > test-results/pypi-provenance/pypi-provenance.json
+
+      - name: Upload PyPI provenance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pypi-provenance-evidence
+          path: test-results/pypi-provenance
+          if-no-files-found: warn
+          retention-days: 90
+
+  publish-release-assets:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && needs.pypi-release-retention.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    needs:
+      - release-plan
+      - publish-library-packages
+      - publish-agilab
+      - pypi-provenance-evidence
+      - pypi-release-retention
+      - supply-chain-evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download release distribution artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-dist-*
+          path: release-assets/distributions
+
+      - name: Download supply-chain profile evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: supply-chain-release-evidence
+          path: release-assets/supply-chain
+
+      - name: Download PyPI provenance evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pypi-provenance-evidence
+          path: release-assets/pypi-provenance
+
+      - name: Assemble GitHub Release supply-chain assets
+        run: |
+          set -euxo pipefail
+          mkdir -p github-release-assets
+          find release-assets/distributions -type f \( \
+            -name '*.whl' -o \
+            -name '*.tar.gz' -o \
+            -name '*-artifact-hashes.json' -o \
+            -name '*-SHA256SUMS.txt' \
+          \) -print -exec cp {} github-release-assets/ \;
+          tar -czf github-release-assets/supply-chain-release-evidence.tar.gz \
+            -C release-assets/supply-chain .
+          tar -czf github-release-assets/pypi-provenance-evidence.tar.gz \
+            -C release-assets/pypi-provenance .
+          tar -czf github-release-assets/release-distribution-evidence.tar.gz \
+            -C release-assets/distributions .
+          (cd github-release-assets && shasum -a 256 * > SHA256SUMS.txt)
+
+      - name: Attest GitHub Release assets
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+        with:
+          subject-path: github-release-assets/**
+
+      - name: Upload supply-chain assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          release_tag="${RELEASE_TAG#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+          if ! gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release create "$release_tag" \
+              --title "AGILAB ${release_tag#v}" \
+              --notes "AGILAB release artifacts and supply-chain evidence."
+          fi
+          gh release upload "$release_tag" github-release-assets/* --clobber
+
+  pypi-release-retention:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    needs:
+      - release-plan
+      - publish-library-packages
+      - publish-agilab
+      - pypi-provenance-evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
+      PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+      PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
+      PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+      PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PyPI retention dependencies
+        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup
+
+      - name: Delete older PyPI releases and keep the current release only
+        run: |
+          set -euxo pipefail
+          args=(
+            --repo pypi
+            --repo-root .
+            --protect-versions-from-projects
+            --confirm-delete
+            --allow-delete-failure-warning
+            --json
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+          )
+          for package in ${PYPI_RETENTION_PACKAGES}; do
+            args+=(--package "$package")
+          done
+          python tools/pypi_release_retention.py "${args[@]}"
+
+  sync-hf-space:
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.publish-release-assets.result == 'success' }}
+    needs:
+      - release-plan
+      - publish-release-assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}
+      HF_SPACE_PROFILE: ${{ vars.AGILAB_HF_SPACE_PROFILE || 'first-proof' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.release_tag || github.ref_name }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install HF release sync dependencies
+        run: python -m pip install --upgrade --no-cache-dir "huggingface_hub[cli]"
+
+      - name: Deploy and validate Hugging Face Space
+        id: hf-sync
+        run: |
+          set -euxo pipefail
+          test -n "${HF_TOKEN:-}" || {
+            echo "HF_TOKEN secret is required so every release syncs the public Hugging Face Space." >&2
+            exit 2
+          }
+          python tools/hf_space_release_sync.py \
+            --space "$HF_SPACE_ID" \
+            --profile "$HF_SPACE_PROFILE" \
+            --github-output "$GITHUB_OUTPUT" \
+            --json
+
+      - name: Update public release proof with HF Space commit
+        run: |
+          set -euxo pipefail
+          hf_commit="${{ steps.hf-sync.outputs.hf_space_commit }}"
+          test -n "$hf_commit"
+
+          release_tag="${RELEASE_TAG#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git switch -C main origin/main
+
+          python tools/release_proof_report.py \
+            --refresh-from-local \
+            --github-release-tag "$release_tag" \
+            --github-release-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${release_tag}" \
+            --hf-space-commit "$hf_commit" \
+            --render \
+            --check \
+            --check-github-runs \
+            --compact
+          python tools/sync_docs_source.py \
+            --source docs/source \
+            --target docs/source \
+            --apply \
+            --delete \
+            --quiet
+
+          if git diff --quiet -- docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json; then
+            echo "Release proof already records HF Space commit ${hf_commit}."
+            exit 0
+          fi
+
+          git add docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json
+          git commit -m "docs(release): record HF Space sync"
+          git push origin HEAD:main

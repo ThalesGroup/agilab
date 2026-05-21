@@ -13,7 +13,7 @@ from typing import Any
 import pandas as pd
 
 from agi_node.pandas_worker import PandasWorker
-from tescia_diagnostic.diagnostic import diagnose_case, summarize_report
+from tescia_diagnostic.diagnostic import diagnose_case, summarize_report, validate_case_payload
 from tescia_diagnostic.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
@@ -100,10 +100,11 @@ class TesciaDiagnosticWorker(PandasWorker):
         payload = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"Diagnostic file must contain a JSON object: {source}")
-        cases = payload.get("cases")
-        if not isinstance(cases, list) or not cases:
-            raise ValueError(f"Diagnostic file must declare a non-empty 'cases' list: {source}")
-        return [case for case in cases if isinstance(case, dict)]
+        try:
+            validated = validate_case_payload(payload)
+        except ValueError as exc:
+            raise ValueError(f"Invalid TeSciA diagnostic file {source}: {exc}") from exc
+        return validated["cases"]
 
     def work_pool(self, file_path):
         args = self._current_args()

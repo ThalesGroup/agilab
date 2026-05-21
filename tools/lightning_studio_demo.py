@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 
-DEFAULT_ACTIVE_APP = "flight_project"
+DEFAULT_ACTIVE_APP = "flight_telemetry_project"
 DEFAULT_PORT = 8501
 DEFAULT_RUNTIME_DIR = ".lightning_studio_runtime"
 
@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--active-app",
         default=DEFAULT_ACTIVE_APP,
-        help="Active app name or path to select on startup (default: flight_project).",
+        help="Active app name or path to select on startup (default: flight_telemetry_project).",
     )
     parser.add_argument(
         "--port",

@@ -12,6 +12,10 @@ canonical source can serve both agents.
 - Skills are **opt-in**: the agent chooses to load and follow a skill when it is relevant to the current task.
 - Skills are meant to be **actionable runbooks** (commands, conventions, pitfalls), not prose.
 - Prefer **fail-fast guidance** and **reproducible commands** (use `uv` in this repo).
+- Public discovery files are generated from this canonical tree:
+  `AGENT_SKILLS.md`, `llms.txt`, and `llms-full.txt`.
+- Security review uses `python tools/skill_security_scan.py --changed-only --fail-on critical`
+  for changed skills and the same tool against both skill roots for full scans.
 
 ## Skill Catalog
 
@@ -19,13 +23,16 @@ canonical source can serve both agents.
 - `agilab-runbook`: Core repo runbook (uv, Streamlit, run configs, troubleshooting).
 - `agilab-installer`: Installer + apps/pages installation conventions and triage.
 - `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
+- `agilab-ui-robot-validation`: Validate AGILAB Streamlit user journeys with the repo browser/widget robots.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
-- `agilab-huggingface-spaces`: Package and publish a lightweight public AGILAB demo to Hugging Face Spaces.
+- `agilab-release-verification`: Verify release readiness and post-release alignment across PyPI, GitHub, docs, badges, and Hugging Face.
+- `agilab-pypi-release-maintenance`: Guarded workflow for inspecting and deleting old AGILAB PyPI releases without touching the protected current release.
+- `agilab-huggingface-spaces`: Maintain and deploy the official AGILAB Docker Space from the public checkout and sibling Hugging Face bundle.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.

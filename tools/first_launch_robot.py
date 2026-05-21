@@ -16,7 +16,7 @@ from typing import Any, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ABOUT_PAGE = REPO_ROOT / "src" / "agilab" / "main_page.py"
-DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"
 DEFAULT_TARGET_SECONDS = 45.0
@@ -103,6 +103,7 @@ def build_report(
     duration = time.perf_counter() - start
     exceptions = [str(item) for item in list(app.exception)]
     markdown = _widget_values(app.markdown, "value")
+    captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
     docs_menu = _docs_menu_items()
 
@@ -135,26 +136,61 @@ def build_report(
         _check_result(
             "first_launch_brand_signal",
             "First launch exposes product signal",
-            _contains_any(markdown, ["AGILAB logo", "Reproducible AI workflows"]),
+            _contains_any(
+                markdown,
+                [
+                    "AGILAB logo",
+                    "AI/ML reproducibility workbench",
+                    "Turn experiments into evidence-backed apps",
+                ],
+            ),
             "Landing page exposes the AGILAB brand and workflow proposition",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
             "first_launch_first_proof_signal",
             "First launch exposes first-proof action",
-            _contains_any(markdown, ["Start here: run flight_project first"]),
+            _contains_any(
+                [*markdown, *captions, *buttons],
+                [
+                    "First proof: verify AGILAB end-to-end",
+                    "First run: use the built-in flight-telemetry project",
+                    "First proof",
+                    "Wizard pipeline",
+                    "1. Select demo",
+                    "1. ORCHESTRATE",
+                    "2. ANALYSIS",
+                    "1. Open run page",
+                    "1. Open PROJECT",
+                ],
+            ),
             "Landing page tells newcomers where to start",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
             "first_launch_workflow_signal",
             "First launch exposes workflow path",
-            _contains_any(markdown, ["PROJECT / ORCHESTRATE / ANALYSIS"])
+            _contains_any(
+                [*markdown, *captions],
+                ["DEMO / ORCHESTRATE / ANALYSIS", "PROJECT / ORCHESTRATE / ANALYSIS"],
+            )
+            or (
+                _contains_any(buttons, ["1. ORCHESTRATE", "1. Open run page", "2. Open run page"])
+                and _contains_any(buttons, ["2. ANALYSIS", "2. Run first proof", "3. Run first proof"])
+            )
             or all(
-                _contains_any(markdown, [token])
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in ("DEMO", "ORCHESTRATE", "ANALYSIS")
+            )
+            or all(
+                _contains_any([*markdown, *captions, *buttons], [token])
                 for token in ("Project", "Run", "Analyse")
+            )
+            or all(
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in ("Import", "Execute", "Prove", "Export")
             ),
-            "Landing page shows the product journey from project to results",
+            "Landing page shows the product journey from import to proof/export",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
@@ -207,6 +243,7 @@ def build_report(
             "passed": len(checks) - len(failed),
             "failed": len(failed),
             "markdown_count": len(markdown),
+            "caption_count": len(captions),
             "button_count": len(buttons),
         },
         "checks": checks,

@@ -22,11 +22,11 @@ What will happen
 
 The hosted demo publishes two lightweight built-in paths:
 
-- confirm ``flight_project`` is selected in ``PROJECT``
+- confirm ``flight_telemetry_project`` is selected in ``PROJECT``
 - inspect the generated execution snippet in ``ORCHESTRATE``
 - inspect the packaged recipe in ``WORKFLOW``
 - open ``ANALYSIS`` and finish on the ``view_maps`` operator view
-- switch to ``meteo_forecast_project`` to inspect the notebook-migration style
+- switch to ``weather_forecast_project`` to inspect the notebook-migration style
   workflow, then open ``view_forecast_analysis`` or ``view_release_decision``
   from ``ANALYSIS``
 - use :doc:`notebook-migration-skforecast-meteo` as the companion walkthrough
@@ -43,7 +43,7 @@ After the hosted first proof
 Use :doc:`advanced-proof-pack` when the first proof is complete and you want to
 show the deeper built-in assets without making the newcomer route longer:
 
-- ``data_io_2026_project`` for a deterministic mission-decision workflow.
+- ``mission_decision_project`` for a deterministic mission-decision workflow.
 - ``execution_pandas_project`` and ``execution_polars_project`` for
   execution-model benchmarking, including the Cython typed-kernel proof.
 - ``uav_relay_queue_project`` for queue analysis, topology, trajectories, and
@@ -55,8 +55,8 @@ show the deeper built-in assets without making the newcomer route longer:
 What success looks like
 -----------------------
 
-You are past the hosted-demo hurdle when the Space loads, ``flight_project`` and
-``meteo_forecast_project`` are available from the AGILAB UI, ``WORKFLOW`` can
+You are past the hosted-demo hurdle when the Space loads, ``flight_telemetry_project`` and
+``weather_forecast_project`` are available from the AGILAB UI, ``WORKFLOW`` can
 show recipe context, and ``ANALYSIS`` opens the ``view_maps`` and
 ``view_forecast_analysis`` routes without a startup error. For evidence scope,
 use :doc:`compatibility-matrix`; it separates validated public routes from

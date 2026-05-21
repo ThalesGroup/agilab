@@ -279,6 +279,12 @@ def test_view_maps_3d_lists_dataset_files_sorted_without_duplicates(monkeypatch,
 
     assert listed == [b, a]
 
+    outside = tmp_path / "outside.csv"
+    hidden_outside = tmp_path / ".hidden" / "outside.csv"
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [outside, hidden_outside] if ext == ".csv" else [])
+
+    assert module._list_dataset_files(datadir, "csv") == [outside]
+
 
 def test_view_maps_3d_repo_path_helpers(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_3d_module()
@@ -926,6 +932,61 @@ def test_view_maps_3d_default_app_and_initializer_fallbacks(monkeypatch, tmp_pat
     monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [outside_beam])
     module.initialize_beam_files()
     assert module.st.session_state["beam_csv_files"] == [outside_beam]
+
+
+def test_view_maps_3d_bootstrap_active_app_edge_cases(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app"])
+    assert module._bootstrap_env_from_active_app() is False
+
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app="])
+    assert module._bootstrap_env_from_active_app() is False
+
+    missing_app = tmp_path / "missing_project"
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", f"--active-app={missing_app}"])
+    assert module._bootstrap_env_from_active_app() is False
+
+    app_dir = tmp_path / "apps" / "demo_project"
+    app_dir.mkdir(parents=True)
+
+    class _BrokenAgiEnv:
+        def __init__(self, **_kwargs) -> None:
+            raise RuntimeError("no env")
+
+    monkeypatch.setattr(module, "AgiEnv", _BrokenAgiEnv)
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", str(app_dir)])
+    assert module._bootstrap_env_from_active_app() is False
+
+
+def test_view_maps_3d_page_missing_env_uses_info_fallback(monkeypatch) -> None:
+    module = _load_view_maps_3d_module()
+
+    class _NoPageLinkStreamlit:
+        def __init__(self) -> None:
+            self.session_state = _State({"GUI_SAMPLING": 1, "TABLE_MAX_ROWS": 10})
+            self.calls = {"error": [], "info": []}
+
+        def error(self, message, *args, **kwargs):
+            self.calls["error"].append(message)
+
+        def info(self, message, *args, **kwargs):
+            self.calls["info"].append(message)
+
+        def stop(self):
+            raise _StopExecution()
+
+    fake_st = _NoPageLinkStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_bootstrap_env_from_active_app", lambda: False)
+
+    with pytest.raises(_StopExecution):
+        module.page()
+
+    assert any("Open PROJECT from the AGILAB left panel" in message for message in fake_st.calls["info"])
 
 
 def test_view_maps_3d_page_handles_selection_and_load_fallbacks(monkeypatch, tmp_path) -> None:

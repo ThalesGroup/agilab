@@ -10,18 +10,18 @@ GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.js
 UAV_QUEUE_TEMPLATE_RELATIVE_PATH = Path(
     "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
 )
-FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = Path(
-    "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH = Path(
+    "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
 )
 UAV_QUEUE_ADAPTER = "uav_queue_to_relay_controlled"
 CONTROLLED_CONTRACT_ADAPTER = "controlled_contract_dag"
-FLIGHT_TO_METEO_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
+FLIGHT_TO_WEATHER_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
 CONTROLLED_RUNNER_STATUS = "controlled_real_stage_execution"
 CONTROLLED_CONTRACT_RUNNER_STATUS = "controlled_contract_stage_execution"
 QUEUE_UNIT_ID = "queue_baseline"
 RELAY_UNIT_ID = "relay_followup"
 FLIGHT_CONTEXT_UNIT_ID = "flight_context"
-METEO_FORECAST_REVIEW_UNIT_ID = "meteo_forecast_review"
+WEATHER_FORECAST_REVIEW_UNIT_ID = "weather_forecast_review"
 FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID = "flight_reduce_summary"
 FORECAST_METRICS_ARTIFACT_ID = "forecast_metrics"
 
@@ -64,24 +64,27 @@ UAV_QUEUE_TO_RELAY_ADAPTER = DagExecutionAdapter(
     wrong_app_message="This DAG does not map queue and relay stages to the expected built-in apps.",
 )
 
-FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
+FLIGHT_TO_WEATHER_DAG_ADAPTER = DagExecutionAdapter(
     adapter_id=CONTROLLED_CONTRACT_ADAPTER,
-    template_path=FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
+    template_path=FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH,
     runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
     stage_requirements=(
-        DagStageRequirement(unit_id=FLIGHT_CONTEXT_UNIT_ID, app="flight_project"),
-        DagStageRequirement(unit_id=METEO_FORECAST_REVIEW_UNIT_ID, app="meteo_forecast_project"),
+        DagStageRequirement(unit_id=FLIGHT_CONTEXT_UNIT_ID, app="flight_telemetry_project"),
+        DagStageRequirement(unit_id=WEATHER_FORECAST_REVIEW_UNIT_ID, app="weather_forecast_project"),
     ),
     executable_message=(
         "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
     ),
-    missing_stage_message="This DAG does not contain the controlled flight and meteo stages.",
-    wrong_app_message="This DAG does not map flight and meteo stages to the expected built-in apps.",
+    missing_stage_message="This DAG does not contain the controlled flight and weather stages.",
+    wrong_app_message="This DAG does not map flight and weather stages to the expected built-in apps.",
 )
 
-REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_METEO_DAG_ADAPTER)
+REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_WEATHER_DAG_ADAPTER)
 LEGACY_EXECUTABLE_DAG_PATHS = (GLOBAL_DAG_SAMPLE_RELATIVE_PATH,)
 APP_OWNED_DAG_TEMPLATE_PREFIX = Path("src/agilab/apps/builtin")
+APP_OWNED_PREVIEW_ONLY_MESSAGE = (
+    "This app-owned DAG template is preview-only because it does not opt in to controlled execution."
+)
 
 
 def repo_relative_text(path: Path, repo_root: Path) -> str:
@@ -141,7 +144,16 @@ def resolve_real_run_support(
 
 def registered_adapter_for_source(dag_path: Path, repo_root: Path) -> DagExecutionAdapter | None:
     relative = repo_relative_text(dag_path, repo_root)
-    return _adapter_for_relative_path(relative)
+    adapter = _registered_adapter_for_relative_path(relative)
+    if adapter is not None:
+        return adapter
+    if not _is_app_owned_dag_template_path(relative):
+        return None
+
+    dynamic_adapter = _app_owned_contract_adapter(relative)
+    if adapter_marker_status(dag_path, dynamic_adapter) is not None:
+        return None
+    return dynamic_adapter
 
 
 def adapter_marker_status(dag_path: Path, adapter: DagExecutionAdapter) -> DagRealRunSupport | None:
@@ -183,6 +195,16 @@ def _resolve_source_adapter(
 
     marker_status = adapter_marker_status(dag_path, adapter)
     if marker_status is not None:
+        if (
+            _is_app_owned_dag_template_path(relative)
+            and _registered_adapter_for_relative_path(relative) is None
+            and not _execution_declares_controlled_adapter(_dag_execution_payload(dag_path))
+        ):
+            return DagRealRunSupport(
+                supported=False,
+                status="Preview-only",
+                message=APP_OWNED_PREVIEW_ONLY_MESSAGE,
+            )
         return marker_status
     return adapter
 
@@ -205,18 +227,28 @@ def _adapter_for_relative_path(relative: str) -> DagExecutionAdapter | None:
     if adapter is not None:
         return adapter
     if _is_app_owned_dag_template_path(relative):
-        return DagExecutionAdapter(
-            adapter_id=CONTROLLED_CONTRACT_ADAPTER,
-            template_path=Path(relative),
-            runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
-            stage_requirements=(),
-            executable_message=(
-                "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
-            ),
-            missing_stage_message="This DAG does not contain any executable stages.",
-            wrong_app_message="This DAG contains a controlled stage that is not mapped to a checked-in built-in app.",
-        )
+        return _app_owned_contract_adapter(relative)
     return None
+
+
+def _app_owned_contract_adapter(relative: str) -> DagExecutionAdapter:
+    return DagExecutionAdapter(
+        adapter_id=CONTROLLED_CONTRACT_ADAPTER,
+        template_path=Path(relative),
+        runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
+        stage_requirements=(),
+        executable_message=(
+            "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
+        ),
+        missing_stage_message="This DAG does not contain any executable stages.",
+        wrong_app_message="This DAG contains a controlled stage that is not mapped to a checked-in built-in app.",
+    )
+
+
+def _execution_declares_controlled_adapter(execution: Mapping[str, Any]) -> bool:
+    runner_status = str(execution.get("runner_status", "")).strip()
+    adapter = str(execution.get("adapter", "")).strip()
+    return runner_status == CONTROLLED_CONTRACT_RUNNER_STATUS or adapter == CONTROLLED_CONTRACT_ADAPTER
 
 
 def _is_app_owned_dag_template_path(relative: str) -> bool:

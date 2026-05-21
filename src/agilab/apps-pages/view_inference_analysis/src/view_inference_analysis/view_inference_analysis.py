@@ -9,6 +9,7 @@ import ast
 import fnmatch
 import html
 import json
+import logging
 import sys
 import tomllib
 from pathlib import Path
@@ -19,6 +20,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_repo_on_path() -> None:
@@ -63,7 +66,7 @@ HEATMAP_GRID_COLOR = "rgba(217, 222, 231, 0.35)"
 BASE_CHOICES = ("AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
 STEP_AXIS_CANDIDATES = ("time_index", "decision", "step", "time_idx")
-TIME_AXIS_CANDIDATES = ("t_now_s", "time_s", "time", "t")
+TIME_AXIS_CANDIDATES = ("time_s", "t_now_s", "time", "t")
 EXCLUDED_METRIC_COLUMNS = {
     "source",
     "src",
@@ -148,7 +151,8 @@ def _load_app_settings(env: AgiEnv) -> dict[str, Any]:
     try:
         with path.open("rb") as handle:
             payload = tomllib.load(handle)
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
+        logger.debug("Unable to load view_inference_analysis settings from %s", path, exc_info=True)
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -300,7 +304,7 @@ def _parse_structured_value(value: Any) -> Any:
     for loader in (json.loads, ast.literal_eval):
         try:
             return loader(stripped)
-        except Exception:
+        except (json.JSONDecodeError, ValueError, SyntaxError):
             continue
     return value
 
@@ -389,11 +393,12 @@ def _coerce_time_index(df: pd.DataFrame) -> pd.DataFrame:
     else:
         normalized["time_index"] = pd.Series(range(len(normalized)), index=normalized.index, dtype="Int64")
 
-    if "t_now_s" not in normalized.columns:
-        time_col = _pick_ci_column(normalized, TIME_AXIS_CANDIDATES)
-        if time_col is not None:
-            time_values = pd.to_numeric(normalized[time_col], errors="coerce")
-            if time_values.notna().any():
+    time_col = _pick_ci_column(normalized, TIME_AXIS_CANDIDATES)
+    if time_col is not None:
+        time_values = pd.to_numeric(normalized[time_col], errors="coerce")
+        if time_values.notna().any():
+            normalized["time_s"] = time_values
+            if "t_now_s" not in normalized.columns:
                 normalized["t_now_s"] = time_values
     return normalized
 
@@ -420,14 +425,19 @@ def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
 
             if "time_index" not in step_context:
                 step_context["time_index"] = row.get(step_col) if step_col is not None else row_index
-            if time_col is not None and "t_now_s" not in step_context:
-                step_context["t_now_s"] = row.get(time_col)
+            if time_col is not None:
+                if "time_s" not in step_context:
+                    step_context["time_s"] = row.get(time_col)
+                if "t_now_s" not in step_context:
+                    step_context["t_now_s"] = row.get(time_col)
 
             # Carry scalar step metadata onto each nested allocation row.
             for alloc in _parse_allocations_cell(row.get(alloc_col)):
                 merged = dict(step_context)
                 merged.update(alloc)
                 merged.setdefault("time_index", step_context.get("time_index", row_index))
+                if "time_s" not in merged and "time_s" in step_context:
+                    merged["time_s"] = step_context["time_s"]
                 if "t_now_s" not in merged and "t_now_s" in step_context:
                     merged["t_now_s"] = step_context["t_now_s"]
                 exploded_rows.append(merged)
@@ -469,6 +479,7 @@ def load_allocations(path: Path) -> pd.DataFrame:
         if isinstance(data, list):
             return _normalize_allocations_frame(pd.DataFrame(data))
     except Exception:
+        logger.debug("Unable to load allocations from %s", path, exc_info=True)
         return pd.DataFrame()
     return pd.DataFrame()
 
@@ -653,7 +664,7 @@ def _choose_time_series_axis(frames: dict[str, pd.DataFrame]) -> str:
     if not non_empty_frames:
         return ""
 
-    preferred_axes = ("t_now_s", "time_index")
+    preferred_axes = ("time_s", "time_index")
     for axis_column in preferred_axes:
         if all(_axis_has_numeric_values(frame, axis_column) for frame in non_empty_frames):
             return axis_column
@@ -673,7 +684,7 @@ def _axis_options_for_frames(frames: dict[str, pd.DataFrame]) -> list[str]:
     if not non_empty_frames:
         return []
 
-    candidate_axes = ("time_index", "t_now_s")
+    candidate_axes = ("time_index", "time_s")
     common_axes = [
         axis_column
         for axis_column in candidate_axes
@@ -1386,7 +1397,7 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Data source")
-        base_choice = st.selectbox("Base directory", BASE_CHOICES, key=BASE_CHOICE_KEY)
+        st.selectbox("Base directory", BASE_CHOICES, key=BASE_CHOICE_KEY)
         st.text_input("Custom base directory", key=CUSTOM_BASE_KEY)
         st.text_input("Dataset subpath", key=SUBPATH_KEY)
         st.text_area(
@@ -1627,7 +1638,7 @@ def main() -> None:
                 )
                 st.plotly_chart(profile_fig, width="stretch")
         else:
-            st.info("The selected files do not expose a step axis such as `time_index` or `t_now_s`.")
+            st.info("The selected files do not expose a step axis such as `time_index` or `time_s`.")
 
     detail_run_defaults = selected_labels[: min(2, len(selected_labels))]
     detail_run_current = _coerce_selection(
@@ -1649,8 +1660,8 @@ def main() -> None:
     detail_frames = {label: frames.get(label, pd.DataFrame()) for label in detail_run_labels}
     detail_axes = {
         label: (
-            "t_now_s"
-            if "t_now_s" in frame.columns
+            "time_s"
+            if "time_s" in frame.columns
             else ("time_index" if "time_index" in frame.columns else "")
         )
         for label, frame in detail_frames.items()

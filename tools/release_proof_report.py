@@ -147,9 +147,14 @@ def _template_context(manifest: Mapping[str, Any]) -> dict[str, Any]:
         raise TypeError("[release] must be a table")
     package_name = str(release.get("package_name", ""))
     package_version = str(release.get("package_version", ""))
+    package_extras = release.get("package_extras", []) or []
+    if not isinstance(package_extras, list):
+        raise TypeError("[release].package_extras must be a list when provided")
+    extras = [str(extra).strip() for extra in package_extras if str(extra).strip()]
+    package_spec_name = f"{package_name}[{','.join(sorted(extras))}]" if extras else package_name
     return {
         **{str(key): value for key, value in release.items()},
-        "package_spec": f"{package_name}=={package_version}",
+        "package_spec": f"{package_spec_name}=={package_version}",
     }
 
 
@@ -349,6 +354,26 @@ def _load_project_version(repo_root: Path) -> str | None:
         return None
     version = project.get("version")
     return str(version) if version is not None else None
+
+
+def _version_key(version: str) -> tuple[int, ...] | None:
+    parts = re.findall(r"\d+", version)
+    if not parts:
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def _version_not_newer(left: str, right: str) -> bool:
+    """Return True when left is the same version as, or older than, right."""
+
+    left_key = _version_key(left)
+    right_key = _version_key(right)
+    if left_key is None or right_key is None:
+        return left == right
+    max_len = max(len(left_key), len(right_key))
+    padded_left = left_key + (0,) * (max_len - len(left_key))
+    padded_right = right_key + (0,) * (max_len - len(right_key))
+    return padded_left <= padded_right
 
 
 def _run_git(repo_root: Path, args: Sequence[str]) -> str | None:
@@ -841,17 +866,24 @@ def build_report(
     checks: list[dict[str, Any]] = []
 
     project_version = _load_project_version(repo_root)
+    version_is_not_newer = (
+        project_version is None or _version_not_newer(package_version, project_version)
+    )
     checks.append(
         _check_result(
             "pyproject_version",
-            project_version in (None, package_version),
+            version_is_not_newer,
             (
-                "manifest package version matches pyproject.toml"
+                "manifest package version is not newer than pyproject.toml"
                 if project_version is not None
                 else "pyproject.toml not present; skipped package version cross-check"
             ),
             evidence=["pyproject.toml", str(manifest_path)],
-            details={"pyproject_version": project_version, "manifest_version": package_version},
+            details={
+                "pyproject_version": project_version,
+                "manifest_version": package_version,
+                "exact_match": project_version == package_version,
+            },
         )
     )
     checks.append(

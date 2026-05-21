@@ -19,6 +19,7 @@ from agilab.app_template_registry import (
     APP_TEMPLATE_SCHEMA,
     AppTemplateRegistry,
     AppTemplateSpec,
+    clear_app_template_discovery_cache,
     discover_app_template,
     discover_app_templates,
 )
@@ -47,6 +48,7 @@ def test_discover_app_templates_returns_deterministic_template_specs(tmp_path: P
     assert registry.require("a_app_template").root_path == a_template.resolve()
     assert registry.require("z_app_template").settings_path == z_template.resolve() / "src" / "app_settings.toml"
     assert registry.require("a_app_template").schema == APP_TEMPLATE_SCHEMA
+    assert registry.templates == (registry.require("a_app_template"), registry.require("z_app_template"))
 
 
 def test_discover_app_templates_can_require_manifest_and_settings(tmp_path: Path) -> None:
@@ -61,6 +63,42 @@ def test_discover_app_templates_can_require_manifest_and_settings(tmp_path: Path
         "missing_pyproject_app_template",
         "missing_settings_app_template",
     )
+
+
+def test_discover_app_templates_reuses_cache_until_directory_signature_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_app_template_discovery_cache()
+    monkeypatch.delenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", raising=False)
+    _write_template(tmp_path, "first_app_template")
+
+    first = discover_app_templates(tmp_path)
+    second = discover_app_templates(tmp_path)
+
+    assert second is first
+
+    _write_template(tmp_path, "second_app_template")
+    third = discover_app_templates(tmp_path)
+
+    assert third is not first
+    assert third.names() == ("first_app_template", "second_app_template")
+    clear_app_template_discovery_cache()
+
+
+def test_discover_app_templates_cache_can_be_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_app_template_discovery_cache()
+    monkeypatch.setenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", "1")
+    _write_template(tmp_path, "first_app_template")
+
+    first = discover_app_templates(tmp_path)
+    second = discover_app_templates(tmp_path)
+
+    assert second is not first
+    clear_app_template_discovery_cache()
 
 
 def test_discover_app_template_resolves_one_template(tmp_path: Path) -> None:
@@ -102,3 +140,27 @@ def test_app_template_registry_reports_invalid_unknown_and_duplicate_names(tmp_p
         AppTemplateRegistry((first, duplicate))
     with pytest.raises(KeyError, match="Unknown app template 'missing_app_template'"):
         AppTemplateRegistry((first,)).require("missing_app_template")
+
+
+def test_app_template_spec_normalizes_string_paths(tmp_path: Path) -> None:
+    template = AppTemplateSpec(
+        " string_paths_app_template ",
+        str(tmp_path / "template"),
+        str(tmp_path / "template" / "pyproject.toml"),
+        str(tmp_path / "template" / "src" / "app_settings.toml"),
+    )
+
+    assert template.name == "string_paths_app_template"
+    assert template.root_path == tmp_path / "template"
+    assert template.pyproject_path == tmp_path / "template" / "pyproject.toml"
+    assert template.settings_path == tmp_path / "template" / "src" / "app_settings.toml"
+
+
+def test_discover_app_templates_handles_invalid_and_missing_roots(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    file_root = tmp_path / "templates.txt"
+    file_root.write_text("not a directory", encoding="utf-8")
+
+    assert discover_app_templates(missing).names() == ()
+    assert discover_app_templates(file_root).names() == ()
+    assert discover_app_template(object(), "demo_app_template") is None

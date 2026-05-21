@@ -1,119 +1,174 @@
 Strategic Potential
 ===================
 
-This page explains AGILab's strategic potential score, the evidence behind it,
-and the concrete proof needed before the score should increase. It is a public
-scorecard, not a marketing claim.
+This page scores AGILAB as an open-source AI engineering enabler. It is a
+scorecard for the project's documented evidence and boundaries, not a marketing
+claim, a production certification, or a score for unrelated projects with
+similar names.
+
+Audit verdict
+-------------
+
+AGILAB has credible unique value when it is positioned narrowly:
+
+``from notebook chaos to evidence-backed AI engineering``
+
+The project should be evaluated as an evidence-first experimentation and
+validation workbench. It turns notebooks and scripts into reproducible,
+portable, reviewable AI applications with controlled execution, artifacts,
+evidence, and handoff paths to notebooks, MLflow, or hardened production
+stacks.
+
+It should not be evaluated as a production MLOps platform, model registry,
+enterprise governance system, regulated model-serving platform, online drift
+monitor, or standalone certification layer.
 
 Current score
 -------------
 
-AGILab currently supports a ``Strategic potential`` score of ``4.2 / 5``.
+AGILAB currently supports a ``Strategic potential`` score of ``4.2 / 5``.
 
-That score is based on a narrow position: AGILab is an experimentation and
-engineering-validation workbench that connects project setup, reproducible
-execution, evidence, and operator-facing analysis. It is not scored as a
-production MLOps platform.
+That score reflects bridge-layer value: reducing friction between exploratory
+AI work and engineering-grade validation. Future score updates should be based
+on new public evidence, not stronger wording.
+
+Unique value thesis
+-------------------
+
+AGILAB's strongest thesis is:
+
+``the missing engineering bridge between research notebooks and industrial AI validation``
+
+Its value is not "another AI platform." Its value is giving teams a controlled
+path from fragmented experiments to reproducible workflows that can be
+validated, reviewed, and handed off without losing the original work.
+
+This aligns with a community-minded open-source goal: make AI engineering work
+easier to reproduce, review, share, and eventually move into whatever
+production stack a team already trusts. AGILAB supports that goal at the
+workbench layer: repeatable setup, controlled execution, artifacts, evidence,
+and handoff.
+
+Evidence scorecard
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 16 56
+
+   * - Dimension
+     - Evidence status
+     - Rationale
+   * - Open-source community fit
+     - Strong
+     - Strong fit when AGILAB is framed as a reusable workbench that helps
+       practitioners turn experiments into reproducible, reviewable,
+       transferable workflows without forcing a specific production platform.
+   * - Unique value
+     - Strong
+     - Differentiation is strongest around ``run orchestration + evidence +
+       reproducibility``. Generic dashboards, production serving, and model
+       registry functions are not the core wedge.
+   * - Enabler power
+     - Strong
+     - AGILAB standardizes the path from notebook/script to controlled
+       execution, artifacts, analysis, and portable handoff. The workflow is
+       valuable because users keep their work even if they later leave the
+       AGILAB UI or distributed runtime.
+   * - Readiness and maturity
+     - Maturing
+     - Local and distributed execution evidence exists, but UI routes,
+       integrations, fresh-machine validation, and operational polish still
+       need continued hardening.
+   * - Enterprise-critical deployment readiness
+     - Handoff only
+     - AGILAB is not safe as-is as the sole production MLOps control plane,
+       regulated model-serving stack, governance layer, online monitor, or
+       audit-trail owner.
+   * - External proof and market signal
+     - Early public signal
+     - Public PyPI, GitHub, release proof, provenance, and docs are useful
+       signals, but broad external adoption and third-party validation are not
+       yet established.
+
+What AGILAB enables
+-------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 42 30
+
+   * - Capability
+     - Value
+     - Boundary
+   * - Reproducible experimentation
+     - Notebooks and scripts become executable, portable, evidence-backed
+       projects instead of ad hoc local state.
+     - Evidence is engineering proof, not legal certification.
+   * - Controlled workflow
+     - Setup, environment management, install, execution, artifacts, analysis,
+       and release-decision evidence stay on one path.
+     - Cluster, service, and external-app use still require environment-specific
+       validation.
+   * - Notebook continuity
+     - Workflow export preserves a runnable ``agi-core`` notebook path so users
+       do not lose work if AGILAB is no longer needed.
+     - Export is a handoff route, not a promise that every production platform
+       can consume the project unchanged.
+   * - Pilot handoff
+     - Compatibility evidence, manifests, service-health gates, and
+       promotion-decision exports support review before production hardening.
+     - Production serving, monitoring, governance, and compliance remain owned
+       by the target production stack.
+   * - MLflow complement
+     - AGILAB owns execution context: environments, workers, clusters,
+       packaging, reproducibility, and operator workflows.
+     - MLflow remains the system of record for runs, metrics, artifacts, models,
+       registry state, and deployment aliases.
+
+Where the value is strongest
+----------------------------
+
+AGILAB is strongest for:
+
+- AI research teams moving from notebooks to repeatable workflows.
+- Engineering labs validating simulation-heavy or data-heavy prototypes.
+- Project teams needing common experiment evidence before promotion.
+- Mission-oriented demonstrations where artifacts, decisions, and analysis must
+  be reviewed.
+- Early TRL-3 / TRL-4 pilots before handoff to hardened deployment
+  infrastructure.
+
+AGILAB is weak as a standalone answer for:
+
+- production model serving
+- enterprise compliance workflow ownership
+- full audit-trail governance
+- online monitoring and drift detection
+- standalone critical-system certification
 
 Strategic wedge
 ---------------
 
-AGILab's strongest wedge is:
+The wedge remains:
 
 ``run orchestration + evidence + reproducibility for engineering-grade AI workflows``
 
-The project should be evaluated against that wedge, not against generic
-dashboard builders, standalone schedulers, or production-serving platforms.
+The project should keep improving this wedge instead of drifting toward generic
+dashboards, standalone schedulers, or production-serving claims.
 
-What supports the score
------------------------
+The most credible growth opportunity is elasticity around the
+``Train -> Test -> Evidence`` loop: run a pipeline, inspect artifacts, compare
+outcomes, and hand evidence to the next toolchain stage. Optional industrial
+optimization examples can teach that shape, but they should not be described as
+certified decentralized MARL or critical-fleet validation until public evidence
+exists.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 24 38 38
+Score update criteria
+---------------------
 
-   * - Dimension
-     - Evidence
-     - Limit
-   * - Adoption path
-     - Public Hugging Face demo, local ``flight_project`` first proof,
-       ``run_manifest.json``, and newcomer troubleshooting.
-     - Broader fresh-install validation still needs to run across more external
-       machines.
-   * - Differentiation
-     - AGILab ties execution, artifacts, run evidence, Release Decision, and
-       analysis pages into one path.
-     - The project must keep this evidence-first story clear and avoid drifting
-       into a generic MLOps comparison.
-   * - Reproducibility
-     - Compatibility report, KPI evidence bundle, run-diff evidence,
-       revision-traceability, supply-chain metadata, and CI artifact harvest
-       contracts.
-     - Formal certification and production attestation are intentionally out of
-       scope.
-   * - Orchestration path
-     - Multi-app DAG contract, global DAG reports, dispatch-state evidence,
-       operator-action reports, and static operator UI proof.
-     - Live global runner UI and broader cross-app execution remain roadmap
-       work.
-   * - Data access path
-     - Connector facility, resolution, health planning, runtime adapters,
-       app-local catalogs, and account-free cloud-emulator contracts.
-     - Credentialed live cloud/provider validation remains operator-gated.
-   * - Example quality
-     - Packaged examples now have a learning path, expected inputs/outputs,
-       safe adaptation guidance, and packaging tests.
-     - The example scripts still need a final maturity pass before they should
-       be treated as external SDK-quality examples.
-
-Vertical stories
-----------------
-
-Two vertical stories should carry most public evaluation:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 24 38 38
-
-   * - Story
-     - Why it matters
-     - Evidence to keep fresh
-   * - Flight + meteo first proof
-     - Demonstrates public onboarding, reproducible file input, generated
-       artifacts, and analysis pages without private repositories.
-     - ``agilab first-proof --json``, ``flight_project``,
-       ``meteo_forecast_project``, compatibility matrix, and packaged examples.
-   * - Data IO 2026 decision workflow
-     - Demonstrates mission-style decision evidence, richer artifacts,
-       connector-aware provenance, and the future DAG/release-decision path.
-     - ``data_io_2026_project``, Release Decision evidence, connector reports,
-       run-diff evidence, and promotion-decision exports.
-
-Elasticity opportunity
-----------------------
-
-The most credible strategic improvement is elasticity, not another tracking
-dashboard or model registry. AGILab is strongest at the
-``Train -> Test -> Evidence`` loop: run a pipeline, inspect artifacts, and
-compare outcomes.
-
-The first teaching route now exists in the optional industrial optimization
-examples: Active Mesh Optimization models relay UAVs as controllable agents in
-a compact centralized PPO policy, then exports movement, topology, and delivery
-evidence. That is enough to demonstrate the contract shape, but it is not yet a
-claim of full decentralized MARL certification for aircraft, UAV, or satellite
-fleets.
-
-This opportunity should raise the strategic score only when public evidence
-shows the full hardening path: baseline versus adaptive-network comparison,
-failure-injection comparison, service-contract handoff, and reproducible
-multi-app DAG evidence through the existing artifact layer.
-
-Score movement rule
--------------------
-
-Do not raise the score only because the docs sound better. Raise it only when
-new evidence closes a listed gap.
+Do not raise the score because the wording is better. Raise it only when public
+evidence closes a listed gap.
 
 .. list-table::
    :header-rows: 1
@@ -123,38 +178,71 @@ new evidence closes a listed gap.
      - Required proof
      - Still not claimed
    * - ``4.3 / 5``
-     - Final beta gate passes with network included; packaged examples pass the
-       external-beta maturity contract; public docs link the strategic
-       scorecard; HF demo, PyPI, and docs are aligned to the same public
-       release.
-     - Production serving, enterprise governance, and formal certification.
+     - Final release gate passes with network checks included; packaged
+       examples pass the external-beta maturity contract; public docs, PyPI,
+       GitHub release, and Hugging Face demo point to the same release state.
+     - Production serving, enterprise governance, regulated deployment, and
+       formal certification.
    * - ``4.5 / 5``
      - At least two external fresh-machine first proofs are attached through
        run manifests or artifact indexes; global DAG operator flow has a live
        UI proof; connector examples demonstrate credentialed operator-gated
        validation without leaking secrets.
-     - Multi-tenant production operations or cloud/Kubernetes parity.
+     - Multi-tenant production operations, cloud/Kubernetes parity, or
+       enterprise audit ownership.
    * - ``5.0 / 5``
-     - AGILab becomes a de facto standard bridge for experimentation-to-handoff
-       workflows with repeated external adoption evidence.
-     - Generic full-stack MLOps replacement.
+     - AGILAB becomes a de facto standard bridge for experimentation-to-handoff
+       workflows with repeated external adoption evidence and independent
+       validation.
+     - Generic full-stack MLOps replacement or standalone certification.
 
-Signals that lower the score
-----------------------------
+Evidence gaps
+-------------
 
-Reduce the score, or keep it flat, if any of these appear in public artifacts:
+Close these gaps before claiming a higher score:
 
 - private app names or symlink-only local state leaking into public gates
 - stale alpha/beta wording after a promoted release
 - examples using private AGI internals or scratch-only snippets
-- HF Space, PyPI, README, and docs pointing to different release states
+- Hugging Face Space, PyPI, README, and docs pointing to different release
+  states
 - evidence commands that no longer pass or no longer match documented claims
-- production-serving or certification language that is not backed by evidence
+- production-serving, governance, audit, or certification language not backed by
+  shipped evidence
+
+Community validation wanted
+---------------------------
+
+The most useful community contributions are evidence-bearing validations:
+
+- fresh-machine first proofs on additional operating systems and Python
+  versions
+- cluster runs with explicit shared storage and documented network assumptions
+- notebook import/export round trips from real notebooks
+- app/page examples that use only public APIs and current project templates
+- security hardening reports for shared workstations, exposed UI routes, or
+  remote-worker setups
+
+Recommended positioning
+-----------------------
+
+Use this:
+
+``AGILAB is an open-source reproducible AI engineering workbench for turning experimental notebooks and scripts into controlled, evidence-backed workflows that can be validated, reviewed, and handed off to hardened production stacks.``
+
+Avoid these:
+
+- AGILAB is a production MLOps platform.
+- AGILAB certifies AI for critical systems.
+- AGILAB replaces MLflow, Kubeflow, SageMaker, Dagster, or Airflow.
+- AGILAB is production-ready for regulated model serving.
 
 Related pages
 -------------
 
-- :doc:`agilab-mlops-positioning` for toolchain fit and current category scores
+- :doc:`agilab-mlops-positioning` for toolchain fit and category scores
 - :doc:`compatibility-matrix` for validated public routes and evidence commands
-- :doc:`beta-readiness` for the beta promotion gate
+- :doc:`evidence-claims-policy` for claim wording boundaries
+- :doc:`release-proof` and :doc:`package-publishing-policy` for public release
+  evidence and publication gates
 - :doc:`features` for shipped capability evidence

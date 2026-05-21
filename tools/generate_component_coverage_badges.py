@@ -38,6 +38,7 @@ COMPONENTS = {
     "agi-core": {
         "label": "agi-core coverage",
         "aggregate": ("agi-env", "agi-node", "agi-cluster"),
+        "aggregate_policy": "minimum",
         "badge": REPO_ROOT / "badges" / "coverage-agi-core.svg",
     },
     "agilab": {
@@ -193,16 +194,27 @@ def resolve_component_counts(name: str, combined_xml: Path) -> tuple[int, int] |
     return None
 
 
-def compute_aggregate_percent(components: tuple[str, ...], combined_xml: Path) -> float | None:
+def compute_aggregate_percent(
+    components: tuple[str, ...],
+    combined_xml: Path,
+    *,
+    policy: str = "weighted",
+) -> float | None:
     covered = 0
     total = 0
+    component_percents: list[float] = []
     for component in components:
         counts = resolve_component_counts(component, combined_xml)
         if counts is None:
             return None
         component_covered, component_total = counts
+        if component_total == 0:
+            return None
+        component_percents.append(component_covered * 100.0 / component_total)
         covered += component_covered
         total += component_total
+    if policy == "minimum":
+        return min(component_percents) if component_percents else None
     if total == 0:
         return None
     return covered * 100.0 / total
@@ -220,7 +232,8 @@ def main() -> int:
     for name, config in selected_component_items(args.components):
         percent = None
         if "aggregate" in config:
-            percent = compute_aggregate_percent(config["aggregate"], combined_xml)
+            policy = str(config.get("aggregate_policy", "weighted"))
+            percent = compute_aggregate_percent(config["aggregate"], combined_xml, policy=policy)
         elif "xml" in config:
             counts = resolve_component_counts(name, combined_xml)
             if counts is not None:

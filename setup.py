@@ -21,6 +21,9 @@ class build_py(_build_py):
     def run(self):
         super().run()
         sanitizer = _load_sanitizer()
+        removed_payload = sanitizer.purge_packaged_public_app_payload(self.build_lib)
+        for payload_path in removed_payload:
+            print(f"[build_py] removed public app payload from root wheel: {payload_path}")
         removed = sanitizer.purge_packaged_builtin_app_artifacts(self.build_lib)
         for artifact_path in removed:
             print(f"[build_py] removed packaged app artifact: {artifact_path}")

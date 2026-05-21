@@ -1,11 +1,9 @@
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, List, Tuple
 
 import py7zr
 
-from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .polars_app_args import (
@@ -18,10 +16,9 @@ from .polars_app_args import (
 )
 
 logger = logging.getLogger(__name__)
-warnings.filterwarnings("ignore")
 
 
-class Polars(BaseWorker):
+class PolarsApp(BaseWorker):
     """Minimal worker wiring for the Polars app template."""
 
     worker_vars: dict[str, Any] = {}
@@ -34,6 +31,7 @@ class Polars(BaseWorker):
     ) -> None:
         super().__init__()
         self.env = env
+        self.verbose = int(kwargs.pop("verbose", getattr(env, "verbose", 0) or 0))
 
         if args is None:
             allowed = set(PolarsAppArgs.model_fields.keys())
@@ -46,12 +44,10 @@ class Polars(BaseWorker):
         self.args = args
 
         data_in = self._resolve_data_dir(env, args.data_in)
-        data_in.mkdir(parents=True, exist_ok=True)
+        self._ensure_dataset(data_in, app_root=self._app_root(env))
         self.path_rel = str(data_in)
         self.dir_path = data_in
         self.args.data_in = data_in
-
-        self._ensure_dataset(data_in)
 
         payload = args.model_dump(mode="json")
         payload["dir_path"] = str(data_in)
@@ -64,7 +60,7 @@ class Polars(BaseWorker):
         settings_path: str | Path = "app_settings.toml",
         section: str = "args",
         **overrides: ArgsOverrides,
-    ) -> "Polars":
+    ) -> "PolarsApp":
         base = load_args(settings_path, section=section)
         merged = ensure_defaults(merge_args(base, overrides or None), env=env)
         return cls(env, args=merged)
@@ -82,26 +78,36 @@ class Polars(BaseWorker):
         payload["dir_path"] = str(self.dir_path)
         return payload
 
-    def _ensure_dataset(self, data_in: Path) -> None:
+    @staticmethod
+    def _app_root(env: Any) -> Path:
+        configured = getattr(env, "app_abs", None)
+        if configured:
+            return Path(configured)
+        return Path(__file__).resolve().parents[2]
+
+    def _ensure_dataset(self, data_in: Path, *, app_root: Path) -> None:
         try:
-            if not data_in.exists():
-                logger.info("Creating data directory at %s", data_in)
-                data_in.mkdir(parents=True, exist_ok=True)
+            if data_in.exists() and any(data_in.iterdir()):
+                return
 
-                data_src = Path(AGI._env.app_abs) / "data.7z"
-                if not data_src.is_file():
-                    raise FileNotFoundError(f"Data archive not found at {data_src}")
+            logger.info("Creating data directory at %s", data_in)
+            data_in.mkdir(parents=True, exist_ok=True)
 
-                logger.info("Extracting data archive from %s to %s", data_src, data_in)
-                with py7zr.SevenZipFile(data_src, mode="r") as archive:
-                    archive.extractall(path=data_in)
+            data_src = app_root / "data.7z"
+            if not data_src.is_file():
+                logger.info("No data.7z archive found at %s; leaving %s empty", data_src, data_in)
+                return
+
+            logger.info("Extracting data archive from %s to %s", data_src, data_in)
+            with py7zr.SevenZipFile(data_src, mode="r") as archive:
+                archive.extractall(path=data_in)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.error("Failed to initialize data directory: %s", exc)
             raise
 
     @staticmethod
     def pool_init(vars: dict[str, Any]) -> None:
-        Polars.worker_vars = vars
+        PolarsApp.worker_vars = vars
 
     def work_pool(self, x: Any = None) -> None:  # pragma: no cover - template hook
         pass
@@ -111,7 +117,7 @@ class Polars(BaseWorker):
 
     def stop(self) -> None:
         if self.verbose > 0:
-            print("PolarsAppWorker All done!\n", end="")
+            logger.info("PolarsAppWorker finished")
         super().stop()
 
     def build_distribution(
@@ -120,8 +126,4 @@ class Polars(BaseWorker):
         return [], [], "id", "nb_fct", ""
 
 
-class PolarsApp(Polars):
-    """Alias retaining the historical class name."""
-
-
-__all__ = ["Polars", "PolarsApp"]
+__all__ = ["PolarsApp"]

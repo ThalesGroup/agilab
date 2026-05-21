@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 REPORT_PATH = Path("tools/data_connector_health_actions_report.py").resolve()
+CORE_PATH = Path("src/agilab/data_connector_health_actions.py").resolve()
 
 
 def _load_module(path: Path, name: str):
@@ -78,3 +79,53 @@ def test_data_connector_health_actions_persist_trigger_rows(tmp_path: Path) -> N
     assert sum(1 for action in actions if not action["requires_credentials"]) == 1
     assert all(action["network_probe_executed"] is False for action in actions)
     assert all(action["safe_for_public_evidence"] is True for action in actions)
+
+
+def test_data_connector_health_actions_rejects_invalid_health_plan(
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_health_actions_core_test_module")
+    catalog = {
+        "connectors": [
+            {
+                "id": "broken_sql",
+                "kind": "sql",
+                "label": "Broken SQL",
+                "uri": "postgresql://example.invalid/agilab",
+            }
+        ]
+    }
+
+    state = core_module.build_data_connector_health_actions(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["action_count"] == 1
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["issues"] == [
+        {
+            "level": "error",
+            "location": "health_plan",
+            "message": "health plan is not ready: invalid",
+        }
+    ]
+
+
+def test_data_connector_health_actions_report_accepts_relative_catalog_path(
+    tmp_path: Path,
+) -> None:
+    module = _load_module(
+        REPORT_PATH,
+        "data_connector_health_actions_relative_catalog_test_module",
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        catalog_path=Path("docs/source/data/data_connectors_sample.toml"),
+        output_path=tmp_path / "data_connector_health_actions.json",
+    )
+
+    assert report["status"] == "pass"
+    assert Path(report["summary"]["catalog_path"]).is_absolute()

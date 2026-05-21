@@ -152,6 +152,39 @@ def test_compute_aggregate_percent_uses_component_fallback_counts(tmp_path: Path
             module.COMPONENTS[key] = value
 
 
+def test_compute_aggregate_percent_can_use_minimum_component_policy(tmp_path: Path) -> None:
+    module = _load_module()
+
+    env_xml = tmp_path / "coverage-agi-env.xml"
+    node_xml = tmp_path / "coverage-agi-node.xml"
+    cluster_xml = tmp_path / "coverage-agi-cluster.xml"
+    env_xml.write_text('<coverage lines-covered="99" lines-valid="100" line-rate="0.99" />')
+    node_xml.write_text('<coverage lines-covered="99" lines-valid="100" line-rate="0.99" />')
+    cluster_xml.write_text('<coverage lines-covered="97" lines-valid="100" line-rate="0.97" />')
+
+    originals = {
+        key: module.COMPONENTS[key].copy()
+        for key in ("agi-env", "agi-node", "agi-cluster")
+    }
+    try:
+        module.COMPONENTS["agi-env"] = {**originals["agi-env"], "xml": env_xml}
+        module.COMPONENTS["agi-node"] = {**originals["agi-node"], "xml": node_xml}
+        module.COMPONENTS["agi-cluster"] = {**originals["agi-cluster"], "xml": cluster_xml}
+
+        weighted = module.compute_aggregate_percent(("agi-env", "agi-node", "agi-cluster"), tmp_path / "unused.xml")
+        minimum = module.compute_aggregate_percent(
+            ("agi-env", "agi-node", "agi-cluster"),
+            tmp_path / "unused.xml",
+            policy="minimum",
+        )
+
+        assert module.format_percent(weighted) == "98%"
+        assert minimum == 97.0
+    finally:
+        for key, value in originals.items():
+            module.COMPONENTS[key] = value
+
+
 def test_node_and_cluster_default_to_explicit_component_or_combined_reports_only() -> None:
     module = _load_module()
 

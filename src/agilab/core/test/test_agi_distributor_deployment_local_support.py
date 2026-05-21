@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,40 @@ import pytest
 import tomlkit
 
 from agi_cluster.agi_distributor import deployment_local_support, uv_source_support
+
+
+def _write_editable_direct_url(
+    venv_project: Path,
+    package_project: Path,
+    *,
+    python_version: str = "3.13",
+) -> None:
+    site_packages = deployment_local_support._project_site_packages_dir(
+        venv_project,
+        python_version=python_version,
+    )
+    dist_info = (
+        site_packages / f"{package_project.name.replace('-', '_')}-0.0.dist-info"
+    )
+    dist_info.mkdir(parents=True, exist_ok=True)
+    (dist_info / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": package_project.resolve(strict=False).as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_editable_install_cache_path_lives_outside_project_venv(tmp_path):
+    cache_path = deployment_local_support._editable_install_cache_path(tmp_path)
+
+    assert cache_path.parent == tmp_path.parent / ".agilab-editable-install-cache"
+    assert cache_path.name.startswith(f"{tmp_path.name}-")
+    assert cache_path.name.endswith(".json")
+    assert tmp_path / ".venv" not in cache_path.parents
 
 
 async def _call_deploy_local_worker(
@@ -39,13 +74,17 @@ async def _call_deploy_local_worker(
     )
 
 
-def test_force_remove_falls_back_to_subprocess_when_path_survives(monkeypatch, tmp_path):
+def test_force_remove_falls_back_to_subprocess_when_path_survives(
+    monkeypatch, tmp_path
+):
     target = tmp_path / "stubborn"
     target.mkdir(parents=True, exist_ok=True)
     calls = []
     env_logger = mock.Mock()
 
-    monkeypatch.setattr(deployment_local_support.shutil, "rmtree", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        deployment_local_support.shutil, "rmtree", lambda *_a, **_k: None
+    )
     monkeypatch.setattr(
         deployment_local_support.subprocess,
         "run",
@@ -87,7 +126,9 @@ def test_force_remove_propagates_non_filesystem_errors(monkeypatch, tmp_path):
         deployment_local_support._force_remove(target)
 
 
-def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(monkeypatch, tmp_path):
+def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(
+    monkeypatch, tmp_path
+):
     target = tmp_path / "stubborn"
     child = target / "child"
     target.mkdir(parents=True, exist_ok=True)
@@ -118,7 +159,9 @@ def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(monk
     assert subprocess_calls
 
 
-def test_force_remove_swallows_filesystem_error_and_uses_subprocess(monkeypatch, tmp_path):
+def test_force_remove_swallows_filesystem_error_and_uses_subprocess(
+    monkeypatch, tmp_path
+):
     target = tmp_path / "stubborn"
     target.mkdir(parents=True, exist_ok=True)
     subprocess_calls = []
@@ -142,9 +185,10 @@ def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
     source = Path(deployment_local_support.__file__).read_text(encoding="utf-8")
 
     assert '_force_remove(app_path / ".venv"' not in source
-    assert '_force_remove(wenv_abs / ".venv"' not in source
     assert "_remove_project_venv_if_mismatched(\n        app_path," in source
-    assert "_remove_project_venv_if_mismatched(\n        wenv_abs," in source
+    assert "_remove_project_venv_if_mismatched(\n        worker_venv_project," in source
+    assert "if worker_venv_project is None:" in source
+    assert '_force_remove(wenv_abs / ".venv"' in source
 
 
 def test_cleanup_editable_ignores_missing_entries():
@@ -230,7 +274,9 @@ async def test_install_into_project_venv_reuses_existing_target_python(tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_install_into_project_venv_reuses_existing_matching_python_version(tmp_path):
+async def test_install_into_project_venv_reuses_existing_matching_python_version(
+    tmp_path,
+):
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
@@ -262,7 +308,9 @@ async def test_install_into_project_venv_reuses_existing_matching_python_version
 
 
 @pytest.mark.asyncio
-async def test_install_into_project_venv_recreates_existing_mismatched_python_version(tmp_path):
+async def test_install_into_project_venv_recreates_existing_mismatched_python_version(
+    tmp_path,
+):
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
@@ -292,6 +340,226 @@ async def test_install_into_project_venv_recreates_existing_mismatched_python_ve
         ),
         (
             f'uv pip install --python "{venv_python}" --upgrade --no-deps "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_skips_cached_editable_metadata(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    (package_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-pkg'\n", encoding="utf-8"
+    )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_path)
+
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_invalidates_editable_metadata_cache(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    pyproject = package_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='demo-pkg'\n", encoding="utf-8")
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_path)
+
+    for _ in range(2):
+        await deployment_local_support._install_into_project_venv(
+            "uv",
+            tmp_path,
+            package_path,
+            run_fn=_fake_run,
+            editable=True,
+            no_deps=False,
+            python_version="3.13",
+        )
+    pyproject.write_text(
+        "[project]\nname='demo-pkg'\ndependencies=['numpy']\n",
+        encoding="utf-8",
+    )
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        ),
+        (
+            f'uv pip install --python "{venv_python}" --upgrade -e "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_many_into_project_venv_skips_cached_editables(tmp_path):
+    calls = []
+    package_a = tmp_path / "pkg_a"
+    package_b = tmp_path / "pkg_b"
+    for package_path in (package_a, package_b):
+        package_path.mkdir()
+        (package_path / "pyproject.toml").write_text(
+            f"[project]\nname='{package_path.name}'\n", encoding="utf-8"
+        )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_a)
+        _write_editable_direct_url(tmp_path, package_b)
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_a}" -e "{package_b}"',
+            tmp_path,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_many_into_project_venv_reinstalls_only_missing_editable_proofs(
+    tmp_path,
+):
+    calls = []
+    package_a = tmp_path / "pkg_a"
+    package_b = tmp_path / "pkg_b"
+    for package_path in (package_a, package_b):
+        package_path.mkdir()
+        (package_path / "pyproject.toml").write_text(
+            f"[project]\nname='{package_path.name}'\n",
+            encoding="utf-8",
+        )
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n",
+        encoding="utf-8",
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        if str(package_a) in cmd:
+            _write_editable_direct_url(tmp_path, package_a)
+        if str(package_b) in cmd:
+            _write_editable_direct_url(tmp_path, package_b)
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+    stale_direct_url = (
+        deployment_local_support._project_site_packages_dir(
+            tmp_path,
+            python_version="3.13",
+        )
+        / "pkg_b-0.0.dist-info"
+        / "direct_url.json"
+    )
+    stale_direct_url.unlink()
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_a, package_b],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_a}" -e "{package_b}"',
+            tmp_path,
+        ),
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_b}"',
             tmp_path,
         ),
     ]
@@ -329,8 +597,298 @@ def test_remove_project_venv_if_mismatched_removes_broken_venv(tmp_path):
     assert not venv_root.exists()
 
 
+def test_shared_worker_venv_project_is_disabled_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGILAB_SHARED_WORKER_VENV", raising=False)
+    app_path = tmp_path / "app"
+    wenv_abs = tmp_path / "wenv"
+    app_path.mkdir()
+    wenv_abs.mkdir()
+
+    assert (
+        deployment_local_support._shared_worker_venv_project(
+            {},
+            active_app=app_path,
+            wenv_abs=wenv_abs,
+            python_version="3.13",
+            run_type="sync",
+            options_worker="",
+            worker_core_add_specs=[],
+            hw_rapids_capable=False,
+        )
+        is None
+    )
+
+
+def test_shared_worker_venv_project_uses_compatible_cache_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGILAB_SHARED_WORKER_VENV", "1")
+    app_path = tmp_path / "app"
+    wenv_abs = tmp_path / "wenv"
+    app_path.mkdir()
+    wenv_abs.mkdir()
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
+
+    first = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra pandas-worker",
+        worker_core_add_specs=["/core/agi-env", "/core/agi-node"],
+        hw_rapids_capable=False,
+    )
+    second = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra pandas-worker",
+        worker_core_add_specs=["/core/agi-node", "/core/agi-env"],
+        hw_rapids_capable=False,
+    )
+    changed = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra polars-worker",
+        worker_core_add_specs=["/core/agi-env", "/core/agi-node"],
+        hw_rapids_capable=False,
+    )
+
+    assert first == second
+    assert first is not None
+    assert first.parent == wenv_abs.parent / ".runtime-cache"
+    assert first.name.startswith("py3.13-")
+    assert changed != first
+
+
+def test_deploy_stage_cache_enabled_respects_refresh_and_disable(monkeypatch):
+    monkeypatch.delenv("AGILAB_REFRESH_LOCKS", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_DEPLOY_STAGE_CACHE", raising=False)
+
+    assert deployment_local_support._deploy_stage_cache_enabled({}) is True
+    assert (
+        deployment_local_support._deploy_stage_cache_enabled(
+            {"AGILAB_DISABLE_DEPLOY_STAGE_CACHE": "1"}
+        )
+        is False
+    )
+    assert (
+        deployment_local_support._deploy_stage_cache_enabled(
+            {"AGILAB_REFRESH_LOCKS": "1"}
+        )
+        is False
+    )
+
+
 @pytest.mark.asyncio
-async def test_install_into_project_venv_can_resolve_dependencies_with_worker_python(tmp_path):
+async def test_run_cached_deploy_stage_reuses_and_invalidates_metadata(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    input_file = project / "pyproject.toml"
+    input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
+    output_file = project / ".venv" / "bin" / "python"
+    cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text("", encoding="utf-8")
+
+    await deployment_local_support._run_cached_deploy_stage(
+        stage_name="manager-sync",
+        cmd="uv sync",
+        cwd=project,
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+        log=mock.Mock(),
+    )
+    await deployment_local_support._run_cached_deploy_stage(
+        stage_name="manager-sync",
+        cmd="uv sync",
+        cwd=project,
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+        log=mock.Mock(),
+    )
+
+    input_file.write_text(
+        "[project]\nname='demo'\ndependencies=['numpy']\n", encoding="utf-8"
+    )
+    await deployment_local_support._run_cached_deploy_stage(
+        stage_name="manager-sync",
+        cmd="uv sync",
+        cwd=project,
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+        log=mock.Mock(),
+    )
+
+    assert calls == [("uv sync", project), ("uv sync", project)]
+
+
+@pytest.mark.asyncio
+async def test_run_cached_deploy_stage_requires_output_probe(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    input_file = project / "pyproject.toml"
+    input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
+    output_file = project / ".venv" / "bin" / "python"
+    cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text("", encoding="utf-8")
+
+    await deployment_local_support._run_cached_deploy_stage(
+        stage_name="worker-sync",
+        cmd="uv sync --project worker",
+        cwd=project,
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+        log=mock.Mock(),
+    )
+    output_file.unlink()
+    await deployment_local_support._run_cached_deploy_stage(
+        stage_name="worker-sync",
+        cmd="uv sync --project worker",
+        cwd=project,
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+        log=mock.Mock(),
+    )
+
+    assert calls == [
+        ("uv sync --project worker", project),
+        ("uv sync --project worker", project),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_deploy_plan_enforces_dependencies_and_records_results(tmp_path):
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=False,
+        cache_state={
+            "schema": deployment_local_support.DEPLOY_STAGE_CACHE_SCHEMA,
+            "stages": {},
+        },
+        cache_path=tmp_path / "cache.json",
+        log=mock.Mock(),
+    )
+    first = deployment_local_support._DeployPlanNode(
+        name="manager-sync",
+        cmd="uv sync --project manager",
+        cwd=tmp_path,
+        inputs=[],
+        output_probe=lambda: True,
+    )
+    second = deployment_local_support._DeployPlanNode(
+        name="worker-sync",
+        cmd="uv sync --project worker",
+        cwd=tmp_path,
+        inputs=[],
+        output_probe=lambda: True,
+        dependencies=("manager-sync",),
+    )
+
+    with pytest.raises(RuntimeError, match="missing dependencies: manager-sync"):
+        await plan.run(second)
+
+    assert await plan.run(first) == "ran"
+    assert await plan.run(second) == "ran"
+    assert calls == [
+        ("uv sync --project manager", tmp_path),
+        ("uv sync --project worker", tmp_path),
+    ]
+    assert plan.results == {"manager-sync": "ran", "worker-sync": "ran"}
+
+
+@pytest.mark.asyncio
+async def test_deploy_plan_records_cached_skips(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    input_file = project / "pyproject.toml"
+    input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
+    output_file = project / ".venv" / "bin" / "python"
+    cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
+    calls = []
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text("", encoding="utf-8")
+
+    node = deployment_local_support._DeployPlanNode(
+        name="manager-sync",
+        cmd="uv sync --project manager",
+        cwd=project,
+        inputs=[input_file],
+        output_probe=output_file.exists,
+    )
+    first_plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        log=mock.Mock(),
+    )
+
+    assert await first_plan.run(node) == "ran"
+
+    second_plan = deployment_local_support._DeployPlan(
+        run_fn=_fake_run,
+        cache_enabled=True,
+        cache_state=deployment_local_support._load_deploy_stage_cache(cache_path),
+        cache_path=cache_path,
+        log=mock.Mock(),
+    )
+
+    assert await second_plan.run(node) == "skipped"
+    assert calls == [("uv sync --project manager", project)]
+    assert second_plan.results == {"manager-sync": "skipped"}
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_can_resolve_dependencies_with_worker_python(
+    tmp_path,
+):
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
@@ -367,20 +925,28 @@ def test_project_venv_python_uses_windows_layout(tmp_path):
     )
 
 
-def test_resolve_install_spec_prefers_project_path_over_distribution_metadata(tmp_path, monkeypatch):
+def test_resolve_install_spec_prefers_project_path_over_distribution_metadata(
+    tmp_path, monkeypatch
+):
     project_path = tmp_path / "agi-env"
     project_path.mkdir()
-    (project_path / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    (project_path / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\n", encoding="utf-8"
+    )
     monkeypatch.setattr(
         deployment_local_support,
         "_resolve_distribution_install_spec",
         lambda _name: "agi-env==0.0.0",
     )
 
-    assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == str(project_path)
+    assert deployment_local_support._resolve_install_spec(
+        project_path, "agi-env"
+    ) == str(project_path)
 
 
-def test_resolve_install_spec_falls_back_to_distribution_metadata_for_non_project_path(tmp_path, monkeypatch):
+def test_resolve_install_spec_falls_back_to_distribution_metadata_for_non_project_path(
+    tmp_path, monkeypatch
+):
     project_path = tmp_path / "agi-env"
     project_path.mkdir()
     monkeypatch.setattr(
@@ -389,7 +955,10 @@ def test_resolve_install_spec_falls_back_to_distribution_metadata_for_non_projec
         lambda _name: "agi-env==0.0.0",
     )
 
-    assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == "agi-env==0.0.0"
+    assert (
+        deployment_local_support._resolve_install_spec(project_path, "agi-env")
+        == "agi-env==0.0.0"
+    )
 
 
 def test_build_worker_core_add_commands_marks_local_projects_editable(tmp_path):
@@ -398,8 +967,12 @@ def test_build_worker_core_add_commands_marks_local_projects_editable(tmp_path):
     wenv = tmp_path / "wenv"
     for project in (env_project, node_project, wenv):
         project.mkdir()
-    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
-    (node_project / "pyproject.toml").write_text("[project]\nname='agi-node'\n", encoding="utf-8")
+    (env_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\n", encoding="utf-8"
+    )
+    (node_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-node'\n", encoding="utf-8"
+    )
 
     commands = deployment_local_support._build_worker_core_add_commands(
         "uv",
@@ -422,12 +995,17 @@ def test_build_worker_core_add_commands_keeps_distribution_specs_non_editable(tm
     wenv = tmp_path / "wenv"
     for project in (env_project, wenv):
         project.mkdir()
-    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    (env_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\n", encoding="utf-8"
+    )
 
     commands = deployment_local_support._build_worker_core_add_commands(
         "uv",
         wenv,
-        [str(env_project), "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node"],
+        [
+            str(env_project),
+            "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node",
+        ],
     )
 
     assert commands == [
@@ -438,22 +1016,31 @@ def test_build_worker_core_add_commands_keeps_distribution_specs_non_editable(tm
     ]
 
 
-def test_is_local_project_install_spec_treats_unreadable_paths_as_non_local(monkeypatch):
+def test_is_local_project_install_spec_treats_unreadable_paths_as_non_local(
+    monkeypatch,
+):
     def _raise_os_error(_path):
         raise OSError("unreadable")
 
     monkeypatch.setattr(deployment_local_support, "_is_python_project", _raise_os_error)
 
-    assert deployment_local_support._is_local_project_install_spec("/unreadable/path") is False
+    assert (
+        deployment_local_support._is_local_project_install_spec("/unreadable/path")
+        is False
+    )
 
 
-def test_resolve_distribution_install_spec_returns_none_when_distribution_is_missing(monkeypatch):
+def test_resolve_distribution_install_spec_returns_none_when_distribution_is_missing(
+    monkeypatch,
+):
     def _missing(_name):
         raise deployment_local_support.PackageNotFoundError
 
     monkeypatch.setattr(deployment_local_support, "pkg_distribution", _missing)
 
-    assert deployment_local_support._resolve_distribution_install_spec("agi-env") is None
+    assert (
+        deployment_local_support._resolve_distribution_install_spec("agi-env") is None
+    )
 
 
 def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypatch):
@@ -469,7 +1056,9 @@ def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypa
                 '"subdirectory":"src/agilab/core/agi-env"}'
             )
 
-    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+    monkeypatch.setattr(
+        deployment_local_support, "pkg_distribution", lambda _name: _Dist()
+    )
 
     assert (
         deployment_local_support._resolve_distribution_install_spec("agi-env")
@@ -477,7 +1066,9 @@ def test_resolve_distribution_install_spec_uses_direct_url_git_revision(monkeypa
     )
 
 
-def test_resolve_distribution_install_spec_uses_direct_url_with_subdirectory_without_vcs(monkeypatch):
+def test_resolve_distribution_install_spec_uses_direct_url_with_subdirectory_without_vcs(
+    monkeypatch,
+):
     class _Dist:
         version = "2026.4.20"
 
@@ -486,7 +1077,9 @@ def test_resolve_distribution_install_spec_uses_direct_url_with_subdirectory_wit
             assert name == "direct_url.json"
             return '{"url":"https://example.com/agi-env.tar.gz","subdirectory":"src/agi-env"}'
 
-    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+    monkeypatch.setattr(
+        deployment_local_support, "pkg_distribution", lambda _name: _Dist()
+    )
 
     assert (
         deployment_local_support._resolve_distribution_install_spec("agi-env")
@@ -502,9 +1095,14 @@ def test_resolve_distribution_install_spec_falls_back_to_installed_version(monke
         def read_text(_name):
             return None
 
-    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+    monkeypatch.setattr(
+        deployment_local_support, "pkg_distribution", lambda _name: _Dist()
+    )
 
-    assert deployment_local_support._resolve_distribution_install_spec("agi-env") == "agi-env==2026.4.20"
+    assert (
+        deployment_local_support._resolve_distribution_install_spec("agi-env")
+        == "agi-env==2026.4.20"
+    )
 
 
 def test_resolve_distribution_install_spec_ignores_invalid_direct_url_json(monkeypatch):
@@ -515,9 +1113,14 @@ def test_resolve_distribution_install_spec_ignores_invalid_direct_url_json(monke
         def read_text(_name):
             return "{invalid-json"
 
-    monkeypatch.setattr(deployment_local_support, "pkg_distribution", lambda _name: _Dist())
+    monkeypatch.setattr(
+        deployment_local_support, "pkg_distribution", lambda _name: _Dist()
+    )
 
-    assert deployment_local_support._resolve_distribution_install_spec("agi-env") == "agi-env==2026.4.20"
+    assert (
+        deployment_local_support._resolve_distribution_install_spec("agi-env")
+        == "agi-env==2026.4.20"
+    )
 
 
 def test_format_dependency_spec_and_repo_helpers_cover_edge_cases(tmp_path):
@@ -550,10 +1153,14 @@ def test_read_agilab_repo_root_normalizes_missing_marker(monkeypatch):
 
 
 def test_parse_dependency_names_skips_non_strings_and_invalid_requirements():
-    assert deployment_local_support._parse_dependency_names(["numpy>=1.26", 3, None, "not["]) == {"numpy"}
+    assert deployment_local_support._parse_dependency_names(
+        ["numpy>=1.26", 3, None, "not["]
+    ) == {"numpy"}
 
 
-def test_manager_dependency_names_returns_empty_for_missing_or_invalid_pyproject(tmp_path):
+def test_manager_dependency_names_returns_empty_for_missing_or_invalid_pyproject(
+    tmp_path,
+):
     missing = tmp_path / "missing.toml"
     invalid = tmp_path / "invalid.toml"
     invalid.write_text("[project\nname = 'broken'\n", encoding="utf-8")
@@ -562,7 +1169,9 @@ def test_manager_dependency_names_returns_empty_for_missing_or_invalid_pyproject
     assert deployment_local_support._manager_dependency_names(invalid) == set()
 
 
-def test_manager_overlay_core_sources_recovers_when_second_parse_fails(tmp_path, monkeypatch):
+def test_manager_overlay_core_sources_recovers_when_second_parse_fails(
+    tmp_path, monkeypatch
+):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         """
@@ -592,7 +1201,9 @@ dependencies = ["agi-env"]
     ) == {"agi-env": str(agi_env_path.resolve(strict=False))}
 
 
-def test_manager_overlay_core_sources_preserves_existing_paths_and_adds_missing_ones(tmp_path):
+def test_manager_overlay_core_sources_preserves_existing_paths_and_adds_missing_ones(
+    tmp_path,
+):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         """
@@ -628,16 +1239,22 @@ def test_write_manager_sync_overlay_bootstraps_missing_tables(tmp_path):
     deployment_local_support._write_manager_sync_overlay(
         source_pyproject,
         overlay_dir,
-        local_core_sources={"agi-env": str((tmp_path / "agi-env").resolve(strict=False))},
+        local_core_sources={
+            "agi-env": str((tmp_path / "agi-env").resolve(strict=False))
+        },
     )
 
-    overlay_doc = tomlkit.parse((overlay_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    overlay_doc = tomlkit.parse(
+        (overlay_dir / "pyproject.toml").read_text(encoding="utf-8")
+    )
     assert overlay_doc["tool"]["uv"]["sources"]["agi-env"]["path"] == str(
         (tmp_path / "agi-env").resolve(strict=False)
     )
 
 
-def test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries(tmp_path):
+def test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries(
+    tmp_path,
+):
     source_dir = tmp_path / "apps" / "demo"
     source_dir.mkdir(parents=True, exist_ok=True)
     abs_dep = tmp_path / "abs-dep"
@@ -665,12 +1282,16 @@ abs = {{ path = "{abs_dep}" }}
         local_core_sources={},
     )
 
-    overlay_doc = tomlkit.parse((overlay_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    overlay_doc = tomlkit.parse(
+        (overlay_dir / "pyproject.toml").read_text(encoding="utf-8")
+    )
     sources = overlay_doc["tool"]["uv"]["sources"]
     assert "demo" not in sources
     assert sources["non_dict"] == "skip-me"
     assert sources["blank"]["path"] == "   "
-    assert sources["rel"]["path"] == str((source_dir / "../shared").resolve(strict=False))
+    assert sources["rel"]["path"] == str(
+        (source_dir / "../shared").resolve(strict=False)
+    )
     assert sources["abs"]["path"] == str(abs_dep.resolve(strict=False))
 
 
@@ -686,8 +1307,14 @@ def test_uv_offline_flag_handles_failing_lookup_false_and_nan(monkeypatch):
             raise RuntimeError("boom")
 
     assert deployment_local_support._uv_offline_flag(_BrokenEnvars()) == ""
-    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": False}) == "--offline "
-    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": float("nan")}) == "--offline "
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": False})
+        == "--offline "
+    )
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": float("nan")})
+        == "--offline "
+    )
 
 
 def test_uv_offline_flag_accepts_quoted_truthy_env_values(monkeypatch):
@@ -699,7 +1326,9 @@ def test_uv_offline_flag_accepts_quoted_truthy_env_values(monkeypatch):
 def test_uv_offline_flag_accepts_quoted_truthy_envar_values(monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
 
-    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'true'"}) == ""
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'true'"}) == ""
+    )
     assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"yes"'}) == ""
     assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"on"'}) == ""
 
@@ -707,8 +1336,14 @@ def test_uv_offline_flag_accepts_quoted_truthy_envar_values(monkeypatch):
 def test_uv_offline_flag_keeps_quoted_false_values_offline(monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
 
-    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"0"'}) == "--offline "
-    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'false'"}) == "--offline "
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"0"'})
+        == "--offline "
+    )
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'false'"})
+        == "--offline "
+    )
 
 
 def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask():
@@ -736,7 +1371,9 @@ def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask
 
 
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():
-    assert deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None
+    assert (
+        deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None
+    )
 
 
 def test_infer_repo_root_from_runtime_returns_none_for_root_path():
@@ -810,7 +1447,9 @@ dependencies = ["numpy["]
     assert 'dependencies = ["numpy[", "scipy==1.16.1"]' in content
 
 
-def test_update_pyproject_dependencies_bootstraps_missing_file_and_pinned_extras(tmp_path):
+def test_update_pyproject_dependencies_bootstraps_missing_file_and_pinned_extras(
+    tmp_path,
+):
     pyproject = tmp_path / "pyproject.toml"
 
     deployment_local_support._update_pyproject_dependencies(
@@ -831,7 +1470,9 @@ def test_update_pyproject_dependencies_bootstraps_missing_file_and_pinned_extras
     assert 'dependencies = ["pandas[performance]==2.2.3"]' in content
 
 
-def test_update_pyproject_dependencies_normalizes_non_array_dependencies(monkeypatch, tmp_path):
+def test_update_pyproject_dependencies_normalizes_non_array_dependencies(
+    monkeypatch, tmp_path
+):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
     project_doc = tomlkit.document()
@@ -839,7 +1480,9 @@ def test_update_pyproject_dependencies_normalizes_non_array_dependencies(monkeyp
     project_tbl["dependencies"] = ("numpy>=1",)
     project_doc["project"] = project_tbl
 
-    monkeypatch.setattr(deployment_local_support.tomlkit, "parse", lambda _text: project_doc)
+    monkeypatch.setattr(
+        deployment_local_support.tomlkit, "parse", lambda _text: project_doc
+    )
 
     deployment_local_support._update_pyproject_dependencies(
         pyproject,
@@ -859,7 +1502,9 @@ def test_update_pyproject_dependencies_normalizes_non_array_dependencies(monkeyp
     assert 'dependencies = ["numpy>=1", "scipy>=1.15"]' in content
 
 
-def test_update_pyproject_dependencies_normalizes_plain_sequence_dependencies(monkeypatch, tmp_path):
+def test_update_pyproject_dependencies_normalizes_plain_sequence_dependencies(
+    monkeypatch, tmp_path
+):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
 
@@ -887,9 +1532,13 @@ def test_update_pyproject_dependencies_normalizes_plain_sequence_dependencies(mo
     assert 'dependencies = ["numpy>=1", "pandas>=2", "scipy>=1.15"]' in content
 
 
-def test_update_pyproject_dependencies_propagates_unexpected_requirement_bug(monkeypatch, tmp_path):
+def test_update_pyproject_dependencies_propagates_unexpected_requirement_bug(
+    monkeypatch, tmp_path
+):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[project]\nname='worker'\ndependencies=['numpy>=1']\n", encoding="utf-8")
+    pyproject.write_text(
+        "[project]\nname='worker'\ndependencies=['numpy>=1']\n", encoding="utf-8"
+    )
 
     def _boom(_text):
         raise ValueError("unexpected requirement mapper bug")
@@ -927,7 +1576,9 @@ dependencies = ["scipy==1.16.1", "pandas[performance]>=2"]
         encoding="utf-8",
     )
 
-    dependency_info, worker_pyprojects = deployment_local_support._gather_dependency_specs([first, second])
+    dependency_info, worker_pyprojects = (
+        deployment_local_support._gather_dependency_specs([first, second])
+    )
 
     assert str((first / "pyproject.toml").resolve()) in worker_pyprojects
     assert str((second / "pyproject.toml").resolve()) in worker_pyprojects
@@ -960,15 +1611,17 @@ dependencies = ["scipy>=1.15,<1.17"]
         encoding="utf-8",
     )
 
-    dependency_info, _worker_pyprojects = deployment_local_support._gather_dependency_specs(
-        [exact, ranged]
+    dependency_info, _worker_pyprojects = (
+        deployment_local_support._gather_dependency_specs([exact, ranged])
     )
 
     assert dependency_info["scipy"]["has_exact"] is True
     assert dependency_info["scipy"]["specifiers"] == ["==1.16.1"]
 
 
-def test_gather_dependency_specs_skips_invalid_pyproject_and_dependency_entries(tmp_path):
+def test_gather_dependency_specs_skips_invalid_pyproject_and_dependency_entries(
+    tmp_path,
+):
     good = tmp_path / "good"
     bad = tmp_path / "bad"
     weird = tmp_path / "weird"
@@ -993,7 +1646,9 @@ dependencies = ["numpy["]
         encoding="utf-8",
     )
 
-    dependency_info, worker_pyprojects = deployment_local_support._gather_dependency_specs([good, bad, weird])
+    dependency_info, worker_pyprojects = (
+        deployment_local_support._gather_dependency_specs([good, bad, weird])
+    )
 
     assert str((good / "pyproject.toml").resolve()) in worker_pyprojects
     assert str((bad / "pyproject.toml").resolve()) not in worker_pyprojects
@@ -1004,7 +1659,9 @@ dependencies = ["numpy["]
 def test_gather_dependency_specs_propagates_unexpected_parse_bug(monkeypatch, tmp_path):
     project = tmp_path / "project"
     project.mkdir(parents=True, exist_ok=True)
-    (project / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (project / "pyproject.toml").write_text(
+        "[project]\nname='demo'\n", encoding="utf-8"
+    )
 
     def _boom(_text):
         raise ValueError("unexpected parse bug")
@@ -1015,7 +1672,9 @@ def test_gather_dependency_specs_propagates_unexpected_parse_bug(monkeypatch, tm
         deployment_local_support._gather_dependency_specs([project])
 
 
-def test_gather_dependency_specs_skips_none_missing_duplicate_and_false_marker_entries(tmp_path):
+def test_gather_dependency_specs_skips_none_missing_duplicate_and_false_marker_entries(
+    tmp_path,
+):
     project = tmp_path / "project"
     project.mkdir(parents=True, exist_ok=True)
     (project / "pyproject.toml").write_text(
@@ -1027,8 +1686,10 @@ dependencies = ["numpy>=1.0", "scipy>=1.0; python_version < '2'"]
         encoding="utf-8",
     )
 
-    dependency_info, worker_pyprojects = deployment_local_support._gather_dependency_specs(
-        [None, project, tmp_path / "missing", project]
+    dependency_info, worker_pyprojects = (
+        deployment_local_support._gather_dependency_specs(
+            [None, project, tmp_path / "missing", project]
+        )
     )
 
     assert worker_pyprojects == {str((project / "pyproject.toml").resolve())}
@@ -1039,21 +1700,29 @@ dependencies = ["numpy>=1.0", "scipy>=1.0; python_version < '2'"]
 async def test_deploy_local_worker_non_source_flow(tmp_path):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -1116,30 +1785,281 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     assert agi_cls._install_done_local is True
     assert any(" add agi-env" in cmd for cmd, _ in commands)
     assert any(" add agi-node" in cmd for cmd, _ in commands)
-    assert any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
-    assert any(f'"{app_path}"' in cmd and "demo.post_install" in cmd for cmd, _ in commands)
+    assert any(
+        "AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'"{app_path}"' in cmd and "demo.post_install" in cmd for cmd, _ in commands
+    )
     assert any("threaded" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localhost_ssh(tmp_path):
+async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
+    app_python = app_path / ".venv" / "bin" / "python"
+    app_python.parent.mkdir(parents=True)
+    app_python.write_text("", encoding="utf-8")
+    (app_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
+    worker_python = wenv_abs / ".venv" / "bin" / "python"
+    worker_python.parent.mkdir(parents=True)
+    worker_python.write_text("", encoding="utf-8")
+    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _mode=0,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        " --extra pandas-worker",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+    first_commands = list(commands)
+    commands.clear()
+    agi_cls._install_done_local = False
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        " --extra pandas-worker",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    assert (wenv_abs / ".agilab-stage-cache.json").exists()
+    assert any(
+        cmd.startswith("uv sync") and str(app_path) in cmd for cmd, _ in first_commands
+    )
+    assert any(
+        cmd.startswith("uv sync") and str(wenv_abs) in cmd for cmd, _ in first_commands
+    )
+    assert any(" add agi-env" in cmd for cmd, _ in first_commands)
+    assert not any(
+        cmd.startswith("uv sync") and str(app_path) in cmd for cmd, _ in commands
+    )
+    assert not any(
+        cmd.startswith("uv sync") and str(wenv_abs) in cmd for cmd, _ in commands
+    )
+    assert not any(
+        " add agi-env" in cmd or " add agi-node" in cmd for cmd, _ in commands
+    )
+    assert any(
+        "pip install --python" in cmd and str(app_path) in cmd for cmd, _ in commands
+    )
+    assert any("threaded" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
+    (wenv_abs / ".venv").mkdir()
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={"AGILAB_SHARED_WORKER_VENV": "1"},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _mode=0,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        " --extra pandas-worker",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    cache_root = wenv_abs.parent / ".runtime-cache"
+    worker_commands = [cmd for cmd, cwd in commands if cwd == str(wenv_abs)]
+    manager_commands = [cmd for cmd, cwd in commands if cwd == str(app_path)]
+
+    assert not (wenv_abs / ".venv").exists()
+    assert cache_root.exists()
+    assert any(
+        "UV_PROJECT_ENVIRONMENT=" in cmd and str(cache_root) in cmd
+        for cmd in worker_commands
+    )
+    assert any(f'pip install --python "{cache_root}' in cmd for cmd in worker_commands)
+    assert not any("UV_PROJECT_ENVIRONMENT=" in cmd for cmd in manager_commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localhost_ssh(
+    tmp_path,
+):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
     existing_cli = wenv_abs.parent / "cli.py"
     existing_cli.write_text("print('existing cli')", encoding="utf-8")
 
@@ -1212,7 +2132,10 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
     assert ("127.0.0.1", "hw_rapids_capable") in env_vars
     assert ssh_calls and any("demo.post_install" in cmd for cmd in ssh_calls)
     assert any("demo.post_install" in cmd for cmd, _ in commands)
-    assert not any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
+    assert not any(
+        "AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd
+        for cmd, _ in commands
+    )
     assert any(
         "uv sync --config-file uv_config.toml --project" in cmd and str(app_path) in cmd
         for cmd, _ in commands
@@ -1234,7 +2157,9 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow(tmp_path, monkeypatch):
+async def test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow(
+    tmp_path, monkeypatch
+):
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
@@ -1247,11 +2172,15 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
             encoding="utf-8",
         )
     (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text(
+        "x", encoding="utf-8"
+    )
 
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     (app_path / "src").mkdir(parents=True, exist_ok=True)
     (app_path / "src" / "Trajectory.7z").write_text("traj", encoding="utf-8")
     (app_path / ".venv").mkdir(parents=True, exist_ok=True)
@@ -1259,11 +2188,15 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
     (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
     (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
-    (wenv_abs / ".venv" / "pyvenv.cfg").write_text("version = 3.13.13\n", encoding="utf-8")
+    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "env_pck" / "agi_env"
@@ -1280,7 +2213,9 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -1324,7 +2259,11 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         ssh_calls.append(cmd)
         raise ConnectionError("localhost ssh denied")
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(lambda: repo_root),
+    )
 
     agi_cls = SimpleNamespace(
         env=env,
@@ -1355,11 +2294,17 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
     assert (
-        wenv_abs / ".venv" / "lib" / "python3.13" / "site-packages" / "agilab_uv_sources.pth"
+        wenv_abs
+        / ".venv"
+        / "lib"
+        / "python3.13"
+        / "site-packages"
+        / "agilab_uv_sources.pth"
     ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
     assert agi_cls._install_done_local is True
     assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd
+        and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
     manager_python = app_path / ".venv" / "bin" / "python"
@@ -1367,10 +2312,16 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands
     )
-    assert not any(f'--no-deps "{cluster_project}"' in cmd and str(app_path) in cwd for cmd, cwd in commands)
+    assert not any(
+        f'--no-deps "{cluster_project}"' in cmd and str(app_path) in cwd
+        for cmd, cwd in commands
+    )
     assert not any("add agi-env" in cmd and str(wenv_abs) in cmd for cmd, _ in commands)
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
-    assert any("pip install --python" in cmd and str(wenv_abs / ".venv") in cmd for cmd, _ in commands)
+    assert any(
+        "pip install --python" in cmd and str(wenv_abs / ".venv") in cmd
+        for cmd, _ in commands
+    )
     assert any("demo.post_install" in cmd for cmd in ssh_calls)
 
 
@@ -1381,13 +2332,17 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
 ):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     (app_path / ".venv").mkdir(parents=True, exist_ok=True)
     (app_path / "uv.lock").write_text("lock", encoding="utf-8")
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "site-packages" / "agi_env"
@@ -1399,7 +2354,9 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
 
     cluster_pck = tmp_path / "site-packages" / "agi_cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -1441,7 +2398,9 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
     async def _fake_ssh(_ip, _cmd):
         raise ConnectionError("localhost ssh denied")
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None)
+    )
     monkeypatch.setattr(
         deployment_local_support,
         "_infer_repo_root_from_runtime",
@@ -1479,12 +2438,22 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
     )
 
     assert not any(f'"{tmp_path / "bad" / "agi_env"}"' in cmd for cmd, _ in commands)
-    assert any("agi-env @ git+https://example.invalid/repo.git@main#subdirectory=agi-env" in cmd for cmd, _ in commands)
-    assert any("agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node" in cmd for cmd, _ in commands)
+    assert any(
+        "agi-env @ git+https://example.invalid/repo.git@main#subdirectory=agi-env"
+        in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node"
+        in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path, monkeypatch):
+async def test_deploy_local_worker_preserves_existing_dependency_ranges(
+    tmp_path, monkeypatch
+):
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
@@ -1493,13 +2462,19 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
     for project in (env_project, node_project, core_project, cluster_project):
         project.mkdir(parents=True, exist_ok=True)
     (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
-    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text(
+        "x", encoding="utf-8"
+    )
+    (env_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8"
+    )
     (node_project / "pyproject.toml").write_text(
         "[project]\nname='agi-node'\ndependencies=['scipy==1.16.1']\n",
         encoding="utf-8",
     )
-    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
+    (core_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8"
+    )
     (cluster_project / "pyproject.toml").write_text(
         "[project]\nname='agi-cluster'\ndependencies=['pip>=1']\n",
         encoding="utf-8",
@@ -1517,7 +2492,9 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
@@ -1527,7 +2504,9 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -1569,7 +2548,11 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
     async def _fake_ssh(_ip, _cmd):
         raise ConnectionError("localhost ssh denied")
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(lambda: repo_root),
+    )
 
     agi_cls = SimpleNamespace(
         env=env,
@@ -1594,17 +2577,20 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
     )
 
     manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'scipy>=1.15.2,<1.17' in manager_toml
-    assert 'scipy==1.16.1' not in manager_toml
+    assert "scipy>=1.15.2,<1.17" in manager_toml
+    assert "scipy==1.16.1" not in manager_toml
     assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd
+        and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
     assert any("sync --project" in cmd for cmd, _ in commands)
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_app(tmp_path, monkeypatch):
+async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_app(
+    tmp_path, monkeypatch
+):
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
@@ -1613,13 +2599,19 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
     for project in (env_project, node_project, core_project, cluster_project):
         project.mkdir(parents=True, exist_ok=True)
     (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
-    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text(
+        "x", encoding="utf-8"
+    )
+    (env_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8"
+    )
     (node_project / "pyproject.toml").write_text(
         "[project]\nname='agi-node'\ndependencies=['scipy==1.16.1']\n",
         encoding="utf-8",
     )
-    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
+    (core_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8"
+    )
     (cluster_project / "pyproject.toml").write_text(
         "[project]\nname='agi-cluster'\ndependencies=['pip>=1']\n",
         encoding="utf-8",
@@ -1635,7 +2627,9 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
         / "agi_distributor.py"
     )
     fake_module_file.parent.mkdir(parents=True, exist_ok=True)
-    fake_module_file.write_text("# fake module path for repo inference\n", encoding="utf-8")
+    fake_module_file.write_text(
+        "# fake module path for repo inference\n", encoding="utf-8"
+    )
 
     app_path = repo_root / "apps" / "builtin" / "demo_project"
     app_path.mkdir(parents=True, exist_ok=True)
@@ -1649,7 +2643,9 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
@@ -1659,7 +2655,9 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -1701,7 +2699,9 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
     async def _fake_ssh(_ip, _cmd):
         raise ConnectionError("localhost ssh denied")
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None)
+    )
 
     agi_cls = SimpleNamespace(
         env=env,
@@ -1731,7 +2731,8 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
     assert "pip>=1" not in manager_toml
     assert "scipy==1.16.1" not in manager_toml
     assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd
+        and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
 
@@ -1741,10 +2742,14 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     agi_env = tmp_path / "agi_env"
     agi_node = tmp_path / "agi_node"
     agi_cluster = tmp_path / "agi_cluster"
@@ -1755,7 +2760,9 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
             encoding="utf-8",
         )
         (project / "dist").mkdir(parents=True, exist_ok=True)
-    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
     old_node_whl = agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl"
     new_node_whl = agi_node / "dist" / "agi_node-0.0.2-py3-none-any.whl"
     old_node_whl.write_text("old-whl", encoding="utf-8")
@@ -1764,7 +2771,9 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
     os.utime(new_node_whl, (2, 2))
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=True,
@@ -1825,31 +2834,42 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
     )
 
     assert agi_cls._install_done_local is True
-    assert any("uv --offline sync" in cmd and str(app_path) in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_env}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_node}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{agi_cluster}'" in cmd for cmd, _ in commands)
-    assert any(f'uv --offline --project "{agi_env}" build --wheel' in cmd for cmd, _ in commands)
-    assert any(f'uv --offline --project "{agi_node}" build --wheel' in cmd for cmd, _ in commands)
     assert any(
-        f'uv --offline --project {wenv_abs} add --editable "{agi_env}" "{agi_node}"' in cmd
+        "uv --offline sync" in cmd and str(app_path) in cmd for cmd, _ in commands
+    )
+    assert any(
+        (
+            f"uv --offline pip install --upgrade --no-deps "
+            f"-e '{agi_env}' -e '{agi_node}' -e '{agi_cluster}' -e ."
+        )
+        in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv --offline --project "{agi_env}" build --wheel' in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv --offline --project "{agi_node}" build --wheel' in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv --offline --project {wenv_abs} add --editable "{agi_env}" "{agi_node}"'
+        in cmd
         for cmd, _ in commands
     )
     worker_python = wenv_abs / ".venv" / "bin" / "python"
     assert any(
-        f'uv --offline venv --allow-existing --python 3.13 "{wenv_abs / ".venv"}"' in cmd
+        f'uv --offline venv --allow-existing --python 3.13 "{wenv_abs / ".venv"}"'
+        in cmd
         for cmd, _ in commands
     )
     assert any(
-        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_env}"' in cmd
-        for cmd, _ in commands
-    )
-    assert any(
-        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_node}"' in cmd
-        for cmd, _ in commands
-    )
-    assert any(
-        f'uv pip install --python "{worker_python}" --upgrade --no-deps -e "{app_path}"' in cmd
+        (
+            f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps '
+            f'-e "{agi_env}" -e "{agi_node}" -e "{app_path}"'
+        )
+        in cmd
         for cmd, _ in commands
     )
     assert not any(f'pip install --project "{wenv_abs}"' in cmd for cmd, _ in commands)
@@ -1858,7 +2878,9 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_source_env_offline_manager_overlay_for_external_app(tmp_path, monkeypatch):
+async def test_deploy_local_worker_source_env_offline_manager_overlay_for_external_app(
+    tmp_path, monkeypatch
+):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
@@ -1870,10 +2892,16 @@ async def test_deploy_local_worker_source_env_offline_manager_overlay_for_extern
         (cluster_project, "agi-cluster"),
     ):
         project.mkdir(parents=True, exist_ok=True)
-        (project / "pyproject.toml").write_text(f"[project]\nname='{name}'\n", encoding="utf-8")
+        (project / "pyproject.toml").write_text(
+            f"[project]\nname='{name}'\n", encoding="utf-8"
+        )
         (project / "dist").mkdir(parents=True, exist_ok=True)
-    (env_project / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
-    (node_project / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (env_project / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
+    (node_project / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
 
     fake_module_file = (
         repo_root
@@ -1885,14 +2913,18 @@ async def test_deploy_local_worker_source_env_offline_manager_overlay_for_extern
         / "agi_distributor.py"
     )
     fake_module_file.parent.mkdir(parents=True, exist_ok=True)
-    fake_module_file.write_text("# fake module path for repo inference\n", encoding="utf-8")
+    fake_module_file.write_text(
+        "# fake module path for repo inference\n", encoding="utf-8"
+    )
 
     external_apps_root = tmp_path / "external_apps"
     app_path = external_apps_root / "sb3_trainer_project"
     sat_project = external_apps_root / "sat_trajectory_project"
     app_path.mkdir(parents=True, exist_ok=True)
     sat_project.mkdir(parents=True, exist_ok=True)
-    (sat_project / "pyproject.toml").write_text("[project]\nname='sat-trajectory-project'\n", encoding="utf-8")
+    (sat_project / "pyproject.toml").write_text(
+        "[project]\nname='sat-trajectory-project'\n", encoding="utf-8"
+    )
     (app_path / "pyproject.toml").write_text(
         """
 [project]
@@ -1913,13 +2945,17 @@ path = "../sat_trajectory_project"
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
     (wenv_abs / "_uv_sources" / "demo_worker").mkdir(parents=True, exist_ok=True)
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=True,
@@ -1971,8 +3007,12 @@ path = "../sat_trajectory_project"
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
-    monkeypatch.setattr(deployment_local_support, "TemporaryDirectory", _FakeTemporaryDirectory)
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None)
+    )
+    monkeypatch.setattr(
+        deployment_local_support, "TemporaryDirectory", _FakeTemporaryDirectory
+    )
 
     agi_cls = SimpleNamespace(
         env=env,
@@ -1996,11 +3036,19 @@ path = "../sat_trajectory_project"
         log=mock.Mock(),
     )
 
-    overlay_doc = tomlkit.parse((staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8"))
+    overlay_doc = tomlkit.parse(
+        (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
+    )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(env_project.resolve(strict=False))
-    assert str(overlay_sources["agi-node"]["path"]) == str(node_project.resolve(strict=False))
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(sat_project.resolve(strict=False))
+    assert str(overlay_sources["agi-env"]["path"]) == str(
+        env_project.resolve(strict=False)
+    )
+    assert str(overlay_sources["agi-node"]["path"]) == str(
+        node_project.resolve(strict=False)
+    )
+    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
+        sat_project.resolve(strict=False)
+    )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
         "--project" in cmd
@@ -2008,13 +3056,20 @@ path = "../sat_trajectory_project"
         and str(staged_overlay_root) in cmd
         for cmd, _ in commands
     )
-    assert any(f"uv --offline pip install -e '{env_project}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{node_project}'" in cmd for cmd, _ in commands)
-    assert any(f"uv --offline pip install -e '{cluster_project}'" in cmd for cmd, _ in commands)
+    assert any(
+        (
+            f"uv --offline pip install --upgrade --no-deps "
+            f"-e '{env_project}' -e '{node_project}' -e '{cluster_project}' -e ."
+        )
+        in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sources(tmp_path, monkeypatch):
+async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sources(
+    tmp_path, monkeypatch
+):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
@@ -2028,9 +3083,13 @@ async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sourc
         (cluster_project, "agi-cluster"),
     ):
         project.mkdir(parents=True, exist_ok=True)
-        (project / "pyproject.toml").write_text(f"[project]\nname='{name}'\n", encoding="utf-8")
+        (project / "pyproject.toml").write_text(
+            f"[project]\nname='{name}'\n", encoding="utf-8"
+        )
     (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text("x", encoding="utf-8")
+    (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text(
+        "x", encoding="utf-8"
+    )
 
     fake_module_file = (
         repo_root
@@ -2042,14 +3101,18 @@ async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sourc
         / "agi_distributor.py"
     )
     fake_module_file.parent.mkdir(parents=True, exist_ok=True)
-    fake_module_file.write_text("# fake module path for repo inference\n", encoding="utf-8")
+    fake_module_file.write_text(
+        "# fake module path for repo inference\n", encoding="utf-8"
+    )
 
     external_apps_root = tmp_path / "external_apps"
     app_path = external_apps_root / "sb3_trainer_project"
     sat_project = external_apps_root / "sat_trajectory_project"
     app_path.mkdir(parents=True, exist_ok=True)
     sat_project.mkdir(parents=True, exist_ok=True)
-    (sat_project / "pyproject.toml").write_text("[project]\nname='sat-trajectory-project'\n", encoding="utf-8")
+    (sat_project / "pyproject.toml").write_text(
+        "[project]\nname='sat-trajectory-project'\n", encoding="utf-8"
+    )
     (app_path / "pyproject.toml").write_text(
         """
 [project]
@@ -2070,7 +3133,9 @@ path = "../sat_trajectory_project"
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
     (wenv_abs / "_uv_sources" / "demo_worker").mkdir(parents=True, exist_ok=True)
 
@@ -2078,7 +3143,9 @@ path = "../sat_trajectory_project"
     env_pck.mkdir(parents=True, exist_ok=True)
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2130,8 +3197,12 @@ path = "../sat_trajectory_project"
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None))
-    monkeypatch.setattr(deployment_local_support, "TemporaryDirectory", _FakeTemporaryDirectory)
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: None)
+    )
+    monkeypatch.setattr(
+        deployment_local_support, "TemporaryDirectory", _FakeTemporaryDirectory
+    )
 
     agi_cls = SimpleNamespace(
         env=env,
@@ -2155,11 +3226,19 @@ path = "../sat_trajectory_project"
         log=mock.Mock(),
     )
 
-    overlay_doc = tomlkit.parse((staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8"))
+    overlay_doc = tomlkit.parse(
+        (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
+    )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(env_project.resolve(strict=False))
-    assert str(overlay_sources["agi-node"]["path"]) == str(node_project.resolve(strict=False))
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(sat_project.resolve(strict=False))
+    assert str(overlay_sources["agi-env"]["path"]) == str(
+        env_project.resolve(strict=False)
+    )
+    assert str(overlay_sources["agi-node"]["path"]) == str(
+        node_project.resolve(strict=False)
+    )
+    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
+        sat_project.resolve(strict=False)
+    )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
         "sync --project" in cmd
@@ -2168,17 +3247,21 @@ path = "../sat_trajectory_project"
         for cmd, _ in commands
     )
     assert any(
-        f'pip install --python "{app_path / ".venv" / "bin" / "python"}" --upgrade --no-deps -e "{app_path}"' in cmd
+        f'pip install --python "{app_path / ".venv" / "bin" / "python"}" --upgrade --no-deps -e "{app_path}"'
+        in cmd
         for cmd, _ in commands
     )
     assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd
+        and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and_free_threaded_python(tmp_path, monkeypatch):
+async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and_free_threaded_python(
+    tmp_path, monkeypatch
+):
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
@@ -2186,30 +3269,54 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     cluster_project = repo_root / "core" / "agi-cluster"
     for project in (env_project, node_project, core_project, cluster_project):
         project.mkdir(parents=True, exist_ok=True)
-    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8")
-    (node_project / "pyproject.toml").write_text("[project]\nname='agi-node'\ndependencies=['scipy>=1']\n", encoding="utf-8")
-    (core_project / "pyproject.toml").write_text("[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8")
-    (cluster_project / "pyproject.toml").write_text("[project]\nname='agi-cluster'\ndependencies=[]\n", encoding="utf-8")
+    (env_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-env'\ndependencies=['pip>=1']\n", encoding="utf-8"
+    )
+    (node_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-node'\ndependencies=['scipy>=1']\n", encoding="utf-8"
+    )
+    (core_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-core'\ndependencies=[]\n", encoding="utf-8"
+    )
+    (cluster_project / "pyproject.toml").write_text(
+        "[project]\nname='agi-cluster'\ndependencies=[]\n", encoding="utf-8"
+    )
 
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     (app_path / ".venv").mkdir(parents=True, exist_ok=True)
     (app_path / "uv.lock").write_text("lock", encoding="utf-8")
     legacy_manager_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
     legacy_manager_resources.mkdir(parents=True, exist_ok=True)
     (legacy_manager_resources / "old.txt").write_text("old", encoding="utf-8")
-    manager_resources = app_path / ".venv" / "lib" / "python3.13" / "site-packages" / "agi_env" / "resources"
+    manager_resources = (
+        app_path
+        / ".venv"
+        / "lib"
+        / "python3.13"
+        / "site-packages"
+        / "agi_env"
+        / "resources"
+    )
     manager_resources.mkdir(parents=True, exist_ok=True)
     (manager_resources / "old.txt").write_text("old", encoding="utf-8")
 
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
-    (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
+    (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(
+        parents=True, exist_ok=True
+    )
     (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
     (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
-    (wenv_abs / ".venv" / "pyvenv.cfg").write_text("version = 3.13.13\n", encoding="utf-8")
+    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n", encoding="utf-8"
+    )
     (wenv_abs / "_uv_sources").mkdir(parents=True, exist_ok=True)
     resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
     resources_dest.mkdir(parents=True, exist_ok=True)
@@ -2222,7 +3329,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2262,11 +3371,17 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     async def _fake_uninstall():
         return None
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: repo_root))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(lambda: repo_root),
+    )
     monkeypatch.setattr(
         deployment_local_support,
         "pkg_version",
-        lambda name: (_ for _ in ()).throw(deployment_local_support.PackageNotFoundError(name))
+        lambda name: (_ for _ in ()).throw(
+            deployment_local_support.PackageNotFoundError(name)
+        )
         if name == "scipy"
         else "1.0",
     )
@@ -2297,7 +3412,12 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     assert not (app_path / "agilab").exists()
     assert (resources_dest / "resource.txt").exists()
     assert (
-        wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages" / "agilab_uv_sources.pth"
+        wenv_abs
+        / ".venv"
+        / "lib"
+        / "python3.13t"
+        / "site-packages"
+        / "agilab_uv_sources.pth"
     ).exists()
     log.debug.assert_called()
 
@@ -2306,16 +3426,22 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
 async def test_deploy_local_worker_source_env_missing_agi_env_wheel_raises(tmp_path):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     agi_env = tmp_path / "agi_env"
     agi_node = tmp_path / "agi_node"
     agi_cluster = tmp_path / "agi_cluster"
     for project in (agi_env, agi_node, agi_cluster):
         (project / "dist").mkdir(parents=True, exist_ok=True)
-    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=True,
@@ -2382,16 +3508,22 @@ async def test_deploy_local_worker_source_env_missing_agi_env_wheel_raises(tmp_p
 async def test_deploy_local_worker_source_env_missing_agi_node_wheel_raises(tmp_path):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
     wenv_abs = tmp_path / "wenv"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker'\n", encoding="utf-8"
+    )
     agi_env = tmp_path / "agi_env"
     agi_node = tmp_path / "agi_node"
     agi_cluster = tmp_path / "agi_cluster"
     for project in (agi_env, agi_node, agi_cluster):
         (project / "dist").mkdir(parents=True, exist_ok=True)
-    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=True,
@@ -2452,23 +3584,31 @@ async def test_deploy_local_worker_source_env_missing_agi_node_wheel_raises(tmp_
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_cli(tmp_path, monkeypatch):
+async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_cli(
+    tmp_path, monkeypatch
+):
     app_path = tmp_path / "app"
     active_src = app_path / "src"
     active_src.mkdir(parents=True, exist_ok=True)
     archive = active_src / "Trajectory.7z"
     archive.write_text("traj", encoding="utf-8")
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
 
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
@@ -2555,25 +3695,35 @@ async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_c
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_handles_shallow_repo_root_and_rglob_oserror(tmp_path, monkeypatch):
+async def test_deploy_local_worker_handles_shallow_repo_root_and_rglob_oserror(
+    tmp_path, monkeypatch
+):
     app_path = tmp_path / "app"
     active_src = app_path / "src"
     active_src.mkdir(parents=True, exist_ok=True)
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2616,7 +3766,11 @@ async def test_deploy_local_worker_handles_shallow_repo_root_and_rglob_oserror(t
             raise OSError("scan failed")
         return original_rglob(self, pattern)
 
-    monkeypatch.setattr(deployment_local_support.AgiEnv, "read_agilab_path", staticmethod(lambda: Path("/repo")))
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(lambda: Path("/repo")),
+    )
     monkeypatch.setattr(Path, "rglob", _patched_rglob)
 
     agi_cls = SimpleNamespace(
@@ -2653,21 +3807,29 @@ async def test_deploy_local_worker_skips_duplicate_trajectory_archive_after_sat_
     active_src.mkdir(parents=True, exist_ok=True)
     archive = active_src / "Trajectory.7z"
     archive.write_text("traj", encoding="utf-8")
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
 
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
 
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2750,7 +3912,9 @@ async def test_deploy_local_worker_skips_duplicate_trajectory_archive_after_sat_
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(tmp_path, monkeypatch):
+async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(
+    tmp_path, monkeypatch
+):
     app_path = tmp_path / "app"
     active_src = app_path / "src"
     first_dir = active_src / "zeta"
@@ -2761,19 +3925,27 @@ async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(tmp_pat
     second_archive = second_dir / "Trajectory.7z"
     first_archive.write_text("z", encoding="utf-8")
     second_archive.write_text("a", encoding="utf-8")
-    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='demo-app'\n", encoding="utf-8"
+    )
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
-    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text(
+        "x", encoding="utf-8"
+    )
     agi_node_root = tmp_path / "agi_node"
     agi_node_root.mkdir(parents=True, exist_ok=True)
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
-    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text(
+        "[project]\nname='worker-app'\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2847,3 +4019,145 @@ async def test_deploy_local_worker_sorts_trajectory_archives_before_copy(tmp_pat
 
     copied_archives = [src for src, _dst in copy_calls if src.name == "Trajectory.7z"]
     assert copied_archives == [second_archive, first_archive]
+
+
+def test_copy_package_resources_uses_stamp_for_unchanged_inputs(monkeypatch, tmp_path):
+    resources_src = tmp_path / "resources_src"
+    resources_src.mkdir()
+    (resources_src / "nested").mkdir()
+    (resources_src / "nested" / "sample.txt").write_text("first", encoding="utf-8")
+    resources_dest = tmp_path / "dest" / "resources"
+
+    deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    assert (resources_dest / "nested" / "sample.txt").read_text(
+        encoding="utf-8"
+    ) == "first"
+    assert (
+        resources_dest / deployment_local_support.DEPLOY_COPY_STAMP_FILENAME
+    ).exists()
+
+    def _unexpected_copytree(*_args, **_kwargs):
+        raise AssertionError("unchanged resources should not be copied")
+
+    with monkeypatch.context() as blocked:
+        blocked.setattr(
+            deployment_local_support.shutil, "copytree", _unexpected_copytree
+        )
+        deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    (resources_src / "nested" / "sample.txt").write_text("second", encoding="utf-8")
+    deployment_local_support._copy_package_resources(resources_src, resources_dest)
+
+    assert (resources_dest / "nested" / "sample.txt").read_text(
+        encoding="utf-8"
+    ) == "second"
+
+
+def test_copy_archive_with_stamp_uses_stamp_for_unchanged_inputs(monkeypatch, tmp_path):
+    archive_path = tmp_path / "dataset.7z"
+    archive_path.write_text("first", encoding="utf-8")
+    destination = tmp_path / "worker" / "dataset.7z"
+
+    assert (
+        deployment_local_support._copy_archive_with_stamp(archive_path, destination)
+        is True
+    )
+    assert destination.read_text(encoding="utf-8") == "first"
+    assert (
+        destination.with_name(f".{destination.name}.agilab-copy-stamp.json")
+    ).exists()
+
+    def _unexpected_copy2(*_args, **_kwargs):
+        raise AssertionError("unchanged archive should not be copied")
+
+    with monkeypatch.context() as blocked:
+        blocked.setattr(deployment_local_support.shutil, "copy2", _unexpected_copy2)
+        assert (
+            deployment_local_support._copy_archive_with_stamp(
+                archive_path, destination
+            )
+            is False
+        )
+
+    archive_path.write_text("second", encoding="utf-8")
+    assert (
+        deployment_local_support._copy_archive_with_stamp(archive_path, destination)
+        is True
+    )
+    assert destination.read_text(encoding="utf-8") == "second"
+
+
+def test_deployment_local_small_helper_edges(monkeypatch, tmp_path):
+    assert deployment_local_support._python_version_tuple(None) is None
+    assert deployment_local_support._python_version_tuple("python") is None
+    assert (
+        deployment_local_support._project_venv_cfg_version(tmp_path / "missing") is None
+    )
+
+    cfg_project = tmp_path / "cfg"
+    (cfg_project / ".venv").mkdir(parents=True)
+    (cfg_project / ".venv" / "pyvenv.cfg").write_text(
+        "home=/tmp\nversion = 3.13.2\n", encoding="utf-8"
+    )
+    assert deployment_local_support._project_venv_cfg_version(cfg_project) == (3, 13, 2)
+    assert (
+        deployment_local_support._project_venv_matches(
+            cfg_project, python_version="3.13"
+        )
+        is False
+    )
+    (cfg_project / ".venv" / "bin").mkdir()
+    (cfg_project / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    assert (
+        deployment_local_support._project_venv_matches(
+            cfg_project, python_version="3.13"
+        )
+        is True
+    )
+
+    class _BrokenEnvars:
+        def get(self, _key):
+            raise RuntimeError("broken")
+
+    monkeypatch.delenv("AGILAB_SHARED_WORKER_VENV_DIR", raising=False)
+    assert (
+        deployment_local_support._env_value(
+            _BrokenEnvars(), "AGILAB_SHARED_WORKER_VENV_DIR"
+        )
+        is None
+    )
+
+    active_app = tmp_path / "app"
+    wenv = tmp_path / "wenv"
+    active_app.mkdir()
+    wenv.mkdir()
+    shared_project = deployment_local_support._shared_worker_venv_project(
+        {
+            deployment_local_support.SHARED_WORKER_VENV_ENV: "1",
+            deployment_local_support.SHARED_WORKER_VENV_DIR_ENV: "relative-cache",
+        },
+        active_app=active_app,
+        wenv_abs=wenv,
+        python_version="3.13",
+        run_type="uv run",
+        options_worker="",
+        worker_core_add_specs=[],
+        hw_rapids_capable=False,
+    )
+    assert shared_project is not None
+    assert shared_project.parent == wenv.parent / "relative-cache"
+
+    resources_dest = tmp_path / "dest" / "resources"
+    deployment_local_support._copy_package_resources(
+        tmp_path / "missing-resources", resources_dest
+    )
+    assert not resources_dest.exists()
+
+    legacy = tmp_path / "legacy_app" / "agilab/core/agi-env/src/agi_env/resources"
+    legacy.mkdir(parents=True)
+    blocker = legacy.parent / "blocker.txt"
+    blocker.write_text("keep parent non-empty", encoding="utf-8")
+    deployment_local_support._remove_legacy_app_resource_copy(tmp_path / "legacy_app")
+    assert not legacy.exists()
+    assert blocker.exists()

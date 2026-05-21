@@ -5,8 +5,15 @@
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
+      <env name="VIRTUAL_ENV" value="" />
       <env name="PYTHONUNBUFFERED" value="1" />
       <env name="UV_NO_SYNC" value="1" />
+      <env name="STREAMLIT_CONFIG_FILE" value="$PROJECT_DIR$/../agi-space/.venv/lib/python3.13/site-packages/agilab/resources/config.toml" />
+      <env name="STREAMLIT_THEME_BASE" value="dark" />
+      <env name="STREAMLIT_THEME_PRIMARY_COLOR" value="#4A90E2" />
+      <env name="STREAMLIT_THEME_BACKGROUND_COLOR" value="#08111F" />
+      <env name="STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR" value="#102334" />
+      <env name="STREAMLIT_THEME_TEXT_COLOR" value="#F7F2E8" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="uv (agi-space)" />

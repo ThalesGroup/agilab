@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 import re
+import sys
 
 
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
+AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
+SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
 
 
 def _workflow_text() -> str:
@@ -12,7 +16,11 @@ def _workflow_text() -> str:
 
 
 def _agi_gui_run_block() -> str:
-    return _run_block("Run agi-gui coverage", "Upload JUnit results")
+    return _run_block("Run agi-gui coverage chunk", "Archive agi-gui chunk coverage") + _agi_gui_static_args_text()
+
+
+def _agi_gui_combine_block() -> str:
+    return _run_block("Combine agi-gui coverage", "Write agi-gui coverage XML")
 
 
 def _agi_env_run_block() -> str:
@@ -30,6 +38,23 @@ def _run_block(start_name: str, end_name: str) -> str:
     start = workflow_text.index(start_marker)
     end = workflow_text.index(end_marker, start)
     return workflow_text[start:end]
+
+
+def _load_shard_plan_module():
+    spec = importlib.util.spec_from_file_location("coverage_shard_plan_workflow_test_module", SHARD_PLAN_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _agi_gui_static_args_text() -> str:
+    module = _load_shard_plan_module()
+    lines: list[str] = []
+    for args in module.static_chunk_args().values():
+        lines.extend(args)
+    return "\n" + "\n".join(lines) + "\n"
 
 
 def _step_block(step_name: str) -> str:
@@ -67,6 +92,8 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"src/**"',
         '"test/**"',
         '"tools/coverage_badge_guard.py"',
+        '"tools/coverage_shard_plan.py"',
+        '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
         '"uv.lock"',
@@ -81,6 +108,12 @@ def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
     run_block = _agi_env_run_block()
 
     assert "--with streamlit" in run_block
+
+
+def test_agi_env_coverage_excludes_ipython_signature_compatibility_line() -> None:
+    config_text = AGI_ENV_COVERAGE_CONFIG.read_text(encoding="utf-8")
+
+    assert r"_tb_kwargs\['theme_name'\] = 'NoColor'" in config_text
 
 
 def test_agi_core_coverage_installs_parquet_engine() -> None:
@@ -114,37 +147,94 @@ def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
     assert "test/test_notebook_colab_support.py" in run_block
 
 
+def test_agi_gui_coverage_includes_first_proof_and_notebook_import_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_first_proof_wizard.py" in run_block
+    assert "test/test_notebook_import_doctor.py" in run_block
+
+
+def test_agi_gui_coverage_includes_robot_contracts() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_agilab_widget_robot_matrix.py" in run_block
+    assert "test/test_ui_robot_action_contract.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     run_block = _agi_gui_run_block()
 
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
-def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
+def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     run_block = _agi_gui_run_block()
+    combine_block = _agi_gui_combine_block()
+    xml_step = _step_block("Write agi-gui coverage XML")
     junit_upload = _step_block("Upload JUnit results")
+    timing_step = _step_block("Write agi-gui timing report")
+    timing_upload = _step_block("Upload agi-gui timing report")
 
-    assert "run_gui_chunk support" in run_block
-    assert "run_gui_chunk pipeline" in run_block
-    assert "run_gui_chunk pages" in run_block
-    assert "run_gui_chunk views" in run_block
-    assert "run_gui_chunk reports" in run_block
-    assert "--append" in run_block
-    assert "python -m coverage xml" in run_block
+    assert "tools/coverage_shard_plan.py write" in run_block
+    assert "tools/coverage_shard_plan.py print-args" in run_block
+    assert "test-results/coverage-agi-gui-shards/plan.json" in run_block
+    assert 'mapfile -t pytest_args < "$RUNNER_TEMP/agi-gui-${label}.args"' in run_block
+    assert 'run_gui_chunk "$label" "${pytest_args[@]}"' in run_block
+    assert "execute_page or experiment_page or pipeline_page_project_selectbox" in run_block
+    assert "not (execute_page or experiment_page or pipeline_page_project_selectbox)" in run_block
+    assert "${{ matrix.chunk }}" in run_block
+    assert "--append" not in run_block
+    assert "--parallel-mode" in run_block
+    assert 'test-results/coverage-agi-gui-${label}.db' in run_block
+    assert '"coverage", "combine", "--keep"' in combine_block
+    assert "python -m coverage xml" in xml_step
     assert "--cov=src/agilab" not in run_block
     assert "test-results/junit-agi-gui-*.xml" in junit_upload
+    assert "tools/coverage_timing_report.py test-results/junit-agi-gui-*.xml" in timing_step
+    assert "test-results/coverage-agi-gui-timing.md" in timing_step
+    assert "test-results/coverage-agi-gui-timing.json" in timing_step
+    assert 'cat test-results/coverage-agi-gui-timing.md >> "$GITHUB_STEP_SUMMARY"' in timing_step
+    assert "coverage-gui-timing-report" in timing_upload
+    assert "retention-days: 14" in timing_upload
 
 
-def test_agi_gui_coverage_installs_ui_extra_in_clean_ci_env() -> None:
-    run_block = _agi_gui_run_block()
+def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
+    run_block = _agi_gui_run_block() + _step_block("Write agi-gui coverage XML")
 
     assert run_block.count("--extra ui") >= 2
+    assert run_block.count("--extra viz") >= 2
+
+
+def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
+    workflow_text = _workflow_text()
+
+    assert "  agi-gui-combine:" in workflow_text
+    assert "strategy:" in workflow_text
+    assert "fail-fast: false" in workflow_text
+    for chunk in ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports"):
+        assert f"          - {chunk}" in workflow_text
+    assert "coverage-agi-gui-chunk-${{ matrix.chunk }}" in workflow_text
+    assert "coverage-gui-junit-${{ matrix.chunk }}" in workflow_text
+    assert "pattern: coverage-agi-gui-chunk-*" in workflow_text
+    assert "pattern: coverage-gui-junit-*" in workflow_text
+    assert "      - agi-gui-combine" in workflow_text
 
 
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 
     assert "test/test_about_agilab_helpers.py" in run_block
+
+
+def test_agi_gui_coverage_includes_core_ui_runtime_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_action_execution.py" in run_block
+    assert "test/test_import_guard.py" in run_block
+    assert "test/test_logging_utils.py" in run_block
+    assert "test/test_page_bundle_registry.py" in run_block
+    assert "test/test_runtime_diagnostics.py" in run_block
+    assert "test/test_snippet_registry.py" in run_block
 
 
 def test_agi_gui_coverage_includes_cluster_doctor_helpers() -> None:
@@ -154,10 +244,37 @@ def test_agi_gui_coverage_includes_cluster_doctor_helpers() -> None:
     assert "test/test_cluster_lan_discovery.py" in run_block
 
 
+def test_agi_gui_coverage_includes_dag_execution_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_dag_execution_adapters.py" in run_block
+    assert "test/test_dag_execution_registry.py" in run_block
+    assert "test/test_dag_run_engine.py" in run_block
+
+
+def test_agi_gui_coverage_includes_workflow_contract_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_evidence_graph.py" in run_block
+    assert "test/test_multi_app_dag_draft.py" in run_block
+    assert "test/test_multi_app_dag_templates.py" in run_block
+    assert "test/test_workflow_run_manifest.py" in run_block
+    assert "test/test_workflow_runtime_contract.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
     run_block = _agi_gui_run_block()
 
+    assert "test/test_pipeline_ai_support.py" in run_block
+    assert "test/test_pipeline_page_state.py" in run_block
+    assert "test/test_pipeline_recipe_memory.py" in run_block
     assert "test/test_pipeline_run_controls.py" in run_block
+
+
+def test_agi_gui_coverage_includes_orchestrate_page_support() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_orchestrate_page_support.py" in run_block
 
 
 def test_agi_gui_coverage_explicit_test_files_exist() -> None:
@@ -195,8 +312,22 @@ def test_agi_gui_coverage_includes_analysis_page_helpers() -> None:
 def test_agi_gui_coverage_includes_support_parity_helpers() -> None:
     run_block = _agi_gui_run_block()
 
+    assert "test/test_agent_run.py" in run_block
+    assert "test/test_agent_tool_safety.py" in run_block
+    assert "test/test_code_editor_support.py" in run_block
+    assert "test/test_env_file_utils.py" in run_block
+    assert "test/test_security_check.py" in run_block
+    assert "test/test_secret_uri.py" in run_block
+    assert "test/test_ui_public_bind_guard.py" in run_block
     assert "test/test_venv_linker.py" in run_block
     assert "test/test_workflow_ui.py" in run_block
+
+
+def test_agi_gui_coverage_includes_direct_generation_and_selector_tests() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_generated_actions.py" in run_block
+    assert "test/test_page_project_selector.py" in run_block
 
 
 def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
@@ -257,6 +388,8 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
         "Archive agi-env coverage XML",
         "Archive agi-node coverage XML",
         "Archive agi-cluster coverage XML",
+        "Archive agi-gui chunk coverage",
+        "Upload agi-gui chunk JUnit",
         "Upload JUnit results",
         "Archive agi-gui coverage XML",
     ):

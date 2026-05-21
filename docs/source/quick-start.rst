@@ -4,7 +4,7 @@ Quick-Start
 If you are new to AGILab, this page owns one thing only: the exact commands for
 the recommended first proof.
 
-That first proof is the built-in ``flight_project`` run locally from the web
+That first proof is the built-in ``flight_telemetry_project`` run locally from the web
 UI. If it works once from end to end, then branch into notebooks, package mode,
 or cluster mode. If it fails, use :doc:`newcomer-troubleshooting`.
 
@@ -18,14 +18,16 @@ Fast adoption path:
      - Stop when
    * - 1. Preview
      - Open :doc:`agilab-demo` for the hosted public UI.
-     - The Space opens the lightweight ``flight_project`` path.
+     - The Space opens the lightweight ``flight_telemetry_project`` path.
    * - 2. Prove locally
      - Run the source-checkout commands below and stay on the built-in demo.
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
        locally.
    * - 3. Record evidence
-     - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
-     - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
+     - Start the app with ``agilab`` and verify the built-in flow.
+       If startup fails, run ``agilab dry-run`` then
+       ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
+     - ``~/log/execute/flight_telemetry/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
        local proof passes once.
@@ -34,9 +36,12 @@ Fast adoption path:
 Prerequisites
 -------------
 
-- Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed
-  (``curl -LsSf https://astral.sh/uv/install.sh | sh``).
-- macOS or Linux shell (use WSL2 on Windows until native support lands).
+- Python 3.11+ with `uv <https://docs.astral.sh/uv/>`_ installed.
+  Use the installer command for your platform from the uv documentation; the
+  common macOS/Linux bootstrap is ``curl -LsSf https://astral.sh/uv/install.sh | sh``.
+- macOS or Linux shell for the source-checkout installer. On native Windows,
+  use the published package route for the CI-covered CLI first proof, or use
+  WSL2 for the source checkout path until native installer parity is published.
 - PyCharm is optional. The first proof below uses only a shell and the web UI;
   IDE run configurations are contributor conveniences, not an installation
   requirement.
@@ -53,30 +58,48 @@ package, private-app, and cluster variables during the first 10 minutes.
 
    git pull --ff-only
    ./install.sh --install-apps
+   uv --preview-features extra-build-dependencies run agilab
+
+If startup fails, run a local fallback first:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run agilab dry-run
    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+   uv --preview-features extra-build-dependencies run agilab adoption-report
 
 **Published package install or upgrade, CLI proof only**::
 
-   uv --preview-features extra-build-dependencies tool install --upgrade agilab
+   uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
    agilab first-proof --json
 
-Install the UI profile when you want the local Streamlit pages from the
+The ``examples`` extra installs the ``agi-apps`` umbrella, which depends on the
+per-app package that contains the public built-in ``flight_telemetry_project`` used by
+the proof.
+
+Use the UI profile when you want the local Streamlit pages from the
 published package::
 
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-   agilab first-proof --json --with-ui
    agilab
+
+The ``ui`` extra installs ``agi-apps`` and its per-app project packages for
+public built-in projects, plus ``agi-pages`` for packaged ANALYSIS page
+bundles. A base ``agilab`` install stays CLI/core-only; run ``agilab dry-run``
+there when you only need the lightweight import/runtime smoke.
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
 
-   uv pip install --upgrade agilab
+   uv pip install --upgrade "agilab[examples]"
    agilab first-proof --json
 
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
-``status: pass`` and the default ``flight_project`` analysis view opens. If it
+``status: pass`` and the default ``flight_telemetry_project`` analysis view opens. If it
 does not pass, stay on this lane and use :doc:`newcomer-troubleshooting`
-before changing install route.
+before changing install route. ``agilab adoption-report`` reads that manifest
+and turns the checkpoint into a short report with missing handoff evidence and
+the exact next command.
 
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -95,6 +118,9 @@ machine-readable proof record.
    This is the narrow source-checkout path. It installs the public built-in
    apps and keeps root/app/core test suites opt-in so a first proof does not
    become a full CI run.
+   On native Windows, prefer the published package route below. The source
+   checkout installer uses POSIX shell scripts, so run that path from WSL2
+   until native installer parity is published.
 
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
@@ -113,51 +139,103 @@ machine-readable proof record.
    ``LAB_LLM_PROVIDER``, ``UOAIC_MODEL``, and ``AGILAB_LLM_*`` values into the
    AGILAB environment file.
 
-2. **Run the first-proof CLI**::
+2. **Launch the app**::
 
-       uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+       uv --preview-features extra-build-dependencies run agilab
 
-   This is the public first-proof entry point with the UI profile enabled. It
-   checks that AGILAB imports, validates the core AGI request API, boots the
-   main page and ORCHESTRATE page against the built-in ``flight_project``, and
-   writes ``~/log/execute/flight/run_manifest.json`` with command, environment,
-   timing, artifact references, and validation status.
+   This starts the app from the source checkout.
    The source-checkout developer evidence command is the same contract through
    ``tools/newcomer_first_proof.py --json``.
 
-3. **Launch the web interface**::
+3. **Run the first-proof manifest check**:
 
-       uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+   If the app fails to start, use:
 
-   The local UI is intended to stay on loopback. If you intentionally expose it
-   through a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real
-   protection indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run agilab dry-run
+      uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+
+   Then rerun:
+
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run agilab
+
+   The app and all core pages can also be started directly with:
+
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+
+   Local UI is intended to stay on loopback. If you intentionally expose it through
+   a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real protection
+   indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
    ``--server.address 0.0.0.0``.
 
-4. **Keep the first run local and use the built-in flight demo**
+4. **Use the landing-page first-proof wizard**
 
-   The landing page first-proof wizard points to this same validated path. In
-   the UI, use:
+   The web UI landing page exposes the current first-proof path directly:
 
-   - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
-   - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
-   - ``WORKFLOW`` -> inspect the packaged recipe context
-   - ``ANALYSIS`` -> open the default built-in view and, when output exists,
-     the optional ``view_maps_network`` route
+   - click ``1. INSTALL demo`` to select ``flight_telemetry_project`` and run
+     the ORCHESTRATE install
+   - click ``2. EXECUTE demo`` to start the local ORCHESTRATE execution with
+     cluster, benchmark, and service mode off
+   - click ``3. OPEN ANALYSIS`` after evidence exists to open the built-in
+     analysis route
+
+   If you want to start from a notebook, use the same wizard's
+   ``Create from built-in notebook`` button for AGILAB's packaged sample; there
+   is no notebook file to locate or upload. The wizard opens ``PROJECT`` ->
+   ``Create`` -> ``From notebook`` with the bundled sample already selected;
+   then you click PROJECT ``Create`` and prove the imported project with
+   ORCHESTRATE ``INSTALL`` and ``EXECUTE``. For your own local notebook, use
+   PROJECT -> ``Create`` -> ``From notebook`` instead of the first-proof wizard.
+   Treat that as a separate starting lane: prove either the built-in flight
+   project or a notebook-imported project first, not both at the same time.
+
+   The notebook lane is the full adoption proof, not only an upload shortcut:
+   notebook -> PROJECT ``Create`` -> ORCHESTRATE ``INSTALL`` -> ORCHESTRATE
+   ``EXECUTE`` -> ANALYSIS -> WORKFLOW ``Download pipeline notebook``. The last
+   step is the no-lock-in check: the work remains available as
+   ``lab_stages.ipynb`` running on the stable, production-grade ``agi-core``
+   technology if the AGILAB UI or distributed runtime is no longer the right
+   interface for the project.
+
+   The landing page also shows an adoption gate. Treat it as a go/no-go for
+   widening from one user to a controlled team trial: one first proof must have a
+   passing ``run_manifest.json`` and the project must have an exported
+   ``notebooks/lab_stages.ipynb``. This gate does not certify production,
+   public exposure, multi-tenant use, secrets handling, or cluster/service
+   hardening.
+
+   Before sharing the proof with someone else, keep a handoff bundle: the
+   passing ``run_manifest.json``, the exported ``notebooks/lab_stages.ipynb``,
+   the compatibility-report output for that manifest, and a redacted
+   ``agilab security-check --json --strict`` result. That bundle makes the proof
+   portable for review without pretending it is production certification.
+   ``agilab adoption-report`` is the shortcut for checking that bundle from the
+   shell; add ``--json`` when a workflow needs the same status in machine-readable
+   form.
 
 5. **Check the first proof outcome**
 
    You are past the newcomer hurdle when these are true:
 
-   - ``~/log/execute/flight/run_manifest.json`` has ``status: pass``
-   - fresh output exists under ``~/log/execute/flight/``
-   - you can open the default ``ANALYSIS`` view for ``flight_project`` and see
+   - ``~/log/execute/flight_telemetry/run_manifest.json`` has ``status: pass``
+   - fresh output exists under ``~/log/execute/flight_telemetry/``
+   - if you start from a notebook, ``notebooks/lab_stages.ipynb`` exists in the
+     imported project as the no-lock-in handoff artifact
+   - the handoff bundle lists the manifest, notebook export, compatibility
+     report, and strict security-check result needed for review
+   - you can open the default ``ANALYSIS`` view for ``flight_telemetry_project`` and see
      the bundled network view as an available route
 
-6. **Only after that, branch into alternative paths**
+6. **Only after one lane passes, branch into broader paths**
 
-   Do not switch to packaged install, notebook-first, or cluster setup before
-   this local proof works once from end to end.
+   Do not switch to packaged install, external apps, or cluster setup before
+   either the built-in flight proof or your notebook-import proof works once
+   from end to end.
 
 Why this path avoids common adoption friction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -171,7 +249,7 @@ Why this path avoids common adoption friction
   under ``src/agilab/apps/builtin``.
 - **No mandatory test marathon**: installer-managed root, app/page, and core
   tests are available, but only run when you pass explicit test flags.
-- **One failure lane**: if it fails, stay on ``flight_project`` and use
+- **One failure lane**: if it fails, stay on ``flight_telemetry_project`` and use
   :doc:`newcomer-troubleshooting` before changing install route.
 
 If the first proof fails
@@ -188,13 +266,19 @@ scripts::
 
     uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui --with-install
 
+``agilab dry-run`` is the fast alias for ``agilab first-proof --dry-run`` and
+checks only CLI/core readiness.
+
+Use ``--dry-run`` when startup or import errors appear before you need a full UI
+proof contract.
+
 The troubleshooting page covers the common first-run failures:
 
 - missing ``uv``
 - installer failure
 - built-in app path not found
 - Main page / ORCHESTRATE startup failure
-- no fresh output under ``~/log/execute/flight/``
+- no fresh output under ``~/log/execute/flight_telemetry/``
 
 If you want the current public support picture before branching into other
 routes, use :doc:`compatibility-matrix`. It makes the current validated slices
@@ -204,7 +288,7 @@ recommended newcomer proof.
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use these only after the local ``flight_project`` proof works once.
+Use these only after the local ``flight_telemetry_project`` proof works once.
 
 .. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
@@ -221,22 +305,33 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 **Published package route** (fastest install, less representative of the full product path)::
 
     uv --preview-features extra-build-dependencies tool install --upgrade agilab
-    agilab first-proof --json
+    agilab first-proof --json --max-seconds 60
 
 The base package install is intentionally CLI/core only. Install the UI profile
 before launching the local Streamlit app::
 
     uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-    agilab first-proof --json --with-ui
     agilab
 
-Optional feature stacks stay out of the base package install. Add
-``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant
-features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
-``agilab[mlflow]`` for tracking, ``agilab[local-llm]`` for local model helpers,
-and ``agilab[viz]`` for optional Plotly/matplotlib visualizations::
+If startup fails, or if you also want a one-command onboarding manifest in this
+profile, run:
 
-    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,ai,viz,mlflow,local-llm]"
+.. code-block:: bash
+
+   agilab dry-run
+   agilab first-proof --json --with-ui
+
+Optional feature stacks stay out of the base package install. Add
+``agilab[ui]`` for the local Streamlit app, ``agilab[pages]`` for analysis
+page bundles without the full UI profile, ``agilab[ai]`` for AI assistant
+features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
+``agilab[agents]`` for the packaged agent workflow client dependencies,
+``agilab[examples]`` for notebook/demo helper dependencies, ``agilab[mlflow]``
+for tracking, ``agilab[local-llm]`` for local model helpers,
+``agilab[viz]`` for optional Plotly/matplotlib visualizations, and
+``agilab[dev]`` for contributor-only test/build tooling::
+
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,local-llm]"
 
 **agi-core demo**:
 
@@ -262,19 +357,51 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
+For a trusted app project published as a PyPI ``agi-app-*`` package, use either
+the web UI or the packaged CLI. In the UI, open ``PROJECT``, expand
+``Install PyPI app``, choose a promoted catalog package or enter an exact
+package requirement, run ``Check PyPI app``, review Python compatibility,
+wheel/sdist availability, entry-point metadata, hashes, and advertised
+provenance/signature status, then confirm and click ``Install PyPI app``.
+AGILAB installs the package into the current Python environment with
+``uv pip install --python`` and discovers the project through the package's
+``agilab.apps`` entry point. The same expander lists installed PyPI app packages
+and can update or remove them after explicit confirmation.
+
+The CLI exposes the same management surface::
+
+    agilab app search weather
+    agilab app check agi-app-weather-forecast
+    agilab app install agi-app-weather-forecast
+    agilab app list
+    agilab app update agi-app-weather-forecast
+    agilab app remove agi-app-weather-forecast
+
+Refresh ``PROJECT`` or restart AGILAB if a newly installed or removed project is
+not reflected immediately. This PyPI path is separate from ``APPS_REPOSITORY``,
+which remains the source-checkout route for external app repositories.
+
 Shared or team adoption check
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Before moving from a single-user proof to a shared team workstation, internal
-cluster, or external apps repository, archive an advisory security-check report::
+cluster, public UI, or external apps repository, archive a profile-specific
+security-check report::
 
-    uv --preview-features extra-build-dependencies run agilab security-check --json > security-check.json
+    uv --preview-features extra-build-dependencies run agilab security-check --profile shared --json > security-check.json
 
-The report checks local adoption risks such as floating ``APPS_REPOSITORY``
-checkouts, likely plaintext secrets in ``~/.agilab/.env``, public UI bind
-addresses, cluster-share isolation, optional local-model profiles, and missing
-SBOM / ``pip-audit`` evidence. It is advisory by default so first proof and
-local experimentation stay fast.
+The default ``local`` profile stays advisory so first proof and local
+experimentation stay fast. The ``shared``, ``cluster``, and ``public-ui``
+profiles promote deployment-boundary issues to failures so ``--strict`` can be
+used as a real gate. The report checks floating or unallowlisted
+``APPS_REPOSITORY`` checkouts, likely plaintext secrets in
+``~/.agilab/.env``, public UI bind addresses, cluster-share isolation,
+generated-code execution boundaries, optional local-model profiles, and missing
+SBOM / ``pip-audit`` evidence.
+
+For the private vulnerability-reporting channel, go/no-go adoption boundary,
+and shared-use hardening checklist, see :doc:`security-adoption`. Public GitHub
+issues are not a vulnerability intake channel.
 
 To generate per-profile scan evidence instead of a single generic artifact::
 
@@ -282,7 +409,8 @@ To generate per-profile scan evidence instead of a single generic artifact::
 
 This writes ``requirements.txt``, ``pip-audit.json``, and
 ``sbom-cyclonedx.json`` under ``test-results/supply-chain/<profile>/`` for the
-base, UI, AI, MLflow, local-LLM, and offline install profiles.
+base, UI, pages, AI, agents, examples, MLflow, local-LLM, offline, and dev
+install profiles.
 
 Maintainers can produce the same artifact from the repo workflow-parity helper::
 
@@ -293,6 +421,10 @@ fail the job::
 
     AGILAB_SECURITY_CHECK_STRICT=1 \
     uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+
+External app repositories must be pinned and allowlisted before shared use.
+Set ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` to the exact reviewed origin URL, or
+set ``AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE`` to a newline-separated allowlist.
 
 Clean source-validation runs should keep their disposable checkout and fake
 ``HOME`` outside the normal home directory. Use a cache-backed workspace so
@@ -330,6 +462,22 @@ present::
     AGILAB_RUN_FULL_UI_ROBOT=1 \
     uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
 
+The opt-in UI robot matrix used by GitHub Actions covers isolated core pages,
+the entry shell plus configured app pages, the default ``PROJECT`` route, the
+``PROJECT`` notebook-import deep link, the ``PROJECT`` Import and Rename sidebar
+modes, and the ``SETTINGS`` route for every built-in app::
+
+    uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
+      --scenario isolated-core-pages \
+      --scenario isolated-entry-and-app-pages \
+      --scenario isolated-project-page \
+      --scenario isolated-project-notebook-import \
+      --scenario isolated-project-import-sidebar \
+      --scenario isolated-project-rename-sidebar \
+      --scenario isolated-settings-page \
+      --json \
+      --quiet-progress
+
 To run the same robot against the public Hugging Face Space instead of a local
 server::
 
@@ -337,7 +485,7 @@ server::
     cd "$REPO_ROOT"
     AGILAB_RUN_FULL_UI_ROBOT=1 \
     AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab \
-    AGILAB_WIDGET_ROBOT_APPS=flight_project \
+    AGILAB_WIDGET_ROBOT_APPS=flight_telemetry_project \
     AGILAB_WIDGET_ROBOT_PAGES=HOME \
     AGILAB_WIDGET_ROBOT_APPS_PAGES=configured \
     uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"

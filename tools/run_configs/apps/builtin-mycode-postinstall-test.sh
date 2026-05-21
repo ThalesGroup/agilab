@@ -8,4 +8,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT/src/agilab/apps/builtin/mycode_project"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
+# Let uv select the run-config project .venv instead of a stale activated shell.
+unset VIRTUAL_ENV
 uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py $REPO_ROOT/src/agilab/apps/builtin/mycode_project $HOME/data/builtin/mycode

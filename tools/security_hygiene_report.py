@@ -11,7 +11,7 @@ from pathlib import Path
 import platform
 import re
 import tomllib
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -319,6 +319,57 @@ def _adoption_profile_check(security_text: str) -> dict[str, Any]:
     )
 
 
+def _security_disclosure_channel_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    documents = {
+        "SECURITY.md": security_text,
+        "README.md": _read_text(repo_root / "README.md"),
+        "README.pypi.md": _read_text(repo_root / "README.pypi.md"),
+        "ADOPTION.md": _read_text(repo_root / "ADOPTION.md"),
+        "docs/source/security-adoption.rst": _read_text(
+            repo_root / "docs" / "source" / "security-adoption.rst"
+        ),
+    }
+    forbidden_tokens = [
+        "Open a GitHub issue with the title",
+        "open a GitHub issue with the title",
+        "[SECURITY]",
+    ]
+    stale_hits = [
+        f"{path}: {token}"
+        for path, text in documents.items()
+        for token in forbidden_tokens
+        if token in text
+    ]
+    required = {
+        "SECURITY.md": [
+            "Do **not** open a public GitHub issue",
+            "GitHub Private Vulnerability Reporting",
+        ],
+        "README.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "README.pypi.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "ADOPTION.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "docs/source/security-adoption.rst": [
+            "Do not use public GitHub issues",
+            "GitHub Private Vulnerability Reporting",
+            "Public GitHub issues are for non-sensitive product bugs",
+        ],
+    }
+    missing = [
+        f"{path}: {token}"
+        for path, tokens in required.items()
+        for token in tokens
+        if token not in documents.get(path, "")
+    ]
+    return _check_result(
+        "security_disclosure_channel_consistency",
+        "Security disclosure channel is private and consistent",
+        not stale_hits and not missing,
+        "Public docs and package READMEs route suspected vulnerabilities to private reporting, not public issues",
+        evidence=list(documents),
+        details={"stale_public_issue_tokens": stale_hits, "missing_tokens": missing},
+    )
+
+
 def _external_apps_repository_policy_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     service_paths = _read_text(repo_root / "docs" / "source" / "service_mode_and_paths.md")
     quick_start = _read_text(repo_root / "docs" / "source" / "quick-start.rst")
@@ -373,6 +424,56 @@ def _supply_chain_profile_evidence_check(security_text: str) -> dict[str, Any]:
     )
 
 
+def _release_tag_matches_version(manifest_tag: str, project_version: str) -> bool:
+    if not manifest_tag or not project_version:
+        return False
+    accepted_bases = [project_version]
+    post_base = re.sub(r"\.post\d+\Z", "", project_version)
+    if post_base != project_version:
+        accepted_bases.append(post_base)
+    return any(
+        re.fullmatch(rf"{re.escape(f'v{base}')}(?:-\d+)?", manifest_tag) is not None
+        for base in accepted_bases
+    )
+
+
+def _accepted_release_tag_pattern(project_version: str) -> str:
+    if not project_version:
+        return ""
+    patterns = [f"v{project_version}[-N]"]
+    post_base = re.sub(r"\.post\d+\Z", "", project_version)
+    if post_base != project_version:
+        patterns.append(f"v{post_base}[-N]")
+    return " or ".join(patterns)
+
+
+def _version_key(version: str) -> tuple[int, ...] | None:
+    parts = re.findall(r"\d+", version)
+    if not parts:
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def _version_not_newer(left: str, right: str) -> bool:
+    left_key = _version_key(left)
+    right_key = _version_key(right)
+    if left_key is None or right_key is None:
+        return left == right
+    max_len = max(len(left_key), len(right_key))
+    padded_left = left_key + (0,) * (max_len - len(left_key))
+    padded_right = right_key + (0,) * (max_len - len(right_key))
+    return padded_left <= padded_right
+
+
+def _release_package_spec(package_name: str, package_version: str, release: Mapping[str, Any]) -> str:
+    package_extras = release.get("package_extras", []) or []
+    extras = []
+    if isinstance(package_extras, list):
+        extras = [str(extra).strip() for extra in package_extras if str(extra).strip()]
+    package_spec_name = f"{package_name}[{','.join(sorted(extras))}]" if extras else package_name
+    return f"{package_spec_name}=={package_version}"
+
+
 def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     pyproject, pyproject_error = _read_toml_artifact(repo_root / "pyproject.toml")
     manifest, manifest_error = _read_toml_artifact(
@@ -398,13 +499,18 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
     package_name = str(release.get("package_name") or "")
     manifest_version = str(release.get("package_version") or "")
     manifest_tag = str(release.get("github_release_tag") or "")
-    expected_tag = f"v{project_version}" if project_version else ""
-    version_aligned = bool(project_version) and manifest_version == project_version
-    tag_aligned = bool(expected_tag) and manifest_tag == expected_tag
+    package_spec = _release_package_spec(package_name, manifest_version, release)
+    expected_tag = f"v{manifest_version}" if manifest_version else ""
+    version_aligned = (
+        bool(project_version)
+        and bool(manifest_version)
+        and _version_not_newer(manifest_version, project_version)
+    )
+    tag_aligned = _release_tag_matches_version(manifest_tag, manifest_version)
     rendered_page_aligned = (
         bool(package_name)
         and bool(manifest_version)
-        and f"{package_name}=={manifest_version}" in release_proof
+        and package_spec in release_proof
         and bool(manifest_tag)
         and manifest_tag in release_proof
     )
@@ -429,9 +535,14 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
             "manifest_error": manifest_error,
             "pyproject_version": project_version,
             "manifest_package_version": manifest_version,
+            "manifest_package_spec": package_spec,
             "expected_github_release_tag": expected_tag,
             "manifest_github_release_tag": manifest_tag,
+            "accepted_github_release_tag_pattern": _accepted_release_tag_pattern(
+                manifest_version
+            ),
             "version_aligned": version_aligned,
+            "exact_source_version_match": project_version == manifest_version,
             "tag_aligned": tag_aligned,
             "rendered_page_aligned": rendered_page_aligned,
         },
@@ -573,12 +684,14 @@ def build_report(
 
     security_text = security_path.read_text(encoding="utf-8") if security_path.is_file() else ""
     pyproject_text = pyproject_path.read_text(encoding="utf-8") if pyproject_path.is_file() else ""
+    security_text_lower = security_text.lower()
+
     checks = [
         _check_result(
             "security_policy_present",
             "Security policy is present",
             security_path.is_file()
-            and "GitHub private vulnerability reporting" in security_text,
+            and "github private vulnerability reporting" in security_text_lower,
             "SECURITY.md exposes the private vulnerability reporting channel",
             evidence=["SECURITY.md"],
         ),
@@ -625,6 +738,7 @@ def build_report(
         _local_secret_storage_policy_check(repo_root, security_text),
         _release_evidence_scope_check(repo_root, security_text),
         _adoption_profile_check(security_text),
+        _security_disclosure_channel_check(repo_root, security_text),
         _external_apps_repository_policy_check(repo_root, security_text),
         _supply_chain_profile_evidence_check(security_text),
         _release_proof_freshness_check(repo_root, security_text),

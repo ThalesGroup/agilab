@@ -34,6 +34,15 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
 def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    for env_key in [
+        "STREAMLIT_CONFIG_FILE",
+        "STREAMLIT_THEME_BASE",
+        "STREAMLIT_THEME_PRIMARY_COLOR",
+        "STREAMLIT_THEME_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
+        "STREAMLIT_THEME_TEXT_COLOR",
+    ]:
+        monkeypatch.delenv(env_key, raising=False)
 
     captured: list[list[str]] = []
 
@@ -58,6 +67,14 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
         "--server.headless",
         "true",
     ]]
+    assert lab_run.os.environ["STREAMLIT_CONFIG_FILE"] == str(
+        Path(lab_run.__file__).resolve().parent / "resources" / "config.toml"
+    )
+    assert lab_run.os.environ["STREAMLIT_THEME_BASE"] == "dark"
+    assert lab_run.os.environ["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
+    assert lab_run.os.environ["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
+    assert lab_run.os.environ["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
+    assert lab_run.os.environ["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
 def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
@@ -87,6 +104,48 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
 
     def fake_first_proof(argv: list[str]) -> int:
         captured.append(argv)
+        return 33
+
+    monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["first-proof", "--json", "--with-ui"])
+
+    assert rc == 33
+    assert captured == [["--json", "--with-ui"]]
+
+
+def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_agent_run(argv: list[str]) -> int:
+        captured.append(argv)
+        return 35
+
+    monkeypatch.setattr(lab_run, "_run_agent_run", fake_agent_run)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["agent-run", "--agent", "codex", "--", "codex", "review"])
+
+    assert rc == 35
+    assert captured == [["--agent", "codex", "--", "codex", "review"]]
+
+
+def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_first_proof(argv: list[str]) -> int:
+        captured.append(argv)
         return 31
 
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
@@ -96,10 +155,52 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
     )
 
-    rc = lab_run.main(["first-proof", "--json", "--with-install"])
+    rc = lab_run.main(["dry-run", "--json"])
 
     assert rc == 31
-    assert captured == [["--json", "--with-install"]]
+    assert captured == [["--dry-run", "--json"]]
+
+
+def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_first_proof(argv: list[str]) -> int:
+        captured.append(argv)
+        return 41
+
+    monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["dry-run", "--max-seconds", "45"])
+
+    assert rc == 41
+    assert captured == [["--dry-run", "--max-seconds", "45"]]
+
+
+def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_app(argv: list[str]) -> int:
+        captured.append(argv)
+        return 43
+
+    monkeypatch.setattr(lab_run, "_run_app", fake_app)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["app", "list", "--json"])
+
+    assert rc == 43
+    assert captured == [["list", "--json"]]
 
 
 def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch):
@@ -121,6 +222,69 @@ def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch)
 
     assert rc == 37
     assert captured == [["--json", "--strict"]]
+
+
+def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_adoption_report(argv: list[str]) -> int:
+        captured.append(argv)
+        return 39
+
+    monkeypatch.setattr(lab_run, "_run_adoption_report", fake_adoption_report)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["adoption-report", "--json", "--strict"])
+
+    assert rc == 39
+    assert captured == [["--json", "--strict"]]
+
+
+def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_evidence_contract(argv: list[str]) -> int:
+        captured.append(argv)
+        return 45
+
+    monkeypatch.setattr(lab_run, "_run_evidence_contract", fake_evidence_contract)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["export_lineage", "run_manifest.json", "--format", "openlineage"])
+
+    assert rc == 45
+    assert captured == [["export-lineage", "run_manifest.json", "--format", "openlineage"]]
+
+
+def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_env(argv: list[str]) -> int:
+        captured.append(argv)
+        return 43
+
+    monkeypatch.setattr(lab_run, "_run_env", fake_env)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["env", "footprint", "--json"])
+
+    assert rc == 43
+    assert captured == [["footprint", "--json"]]
 
 
 def test_main_reports_missing_ui_dependencies(monkeypatch):

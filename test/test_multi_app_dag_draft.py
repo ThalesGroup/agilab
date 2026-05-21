@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import importlib.util
 from pathlib import Path
 import sys
@@ -228,3 +229,78 @@ def test_dag_draft_validation_guidance_explains_bad_handoff():
 
     assert "Select the artifact as a produced artifact for the source stage" in message
     assert "source node does not produce artifact 'missing_metrics'" in message
+
+
+def test_dag_draft_clean_cell_and_editor_rows_handle_empty_inputs(monkeypatch):
+    assert multi_app_dag_draft.clean_dag_cell(float("nan")) == ""
+    assert multi_app_dag_draft.dag_editor_rows(None, ["id"]) == []
+    assert multi_app_dag_draft.dag_editor_rows(["skip", {"id": "  node  "}, {"id": "  "}], ["id"]) == [
+        {"id": "node"}
+    ]
+
+    real_import = builtins.__import__
+
+    def _raise_pandas_import(name, *args, **kwargs):
+        if name == "pandas":
+            raise ImportError("pandas unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _raise_pandas_import)
+    assert multi_app_dag_draft.clean_dag_cell(" nan ") == ""
+    assert multi_app_dag_draft.dag_editor_rows([{"id": "node"}], ["id"]) == [{"id": "node"}]
+
+
+def test_dag_draft_base_node_and_execution_edge_cases():
+    assert multi_app_dag_draft._base_nodes_by_id(None) == {}
+    assert multi_app_dag_draft._base_nodes_by_id({"nodes": "not-list"}) == {}
+    assert multi_app_dag_draft._base_nodes_by_id({"nodes": ["skip", {"id": "node"}]}) == {
+        "node": {"id": "node"}
+    }
+
+    execution = multi_app_dag_draft._node_execution_payload(
+        {
+            "execution": {
+                "entrypoint": "  demo.run  ",
+                "command": [" python ", "", " task.py "],
+                "run_params": {"n": 2},
+                "rapids_enabled": 1,
+                "benchmark_best_single_node": "",
+            }
+        }
+    )
+    assert execution == {
+        "entrypoint": "demo.run",
+        "command": ["python", "task.py"],
+        "params": {"n": 2},
+        "rapids_enabled": True,
+        "benchmark_best_single_node": False,
+    }
+
+    assert multi_app_dag_draft._node_execution_payload({"execution": {"command": " python task.py "}}) == {
+        "command": "python task.py"
+    }
+    assert multi_app_dag_draft._artifacts_by_node(
+        [
+            multi_app_dag_draft.DagArtifact(node="", id="a", path="a.json"),
+            multi_app_dag_draft.DagArtifact(node="stage", id="", path="a.json"),
+            multi_app_dag_draft.DagArtifact(node="stage", id="a", path=""),
+            multi_app_dag_draft.DagArtifact(node="stage", id="a", path="a.json"),
+        ]
+    ) == {
+        "stage": [multi_app_dag_draft.DagArtifact(node="stage", id="a", path="a.json")]
+    }
+
+
+def test_dag_draft_guidance_covers_common_validation_messages():
+    guidance = multi_app_dag_draft._user_guidance_for_issue
+
+    assert guidance("edges", "DAG must include at least one cross-app edge").startswith("Connect stages")
+    assert guidance("edges[0]", "target node does not consume artifact 'x'").startswith("Let the editor")
+    assert guidance("edges", "dependency graph contains a cycle").startswith("Remove the circular")
+    assert guidance("nodes[0].produces[0]", "artifact path must be portable and relative").startswith(
+        "Use relative"
+    )
+    assert guidance("nodes[0]", "node app 'missing' is not a checked-in built-in app").startswith(
+        "Choose an app"
+    )
+    assert guidance("schema", "unsupported schema").startswith("unsupported schema")

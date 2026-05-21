@@ -28,14 +28,26 @@ root when available. Those connector rows are shown in the page and exported in
 `connector_registry_summary`, so downstream tools can reason about portable
 artifact and log paths instead of reconstructing local path glue.
 
-For `meteo_forecast_project`, the page defaults to:
+By default, the page searches for `**/*metrics*.json` and requires at least one
+JSON artifact. A producer can override those defaults in its app settings:
+
+```toml
+[pages.view_release_decision]
+metrics_glob = "**/forecast_metrics.json"
+required_patterns = [
+  "forecast_metrics.json",
+  "forecast_predictions.csv",
+]
+```
+
+For example, the weather-forecast producer configures:
 
 - metrics glob: `**/forecast_metrics.json`
 - required artifact patterns:
   - `forecast_metrics.json`
   - `forecast_predictions.csv`
 
-The page also defaults to `~/log/execute/flight/run_manifest.json` for the
+The page also defaults to `~/log/execute/flight_telemetry/run_manifest.json` for the
 first-proof gate. Promotion is blocked unless that manifest has `status: pass`,
 uses the `source-checkout-first-proof` path id, passes all recorded validations,
 and completes within its target seconds.

@@ -50,7 +50,7 @@ def test_build_demo_env_forces_local_only_runtime(tmp_path: Path) -> None:
 def test_build_streamlit_command_targets_about_page_and_default_app(tmp_path: Path) -> None:
     repo_root = tmp_path / "agilab"
 
-    cmd = lightning_demo.build_streamlit_command(repo_root, active_app="flight_project", port=8601)
+    cmd = lightning_demo.build_streamlit_command(repo_root, active_app="flight_telemetry_project", port=8601)
 
     assert cmd[:6] == [
         "uv",
@@ -69,5 +69,5 @@ def test_build_streamlit_command_targets_about_page_and_default_app(tmp_path: Pa
         "--apps-path",
         str((repo_root / "src" / "agilab" / "apps").resolve()),
         "--active-app",
-        "flight_project",
+        "flight_telemetry_project",
     ]

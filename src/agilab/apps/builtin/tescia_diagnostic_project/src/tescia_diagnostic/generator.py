@@ -9,8 +9,8 @@ from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from .diagnostic import CASE_SCHEMA, validate_case_payload
 
-CASE_SCHEMA = "agilab.tescia_diagnostic.cases.v1"
 SUPPORTED_PROVIDERS = ("gpt-oss", "ollama")
 DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434"
@@ -168,82 +168,13 @@ def _extract_json_object(text: str) -> Mapping[str, Any]:
     return payload
 
 
-def _require_float_range(value: Any, *, field: str, case_id: str) -> None:
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as exc:
-        raise DiagnosticCaseGenerationError(
-            f"Case {case_id!r} field {field!r} must be numeric."
-        ) from exc
-    if not 0.0 <= number <= 1.0:
-        raise DiagnosticCaseGenerationError(
-            f"Case {case_id!r} field {field!r} must be between 0.0 and 1.0."
-        )
-
-
 def validate_generated_cases(payload: Mapping[str, Any], *, expected_case_count: int | None = None) -> dict[str, Any]:
     """Validate generated case JSON and return a normalized dict."""
 
-    if payload.get("schema") != CASE_SCHEMA:
-        raise DiagnosticCaseGenerationError(
-            f"Generated cases must declare schema {CASE_SCHEMA!r}."
-        )
-    cases = payload.get("cases")
-    if not isinstance(cases, list) or not cases:
-        raise DiagnosticCaseGenerationError("Generated cases must include a non-empty cases list.")
-    if expected_case_count is not None and len(cases) != expected_case_count:
-        raise DiagnosticCaseGenerationError(
-            f"Standalone AI returned {len(cases)} case(s), expected {expected_case_count}."
-        )
-
-    required_case_fields = {
-        "case_id",
-        "symptom",
-        "proposed_diagnosis",
-        "root_cause",
-        "plain_repro",
-        "weak_assumptions",
-        "evidence",
-        "candidate_fixes",
-        "regression_tests",
-    }
-    for index, case in enumerate(cases):
-        if not isinstance(case, Mapping):
-            raise DiagnosticCaseGenerationError(f"Case #{index + 1} must be an object.")
-        case_id = str(case.get("case_id", f"case_{index + 1}"))
-        missing = sorted(field for field in required_case_fields if field not in case)
-        if missing:
-            raise DiagnosticCaseGenerationError(
-                f"Case {case_id!r} is missing fields: {', '.join(missing)}."
-            )
-        evidence = case.get("evidence")
-        fixes = case.get("candidate_fixes")
-        tests = case.get("regression_tests")
-        if not isinstance(evidence, list) or len(evidence) < 2:
-            raise DiagnosticCaseGenerationError(
-                f"Case {case_id!r} must include at least two evidence items."
-            )
-        if not isinstance(fixes, list) or len(fixes) < 2:
-            raise DiagnosticCaseGenerationError(
-                f"Case {case_id!r} must include at least two candidate fixes."
-            )
-        if not isinstance(tests, list) or len(tests) < 2:
-            raise DiagnosticCaseGenerationError(
-                f"Case {case_id!r} must include at least two regression tests."
-            )
-        for row in evidence:
-            if not isinstance(row, Mapping):
-                raise DiagnosticCaseGenerationError(f"Case {case_id!r} has invalid evidence.")
-            _require_float_range(row.get("confidence"), field="evidence.confidence", case_id=case_id)
-            _require_float_range(row.get("relevance"), field="evidence.relevance", case_id=case_id)
-        for fix in fixes:
-            if not isinstance(fix, Mapping):
-                raise DiagnosticCaseGenerationError(f"Case {case_id!r} has invalid candidate fix.")
-            _require_float_range(fix.get("expected_impact"), field="fix.expected_impact", case_id=case_id)
-            _require_float_range(fix.get("blast_radius"), field="fix.blast_radius", case_id=case_id)
-            _require_float_range(fix.get("reversibility"), field="fix.reversibility", case_id=case_id)
-
-    return {"schema": CASE_SCHEMA, "cases": [dict(case) for case in cases]}
+    try:
+        return validate_case_payload(payload, expected_case_count=expected_case_count)
+    except ValueError as exc:
+        raise DiagnosticCaseGenerationError(str(exc)) from exc
 
 
 def _gpt_oss_payload(*, model: str, prompt: str, temperature: float) -> dict[str, Any]:

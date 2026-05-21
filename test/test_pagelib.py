@@ -12,6 +12,14 @@ import pytest
 from agi_env import pagelib, ui_support
 
 
+def _patch_mlflow_cli(monkeypatch):
+    monkeypatch.setattr(
+        pagelib.mlflow_store,
+        "mlflow_cli_argv",
+        lambda args, **_kwargs: ["mlflow", *args],
+    )
+
+
 def test_diagnose_data_directory_reports_missing_mount(tmp_path, monkeypatch):
     missing_mount = tmp_path / "missing_share"
     monkeypatch.setattr(pagelib, "_fstab_mount_points", lambda: (missing_mount,))
@@ -191,6 +199,7 @@ def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
 
 def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     calls = {}
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -249,7 +258,8 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
     command = launched["call"][0]
-    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    assert command[:2] == ["mlflow", "server"]
+    assert "-m" not in command
     assert command[command.index("--backend-store-uri") + 1] == pagelib._sqlite_uri_for_path(expected_db)
     assert command[command.index("--default-artifact-root") + 1] == expected_artifacts.resolve().as_uri()
     assert command[command.index("--port") + 1] == "50123"
@@ -263,6 +273,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     (tracking_dir / "0").mkdir(parents=True)
     (tracking_dir / "meta.yaml").write_text("legacy", encoding="utf-8")
     migrate = {}
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -305,13 +316,17 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
 
     pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
 
-    assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
-    assert migrate["cmd"][5] == str(tracking_dir)
-    assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")
+    assert migrate["cmd"][:2] == ["mlflow", "migrate-filestore"]
+    assert "-m" not in migrate["cmd"]
+    assert migrate["cmd"][migrate["cmd"].index("--source") + 1] == str(tracking_dir)
+    assert migrate["cmd"][migrate["cmd"].index("--target") + 1] == pagelib._sqlite_uri_for_path(
+        tracking_dir / "mlflow.db"
+    )
 
 
 def test_activate_mlflow_reports_port_start_failure(tmp_path, monkeypatch):
     errors = []
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -410,6 +425,7 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
         conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
         conn.commit()
     calls = []
+    _patch_mlflow_cli(monkeypatch)
 
     def fake_run(cmd, check, capture_output, text):
         calls.append(cmd)
@@ -423,16 +439,7 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
 
     assert first_uri == pagelib._sqlite_uri_for_path(db_path)
     assert second_uri == first_uri
-    assert calls == [
-        [
-            sys.executable,
-            "-m",
-            "mlflow",
-            "db",
-            "upgrade",
-            pagelib._sqlite_uri_for_path(db_path),
-        ]
-    ]
+    assert calls == [["mlflow", "db", "upgrade", pagelib._sqlite_uri_for_path(db_path)]]
 
 
 def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, monkeypatch):
@@ -451,6 +458,7 @@ def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, m
             stderr="alembic.util.exc.CommandError: Can't locate revision identified by '1b5f0d9ad7c1'",
         )
 
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
     monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import os
+import tomllib
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,9 @@ _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("ssh_exchange_identification",),
     ("broken pipe",),
     ("timeout expired",),
+    ("failed to extract", ".7z"),
+    ("not a 7z file",),
+    ("bad7zfile",),
 )
 
 _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
@@ -68,6 +72,8 @@ _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
 
 _INSTALL_LOG_NON_FATAL_LINE_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("failed to update uv", "skipping self update"),
+    ("command failed with exit code", "self update"),
+    ("process exited with non-zero exit status", "self update"),
     ("remote command stderr:", "error: permission denied", "os error 13"),
 )
 
@@ -105,6 +111,50 @@ def snippet_apps_path(env: Any) -> str:
             pass
 
     return str(apps_path)
+
+
+def _project_root_from_env_or_path(env_or_path: Any) -> Path | None:
+    if isinstance(env_or_path, (str, os.PathLike)):
+        try:
+            return Path(env_or_path)
+        except (TypeError, ValueError, RuntimeError):
+            return None
+    active_app = getattr(env_or_path, "active_app", None)
+    if active_app not in (None, ""):
+        try:
+            return Path(active_app)
+        except (TypeError, ValueError, RuntimeError):
+            return None
+    return None
+
+
+def app_declares_workerless(env_or_path: Any) -> bool:
+    """Return whether an app project explicitly declares a manager-only runtime."""
+
+    app = _agilab_app_contract(env_or_path)
+    return app.get("workerless") is True
+
+
+def app_distribution_preview_enabled(env_or_path: Any) -> bool:
+    """Return whether ORCHESTRATE should expose CHECK-distribute preview controls."""
+
+    app = _agilab_app_contract(env_or_path)
+    return app.get("distribution_preview") is not False
+
+
+def _agilab_app_contract(env_or_path: Any) -> Mapping[str, Any]:
+    project_root = _project_root_from_env_or_path(env_or_path)
+    if project_root is None:
+        return {}
+    pyproject = project_root / "pyproject.toml"
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    tool = data.get("tool", {})
+    agilab = tool.get("agilab", {}) if isinstance(tool, Mapping) else {}
+    app = agilab.get("app", {}) if isinstance(agilab, Mapping) else {}
+    return app if isinstance(app, Mapping) else {}
 
 
 def strip_ansi(text: str) -> str:
@@ -323,6 +373,8 @@ def build_install_snippet(
     workers: str,
     workers_data_path: str,
 ) -> str:
+    if app_declares_workerless(env):
+        return _build_workerless_install_snippet(env=env, verbose=verbose)
     return _build_agi_snippet(
         env=env,
         verbose=verbose,
@@ -360,6 +412,37 @@ def build_distribution_snippet(
     )
 
 
+def supports_distribution_preview(env: Any) -> bool:
+    """Return whether the current app has a worker runtime for CHECK distribute."""
+
+    if not app_distribution_preview_enabled(env):
+        return False
+
+    if app_declares_workerless(env):
+        return False
+
+    if getattr(env, "base_worker_cls", None):
+        return True
+
+    worker_path = getattr(env, "worker_path", None)
+    if worker_path not in (None, ""):
+        try:
+            if Path(worker_path).is_file():
+                return True
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    target_worker = str(getattr(env, "target_worker", "") or "").strip()
+    active_app = getattr(env, "active_app", None)
+    if not target_worker or active_app in (None, ""):
+        return False
+    try:
+        candidate = Path(active_app) / "src" / target_worker / f"{target_worker}.py"
+        return candidate.is_file()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def build_run_snippet(
     *,
     env: Any,
@@ -373,6 +456,8 @@ def build_run_snippet(
     benchmark_best_single_node: bool = False,
 ) -> str:
     params, stages, data_in, data_out, reset_target = _split_run_request_payload(run_args)
+    if app_declares_workerless(env):
+        return _build_workerless_run_snippet(env=env, verbose=verbose, params=params)
     workers_data_path_expr = workers_data_path if workers_data_path not in ("", None) else "None"
     snippet_lines = [
         "import asyncio",
@@ -720,6 +805,106 @@ def update_distribution_payload(
     updated["work_plan_metadata"] = [list(chunks) for chunks in work_plan_metadata]
     updated["work_plan"] = [list(files) for files in work_plan]
     return updated
+
+
+def _class_name_from_module(module_name: str) -> str:
+    parts = [part for part in str(module_name).replace("-", "_").split("_") if part]
+    return "".join(part[:1].upper() + part[1:] for part in parts) or "App"
+
+
+def _workerless_manager_module(env: Any) -> str:
+    target = str(getattr(env, "target", "") or "").strip()
+    if target:
+        return target
+    app = str(getattr(env, "app", "") or "").strip()
+    if app.endswith("_project"):
+        return app[: -len("_project")]
+    return app.replace("-", "_") or "app"
+
+
+def _workerless_manager_class(env: Any, module_name: str) -> str:
+    target_class = str(getattr(env, "target_class", "") or "").strip()
+    return target_class or _class_name_from_module(module_name)
+
+
+def _build_workerless_install_snippet(*, env: Any, verbose: int) -> str:
+    python_version = str(getattr(env, "python_version", "") or "").strip()
+    snippet_lines = [
+        "import json",
+        "import os",
+        "import subprocess",
+        "",
+        "from agi_env import AgiEnv",
+        snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
+        "",
+        f"APPS_PATH = {_python_string(snippet_apps_path(env))}",
+        f"APP = {_python_string(env.app)}",
+        f"PYTHON_VERSION = {_python_string(python_version)}",
+        "",
+        "def main():",
+        f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})",
+        "    command = [",
+        "        'uv',",
+        "        '--preview-features',",
+        "        'extra-build-dependencies',",
+        "        'sync',",
+        "        '--project',",
+        "        str(app_env.active_app),",
+        "    ]",
+        "    if PYTHON_VERSION:",
+        "        command.extend(['-p', PYTHON_VERSION])",
+        "    child_env = os.environ.copy()",
+        "    child_env.pop('UV_RUN_RECURSION_DEPTH', None)",
+        "    child_env.pop('VIRTUAL_ENV', None)",
+        "    completed = subprocess.run(command, check=False, env=child_env)",
+        "    if completed.returncode != 0:",
+        "        raise SystemExit(completed.returncode)",
+        "    print(json.dumps({'status': 'installed', 'project': str(app_env.active_app)}, sort_keys=True))",
+        "    return completed.returncode",
+        "",
+        'if __name__ == "__main__":',
+        "    main()",
+    ]
+    return "\n".join(snippet_lines).strip()
+
+
+def _build_workerless_run_snippet(
+    *,
+    env: Any,
+    verbose: int,
+    params: Mapping[str, Any],
+) -> str:
+    module_name = _workerless_manager_module(env)
+    class_name = _workerless_manager_class(env, module_name)
+    snippet_lines = [
+        "import importlib",
+        "import json",
+        "",
+        "from agi_env import AgiEnv",
+        snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
+        "",
+        f"APPS_PATH = {_python_string(snippet_apps_path(env))}",
+        f"APP = {_python_string(env.app)}",
+        f"MANAGER_MODULE = {_python_string(module_name)}",
+        f"MANAGER_CLASS = {_python_string(class_name)}",
+        f"RUN_PARAMS = {_json_load_expr(params)}",
+        "",
+        "def main():",
+        f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})",
+        "    manager_module = importlib.import_module(MANAGER_MODULE)",
+        "    manager_cls = getattr(manager_module, MANAGER_CLASS)",
+        "    app = manager_cls(app_env, **RUN_PARAMS)",
+        "    run = getattr(app, 'run', None)",
+        "    if not callable(run):",
+        "        raise TypeError(f'{MANAGER_CLASS}.run() is required for workerless AGILAB apps')",
+        "    result = run()",
+        "    print(json.dumps({'status': 'success', 'result': str(result)}, indent=2, sort_keys=True))",
+        "    return result",
+        "",
+        'if __name__ == "__main__":',
+        "    main()",
+    ]
+    return "\n".join(snippet_lines).strip()
 
 
 def _build_agi_snippet(
@@ -1120,13 +1305,27 @@ def is_app_installed(env: Any) -> bool:
 
 def app_install_status(env: Any) -> dict[str, Any]:
     """Return manager/worker installation readiness, including runtime imports."""
+    workerless = app_declares_workerless(env)
     manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    manager_imports = _venv_import_status(manager_venv, _MANAGER_REQUIRED_MODULES, _MANAGER_REQUIRED_SYMBOLS)
-    worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
+    worker_venv = None if workerless else env.wenv_abs / ".venv"
+    manager_modules = ("agi_env",) if workerless else _MANAGER_REQUIRED_MODULES
+    manager_symbols = () if workerless else _MANAGER_REQUIRED_SYMBOLS
+    manager_imports = _venv_import_status(manager_venv, manager_modules, manager_symbols)
+    if workerless:
+        worker_imports = {
+            "exists": True,
+            "imports_ready": True,
+            "missing_modules": (),
+            "missing_symbols": (),
+            "problem": "workerless app; no worker environment required",
+            "python": None,
+        }
+    else:
+        worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
     manager_ready = bool(manager_imports["exists"] and manager_imports["imports_ready"])
     worker_ready = bool(worker_imports["exists"] and worker_imports["imports_ready"])
     return {
+        "workerless": workerless,
         "manager_ready": manager_ready,
         "worker_ready": worker_ready,
         "manager_exists": bool(manager_imports["exists"]),

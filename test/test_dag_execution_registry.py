@@ -49,7 +49,20 @@ def _template_path(repo_root: Path) -> Path:
 
 
 def _flight_template_path(repo_root: Path) -> Path:
-    return repo_root / dag_execution_registry.FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+    return repo_root / dag_execution_registry.FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
+
+
+def _global_dag_template_path(repo_root: Path) -> Path:
+    return (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "global_dag_project"
+        / "dag_templates"
+        / "flight_to_weather_global_dag.json"
+    )
 
 
 def _uav_units() -> list[dict[str, str]]:
@@ -63,8 +76,8 @@ def _flight_units() -> list[dict[str, object]]:
     return [
         {
             "id": "flight_context",
-            "app": "flight_project",
-            "execution_contract": {"entrypoint": "flight_project.flight_context"},
+            "app": "flight_telemetry_project",
+            "execution_contract": {"entrypoint": "flight_telemetry_project.flight_context"},
             "produces": [
                 {
                     "artifact": "flight_reduce_summary",
@@ -73,9 +86,9 @@ def _flight_units() -> list[dict[str, object]]:
             ],
         },
         {
-            "id": "meteo_forecast_review",
-            "app": "meteo_forecast_project",
-            "execution_contract": {"entrypoint": "meteo_forecast_project.meteo_forecast_review"},
+            "id": "weather_forecast_review",
+            "app": "weather_forecast_project",
+            "execution_contract": {"entrypoint": "weather_forecast_project.weather_forecast_review"},
             "produces": [
                 {
                     "artifact": "forecast_metrics",
@@ -113,7 +126,7 @@ def test_registry_supports_checked_in_flight_template():
         repo_root=repo_root,
     )
 
-    assert adapter == dag_execution_registry.FLIGHT_TO_METEO_DAG_ADAPTER
+    assert adapter == dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER
     assert support.supported
     assert support.status == "Executable"
     assert support.adapter == "controlled_contract_dag"
@@ -236,6 +249,27 @@ def test_registry_rejects_marker_opted_contract_template_without_stage_contract(
     assert "must declare `execution.entrypoint` or `execution.command`" in support.message
 
 
+def test_registry_keeps_global_dag_project_template_preview_only():
+    repo_root = Path.cwd()
+    dag_path = _global_dag_template_path(repo_root)
+
+    adapter = dag_execution_registry.registered_adapter_for_source(dag_path, repo_root)
+    support = dag_execution_registry.resolve_real_run_support(
+        units=[
+            {"id": "flight_context", "app": "flight_telemetry_project"},
+            {"id": "weather_forecast_review", "app": "weather_forecast_project"},
+        ],
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert adapter is None
+    assert not support.supported
+    assert support.status == "Preview-only"
+    assert "preview-only" in support.message
+    assert "missing the controlled execution" not in support.message
+
+
 def test_registry_reports_no_selected_dag():
     support = dag_execution_registry.resolve_real_run_support(
         units=_uav_units(),
@@ -273,7 +307,7 @@ def test_registry_rejects_required_stage_shape_mismatch():
     )
     wrong_app = dag_execution_registry.resolve_real_run_support(
         units=[
-            {"id": "queue_baseline", "app": "flight_project"},
+            {"id": "queue_baseline", "app": "flight_telemetry_project"},
             {"id": "relay_followup", "app": "uav_relay_queue_project"},
         ],
         dag_path=_template_path(repo_root),
@@ -318,6 +352,40 @@ def test_registry_reports_missing_runner_status_marker(tmp_path):
     assert support is not None
     assert not support.supported
     assert "missing the controlled execution status marker" in support.message
+
+
+def test_registry_resolve_source_surfaces_marker_status_and_contract_edge_helpers(tmp_path):
+    repo_root = tmp_path
+    dag_path = repo_root / dag_execution_registry.UAV_QUEUE_TEMPLATE_RELATIVE_PATH
+    dag_path.parent.mkdir(parents=True)
+    payload = json.loads(_template_path(Path.cwd()).read_text(encoding="utf-8"))
+    payload["execution"].pop("runner_status")
+    dag_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    support = dag_execution_registry.resolve_real_run_support(
+        units=_uav_units(),
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert not support.supported
+    assert "missing the controlled execution status marker" in support.message
+    assert dag_execution_registry._has_declared_artifact("bad") is False
+    assert dag_execution_registry._controlled_contract_stage_issue(
+        [],
+        dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER,
+    ) == "This controlled contract DAG does not contain any executable stages."
+    assert "must declare at least one produced artifact" in dag_execution_registry._controlled_contract_stage_issue(
+        [{"id": "stage_a", "execution_contract": {"entrypoint": "demo.run"}, "produces": []}],
+        dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER,
+    )
+
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    assert dag_execution_registry._dag_execution_payload(broken) == {}
+    list_payload = tmp_path / "list.json"
+    list_payload.write_text("[]", encoding="utf-8")
+    assert dag_execution_registry._dag_execution_payload(list_payload) == {}
 
 
 def test_registry_keeps_legacy_sample_executable_for_existing_docs_flow():

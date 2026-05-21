@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-09
+  updated: 2026-05-19
 ---
 
 # Testing Skill (AGILAB)
@@ -44,6 +44,10 @@ Use this skill when validating changes.
 - If several workflow parity profiles are required, run each required profile
   once. Prefer a single command with repeated `--profile` arguments when the
   tool supports it.
+- When validating a follow-up branch after prior squash merges, compare the
+  actual content diff with `git diff origin/main..HEAD`, not only commit counts.
+  Squash merges can make a branch look many commits ahead even when most content
+  is already on `main`.
 
 ## Regression Hygiene
 
@@ -61,10 +65,16 @@ Use this skill when validating changes.
   - Do not assume `glob`, `rglob`, `iterdir`, or `os.scandir` order across macOS, Linux, and GitHub runners.
   - If order is user-visible, sort in the runtime/helper.
   - If order is not part of the contract, compare sorted values or sets in tests.
-- Root test isolation:
+- Root and core test isolation:
   - Tests under `test/` must not depend on the real machine `HOME` or an existing `~/.agilab/.env`.
   - Prefer the shared `test/conftest.py` fixtures for a clean fake home; add local monkeypatches only
     when a test truly needs custom env overrides.
+  - Tests under `src/agilab/core/test` must also run with a fake `HOME`, cleaned AGILAB-related
+    environment variables, and a valid temporary `~/.local/share/agilab/.agilab-path` pointing at
+    the checkout's `src/agilab` directory. A polluted developer marker must not affect core tests.
+  - Reset singleton state and restore class-level mutable state in shared fixtures. In particular,
+    tests that stub `AgiEnv.logger` must not leak that stub into later tests that expect the full
+    logger API.
 - Cluster/share regressions:
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
@@ -104,6 +114,21 @@ Use this skill when validating changes.
   - For robot validation of selected actions, use `--action-button-policy
     click-selected` with explicit `--click-action-labels` and check rendered
     action feedback, not only whether the click completed.
+- UI robot matrix evidence:
+  - When changing `tools/agilab_widget_robot_matrix.py`,
+    `tools/ui_robot_matrix_aggregate.py`, `tools/ui_robot_evidence.py`, or the
+    `ui-robot-matrix` workflow, cover the contract across shard execution,
+    aggregate artifact loading, public evidence projection, workflow text, and
+    workflow-parity commands.
+  - The focused regression slice is usually:
+    `test/test_agilab_widget_robot_matrix.py`, `test/test_ui_robot_matrix_aggregate.py`,
+    `test/test_ui_robot_evidence.py`, `test/test_ci_workflow.py`, and
+    `test/test_workflow_parity.py`.
+  - Prefer helper tests for aggregate/retry coverage. A full local matrix robot
+    run is release evidence or broad UI validation, not the default coverage loop.
+  - Keep failure-retry trace/HAR/video paths and aggregate replay commands
+    asserted in tests so a failed CI shard remains diagnosable from the uploaded
+    `ui-robot-matrix-aggregate-*` artifact.
 - Installer regressions:
   - For install failures, reproduce both:
     - plain shell: `uv sync --project <app>`
@@ -138,12 +163,44 @@ Use this skill when validating changes.
     the current diff, keep the narrow changed-file tests green and report the
     exact unrelated failing test. Do not patch unrelated pages just to clear a
     broad profile unless the user approves that scope.
+  - Before rerunning a broad GUI/profile command, confirm no previous validation
+    process from this task is still writing `test-results/coverage-agi-gui-*`
+    manifests. Concurrent writers can make coverage evidence look corrupt. Stop
+    only verified PIDs started by the active task.
+  - If a broad validation suddenly reports `SyntaxError` on conflict markers,
+    check the current files with `rg -n "^(<<<<<<<|=======|>>>>>>>)" ...` before
+    editing. A concurrent merge/fetch can leave one run looking at half-updated
+    files; if the marker scan is clean, rerun the same targeted slice from the
+    current checkout before treating the failure as a code regression.
 - Concurrent workspace interference:
   - When another session or long-running workflow can rewrite files, re-check
     `git diff` for the touched files before final validation.
   - If your changes disappeared or were rewritten, reapply only your intended
     patch, rerun the narrow affected tests, and call out the interference rather
     than silently assuming the old validation still applies.
+- PR merge validation:
+  - Treat GitHub `mergeStateStatus=UNSTABLE` as pending-or-failing until the
+    check rollup is inspected. If required checks are still running and local
+    targeted validation is green, prefer arming auto-merge and watching checks
+    over bypassing branch protection.
+  - After auto-merge, verify the PR is `MERGED`, record the merge commit, confirm
+    required checks completed successfully, and fetch/prune before claiming the
+    branch was deleted.
+- PyPI app-package regressions:
+  - When changing `src/agilab/pypi_app_packages.py`, the PROJECT page app-install
+    flow, or `agilab app` CLI wiring, cover package catalog parsing, preflight
+    metadata, install/update/remove commands, and UI entry points together.
+  - Keep source-repository app installs and PyPI app package installs distinct in
+    tests. A PyPI app regression should prove `agilab.apps` entry-point discovery,
+    not just local `src/agilab/apps` directory scanning.
+- External discoverability regressions:
+  - When changing project metadata, README badges, repository topics, or the
+    public positioning text that external scanners consume, include
+    `test/test_github_ai_scraper_discoverability.py` in the focused regression
+    slice.
+  - Keep the normal check static and local. The live scraper path depends on
+    GitHub/PyPI/network behavior and remains opt-in through
+    `AGILAB_GITHUB_AI_SCRAPER_LIVE=1`.
 
 ## Common Commands
 
@@ -164,6 +221,10 @@ Use this skill when validating changes.
     whole suite timeout.
   - Example:
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
+- PyPI app management and PROJECT install flow:
+  - `uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_pypi_app_packages.py test/test_lab_run.py test/test_project_clone_policy.py`
+- Windows link/share fallback coverage:
+  - `uv --preview-features extra-build-dependencies run --no-sync pytest -q -o addopts='' src/agilab/core/agi-env/test/test_agi_env.py src/agilab/core/test/test_base_worker.py`
 - Focused ORCHESTRATE robot action regression:
   - Use this shape when validating a user-visible ORCHESTRATE action failure:
     `AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION=current-home uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot.py --apps flight_project --pages ORCHESTRATE --apps-pages none --json --json-output /tmp/flight-orchestrate-widget-robot.json --progress-log /tmp/flight-orchestrate-widget-robot.ndjson --interaction-mode full --action-button-policy click-selected --click-action-labels "CHECK distribute" --preselect-labels "Run now" --missing-selected-action-policy fail --runtime-isolation current-home`
@@ -174,6 +235,10 @@ Use this skill when validating changes.
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators`
   - This proves connector schemas, local-emulator endpoint boundaries, runtime adapter mappings, and no credential materialization for MinIO/S3, Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints.
   - Do not claim real-cloud validation from this profile; IAM, private networking, region behavior, quota, and billing still require opt-in live smoke in a real cloud account.
+- External scanner discoverability:
+  - `uv --preview-features extra-build-dependencies run --with pytest python -m pytest -q -o addopts='' test/test_github_ai_scraper_discoverability.py`
+  - Add `AGILAB_GITHUB_AI_SCRAPER_LIVE=1` only when intentionally running the
+    network-backed github-ai-scraper integration check.
 
 - Whole repo tests (if needed):
   - `uv --preview-features extra-build-dependencies run --no-sync pytest`
@@ -233,6 +298,24 @@ validation, release, and Hugging Face sync in one flow.
 
 - CI combines `.coverage*` artifacts; keep service health smoke coverage in
   `.coverage.service-health` to match the workflow guardrails.
+- Keep aggregate badge policy in one place. If a component such as `agi-core`
+  uses `aggregate_policy = "minimum"` in
+  `tools/generate_component_coverage_badges.py`, `tools/coverage_badge_guard.py`
+  must call the generator with the same policy before a release badge guard can
+  be trusted.
+- Treat committed coverage badges as CI-canonical for release/pre-release
+  freshness. Local macOS coverage can differ by one executable line from Ubuntu
+  because optional/runtime compatibility branches may execute differently. If a
+  local badge refresh disagrees with the latest green coverage workflow, inspect
+  the CI XML artifacts first and align the badge with the CI aggregate instead
+  of blindly committing the local percentage.
+- Badge-only commits normally do not trigger the coverage workflow. After a
+  badge correction, manually dispatch `coverage.yml` on `main` and wait for the
+  aggregate badge-freshness job before calling the badge fixed.
+- For `agi-gui` coverage parity, keep the optional visualization extra aligned
+  with CI (`--extra ui --extra viz`). Tests that import plotting-aware pages can
+  require `plotly` even when the touched code is not directly visualization
+  logic.
 - If a CI step fails before tests run, distinguish:
   - exit code `2`: often environment/tooling/collection failure
   - exit code `1`: often an actual test failure after collection

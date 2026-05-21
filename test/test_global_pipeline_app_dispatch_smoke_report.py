@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/global_pipeline_app_dispatch_smoke_report.py").resolve()
 CORE_PATH = Path("src/agilab/global_pipeline_app_dispatch_smoke.py").resolve()
@@ -139,3 +141,164 @@ def test_app_dispatch_smoke_report_handles_load_failure(tmp_path: Path) -> None:
             "summary": "global pipeline app dispatch smoke could not be persisted",
         }
     ]
+
+
+def test_app_dispatch_smoke_helper_properties_handle_malformed_state(tmp_path: Path) -> None:
+    module = _load_core_module()
+    issue = module._issue("state", "bad")
+    proof = module.AppDispatchSmokeProof(
+        ok=False,
+        issues=(issue,),
+        path=str(tmp_path / "state.json"),
+        dispatch_state={
+            "summary": {
+                "real_executed_unit_ids": ["queue", "", None],
+                "readiness_only_unit_ids": ["relay", ""],
+            },
+            "units": "bad",
+            "artifacts": "bad",
+            "events": "bad",
+        },
+        reloaded_state={},
+    )
+
+    assert issue.as_dict() == {"level": "error", "location": "state", "message": "bad"}
+    assert proof.round_trip_ok is False
+    assert proof.completed_unit_ids == ()
+    assert proof.runnable_unit_ids == ()
+    assert proof.available_artifact_ids == ()
+    assert proof.summary_metric_paths == ()
+    assert proof.event_count == 0
+    assert proof.packet_count == 0
+    assert proof.as_dict()["issues"] == [issue.as_dict()]
+    assert module._unit_rows({"units": "bad"}) == ()
+    assert module._queue_metrics({"units": [{"id": module.QUEUE_UNIT_ID, "real_execution": {"summary_metrics": "bad"}}]}) == {}
+    assert module._queue_metrics({"units": []}) == {}
+    assert module._relative(tmp_path / "outside.txt", tmp_path / "root") == str(tmp_path / "outside.txt")
+
+
+def test_app_dispatch_smoke_persist_reports_round_trip_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    state = {
+        "schema": "agilab.global_pipeline_dispatch_state.v1",
+        "summary": {},
+        "units": [],
+        "artifacts": [],
+        "events": [],
+    }
+    monkeypatch.setattr(module, "build_app_dispatch_smoke_state", lambda **_kwargs: state)
+    monkeypatch.setattr(module, "load_dispatch_state", lambda _path: {"changed": True})
+
+    proof = module.persist_app_dispatch_smoke(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "smoke.json",
+    )
+
+    assert proof.ok is False
+    assert proof.issues[0].location == "persistence.round_trip"
+
+
+def test_app_dispatch_smoke_queue_runner_requires_expected_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    env = module._make_env(tmp_path / "run", target="target")
+    source = Path(env.AGI_LOCAL_SHARE) / "scenario.json"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("{}", encoding="utf-8")
+
+    class FakeManager:
+        def __init__(self, _env, *, args):
+            args.data_in = source.parent
+            args.model_dump = lambda mode="json": {}
+            self.args = args
+
+        def reset_data(self):
+            return None
+
+        def init(self):
+            return None
+
+    class FakeWorker:
+        def start(self):
+            self.data_out = tmp_path / "worker-out"
+            return None
+
+        def work_pool(self, _source):
+            return {"summary_metrics": {"artifact_stem": "missing"}}
+
+        def work_done(self, _result):
+            return None
+
+    monkeypatch.setattr(module.importlib, "import_module", lambda _name: module.SimpleNamespace(
+        UavQueue=FakeManager,
+        UavQueueArgs=lambda **_kwargs: module.SimpleNamespace(),
+        UavQueueWorker=FakeWorker,
+    ))
+
+    with pytest.raises(FileNotFoundError, match="summary metrics"):
+        module._run_queue_family_app(
+            repo_root=tmp_path,
+            run_root=tmp_path / "run",
+            project_name="uav_queue_project",
+            manager_package="uav_queue",
+            worker_package="uav_queue",
+            manager_class_name="UavQueue",
+            args_class_name="UavQueueArgs",
+            worker_class_name="UavQueueWorker",
+            target="target",
+            app_entry="fake",
+        )
+
+
+def test_app_dispatch_smoke_queue_runner_requires_reduce_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    run_root = tmp_path / "run"
+    source = run_root / "share" / "scenario.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("{}", encoding="utf-8")
+
+    class FakeManager:
+        def __init__(self, _env, *, args):
+            args.data_in = source.parent
+            args.model_dump = lambda mode="json": {}
+            self.args = args
+
+    class FakeWorker:
+        def start(self):
+            self.data_out = tmp_path / "worker-out"
+
+        def work_pool(self, _source):
+            return {"summary_metrics": {"artifact_stem": "missing-reduce"}}
+
+        def work_done(self, result):
+            export_root = run_root / "export" / "target" / "queue_analysis" / "missing-reduce"
+            export_root.mkdir(parents=True)
+            (export_root / "missing-reduce_summary_metrics.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(module.importlib, "import_module", lambda _name: module.SimpleNamespace(
+        UavQueue=FakeManager,
+        UavQueueArgs=lambda **_kwargs: module.SimpleNamespace(),
+        UavQueueWorker=FakeWorker,
+    ))
+
+    with pytest.raises(FileNotFoundError, match="reduce artifact"):
+        module._run_queue_family_app(
+            repo_root=tmp_path,
+            run_root=run_root,
+            project_name="uav_queue_project",
+            manager_package="uav_queue",
+            worker_package="uav_queue",
+            manager_class_name="UavQueue",
+            args_class_name="UavQueueArgs",
+            worker_class_name="UavQueueWorker",
+            target="target",
+            app_entry="fake",
+        )

@@ -28,7 +28,7 @@ The normal workflow is:
 2. Let ORCHESTRATE generate the install, distribution, and run snippets for the
    current cluster definition.
 3. Reuse the generated run snippet in :doc:`experiment-help` when you want the
-   distributed orchestration to become a Pipeline stage.
+   distributed orchestration to become a WORKFLOW stage.
 
 See :doc:`distributed-workers` for the practical guide.
 
@@ -354,8 +354,5 @@ You typically generate a key pair on the machine running AGILab and copy the
 public key to each worker node so the deploy/run steps can connect without
 interactive prompts.
 
-.. toctree::
-   :maxdepth: 1
-
-   distributed-workers
-   key-generation
+See :doc:`distributed-workers` for the full UI-driven distributed workflow and
+:doc:`key-generation` for SSH key setup details.
