@@ -48,6 +48,7 @@ TAGS_KEY = f"{PAGE_KEY}_tags"
 X_AXIS_KEY = f"{PAGE_KEY}_x_axis"
 TRAINING_HISTORY_REL = Path("data/training_history.csv")
 SCALAR_FRAME_COLUMNS = ["tag", "step", "wall_time", "value"]
+EMBED_QUERY_VALUES = {"1", "true", "yes", "on"}
 
 
 def _ensure_repo_on_path() -> None:
@@ -158,6 +159,86 @@ def _get_first_nonempty_setting(sources: list[dict[str, Any]], *keys: str) -> st
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return ""
+
+
+def _query_param_value(query_params: Any, key: str) -> str:
+    try:
+        value = query_params.get(key, "")
+    except AttributeError:
+        try:
+            value = query_params[key]
+        except (KeyError, TypeError):
+            return ""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ""
+    return str(value).strip()
+
+
+def _is_embed_mode(query_params: Any) -> bool:
+    return _query_param_value(query_params, "embed").lower() in EMBED_QUERY_VALUES
+
+
+def _render_embed_chrome() -> None:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        footer {
+            visibility: hidden;
+            height: 0;
+        }
+        .block-container {
+            max-width: 100%;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+        [data-testid="stSidebar"] {
+            min-width: 14rem;
+            max-width: 18rem;
+        }
+        [data-testid="stSidebarContent"] {
+            padding-top: 0.75rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _embedded_default_data_subpath(
+    env: AgiEnv,
+    base_choice: str,
+    rel_seed: str,
+    *,
+    embed_mode: bool,
+) -> str:
+    cleaned_seed = rel_seed.strip()
+    if not embed_mode or base_choice != "AGILAB_EXPORT" or cleaned_seed:
+        return cleaned_seed
+
+    export_root = Path(env.AGILAB_EXPORT_ABS)
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for raw_value in (getattr(env, "target", ""), getattr(env, "app", "")):
+        candidate = str(raw_value).strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+        if candidate.endswith("_project"):
+            projectless = candidate[: -len("_project")]
+            if projectless and projectless not in seen:
+                seen.add(projectless)
+                candidates.append(projectless)
+
+    for candidate in candidates:
+        try:
+            if (export_root / candidate).exists():
+                return candidate
+        except OSError:
+            continue
+    return cleaned_seed
 
 
 def _resolve_base_path(
@@ -444,6 +525,8 @@ def _build_scalar_figure(
     scalar_df: pd.DataFrame,
     selected_tags: list[str],
     x_column: str,
+    *,
+    embed_mode: bool = False,
 ) -> go.Figure:
     rows, cols = _grid_shape(len(selected_tags))
     fig = make_subplots(
@@ -495,15 +578,33 @@ def _build_scalar_figure(
         fig.update_xaxes(title_text=x_title, row=row, col=col)
         fig.update_yaxes(title_text="value", row=row, col=col)
 
-    fig.update_layout(
-        height=max(360, 320 * rows),
-        margin={"l": 20, "r": 20, "t": 50, "b": 20},
-    )
+    layout: dict[str, Any] = {
+        "autosize": True,
+        "height": min(820, max(520, 360 * rows)) if embed_mode else max(360, 320 * rows),
+        "margin": {"l": 12, "r": 12, "t": 42, "b": 12}
+        if embed_mode
+        else {"l": 20, "r": 20, "t": 50, "b": 20},
+    }
+    if embed_mode:
+        layout["legend"] = {
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "left",
+            "x": 0,
+        }
+    fig.update_layout(**layout)
     return fig
 
 
 def main() -> None:
-    st.set_page_config(layout="wide")
+    embed_mode = _is_embed_mode(getattr(st, "query_params", {}))
+    st.set_page_config(
+        layout="wide",
+        initial_sidebar_state="collapsed" if embed_mode else "auto",
+    )
+    if embed_mode:
+        _render_embed_chrome()
 
     if "env" not in st.session_state:
         active_app_path = _resolve_active_app()
@@ -515,11 +616,14 @@ def main() -> None:
 
     _ensure_app_settings_loaded(env)
 
-    render_logo("Training Analysis")
-    st.title("Training analysis")
-    st.caption(
-        "Browse TensorBoard scalar logs or AGILAB training-history artifacts and plot the metrics you need."
-    )
+    if embed_mode:
+        st.caption("Training analysis")
+    else:
+        render_logo("Training Analysis")
+        st.title("Training analysis")
+        st.caption(
+            "Browse TensorBoard scalar logs or AGILAB training-history artifacts and plot the metrics you need."
+        )
 
     page_state = _get_page_state()
     page_defaults = _get_page_defaults()
@@ -528,9 +632,10 @@ def main() -> None:
     base_options = ["AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom"]
     base_seed = _get_first_nonempty_setting(setting_sources, "base_dir_choice", "dataset_base_choice")
     if base_seed not in base_options:
-        base_seed = "AGI_CLUSTER_SHARE"
+        base_seed = "AGILAB_EXPORT" if embed_mode else "AGI_CLUSTER_SHARE"
     custom_seed = _get_first_nonempty_setting(setting_sources, "input_datadir", "dataset_custom_base")
     rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
+    rel_seed = _embedded_default_data_subpath(env, base_seed, rel_seed, embed_mode=embed_mode)
 
     if "base_dir_choice" not in st.session_state:
         st.session_state["base_dir_choice"] = base_seed
@@ -668,7 +773,7 @@ def main() -> None:
     else:
         st.subheader("Scalar plots")
         st.plotly_chart(
-            _build_scalar_figure(scalar_df, selected_tags, x_axis_option),
+            _build_scalar_figure(scalar_df, selected_tags, x_axis_option, embed_mode=embed_mode),
             width="stretch",
         )
 

@@ -36,6 +36,7 @@ max_unhealthy = 0
 max_restart_rate = 0.25
 
 [pages]
+restrict_to_view_module = true
 view_module = ["view_app_ui"]
 
 [pages.view_app_ui]

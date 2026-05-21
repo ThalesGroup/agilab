@@ -1466,7 +1466,7 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
 _APP_UI_PAGE_KEY = "view_app_ui"
 
 
-def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+def _declared_app_pages_config(active_app_path: Path | None) -> dict[str, Any] | None:
     if active_app_path is None:
         return None
     settings_path = active_app_path / "src" / "app_settings.toml"
@@ -1477,6 +1477,13 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
         return None
     pages = seed_cfg.get("pages")
     if not isinstance(pages, dict):
+        return None
+    return pages
+
+
+def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+    pages = _declared_app_pages_config(active_app_path)
+    if pages is None:
         return None
     page_cfg = pages.get(_APP_UI_PAGE_KEY)
     if not isinstance(page_cfg, dict):
@@ -1493,6 +1500,7 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
 
 def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict) -> bool:
     """Copy an app-owned ANALYSIS UI declaration into stale per-user settings."""
+    seed_pages = _declared_app_pages_config(active_app_path)
     declared = _declared_app_ui_page_config(active_app_path)
     if declared is None:
         return False
@@ -1500,6 +1508,7 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
     pages = cfg.setdefault("pages", {})
     if not isinstance(pages, dict):
         cfg["pages"] = pages = {}
+    changed = False
 
     raw_page_cfg = pages.get(_APP_UI_PAGE_KEY)
     has_page_cfg = (
@@ -1507,8 +1516,9 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
         and isinstance(raw_page_cfg.get("entrypoint"), str)
         and bool(raw_page_cfg.get("entrypoint", "").strip())
     )
-    if has_page_cfg:
-        return False
+    if not has_page_cfg:
+        pages[_APP_UI_PAGE_KEY] = declared
+        changed = True
 
     raw_modules = pages.get("view_module")
     modules = (
@@ -1520,11 +1530,32 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
         if isinstance(raw_modules, list)
         else []
     )
-    if _APP_UI_PAGE_KEY not in modules:
-        modules.insert(0, _APP_UI_PAGE_KEY)
-    pages["view_module"] = _dedupe_preserve_order(modules)
-    pages[_APP_UI_PAGE_KEY] = declared
-    return True
+    seed_restricts_views = bool(seed_pages and seed_pages.get("restrict_to_view_module") is True)
+    seed_modules = (
+        [
+            value.strip()
+            for value in seed_pages.get("view_module", [])
+            if isinstance(value, str) and value.strip()
+        ]
+        if isinstance(seed_pages, dict) and isinstance(seed_pages.get("view_module"), list)
+        else []
+    )
+    if seed_restricts_views:
+        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
+        if pages.get("restrict_to_view_module") is not True:
+            pages["restrict_to_view_module"] = True
+            changed = True
+        if pages.get("view_module") != desired_modules:
+            pages["view_module"] = desired_modules
+            changed = True
+    else:
+        if _APP_UI_PAGE_KEY not in modules:
+            modules.insert(0, _APP_UI_PAGE_KEY)
+        desired_modules = _dedupe_preserve_order(modules)
+        if pages.get("view_module") != desired_modules:
+            pages["view_module"] = desired_modules
+            changed = True
+    return changed
 
 
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
