@@ -92,6 +92,56 @@ def test_provider_capability_infers_and_overrides_model_features() -> None:
     assert overridden.source == "override"
 
 
+def test_provider_capability_aliases_defaults_and_invalid_overrides() -> None:
+    module = _load_capability_module()
+
+    assert module.normalize_provider("azure_openai") == "openai"
+    assert module.normalize_provider("mistralai") == "mistral"
+    assert module.normalize_provider("vllm") == "openai-compatible"
+    assert module.normalize_provider("gptoss") == "gpt-oss"
+    assert module.normalize_provider("uoaic") == "ollama"
+    assert module.normalize_provider("local_llm") == "local"
+    assert module.normalize_provider("custom_provider") == "custom-provider"
+    assert module.normalize_provider(None, "gpt-oss-20b") == "gpt-oss"
+    assert module.normalize_provider(None, "text-embedding-3-large") == "openai"
+    assert module.normalize_provider(None, "ministral-8b") == "mistral"
+    assert module.normalize_provider(None, "deepseek-r1") == "ollama"
+    assert module.normalize_provider(None, "") == "local"
+    assert module.default_model_for_provider("custom_provider") == "custom-provider"
+
+    openai_legacy = module.resolve_provider_capability("openai", "gpt-4.1")
+    mistral_alias = module.resolve_provider_capability("mistralai", "mistral-large-latest")
+    unknown = module.resolve_provider_capability(
+        "private_provider",
+        "",
+        overrides={
+            "context_window": True,
+            "max_output_tokens": "0",
+            "supports_reasoning": True,
+            "supports_image_input": "off",
+            "supports_pdf_input": "maybe",
+        },
+    )
+
+    assert openai_legacy.source == "model-default"
+    assert openai_legacy.supports_reasoning is False
+    assert openai_legacy.supports_pdf_input is True
+    assert mistral_alias.provider == "mistral"
+    assert mistral_alias.source == "provider-default"
+    assert mistral_alias.supports_reasoning is False
+    assert unknown.as_dict() == {
+        "schema": module.CAPABILITY_SCHEMA,
+        "provider": "private-provider",
+        "model": "private-provider",
+        "context_window": None,
+        "max_output_tokens": None,
+        "supports_reasoning": True,
+        "supports_image_input": False,
+        "supports_pdf_input": None,
+        "source": "override",
+    }
+
+
 def test_agent_config_layers_global_and_project_files(tmp_path: Path) -> None:
     module = _load_config_module()
     home = tmp_path / "home"
@@ -161,3 +211,50 @@ def test_agent_config_handles_missing_or_invalid_files(tmp_path: Path) -> None:
     assert config.permission_level == "safe"
     assert provider.provider == "gpt-oss"
     assert provider.capability.supports_reasoning is True
+
+
+def test_agent_config_covers_string_forms_and_fallbacks(tmp_path: Path) -> None:
+    module = _load_config_module()
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    leaf = project / "nested"
+    home.mkdir()
+    (project / ".git").mkdir(parents=True)
+    (project / ".agilab").mkdir()
+    leaf.mkdir(parents=True)
+    (home / module.CONFIG_FILENAME).write_text("{not json", encoding="utf-8")
+    (project / ".agilab" / module.CONFIG_FILENAME).write_text(
+        json.dumps(
+            {
+                "default_provider": "remote",
+                "default_model": "gpt-4.1",
+                "permission_level": "yolo",
+                "trace_enabled": "off",
+                "providers": {
+                    "remote": {
+                        "provider": "azure-openai",
+                        "model": "gpt-4.1",
+                        "base_url": "https://example.invalid",
+                        "api_key": "${REMOTE_API_KEY}",
+                    },
+                    "ignored": "not a dict",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = module.load_agent_config(leaf, environ={module.AGENT_HOME_ENV: str(home)})
+    provider = module.resolve_agent_provider(config)
+
+    assert config.permission_level == "operator"
+    assert config.trace_enabled is False
+    assert sorted(config.providers) == ["remote"]
+    assert provider.name == "remote"
+    assert provider.provider == "openai"
+    assert provider.model == "gpt-4.1"
+    assert provider.base_url == "https://example.invalid"
+    assert provider.api_key_env_var == "REMOTE_API_KEY"
+    assert module.project_dirs(tmp_path, project=tmp_path / "outside" / "root")[0] == Path(tmp_path.anchor)
+    assert module._as_bool("yes", False) is True
+    assert module._as_bool("maybe", False) is False
