@@ -48,6 +48,11 @@ Use this skill when editing:
   evidence export, make it an app project first. Keep any app-owned standalone
   Streamlit surface under that app project unless a separate generic analysis
   page reads only exported artifacts.
+- For an app-owned Streamlit surface that should appear as the app's primary
+  ANALYSIS experience, declare `[app_surface]` in the app's `app_settings.toml`
+  with a project-local entrypoint such as `pytorch_playground/app_surface.py`.
+  Keep `pages.view_module = []` when the app surface replaces generic page
+  launchers. Do not create a generic `apps-pages/view_<app>` bridge for this.
 
 ## Session State Rules (Avoid Common Crashes)
 

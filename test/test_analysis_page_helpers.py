@@ -357,6 +357,132 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
     ]
 
 
+def test_render_view_page_back_button_sets_app_surface_overview_flag(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    view_path = tmp_path / "view_demo.py"
+    view_path.write_text("", encoding="utf-8")
+
+    class _Column:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def _raise_rerun():
+        raise RuntimeError("rerun")
+
+    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    fake_env = SimpleNamespace(
+        apps_path=None,
+        target=None,
+        app=None,
+        active_app="",
+        AGILAB_LOG_ABS=tmp_path,
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": fake_env},
+        query_params={"current_page": str(view_path)},
+        columns=lambda _spec: [_Column(), _Column(), _Column()],
+        button=lambda *_args, **_kwargs: True,
+        subheader=lambda *_args, **_kwargs: None,
+        rerun=_raise_rerun,
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: None)
+
+    try:
+        asyncio.run(
+            module.render_view_page(
+                view_path,
+                back_query_params={module._APP_SURFACE_HIDE_QUERY_PARAM: "true"},
+            )
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "rerun"
+    else:
+        raise AssertionError("Back action should rerun the Streamlit page")
+
+    assert fake_st.session_state["current_page"] == "main"
+    assert fake_st.query_params["current_page"] == "main"
+    assert fake_st.query_params[module._APP_SURFACE_HIDE_QUERY_PARAM] == "true"
+
+
+def test_render_configured_app_surface_skips_when_hidden_or_overview_requested(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    surface = app / "src" / "demo" / "app_surface.py"
+    surface.parent.mkdir(parents=True)
+    surface.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
+    render_calls: list[Path] = []
+
+    async def _capture_render(path: Path, **_kwargs):
+        render_calls.append(path)
+
+    fake_st = SimpleNamespace(
+        query_params={module._APP_SURFACE_HIDE_QUERY_PARAM: "true"},
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_view_page", _capture_render)
+
+    rendered = asyncio.run(
+        module._render_configured_app_surface(
+            app,
+            {"app_surface": {"title": "Demo Surface", "entrypoint": "demo/app_surface.py"}},
+        )
+    )
+
+    assert rendered is False
+    assert render_calls == []
+
+    fake_st.query_params = {"current_page": "main"}
+    rendered = asyncio.run(
+        module._render_configured_app_surface(
+            app,
+            {"app_surface": {"title": "Demo Surface", "entrypoint": "demo/app_surface.py"}},
+            current_page="main",
+        )
+    )
+
+    assert rendered is False
+    assert render_calls == []
+
+
+def test_legacy_view_app_ui_route_opens_declared_app_surface(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    surface = app / "src" / "demo" / "app_surface.py"
+    surface.parent.mkdir(parents=True)
+    surface.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
+    (app / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[app_surface]",
+                'title = "Demo Surface"',
+                'entrypoint = "demo/app_surface.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    legacy_route = tmp_path / "apps-pages" / "view_app_ui" / "src" / "view_app_ui" / "view_app_ui.py"
+    fake_st = SimpleNamespace(
+        query_params={
+            "current_page": str(legacy_route),
+            module._APP_SURFACE_HIDE_QUERY_PARAM: "true",
+        },
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._consume_legacy_app_ui_route_for_app_surface(str(legacy_route), app) is True
+    assert "current_page" not in fake_st.query_params
+    assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
+
+
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     project_root = tmp_path / "apps" / "flight_telemetry_project"
@@ -686,6 +812,84 @@ def test_migrate_declared_app_ui_page_config_adds_app_ui_once(tmp_path: Path):
     assert cfg["pages"]["view_app_ui"] == {
         "title": "Demo UI",
         "entrypoint": "demo/ui.py",
+    }
+
+
+def test_migrate_declared_app_ui_page_config_honors_restricted_seed_views(tmp_path: Path):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                "restrict_to_view_module = true",
+                'view_module = ["view_app_ui"]',
+                "",
+                "[pages.view_app_ui]",
+                'title = "Demo UI"',
+                'entrypoint = "demo/ui.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {
+        "pages": {
+            "view_module": ["view_app_ui", "view_training_analysis"],
+            "view_app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
+        }
+    }
+
+    changed = module._migrate_declared_app_ui_page_config(app, cfg)
+    second_changed = module._migrate_declared_app_ui_page_config(app, cfg)
+
+    assert changed is True
+    assert second_changed is False
+    assert cfg["pages"]["restrict_to_view_module"] is True
+    assert cfg["pages"]["view_module"] == ["view_app_ui"]
+
+
+def test_migrate_declared_app_surface_config_replaces_legacy_app_ui_bridge(tmp_path: Path):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                "restrict_to_view_module = true",
+                "view_module = []",
+                "",
+                "[app_surface]",
+                'title = "Demo Surface"',
+                'entrypoint = "demo/app_surface.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {
+        "pages": {
+            "view_module": ["view_app_ui", "view_training_analysis"],
+            "view_app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
+        }
+    }
+
+    changed = module._migrate_declared_app_surface_config(app, cfg)
+    second_changed = module._migrate_declared_app_surface_config(app, cfg)
+
+    assert changed is True
+    assert second_changed is False
+    assert cfg["app_surface"] == {
+        "title": "Demo Surface",
+        "entrypoint": "demo/app_surface.py",
+    }
+    assert cfg["pages"] == {
+        "restrict_to_view_module": True,
+        "view_module": [],
     }
 
 

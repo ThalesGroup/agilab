@@ -74,6 +74,7 @@ import_agilab_symbols(
         "serialize_args_payload": "serialize_args_payload",
         "strip_ansi": "strip_ansi",
         "supports_distribution_preview": "supports_distribution_preview",
+        "supports_service_mode": "supports_service_mode",
         "update_distribution_payload": "update_distribution_payload",
         "workplan_selection_key": "workplan_selection_key",
     },
@@ -178,6 +179,17 @@ import_agilab_symbols(
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "runtime_failure_diagnostics.py",
     fallback_name="agilab_runtime_failure_diagnostics_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.app_surface",
+    {
+        "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
+        "render_app_surface": "render_app_surface",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "app_surface.py",
+    fallback_name="agilab_app_surface_fallback",
 )
 import_agilab_symbols(
     globals(),
@@ -1767,31 +1779,45 @@ async def _render_distribution_panel(
         snippet_exists = app_args_form.exists()
         snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
 
-        toggle_key = "toggle_edit_ui"
-        if toggle_key not in st.session_state:
-            st.session_state[toggle_key] = not snippet_not_empty
+        surface_rendered = False
+        if configured_app_surface_entrypoint(project_path) is not None:
+            try:
+                with _with_app_args_env(args_env):
+                    surface_rendered = render_app_surface(
+                        project_path,
+                        mode="configure",
+                        env=args_env,
+                        container=st,
+                    )
+            except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+                st.warning(e)
 
-        st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
+        if not surface_rendered:
+            toggle_key = "toggle_edit_ui"
+            if toggle_key not in st.session_state:
+                st.session_state[toggle_key] = not snippet_not_empty
 
-        if st.session_state[toggle_key]:
-            with _with_app_args_env(args_env):
-                render_generic_ui()
-            if not snippet_exists:
-                with open(app_args_form, "w") as st_src:
-                    st_src.write("")
-        else:
-            if snippet_exists and snippet_not_empty:
-                try:
-                    with _with_app_args_env(args_env):
-                        runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
-                except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
-                    st.warning(e)
-            else:
+            st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
+
+            if st.session_state[toggle_key]:
                 with _with_app_args_env(args_env):
                     render_generic_ui()
                 if not snippet_exists:
                     with open(app_args_form, "w") as st_src:
                         st_src.write("")
+            else:
+                if snippet_exists and snippet_not_empty:
+                    try:
+                        with _with_app_args_env(args_env):
+                            runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
+                    except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+                        st.warning(e)
+                else:
+                    with _with_app_args_env(args_env):
+                        render_generic_ui()
+                    if not snippet_exists:
+                        with open(app_args_form, "w") as st_src:
+                            st_src.write("")
 
         if bool(cluster_params.get("cluster_enabled", False)):
             # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
@@ -1942,6 +1968,12 @@ async def _render_distribution_panel(
                     st.caption("Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute.")
 
 
+def _execution_mode_options(env: Any) -> tuple[str, ...]:
+    if supports_service_mode(env):
+        return ("Run now", "Serve")
+    return ("Run now",)
+
+
 async def _render_run_panels(
     env: Any,
     *,
@@ -1967,14 +1999,19 @@ async def _render_run_panels(
     st.session_state.setdefault("run_log_cache", "")
 
     execution_view_key = f"orchestrate_execution_view__{env.app}"
-    execution_view = compact_choice(
-        st,
-        "Execution mode",
-        ("Run now", "Serve"),
-        key=execution_view_key,
-        help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
-        fallback="radio",
-    )
+    execution_options = _execution_mode_options(env)
+    if len(execution_options) > 1:
+        execution_view = compact_choice(
+            st,
+            "Execution mode",
+            execution_options,
+            key=execution_view_key,
+            help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
+            fallback="radio",
+        )
+    else:
+        execution_view = "Run now"
+        st.caption("Service mode is not available for this app.")
     show_run_panel = execution_view == "Run now"
     show_submit_panel = execution_view == "Serve"
 

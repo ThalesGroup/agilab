@@ -168,7 +168,10 @@ def test_supports_distribution_preview_requires_worker_runtime(tmp_path: Path):
     hidden_preview_app = tmp_path / "apps" / "pytorch_playground_project"
     hidden_preview_app.mkdir(parents=True)
     (hidden_preview_app / "pyproject.toml").write_text(
-        "[project]\nname='pytorch-playground-project'\n\n[tool.agilab.app]\ndistribution_preview=false\n",
+        (
+            "[project]\nname='pytorch-playground-project'\n\n"
+            "[tool.agilab.app]\ndistribution_preview=false\nservice_mode=false\n"
+        ),
         encoding="utf-8",
     )
 
@@ -197,6 +200,8 @@ def test_supports_distribution_preview_requires_worker_runtime(tmp_path: Path):
     assert not orchestrate_page_support.supports_distribution_preview(
         SimpleNamespace(active_app=hidden_preview_app, base_worker_cls="PandasWorker")
     )
+    assert not orchestrate_page_support.supports_service_mode(SimpleNamespace(active_app=hidden_preview_app))
+    assert orchestrate_page_support.supports_service_mode(SimpleNamespace(active_app=workerless_app))
 
 
 def test_workerless_snippets_use_manager_only_contract(tmp_path: Path):
@@ -259,11 +264,13 @@ def test_workerless_contract_helpers_cover_path_and_metadata_edges(
     (invalid_app / "pyproject.toml").write_text("[tool.agilab.app\n", encoding="utf-8")
     assert orchestrate_page_support.app_declares_workerless(invalid_app) is False
     assert orchestrate_page_support.app_distribution_preview_enabled(invalid_app) is True
+    assert orchestrate_page_support.supports_service_mode(invalid_app) is True
 
     app_without_contract = tmp_path / "no_contract_project"
     app_without_contract.mkdir()
     (app_without_contract / "pyproject.toml").write_text("[tool]\nagilab = []\n", encoding="utf-8")
     assert orchestrate_page_support.app_declares_workerless(app_without_contract) is False
+    assert orchestrate_page_support.supports_service_mode(app_without_contract) is True
 
     worker_path = tmp_path / "apps" / "demo_project" / "src" / "demo_worker" / "demo_worker.py"
     target_candidate = tmp_path / "apps" / "target_project" / "src" / "target_worker" / "target_worker.py"
