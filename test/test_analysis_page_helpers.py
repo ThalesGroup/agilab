@@ -412,7 +412,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
-    commands: list[tuple[object, str]] = []
+    commands: list[tuple[object, str, dict[str, str] | None]] = []
     port_checks = iter([False, True])
 
     class _FakeProcess:
@@ -423,7 +423,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
 
     fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
     fake_env = SimpleNamespace(
-        envars={},
+        envars={"127.0.0.1_CMD_PREFIX": 'export PATH="$HOME/.local/bin:$PATH";'},
         uv="uv --quiet",
         AGILAB_LOG_ABS=tmp_path,
         logger=fake_logger,
@@ -434,7 +434,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
-        commands.append((cmd, cwd))
+        commands.append((cmd, cwd, process_env))
         return _FakeProcess()
 
     monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
@@ -442,10 +442,13 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert module._ensure_notebook_sidecar("notebook-key", notebook_path, 8766, project_root) is True
 
     assert len(commands) == 1
-    command, cwd = commands[0]
+    command, cwd, process_env = commands[0]
     assert isinstance(command, list)
     assert cwd == str(project_root.resolve())
     assert command[:3] == ["uv", "--quiet", "--preview-features"]
+    assert "export" not in command
+    assert process_env is not None
+    assert process_env["PATH"].startswith(f"{Path.home()}/.local/bin:")
     assert command[command.index("--project") + 1] == str(project_root.resolve())
     assert f"--ServerApp.root_dir={project_root.resolve()}" in command
     assert "jupyter" in command
@@ -496,7 +499,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     module._write_page_sync_stamp(project_root)
     module._write_source_bootstrap_stamp(project_root, core_root)
 
-    commands: list[tuple[object, str]] = []
+    commands: list[tuple[object, str, dict[str, str] | None]] = []
     port_checks = iter([False, True])
 
     class _FakeProcess:
@@ -514,7 +517,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
         error=lambda *_args, **_kwargs: None,
     )
     fake_env = SimpleNamespace(
-        envars={},
+        envars={"127.0.0.1_CMD_PREFIX": 'export PATH="$HOME/.local/bin:$PATH";'},
         uv="uv --quiet",
         is_source_env=True,
         env_pck=env_package,
@@ -527,7 +530,7 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
-        commands.append((cmd, cwd))
+        commands.append((cmd, cwd, process_env))
         return _FakeProcess()
 
     monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
@@ -535,9 +538,13 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     assert module._ensure_sidecar("view-key", view_path, 8765, "flight_telemetry_project") is True
 
     assert len(commands) == 1
-    command, cwd = commands[0]
+    command, cwd, process_env = commands[0]
     assert isinstance(command, list)
     assert cwd == str(project_root.resolve())
+    assert command[:2] == ["uv", "--quiet"]
+    assert "export" not in command
+    assert process_env is not None
+    assert process_env["PATH"].startswith(f"{Path.home()}/.local/bin:")
     assert "streamlit" in command
     assert "run" in command
     assert str(view_path) in command

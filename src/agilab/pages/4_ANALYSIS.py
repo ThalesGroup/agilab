@@ -118,6 +118,7 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.process_support import apply_inline_path_export
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
@@ -752,9 +753,13 @@ def _split_local_command(value: str) -> list[str]:
     return shlex.split(str(value), posix=os.name != "nt") if str(value).strip() else []
 
 
-def _local_uv_command(env: Any, ip: str = "127.0.0.1") -> list[str]:
+def _local_uv_command(env: Any, ip: str = "127.0.0.1") -> tuple[list[str], dict[str, str]]:
+    process_env: dict[str, str] = {}
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    return [*_split_local_command(cmd_prefix), *_split_local_command(env.uv)]
+    cmd_prefix = apply_inline_path_export(cmd_prefix, process_env) or ""
+    if "PATH" in process_env:
+        process_env["PATH"] = os.path.expandvars(process_env["PATH"])
+    return [*_split_local_command(cmd_prefix), *_split_local_command(env.uv)], process_env
 
 
 def _format_bg_command(cmd: BgCommand) -> str:
@@ -810,7 +815,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         return True
     env = st.session_state['env']
     ip = "127.0.0.1"
-    uv = _local_uv_command(env, ip)
+    uv, uv_process_env = _local_uv_command(env, ip)
     attempts: list[str] = []
     last_error = ""
     project_roots = _iter_page_project_roots(view_page)
@@ -832,7 +837,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         else:
             sync_cmd = [*uv, "--preview-features", "extra-build-dependencies", "--project", page_home, "sync"]
             env.logger.info(_format_bg_command(sync_cmd))
-            sync_process = exec_bg(env, sync_cmd, cwd=page_home)
+            sync_process = exec_bg(env, sync_cmd, cwd=page_home, process_env=uv_process_env)
             sync_code = sync_process.wait()
             if sync_code != 0:
                 last_error = f"sync failed with code {sync_code} for {page_home}"
@@ -860,7 +865,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     "import pip",
                 ]
                 env.logger.info(_format_bg_command(pip_probe_cmd))
-                pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home)
+                pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home, process_env=uv_process_env)
                 if pip_probe_process.wait() != 0:
                     ensure_cmd = [
                         *uv,
@@ -874,7 +879,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                         "ensurepip",
                     ]
                     env.logger.info(_format_bg_command(ensure_cmd))
-                    ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
+                    ensure_process = exec_bg(env, ensure_cmd, cwd=page_home, process_env=uv_process_env)
                     ensure_code = ensure_process.wait()
                     if ensure_code != 0:
                         last_error = f"ensurepip failed with code {ensure_code} for {page_home}"
@@ -896,7 +901,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     str(source_root),
                 ]
                 env.logger.info(_format_bg_command(install_cmd))
-                install_process = exec_bg(env, install_cmd, cwd=page_home)
+                install_process = exec_bg(env, install_cmd, cwd=page_home, process_env=uv_process_env)
                 install_code = install_process.wait()
                 if install_code != 0:
                     last_error = f"pip install failed with code {install_code} for {page_home}"
@@ -933,7 +938,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         if active_app:
             run_cmd.extend(["--", "--active-app", active_app])
         env.logger.info(_format_bg_command(run_cmd))
-        run_process = exec_bg(env, run_cmd, cwd=page_home)
+        run_process = exec_bg(env, run_cmd, cwd=page_home, process_env=uv_process_env)
 
         # Wait a bit for the port to come up
         for _ in range(240):
@@ -2254,7 +2259,7 @@ def _ensure_notebook_sidecar(
         return True
     env = st.session_state["env"]
     ip = "127.0.0.1"
-    uv = _local_uv_command(env, ip)
+    uv, uv_process_env = _local_uv_command(env, ip)
     attempts: list[str] = []
     last_error = ""
 
@@ -2290,7 +2295,7 @@ def _ensure_notebook_sidecar(
     ]
     env.logger.info("Starting project notebook sidecar: %s", _format_bg_command(run_cmd))
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
-    run_process = exec_bg(env, run_cmd, cwd=project_home)
+    run_process = exec_bg(env, run_cmd, cwd=project_home, process_env=uv_process_env)
 
     for _ in range(240):
         if _is_port_open(port):
