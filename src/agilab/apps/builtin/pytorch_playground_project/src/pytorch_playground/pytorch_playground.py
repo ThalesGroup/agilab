@@ -59,7 +59,13 @@ class PytorchPlayground(BaseWorker):
     @property
     def analysis_artifact_dir(self) -> Path:
         export_root = Path(getattr(self.env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
-        return export_root / self.env.target / "pytorch_playground"
+        target = str(
+            getattr(self.env, "target", "")
+            or getattr(self.env, "app", "")
+            or getattr(self.env, "active_app", "")
+            or "pytorch_playground_project"
+        )
+        return export_root / target / "pytorch_playground"
 
     @classmethod
     def from_toml(
@@ -85,8 +91,12 @@ class PytorchPlayground(BaseWorker):
         return self.args.model_dump(mode="json")
 
     def build_distribution(self, workers):
-        work_plan = [[["pytorch_playground"]]]
-        metadata = [[{"run": "pytorch_playground", "work_items": 1}]]
+        try:
+            worker_count = max(1, int(workers))
+        except (TypeError, ValueError):
+            worker_count = 1
+        work_plan = [[["pytorch_playground"]]] + [[] for _ in range(worker_count - 1)]
+        metadata = [[{"run": "pytorch_playground", "work_items": 1}]] + [[] for _ in range(worker_count - 1)]
         return work_plan, metadata, "run", "work_items", "items"
 
 
