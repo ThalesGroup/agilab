@@ -260,6 +260,10 @@ Do I need a cluster or shared folder for the first proof?
 No. The first proof is local by design. Cluster mode is a later validation
 step.
 
+AGILAB's core adoption value is still available without cluster mode: local
+reproducible execution, app/page handoff, proof artifacts, and notebook or
+MLflow export.
+
 If cluster mode is requested, AGILAB requires an explicit usable cluster share
 that is distinct from the local share. It should fail fast instead of silently
 falling back to ``localshare``. Validate a cluster share before a full run with

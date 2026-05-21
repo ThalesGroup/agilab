@@ -14,6 +14,11 @@ portable, evidence-backed applications that can run locally or on distributed
 workers, while keeping a handoff path to runnable ``agi-core`` notebooks and
 MLflow tracking evidence.
 
+You do not need a cluster to get that core value. The primary adoption path is
+local: turn a notebook or script into a replayable app with evidence,
+artifacts, analysis views, and a notebook or MLflow handoff. Cluster execution
+is a scale-out option after the local proof works.
+
 It is a framework and web UI for running Python data, ML, and RL projects
 through one visible workflow: create the app, execute it under controlled
 runtime choices, inspect artifacts and evidence, then export the result to a
