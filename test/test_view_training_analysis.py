@@ -370,6 +370,45 @@ def test_view_training_analysis_loads_training_history_csv_as_scalars(tmp_path: 
     assert scalar_df["relative_time_s"].tolist() == [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
 
 
+def test_view_training_analysis_training_history_csv_edge_cases(tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._discover_training_history_roots(tmp_path / "missing") == []
+    assert module._initial_trainer_group_labels([], tmp_path) == {}
+
+    empty_history = tmp_path / "empty.csv"
+    empty_history.write_text("", encoding="utf-8")
+    assert module._load_training_history_frame(empty_history).empty
+
+    no_numeric_metrics = tmp_path / "no_numeric.csv"
+    no_numeric_metrics.write_text("epoch,note\n1,warmup\n2,done\n", encoding="utf-8")
+    assert module._load_training_history_frame(no_numeric_metrics).empty
+
+    step_history = tmp_path / "step_history.csv"
+    step_history.write_text(
+        "step,wall_time,loss,accuracy\n"
+        "1,100.0,0.9,0.4\n"
+        "bad,101.0,0.8,0.5\n"
+        "3,,0.7,not-a-number\n",
+        encoding="utf-8",
+    )
+    step_df = module._load_training_history_frame(step_history)
+    assert step_df[["tag", "step", "wall_time", "value"]].to_dict("records") == [
+        {"tag": "accuracy", "step": 1, "wall_time": 100.0, "value": 0.4},
+        {"tag": "loss", "step": 1, "wall_time": 100.0, "value": 0.9},
+        {"tag": "loss", "step": 3, "wall_time": 3.0, "value": 0.7},
+    ]
+    assert step_df["relative_time_s"].tolist() == [97.0, 97.0, 0.0]
+
+    inferred_step_history = tmp_path / "inferred_step_history.csv"
+    inferred_step_history.write_text("loss\n0.6\n0.5\n", encoding="utf-8")
+    inferred_df = module._load_training_history_frame(inferred_step_history)
+    assert inferred_df[["tag", "step", "wall_time", "value"]].to_dict("records") == [
+        {"tag": "loss", "step": 0, "wall_time": 0.0, "value": 0.6},
+        {"tag": "loss", "step": 1, "wall_time": 1.0, "value": 0.5},
+    ]
+
+
 def test_view_training_analysis_additional_helper_and_entrypoint_branches(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
@@ -790,6 +829,54 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
     with pytest.raises(_StopCalled):
         module.main()
     assert any("No TensorBoard run folders found" in message for message in warnings_seen)
+
+
+def test_view_training_analysis_main_warns_when_no_trainer_output_selected(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    trainer_dir = data_root / "trainer_a"
+    trainer_dir.mkdir()
+    env = SimpleNamespace(
+        app_settings_file=tmp_path / "app_settings.toml",
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    infos: list[str] = []
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "trainer_data",
+            "input_datadir": "",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: "trainer_data",
+            caption=lambda *args, **kwargs: None,
+            selectbox=lambda label, options, index=0, key=None, format_func=None: "step" if label == "X axis" else options[index],
+            multiselect=lambda *args, **kwargs: [],
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        info=infos.append,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda *args, **kwargs: None,
+        stop=_stop,
+    )
+    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert infos == ["Select at least one Trainer output in the sidebar."]
 
 
 def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(monkeypatch, tmp_path: Path) -> None:
