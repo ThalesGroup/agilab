@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agilab.template_contracts import TemplateContract, load_optional_template_contract
+from agilab.ui_performance import ui_discovery_cache_enabled
 
 
 PAGE_BUNDLE_SCHEMA = "agilab.page_bundle_registry.v1"
@@ -15,6 +16,10 @@ PAGE_TEMPLATE_SCHEMA = "agilab.page_template_registry.v1"
 PAGE_TEMPLATE_SUFFIX = "_page_template"
 PAGE_BUNDLE_ENTRYPOINT_NAMES = ("{module}.py", "main.py", "app.py")
 _PAGE_BUNDLE_DISCOVERY_CACHE: dict[tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]], "PageBundleRegistry"] = {}
+_PAGE_TEMPLATE_DISCOVERY_CACHE: dict[
+    tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]],
+    "PageTemplateRegistry",
+] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,9 +269,10 @@ def discover_page_bundles(
         require_pyproject=require_pyproject,
         require_contract=require_contract,
     )
-    cached = _PAGE_BUNDLE_DISCOVERY_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
+    if ui_discovery_cache_enabled():
+        cached = _PAGE_BUNDLE_DISCOVERY_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
 
     bundles: list[PageBundleSpec] = []
     for script_path in sorted(root.glob("*.py")):
@@ -290,12 +296,13 @@ def discover_page_bundles(
         if bundle is not None:
             bundles.append(bundle)
     registry = PageBundleRegistry(bundles)
-    cache_prefix = cache_key[:3]
-    for stale_key in [
-        key for key in _PAGE_BUNDLE_DISCOVERY_CACHE if key[:3] == cache_prefix
-    ]:
-        _PAGE_BUNDLE_DISCOVERY_CACHE.pop(stale_key, None)
-    _PAGE_BUNDLE_DISCOVERY_CACHE[cache_key] = registry
+    if ui_discovery_cache_enabled():
+        cache_prefix = cache_key[:3]
+        for stale_key in [
+            key for key in _PAGE_BUNDLE_DISCOVERY_CACHE if key[:3] == cache_prefix
+        ]:
+            _PAGE_BUNDLE_DISCOVERY_CACHE.pop(stale_key, None)
+        _PAGE_BUNDLE_DISCOVERY_CACHE[cache_key] = registry
     return registry
 
 
@@ -310,6 +317,16 @@ def discover_page_templates(
     root = _coerce_root(templates_root)
     if root is None or not root.exists() or not root.is_dir():
         return PageTemplateRegistry()
+
+    cache_key = _page_template_discovery_cache_key(
+        root,
+        require_pyproject=require_pyproject,
+        require_contract=require_contract,
+    )
+    if ui_discovery_cache_enabled():
+        cached = _PAGE_TEMPLATE_DISCOVERY_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
 
     templates: list[PageTemplateSpec] = []
     for template_dir in sorted(
@@ -326,7 +343,15 @@ def discover_page_templates(
         )
         if template is not None:
             templates.append(template)
-    return PageTemplateRegistry(templates)
+    registry = PageTemplateRegistry(templates)
+    if ui_discovery_cache_enabled():
+        cache_prefix = cache_key[:3]
+        for stale_key in [
+            key for key in _PAGE_TEMPLATE_DISCOVERY_CACHE if key[:3] == cache_prefix
+        ]:
+            _PAGE_TEMPLATE_DISCOVERY_CACHE.pop(stale_key, None)
+        _PAGE_TEMPLATE_DISCOVERY_CACHE[cache_key] = registry
+    return registry
 
 
 def discover_page_bundle(
@@ -464,6 +489,7 @@ def clear_page_bundle_discovery_cache() -> None:
     """Clear the in-process apps-page discovery cache."""
 
     _PAGE_BUNDLE_DISCOVERY_CACHE.clear()
+    _PAGE_TEMPLATE_DISCOVERY_CACHE.clear()
 
 
 def _stat_signature(path: Path, *, label: str | None = None) -> tuple[str, bool, int, int] | None:
@@ -549,6 +575,32 @@ def _page_bundle_discovery_cache_key(
             continue
         if child.is_dir():
             signatures.extend(_page_bundle_dir_signature(child))
+    return (
+        root.as_posix(),
+        bool(require_pyproject),
+        bool(require_contract),
+        tuple(signatures),
+    )
+
+
+def _page_template_discovery_cache_key(
+    root: Path,
+    *,
+    require_pyproject: bool,
+    require_contract: bool,
+) -> tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]]:
+    signatures: list[tuple[str, bool, int, int]] = []
+    root_signature = _stat_signature(root, label=".")
+    if root_signature is not None:
+        signatures.append(root_signature)
+    try:
+        children = sorted(root.iterdir(), key=lambda path: path.name.casefold())
+    except OSError:
+        children = []
+    for child in children:
+        if child.name.startswith(".") or not child.is_dir() or not _is_template_name(child.name):
+            continue
+        signatures.extend(_page_bundle_dir_signature(child))
     return (
         root.as_posix(),
         bool(require_pyproject),
