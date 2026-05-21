@@ -206,6 +206,8 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "favicon",
     "failed to load resource",
     "net::err_aborted",
+    "/_stcore/health",
+    "/_stcore/host-config",
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {

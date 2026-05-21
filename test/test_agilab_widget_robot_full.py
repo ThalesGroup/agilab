@@ -205,3 +205,74 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
         }
         actual_apps = {page["app"] for page in payload["pages"]}
         assert expected_apps <= actual_apps
+
+
+@pytest.mark.ui_robot
+def test_pytorch_playground_orchestrate_screenshot_robot(tmp_path: Path) -> None:
+    """Opt-in browser evidence for the PyTorch playground ORCHESTRATE page.
+
+    Run with:
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py::test_pytorch_playground_orchestrate_screenshot_robot"
+    """
+
+    if os.environ.get("AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT") != "1":
+        pytest.skip("set AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT=1 to run the PyTorch playground screenshot robot")
+
+    screenshot_dir = tmp_path / "screenshots"
+    json_output = tmp_path / "pytorch-playground-orchestrate.json"
+    progress_log = tmp_path / "pytorch-playground-orchestrate.ndjson"
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "tools/agilab_widget_robot.py"),
+        "--apps",
+        "pytorch_playground_project",
+        "--pages",
+        "ORCHESTRATE",
+        "--apps-pages",
+        "none",
+        "--json",
+        "--json-output",
+        str(json_output),
+        "--progress-log",
+        str(progress_log),
+        "--screenshot-dir",
+        str(screenshot_dir),
+        "--interaction-mode",
+        "actionability",
+        "--action-button-policy",
+        "trial",
+        "--combination-mode",
+        "off",
+        "--runtime-isolation",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_RUNTIME_ISOLATION", "current-home"),
+        "--success-screenshot",
+        "--browser-error-check",
+        "--layout-integrity-check",
+        "--timeout",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_TIMEOUT", "60"),
+        "--widget-timeout",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_WIDGET_TIMEOUT", "5"),
+        "--target-seconds",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_TARGET_SECONDS", "180"),
+        "--quiet-progress",
+    ]
+
+    completed = _run_widget_robot(command)
+    if "playwright install" in completed.stdout.lower() or "no module named playwright" in completed.stdout.lower():
+        pytest.skip("Playwright is not installed; run `uv run --with playwright python -m playwright install chromium`")
+    assert completed.returncode == 0, completed.stdout
+    payload = json.loads(completed.stdout)
+    assert payload["success"] is True
+    assert payload["failed_count"] == 0
+    assert payload["page_count"] == 1
+    page = payload["pages"][0]
+    assert page["app"] == "pytorch_playground_project"
+    assert page["page"] == "ORCHESTRATE"
+    assert page["status"] == "passed"
+    assert page["widget_count"] >= 3
+    screenshots = sorted(screenshot_dir.rglob("*.png"))
+    assert screenshots
+    assert (screenshot_dir / "screenshot_manifest.json").is_file()
+    assert json.loads(json_output.read_text(encoding="utf-8"))["success"] is True
