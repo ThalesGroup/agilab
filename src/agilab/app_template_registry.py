@@ -7,9 +7,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agilab.ui_performance import child_path_signatures, ui_discovery_cache_enabled
+
 
 APP_TEMPLATE_SCHEMA = "agilab.app_template_registry.v1"
 APP_TEMPLATE_SUFFIX = "_app_template"
+_APP_TEMPLATE_DISCOVERY_CACHE: dict[
+    tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]],
+    "AppTemplateRegistry",
+] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +143,16 @@ def discover_app_templates(
     if root is None or not root.exists() or not root.is_dir():
         return AppTemplateRegistry()
 
+    cache_key = _app_template_discovery_cache_key(
+        root,
+        require_pyproject=require_pyproject,
+        require_settings=require_settings,
+    )
+    if ui_discovery_cache_enabled():
+        cached = _APP_TEMPLATE_DISCOVERY_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
     templates: list[AppTemplateSpec] = []
     for template_dir in sorted(
         (path for path in root.iterdir() if path.is_dir() and not path.name.startswith(".")),
@@ -152,7 +168,13 @@ def discover_app_templates(
         )
         if template is not None:
             templates.append(template)
-    return AppTemplateRegistry(templates)
+    registry = AppTemplateRegistry(templates)
+    if ui_discovery_cache_enabled():
+        cache_prefix = cache_key[:3]
+        for stale_key in [key for key in _APP_TEMPLATE_DISCOVERY_CACHE if key[:3] == cache_prefix]:
+            _APP_TEMPLATE_DISCOVERY_CACHE.pop(stale_key, None)
+        _APP_TEMPLATE_DISCOVERY_CACHE[cache_key] = registry
+    return registry
 
 
 def discover_app_template(
@@ -195,6 +217,30 @@ def _coerce_root(value: str | Path) -> Path | None:
         return Path(value).expanduser().resolve(strict=False)
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
+
+
+def clear_app_template_discovery_cache() -> None:
+    """Clear the in-process app-template discovery cache."""
+
+    _APP_TEMPLATE_DISCOVERY_CACHE.clear()
+
+
+def _app_template_discovery_cache_key(
+    root: Path,
+    *,
+    require_pyproject: bool,
+    require_settings: bool,
+) -> tuple[str, bool, bool, tuple[tuple[str, bool, int, int], ...]]:
+    return (
+        root.as_posix(),
+        bool(require_pyproject),
+        bool(require_settings),
+        child_path_signatures(
+            root,
+            child_suffix=APP_TEMPLATE_SUFFIX,
+            extra_relative_paths=("pyproject.toml", "src", "src/app_settings.toml"),
+        ),
+    )
 
 
 def _normalize_template_name(value: str) -> str:
