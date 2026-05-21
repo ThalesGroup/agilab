@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import socket
 import subprocess
 import tomllib
 from datetime import datetime
@@ -17,6 +18,13 @@ from typing import Any
 from urllib.parse import urlparse
 
 import streamlit as st
+
+
+HARDWARE_PROBE_DISABLE_ENV = "AGILAB_DISABLE_HARDWARE_PROBES"
+
+
+def _hardware_probes_disabled() -> bool:
+    return os.environ.get(HARDWARE_PROBE_DISABLE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _hero_target_svg_data_uri() -> str:
@@ -248,9 +256,16 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero h1 {{
                 margin: 0;
                 max-width: 760px;
-                font-size: clamp(2.05rem, 4.3vw, 4.2rem);
-                line-height: 0.98;
-                letter-spacing: -0.055em;
+                font-size: 3.45rem;
+                line-height: 1.02;
+                letter-spacing: 0;
+              }}
+              .agilab-hero__subcopy {{
+                max-width: 660px;
+                margin: 0.9rem 0 0;
+                color: rgba(247, 242, 232, 0.78);
+                font-size: 1rem;
+                line-height: 1.48;
               }}
               .agilab-hero__chips {{
                 display: flex;
@@ -311,6 +326,9 @@ def quick_logo(resources_path: Path) -> None:
                 .agilab-hero__body {{
                   grid-template-columns: 1fr;
                 }}
+                .agilab-hero h1 {{
+                  font-size: 3rem;
+                }}
                 .agilab-hero__visual {{
                   min-height: unset;
                 }}
@@ -336,13 +354,19 @@ def quick_logo(resources_path: Path) -> None:
                 .agilab-hero__legal-sep {{
                   display: none;
                 }}
+                .agilab-hero h1 {{
+                  font-size: 2.25rem;
+                }}
+                .agilab-hero__subcopy {{
+                  font-size: 0.96rem;
+                }}
               }}
             </style>
             <section class="agilab-hero" aria-label="AGILAB introduction">
               <div class="agilab-hero__top">
                 <div class="agilab-hero__brand">
                   <img src="{img_src}" alt="AGILAB logo">
-                  <span>Open-source workbench</span>
+                  <span>AI/ML reproducibility workbench</span>
                 </div>
                 <p class="agilab-hero__legal">
                   <span class="agilab-hero__legal-mark">BSD 3-Clause</span>
@@ -352,12 +376,17 @@ def quick_logo(resources_path: Path) -> None:
               </div>
               <div class="agilab-hero__body">
                 <div class="agilab-hero__copy">
-                  <p class="agilab-hero__eyebrow">AI/ML experimentation</p>
-                  <h1>Reproducible AI workflows.</h1>
+                  <p class="agilab-hero__eyebrow">Notebook/script to evidence</p>
+                  <h1>Turn experiments into evidence-backed apps.</h1>
+                  <p class="agilab-hero__subcopy">
+                    Import notebooks or scripts, run them locally or distributed,
+                    and keep portable proof, notebook export, and MLflow handoff.
+                  </p>
                   <div class="agilab-hero__chips" aria-label="AGILAB workflow">
-                    <span class="agilab-hero__chip">Project</span>
-                    <span class="agilab-hero__chip">Run</span>
-                    <span class="agilab-hero__chip">Analyse</span>
+                    <span class="agilab-hero__chip">Import</span>
+                    <span class="agilab-hero__chip">Execute</span>
+                    <span class="agilab-hero__chip">Prove</span>
+                    <span class="agilab-hero__chip">Export</span>
                   </div>
                 </div>
                 <div class="agilab-hero__visual" role="img" aria-label="Digital twin assisted generalization map">
@@ -588,6 +617,13 @@ def _format_bytes(byte_count: int) -> str:
 
 
 def _local_hardware_summary() -> dict[str, str]:
+    if _hardware_probes_disabled():
+        return {
+            "CPU": "probe disabled",
+            "RAM": "probe disabled",
+            "GPU": "probe disabled",
+            "NPU": "probe disabled",
+        }
     _, cpu_name = system_information_summary()
     gpu_summary, npu_summary = accelerator_information_summary()
     return {
@@ -691,7 +727,53 @@ def _scheduler_host(scheduler: str) -> str:
 
 
 def _is_local_node(host: str) -> bool:
+    normalized = _scheduler_host(host).strip().lower()
+    if "@" in normalized:
+        normalized = normalized.rsplit("@", 1)[-1]
+    return normalized in _local_node_aliases()
+
+
+def _is_explicit_local_node(host: str) -> bool:
     return host.strip().lower() in {"", "local", "localhost", "127.0.0.1", "::1"}
+
+
+@lru_cache(maxsize=1)
+def _local_node_aliases() -> frozenset[str]:
+    aliases = {"", "local", "localhost", "127.0.0.1", "::1"}
+    for raw_name in (socket.gethostname(), socket.getfqdn()):
+        name = _safe_text(raw_name).lower()
+        if name:
+            aliases.add(name)
+    for name in tuple(aliases):
+        if not name or name in {"", "local"}:
+            continue
+        try:
+            infos = socket.getaddrinfo(name, None)
+        except OSError:
+            continue
+        for info in infos:
+            try:
+                address = _safe_text(info[4][0]).lower()
+            except (IndexError, TypeError):
+                continue
+            if address:
+                aliases.add(address)
+    for address in _local_ipv4_aliases_from_commands():
+        aliases.add(address)
+    return frozenset(aliases)
+
+
+def _local_ipv4_aliases_from_commands() -> set[str]:
+    aliases: set[str] = set()
+    ifconfig_output = _command_output(("ifconfig",))
+    for match in re.finditer(r"\binet\s+(\d+\.\d+\.\d+\.\d+)\b", ifconfig_output):
+        aliases.add(match.group(1))
+    ip_output = _command_output(("ip", "-4", "-o", "addr", "show", "scope", "global"))
+    for line in ip_output.splitlines():
+        match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/\d+\b", line)
+        if match:
+            aliases.add(match.group(1))
+    return {address for address in aliases if not address.startswith("127.")}
 
 
 def _scheduler_display(scheduler: str, *, cluster_enabled: bool) -> str:
@@ -720,7 +802,7 @@ def _scheduler_display(scheduler: str, *, cluster_enabled: bool) -> str:
     host = host.strip()
     if not host:
         return "not configured" if cluster_enabled else "local process"
-    if cluster_enabled and not _is_local_node(host) and port is None:
+    if cluster_enabled and not _is_explicit_local_node(host) and port is None:
         port = 8786
     if port is None:
         return host
@@ -762,6 +844,9 @@ fi
 if [ -z "$gpu" ] && command -v system_profiler >/dev/null 2>&1; then
   gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F: '/Chipset Model/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
 fi
+if [ -z "$gpu" ] && command -v lspci >/dev/null 2>&1; then
+  gpu="$(lspci 2>/dev/null | awk '/(VGA compatible controller|3D controller|Display controller)/ && /NVIDIA/ {line=$0; if (match(line, /\[[^]]+\]/)) {line=substr(line, RSTART + 1, RLENGTH - 2)} else {sub(/^.*NVIDIA Corporation[ \t]*/, "", line); sub(/\(rev [^)]+\)/, "", line)}; sub(/^GeForce[ \t]+/, "", line); gsub(/^[ \t]+|[ \t]+$/, "", line); if (line != "") print line}' | paste -sd ';' -)"
+fi
 printf 'GPU=%s\n' "$gpu"
 npu=''
 chip=''
@@ -783,6 +868,8 @@ def _ssh_target(host: str, user: str) -> str:
 
 @lru_cache(maxsize=32)
 def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
+    if _hardware_probes_disabled():
+        return ""
     command: list[str] = [
         "ssh",
         "-o",
@@ -901,6 +988,21 @@ def _resource_unavailable(value: str) -> bool:
         "unknown ram",
         "unreachable",
     }
+
+
+def _merge_hardware_summary(
+    summary: dict[str, str],
+    fallback: dict[str, str] | None,
+) -> dict[str, str]:
+    if not fallback:
+        return summary
+    merged = dict(summary)
+    for key in ("CPU", "RAM", "GPU", "NPU"):
+        if _resource_unavailable(str(merged.get(key, ""))) and not _resource_unavailable(
+            str(fallback.get(key, ""))
+        ):
+            merged[key] = str(fallback[key])
+    return merged
 
 
 def _split_resource_descriptors(value: str) -> list[str]:
@@ -1190,8 +1292,9 @@ def _cluster_resource_totals(
 
     for host in nodes:
         summary = _node_hardware_summary(host, user=user, ssh_key_path=ssh_key_path)
+        configured_summary = hardware_inventory.get(_node_identity(host))
+        summary = _merge_hardware_summary(summary, configured_summary)
         if _summary_unreachable(summary):
-            configured_summary = hardware_inventory.get(_node_identity(host))
             if _hardware_summary_has_detected_resources(configured_summary):
                 summary = configured_summary
             else:
@@ -1399,7 +1502,7 @@ def _nvidia_gpu_summary() -> str:
         )
     )
     if not output:
-        return ""
+        return _lspci_gpu_summary(_command_output(("lspci",)))
 
     gpus: list[str] = []
     for line in output.splitlines():
@@ -1410,6 +1513,30 @@ def _nvidia_gpu_summary() -> str:
             gpus.append(f"{parts[0]} ({parts[1]} SMs)")
         else:
             gpus.append(parts[0])
+    if not gpus:
+        return ""
+    if len(gpus) == 1:
+        return gpus[0]
+    return f"{len(gpus)} GPUs: " + "; ".join(gpus)
+
+
+def _lspci_gpu_summary(output: str) -> str:
+    gpus: list[str] = []
+    for line in output.splitlines():
+        if "NVIDIA" not in line or not re.search(
+            r"VGA compatible controller|3D controller|Display controller",
+            line,
+        ):
+            continue
+        bracket_match = re.search(r"\[([^\]]+)\]", line)
+        if bracket_match:
+            label = bracket_match.group(1)
+        else:
+            label = re.sub(r"^.*NVIDIA Corporation\s*", "", line)
+            label = re.sub(r"\(rev [^)]+\)", "", label)
+        label = re.sub(r"^GeForce\s+", "", label).strip()
+        if label:
+            gpus.append(label)
     if not gpus:
         return ""
     if len(gpus) == 1:

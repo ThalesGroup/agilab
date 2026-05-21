@@ -1,0 +1,20 @@
+[args]
+data_out = "simple_app/artifacts"
+title = "Simple AGILAB app"
+note = "Replace this note with the app-specific local workflow."
+
+[cluster]
+verbose = true
+cython = false
+rapids = false
+pool = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.service_health]
+allow_idle = true
+max_unhealthy = 0
+max_restart_rate = 0.0
+
+[cluster.workers]

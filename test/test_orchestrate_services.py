@@ -70,6 +70,37 @@ def test_compute_service_mode_uses_expected_bitmask():
     assert result == 15
 
 
+def test_service_path_and_status_helpers_cover_defensive_edges(tmp_path):
+    builtin_app = tmp_path / "apps" / "builtin" / "demo_project"
+    builtin_app.mkdir(parents=True)
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(active_app=builtin_app)) == str(builtin_app.parent)
+
+    bad_apps_path = "bad\0path"
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(apps_path=bad_apps_path, app="demo")) == bad_apps_path
+    assert orchestrate_services._coerce_worker_health("bad") == ()
+    assert orchestrate_services._coerce_service_status(
+        enabled=True,
+        status_text="surprising",
+        worker_health=(),
+    ) is orchestrate_services.ServiceWorkflowStatus.UNKNOWN
+
+
+def test_snippet_apps_path_falls_back_when_app_is_missing_or_probe_fails(monkeypatch):
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(apps_path="/tmp/apps", app="")) == "/tmp/apps"
+
+    class FailingPathMeta(type):
+        def __instancecheck__(cls, instance):
+            return False
+
+    class FailingPath(metaclass=FailingPathMeta):
+        def __new__(cls, _value):
+            raise RuntimeError("path probe failed")
+
+    monkeypatch.setattr(orchestrate_services, "Path", FailingPath)
+
+    assert orchestrate_services.snippet_apps_path(SimpleNamespace(apps_path="/tmp/apps", app="demo")) == "/tmp/apps"
+
+
 def test_service_mode_flags_and_defaults_are_named_constants():
     assert orchestrate_services.SERVICE_MODE_POOL == 1
     assert orchestrate_services.SERVICE_MODE_CYTHON == 2
@@ -166,13 +197,41 @@ def test_build_service_snippet_embeds_core_parameters():
     assert "foo=1, bar=2" in snippet
 
 
+def test_build_service_submit_snippet_embeds_workers_task_and_args():
+    snippet = orchestrate_services.build_service_submit_snippet(
+        env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project", target="demo"),
+        verbose=2,
+        workers="{'127.0.0.1': 1}",
+        args_serialized="foo=1, bar='x'",
+    )
+
+    assert "AGI.submit(" in snippet
+    assert 'APP = "demo_project"' in snippet
+    assert "workers={'127.0.0.1': 1}" in snippet
+    assert 'task_name="demo-service-run"' in snippet
+    assert "foo=1, bar='x'" in snippet
+
+
+def test_build_service_submit_snippet_omits_empty_args_and_defaults_task_name():
+    snippet = orchestrate_services.build_service_submit_snippet(
+        env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project"),
+        verbose=2,
+        workers="{'127.0.0.1': 1}",
+        args_serialized=" , ",
+    )
+
+    assert 'task_name="demo_project-service-run"' in snippet
+    assert "workers={'127.0.0.1': 1}," in snippet
+    assert "foo=" not in snippet
+
+
 def test_build_service_snippet_preserves_builtin_apps_path(tmp_path):
     apps_path = tmp_path / "apps"
     builtin_apps = apps_path / "builtin"
-    (builtin_apps / "flight_project").mkdir(parents=True)
+    (builtin_apps / "flight_telemetry_project").mkdir(parents=True)
 
     snippet = orchestrate_services.build_service_snippet(
-        env=SimpleNamespace(apps_path=apps_path, app="flight_project", is_source_env=True),
+        env=SimpleNamespace(apps_path=apps_path, app="flight_telemetry_project", is_source_env=True),
         verbose=2,
         service_action="status",
         service_mode=7,
@@ -294,7 +353,39 @@ def test_build_orchestrate_service_state_blocks_actions_when_cluster_disabled():
     assert state.blocked_actions[orchestrate_services.OrchestrateServiceAction.START].startswith(
         "Enable Cluster"
     )
+    assert state.blocked_actions[orchestrate_services.OrchestrateServiceAction.SUBMIT].startswith(
+        "Enable Cluster"
+    )
     assert state.summary["tracked_workers"] == 0
+
+
+def test_build_orchestrate_service_state_blocks_submit_until_service_running():
+    state = orchestrate_services.build_orchestrate_service_state(
+        session_state={"service_status_cache": "idle"},
+        cluster_params={"cluster_enabled": True, "pool": True},
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    assert orchestrate_services.OrchestrateServiceAction.START in state.available_actions
+    assert orchestrate_services.OrchestrateServiceAction.SUBMIT not in state.available_actions
+    assert state.blocked_actions[orchestrate_services.OrchestrateServiceAction.SUBMIT] == (
+        "Start service before submitting work."
+    )
+
+    running_state = orchestrate_services.build_orchestrate_service_state(
+        session_state={"service_status_cache": "running"},
+        cluster_params={"cluster_enabled": True, "pool": True},
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    assert orchestrate_services.OrchestrateServiceAction.SUBMIT in running_state.available_actions
+    assert running_state.blocked_actions == {}
 
 
 def test_build_orchestrate_service_state_classifies_running_degraded_and_snapshot():
@@ -394,6 +485,7 @@ def _service_st(session_state, *, clicked: str | None = None):
     def columns(count):
         keys = [
             "service_start_btn",
+            "service_submit_btn",
             "service_status_btn",
             "service_health_gate_btn",
             "service_export_btn",
@@ -552,6 +644,201 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert fake_st._placeholders[1].last_df is not None
     assert fake_st._placeholders[2].last_info is not None
     assert "Unhealthy workers: `1`" in fake_st._placeholders[2].last_info
+
+
+def test_render_service_panel_submit_action_queues_work(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "running",
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_submit_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    submit_payload = {
+        "status": "queued",
+        "task_id": "task-1",
+        "queue_dir": str(tmp_path / "queue"),
+        "queued_files": [str(tmp_path / "queue" / "task-1.json")],
+    }
+    captured: dict[str, object] = {}
+
+    async def fake_run_agi(cmd, **kwargs):
+        captured["cmd"] = cmd
+        callback = kwargs["log_callback"]
+        callback("submit streamed line")
+        return ("{'status': 'queued'}", "")
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: submit_payload,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert "AGI.submit(" in str(captured["cmd"])
+    assert "foo=1" in str(captured["cmd"])
+    assert session_state["service_status_cache"] == "running"
+    assert session_state["service_last_submit_cache"] == submit_payload
+    assert "task-1.json" in session_state["service_log_cache"]
+    assert any("completed with status 'queued'" in msg for msg in fake_st._success_messages)
+
+
+def test_render_service_panel_submit_action_records_nonqueued_status(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "running",
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_submit_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    submit_payload = {"status": "failed"}
+
+    async def fake_run_agi(*_args, **_kwargs):
+        return ("{'status': 'failed'}", "")
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: submit_payload,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(minimum, default if value is None else int(value)),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=fake_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert session_state["service_status_cache"] == "failed"
+    assert session_state["service_last_submit_cache"] == submit_payload
+    assert any("completed with status 'failed'" in msg for msg in fake_st._success_messages)
+
+    submit_payload = {}
+    second_session_state = _SessionState(
+        {
+            "args_serialized": "",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "running",
+        }
+    )
+    second_fake_st = _service_st(second_session_state, clicked="service_submit_btn")
+    monkeypatch.setattr(orchestrate_services, "st", second_fake_st)
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    assert second_session_state["service_status_cache"] == "running"
+    assert second_session_state["service_last_submit_cache"] == {}
+    assert any("completed with status 'running'" in msg for msg in second_fake_st._success_messages)
+
+
+def test_render_service_panel_blocks_submit_when_service_is_not_running(monkeypatch, tmp_path):
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": {}},
+            "service_status_cache": "idle",
+        }
+    )
+    fake_st = _service_st(session_state, clicked="service_submit_btn")
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    async def unexpected_run_agi(*_args, **_kwargs):
+        raise AssertionError("submit should be blocked before invoking AGI")
+
+    env = SimpleNamespace(
+        app="demo_project",
+        target="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+        run_agi=unexpected_run_agi,
+        snippet_tail="print('tail')",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params={"cluster_enabled": True, "pool": True, "service_health": {}},
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps(),
+        )
+    )
+
+    assert session_state["service_status_cache"] == "idle"
+    assert any("Service action is unavailable." in msg for msg in fake_st._warning_messages)
+    assert any("Start service before submitting work." in msg for msg in fake_st._info_messages)
 
 
 def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tmp_path):

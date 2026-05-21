@@ -57,7 +57,7 @@ Initialise the submodule after cloning::
 Then launch the framework from the pinned checkout::
 
    cd .external/agilab
-   uv run streamlit run src/agilab/agilab.py -- --apps-dir "/path/to/private-apps-repo/apps"
+   uv run --extra ui streamlit run src/agilab/agilab.py -- --apps-dir "/path/to/private-apps-repo/apps"
 
 Consequences
 ------------

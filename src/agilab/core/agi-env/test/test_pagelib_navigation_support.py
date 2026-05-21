@@ -66,19 +66,19 @@ def test_normalize_query_param_value_and_active_app_candidates(tmp_path):
     builtin_root = apps_root / "builtin"
     builtin_root.mkdir(parents=True)
 
-    assert nav_support.normalize_query_param_value(["a", "flight"]) == "flight"
-    assert nav_support.normalize_query_param_value("flight") == "flight"
+    assert nav_support.normalize_query_param_value(["a", "flight_telemetry"]) == "flight_telemetry"
+    assert nav_support.normalize_query_param_value("flight_telemetry") == "flight_telemetry"
     assert nav_support.normalize_query_param_value(None) is None
 
     candidates = nav_support.active_app_candidates(
-        "flight",
+        "flight_telemetry",
         apps_root,
-        ["flight_project"],
+        ["flight_telemetry_project"],
         preferred_base=tmp_path / "preferred",
     )
 
-    assert candidates[0] == Path("flight").expanduser()
-    assert builtin_root / "flight_project" in candidates
+    assert candidates[0] == Path("flight_telemetry").expanduser()
+    assert builtin_root / "flight_telemetry_project" in candidates
     assert len(candidates) == len(set(candidates))
 
 

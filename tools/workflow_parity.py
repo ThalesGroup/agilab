@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -16,7 +18,93 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGI_GUI_COVERAGE_CHUNKS = ("support", "pipeline", "robots", "pages", "views", "reports")
+RESULT_CACHE_SCHEMA = "agilab-workflow-parity-result-cache-v1"
+DEFAULT_RESULT_CACHE_PATH = REPO_ROOT / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
+RESULT_CACHE_MAX_ENTRIES = 256
+RESULT_CACHE_HASH_LIMIT_BYTES = 10 * 1024 * 1024
+RESULT_CACHE_INPUT_GLOBS = (
+    "pyproject.toml",
+    "uv.lock",
+    "tools/workflow_parity.py",
+    "tools/coverage_shard_plan.py",
+    "tools/agilab_dev.py",
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+)
+RESULT_CACHE_ENV_KEYS = (
+    "AGILAB_DEFAULT_OPENAI_MODEL",
+    "AGILAB_FORCE_APP_PAGE_SOURCE",
+    "APPS_REPOSITORY",
+    "CI",
+    "PYTHONPATH",
+    "UV_PROJECT_ENVIRONMENT",
+    "UV_RUN_RECURSION_DEPTH",
+    "VIRTUAL_ENV",
+)
+AGI_GUI_COVERAGE_CHUNKS = (
+    "support",
+    "pipeline",
+    "robots",
+    "pages-flow",
+    "pages-rest",
+    "views",
+    "reports",
+)
+AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
+AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 30.0
+UI_ROBOT_MATRIX_SHARDS = (
+    (
+        "core",
+        (
+            "isolated-core-pages",
+            "isolated-entry-and-app-pages",
+            "isolated-project-page",
+            "isolated-project-notebook-import",
+            "isolated-project-import-sidebar",
+            "isolated-project-rename-sidebar",
+            "isolated-settings-page",
+        ),
+    ),
+    (
+        "state",
+        (
+            "isolated-fresh-session-core-pages",
+            "isolated-browser-history",
+        ),
+    ),
+    (
+        "quality",
+        (
+            "isolated-browser-error-core-pages",
+            "isolated-above-fold-core-pages",
+            "isolated-keyboard-focus-core-pages",
+            "isolated-accessibility-core-pages",
+        ),
+    ),
+    (
+        "layout",
+        (
+            "isolated-layout-integrity-desktop",
+            "isolated-mobile-core-pages",
+            "isolated-layout-integrity-mobile",
+        ),
+    ),
+)
+
+
+def _coverage_shard_plan_module():
+    module_path = REPO_ROOT / "tools" / "coverage_shard_plan.py"
+    spec = importlib.util.spec_from_file_location("agilab_coverage_shard_plan", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load coverage shard planner from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _agi_gui_static_chunk_args() -> dict[str, list[str]]:
+    return _coverage_shard_plan_module().static_chunk_args()
 
 
 @dataclass
@@ -82,9 +170,29 @@ def _build_parser() -> argparse.ArgumentParser:
             "installer",
             "shared-core-typing",
             "dependency-policy",
+            "release-proof",
             "security-adoption",
+            "production-readiness",
             "cloud-emulators",
+            "ui-robot-contract",
+            "ui-robot-canary",
+            "ui-frontend-smoke",
             "ui-robot-matrix",
+            "ui-artifact-capture-robot",
+            "ui-history-robot",
+            "ui-mobile-robot",
+            "ui-release-evidence-robot",
+            "ui-first-proof-robot",
+            "ui-keyboard-robot",
+            "ui-layout-robot",
+            "ui-accessibility-robot",
+            "ui-browser-error-robot",
+            "ui-above-fold-robot",
+            "ui-visual-baseline-robot",
+            "ui-trend-robot",
+            "ui-cross-browser-robot",
+            "hf-install-robot",
+            "hf-visual-smoke-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -126,6 +234,44 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue running later profiles even if one command fails.",
     )
+    parser.add_argument(
+        "--result-cache",
+        action="store_true",
+        help=(
+            "Opt in to reusing successful local workflow parity results. Keep this "
+            "disabled for artifact-generating profiles such as docs, badges, skills, "
+            "and release checks."
+        ),
+    )
+    parser.add_argument(
+        "--result-cache-path",
+        default=str(DEFAULT_RESULT_CACHE_PATH),
+        help=(
+            "Path for the local successful-result cache. The cache is keyed by "
+            "selected profiles, command specs, workflow/tool fingerprints, and the dirty tree."
+        ),
+    )
+    parser.add_argument(
+        "--no-result-cache",
+        action="store_true",
+        help="Disable reuse and storage of successful workflow parity results.",
+    )
+    parser.add_argument(
+        "--select-ui-robot-profiles",
+        action="store_true",
+        help="Select UI robot profiles from changed files instead of using the default profile set.",
+    )
+    parser.add_argument(
+        "--changed-file",
+        action="append",
+        default=[],
+        help="Changed file to classify for --select-ui-robot-profiles. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--changed-base",
+        default="",
+        help="Optional git base ref for --select-ui-robot-profiles. Defaults to the current dirty tree.",
+    )
     return parser
 
 
@@ -142,12 +288,35 @@ def _profile_descriptions() -> dict[str, str]:
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
         "shared-core-typing": "Run the curated shared-core strict mypy slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
+        "release-proof": "Run expensive release-proof gates such as fresh-clone first-proof install validation.",
         "security-adoption": (
             "Write an advisory security-check JSON artifact; set "
             "AGILAB_SECURITY_CHECK_STRICT=1 to fail on warnings."
         ),
+        "production-readiness": (
+            "Run the controlled-pilot readiness gate, including production-readiness "
+            "evidence, hardening guardrails, and docs parity."
+        ),
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
+        "ui-robot-contract": "Validate deterministic UI robot coverage contracts.",
+        "ui-robot-canary": "Run deliberate UI robot fault-injection canaries.",
+        "ui-frontend-smoke": "Run a cheap browser/static-asset smoke for the AGILAB Streamlit frontend.",
         "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
+        "ui-artifact-capture-robot": "Run a small widget robot smoke with trace, HAR, and video artifact capture enabled.",
+        "ui-history-robot": "Run the opt-in browser-history, dark-theme, and session routing widget robot scenario.",
+        "ui-mobile-robot": "Run the opt-in mobile viewport widget robot scenario.",
+        "ui-release-evidence-robot": "Run opt-in success-screenshot, fresh-session, and performance-budget widget robot scenarios.",
+        "ui-first-proof-robot": "Run the opt-in local first-proof golden-path widget robot for flight telemetry.",
+        "ui-keyboard-robot": "Run the opt-in keyboard focus widget robot scenario.",
+        "ui-layout-robot": "Run the opt-in desktop and mobile layout-integrity widget robot scenarios.",
+        "ui-accessibility-robot": "Run the opt-in UI accessibility semantics widget robot scenario.",
+        "ui-browser-error-robot": "Run the opt-in console, pageerror, requestfailed, and HTTP error widget robot scenario.",
+        "ui-above-fold-robot": "Run the opt-in above-the-fold primary-target widget robot scenario.",
+        "ui-visual-baseline-robot": "Capture masked UI screenshots and compare them with screenshot baselines.",
+        "ui-trend-robot": "Summarize widget robot NDJSON progress logs for failures, flakes, and slow pages.",
+        "ui-cross-browser-robot": "Run the opt-in Firefox and WebKit widget robot smoke scenarios.",
+        "hf-install-robot": "Run the hosted Hugging Face first-proof INSTALL action robot.",
+        "hf-visual-smoke-robot": "Capture hosted Hugging Face first-proof visual smoke screenshots without firing install actions.",
     }
 
 
@@ -164,92 +333,167 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "installer": _installer_profile(args.app_path, args.worker_copy),
         "shared-core-typing": _shared_core_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
+        "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
+        "production-readiness": _production_readiness_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
+        "ui-robot-contract": _ui_robot_contract_profile(),
+        "ui-robot-canary": _ui_robot_canary_profile(),
+        "ui-frontend-smoke": _ui_frontend_smoke_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
+        "ui-artifact-capture-robot": _ui_artifact_capture_robot_profile(),
+        "ui-history-robot": _ui_history_robot_profile(),
+        "ui-mobile-robot": _ui_mobile_robot_profile(),
+        "ui-release-evidence-robot": _ui_release_evidence_robot_profile(),
+        "ui-first-proof-robot": _ui_first_proof_robot_profile(),
+        "ui-keyboard-robot": _ui_keyboard_robot_profile(),
+        "ui-layout-robot": _ui_layout_robot_profile(),
+        "ui-accessibility-robot": _ui_accessibility_robot_profile(),
+        "ui-browser-error-robot": _ui_browser_error_robot_profile(),
+        "ui-above-fold-robot": _ui_above_fold_robot_profile(),
+        "ui-visual-baseline-robot": _ui_visual_baseline_robot_profile(),
+        "ui-trend-robot": _ui_trend_robot_profile(),
+        "ui-cross-browser-robot": _ui_cross_browser_robot_profile(),
+        "hf-install-robot": _hf_install_robot_profile(),
+        "hf-visual-smoke-robot": _hf_visual_smoke_robot_profile(),
     }
+
+
+UI_ROBOT_PROFILE_ORDER = (
+    "ui-robot-contract",
+    "ui-robot-canary",
+    "ui-frontend-smoke",
+    "ui-robot-matrix",
+    "ui-artifact-capture-robot",
+    "ui-history-robot",
+    "ui-mobile-robot",
+    "ui-keyboard-robot",
+    "ui-layout-robot",
+    "ui-accessibility-robot",
+    "ui-browser-error-robot",
+    "ui-above-fold-robot",
+    "ui-visual-baseline-robot",
+    "ui-trend-robot",
+    "ui-cross-browser-robot",
+    "hf-install-robot",
+    "hf-visual-smoke-robot",
+)
+
+
+def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
+    profiles: set[str] = set()
+    normalized = [
+        Path(path).as_posix().removeprefix("./")
+        for path in paths
+        if str(path).strip()
+    ]
+    for path in normalized:
+        lower = path.lower()
+        if lower.startswith(
+            (
+                "tools/agilab_widget_robot",
+                "tools/ui_robot_",
+                "test/test_agilab_widget_robot",
+                "test/test_ui_robot_",
+            )
+        ):
+            profiles.update(
+                {
+                    "ui-robot-contract",
+                    "ui-robot-canary",
+                    "ui-artifact-capture-robot",
+                    "ui-trend-robot",
+                }
+            )
+        if lower.startswith(("tools/agilab_web_robot.py", "test/test_agilab_web_robot.py")):
+            profiles.add("ui-frontend-smoke")
+        if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
+            profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
+        if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):
+            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(".github/workflows/ci.yml"):
+            profiles.update({"ui-frontend-smoke", "ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
+        if lower.startswith(("src/agilab/main_page.py", "src/agilab/pages/", "src/agilab/lib/agi-gui/", "src/agilab/apps-pages/")):
+            profiles.update(
+                {
+                    "ui-frontend-smoke",
+                    "ui-robot-matrix",
+                    "ui-history-robot",
+                    "ui-mobile-robot",
+                    "ui-keyboard-robot",
+                    "ui-layout-robot",
+                    "ui-accessibility-robot",
+                    "ui-browser-error-robot",
+                    "ui-above-fold-robot",
+                    "ui-trend-robot",
+                }
+            )
+        if (
+            lower == "pyproject.toml"
+            or lower.endswith("/pyproject.toml")
+            or lower.startswith((".idea/runconfigurations/", "tools/run_configs/"))
+            or lower
+            in {
+                "tools/generate_runconfig_scripts.py",
+                "tools/generate_vscode_tasks.py",
+                "src/agilab/resources/config.toml",
+                "src/agilab/streamlit_theme_env.py",
+            }
+        ):
+            profiles.add("ui-frontend-smoke")
+        if "huggingface" in lower or lower.startswith(
+            ("docker/", "spaces/", ".github/workflows/huggingface", "tools/hf_space_", "test/test_hf_space_")
+        ):
+            profiles.update({"hf-visual-smoke-robot", "hf-install-robot"})
+        if lower.startswith(("tools/workflow_parity.py", "test/test_workflow_parity.py")):
+            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-frontend-smoke"})
+    if not profiles:
+        profiles.add("ui-robot-contract")
+    return [profile for profile in UI_ROBOT_PROFILE_ORDER if profile in profiles]
+
+
+def _git_changed_files(base: str = "") -> list[str]:
+    commands = []
+    if base:
+        commands.append(["git", "diff", "--name-only", f"{base}...HEAD"])
+    else:
+        commands.extend(
+            [
+                ["git", "diff", "--name-only", "HEAD"],
+                ["git", "diff", "--cached", "--name-only"],
+                ["git", "ls-files", "--others", "--exclude-standard"],
+            ]
+        )
+    paths: list[str] = []
+    seen: set[str] = set()
+    for argv in commands:
+        completed = subprocess.run(argv, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if completed.returncode != 0:
+            continue
+        for line in completed.stdout.splitlines():
+            path = line.strip()
+            if path and path not in seen:
+                paths.append(path)
+                seen.add(path)
+    return paths
+
+
+def _selected_ui_robot_profiles(args: argparse.Namespace) -> list[str]:
+    changed_files = list(getattr(args, "changed_file", []) or [])
+    if not changed_files:
+        changed_files = _git_changed_files(str(getattr(args, "changed_base", "") or ""))
+    return select_ui_robot_profiles_for_files(changed_files)
 
 
 def _agi_gui_profile() -> list[CommandSpec]:
     commands = [
-        _agi_gui_coverage_chunk(
-            "support",
-            [
-                "src/agilab/test",
-                "src/agilab/lib/agi-gui/test",
-                "test/test_orchestrate_cluster.py",
-                "test/test_orchestrate_distribution.py",
-                "test/test_orchestrate_execute.py",
-                "test/test_orchestrate_page_helpers.py",
-                "test/test_orchestrate_page_state.py",
-                "test/test_orchestrate_services.py",
-                "test/test_orchestrate_support.py",
-                "test/test_analysis_page_helpers.py",
-                "test/test_about_agilab_helpers.py",
-                "test/test_app_template_registry.py",
-                "test/test_cluster_flight_validation.py",
-                "test/test_cluster_lan_discovery.py",
-                "test/test_dag_distributed_submitter.py",
-                "test/test_agilab_dev_shortcuts.py",
-                "test/test_ga_regression_selector.py",
-                "test/test_pinned_expander.py",
-                "test/test_venv_linker.py",
-                "test/test_workflow_ui.py",
-            ],
-            clean=True,
-        ),
-        _agi_gui_coverage_chunk(
-            "pipeline",
-            [
-                "test/test_first_proof_cli.py",
-                "test/test_notebook_colab_support.py",
-                "test/test_page_docs.py",
-                "test/test_pipeline_ai.py",
-                "test/test_pipeline_editor.py",
-                "test/test_pipeline_lab.py",
-                "test/test_pipeline_mistral.py",
-                "test/test_pipeline_openai.py",
-                "test/test_pipeline_openai_compatible.py",
-                "test/test_pipeline_run_controls.py",
-                "test/test_pipeline_runtime.py",
-                "test/test_pipeline_service_guard.py",
-                "test/test_pipeline_sidebar.py",
-                "test/test_pipeline_stage_templates.py",
-                "test/test_pipeline_stages.py",
-                "test/test_pipeline_views.py",
-                "test/test_tracking.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk(
-            "robots",
-            [
-                "test/test_agilab_web_robot.py",
-                "test/test_agilab_widget_robot.py",
-                "test/test_first_launch_robot.py",
-                "test/test_screenshot_manifest.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk(
-            "pages",
-            [
-                "test/test_ui_pages.py",
-                "test/test_apps_pages_launcher.py",
-                "test/test_app_args.py",
-                "test/test_streamlit_args.py",
-                "test/test_pagelib.py",
-                "test/test_connector_registry.py",
-                "test/test_run_manifest.py",
-            ],
-        ),
-        _agi_gui_coverage_chunk("views", ["test/test_view*.py"]),
-        _agi_gui_coverage_chunk(
-            "reports",
-            [
-                "test/test_ci_provider_artifacts.py",
-                "test/test_*_report.py",
-            ],
-        ),
-        _agi_gui_coverage_combine(),
+        _agi_gui_coverage_chunk(label, targets, clean=index == 0)
+        for index, (label, targets) in enumerate(_agi_gui_static_chunk_args().items())
+    ]
+    commands.extend(
+        [
+            _agi_gui_coverage_combine(),
+            _agi_gui_timing_report(),
         CommandSpec(
             label="agi-gui coverage xml",
             argv=[
@@ -261,6 +505,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "dev",
                 "--extra",
                 "ui",
+                "--extra",
+                "viz",
                 "python",
                 "-m",
                 "coverage",
@@ -274,32 +520,152 @@ def _agi_gui_profile() -> list[CommandSpec]:
             timeout_seconds=5 * 60,
             ensure_dirs=["test-results"],
         ),
-    ]
+        ]
+    )
     return commands
 
 
-def _agi_gui_coverage_combine() -> CommandSpec:
-    chunk_paths = [
-        f"test-results/coverage-agi-gui-{chunk}.db"
-        for chunk in AGI_GUI_COVERAGE_CHUNKS
-    ]
-    combine_code = (
+def _agi_gui_timing_report() -> CommandSpec:
+    return CommandSpec(
+        label="agi-gui timing report",
+        argv=[
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--group",
+            "dev",
+            "--extra",
+            "ui",
+            "--extra",
+            "viz",
+            "python",
+            "tools/coverage_timing_report.py",
+            "test-results/junit-agi-gui-*.xml",
+            "--markdown-output",
+            "test-results/coverage-agi-gui-timing.md",
+            "--json-output",
+            "test-results/coverage-agi-gui-timing.json",
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=60,
+        ensure_dirs=["test-results"],
+        remove_paths=[
+            "test-results/coverage-agi-gui-timing.md",
+            "test-results/coverage-agi-gui-timing.json",
+        ],
+    )
+
+
+def _agi_gui_coverage_manifest_path(label: str) -> str:
+    return f"test-results/coverage-agi-gui-{label}.manifest.json"
+
+
+def _agi_gui_coverage_manifest_paths() -> list[str]:
+    return [_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS]
+
+
+def _agi_gui_coverage_chunk_code(label: str, data_file: str, junit_path: str, manifest_path: str) -> str:
+    return (
         "from pathlib import Path\n"
-        "import subprocess, sys, time\n"
-        f"paths = {chunk_paths!r}\n"
-        "missing = []\n"
-        "for _ in range(30):\n"
-        "    missing = [path for path in paths if not Path(path).exists()]\n"
-        "    if not missing:\n"
+        "import json, subprocess, sys, time\n"
+        f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
+        f"label = {label!r}\n"
+        f"data_file = {data_file!r}\n"
+        f"junit_path = {junit_path!r}\n"
+        f"manifest_path = Path({manifest_path!r})\n"
+        "started = time.perf_counter()\n"
+        "cmd = [sys.executable, *sys.argv[1:]]\n"
+        "completed = subprocess.run(cmd, check=False)\n"
+        "base_path = Path(data_file)\n"
+        "coverage_db_paths = sorted(\n"
+        "    path.as_posix()\n"
+        "    for path in base_path.parent.glob(base_path.name + '*')\n"
+        "    if path.is_file() and path.stat().st_size > 0\n"
+        ")\n"
+        "manifest = {\n"
+        "    'schema': schema,\n"
+        "    'chunk': label,\n"
+        "    'returncode': completed.returncode,\n"
+        "    'duration_seconds': time.perf_counter() - started,\n"
+        "    'data_file': data_file,\n"
+        "    'junit_path': junit_path,\n"
+        "    'coverage_db_paths': coverage_db_paths,\n"
+        "    'coverage_command': cmd[1:],\n"
+        "}\n"
+        "manifest_path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n"
+        "sys.exit(completed.returncode)\n"
+    )
+
+
+def _agi_gui_coverage_combine_code() -> str:
+    manifest_paths = _agi_gui_coverage_manifest_paths()
+    return (
+        "from pathlib import Path\n"
+        "import json, subprocess, sys, time\n"
+        f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
+        f"manifest_paths = {manifest_paths!r}\n"
+        f"wait_seconds = {AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS!r}\n"
+        "deadline = time.monotonic() + wait_seconds\n"
+        "missing_manifests = []\n"
+        "while True:\n"
+        "    missing_manifests = [path for path in manifest_paths if not Path(path).is_file()]\n"
+        "    if not missing_manifests or time.monotonic() >= deadline:\n"
         "        break\n"
-        "    time.sleep(0.2)\n"
-        "if missing:\n"
-        "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
+        "    time.sleep(0.25)\n"
+        "if missing_manifests:\n"
+        "    print('Missing agi-gui coverage manifests: ' + ', '.join(missing_manifests))\n"
         "    sys.exit(1)\n"
-        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', "
-        "'--data-file=.coverage.agi-gui', *paths]\n"
+        "failed_chunks = []\n"
+        "empty_chunks = []\n"
+        "missing_dbs = []\n"
+        "coverage_paths = []\n"
+        "seen_paths = set()\n"
+        "for manifest_path in manifest_paths:\n"
+        "    manifest_file = Path(manifest_path)\n"
+        "    try:\n"
+        "        manifest = json.loads(manifest_file.read_text(encoding='utf-8'))\n"
+        "    except Exception as exc:\n"
+        "        print(f'Invalid agi-gui coverage manifest {manifest_path}: {exc}')\n"
+        "        sys.exit(1)\n"
+        "    chunk = str(manifest.get('chunk') or manifest_path)\n"
+        "    if manifest.get('schema') != schema:\n"
+        "        print(f'Unexpected agi-gui coverage manifest schema for {chunk}: {manifest.get(\"schema\")!r}')\n"
+        "        sys.exit(1)\n"
+        "    returncode = int(manifest.get('returncode', 1))\n"
+        "    if returncode != 0:\n"
+        "        failed_chunks.append(f'{chunk}={returncode}')\n"
+        "    raw_paths = manifest.get('coverage_db_paths')\n"
+        "    chunk_paths = raw_paths if isinstance(raw_paths, list) else []\n"
+        "    valid_chunk_paths = []\n"
+        "    for raw_path in chunk_paths:\n"
+        "        path = Path(str(raw_path))\n"
+        "        if path.is_file() and path.stat().st_size > 0:\n"
+        "            path_key = path.as_posix()\n"
+        "            if path_key not in seen_paths:\n"
+        "                valid_chunk_paths.append(path_key)\n"
+        "                coverage_paths.append(path_key)\n"
+        "                seen_paths.add(path_key)\n"
+        "        else:\n"
+        "            missing_dbs.append(f'{chunk}:{raw_path}')\n"
+        "    if not valid_chunk_paths:\n"
+        "        empty_chunks.append(chunk)\n"
+        "if failed_chunks:\n"
+        "    print('Failed agi-gui coverage chunks: ' + ', '.join(failed_chunks))\n"
+        "    sys.exit(1)\n"
+        "if empty_chunks:\n"
+        "    print('No coverage DBs recorded for agi-gui chunks: ' + ', '.join(empty_chunks))\n"
+        "    sys.exit(1)\n"
+        "if missing_dbs:\n"
+        "    print('Missing agi-gui coverage DB files: ' + ', '.join(missing_dbs))\n"
+        "    sys.exit(1)\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *coverage_paths]\n"
         "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
     )
+
+
+def _agi_gui_coverage_combine() -> CommandSpec:
     return CommandSpec(
         label="agi-gui coverage combine",
         argv=[
@@ -311,11 +677,16 @@ def _agi_gui_coverage_combine() -> CommandSpec:
             "dev",
             "--extra",
             "ui",
+            "--extra",
+            "viz",
             "python",
             "-c",
-            combine_code,
+            _agi_gui_coverage_combine_code(),
         ],
-        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        env={
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "COVERAGE_FILE": ".coverage.agi-gui",
+        },
         timeout_seconds=5 * 60,
         ensure_dirs=["test-results"],
     )
@@ -325,11 +696,13 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
     expanded_targets = _expand_repo_globs(targets)
     junit_path = f"test-results/junit-agi-gui-{label}.xml"
     data_file = f"test-results/coverage-agi-gui-{label}.db"
+    manifest_path = _agi_gui_coverage_manifest_path(label)
     clean_paths = [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
         *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
         *(f"test-results/junit-agi-gui-{chunk}.xml" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+        *(_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS),
     ]
     return CommandSpec(
         label=f"agi-gui coverage ({label})",
@@ -342,12 +715,17 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             "dev",
             "--extra",
             "ui",
+            "--extra",
+            "viz",
             "python",
+            "-c",
+            _agi_gui_coverage_chunk_code(label, data_file, junit_path, manifest_path),
             "-m",
             "coverage",
             "run",
             "--rcfile=.coveragerc.agi-gui",
             f"--data-file={data_file}",
+            "--parallel-mode",
             "-m",
             "pytest",
             "-q",
@@ -364,7 +742,11 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
         env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
         timeout_seconds=8 * 60,
         ensure_dirs=["test-results"],
-        remove_paths=[*clean_paths, junit_path] if clean else [data_file, junit_path],
+        remove_paths=(
+            [*clean_paths, *(f"{path}.*" for path in clean_paths), junit_path]
+            if clean
+            else [data_file, f"{data_file}.*", junit_path, manifest_path]
+        ),
     )
 
 
@@ -600,6 +982,17 @@ def _docs_profile() -> list[CommandSpec]:
             ],
         ),
         CommandSpec(
+            label="docs diagram wording check",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/docs_diagram_wording_check.py",
+            ],
+        ),
+        CommandSpec(
             label="docs sphinx build",
             argv=[
                 "uv",
@@ -685,6 +1078,40 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 label="generate codex skills index",
                 argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
             ),
+            CommandSpec(
+                label="generate public agent skill catalog",
+                argv=["python3", "tools/agent_skill_catalog.py", "--apply"],
+            ),
+            CommandSpec(
+                label="refresh public agent skill badges",
+                argv=["python3", "tools/generate_skill_badges.py"],
+            ),
+            CommandSpec(
+                label="scan repo agent skills",
+                argv=[
+                    "python3",
+                    "tools/skill_security_scan.py",
+                    "--roots",
+                    ".claude/skills",
+                    ".codex/skills",
+                    "--fail-on",
+                    "critical",
+                ],
+            ),
+            CommandSpec(
+                label="agent skill generated artifact drift guard",
+                argv=[
+                    "git",
+                    "diff",
+                    "--exit-code",
+                    "--",
+                    ".codex/skills/.generated/",
+                    "AGENT_SKILLS.md",
+                    "llms.txt",
+                    "llms-full.txt",
+                    "badges/",
+                ],
+            ),
         ]
     )
     return commands
@@ -694,7 +1121,7 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
     commands = [
         CommandSpec(
             label="installer shell syntax",
-            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh"],
+            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh", "src/agilab/core/install.sh"],
         ),
         CommandSpec(
             label="installer discovery tests",
@@ -767,6 +1194,35 @@ def _dependency_policy_profile() -> list[CommandSpec]:
     ]
 
 
+def _release_proof_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="fresh source clone first-proof install",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "-m",
+                "release_proof",
+                "test/test_source_clone_regression.py::test_newcomer_first_proof_passes_from_fresh_source_clone",
+            ],
+            env={
+                "AGILAB_RUN_RELEASE_PROOF_SLOW": "1",
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "OPENAI_API_KEY": "sk-test-release-proof-000000000000",
+                "PYTHONUNBUFFERED": "1",
+                "VIRTUAL_ENV": "",
+            },
+            timeout_seconds=15 * 60,
+        )
+    ]
+
+
 def _security_adoption_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -784,6 +1240,29 @@ def _security_adoption_profile() -> list[CommandSpec]:
             timeout_seconds=2 * 60,
             ensure_dirs=["test-results"],
             remove_paths=["test-results/security-check.json"],
+        )
+    ]
+
+
+def _production_readiness_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="production readiness gate",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/production_readiness_report.py",
+                "--run-docs-profile",
+                "--output",
+                "test-results/production-readiness.json",
+                "--compact",
+            ],
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/production-readiness.json"],
         )
     ]
 
@@ -820,9 +1299,150 @@ def _cloud_emulators_profile() -> list[CommandSpec]:
 
 
 def _ui_robot_matrix_profile() -> list[CommandSpec]:
+    commands: list[CommandSpec] = []
+    for shard, scenarios in UI_ROBOT_MATRIX_SHARDS:
+        result_dir = f"test-results/ui-robot-matrix/{shard}"
+        screenshot_dir = f"screenshots/ui-robot-matrix/{shard}"
+        argv = [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--with",
+            "playwright",
+            "python",
+            "tools/agilab_widget_robot_matrix.py",
+        ]
+        for scenario in scenarios:
+            argv.extend(["--scenario", scenario])
+        argv.extend(
+            [
+                "--apps",
+                "all",
+                "--timeout",
+                "90",
+                "--widget-timeout",
+                "3",
+                "--json",
+                "--quiet-progress",
+                "--no-result-cache",
+                "--output-dir",
+                result_dir,
+                "--screenshot-dir",
+                screenshot_dir,
+                "--failure-bundle-dir",
+                f"{result_dir}/failure-bundles",
+                "--retry-failed-with-artifacts",
+                "--retry-trace-dir",
+                f"{result_dir}/failure-artifacts/traces",
+                "--retry-har-dir",
+                f"{result_dir}/failure-artifacts/har",
+                "--retry-video-dir",
+                f"{result_dir}/failure-artifacts/video",
+            ]
+        )
+        commands.append(
+            CommandSpec(
+                label=f"ui robot matrix ({shard})",
+                argv=argv,
+                timeout_seconds=50 * 60,
+                remove_paths=[result_dir, screenshot_dir],
+            )
+        )
+    return commands
+
+
+def _ui_robot_contract_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
-            label="ui robot matrix",
+            label="ui robot coverage contract",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_coverage_contract.py",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        ),
+        CommandSpec(
+            label="ui robot action contract",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_action_contract.py",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        ),
+    ]
+
+
+def _ui_robot_canary_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot fault-injection canary",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "--with",
+                "pillow",
+                "python",
+                "tools/ui_robot_canary.py",
+                "--output",
+                "test-results/ui-robot-canary.json",
+                "--json",
+            ],
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/ui-robot-canary.json"],
+        )
+    ]
+
+
+def _ui_frontend_smoke_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui frontend smoke robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_web_robot.py",
+                "--frontend-smoke-only",
+                "--timeout",
+                "45",
+                "--target-seconds",
+                "45",
+                "--json",
+                "--screenshot-dir",
+                "screenshots/ui-frontend-smoke",
+            ],
+            timeout_seconds=5 * 60,
+            remove_paths=["screenshots/ui-frontend-smoke"],
+        )
+    ]
+
+
+def _ui_artifact_capture_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui artifact capture robot",
             argv=[
                 "uv",
                 "--preview-features",
@@ -832,15 +1452,531 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "playwright",
                 "python",
                 "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-project-page",
+                "--apps",
+                "flight_telemetry_project",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
-                "test-results/ui-robot-matrix",
+                "test-results/ui-artifact-capture-robot",
                 "--screenshot-dir",
-                "screenshots/ui-robot-matrix",
+                "screenshots/ui-artifact-capture-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-artifact-capture-robot/failure-bundles",
+                "--trace-dir",
+                "test-results/ui-artifact-capture-robot/traces",
+                "--har-dir",
+                "test-results/ui-artifact-capture-robot/har",
+                "--video-dir",
+                "test-results/ui-artifact-capture-robot/video",
             ],
-            timeout_seconds=60 * 60,
-            remove_paths=["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"],
+            timeout_seconds=15 * 60,
+            remove_paths=["test-results/ui-artifact-capture-robot", "screenshots/ui-artifact-capture-robot"],
+        )
+    ]
+
+
+def _hf_install_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="hf first-proof install robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "hf-first-proof-install",
+                "--apps",
+                "flight_telemetry_project,weather_forecast_project",
+                "--url",
+                "https://huggingface.co/spaces/jpmorard/agilab",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/hf-install-robot",
+                "--screenshot-dir",
+                "screenshots/hf-install-robot",
+                "--failure-bundle-dir",
+                "test-results/hf-install-robot/failure-bundles",
+            ],
+            timeout_seconds=25 * 60,
+            remove_paths=["test-results/hf-install-robot", "screenshots/hf-install-robot"],
+        )
+    ]
+
+
+def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="hf first-proof visual smoke robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "hf-first-proof-visual-smoke",
+                "--scenario",
+                "hf-first-proof-app-pages-visual-smoke",
+                "--apps",
+                "flight_telemetry_project,weather_forecast_project",
+                "--url",
+                "https://huggingface.co/spaces/jpmorard/agilab",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/hf-visual-smoke-robot",
+                "--screenshot-dir",
+                "screenshots/hf-visual-smoke-robot",
+                "--failure-bundle-dir",
+                "test-results/hf-visual-smoke-robot/failure-bundles",
+            ],
+            timeout_seconds=25 * 60,
+            remove_paths=["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"],
+        )
+    ]
+
+
+def _ui_keyboard_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui keyboard focus robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-keyboard-focus-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-keyboard-robot",
+                "--screenshot-dir",
+                "screenshots/ui-keyboard-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-keyboard-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-keyboard-robot", "screenshots/ui-keyboard-robot"],
+        )
+    ]
+
+
+def _ui_layout_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui layout integrity robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-layout-integrity-desktop",
+                "--scenario",
+                "isolated-layout-integrity-mobile",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-layout-robot",
+                "--screenshot-dir",
+                "screenshots/ui-layout-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-layout-robot/failure-bundles",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-layout-robot", "screenshots/ui-layout-robot"],
+        )
+    ]
+
+
+def _ui_accessibility_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui accessibility semantics robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-accessibility-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-accessibility-robot",
+                "--screenshot-dir",
+                "screenshots/ui-accessibility-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-accessibility-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-accessibility-robot", "screenshots/ui-accessibility-robot"],
+        )
+    ]
+
+
+def _ui_browser_error_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui browser error robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-browser-error-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-browser-error-robot",
+                "--screenshot-dir",
+                "screenshots/ui-browser-error-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-browser-error-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-browser-error-robot", "screenshots/ui-browser-error-robot"],
+        )
+    ]
+
+
+def _ui_above_fold_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui above-fold primary targets robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-above-fold-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-above-fold-robot",
+                "--screenshot-dir",
+                "screenshots/ui-above-fold-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-above-fold-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-above-fold-robot", "screenshots/ui-above-fold-robot"],
+        )
+    ]
+
+
+def _ui_visual_baseline_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui visual baseline screenshot capture",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-visual-baseline-core-pages",
+                "--apps",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-visual-baseline-robot/current",
+                "--screenshot-dir",
+                "screenshots/ui-visual-baseline-robot/current",
+                "--failure-bundle-dir",
+                "test-results/ui-visual-baseline-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-visual-baseline-robot", "screenshots/ui-visual-baseline-robot"],
+        ),
+        CommandSpec(
+            label="ui visual baseline report",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "pillow",
+                "python",
+                "tools/ui_visual_baseline_report.py",
+                "--current",
+                "screenshots/ui-visual-baseline-robot/current/isolated-visual-baseline-core-pages",
+                "--baseline",
+                "docs/source/_static/page-shots",
+                "--allow-missing-baseline",
+                "--advisory",
+                "--output",
+                "test-results/ui-visual-baseline-robot/visual-baseline.json",
+                "--json",
+            ],
+            timeout_seconds=5 * 60,
+        ),
+    ]
+
+
+def _ui_trend_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot trend report",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ui_robot_trend_report.py",
+                "--glob",
+                "test-results/**/*.ndjson",
+                "--max-total-seconds",
+                "5400",
+                "--max-mean-page-seconds",
+                "180",
+                "--output",
+                "test-results/ui-robot-trend-report.json",
+                "--json",
+            ],
+            timeout_seconds=2 * 60,
+        )
+    ]
+
+
+def _ui_cross_browser_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui cross-browser playwright browsers",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "-m",
+                "playwright",
+                "install",
+                "firefox",
+                "webkit",
+            ],
+            timeout_seconds=10 * 60,
+            remove_paths=["test-results/ui-cross-browser-robot", "screenshots/ui-cross-browser-robot"],
+        ),
+        CommandSpec(
+            label="ui cross-browser robot (firefox)",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-cross-browser-core-pages",
+                "--browser",
+                "firefox",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-cross-browser-robot/firefox",
+                "--screenshot-dir",
+                "screenshots/ui-cross-browser-robot/firefox",
+                "--failure-bundle-dir",
+                "test-results/ui-cross-browser-robot/firefox/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+        ),
+        CommandSpec(
+            label="ui cross-browser robot (webkit)",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-cross-browser-core-pages",
+                "--browser",
+                "webkit",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-cross-browser-robot/webkit",
+                "--screenshot-dir",
+                "screenshots/ui-cross-browser-robot/webkit",
+                "--failure-bundle-dir",
+                "test-results/ui-cross-browser-robot/webkit/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+        ),
+    ]
+
+
+def _ui_history_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui browser history robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-browser-history",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-history-robot",
+                "--screenshot-dir",
+                "screenshots/ui-history-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-history-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-history-robot", "screenshots/ui-history-robot"],
+        )
+    ]
+
+
+def _ui_mobile_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui mobile viewport robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-mobile-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-mobile-robot",
+                "--screenshot-dir",
+                "screenshots/ui-mobile-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-mobile-robot/failure-bundles",
+            ],
+            timeout_seconds=30 * 60,
+            remove_paths=["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"],
+        )
+    ]
+
+
+def _ui_release_evidence_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui release evidence robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-release-evidence",
+                "--scenario",
+                "isolated-fresh-session-core-pages",
+                "--json",
+                "--quiet-progress",
+                "--no-result-cache",
+                "--output-dir",
+                "test-results/ui-release-evidence-robot",
+                "--screenshot-dir",
+                "screenshots/ui-release-evidence-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-release-evidence-robot/failure-bundles",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-release-evidence-robot", "screenshots/ui-release-evidence-robot"],
+        )
+    ]
+
+
+def _ui_first_proof_robot_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui first-proof golden path robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "current-home-first-proof-golden-path",
+                "--apps",
+                "flight_telemetry_project",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-first-proof-robot",
+                "--screenshot-dir",
+                "screenshots/ui-first-proof-robot",
+                "--failure-bundle-dir",
+                "test-results/ui-first-proof-robot/failure-bundles",
+            ],
+            timeout_seconds=45 * 60,
+            remove_paths=["test-results/ui-first-proof-robot", "screenshots/ui-first-proof-robot"],
         )
     ]
 
@@ -848,7 +1984,34 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    opt_in_profiles = {"agi-node", "agi-cluster", "security-adoption", "ui-robot-matrix"}
+    if getattr(args, "select_ui_robot_profiles", False):
+        return _selected_ui_robot_profiles(args)
+    opt_in_profiles = {
+        "agi-node",
+        "agi-cluster",
+        "release-proof",
+        "security-adoption",
+        "production-readiness",
+        "ui-robot-matrix",
+        "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-frontend-smoke",
+        "ui-artifact-capture-robot",
+        "ui-history-robot",
+        "ui-mobile-robot",
+        "ui-release-evidence-robot",
+        "ui-first-proof-robot",
+        "ui-keyboard-robot",
+        "ui-layout-robot",
+        "ui-accessibility-robot",
+        "ui-browser-error-robot",
+        "ui-above-fold-robot",
+        "ui-visual-baseline-robot",
+        "ui-trend-robot",
+        "ui-cross-browser-robot",
+        "hf-install-robot",
+        "hf-visual-smoke-robot",
+    }
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 
 
@@ -856,14 +2019,19 @@ def _prepare_command(spec: CommandSpec) -> None:
     for rel_dir in spec.ensure_dirs:
         (REPO_ROOT / rel_dir).mkdir(parents=True, exist_ok=True)
     for rel_path in spec.remove_paths:
-        target = REPO_ROOT / rel_path
-        if target.is_dir():
-            shutil.rmtree(target, ignore_errors=True)
-        else:
-            try:
-                target.unlink()
-            except FileNotFoundError:
-                pass
+        targets = (
+            sorted(REPO_ROOT.glob(rel_path))
+            if any(token in rel_path for token in "*?[")
+            else [REPO_ROOT / rel_path]
+        )
+        for target in targets:
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            else:
+                try:
+                    target.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def _run_command(spec: CommandSpec) -> CommandResult:
@@ -889,6 +2057,268 @@ def _run_command(spec: CommandSpec) -> CommandResult:
     )
 
 
+def _result_cache_enabled(args: argparse.Namespace, runner: Callable[[CommandSpec], CommandResult]) -> bool:
+    return (
+        runner is _run_command
+        and bool(getattr(args, "result_cache", False))
+        and not bool(getattr(args, "no_result_cache", False))
+    )
+
+
+def _result_cache_path(args: argparse.Namespace) -> Path:
+    configured = getattr(args, "result_cache_path", None) or DEFAULT_RESULT_CACHE_PATH
+    return Path(configured).expanduser()
+
+
+def _git_head() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _result_cache_changed_files(args: argparse.Namespace) -> list[str]:
+    explicit = list(getattr(args, "changed_file", []) or [])
+    if explicit:
+        return explicit
+    base = str(getattr(args, "changed_base", "") or "") if getattr(args, "select_ui_robot_profiles", False) else ""
+    return _git_changed_files(base)
+
+
+def _repo_relative_or_absolute(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _result_cache_input_paths(changed_files: Sequence[str], cache_path: Path) -> list[str]:
+    paths: list[str] = []
+    seen: set[str] = set()
+    cache_marker = _repo_relative_or_absolute(cache_path)
+    for pattern in RESULT_CACHE_INPUT_GLOBS:
+        if any(token in pattern for token in "*?["):
+            expanded = [path.relative_to(REPO_ROOT).as_posix() for path in sorted(REPO_ROOT.glob(pattern))]
+            candidates = expanded or [pattern]
+        else:
+            candidates = [pattern]
+        for candidate in candidates:
+            if candidate not in seen:
+                paths.append(candidate)
+                seen.add(candidate)
+    for changed_file in sorted(changed_files):
+        path = Path(changed_file)
+        candidate = _repo_relative_or_absolute(path) if path.is_absolute() else path.as_posix()
+        if candidate == cache_marker or candidate in seen:
+            continue
+        paths.append(candidate)
+        seen.add(candidate)
+    return paths
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_signature(path_name: str) -> dict[str, object]:
+    path = Path(path_name)
+    target = path if path.is_absolute() else REPO_ROOT / path
+    label = _repo_relative_or_absolute(target) if target.is_absolute() else path.as_posix()
+    try:
+        stat = target.stat()
+    except OSError as exc:
+        return {"path": label, "state": "missing", "error": exc.__class__.__name__}
+    signature: dict[str, object] = {
+        "path": label,
+        "state": "directory" if target.is_dir() else "file",
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+    if target.is_file() and stat.st_size <= RESULT_CACHE_HASH_LIMIT_BYTES:
+        try:
+            signature["sha256"] = _file_sha256(target)
+        except OSError as exc:
+            signature["sha256_error"] = exc.__class__.__name__
+    return signature
+
+
+def _result_cache_fingerprints(changed_files: Sequence[str], cache_path: Path) -> list[dict[str, object]]:
+    return [_file_signature(path) for path in _result_cache_input_paths(changed_files, cache_path)]
+
+
+def _run_result_cache_key(
+    profile_names: Sequence[str],
+    commands_by_profile: dict[str, list[CommandSpec]],
+    descriptions: dict[str, str],
+    *,
+    changed_files: Sequence[str],
+    cache_path: Path,
+) -> str:
+    selected = list(profile_names)
+    payload = {
+        "schema": RESULT_CACHE_SCHEMA,
+        "git_head": _git_head(),
+        "profiles": selected,
+        "descriptions": {profile: descriptions[profile] for profile in selected},
+        "commands": {
+            profile: [asdict(spec) for spec in commands_by_profile[profile]]
+            for profile in selected
+        },
+        "inputs": _result_cache_fingerprints(changed_files, cache_path),
+        "python": {
+            "executable": sys.executable,
+            "version": sys.version,
+        },
+        "env": {key: os.environ[key] for key in RESULT_CACHE_ENV_KEYS if key in os.environ},
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _empty_result_cache() -> dict[str, object]:
+    return {"schema": RESULT_CACHE_SCHEMA, "entries": {}}
+
+
+def _load_result_cache(cache_path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return _empty_result_cache()
+    if not isinstance(payload, dict) or payload.get("schema") != RESULT_CACHE_SCHEMA:
+        return _empty_result_cache()
+    if not isinstance(payload.get("entries"), dict):
+        return _empty_result_cache()
+    return payload
+
+
+def _command_result_from_cache(payload: object) -> CommandResult | None:
+    if not isinstance(payload, dict):
+        return None
+    argv = payload.get("argv")
+    env = payload.get("env")
+    if not isinstance(payload.get("label"), str) or not isinstance(argv, list) or not isinstance(env, dict):
+        return None
+    if not all(isinstance(arg, str) for arg in argv) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in env.items()
+    ):
+        return None
+    returncode = payload.get("returncode")
+    cwd = payload.get("cwd")
+    if not isinstance(returncode, int) or not isinstance(cwd, str):
+        return None
+    return CommandResult(
+        label=payload["label"],
+        argv=list(argv),
+        returncode=returncode,
+        duration_seconds=0.0,
+        cwd=cwd,
+        env=dict(env),
+    )
+
+
+def _profile_result_from_cache(payload: object) -> ProfileResult | None:
+    if not isinstance(payload, dict):
+        return None
+    profile = payload.get("profile")
+    description = payload.get("description")
+    success = payload.get("success")
+    commands_payload = payload.get("commands")
+    if not isinstance(profile, str) or not isinstance(description, str) or not isinstance(success, bool):
+        return None
+    if not isinstance(commands_payload, list):
+        return None
+    commands: list[CommandResult] = []
+    for command_payload in commands_payload:
+        command = _command_result_from_cache(command_payload)
+        if command is None:
+            return None
+        commands.append(command)
+    return ProfileResult(profile=profile, description=description, success=success, commands=commands)
+
+
+def _cached_run_results(
+    cache_state: dict[str, object],
+    cache_key: str,
+    profile_names: Sequence[str],
+) -> list[ProfileResult] | None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return None
+    entry = entries.get(cache_key)
+    if not isinstance(entry, dict) or entry.get("profiles") != list(profile_names):
+        return None
+    results_payload = entry.get("results")
+    if not isinstance(results_payload, list):
+        return None
+    results: list[ProfileResult] = []
+    for result_payload in results_payload:
+        result = _profile_result_from_cache(result_payload)
+        if result is None:
+            return None
+        results.append(result)
+    return results
+
+
+def _prune_result_cache(entries: dict[str, object]) -> None:
+    if len(entries) <= RESULT_CACHE_MAX_ENTRIES:
+        return
+
+    def _stored_at(item: tuple[str, object]) -> float:
+        value = item[1]
+        if not isinstance(value, dict):
+            return 0.0
+        stored_at = value.get("stored_at", 0.0)
+        return float(stored_at) if isinstance(stored_at, (int, float)) else 0.0
+
+    keep = {
+        key
+        for key, _value in sorted(entries.items(), key=_stored_at, reverse=True)[:RESULT_CACHE_MAX_ENTRIES]
+    }
+    for key in list(entries):
+        if key not in keep:
+            entries.pop(key, None)
+
+
+def _write_result_cache(cache_path: Path, cache_state: dict[str, object]) -> None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return
+    _prune_result_cache(entries)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = cache_path.with_name(f"{cache_path.name}.tmp")
+    temp_path.write_text(json.dumps(cache_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.replace(cache_path)
+
+
+def _store_run_results(
+    cache_path: Path,
+    cache_state: dict[str, object],
+    cache_key: str,
+    profile_names: Sequence[str],
+    results: Sequence[ProfileResult],
+) -> None:
+    entries = cache_state.get("entries")
+    if not isinstance(entries, dict):
+        return
+    entries[cache_key] = {
+        "profiles": list(profile_names),
+        "stored_at": time.time(),
+        "results": [asdict(result) for result in results],
+    }
+    _write_result_cache(cache_path, cache_state)
+
+
 def run_profiles(
     profile_names: Sequence[str],
     *,
@@ -897,6 +2327,28 @@ def run_profiles(
 ) -> list[ProfileResult]:
     commands_by_profile = _profile_commands(args)
     descriptions = _profile_descriptions()
+    cache_path: Path | None = None
+    cache_state: dict[str, object] | None = None
+    cache_key = ""
+    cache_enabled = _result_cache_enabled(args, runner)
+    if cache_enabled:
+        cache_path = _result_cache_path(args)
+        cache_state = _load_result_cache(cache_path)
+        cache_key = _run_result_cache_key(
+            profile_names,
+            commands_by_profile,
+            descriptions,
+            changed_files=_result_cache_changed_files(args),
+            cache_path=cache_path,
+        )
+        cached_results = _cached_run_results(cache_state, cache_key, profile_names)
+        if cached_results is not None:
+            print(
+                f"[workflow-parity] reused cached successful result for: {', '.join(profile_names)}",
+                file=sys.stderr,
+            )
+            return cached_results
+
     results: list[ProfileResult] = []
 
     for profile in profile_names:
@@ -918,6 +2370,8 @@ def run_profiles(
         )
         if not success and not args.keep_going:
             break
+    if cache_enabled and cache_path is not None and cache_state is not None and all(result.success for result in results):
+        _store_run_results(cache_path, cache_state, cache_key, profile_names, results)
     return results
 
 

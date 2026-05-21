@@ -9,7 +9,7 @@ from pandas_app import PandasAppArgs as ArgsModel
 def _get_env():
     try:
         return st.session_state["_env"]
-    except Exception:
+    except KeyError:
         return None
 
 

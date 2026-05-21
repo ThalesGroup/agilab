@@ -1,13 +1,39 @@
 [project]
-name = "view-training-analysis"
-version = "2026.04.09"
-requires-python = ">=3.13"
+name = "agi-page-training-report"
+version = "2026.05.20"
+description = "AGILAB page bundle for training run reporting."
+readme = { text = "AGILAB page bundle for training run reporting.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
 dependencies = [
-    "agi-gui",
+    "agi-gui>=2026.05.12.post3,<2027.0",
     "pandas>=2.3.0",
     "plotly>=6.3.0",
     "tensorboard",
 ]
+
+[project.entry-points."agilab.pages"]
+view_training_analysis = "view_training_analysis:bundle_root"
+
+
+
+
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_training_analysis"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

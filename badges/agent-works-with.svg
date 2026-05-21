@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="342" height="20" role="img" aria-label="Works with: Codex Claude Continue Aider OpenCode">
+<linearGradient id="b" x2="0" y2="100%">
+  <stop offset="0" stop-color="#fff" stop-opacity=".7"/>
+  <stop offset=".1" stop-opacity=".1"/>
+  <stop offset=".9" stop-opacity=".3"/>
+  <stop offset="1" stop-opacity=".5"/>
+</linearGradient>
+<mask id="a">
+  <rect width="342" height="20" rx="3" fill="#fff"/>
+</mask>
+<g mask="url(#a)">
+  <rect width="80" height="20" fill="#555"/>
+  <rect x="80" width="262" height="20" fill="#0F766E"/>
+  <rect width="342" height="20" fill="url(#b)"/>
+</g>
+<g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+  <text x="40.0" y="15" fill="#010101" fill-opacity=".3">Works with</text>
+  <text x="40.0" y="14">Works with</text>
+  <text x="211.0" y="15" fill="#010101" fill-opacity=".3">Codex Claude Continue Aider OpenCode</text>
+  <text x="211.0" y="14">Codex Claude Continue Aider OpenCode</text>
+</g>
+</svg>

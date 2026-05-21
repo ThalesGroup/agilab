@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import itertools
 import importlib.util
 import json
+import logging
 import os
 import re
 import shutil
@@ -41,6 +43,9 @@ from agilab.page_bundle_registry import (  # noqa: E402
     discover_page_bundles,
     resolve_page_bundles,
 )
+from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
@@ -50,12 +55,59 @@ DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
 DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
+PAGE_READY_POLL_MS = 150
+PAGE_READY_STABILIZE_MS = 100
+WIDGET_READY_POLL_MS = 150
+ACTION_OUTCOME_POLL_MS = 100
+ACTION_MIN_OBSERVATION_SECONDS = 1.0
 DEFAULT_TARGET_SECONDS = 1800.0
+DEFAULT_VIEWPORT_WIDTH = 1440
+DEFAULT_VIEWPORT_HEIGHT = 1000
+FAILURE_BUNDLE_SCHEMA = "agilab.widget_robot_failure_bundle.v1"
+FAILURE_BUNDLE_TEXT_LIMIT = 20_000
+FAILURE_BUNDLE_TAIL_LINES = 80
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
 CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
 MISSING_SELECTED_ACTION_POLICIES = ("fail", "ignore-absent")
-PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+SAFE_ACTION_LABEL_PREFIXES = ("view", "open", "show", "select", "choose", "browse", "back", "cancel", "close", "refresh", "reload")
+RISKY_ACTION_LABEL_TOKENS = {
+    "add",
+    "apply",
+    "build",
+    "clear",
+    "clone",
+    "create",
+    "delete",
+    "deploy",
+    "distribute",
+    "execute",
+    "export",
+    "generate",
+    "import",
+    "install",
+    "kill",
+    "launch",
+    "remove",
+    "rename",
+    "reset",
+    "run",
+    "save",
+    "start",
+    "stop",
+    "submit",
+    "sync",
+    "train",
+    "update",
+    "upload",
+}
+PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {
+    "flight_telemetry",
+    "weather_forecast",
+    "meteo_forecast",
+    "uav_queue",
+    "uav_relay_queue",
+}
 NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS = {"mycode_project"}
 ORCHESTRATE_OUTPUT_ACTION_LABELS = {
     "run -> load -> export",
@@ -86,6 +138,39 @@ CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "Run -> Load -> Export",
     "Run now",
 )
+INSTALL_ACTION_LABELS = {"install"}
+INSTALL_POSTCONDITION_ACTION_LABELS = (
+    "CHECK distribute",
+    "DISTRIBUTE",
+    "Run now",
+    "EXECUTE",
+    "RUN",
+    "Run -> Load -> Export",
+)
+BROWSER_HISTORY_CHECK_PAGES = ("PROJECT", "ORCHESTRATE", "ANALYSIS")
+THEME_STATE_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim();
+  const styleFor = (selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return {};
+    const style = window.getComputedStyle(el);
+    return {
+      backgroundColor: clean(style.backgroundColor),
+      color: clean(style.color),
+      colorScheme: clean(style.colorScheme),
+    };
+  };
+  const root = window.getComputedStyle(document.documentElement);
+  return {
+    rootBackground: clean(root.backgroundColor),
+    rootColor: clean(root.color),
+    rootColorScheme: clean(root.colorScheme),
+    app: styleFor("[data-testid='stApp']"),
+    body: styleFor("body"),
+  };
+}
+"""
 CURRENT_HOME_WORKER_IMPORT_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -101,10 +186,14 @@ BROWSER_ISSUE_FATAL_NEEDLES = (
     "exception",
     "export failed",
     "failed with exit code",
+    "finished with errors",
+    "install finished with errors",
+    "installation failed",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "post_install failed",
     "runtimeerror",
     "streamlitapiexception",
     "traceback",
@@ -117,16 +206,27 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "favicon",
     "failed to load resource",
     "net::err_aborted",
+    "/_stcore/health",
+    "/_stcore/host-config",
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
+    "SETTINGS": ("SETTINGS", "Settings", "Runtime diagnostics", "Environment variables"),
     "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
     "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
-PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
+    "HOME": ("AGILAB", "Start here"),
+    "PROJECT": ("PROJECT", "Active app", "Project"),
+    "SETTINGS": ("SETTINGS", "Runtime diagnostics", "Environment variables"),
+    "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
+    "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
+    "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
+}
 
 WIDGET_COLLECTOR_JS = r"""
 () => {
@@ -213,6 +313,9 @@ WIDGET_COLLECTOR_JS = r"""
         role: el.getAttribute("role") || "",
         tag: el.tagName.toLowerCase(),
         type: el.getAttribute("type") || "",
+        checked: Boolean(el.checked || el.getAttribute("aria-checked") === "true"),
+        name: el.getAttribute("name") || "",
+        value: el.getAttribute("value") || "",
         testid: testIdFor(el),
         path: pathFor(el),
         scope: scopeFor(el),
@@ -312,6 +415,422 @@ SCROLL_WIDGET_TO_CENTER_JS = r"""
 }
 """
 
+KEYBOARD_FOCUSABLE_COUNT_JS = r"""
+() => {
+  const selector = [
+    "button",
+    "a[href]",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[tabindex]:not([tabindex='-1'])",
+  ].join(", ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  return Array.from(document.querySelectorAll(selector)).filter((el) => {
+    return visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true";
+  }).length;
+}
+"""
+
+ACTIVE_FOCUS_STATE_JS = r"""
+() => {
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) {
+    return {kind: "document", label: "", visible: true, inViewport: true};
+  }
+  const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
+  const text = String(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).trim().replace(/\s+/g, " ").slice(0, 120);
+  const visible = rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  const inViewport = rect.bottom >= 0 && rect.right >= 0 && rect.top <= window.innerHeight && rect.left <= window.innerWidth;
+  return {
+    kind: String(el.getAttribute("role") || el.tagName || "").toLowerCase(),
+    label: text,
+    visible,
+    inViewport,
+    width: rect.width,
+    height: rect.height,
+    top: rect.top,
+    left: rect.left,
+  };
+}
+"""
+
+LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const labelFor = (el) => clean(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).slice(0, 120);
+  const issues = [];
+  const push = (kind, el, detail) => {
+    issues.push({
+      kind,
+      label: labelFor(el),
+      detail: clean(detail).slice(0, 260),
+    });
+  };
+  const controlSelector = [
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+  ].join(", ");
+  const controls = Array.from(document.querySelectorAll(controlSelector)).filter(visible);
+  for (const el of controls) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      push("zero_size_control", el, `control rendered at ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`);
+    }
+    if (rect.left < -4 || rect.right > window.innerWidth + 4) {
+      push("horizontal_overflow", el, `control spans x=${rect.left.toFixed(1)}..${rect.right.toFixed(1)} viewport=${window.innerWidth}`);
+    }
+  }
+  const textSelector = [
+    "button",
+    "[role='tab']",
+    "label",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "[data-testid='stMarkdownContainer'] p",
+  ].join(", ");
+  for (const el of Array.from(document.querySelectorAll(textSelector)).filter(visible)) {
+    if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 4 && clean(el.innerText || el.textContent)) {
+      push("text_overflow", el, `text width ${el.scrollWidth}px exceeds container ${el.clientWidth}px`);
+    }
+  }
+  const intersection = (a, b) => {
+    const x = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return x * y;
+  };
+  const rects = controls.map((el) => ({el, rect: el.getBoundingClientRect(), label: labelFor(el)}));
+  for (let i = 0; i < rects.length; i += 1) {
+    for (let j = i + 1; j < rects.length; j += 1) {
+      const a = rects[i];
+      const b = rects[j];
+      if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const areaA = Math.max(1, a.rect.width * a.rect.height);
+      const areaB = Math.max(1, b.rect.width * b.rect.height);
+      const overlap = intersection(a.rect, b.rect);
+      if (overlap > Math.min(areaA, areaB) * 0.65) {
+        push("control_overlap", a.el, `overlaps ${b.label || b.el.tagName} by ${overlap.toFixed(1)}px2`);
+      }
+    }
+  }
+  return issues.slice(0, 20);
+}
+"""
+
+ACCESSIBILITY_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && Number(style.opacity || "1") > 0.2;
+  };
+  const textFor = (el) => clean(el.innerText || el.textContent || el.value || "");
+  const labelFor = (el) => {
+    const direct = clean(el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder"));
+    if (direct) return direct;
+    const labelledBy = clean(el.getAttribute("aria-labelledby"));
+    if (labelledBy) {
+      const parts = labelledBy.split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean).map(textFor).filter(Boolean);
+      if (parts.length) return clean(parts.join(" "));
+    }
+    const id = clean(el.getAttribute("id"));
+    if (id) {
+      const explicit = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+      if (explicit && textFor(explicit)) return textFor(explicit);
+    }
+    const implicit = el.closest("label");
+    if (implicit && textFor(implicit)) return textFor(implicit);
+    const container = el.closest("[data-testid]");
+    return clean(textFor(container || el)).slice(0, 160);
+  };
+  const issues = [];
+  const push = (kind, el, detail) => {
+    issues.push({
+      kind,
+      label: clean(labelFor(el) || el.getAttribute("data-testid") || el.tagName).slice(0, 120),
+      detail: clean(detail).slice(0, 260),
+    });
+  };
+  const interactiveSelector = [
+    "button",
+    "a[href]",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[role='checkbox']",
+    "[role='combobox']",
+    "[tabindex]:not([tabindex='-1'])",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+    "[data-testid='stFileUploader']",
+  ].join(", ");
+  const interactive = Array.from(document.querySelectorAll(interactiveSelector)).filter(visible);
+  for (const el of interactive) {
+    if (el.disabled || el.getAttribute("aria-hidden") === "true") continue;
+    if (!labelFor(el)) {
+      push("missing_accessible_name", el, "visible interactive control has no accessible name");
+    }
+  }
+  const referenceAttrs = ["aria-labelledby", "aria-describedby", "aria-controls"];
+  for (const attr of referenceAttrs) {
+    for (const el of Array.from(document.querySelectorAll(`[${attr}]`)).filter(visible)) {
+      const missing = clean(el.getAttribute(attr)).split(/\s+/).filter(Boolean).filter((id) => !document.getElementById(id));
+      if (missing.length) {
+        push("broken_aria_reference", el, `${attr} references missing id(s): ${missing.join(", ")}`);
+      }
+    }
+  }
+  const booleanAttrs = ["aria-expanded", "aria-selected", "aria-disabled"];
+  for (const attr of booleanAttrs) {
+    for (const el of Array.from(document.querySelectorAll(`[${attr}]`)).filter(visible)) {
+      const value = clean(el.getAttribute(attr)).toLowerCase();
+      if (value !== "true" && value !== "false") {
+        push("invalid_aria_state", el, `${attr} must be true or false, got ${value || "<empty>"}`);
+      }
+    }
+  }
+  for (const el of Array.from(document.querySelectorAll("[aria-checked]")).filter(visible)) {
+    const value = clean(el.getAttribute("aria-checked")).toLowerCase();
+    if (!["true", "false", "mixed"].includes(value)) {
+      push("invalid_aria_state", el, `aria-checked must be true, false, or mixed, got ${value || "<empty>"}`);
+    }
+  }
+  const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6")).filter((el) => visible(el) && textFor(el));
+  let previousLevel = 0;
+  let h1Count = 0;
+  for (const heading of headings) {
+    const level = Number(heading.tagName.slice(1));
+    if (level === 1) h1Count += 1;
+    if (previousLevel && level > previousLevel + 1) {
+      push("heading_level_jump", heading, `heading jumps from h${previousLevel} to h${level}`);
+    }
+    previousLevel = level;
+  }
+  if (h1Count > 1) {
+    push("multiple_h1", headings.find((el) => el.tagName.toLowerCase() === "h1") || document.body, `${h1Count} visible h1 headings found`);
+  }
+  const mainLandmark = document.querySelector("main,[role='main'],[data-testid='stMain'],[data-testid='stAppViewContainer']");
+  if (!mainLandmark || !visible(mainLandmark)) {
+    push("missing_main_landmark", document.body, "no visible main landmark or Streamlit main container was found");
+  }
+
+  const parseColor = (value) => {
+    const match = String(value || "").match(/rgba?\(([^)]+)\)/i);
+    if (!match) return null;
+    const parts = match[1].split(",").map((part) => Number(part.trim()));
+    if (parts.length < 3 || parts.slice(0, 3).some((part) => Number.isNaN(part))) return null;
+    return {r: parts[0], g: parts[1], b: parts[2], a: parts.length >= 4 && !Number.isNaN(parts[3]) ? parts[3] : 1};
+  };
+  const relativeLuminance = (color) => {
+    const convert = (channel) => {
+      const value = channel / 255;
+      return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * convert(color.r) + 0.7152 * convert(color.g) + 0.0722 * convert(color.b);
+  };
+  const contrastRatio = (a, b) => {
+    const first = relativeLuminance(a);
+    const second = relativeLuminance(b);
+    const light = Math.max(first, second);
+    const dark = Math.min(first, second);
+    return (light + 0.05) / (dark + 0.05);
+  };
+  const backgroundFor = (el) => {
+    let current = el;
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      const bg = parseColor(window.getComputedStyle(current).backgroundColor);
+      if (bg && bg.a > 0.15) return bg;
+      current = current.parentElement;
+    }
+    return parseColor(window.getComputedStyle(document.body).backgroundColor) || {r: 255, g: 255, b: 255, a: 1};
+  };
+  const textSelector = [
+    "button",
+    "a[href]",
+    "label",
+    "[role='button']",
+    "[role='tab']",
+    "[data-testid='stMarkdownContainer'] p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+  ].join(", ");
+  for (const el of Array.from(document.querySelectorAll(textSelector)).filter((candidate) => visible(candidate) && textFor(candidate))) {
+    const style = window.getComputedStyle(el);
+    const fg = parseColor(style.color);
+    const bg = backgroundFor(el);
+    if (!fg || fg.a < 0.5 || !bg) continue;
+    const ratio = contrastRatio(fg, bg);
+    const fontSize = Number(String(style.fontSize || "0").replace("px", ""));
+    const threshold = fontSize >= 24 ? 2.0 : 2.2;
+    if (ratio < threshold) {
+      push("contrast_risk", el, `text/background contrast ratio ${ratio.toFixed(2)} is below robot threshold ${threshold.toFixed(1)}`);
+    }
+  }
+  return issues.slice(0, 30);
+}
+"""
+
+ABOVE_FOLD_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && Number(style.opacity || "1") > 0.2;
+  };
+  const labelFor = (el) => clean(
+    el.getAttribute("aria-label") ||
+    el.getAttribute("title") ||
+    el.getAttribute("placeholder") ||
+    el.innerText ||
+    el.value ||
+    el.textContent ||
+    el.tagName ||
+    ""
+  ).slice(0, 180);
+  const selector = [
+    "h1",
+    "h2",
+    "h3",
+    "button",
+    "a[href]",
+    "label",
+    "input",
+    "textarea",
+    "[role='button']",
+    "[role='tab']",
+    "[role='switch']",
+    "[role='slider']",
+    "[data-testid='stSelectbox']",
+    "[data-testid='stMultiSelect']",
+    "[data-testid='stFileUploader']",
+    "[data-testid='stMarkdownContainer'] p",
+  ].join(", ");
+  const fold = Math.max(240, Math.min(window.innerHeight || 1000, 900));
+  const targets = [];
+  const seen = new Set();
+  for (const el of Array.from(document.querySelectorAll(selector)).filter(visible)) {
+    const label = labelFor(el);
+    if (!label) continue;
+    const rect = el.getBoundingClientRect();
+    const key = `${label}|${Math.round(rect.top)}|${Math.round(rect.left)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({
+      label,
+      tag: String(el.tagName || "").toLowerCase(),
+      role: clean(el.getAttribute("role")),
+      top: rect.top,
+      bottom: rect.bottom,
+      inFold: rect.top >= -2 && rect.top <= fold,
+    });
+  }
+  return {
+    fold,
+    viewportHeight: window.innerHeight || 0,
+    targets: targets.slice(0, 80),
+  };
+}
+"""
+
+VISUAL_MASK_DYNAMIC_REGIONS_JS = r"""
+() => {
+  const selectors = [
+    "[data-testid='stStatusWidget']",
+    "[data-testid='stSpinner']",
+    "[data-testid='stProgress']",
+    "[data-testid='stToast']",
+    "[data-testid='stNotification']",
+    "[data-testid='stCodeBlock']",
+    "[data-testid='stExpander'] pre",
+    "textarea",
+  ];
+  const styleId = "agilab-visual-baseline-mask-style";
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      [data-agilab-visual-mask='1'] {
+        color: transparent !important;
+        text-shadow: none !important;
+      }
+      [data-agilab-visual-mask='1'] * {
+        color: transparent !important;
+        text-shadow: none !important;
+      }
+      [data-agilab-visual-mask='1']::before {
+        content: "masked";
+        color: #777 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  let masked = 0;
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll(selector)) {
+      el.setAttribute("data-agilab-visual-mask", "1");
+      masked += 1;
+    }
+  }
+  return masked;
+}
+"""
+
 VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
 () => {
   const visible = (el) => {
@@ -338,10 +857,14 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     "distribution build failed",
     "export failed",
     "failed with exit code",
+    "finished with errors",
+    "install finished with errors",
+    "installation failed",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "post_install failed",
     "runtimeerror",
     "streamlitapi",
     "traceback",
@@ -393,10 +916,14 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "distribution build failed",
     "export failed",
     "failed with exit code",
+    "finished with errors",
+    "install finished with errors",
+    "installation failed",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "post_install failed",
     "runtimeerror",
     "streamlitapi",
     "traceback",
@@ -411,10 +938,14 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "distribution build failed",
     "export failed",
     "failed with exit code",
+    "finished with errors",
+    "install finished with errors",
+    "installation failed",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "post_install failed",
     "runtimeerror",
     "streamlitapiexception",
     "traceback",
@@ -490,10 +1021,14 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
     "distribution build failed",
     "export failed",
     "failed with exit code",
+    "finished with errors",
+    "install finished with errors",
+    "installation failed",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "post_install failed",
     "runtimeerror",
     "streamlitapi",
     "traceback",
@@ -574,6 +1109,10 @@ class PageSweep:
     main_widget_count: int = 0
     sidebar_widget_count: int = 0
     status: str = "passed"
+    combination_space_count: int = 0
+    combination_count: int = 0
+    combination_failed_count: int = 0
+    combination_skipped_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -592,6 +1131,10 @@ class WidgetSweepSummary:
     pages: list[PageSweep]
     main_widget_count: int = 0
     sidebar_widget_count: int = 0
+    combination_space_count: int = 0
+    combination_count: int = 0
+    combination_failed_count: int = 0
+    combination_skipped_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -674,6 +1217,23 @@ def page_result_key(app: str, page: str) -> str:
     return f"{app}::{page}"
 
 
+def _streamlit_health_failure_detail(health: Any, server: Any, *, base_url: str) -> str:
+    detail = str(getattr(health, "detail", "") or "streamlit server did not become healthy")
+    process = getattr(server, "process", None)
+    returncode = process.poll() if process is not None else None
+    output_tail_fn = getattr(server, "output_tail", None)
+    output_tail = ""
+    if callable(output_tail_fn):
+        output_tail = str(output_tail_fn() or "").strip()
+    if returncode is None and process is not None:
+        detail = f"{detail}; process still running; url={base_url}"
+    elif returncode is not None:
+        detail = f"{detail}; process exited with {returncode}; url={base_url}"
+    if output_tail:
+        detail = f"{detail}; output tail: {output_tail}"
+    return detail
+
+
 def _widget_probe_from_dict(data: dict[str, Any]) -> WidgetProbe:
     return WidgetProbe(
         app=str(data.get("app", "")),
@@ -704,6 +1264,10 @@ def page_sweep_from_dict(data: dict[str, Any]) -> PageSweep:
         main_widget_count=int(data.get("main_widget_count", 0)),
         sidebar_widget_count=int(data.get("sidebar_widget_count", 0)),
         status=str(data.get("status", "passed")),
+        combination_space_count=int(data.get("combination_space_count", 0)),
+        combination_count=int(data.get("combination_count", 0)),
+        combination_failed_count=int(data.get("combination_failed_count", 0)),
+        combination_skipped_count=int(data.get("combination_skipped_count", 0)),
     )
 
 
@@ -774,6 +1338,34 @@ def _enforce_page_deadline(page_deadline: float | None, detail: str) -> None:
         raise PageWatchdogTimeout(detail)
 
 
+@dataclass(frozen=True)
+class WidgetChoice:
+    control_id: str
+    kind: str
+    label: str
+    value: str
+    widget: dict[str, Any]
+    checked: bool | None = None
+    option_index: int | None = None
+    default: bool = False
+
+
+@dataclass(frozen=True)
+class WidgetControl:
+    control_id: str
+    kind: str
+    label: str
+    choices: tuple[WidgetChoice, ...]
+
+
+@dataclass(frozen=True)
+class WidgetCombinationPlan:
+    controls: tuple[WidgetControl, ...]
+    total_count: int
+    combinations: tuple[tuple[WidgetChoice, ...], ...]
+    truncated: bool = False
+
+
 def _load_web_robot() -> Any:
     if not WEB_ROBOT_PATH.exists():
         raise RuntimeError(f"Could not load {WEB_ROBOT_PATH}")
@@ -804,17 +1396,13 @@ def public_apps_pages(pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPa
 
 
 def parse_csv(value: str) -> list[str]:
-    aliases: tuple[str, ...] = ("_project", "_worker")
     items: list[str] = []
     seen: set[str] = set()
     for item in value.split(","):
         cleaned = item.strip()
         if not cleaned:
             continue
-        variants = {cleaned}
-        for suffix in aliases:
-            if cleaned.endswith(suffix):
-                variants.add(cleaned[: -len(suffix)])
+        variants = set(app_name_aliases(cleaned)) or {cleaned}
         if any(variant in seen for variant in variants):
             continue
         items.append(cleaned)
@@ -838,6 +1426,8 @@ def resolve_apps(apps: str, *, apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path
             resolved.append(candidate.resolve())
         elif (apps_root / item).exists():
             resolved.append((apps_root / item).resolve())
+        elif not item.endswith("_project") and (apps_root / f"{item}_project").exists():
+            resolved.append((apps_root / f"{item}_project").resolve())
         else:
             resolved.append(item)
     return resolved
@@ -888,6 +1478,10 @@ def active_app_slug(active_app: str) -> str:
     return Path(decoded).name if "/" in decoded else decoded
 
 
+def active_app_runtime_target_name(active_app: str) -> str:
+    return aliased_app_runtime_target(active_app_slug(active_app))
+
+
 def normalize_remote_url(url: str) -> str:
     """Map public HF Space pages to the Streamlit runtime URL."""
     candidate = url.strip()
@@ -918,14 +1512,30 @@ def routed_active_app_slug(url: str) -> str | None:
 
 def active_app_aliases(active_app: str) -> set[str]:
     slug = active_app_slug(active_app)
-    aliases = {slug}
-    if slug.endswith("_project"):
-        aliases.add(slug[: -len("_project")])
-    return aliases
+    return set(app_name_aliases(slug))
 
 
 def active_app_route_matches(url: str, expected_active_app: str) -> bool:
     return routed_active_app_slug(url) in active_app_aliases(expected_active_app)
+
+
+def append_route_query(url: str, route_query: str) -> str:
+    """Append scenario-specific query parameters without changing the route label."""
+
+    if not route_query.strip():
+        return url
+    parsed = urllib.parse.urlsplit(url)
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(urllib.parse.parse_qsl(route_query.lstrip("?"), keep_blank_values=True))
+    return urllib.parse.urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            urllib.parse.urlencode(query),
+            parsed.fragment,
+        )
+    )
 
 
 def remote_apps_page_path(route: AppsPageRoute, *, remote_app_root: str = "/app") -> str:
@@ -974,7 +1584,7 @@ def _seed_track_dataframe(path: Path, *, node_prefix: str = "robot") -> None:
 
 def _seed_flight_artifacts(export_root: Path, share_root: Path) -> None:
     for base in (share_root, export_root):
-        _seed_track_dataframe(base / "flight" / "dataframe" / "00_robot_flight.csv", node_prefix="flight")
+        _seed_track_dataframe(base / "flight_telemetry" / "dataframe" / "00_robot_flight.csv", node_prefix="flight")
 
 
 def _queue_run_rows(policy: str, *, delivered_offset: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1110,8 +1720,8 @@ def _seed_queue_artifacts(export_root: Path, target: str) -> None:
         _write_queue_pipeline(run_root, scenario="uav_queue_hotspot")
 
 
-def _seed_forecast_artifacts(export_root: Path) -> None:
-    target_root = export_root / "meteo_forecast" / "forecast_analysis"
+def _seed_forecast_artifacts(export_root: Path, target: str) -> None:
+    target_root = export_root / target / "forecast_analysis"
     for name, mae, rmse, mape, notes in [
         ("baseline", 3.4, 4.2, 7.5, "Baseline notebook export"),
         ("candidate", 2.9, 3.8, 6.4, "Candidate notebook export"),
@@ -1135,17 +1745,17 @@ def _seed_forecast_artifacts(export_root: Path) -> None:
 
 
 def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: Path) -> None:
-    target = app_target_name(app_name)
+    target = active_app_runtime_target_name(app_name)
     if target not in PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS:
         return
     export_root.mkdir(parents=True, exist_ok=True)
     share_root.mkdir(parents=True, exist_ok=True)
-    if target == "flight":
+    if target == "flight_telemetry":
         _seed_flight_artifacts(export_root, share_root)
     elif target in {"uav_queue", "uav_relay_queue"}:
         _seed_queue_artifacts(export_root, target)
-    elif target == "meteo_forecast":
-        _seed_forecast_artifacts(export_root)
+    elif target in {"weather_forecast", "meteo_forecast"}:
+        _seed_forecast_artifacts(export_root, target)
 
 
 def build_seeded_server_env(
@@ -1199,9 +1809,9 @@ def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:
             text = ""
             spinner_count = 0
         if "initializing environment" not in text and spinner_count == 0:
-            page.wait_for_timeout(250)
+            page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
             return
-        page.wait_for_timeout(250)
+        page.wait_for_timeout(PAGE_READY_POLL_MS)
 
 
 def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> int:
@@ -1222,7 +1832,7 @@ def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> i
         else:
             stable_seen = 0
         last_count = count
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(WIDGET_READY_POLL_MS)
     return max(last_count, 0)
 
 
@@ -1238,6 +1848,32 @@ def _normalized_label(label: str) -> str:
         .lower()
     )
     return " ".join(normalized.split())
+
+
+def _action_label_tokens(label: str) -> set[str]:
+    cleaned = "".join(character if character.isalnum() else " " for character in _normalized_label(label))
+    return {token for token in cleaned.split() if token}
+
+
+def _action_label_has_safe_prefix(label: str) -> bool:
+    normalized = _normalized_label(label).replace("_", " ").replace("-", " ")
+    return any(normalized == prefix or normalized.startswith(f"{prefix} ") for prefix in SAFE_ACTION_LABEL_PREFIXES)
+
+
+def safe_action_click_reason(widget: dict[str, Any]) -> str | None:
+    kind = str(widget.get("kind", ""))
+    label = str(widget.get("label", ""))
+    if kind == "download_button":
+        return "download buttons are read-only browser actions"
+    tokens = _action_label_tokens(label)
+    risky_tokens = tokens & RISKY_ACTION_LABEL_TOKENS
+    if risky_tokens:
+        return None
+    if _action_label_has_safe_prefix(label):
+        return "label matches guarded safe navigation/action prefix"
+    if _normalized_label(label).startswith("view_"):
+        return "label matches configured analysis view launcher"
+    return None
 
 
 def widget_scope(widget: dict[str, Any] | WidgetProbe) -> str:
@@ -1273,8 +1909,483 @@ def _action_label_matches(widget: dict[str, Any], selected_labels: Sequence[str]
     return _label_matches(widget, selected_labels)
 
 
+def _control_id_for_widget(widget: dict[str, Any], *, suffix: str = "") -> str:
+    parts = [
+        widget_scope(widget),
+        str(widget.get("kind", "")),
+        _normalized_label(str(widget.get("label", ""))) or str(widget.get("name", "")),
+        str(widget.get("testid", "")),
+        str(widget.get("path", "")),
+        suffix,
+    ]
+    return ":".join(part for part in parts if part)
+
+
+def _choice_label(widget: dict[str, Any], index: int) -> str:
+    label = str(widget.get("label", "")).strip()
+    value = str(widget.get("value", "")).strip()
+    if label and value and value not in label:
+        return f"{label}: {value}"
+    if label:
+        return label
+    if value:
+        return value
+    return f"option {index + 1}"
+
+
+def _choice_description(choice: WidgetChoice) -> str:
+    if choice.kind in {"checkbox", "toggle"}:
+        return f"{choice.label}={'on' if choice.checked else 'off'}"
+    if choice.kind == "selectbox":
+        return f"{choice.label}={choice.value}"
+    return f"{choice.label}={choice.value or choice.kind}"
+
+
+def _combination_description(combination: Sequence[WidgetChoice]) -> str:
+    return ", ".join(_choice_description(choice) for choice in combination)
+
+
+def _binary_widget_control(widget: dict[str, Any]) -> WidgetControl | None:
+    kind = str(widget.get("kind", ""))
+    if kind not in {"checkbox", "toggle"} or widget.get("disabled"):
+        return None
+    checked = bool(widget.get("checked"))
+    control_id = _control_id_for_widget(widget)
+    label = str(widget.get("label", "")) or control_id
+    choices = (
+        WidgetChoice(control_id, kind, label, "off", dict(widget), checked=False, default=not checked),
+        WidgetChoice(control_id, kind, label, "on", dict(widget), checked=True, default=checked),
+    )
+    return WidgetControl(control_id, kind, label, choices)
+
+
+def _radio_group_key(widget: dict[str, Any]) -> tuple[str, str, str]:
+    name = str(widget.get("name", "")).strip()
+    if name:
+        return (widget_scope(widget), "name", name)
+    return (widget_scope(widget), "label", _normalized_label(str(widget.get("label", ""))))
+
+
+def collect_static_widget_combination_controls(widgets: Sequence[dict[str, Any]]) -> list[WidgetControl]:
+    controls: list[WidgetControl] = []
+    radio_groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for widget in widgets:
+        kind = str(widget.get("kind", ""))
+        if kind in {"checkbox", "toggle"}:
+            control = _binary_widget_control(widget)
+            if control is not None:
+                controls.append(control)
+        elif kind == "radio" and not widget.get("disabled"):
+            radio_groups.setdefault(_radio_group_key(widget), []).append(widget)
+
+    for key, group in radio_groups.items():
+        if len(group) < 2:
+            continue
+        checked_present = any(bool(widget.get("checked")) for widget in group)
+        control_id = ":".join(("main" if key[0] != "sidebar" else "sidebar", "radio", key[1], key[2]))
+        label = str(group[0].get("label", "")) or key[2] or control_id
+        choices = tuple(
+            WidgetChoice(
+                control_id,
+                "radio",
+                label,
+                str(widget.get("value", "")) or _choice_label(widget, index),
+                dict(widget),
+                checked=True,
+                default=bool(widget.get("checked")) or (not checked_present and index == 0),
+            )
+            for index, widget in enumerate(group)
+        )
+        controls.append(WidgetControl(control_id, "radio", label, choices))
+    return controls
+
+
+def build_widget_combination_plan(controls: Sequence[WidgetControl], *, max_combinations: int) -> WidgetCombinationPlan:
+    if max_combinations <= 0:
+        raise ValueError("max_combinations must be greater than 0")
+    valid_controls = tuple(control for control in controls if control.choices)
+    if not valid_controls:
+        return WidgetCombinationPlan((), 0, ())
+    total_count = 1
+    for control in valid_controls:
+        total_count *= len(control.choices)
+    combinations = tuple(tuple(combo) for combo in itertools.islice(itertools.product(*(control.choices for control in valid_controls)), max_combinations))
+    return WidgetCombinationPlan(valid_controls, total_count, combinations, truncated=total_count > max_combinations)
+
+
+def _option_locator(page: Any) -> Any:
+    return page.locator("[role='option']")
+
+
+def _selectbox_option_labels(
+    page: Any,
+    widget: dict[str, Any],
+    *,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[list[str], str | None]:
+    locator = _widget_locator(page, widget)
+    try:
+        locator.scroll_into_view_if_needed(timeout=timeout_ms)
+        _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+        page.wait_for_timeout(150)
+        options = _option_locator(page)
+        count = options.count()
+        if count <= 0:
+            page.keyboard.press("Escape")
+            return [], "no selectbox options found after opening"
+        labels: list[str] = []
+        for index in range(min(count, max_options_per_widget)):
+            text = options.nth(index).inner_text(timeout=timeout_ms).strip()
+            labels.append(text or f"option {index + 1}")
+        page.keyboard.press("Escape")
+        if count > max_options_per_widget:
+            return labels, f"selectbox has {count} options; capped at --max-options-per-widget {max_options_per_widget}"
+        return labels, None
+    except Exception as exc:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            logger.debug("Unable to close selectbox options after enumeration failure", exc_info=True)
+        return [], _short_detail(f"could not enumerate selectbox options: {exc}")
+
+
+def _selectbox_widget_control(
+    page: Any,
+    widget: dict[str, Any],
+    *,
+    app_name: str,
+    page_name: str,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[WidgetControl | None, WidgetProbe | None]:
+    if widget.get("disabled"):
+        return None, None
+    if is_project_switching_widget(widget):
+        return None, None
+    labels, issue = _selectbox_option_labels(page, widget, timeout_ms=timeout_ms, max_options_per_widget=max_options_per_widget)
+    issue_probe = None
+    if issue is not None:
+        status = "skipped" if labels else "failed"
+        issue_probe = WidgetProbe(app_name, page_label(page_name), "selectbox_options", str(widget.get("label", "")), status, issue, page.url, widget_scope(widget))
+    if not labels:
+        return None, issue_probe
+    control_id = _control_id_for_widget(widget)
+    label = str(widget.get("label", "")) or control_id
+    choices = tuple(
+        WidgetChoice(
+            control_id,
+            "selectbox",
+            label,
+            option_label,
+            dict(widget),
+            option_index=index,
+            default=index == 0,
+        )
+        for index, option_label in enumerate(labels)
+    )
+    return WidgetControl(control_id, "selectbox", label, choices), issue_probe
+
+
+def is_project_switching_widget(widget: dict[str, Any]) -> bool:
+    """Return whether a widget changes the globally active AGILAB project."""
+    label = _normalized_label(str(widget.get("label", "")))
+    return widget_scope(widget) == "sidebar" and label.startswith("project ")
+
+
+def collect_widget_combination_controls(
+    page: Any,
+    widgets: Sequence[dict[str, Any]],
+    *,
+    app_name: str,
+    page_name: str,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[list[WidgetControl], list[WidgetProbe]]:
+    del page, app_name, page_name, timeout_ms, max_options_per_widget
+    # Keep exhaustive combinations on stable controls only. AGILAB pages use
+    # many dependent selectboxes whose option lists legitimately change after
+    # another widget is selected; putting those in a Cartesian product produces
+    # stale-option false positives instead of useful UI regressions.
+    controls = collect_static_widget_combination_controls(widgets)
+    return controls, []
+
+
 def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
+
+
+def _performance_budget_probe(
+    *,
+    app_name: str,
+    display: str,
+    label: str,
+    seconds: float,
+    budget_seconds: float,
+    url: str,
+) -> WidgetProbe:
+    detail = f"{label}={seconds:.2f}s"
+    status = "probed"
+    if budget_seconds > 0:
+        detail += f" budget<={budget_seconds:.2f}s"
+        if seconds > budget_seconds:
+            status = "failed"
+            detail += " exceeded"
+    return WidgetProbe(app_name, display, "performance", label, status, detail, url)
+
+
+def _capture_success_screenshot_probe(
+    page: Any,
+    *,
+    web_robot: Any,
+    app_name: str,
+    display: str,
+    screenshot_dir: Path | None,
+    visual_mask_dynamic_regions: bool = False,
+) -> WidgetProbe | None:
+    if screenshot_dir is None:
+        return None
+    screenshot_fn = getattr(web_robot, "_screenshot", None)
+    if not callable(screenshot_fn):
+        return WidgetProbe(
+            app_name,
+            display,
+            "screenshot",
+            "success",
+            "failed",
+            "success screenshot requested but web robot screenshot helper is unavailable",
+            getattr(page, "url", ""),
+        )
+    try:
+        if visual_mask_dynamic_regions:
+            page.evaluate(VISUAL_MASK_DYNAMIC_REGIONS_JS)
+        screenshot = screenshot_fn(page, screenshot_dir, f"{app_name}-{display}-success")
+    except Exception as exc:
+        return WidgetProbe(
+            app_name,
+            display,
+            "screenshot",
+            "success",
+            "failed",
+            _short_detail(f"success screenshot failed: {exc}"),
+            getattr(page, "url", ""),
+        )
+    return WidgetProbe(
+        app_name,
+        display,
+        "screenshot",
+        "success",
+        "probed",
+        f"success screenshot={screenshot}",
+        getattr(page, "url", ""),
+    )
+
+
+def _safe_evidence_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-._")[:96] or "item"
+
+
+def _limited_text(value: str, *, limit: int = FAILURE_BUNDLE_TEXT_LIMIT) -> str:
+    normalized = str(value or "").replace("\r\n", "\n")
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit] + "\n...[truncated]\n"
+
+
+def _tail_text_file(path: Path | None, *, lines: int = FAILURE_BUNDLE_TAIL_LINES) -> str:
+    if path is None or not path.is_file():
+        return ""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(content[-lines:]) + ("\n" if content else "")
+
+
+def _unique_evidence_dir(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in itertools.count(2):
+        candidate = path.with_name(f"{path.name}-{index}")
+        if not candidate.exists():
+            return candidate
+
+
+def _capture_failure_bundle_screenshot(
+    page: Any,
+    *,
+    web_robot: Any,
+    bundle_dir: Path,
+) -> tuple[str | None, str | None]:
+    screenshot_fn = getattr(web_robot, "_screenshot", None)
+    try:
+        if callable(screenshot_fn):
+            screenshot = screenshot_fn(page, bundle_dir, "failure")
+            return Path(str(screenshot)).name if screenshot else None, None
+        screenshot_path = bundle_dir / "failure.png"
+        page.screenshot(path=str(screenshot_path), full_page=True)
+        return screenshot_path.name, None
+    except Exception as exc:
+        return None, _short_detail(str(exc))
+
+
+def _page_text_snapshot(page: Any) -> tuple[str, str | None]:
+    try:
+        text = page.locator("body").inner_text(timeout=1000)
+    except Exception as exc:
+        return "", _short_detail(str(exc))
+    return _limited_text(text), None
+
+
+def _write_failure_bundle(
+    *,
+    root: Path,
+    page: Any | None,
+    web_robot: Any | None,
+    app_name: str,
+    display: str,
+    status: str,
+    target_url: str,
+    failures: Sequence[WidgetProbe],
+    skips: Sequence[WidgetProbe],
+    browser_issues: Sequence[dict[str, str]] | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+) -> Path:
+    bundle_dir = _unique_evidence_dir(root / _safe_evidence_name(app_name) / _safe_evidence_name(display))
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    screenshot_name = None
+    screenshot_error = None
+    visible_issue = None
+    page_text_name = None
+    page_text_error = None
+
+    if page is not None:
+        screenshot_name, screenshot_error = _capture_failure_bundle_screenshot(
+            page,
+            web_robot=web_robot,
+            bundle_dir=bundle_dir,
+        )
+        page_text, page_text_error = _page_text_snapshot(page)
+        if page_text:
+            page_text_name = "page.txt"
+            (bundle_dir / page_text_name).write_text(page_text, encoding="utf-8")
+        try:
+            visible_issue = _visible_streamlit_issue_detail(page)
+        except Exception as exc:
+            visible_issue = f"visible issue collection failed: {_short_detail(str(exc))}"
+
+    progress_tail = _tail_text_file(progress_log)
+    progress_tail_name = None
+    if progress_tail:
+        progress_tail_name = "progress-tail.ndjson"
+        (bundle_dir / progress_tail_name).write_text(progress_tail, encoding="utf-8")
+
+    command = list(command_argv or sys.argv)
+    (bundle_dir / "command.json").write_text(json.dumps(command, indent=2) + "\n", encoding="utf-8")
+    (bundle_dir / "browser-issues.json").write_text(json.dumps(list(browser_issues or []), indent=2) + "\n", encoding="utf-8")
+    manifest = {
+        "schema": FAILURE_BUNDLE_SCHEMA,
+        "created_at": datetime.now(UTC).isoformat(),
+        "app": app_name,
+        "page": display,
+        "status": status,
+        "url": getattr(page, "url", target_url) if page is not None else target_url,
+        "target_url": target_url,
+        "screenshot": screenshot_name,
+        "screenshot_error": screenshot_error,
+        "page_text": page_text_name,
+        "page_text_error": page_text_error,
+        "progress_tail": progress_tail_name,
+        "visible_issue": visible_issue,
+        "browser_issues": list(browser_issues or []),
+        "failures": [asdict(probe) for probe in failures],
+        "skips": [asdict(probe) for probe in skips],
+        "command": command,
+    }
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return bundle_dir
+
+
+def _context_artifact_label(value: str) -> str:
+    return _safe_evidence_name(value or "context")
+
+
+def _new_robot_context(
+    browser: Any,
+    *,
+    viewport_width: int,
+    viewport_height: int,
+    artifact_label: str = "",
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
+) -> Any:
+    label = _context_artifact_label(artifact_label)
+    context_kwargs: dict[str, Any] = {
+        "viewport": {"width": viewport_width, "height": viewport_height}
+    }
+    if har_dir is not None:
+        har_dir.mkdir(parents=True, exist_ok=True)
+        context_kwargs["record_har_path"] = str(har_dir / f"{label}.har")
+    if video_dir is not None:
+        video_target = video_dir / label
+        video_target.mkdir(parents=True, exist_ok=True)
+        context_kwargs["record_video_dir"] = str(video_target)
+    context = browser.new_context(**context_kwargs)
+    if trace_dir is not None:
+        try:
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        except Exception:
+            logger.debug("Unable to start Playwright trace capture", exc_info=True)
+    return context
+
+
+def _close_robot_context(
+    context: Any, *, artifact_label: str = "", trace_dir: Path | None = None
+) -> None:
+    if trace_dir is not None:
+        try:
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            context.tracing.stop(
+                path=str(trace_dir / f"{_context_artifact_label(artifact_label)}.zip")
+            )
+        except Exception:
+            logger.debug("Unable to stop Playwright trace capture", exc_info=True)
+    context.close()
+
+
+def _rgb_brightness(value: str) -> float | None:
+    match = re.search(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", value)
+    if not match:
+        return None
+    red, green, blue = (int(match.group(index)) for index in range(1, 4))
+    return (red * 299 + green * 587 + blue * 114) / 1000.0
+
+
+def _dark_theme_status(page: Any) -> tuple[bool, str]:
+    try:
+        state = page.evaluate(THEME_STATE_COLLECTOR_JS)
+    except Exception as exc:
+        return False, f"dark theme state could not be collected: {exc}"
+    if not isinstance(state, dict):
+        return False, "dark theme state collector returned no data"
+    snapshots = {
+        "app_background": str((state.get("app") or {}).get("backgroundColor") or ""),
+        "body_background": str((state.get("body") or {}).get("backgroundColor") or ""),
+        "root_background": str(state.get("rootBackground") or ""),
+    }
+    dark_snapshots = {
+        name: value
+        for name, value in snapshots.items()
+        if (brightness := _rgb_brightness(value)) is not None and brightness < 96
+    }
+    if dark_snapshots:
+        preview = ", ".join(f"{name}={value}" for name, value in dark_snapshots.items())
+        return True, f"dark theme verified: {preview}"
+    preview = ", ".join(f"{name}={value or 'unknown'}" for name, value in snapshots.items())
+    return False, f"dark theme was not preserved; {preview}"
 
 
 def _parse_config_bool(value: Any) -> bool | None:
@@ -1438,7 +2549,7 @@ def _current_home_worker_import_issue(
     app_name: str,
     home_root: Path,
 ) -> str | None:
-    target = app_target_name(app_name)
+    target = active_app_runtime_target_name(app_name)
     worker_package = f"{target}_worker"
     worker_root = home_root / "wenv" / worker_package
     if not worker_root.is_dir():
@@ -1531,7 +2642,8 @@ def current_home_action_preflight_blocker(
                 f"{home / '.agilab' / 'apps' / app_name / 'app_settings.toml'} before rerunning the UI robot. "
                 f"env={env_file}"
             )
-    if _current_home_worker_import_preflight_requested(click_action_labels):
+    install_requested = any(_is_install_action_label(label) for label in click_action_labels)
+    if _current_home_worker_import_preflight_requested(click_action_labels) and not install_requested:
         worker_issue = _current_home_worker_import_issue(app_name=app_name, home_root=home)
         if worker_issue is not None:
             return (
@@ -1634,7 +2746,7 @@ def _unique_paths(paths: Sequence[Path]) -> list[Path]:
 
 
 def _orchestrate_output_roots(context: OrchestrateArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     share_roots = [context.share_root, context.cluster_share_root]
     args = _load_app_settings_args_for_artifact_context(context)
     candidates: list[Path] = []
@@ -1646,7 +2758,7 @@ def _orchestrate_output_roots(context: OrchestrateArtifactContext) -> list[Path]
 
 
 def _orchestrate_export_roots(context: OrchestrateArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     return _unique_paths([context.export_root / target])
 
 
@@ -1757,8 +2869,9 @@ def _workflow_source_stage_contract_path(context: WorkflowArtifactContext) -> Pa
 
 
 def _workflow_export_stage_contract_paths(context: WorkflowArtifactContext, *, url: str = "") -> list[Path]:
+    target = active_app_runtime_target_name(context.app_name)
     candidates = [
-        context.export_root / app_target_name(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
+        context.export_root / target / WORKFLOW_STAGE_CONTRACT_FILENAME,
         context.export_root / active_app_slug(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
     ]
     try:
@@ -1775,7 +2888,7 @@ def _workflow_export_stage_contract_paths(context: WorkflowArtifactContext, *, u
 
 
 def _workflow_run_log_roots(context: WorkflowArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     return _unique_paths(
         [
             context.home_root / "log" / "execute" / target,
@@ -1854,6 +2967,43 @@ def validate_workflow_page_artifacts(
             label=WORKFLOW_STAGE_CONTRACT_FILENAME,
             status="interacted",
             detail=f"workflow stage contract restored and versioned at {target}",
+            url=url,
+        )
+    ]
+
+
+def validate_analysis_artifacts(
+    *,
+    context: OrchestrateArtifactContext,
+    display: str,
+    url: str,
+) -> list[WidgetProbe]:
+    output_roots = _orchestrate_output_roots(context)
+    export_roots = _orchestrate_export_roots(context)
+    output_snapshot = _snapshot_artifact_files(output_roots)
+    export_snapshot = _snapshot_artifact_files(export_roots)
+    if output_snapshot.files or export_snapshot.files:
+        return [
+            _artifact_probe(
+                context,
+                display=display,
+                label="first-proof artifacts",
+                status="interacted",
+                detail=(
+                    "first-proof artifacts available for ANALYSIS "
+                    f"({len(output_snapshot.files)} output file(s), {len(export_snapshot.files)} export file(s))"
+                ),
+                url=url,
+            )
+        ]
+    checked = ", ".join(str(path) for path in [*output_roots[:4], *export_roots[:4]])
+    return [
+        _artifact_probe(
+            context,
+            display=display,
+            label="first-proof artifacts",
+            status="failed",
+            detail=f"no first-proof output/export artifacts were available for ANALYSIS; checked {checked}",
             url=url,
         )
     ]
@@ -2046,6 +3196,8 @@ def _browser_issue_is_relevant(kind: str, detail: str) -> bool:
     lower = f"{kind} {detail}".lower()
     if any(needle in lower for needle in BROWSER_ISSUE_IGNORE_NEEDLES):
         return False
+    if kind == "requestfailed" or kind.startswith("http."):
+        return True
     if kind == "pageerror":
         return True
     return any(needle in lower for needle in BROWSER_ISSUE_FATAL_NEEDLES)
@@ -2077,14 +3229,48 @@ def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
     def _on_page_error(error: Any) -> None:
         _record_browser_issue(issues, kind="pageerror", detail=str(error))
 
+    def _on_request_failed(request: Any) -> None:
+        failure = getattr(request, "failure", None)
+        failure_detail = ""
+        try:
+            if callable(failure):
+                failure = failure()
+        except Exception:
+            failure = None
+        if isinstance(failure, dict):
+            failure_detail = str(failure.get("errorText") or failure.get("error_text") or "")
+        elif failure is not None:
+            failure_detail = _callable_or_value(failure, "error_text", "") or str(failure)
+        url = _callable_or_value(request, "url", "")
+        _record_browser_issue(issues, kind="requestfailed", detail=f"{url} {failure_detail}".strip())
+
+    def _on_response(response: Any) -> None:
+        status_value = getattr(response, "status", None)
+        try:
+            status = int(status_value() if callable(status_value) else status_value)
+        except Exception:
+            return
+        if status < 400:
+            return
+        url = _callable_or_value(response, "url", "")
+        _record_browser_issue(issues, kind=f"http.{status}", detail=f"HTTP {status} {url}".strip())
+
     try:
         page.on("console", _on_console)
     except Exception:
-        pass
+        logger.debug("Unable to attach console issue capture", exc_info=True)
     try:
         page.on("pageerror", _on_page_error)
     except Exception:
-        pass
+        logger.debug("Unable to attach pageerror issue capture", exc_info=True)
+    try:
+        page.on("requestfailed", _on_request_failed)
+    except Exception:
+        logger.debug("Unable to attach requestfailed issue capture", exc_info=True)
+    try:
+        page.on("response", _on_response)
+    except Exception:
+        logger.debug("Unable to attach response issue capture", exc_info=True)
     return issues
 
 
@@ -2100,9 +3286,14 @@ def _append_browser_issue_probes(
     if not browser_issues:
         return False
     appended = False
+    seen: set[tuple[str, str]] = set()
     for issue in list(browser_issues)[start_index:]:
         kind = str(issue.get("kind") or "browser")
         detail = str(issue.get("detail") or "browser issue")
+        signature = (kind, detail)
+        if signature in seen:
+            continue
+        seen.add(signature)
         if not _browser_issue_is_relevant(kind, detail):
             continue
         probes.append(
@@ -2145,12 +3336,15 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:
         try:
             locator = page.get_by_role("button", name=label)
         except Exception:
+            logger.debug("Unable to locate button by exact label %r", label, exc_info=True)
             return None
     except Exception:
+        logger.debug("Unable to locate button by regex label %r", label, exc_info=True)
         return None
     try:
         count = locator.count()
     except Exception:
+        logger.debug("Unable to count button candidates for label %r", label, exc_info=True)
         return getattr(locator, "first", locator)
     if count <= 0:
         return None
@@ -2160,6 +3354,7 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:
             if candidate.is_visible(timeout=500):
                 return candidate
         except Exception:
+            logger.debug("Unable to inspect button candidate %s for label %r", index, label, exc_info=True)
             continue
     return locator.first
     return None
@@ -2188,6 +3383,7 @@ def _scroll_to(page: Any, y: int) -> None:
     except TypeError:
         page.evaluate(f"() => window.scrollTo(0, {int(y)})")
     except Exception:
+        logger.debug("Unable to scroll page to %s", y, exc_info=True)
         return
 
 
@@ -2195,6 +3391,7 @@ def _visible_streamlit_issue_detail(page: Any) -> str | None:
     try:
         issues = page.evaluate(VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS)
     except Exception:
+        logger.debug("Unable to evaluate visible Streamlit issue collector", exc_info=True)
         return None
     if not isinstance(issues, list) or not issues:
         return None
@@ -2214,6 +3411,7 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
         try:
             feedback = page.evaluate(script)
         except Exception:
+            logger.debug("Unable to evaluate visible Streamlit feedback collector", exc_info=True)
             continue
         if isinstance(feedback, list):
             feedback_items.extend(feedback)
@@ -2253,6 +3451,45 @@ def _new_visible_streamlit_feedback(
     return candidates[0]
 
 
+def _visible_action_feedback_tail(page: Any, *, limit: int = 320) -> str:
+    feedback = _visible_streamlit_feedback(page)
+    if not feedback:
+        return ""
+    tail = " | ".join(f"{item['kind']}: {item['detail']}" for item in feedback[-3:])
+    return _short_detail(tail, limit=limit)
+
+
+def _action_status_detail(action_label: str, status: str, detail: str = "") -> str:
+    head = f"action={action_label!r} status={status}"
+    return _short_detail(f"{head} detail={detail}" if detail else head)
+
+
+def _is_install_action_label(label: str) -> bool:
+    return _normalized_label(label) in INSTALL_ACTION_LABELS
+
+
+def _install_postcondition_status(page: Any) -> tuple[bool, str]:
+    try:
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+    except Exception as exc:
+        return False, f"INSTALL completed but follow-up widgets could not be collected: {exc}"
+    enabled_followups: list[str] = []
+    for label in INSTALL_POSTCONDITION_ACTION_LABELS:
+        if _selected_action_matches(widgets, label, require_enabled=True):
+            enabled_followups.append(label)
+    if enabled_followups:
+        return True, f"INSTALL postcondition verified: enabled follow-up action {enabled_followups[0]!r}"
+    visible_actions = [
+        str(widget.get("label", "")).strip()
+        for widget in widgets
+        if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
+    ]
+    if visible_actions:
+        preview = ", ".join(repr(label) for label in visible_actions[:6])
+        return False, f"INSTALL completed but no expected enabled follow-up action was found; visible actions: {preview}"
+    return False, "INSTALL completed but no action buttons were visible afterward"
+
+
 def _visible_exception_detail(page: Any) -> str | None:
     """Backward-compatible alias for older tests and call sites."""
     try:
@@ -2260,7 +3497,7 @@ def _visible_exception_detail(page: Any) -> str | None:
         if exceptions.count() > 0 and exceptions.first.is_visible(timeout=500):
             return _short_detail(exceptions.first.inner_text(timeout=500) or "Streamlit exception rendered")
     except Exception:
-        pass
+        logger.debug("Unable to inspect rendered Streamlit exception", exc_info=True)
     return _visible_streamlit_issue_detail(page)
 
 
@@ -2384,7 +3621,7 @@ def _close_all_expanders(page: Any) -> None:
         page.evaluate(CLOSE_EXPANDERS_JS)
         _wait_for_timeout(page, 150)
     except Exception:
-        pass
+        logger.debug("Unable to close Streamlit expanders", exc_info=True)
 
 
 def _open_all_expanders(page: Any) -> None:
@@ -2392,7 +3629,7 @@ def _open_all_expanders(page: Any) -> None:
         page.evaluate(OPEN_EXPANDERS_JS)
         _wait_for_timeout(page, 250)
     except Exception:
-        pass
+        logger.debug("Unable to open Streamlit expanders", exc_info=True)
 
 
 def _selected_action_matches(
@@ -2426,11 +3663,12 @@ def _probe_selected_actions_first(
     upload_file: Path,
     orchestrate_artifact_context: OrchestrateArtifactContext | None = None,
     workflow_artifact_context: WorkflowArtifactContext | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> list[WidgetProbe]:
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
         wait_for_widgets_ready(page, page_name=display, timeout_ms=widget_timeout_ms)
-        _wait_for_timeout(page, 1000)
+        _wait_for_timeout(page, WIDGET_READY_POLL_MS)
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
         _close_all_expanders(page)
         return page.evaluate(WIDGET_COLLECTOR_JS)
@@ -2524,6 +3762,7 @@ def _probe_selected_actions_first(
             restore_view=None,
             settle_action_labels=next_settle_labels[:1],
             allow_idle_settle=allow_idle_settle,
+            max_action_settle_seconds=max_action_settle_seconds,
         )
         if (
             app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
@@ -2647,7 +3886,7 @@ def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
         page.evaluate(CLOSE_EXPANDERS_EXCEPT_WIDGET_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 150)
     except Exception:
-        pass
+        logger.debug("Unable to close non-target expanders for widget %s", widget.get("id"), exc_info=True)
 
 
 def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
@@ -2655,7 +3894,7 @@ def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
         page.evaluate(SCROLL_WIDGET_TO_CENTER_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 100)
     except Exception:
-        pass
+        logger.debug("Unable to center widget %s", widget.get("id"), exc_info=True)
 
 
 def _visible_spinner_count(page: Any) -> int:
@@ -2677,16 +3916,17 @@ def _wait_for_action_outcome(
     start = time.perf_counter()
     timeout_seconds = timeout_ms / 1000.0
     deadline = start + timeout_seconds
-    min_observation_deadline = start + min(5.0, timeout_seconds)
+    min_observation_deadline = start + min(ACTION_MIN_OBSERVATION_SECONDS, timeout_seconds)
     busy_seen = False
     soft_feedback_seen = False
     idle_seen = 0
     baseline_feedback = set(baseline_feedback or ())
     while True:
+        now = time.perf_counter()
         try:
             page.evaluate(OPEN_EXPANDERS_JS)
         except Exception:
-            pass
+            logger.debug("Unable to keep expanders open while waiting for action outcome", exc_info=True)
         issue = _visible_streamlit_issue_detail(page)
         if issue:
             return issue, True
@@ -2716,14 +3956,14 @@ def _wait_for_action_outcome(
                 busy_seen
                 or soft_feedback_seen
                 or allow_idle_settle
-                or time.perf_counter() >= min_observation_deadline
+                or now >= min_observation_deadline
             ):
                 return None, True
             if require_feedback and soft_feedback_seen and allow_idle_settle:
                 idle_seen += 1
-                if time.perf_counter() >= min_observation_deadline:
+                if now >= min_observation_deadline:
                     return None, True
-            elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+            elif require_feedback and allow_idle_settle and now >= min_observation_deadline:
                 return None, True
         elif busy_seen and not require_feedback:
             idle_seen += 1
@@ -2731,15 +3971,99 @@ def _wait_for_action_outcome(
                 return None, True
         elif require_feedback and soft_feedback_seen and allow_idle_settle:
             idle_seen += 1
-            if time.perf_counter() >= min_observation_deadline:
+            if now >= min_observation_deadline:
                 return None, True
-        elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+        elif require_feedback and allow_idle_settle and now >= min_observation_deadline:
             return None, True
-        elif not require_feedback and time.perf_counter() >= min_observation_deadline:
+        elif not require_feedback and now >= min_observation_deadline:
             return None, True
-        if time.perf_counter() >= deadline:
+        if now >= deadline:
+            if require_feedback and allow_idle_settle and (
+                soft_feedback_seen or now >= min_observation_deadline
+            ):
+                return None, True
             return None, False
-        _wait_for_timeout(page, min(250, max(10, (deadline - time.perf_counter()) * 1000.0)))
+        _wait_for_timeout(page, min(ACTION_OUTCOME_POLL_MS, max(10, (deadline - now) * 1000.0)))
+
+
+def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
+    try:
+        return bool(locator.is_checked(timeout=timeout_ms))
+    except Exception:
+        logger.debug("Unable to read locator checked state directly", exc_info=True)
+    try:
+        aria_checked = locator.get_attribute("aria-checked", timeout=timeout_ms)
+    except Exception:
+        logger.debug("Unable to read locator aria-checked state", exc_info=True)
+        return None
+    if aria_checked == "true":
+        return True
+    if aria_checked == "false":
+        return False
+    return None
+
+
+def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) -> None:
+    locator = _widget_locator(page, dict(choice.widget))
+    locator.scroll_into_view_if_needed(timeout=timeout_ms)
+    if not locator.is_visible(timeout=timeout_ms):
+        raise RuntimeError(f"{choice.kind} {choice.label!r} is not visible")
+    if not locator.is_enabled(timeout=timeout_ms):
+        raise RuntimeError(f"{choice.kind} {choice.label!r} is not enabled")
+    if choice.kind in {"checkbox", "toggle"}:
+        current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if current is None or current != choice.checked:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(150)
+        return
+    if choice.kind == "radio":
+        current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if current is not True:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(150)
+        return
+    if choice.kind == "selectbox":
+        if choice.option_index is None:
+            raise RuntimeError(f"selectbox {choice.label!r} has no option index")
+        _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+        page.wait_for_timeout(150)
+        options = _option_locator(page)
+        if options.count() <= choice.option_index:
+            raise RuntimeError(f"selectbox {choice.label!r} option {choice.option_index + 1} is not available")
+        options.nth(choice.option_index).click(timeout=timeout_ms)
+        page.wait_for_timeout(250)
+        return
+    raise RuntimeError(f"unsupported combination widget kind: {choice.kind}")
+
+
+def _combination_probe(
+    *,
+    app_name: str,
+    page_name: str,
+    kind: str,
+    label: str,
+    status: str,
+    detail: str,
+    url: str,
+) -> WidgetProbe:
+    return WidgetProbe(app_name, page_label(page_name), kind, label, status, _short_detail(detail), url)
+
+
+def _consume_action_click_budget(action_click_budget: list[int] | None) -> bool:
+    if action_click_budget is None:
+        return True
+    if not action_click_budget or action_click_budget[0] <= 0:
+        return False
+    action_click_budget[0] -= 1
+    return True
+
+
+def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) -> tuple[str, str]:
+    try:
+        locator.click(timeout=timeout_ms, trial=True)
+        return "probed", detail
+    except Exception as exc:
+        return "probed", _short_detail(f"{detail}; trial click layout-intercepted: {exc}")
 
 
 def _probe_widget(
@@ -2756,11 +4080,14 @@ def _probe_widget(
     restore_view: Any | None,
     settle_action_labels: Sequence[str] = (),
     allow_idle_settle: bool = False,
+    action_click_budget: list[int] | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
     locator = _widget_locator(page, widget)
     kind = str(widget.get("kind", ""))
+    action_label = str(widget.get("label", ""))
     is_selected_action = (
         kind in ACTION_BUTTON_KINDS
         and action_button_policy == "click-selected"
@@ -2807,13 +4134,22 @@ def _probe_widget(
                 try:
                     locator.click(timeout=timeout_ms, trial=True)
                 except Exception:
-                    pass
+                    logger.debug("Actionability trial click failed for %s", widget.get("label"), exc_info=True)
             return "probed", f"visible/enabled ok ({kind})"
         if kind in ACTION_BUTTON_KINDS:
+            safe_click_reason = safe_action_click_reason(widget)
             should_click = action_button_policy == "click" or (
                 action_button_policy == "click-selected" and _action_label_matches(widget, click_action_labels)
+            ) or (
+                action_button_policy == "safe-click" and safe_click_reason is not None
             )
             if should_click:
+                if not _consume_action_click_budget(action_click_budget):
+                    return _probe_action_button_trial(
+                        locator,
+                        timeout_ms=timeout_ms,
+                        detail="action button browser-clickable; callback not fired because action click budget is exhausted",
+                    )
                 require_feedback = action_button_policy == "click-selected"
                 _close_expanders_except_widget(page, widget)
                 if require_feedback:
@@ -2839,6 +4175,7 @@ def _probe_widget(
                         role_locator.click(timeout=click_timeout_ms)
                 else:
                     _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                settle_started = time.perf_counter()
                 error, settled = _wait_for_action_outcome(
                     page,
                     timeout_ms=action_timeout_ms,
@@ -2847,18 +4184,52 @@ def _probe_widget(
                     settle_action_labels=settle_action_labels,
                     allow_idle_settle=allow_idle_settle,
                 )
+                settle_seconds = time.perf_counter() - settle_started
                 if error:
-                    return "failed", f"button click rendered Streamlit error: {error}"
+                    detail = f"button click rendered Streamlit error: {error}"
+                    feedback_tail = _visible_action_feedback_tail(page)
+                    if feedback_tail:
+                        detail = f"{detail}; evidence_tail={feedback_tail}"
+                    return "failed", _action_status_detail(action_label, "error", detail)
                 if not settled:
-                    return "skipped", f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s"
-                return "interacted", "clicked action button"
-            try:
-                locator.click(timeout=timeout_ms, trial=True)
+                    return "skipped", _action_status_detail(
+                        action_label,
+                        "timeout",
+                        f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s",
+                    )
+                if max_action_settle_seconds > 0 and settle_seconds > max_action_settle_seconds:
+                    return "failed", _action_status_detail(
+                        action_label,
+                        "slow",
+                        f"action settled in {settle_seconds:.2f}s; budget<={max_action_settle_seconds:.2f}s",
+                    )
+                if action_button_policy == "safe-click":
+                    return "interacted", f"clicked guarded safe action button in {settle_seconds:.2f}s: {safe_click_reason}"
                 if action_button_policy == "click-selected":
-                    return "probed", "action button browser-clickable; callback not selected for firing"
-                return "probed", "action button browser-clickable; callback not fired by default"
-            except Exception as exc:
-                return "probed", _short_detail(f"action button visible/enabled; trial click layout-intercepted: {exc}")
+                    if _is_install_action_label(action_label):
+                        install_ok, install_detail = _install_postcondition_status(page)
+                        if not install_ok:
+                            return "failed", _action_status_detail(action_label, "error", install_detail)
+                        return "interacted", _action_status_detail(action_label, "success", f"{install_detail}; settled={settle_seconds:.2f}s")
+                    return "interacted", _action_status_detail(action_label, "success", f"selected action completed; settled={settle_seconds:.2f}s")
+                return "interacted", f"clicked action button in {settle_seconds:.2f}s"
+            if action_button_policy == "safe-click":
+                return _probe_action_button_trial(
+                    locator,
+                    timeout_ms=timeout_ms,
+                    detail="action button browser-clickable; callback not fired by guarded safe-click policy",
+                )
+            if action_button_policy == "click-selected":
+                return _probe_action_button_trial(
+                    locator,
+                    timeout_ms=timeout_ms,
+                    detail="action button browser-clickable; callback not selected for firing",
+                )
+            return _probe_action_button_trial(
+                locator,
+                timeout_ms=timeout_ms,
+                detail="action button browser-clickable; callback not fired by default",
+            )
         if kind in CHOICE_BUTTON_KINDS:
             if _label_matches(widget, preselect_labels):
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
@@ -2938,63 +4309,204 @@ def _collect_and_probe_current_view(
     restore_view: Any | None,
     known: set[tuple[str, str, str, str, str]],
     page_deadline: float | None = None,
+    discovery_passes: int = 1,
+    action_click_budget: list[int] | None = None,
+    max_action_settle_seconds: float = 0.0,
 ) -> list[WidgetProbe]:
-    _enforce_page_deadline(page_deadline, "page watchdog expired before widget discovery")
-    page.evaluate(OPEN_EXPANDERS_JS)
-    widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     probes: list[WidgetProbe] = []
-    for widget in widgets:
-        _enforce_page_deadline(page_deadline, "page watchdog expired while probing widgets")
-        fingerprint = _widget_fingerprint(widget)
-        if fingerprint in known:
-            continue
-        known.add(fingerprint)
-        status, detail = _probe_widget(
-            page,
-            widget,
-            timeout_ms=widget_timeout_ms,
-            interaction_mode=interaction_mode,
-            action_button_policy=action_button_policy,
-            click_action_labels=click_action_labels,
-            preselect_labels=preselect_labels,
-            action_timeout_ms=action_timeout_ms,
-            upload_file=upload_file,
-            restore_view=restore_view,
-        )
-        if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
-            try:
-                _enforce_page_deadline(page_deadline, "page watchdog expired before restore retry")
-                restore_view()
-                status, detail = _probe_widget(
-                    page,
-                    widget,
-                    timeout_ms=widget_timeout_ms,
-                    interaction_mode=interaction_mode,
-                    action_button_policy=action_button_policy,
-                    click_action_labels=click_action_labels,
-                    preselect_labels=preselect_labels,
-                    action_timeout_ms=action_timeout_ms,
-                    upload_file=upload_file,
-                    restore_view=restore_view,
+    for _ in range(max(1, discovery_passes)):
+        _enforce_page_deadline(page_deadline, "page watchdog expired before widget discovery")
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        discovered_count = 0
+        for widget in widgets:
+            _enforce_page_deadline(page_deadline, "page watchdog expired while probing widgets")
+            fingerprint = _widget_fingerprint(widget)
+            if fingerprint in known:
+                continue
+            known.add(fingerprint)
+            discovered_count += 1
+            status, detail = _probe_widget(
+                page,
+                widget,
+                timeout_ms=widget_timeout_ms,
+                interaction_mode=interaction_mode,
+                action_button_policy=action_button_policy,
+                click_action_labels=click_action_labels,
+                preselect_labels=preselect_labels,
+                action_timeout_ms=action_timeout_ms,
+                upload_file=upload_file,
+                restore_view=restore_view,
+                action_click_budget=action_click_budget,
+                max_action_settle_seconds=max_action_settle_seconds,
+            )
+            if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
+                try:
+                    _enforce_page_deadline(page_deadline, "page watchdog expired before restore retry")
+                    restore_view()
+                    status, detail = _probe_widget(
+                        page,
+                        widget,
+                        timeout_ms=widget_timeout_ms,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        click_action_labels=click_action_labels,
+                        preselect_labels=preselect_labels,
+                        action_timeout_ms=action_timeout_ms,
+                        upload_file=upload_file,
+                        restore_view=restore_view,
+                        action_click_budget=action_click_budget,
+                        max_action_settle_seconds=max_action_settle_seconds,
+                    )
+                except Exception as exc:
+                    status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
+            error = _visible_streamlit_issue_detail(page)
+            if error and status != "failed":
+                status, detail = "failed", f"interaction rendered Streamlit error: {error}"
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    page_label(page_name),
+                    str(widget.get("kind", "")),
+                    str(widget.get("label", "")),
+                    status,
+                    detail,
+                    page.url,
+                    widget_scope(widget),
                 )
-            except Exception as exc:
-                status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
-        error = _visible_streamlit_issue_detail(page)
-        if error and status != "failed":
-            status, detail = "failed", f"interaction rendered Streamlit error: {error}"
+            )
+        if discovered_count == 0:
+            break
+    return probes
+
+
+def _exercise_widget_combinations(
+    page: Any,
+    *,
+    app_name: str,
+    page_name: str,
+    widget_timeout_ms: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    upload_file: Path,
+    restore_view: Any,
+    known: set[tuple[str, str, str, str, str]],
+    max_combinations: int,
+    max_options_per_widget: int,
+    discovery_passes: int,
+    action_click_budget: list[int] | None,
+    max_action_settle_seconds: float = 0.0,
+) -> tuple[int, int, int, int, list[WidgetProbe]]:
+    probes: list[WidgetProbe] = []
+    try:
+        restore_view()
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        controls, setup_probes = collect_widget_combination_controls(
+            page,
+            widgets,
+            app_name=app_name,
+            page_name=page_name,
+            timeout_ms=widget_timeout_ms,
+            max_options_per_widget=max_options_per_widget,
+        )
+        probes.extend(setup_probes)
+        plan = build_widget_combination_plan(controls, max_combinations=max_combinations)
+    except Exception as exc:
+        return (
+            0,
+            0,
+            1,
+            0,
+            [
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination_setup",
+                    label="widget state model",
+                    status="failed",
+                    detail=f"could not build widget combination plan: {exc}",
+                    url=page.url,
+                )
+            ],
+        )
+
+    setup_failed = sum(1 for probe in probes if probe.status == "failed")
+    setup_skipped = sum(1 for probe in probes if probe.status == "skipped")
+    if plan.total_count == 0:
+        return 0, 0, setup_failed, setup_skipped, probes
+
+    failed_count = setup_failed
+    skipped_count = setup_skipped
+    if plan.truncated:
+        failed_count += 1
         probes.append(
-            WidgetProbe(
-                app_name,
-                page_label(page_name),
-                str(widget.get("kind", "")),
-                str(widget.get("label", "")),
-                status,
-                detail,
-                page.url,
-                widget_scope(widget),
+            _combination_probe(
+                app_name=app_name,
+                page_name=page_name,
+                kind="combination_space",
+                label="finite widget state grid",
+                status="failed",
+                detail=f"combination space {plan.total_count} exceeds --max-combinations {max_combinations}; first {len(plan.combinations)} combinations were attempted",
+                url=page.url,
             )
         )
-    return probes
+
+    executed_count = 0
+    for index, combination in enumerate(plan.combinations, start=1):
+        detail = _combination_description(combination)
+        try:
+            restore_view()
+            for choice in combination:
+                _apply_widget_choice(page, choice, timeout_ms=widget_timeout_ms)
+            page.wait_for_timeout(250)
+            error = _visible_exception_detail(page)
+            if error:
+                failed_count += 1
+                probes.append(
+                    _combination_probe(
+                        app_name=app_name,
+                        page_name=page_name,
+                        kind="combination",
+                        label=f"combination #{index}",
+                        status="failed",
+                        detail=f"{detail} rendered Streamlit exception: {error}",
+                        url=page.url,
+                    )
+                )
+                executed_count += 1
+                continue
+            probes.extend(
+                _collect_and_probe_current_view(
+                    page,
+                    app_name=app_name,
+                    page_name=page_name,
+                    widget_timeout_ms=widget_timeout_ms,
+                    interaction_mode=interaction_mode,
+                    action_button_policy=action_button_policy,
+                    upload_file=upload_file,
+                    restore_view=restore_view,
+                    known=known,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
+                    max_action_settle_seconds=max_action_settle_seconds,
+                )
+            )
+            executed_count += 1
+        except Exception as exc:
+            failed_count += 1
+            probes.append(
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination",
+                    label=f"combination #{index}",
+                    status="failed",
+                    detail=f"{detail}: {exc}",
+                    url=page.url,
+                )
+            )
+    return plan.total_count, executed_count, failed_count, skipped_count, probes
 
 
 def sweep_page(
@@ -3018,14 +4530,35 @@ def sweep_page(
     missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     upload_file: Path,
+    combination_mode: str = "exhaustive",
+    max_combinations: int = 512,
+    max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     screenshot_dir: Path | None = None,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     browser_issues: list[dict[str, str]] | None = None,
     runtime_isolation: str = "isolated",
     server_env: dict[str, str] | None = None,
     home_root: Path | None = None,
+    route_query: str = "",
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    assert_analysis_artifacts: bool = False,
+    browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
+    success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -3033,24 +4566,59 @@ def sweep_page(
     action_timeout_ms = action_timeout * 1000.0
     page_deadline = None if page_timeout is None or page_timeout <= 0 else started + page_timeout
     target_url = web_robot.build_url(base_url, active_app=active_app_query) if not page_name else web_robot.build_page_url(base_url, page_name, active_app=active_app_query, current_page=str(current_page) if current_page else None)
+    target_url = append_route_query(target_url, route_query)
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
     probes: list[WidgetProbe] = []
     browser_issue_start_index = len(browser_issues or [])
     page_status = "passed"
+    combination_space_count = 0
+    combination_count = 0
+    combination_failed_count = 0
+    combination_skipped_count = 0
+    action_click_budget = [max_action_clicks_per_page]
+    performance_probe_enabled = max_first_render_seconds > 0 or max_widgets_ready_seconds > 0
+    performance_recorded = False
 
     def restore_view() -> None:
+        nonlocal performance_recorded
         _enforce_page_deadline(page_deadline, "page watchdog expired before navigation")
+        render_started = time.perf_counter()
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
         _enforce_page_deadline(page_deadline, "page watchdog expired before health check")
         health = web_robot.assert_page_healthy(page, label=f"{app_name}:{display}:restore", expect_any=expect_any, timeout_ms=timeout_ms, screenshot_dir=screenshot_dir)
         if not health.success:
             raise RuntimeError(health.detail)
-        page.wait_for_timeout(1000)
+        first_render_seconds = time.perf_counter() - render_started
+        page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
         _enforce_page_deadline(page_deadline, "page watchdog expired before readiness wait")
         wait_for_page_ready(page, timeout_ms=timeout_ms)
         _enforce_page_deadline(page_deadline, "page watchdog expired before widget readiness wait")
+        widgets_started = time.perf_counter()
         wait_for_widgets_ready(page, page_name=page_name, timeout_ms=timeout_ms)
+        widgets_ready_seconds = time.perf_counter() - widgets_started
+        if performance_probe_enabled and not performance_recorded:
+            probes.extend(
+                [
+                    _performance_budget_probe(
+                        app_name=app_name,
+                        display=display,
+                        label="first_render",
+                        seconds=first_render_seconds,
+                        budget_seconds=max_first_render_seconds,
+                        url=getattr(page, "url", target_url),
+                    ),
+                    _performance_budget_probe(
+                        app_name=app_name,
+                        display=display,
+                        label="widgets_ready",
+                        seconds=widgets_ready_seconds,
+                        budget_seconds=max_widgets_ready_seconds,
+                        url=getattr(page, "url", target_url),
+                    ),
+                ]
+            )
+            performance_recorded = True
         _enforce_page_deadline(page_deadline, "page watchdog expired before expander open")
         page.evaluate(OPEN_EXPANDERS_JS)
 
@@ -3063,6 +4631,40 @@ def sweep_page(
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
+            if browser_history_check:
+                probes.append(
+                    _browser_history_probe(
+                        page,
+                        web_robot=web_robot,
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        app_name=app_name,
+                        display=display,
+                        timeout_ms=timeout_ms,
+                        widget_timeout_ms=widget_timeout_ms,
+                        screenshot_dir=screenshot_dir,
+                        route_query=route_query,
+                    )
+                )
+                if not any(probe.status == "failed" for probe in probes):
+                    restore_view()
+            if keyboard_focus_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _keyboard_focus_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        widget_timeout_ms=widget_timeout_ms,
+                    )
+                )
+                if not any(probe.status == "failed" for probe in probes):
+                    restore_view()
+            if layout_integrity_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_layout_integrity_probe(page, app_name=app_name, display=display))
+            if accessibility_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_accessibility_probe(page, app_name=app_name, display=display))
+            if above_fold_check and not any(probe.status == "failed" for probe in probes):
+                probes.append(_above_fold_probe(page, app_name=app_name, display=display))
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
             preflight_detail = current_home_action_preflight_blocker(
                 app_name=app_name,
@@ -3092,7 +4694,21 @@ def sweep_page(
                         url=page.url,
                     )
                 )
-            if selected_actions_first and not preflight_detail:
+            if assert_analysis_artifacts and page_label(page_name) == "ANALYSIS" and not preflight_detail:
+                analysis_artifact_context = build_orchestrate_artifact_context(
+                    app_name=app_name,
+                    active_app_query=active_app_query,
+                    home_root=home_root,
+                    server_env=server_env,
+                )
+                probes.extend(
+                    validate_analysis_artifacts(
+                        context=analysis_artifact_context,
+                        display=display,
+                        url=page.url,
+                    )
+                )
+            if selected_actions_first and not preflight_detail and not any(probe.status == "failed" for probe in probes):
                 orchestrate_artifact_context = None
                 if assert_orchestrate_artifacts and page_label(page_name) == "ORCHESTRATE":
                     orchestrate_artifact_context = build_orchestrate_artifact_context(
@@ -3114,6 +4730,7 @@ def sweep_page(
                         upload_file=upload_file,
                         orchestrate_artifact_context=orchestrate_artifact_context,
                         workflow_artifact_context=workflow_artifact_context,
+                        max_action_settle_seconds=max_action_settle_seconds,
                     )
                 )
                 if not any(probe.status == "failed" for probe in probes):
@@ -3140,8 +4757,33 @@ def sweep_page(
                             restore_view=restore_view,
                             known=known,
                             page_deadline=page_deadline,
+                            discovery_passes=discovery_passes,
+                            action_click_budget=action_click_budget,
+                            max_action_settle_seconds=max_action_settle_seconds,
                         )
                     )
+                if combination_mode == "exhaustive":
+                    space, count, combo_failed, combo_skipped, combo_probes = _exercise_widget_combinations(
+                        page,
+                        app_name=app_name,
+                        page_name=display,
+                        widget_timeout_ms=widget_timeout_ms,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=sweep_action_button_policy,
+                        upload_file=upload_file,
+                        restore_view=restore_view,
+                        known=known,
+                        max_combinations=max_combinations,
+                        max_options_per_widget=max_options_per_widget,
+                        discovery_passes=discovery_passes,
+                        action_click_budget=action_click_budget,
+                        max_action_settle_seconds=max_action_settle_seconds,
+                    )
+                    combination_space_count += space
+                    combination_count += count
+                    combination_failed_count += combo_failed
+                    combination_skipped_count += combo_skipped
+                    probes.extend(combo_probes)
                 _enforce_page_deadline(page_deadline, "page watchdog expired before tab sweep")
                 tab_count = page.locator("[role='tab']").count()
                 for index in range(tab_count):
@@ -3170,8 +4812,41 @@ def sweep_page(
                                         restore_view=restore_view,
                                         known=known,
                                         page_deadline=page_deadline,
+                                        discovery_passes=discovery_passes,
+                                        action_click_budget=action_click_budget,
+                                        max_action_settle_seconds=max_action_settle_seconds,
                                     )
                                 )
+                            if combination_mode == "exhaustive":
+                                def restore_tab_view(tab_index: int = index) -> None:
+                                    restore_view()
+                                    active_tab = page.locator("[role='tab']").nth(tab_index)
+                                    if active_tab.is_visible(timeout=widget_timeout_ms) and active_tab.is_enabled(timeout=widget_timeout_ms):
+                                        _click_with_force_fallback(active_tab, timeout_ms=widget_timeout_ms)
+                                        page.wait_for_timeout(250)
+                                    page.evaluate(OPEN_EXPANDERS_JS)
+
+                                space, count, combo_failed, combo_skipped, combo_probes = _exercise_widget_combinations(
+                                    page,
+                                    app_name=app_name,
+                                    page_name=display,
+                                    widget_timeout_ms=widget_timeout_ms,
+                                    interaction_mode=interaction_mode,
+                                    action_button_policy=sweep_action_button_policy,
+                                    upload_file=upload_file,
+                                    restore_view=restore_tab_view,
+                                    known=known,
+                                    max_combinations=max_combinations,
+                                    max_options_per_widget=max_options_per_widget,
+                                    discovery_passes=discovery_passes,
+                                    action_click_budget=action_click_budget,
+                                    max_action_settle_seconds=max_action_settle_seconds,
+                                )
+                                combination_space_count += space
+                                combination_count += count
+                                combination_failed_count += combo_failed
+                                combination_skipped_count += combo_skipped
+                                probes.extend(combo_probes)
                     except Exception as exc:
                         probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
                 if action_button_policy == "click-selected" and not selected_actions_first:
@@ -3190,15 +4865,82 @@ def sweep_page(
         page_status = "failed"
         probes.append(WidgetProbe(app_name, display, "page", "", "failed", str(exc), target_url))
 
-    if _append_browser_issue_probes(
+    browser_issue_failed = _append_browser_issue_probes(
         probes,
         app_name=app_name,
         display=display,
         url=getattr(page, "url", target_url),
         browser_issues=browser_issues,
         start_index=browser_issue_start_index,
-    ):
+    )
+    if browser_issue_failed:
         page_status = "failed"
+    if browser_error_check:
+        browser_error_probe = _browser_error_check_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", target_url),
+            browser_issues=browser_issues,
+            start_index=browser_issue_start_index,
+        )
+        if browser_error_probe is not None:
+            probes.append(browser_error_probe)
+            if browser_error_probe.status == "failed":
+                page_status = "failed"
+
+    if success_screenshot and page_status == "passed" and not any(probe.status == "failed" for probe in probes):
+        screenshot_probe = _capture_success_screenshot_probe(
+            page,
+            web_robot=web_robot,
+            app_name=app_name,
+            display=display,
+            screenshot_dir=screenshot_dir,
+            visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+        )
+        if screenshot_probe is not None:
+            probes.append(screenshot_probe)
+            if screenshot_probe.status == "failed":
+                page_status = "failed"
+
+    if failure_bundle_dir is not None and (page_status != "passed" or any(probe.status == "failed" for probe in probes)):
+        try:
+            bundle_path = _write_failure_bundle(
+                root=failure_bundle_dir,
+                page=page,
+                web_robot=web_robot,
+                app_name=app_name,
+                display=display,
+                status=page_status,
+                target_url=target_url,
+                failures=[probe for probe in probes if probe.status == "failed"],
+                skips=[probe for probe in probes if probe.status == "skipped"],
+                browser_issues=list(browser_issues or [])[browser_issue_start_index:],
+                progress_log=progress_log,
+                command_argv=command_argv,
+            )
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    display,
+                    "failure_evidence",
+                    "bundle",
+                    "interacted",
+                    f"failure bundle={bundle_path}",
+                    getattr(page, "url", target_url),
+                )
+            )
+        except Exception as exc:
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    display,
+                    "failure_evidence",
+                    "bundle",
+                    "failed",
+                    _short_detail(f"failure bundle could not be written: {exc}"),
+                    getattr(page, "url", target_url),
+                )
+            )
 
     failed = [probe for probe in probes if probe.status == "failed"]
     skipped = [probe for probe in probes if probe.status == "skipped"]
@@ -3209,8 +4951,6 @@ def sweep_page(
     if page_status == "passed":
         if failed:
             page_status = "failed"
-        elif skipped:
-            page_status = "skipped"
     return PageSweep(
         app=app_name,
         page=display,
@@ -3227,6 +4967,10 @@ def sweep_page(
         failures=failed[:20],
         skips=skipped[:20],
         status=page_status,
+        combination_space_count=combination_space_count,
+        combination_count=combination_count,
+        combination_failed_count=combination_failed_count,
+        combination_skipped_count=combination_skipped_count,
     )
 
 
@@ -3235,6 +4979,449 @@ def _project_root_for(path: Path) -> Path:
         if (candidate / "pyproject.toml").exists():
             return candidate
     return path.parent
+
+
+def _browser_history_probe(
+    page: Any,
+    *,
+    web_robot: Any,
+    base_url: str,
+    active_app_query: str,
+    app_name: str,
+    display: str,
+    timeout_ms: float,
+    widget_timeout_ms: float,
+    screenshot_dir: Path | None,
+    route_query: str,
+) -> WidgetProbe:
+    route = " -> ".join(BROWSER_HISTORY_CHECK_PAGES)
+
+    def visit(page_name: str, label: str) -> str | None:
+        target = append_route_query(
+            web_robot.build_page_url(base_url, page_name, active_app=active_app_query),
+            route_query,
+        )
+        page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
+        health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:{label}",
+            expect_any=PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)),
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not health.success:
+            return f"{label} unhealthy: {health.detail}"
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return f"{label} {theme_detail}"
+        wait_for_page_ready(page, timeout_ms=timeout_ms)
+        wait_for_widgets_ready(page, page_name=page_name, timeout_ms=widget_timeout_ms)
+        if not active_app_route_matches(page.url, active_app_query):
+            return (
+                f"{label} active_app routed to {routed_active_app_slug(page.url)!r}, "
+                f"expected {sorted(active_app_aliases(active_app_query))!r}"
+            )
+        return None
+
+    try:
+        for page_name in BROWSER_HISTORY_CHECK_PAGES:
+            failure = visit(page_name, page_name)
+            if failure:
+                return WidgetProbe(app_name, display, "browser_history", route, "failed", _short_detail(failure), page.url)
+        page.go_back(wait_until="domcontentloaded", timeout=timeout_ms)
+        back_health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:browser-history-back",
+            expect_any=PAGE_EXPECTED_TEXT["ORCHESTRATE"],
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not back_health.success:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history back unhealthy: {back_health.detail}"),
+                page.url,
+            )
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history back {theme_detail}"),
+                page.url,
+            )
+        if not active_app_route_matches(page.url, active_app_query):
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(
+                    f"history back changed active_app to {routed_active_app_slug(page.url)!r}; "
+                    f"expected {sorted(active_app_aliases(active_app_query))!r}"
+                ),
+                page.url,
+            )
+        page.go_forward(wait_until="domcontentloaded", timeout=timeout_ms)
+        forward_health = web_robot.assert_page_healthy(
+            page,
+            label=f"{app_name}:browser-history-forward",
+            expect_any=PAGE_EXPECTED_TEXT["ANALYSIS"],
+            timeout_ms=timeout_ms,
+            screenshot_dir=screenshot_dir,
+        )
+        if not forward_health.success:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history forward unhealthy: {forward_health.detail}"),
+                page.url,
+            )
+        theme_ok, theme_detail = _dark_theme_status(page)
+        if not theme_ok:
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(f"history forward {theme_detail}"),
+                page.url,
+            )
+        if not active_app_route_matches(page.url, active_app_query):
+            return WidgetProbe(
+                app_name,
+                display,
+                "browser_history",
+                route,
+                "failed",
+                _short_detail(
+                    f"history forward changed active_app to {routed_active_app_slug(page.url)!r}; "
+                    f"expected {sorted(active_app_aliases(active_app_query))!r}"
+                ),
+                page.url,
+            )
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_history",
+            route,
+            "interacted",
+            "browser back/forward preserved page health, dark theme, and active_app routing",
+            page.url,
+        )
+    except Exception as exc:
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_history",
+            route,
+            "failed",
+            _short_detail(f"browser history check failed: {exc}"),
+            getattr(page, "url", ""),
+        )
+
+
+def _keyboard_focus_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    focusable_count: int,
+    visited_labels: Sequence[str],
+    failure: str | None = None,
+) -> WidgetProbe:
+    if failure:
+        return WidgetProbe(app_name, display, "keyboard_focus", "tab_order", "failed", _short_detail(failure), url)
+    minimum_unique = min(3, max(1, focusable_count))
+    unique_labels = {label for label in visited_labels if label}
+    if len(unique_labels) < minimum_unique:
+        return WidgetProbe(
+            app_name,
+            display,
+            "keyboard_focus",
+            "tab_order",
+            "failed",
+            _short_detail(
+                f"keyboard focus visited {len(unique_labels)} unique target(s), expected at least {minimum_unique}; "
+                f"visited={list(unique_labels)[:5]}"
+            ),
+            url,
+        )
+    return WidgetProbe(
+        app_name,
+        display,
+        "keyboard_focus",
+        "tab_order",
+        "interacted",
+        f"keyboard Tab reached {len(unique_labels)} unique visible focus target(s) out of {focusable_count}",
+        url,
+    )
+
+
+def _keyboard_focus_probe(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    widget_timeout_ms: float,
+    max_tabs: int = 16,
+) -> WidgetProbe:
+    try:
+        focusable_count = int(page.evaluate(KEYBOARD_FOCUSABLE_COUNT_JS) or 0)
+    except Exception as exc:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=0,
+            visited_labels=[],
+            failure=f"focusable controls could not be collected: {exc}",
+        )
+    if focusable_count <= 0:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=0,
+            visited_labels=[],
+            failure="no visible keyboard-focusable controls were found",
+        )
+    visited: list[str] = []
+    try:
+        page.keyboard.press("Escape")
+        for _ in range(min(max_tabs, focusable_count + 4)):
+            page.keyboard.press("Tab")
+            _wait_for_timeout(page, min(widget_timeout_ms, 250))
+            state = page.evaluate(ACTIVE_FOCUS_STATE_JS)
+            if not isinstance(state, dict):
+                continue
+            label = str(state.get("label") or state.get("kind") or "focus-target").strip()
+            if not bool(state.get("visible", False)):
+                return _keyboard_focus_result_probe(
+                    app_name=app_name,
+                    display=display,
+                    url=getattr(page, "url", ""),
+                    focusable_count=focusable_count,
+                    visited_labels=visited,
+                    failure=f"keyboard focus reached invisible target {label!r}",
+                )
+            if not bool(state.get("inViewport", False)):
+                return _keyboard_focus_result_probe(
+                    app_name=app_name,
+                    display=display,
+                    url=getattr(page, "url", ""),
+                    focusable_count=focusable_count,
+                    visited_labels=visited,
+                    failure=f"keyboard focus reached off-screen target {label!r}",
+                )
+            if label:
+                visited.append(label)
+            if len({item for item in visited if item}) >= min(3, focusable_count):
+                break
+        page.keyboard.press("Escape")
+    except Exception as exc:
+        return _keyboard_focus_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            focusable_count=focusable_count,
+            visited_labels=visited,
+            failure=f"keyboard focus check failed: {exc}",
+        )
+    return _keyboard_focus_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        focusable_count=focusable_count,
+        visited_labels=visited,
+    )
+
+
+def _layout_integrity_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    issues: Sequence[dict[str, Any]],
+) -> WidgetProbe:
+    if issues:
+        first = issues[0]
+        detail = f"{len(issues)} layout issue(s); first={first.get('kind')}: {first.get('label')} - {first.get('detail')}"
+        return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "failed", _short_detail(detail), url)
+    return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "interacted", "no obvious overflow, zero-size, or overlapping controls detected", url)
+
+
+def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    try:
+        issues = page.evaluate(LAYOUT_INTEGRITY_COLLECTOR_JS)
+    except Exception as exc:
+        issues = [{"kind": "collector_error", "label": "", "detail": str(exc)}]
+    if not isinstance(issues, list):
+        issues = [{"kind": "collector_error", "label": "", "detail": "layout collector returned no issue list"}]
+    normalized = [dict(item) for item in issues if isinstance(item, dict)]
+    return _layout_integrity_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        issues=normalized,
+    )
+
+
+def _accessibility_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    issues: Sequence[dict[str, Any]],
+) -> WidgetProbe:
+    if issues:
+        first = issues[0]
+        detail = f"{len(issues)} accessibility issue(s); first={first.get('kind')}: {first.get('label')} - {first.get('detail')}"
+        return WidgetProbe(app_name, display, "accessibility", "semantics", "failed", _short_detail(detail), url)
+    return WidgetProbe(
+        app_name,
+        display,
+        "accessibility",
+        "semantics",
+        "interacted",
+        "interactive names, ARIA references, heading order, landmarks, and contrast heuristics passed",
+        url,
+    )
+
+
+def _accessibility_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    try:
+        issues = page.evaluate(ACCESSIBILITY_COLLECTOR_JS)
+    except Exception as exc:
+        issues = [{"kind": "collector_error", "label": "", "detail": str(exc)}]
+    if not isinstance(issues, list):
+        issues = [{"kind": "collector_error", "label": "", "detail": "accessibility collector returned no issue list"}]
+    normalized = [dict(item) for item in issues if isinstance(item, dict)]
+    return _accessibility_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        issues=normalized,
+    )
+
+
+def _browser_error_check_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    browser_issues: Sequence[dict[str, str]] | None,
+    start_index: int,
+) -> WidgetProbe | None:
+    if browser_issues is None:
+        return WidgetProbe(
+            app_name,
+            display,
+            "browser_error",
+            "console/network",
+            "failed",
+            "browser console/network capture was not attached",
+            url,
+        )
+    relevant = [
+        issue
+        for issue in list(browser_issues)[start_index:]
+        if _browser_issue_is_relevant(str(issue.get("kind") or ""), str(issue.get("detail") or ""))
+    ]
+    if relevant:
+        return None
+    return WidgetProbe(
+        app_name,
+        display,
+        "browser_error",
+        "console/network",
+        "interacted",
+        "no relevant console, pageerror, requestfailed, or HTTP error events recorded",
+        url,
+    )
+
+
+def _above_fold_result_probe(
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    expected_labels: Sequence[str],
+    seen_labels: Sequence[str],
+    fold: float,
+    failure: str | None = None,
+) -> WidgetProbe:
+    if failure:
+        return WidgetProbe(app_name, display, "above_fold", "primary_targets", "failed", _short_detail(failure), url)
+    normalized_seen = [_normalized_label(label) for label in seen_labels if _normalized_label(label)]
+    missing = [
+        label
+        for label in expected_labels
+        if not any(_normalized_label(label) in seen or seen in _normalized_label(label) for seen in normalized_seen)
+    ]
+    if missing:
+        detail = f"primary target(s) missing above fold {fold:.0f}px: {missing}; seen={list(seen_labels)[:12]}"
+        return WidgetProbe(app_name, display, "above_fold", "primary_targets", "failed", _short_detail(detail), url)
+    detail = f"primary targets visible above fold {fold:.0f}px: {list(expected_labels)}"
+    return WidgetProbe(app_name, display, "above_fold", "primary_targets", "interacted", _short_detail(detail), url)
+
+
+def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+    expected = PAGE_ABOVE_FOLD_EXPECTED_LABELS.get(display, (display,))
+    try:
+        payload = page.evaluate(ABOVE_FOLD_COLLECTOR_JS)
+    except Exception as exc:
+        return _above_fold_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            expected_labels=expected,
+            seen_labels=[],
+            fold=0,
+            failure=f"above-fold collector failed: {exc}",
+        )
+    if not isinstance(payload, dict):
+        return _above_fold_result_probe(
+            app_name=app_name,
+            display=display,
+            url=getattr(page, "url", ""),
+            expected_labels=expected,
+            seen_labels=[],
+            fold=0,
+            failure="above-fold collector returned no payload",
+        )
+    targets = payload.get("targets")
+    if not isinstance(targets, list):
+        targets = []
+    seen_labels = [
+        str(item.get("label") or "")
+        for item in targets
+        if isinstance(item, dict) and bool(item.get("inFold"))
+    ]
+    try:
+        fold = float(payload.get("fold") or 0)
+    except (TypeError, ValueError):
+        fold = 0.0
+    return _above_fold_result_probe(
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", ""),
+        expected_labels=expected,
+        seen_labels=seen_labels,
+        fold=fold,
+    )
 
 
 def sweep_direct_apps_page(
@@ -3251,10 +5438,33 @@ def sweep_direct_apps_page(
     preselect_labels: Sequence[str] = (),
     missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
+    combination_mode: str = "exhaustive",
+    max_combinations: int = 512,
+    max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
     server_env: dict[str, str],
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    success_screenshot: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -3298,9 +5508,10 @@ def sweep_direct_apps_page(
         "--active-app",
         str(active_app),
     ]
-    with web_robot.StreamlitServer(command, env=server_env, url=base_url):
+    with web_robot.StreamlitServer(command, env=server_env, url=base_url) as server:
         health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
         if not health.success:
+            detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
             result = PageSweep(
                 app_name,
                 display,
@@ -3312,7 +5523,7 @@ def sweep_direct_apps_page(
                 0,
                 1,
                 health.url or base_url,
-                [WidgetProbe(app_name, display, "streamlit", "", "failed", health.detail, health.url or base_url)],
+                [WidgetProbe(app_name, display, "streamlit", "", "failed", detail, health.url or base_url)],
                 [],
                 status="failed",
             )
@@ -3321,7 +5532,16 @@ def sweep_direct_apps_page(
         _, _, sync_playwright = web_robot._load_playwright()
         with sync_playwright() as playwright:
             browser = getattr(playwright, browser_name).launch(headless=headless)
-            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            artifact_label = f"{app_name}-{display}"
+            context = _new_robot_context(
+                browser,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                artifact_label=artifact_label,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
+            )
             try:
                 page = context.new_page()
                 browser_issues = _attach_browser_issue_capture(page)
@@ -3346,15 +5566,33 @@ def sweep_direct_apps_page(
                         preselect_labels=preselect_labels,
                         missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout=action_timeout,
+                        combination_mode=combination_mode,
+                        max_combinations=max_combinations,
+                        max_options_per_widget=max_options_per_widget,
+                        discovery_passes=discovery_passes,
+                        max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
+                        success_screenshot=success_screenshot,
+                        keyboard_focus_check=keyboard_focus_check,
+                        layout_integrity_check=layout_integrity_check,
+                        accessibility_check=accessibility_check,
+                        browser_error_check=browser_error_check,
+                        above_fold_check=above_fold_check,
+                        visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+                        failure_bundle_dir=failure_bundle_dir,
+                        progress_log=progress_log,
+                        command_argv=command_argv,
+                        max_first_render_seconds=max_first_render_seconds,
+                        max_widgets_ready_seconds=max_widgets_ready_seconds,
+                        max_action_settle_seconds=max_action_settle_seconds,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                     return result
             finally:
-                context.close()
+                _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                 browser.close()
 
 
@@ -3371,6 +5609,11 @@ def sweep_app(
     preselect_labels: Sequence[str] = (),
     missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
+    combination_mode: str = "exhaustive",
+    max_combinations: int = 512,
+    max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -3378,6 +5621,28 @@ def sweep_app(
     runtime_isolation: str,
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    assert_analysis_artifacts: bool = False,
+    browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    fresh_browser_context_per_page: bool = False,
+    success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
+    route_query: str = "",
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -3398,9 +5663,10 @@ def sweep_app(
             seed_demo_artifacts=seed_demo_artifacts,
             runtime_isolation=runtime_isolation,
         )
-        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url):
+        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url) as server:
             health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
             if not health.success:
+                detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
                 result = PageSweep(
                     app_name,
                     "SERVER",
@@ -3412,7 +5678,7 @@ def sweep_app(
                     0,
                     1,
                     health.url or base_url,
-                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", detail, health.url or base_url)],
                     [],
                     status="failed",
                 )
@@ -3421,27 +5687,13 @@ def sweep_app(
             _, _, sync_playwright = web_robot._load_playwright()
             with sync_playwright() as playwright:
                 browser = getattr(playwright, browser_name).launch(headless=headless)
-                context = browser.new_context(viewport={"width": 1440, "height": 1000})
                 try:
-                    page = context.new_page()
-                    browser_issues = _attach_browser_issue_capture(page)
                     with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                         upload_file = Path(tmp_dir) / "upload-fixture.txt"
                         upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
-                        for page_name in pages:
+
+                        def run_page(page_name: str, page: Any, browser_issues: list[dict[str, str]]) -> PageSweep | None:
                             display = page_label(page_name)
-                            resumed = _resume_page_if_available(
-                                app_name=app_name,
-                                page_name=display,
-                                resume_page_results=resume_page_results,
-                                progress=progress,
-                                on_page_result=on_page_result,
-                            )
-                            if resumed is not None:
-                                results.append(resumed)
-                                continue
-                            if progress is not None:
-                                progress.emit("page_start", app=app_name, page=display)
                             result = sweep_page(
                                 page,
                                 web_robot=web_robot,
@@ -3457,6 +5709,11 @@ def sweep_app(
                                 preselect_labels=preselect_labels,
                                 missing_selected_action_policy=missing_selected_action_policy,
                                 action_timeout=action_timeout,
+                                combination_mode=combination_mode,
+                                max_combinations=max_combinations,
+                                max_options_per_widget=max_options_per_widget,
+                                discovery_passes=discovery_passes,
+                                max_action_clicks_per_page=max_action_clicks_per_page,
                                 upload_file=upload_file,
                                 screenshot_dir=screenshot_dir,
                                 page_timeout=page_timeout,
@@ -3464,13 +5721,96 @@ def sweep_app(
                                 runtime_isolation=runtime_isolation,
                                 server_env=seeded_runtime.env,
                                 home_root=seeded_runtime.home_root,
+                                route_query=route_query,
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                                 assert_workflow_artifacts=assert_workflow_artifacts,
+                                assert_analysis_artifacts=assert_analysis_artifacts,
+                                browser_history_check=browser_history_check,
+                                keyboard_focus_check=keyboard_focus_check,
+                                layout_integrity_check=layout_integrity_check,
+                                accessibility_check=accessibility_check,
+                                browser_error_check=browser_error_check,
+                                above_fold_check=above_fold_check,
+                                visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+                                success_screenshot=success_screenshot,
+                                failure_bundle_dir=failure_bundle_dir,
+                                progress_log=progress_log,
+                                command_argv=command_argv,
+                                max_first_render_seconds=max_first_render_seconds,
+                                max_widgets_ready_seconds=max_widgets_ready_seconds,
+                                max_action_settle_seconds=max_action_settle_seconds,
                             )
-                            results.append(result)
-                            _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                            return result
+
+                        if fresh_browser_context_per_page:
+                            for page_name in pages:
+                                display = page_label(page_name)
+                                resumed = _resume_page_if_available(
+                                    app_name=app_name,
+                                    page_name=display,
+                                    resume_page_results=resume_page_results,
+                                    progress=progress,
+                                    on_page_result=on_page_result,
+                                )
+                                if resumed is not None:
+                                    results.append(resumed)
+                                    continue
+                                if progress is not None:
+                                    progress.emit("page_start", app=app_name, page=display)
+                                artifact_label = f"{app_name}-{display}"
+                                context = _new_robot_context(
+                                    browser,
+                                    viewport_width=viewport_width,
+                                    viewport_height=viewport_height,
+                                    artifact_label=artifact_label,
+                                    trace_dir=trace_dir,
+                                    har_dir=har_dir,
+                                    video_dir=video_dir,
+                                )
+                                try:
+                                    page = context.new_page()
+                                    browser_issues = _attach_browser_issue_capture(page)
+                                    result = run_page(page_name, page, browser_issues)
+                                finally:
+                                    _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
+                                assert result is not None
+                                results.append(result)
+                                _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                        else:
+                            artifact_label = f"{app_name}-shared-top-level"
+                            context = _new_robot_context(
+                                browser,
+                                viewport_width=viewport_width,
+                                viewport_height=viewport_height,
+                                artifact_label=artifact_label,
+                                trace_dir=trace_dir,
+                                har_dir=har_dir,
+                                video_dir=video_dir,
+                            )
+                            try:
+                                page = context.new_page()
+                                browser_issues = _attach_browser_issue_capture(page)
+                                for page_name in pages:
+                                    display = page_label(page_name)
+                                    resumed = _resume_page_if_available(
+                                        app_name=app_name,
+                                        page_name=display,
+                                        resume_page_results=resume_page_results,
+                                        progress=progress,
+                                        on_page_result=on_page_result,
+                                    )
+                                    if resumed is not None:
+                                        results.append(resumed)
+                                        continue
+                                    if progress is not None:
+                                        progress.emit("page_start", app=app_name, page=display)
+                                    result = run_page(page_name, page, browser_issues)
+                                    assert result is not None
+                                    results.append(result)
+                                    _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                            finally:
+                                _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                 finally:
-                    context.close()
                     browser.close()
         for route in apps_pages:
             results.append(
@@ -3487,9 +5827,32 @@ def sweep_app(
                     preselect_labels=preselect_labels,
                     missing_selected_action_policy=missing_selected_action_policy,
                     action_timeout=action_timeout,
+                    combination_mode=combination_mode,
+                    max_combinations=max_combinations,
+                    max_options_per_widget=max_options_per_widget,
+                    discovery_passes=discovery_passes,
+                    max_action_clicks_per_page=max_action_clicks_per_page,
                     browser_name=browser_name,
                     headless=headless,
                     screenshot_dir=screenshot_dir,
+                    viewport_width=viewport_width,
+                    viewport_height=viewport_height,
+                    success_screenshot=success_screenshot,
+                    keyboard_focus_check=keyboard_focus_check,
+                    layout_integrity_check=layout_integrity_check,
+                    accessibility_check=accessibility_check,
+                    browser_error_check=browser_error_check,
+                    above_fold_check=above_fold_check,
+                    visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+                    failure_bundle_dir=failure_bundle_dir,
+                    progress_log=progress_log,
+                    trace_dir=trace_dir,
+                    har_dir=har_dir,
+                    video_dir=video_dir,
+                    command_argv=command_argv,
+                    max_first_render_seconds=max_first_render_seconds,
+                    max_widgets_ready_seconds=max_widgets_ready_seconds,
+                    max_action_settle_seconds=max_action_settle_seconds,
                     server_env=seeded_runtime.env,
                     page_timeout=page_timeout,
                     progress=progress,
@@ -3516,9 +5879,35 @@ def sweep_remote_app(
     preselect_labels: Sequence[str] = (),
     missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
+    combination_mode: str = "exhaustive",
+    max_combinations: int = 512,
+    max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
+    route_query: str = "",
+    browser_history_check: bool = False,
+    keyboard_focus_check: bool = False,
+    layout_integrity_check: bool = False,
+    accessibility_check: bool = False,
+    browser_error_check: bool = False,
+    above_fold_check: bool = False,
+    visual_mask_dynamic_regions: bool = False,
+    viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
+    viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
+    fresh_browser_context_per_page: bool = False,
+    success_screenshot: bool = False,
+    failure_bundle_dir: Path | None = None,
+    progress_log: Path | None = None,
+    trace_dir: Path | None = None,
+    har_dir: Path | None = None,
+    video_dir: Path | None = None,
+    command_argv: Sequence[str] | None = None,
+    max_first_render_seconds: float = 0.0,
+    max_widgets_ready_seconds: float = 0.0,
+    max_action_settle_seconds: float = 0.0,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -3551,28 +5940,13 @@ def sweep_remote_app(
     results: list[PageSweep] = []
     with sync_playwright() as playwright:
         browser = getattr(playwright, browser_name).launch(headless=headless)
-        context = browser.new_context(viewport={"width": 1440, "height": 1000})
         try:
-            page = context.new_page()
-            browser_issues = _attach_browser_issue_capture(page)
             with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                 upload_file = Path(tmp_dir) / "upload-fixture.txt"
                 upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
-                for page_name in pages:
-                    display = page_label(page_name)
-                    resumed = _resume_page_if_available(
-                        app_name=app_name,
-                        page_name=display,
-                        resume_page_results=resume_page_results,
-                        progress=progress,
-                        on_page_result=on_page_result,
-                    )
-                    if resumed is not None:
-                        results.append(resumed)
-                        continue
-                    if progress is not None:
-                        progress.emit("page_start", app=app_name, page=display)
-                    result = sweep_page(
+
+                def run_top_level_page(page_name: str, page: Any, browser_issues: list[dict[str, str]]) -> PageSweep:
+                    return sweep_page(
                         page,
                         web_robot=web_robot,
                         base_url=base_url,
@@ -3587,11 +5961,82 @@ def sweep_remote_app(
                         preselect_labels=preselect_labels,
                         missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout=action_timeout,
+                        combination_mode=combination_mode,
+                        max_combinations=max_combinations,
+                        max_options_per_widget=max_options_per_widget,
+                        discovery_passes=discovery_passes,
+                        max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
+                        route_query=route_query,
+                        browser_history_check=browser_history_check,
+                        keyboard_focus_check=keyboard_focus_check,
+                        layout_integrity_check=layout_integrity_check,
+                        accessibility_check=accessibility_check,
+                        browser_error_check=browser_error_check,
+                        above_fold_check=above_fold_check,
+                        visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+                        success_screenshot=success_screenshot,
+                        failure_bundle_dir=failure_bundle_dir,
+                        progress_log=progress_log,
+                        command_argv=command_argv,
+                        max_first_render_seconds=max_first_render_seconds,
+                        max_widgets_ready_seconds=max_widgets_ready_seconds,
+                        max_action_settle_seconds=max_action_settle_seconds,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
+
+                if fresh_browser_context_per_page:
+                    shared_page: Any | None = None
+                    shared_browser_issues: list[dict[str, str]] | None = None
+                else:
+                    shared_artifact_label = f"{app_name}-remote-shared"
+                    context = _new_robot_context(
+                        browser,
+                        viewport_width=viewport_width,
+                        viewport_height=viewport_height,
+                        artifact_label=shared_artifact_label,
+                        trace_dir=trace_dir,
+                        har_dir=har_dir,
+                        video_dir=video_dir,
+                    )
+                    shared_page = context.new_page()
+                    shared_browser_issues = _attach_browser_issue_capture(shared_page)
+                for page_name in pages:
+                    display = page_label(page_name)
+                    resumed = _resume_page_if_available(
+                        app_name=app_name,
+                        page_name=display,
+                        resume_page_results=resume_page_results,
+                        progress=progress,
+                        on_page_result=on_page_result,
+                    )
+                    if resumed is not None:
+                        results.append(resumed)
+                        continue
+                    if progress is not None:
+                        progress.emit("page_start", app=app_name, page=display)
+                    if fresh_browser_context_per_page:
+                        artifact_label = f"{app_name}-{display}"
+                        context = _new_robot_context(
+                            browser,
+                            viewport_width=viewport_width,
+                            viewport_height=viewport_height,
+                            artifact_label=artifact_label,
+                            trace_dir=trace_dir,
+                            har_dir=har_dir,
+                            video_dir=video_dir,
+                        )
+                        try:
+                            page = context.new_page()
+                            browser_issues = _attach_browser_issue_capture(page)
+                            result = run_top_level_page(page_name, page, browser_issues)
+                        finally:
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
+                    else:
+                        assert shared_page is not None and shared_browser_issues is not None
+                        result = run_top_level_page(page_name, shared_page, shared_browser_issues)
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                 for route in apps_pages:
@@ -3608,34 +6053,78 @@ def sweep_remote_app(
                         continue
                     if progress is not None:
                         progress.emit("page_start", app=app_name, page=display)
-                    result = sweep_page(
-                        page,
-                        web_robot=web_robot,
-                        base_url=base_url,
-                        active_app_query=active_app_query,
-                        app_name=app_name,
-                        page_name="ANALYSIS",
-                        display_page=display,
-                        current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
-                        expected_text=(),
-                        check_active_app_route=False,
-                        timeout=timeout,
-                        widget_timeout=widget_timeout,
-                        interaction_mode=interaction_mode,
-                        action_button_policy=action_button_policy,
-                        click_action_labels=click_action_labels,
-                        preselect_labels=preselect_labels,
-                        missing_selected_action_policy=missing_selected_action_policy,
-                        action_timeout=action_timeout,
-                        upload_file=upload_file,
-                        screenshot_dir=screenshot_dir,
-                        page_timeout=page_timeout,
-                        browser_issues=browser_issues,
-                    )
+                    if fresh_browser_context_per_page:
+                        artifact_label = f"{app_name}-{display}"
+                        context = _new_robot_context(
+                            browser,
+                            viewport_width=viewport_width,
+                            viewport_height=viewport_height,
+                            artifact_label=artifact_label,
+                            trace_dir=trace_dir,
+                            har_dir=har_dir,
+                            video_dir=video_dir,
+                        )
+                        try:
+                            page = context.new_page()
+                            browser_issues = _attach_browser_issue_capture(page)
+                        except Exception:
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
+                            raise
+                    else:
+                        assert shared_page is not None and shared_browser_issues is not None
+                        page = shared_page
+                        browser_issues = shared_browser_issues
+                    try:
+                        result = sweep_page(
+                            page,
+                            web_robot=web_robot,
+                            base_url=base_url,
+                            active_app_query=active_app_query,
+                            app_name=app_name,
+                            page_name="ANALYSIS",
+                            display_page=display,
+                            current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
+                            expected_text=(),
+                            check_active_app_route=False,
+                            timeout=timeout,
+                            widget_timeout=widget_timeout,
+                            interaction_mode=interaction_mode,
+                            action_button_policy=action_button_policy,
+                            click_action_labels=click_action_labels,
+                            preselect_labels=preselect_labels,
+                            missing_selected_action_policy=missing_selected_action_policy,
+                            action_timeout=action_timeout,
+                            combination_mode=combination_mode,
+                            max_combinations=max_combinations,
+                            max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
+                            upload_file=upload_file,
+                            screenshot_dir=screenshot_dir,
+                            success_screenshot=success_screenshot,
+                            keyboard_focus_check=keyboard_focus_check,
+                            layout_integrity_check=layout_integrity_check,
+                            accessibility_check=accessibility_check,
+                            browser_error_check=browser_error_check,
+                            above_fold_check=above_fold_check,
+                            visual_mask_dynamic_regions=visual_mask_dynamic_regions,
+                            failure_bundle_dir=failure_bundle_dir,
+                            progress_log=progress_log,
+                            command_argv=command_argv,
+                            max_first_render_seconds=max_first_render_seconds,
+                            max_widgets_ready_seconds=max_widgets_ready_seconds,
+                            max_action_settle_seconds=max_action_settle_seconds,
+                            page_timeout=page_timeout,
+                            browser_issues=browser_issues,
+                        )
+                    finally:
+                        if fresh_browser_context_per_page:
+                            _close_robot_context(context, artifact_label=artifact_label, trace_dir=trace_dir)
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                if not fresh_browser_context_per_page:
+                    _close_robot_context(context, artifact_label=shared_artifact_label, trace_dir=trace_dir)
         finally:
-            context.close()
             browser.close()
     return results
 
@@ -3644,7 +6133,7 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
     total = sum(page.duration_seconds for page in pages)
     failed_count = sum(page.failed_count for page in pages)
     skipped_count = sum(page.skipped_count for page in pages)
-    success = bool(pages) and failed_count == 0 and skipped_count == 0 and all(page.success and page.status == "passed" for page in pages)
+    success = bool(pages) and failed_count == 0 and all(page.failed_count == 0 and page.status != "failed" for page in pages)
     return WidgetSweepSummary(
         success=success,
         total_duration_seconds=total,
@@ -3660,6 +6149,10 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
         skipped_count=skipped_count,
         failed_count=failed_count,
         pages=list(pages),
+        combination_space_count=sum(page.combination_space_count for page in pages),
+        combination_count=sum(page.combination_count for page in pages),
+        combination_failed_count=sum(page.combination_failed_count for page in pages),
+        combination_skipped_count=sum(page.combination_skipped_count for page in pages),
     )
 
 
@@ -3673,11 +6166,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apps-pages", default="configured", help="Apps-pages to test: 'configured' per app, 'all', 'none', or comma-separated names/paths. Default: configured.")
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
     parser.add_argument("--headful", action="store_true")
+    parser.add_argument("--viewport-width", type=int, default=DEFAULT_VIEWPORT_WIDTH, help=f"Browser viewport width in pixels. Default: {DEFAULT_VIEWPORT_WIDTH}.")
+    parser.add_argument("--viewport-height", type=int, default=DEFAULT_VIEWPORT_HEIGHT, help=f"Browser viewport height in pixels. Default: {DEFAULT_VIEWPORT_HEIGHT}.")
+    parser.add_argument("--fresh-browser-context-per-page", action="store_true", help="Open each top-level page in a fresh browser context to catch session/localStorage assumptions.")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
     parser.add_argument("--page-timeout", type=float, default=DEFAULT_PAGE_TIMEOUT_SECONDS, help="Whole-page watchdog timeout in seconds. Use 0 to disable.")
     parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
-    parser.add_argument("--action-button-policy", choices=("trial", "click", "click-selected"), default="trial")
+    parser.add_argument(
+        "--action-button-policy",
+        choices=("trial", "safe-click", "click", "click-selected"),
+        default="safe-click",
+        help=(
+            "Action button behavior: trial probes layout only, safe-click fires guarded read-only/navigation "
+            "callbacks, click fires every visible action callback, and click-selected fires only labels named "
+            "by --click-action-labels."
+        ),
+    )
     parser.add_argument("--click-action-labels", default="", help="Comma-separated action button labels to fire when --action-button-policy=click-selected.")
     parser.add_argument("--preselect-labels", default="", help="Comma-separated compact choice/radio labels to select before action probing, for example 'Run now'.")
     parser.add_argument(
@@ -3709,6 +6214,36 @@ def build_parser() -> argparse.ArgumentParser:
             "when a selected run action is fired, that a workflow run log changed."
         ),
     )
+    parser.add_argument(
+        "--assert-analysis-artifacts",
+        action="store_true",
+        help="For local ANALYSIS sweeps, assert first-proof output/export artifacts exist before probing the page.",
+    )
+    parser.add_argument("--combination-mode", choices=("off", "exhaustive"), default="exhaustive", help="Explore finite checkbox/toggle/radio/selectbox state combinations. Default: exhaustive.")
+    parser.add_argument("--max-combinations", type=int, default=512, help="Maximum widget state combinations to execute per page view before failing the sweep as capped.")
+    parser.add_argument("--max-options-per-widget", type=int, default=8, help="Maximum selectbox options included in combination coverage per widget.")
+    parser.add_argument("--discovery-passes", type=int, default=2, help="Number of repeated widget-discovery passes per page state, used to catch widgets revealed by safe callbacks.")
+    parser.add_argument("--max-action-clicks-per-page", type=int, default=25, help="Maximum real action-button clicks per page sweep. Use 0 to trial-probe all action buttons without firing callbacks.")
+    parser.add_argument("--route-query", default="", help="Extra query string to append to every top-level route, for example 'start=notebook-import'.")
+    parser.add_argument(
+        "--browser-history-check",
+        action="store_true",
+        help="Navigate PROJECT -> ORCHESTRATE -> ANALYSIS, then browser back/forward, and assert page health plus active_app routing.",
+    )
+    parser.add_argument("--keyboard-focus-check", action="store_true", help="Tab through visible controls and fail on focus traps or off-screen focus targets.")
+    parser.add_argument("--layout-integrity-check", action="store_true", help="Fail on obvious visible control overflow, zero-size controls, and major control overlaps.")
+    parser.add_argument("--accessibility-check", action="store_true", help="Fail on missing accessible names, broken ARIA references, heading jumps, missing landmarks, or severe contrast risks.")
+    parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
+    parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
+    parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
+    parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
+    parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
+    parser.add_argument("--trace-dir", help="Optional directory for Playwright trace ZIP files, named by app/page context.")
+    parser.add_argument("--har-dir", help="Optional directory for Playwright HAR files, named by app/page context.")
+    parser.add_argument("--video-dir", help="Optional directory for Playwright video recordings, grouped by app/page context.")
+    parser.add_argument("--max-first-render-seconds", type=float, default=0.0, help="Fail a page when initial health/render exceeds this budget. Use 0 to disable.")
+    parser.add_argument("--max-widgets-ready-seconds", type=float, default=0.0, help="Fail a page when widget readiness after render exceeds this budget. Use 0 to disable.")
+    parser.add_argument("--max-action-settle-seconds", type=float, default=0.0, help="Fail a clicked action when its UI settle time exceeds this budget. Use 0 to disable.")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -3726,9 +6261,16 @@ def render_human(summary: WidgetSweepSummary) -> str:
         f"verdict: {'PASS' if summary.success else 'FAIL'}",
         f"kpi: total={summary.total_duration_seconds:.2f}s target<={summary.target_seconds:.2f}s within_target={'yes' if summary.within_target else 'no'}",
         f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} main={summary.main_widget_count} sidebar={summary.sidebar_widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
+        f"combinations: space={summary.combination_space_count} executed={summary.combination_count} failed={summary.combination_failed_count} skipped={summary.combination_skipped_count}",
     ]
     for page in summary.pages:
-        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} status={page.status} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
+        lines.append(
+            f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} status={page.status} "
+            f"widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} "
+            f"interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} "
+            f"failed={page.failed_count} combinations={page.combination_count}/{page.combination_space_count} "
+            f"combo_failed={page.combination_failed_count} combo_skipped={page.combination_skipped_count}"
+        )
         for failure in page.failures[:3]:
             lines.append(f"  failure: {failure.kind} {failure.label!r} - {failure.detail}")
         for skip in page.skips[:3]:
@@ -3738,27 +6280,45 @@ def render_human(summary: WidgetSweepSummary) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    raw_argv = list(argv) if argv is not None else None
+    args = parser.parse_args(raw_argv)
+    command_argv = [sys.argv[0], *(raw_argv if raw_argv is not None else sys.argv[1:])]
     if args.timeout <= 0:
         parser.error("--timeout must be greater than 0")
     if args.widget_timeout <= 0:
         parser.error("--widget-timeout must be greater than 0")
     if args.page_timeout < 0:
         parser.error("--page-timeout must be greater than or equal to 0")
+    if args.viewport_width <= 0 or args.viewport_height <= 0:
+        parser.error("--viewport-width and --viewport-height must be greater than 0")
     if args.action_timeout <= 0:
         parser.error("--action-timeout must be greater than 0")
+    if args.max_first_render_seconds < 0 or args.max_widgets_ready_seconds < 0 or args.max_action_settle_seconds < 0:
+        parser.error("--max-* budget options must be greater than or equal to 0")
+    if args.max_combinations <= 0:
+        parser.error("--max-combinations must be greater than 0")
+    if args.max_options_per_widget <= 0:
+        parser.error("--max-options-per-widget must be greater than 0")
     if args.interaction_mode == "actionability" and args.action_button_policy != "trial":
-        parser.error("--action-button-policy click/click-selected only applies with --interaction-mode full")
+        parser.error("--action-button-policy safe-click/click/click-selected only applies with --interaction-mode full")
     click_action_labels = parse_csv(args.click_action_labels)
     preselect_labels = parse_csv(args.preselect_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
-    if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts):
+    if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts or args.assert_analysis_artifacts):
         parser.error("--assert-*artifacts options require a local robot-launched Streamlit server")
+    if args.discovery_passes <= 0:
+        parser.error("--discovery-passes must be greater than 0")
+    if args.max_action_clicks_per_page < 0:
+        parser.error("--max-action-clicks-per-page must be greater than or equal to 0")
     apps = resolve_apps(args.apps)
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
     screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
+    failure_bundle_dir = Path(args.failure_bundle_dir).expanduser().resolve() if args.failure_bundle_dir else None
+    trace_dir = Path(args.trace_dir).expanduser().resolve() if args.trace_dir else None
+    har_dir = Path(args.har_dir).expanduser().resolve() if args.har_dir else None
+    video_dir = Path(args.video_dir).expanduser().resolve() if args.video_dir else None
     progress_log = Path(args.progress_log).expanduser().resolve() if args.progress_log else None
     resume_progress_log = Path(args.resume_from_progress).expanduser().resolve() if args.resume_from_progress else None
     json_output = Path(args.json_output).expanduser().resolve() if args.json_output else None
@@ -3792,9 +6352,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 preselect_labels=preselect_labels,
                 missing_selected_action_policy=args.missing_selected_action_policy,
                 action_timeout=args.action_timeout,
+                combination_mode=args.combination_mode,
+                max_combinations=args.max_combinations,
+                max_options_per_widget=args.max_options_per_widget,
+                discovery_passes=args.discovery_passes,
+                max_action_clicks_per_page=args.max_action_clicks_per_page,
                 browser_name=args.browser,
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
+                route_query=args.route_query,
+                browser_history_check=args.browser_history_check,
+                keyboard_focus_check=args.keyboard_focus_check,
+                layout_integrity_check=args.layout_integrity_check,
+                accessibility_check=args.accessibility_check,
+                browser_error_check=args.browser_error_check,
+                above_fold_check=args.above_fold_check,
+                visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
+                viewport_width=args.viewport_width,
+                viewport_height=args.viewport_height,
+                fresh_browser_context_per_page=args.fresh_browser_context_per_page,
+                success_screenshot=args.success_screenshot,
+                failure_bundle_dir=failure_bundle_dir,
+                progress_log=progress_log,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
+                command_argv=command_argv,
+                max_first_render_seconds=args.max_first_render_seconds,
+                max_widgets_ready_seconds=args.max_widgets_ready_seconds,
+                max_action_settle_seconds=args.max_action_settle_seconds,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
@@ -3813,6 +6399,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 preselect_labels=preselect_labels,
                 missing_selected_action_policy=args.missing_selected_action_policy,
                 action_timeout=args.action_timeout,
+                combination_mode=args.combination_mode,
+                max_combinations=args.max_combinations,
+                max_options_per_widget=args.max_options_per_widget,
+                discovery_passes=args.discovery_passes,
+                max_action_clicks_per_page=args.max_action_clicks_per_page,
                 browser_name=args.browser,
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
@@ -3820,6 +6411,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_isolation=args.runtime_isolation,
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
+                assert_analysis_artifacts=args.assert_analysis_artifacts,
+                browser_history_check=args.browser_history_check,
+                keyboard_focus_check=args.keyboard_focus_check,
+                layout_integrity_check=args.layout_integrity_check,
+                accessibility_check=args.accessibility_check,
+                browser_error_check=args.browser_error_check,
+                above_fold_check=args.above_fold_check,
+                visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
+                viewport_width=args.viewport_width,
+                viewport_height=args.viewport_height,
+                fresh_browser_context_per_page=args.fresh_browser_context_per_page,
+                success_screenshot=args.success_screenshot,
+                failure_bundle_dir=failure_bundle_dir,
+                progress_log=progress_log,
+                trace_dir=trace_dir,
+                har_dir=har_dir,
+                video_dir=video_dir,
+                command_argv=command_argv,
+                max_first_render_seconds=args.max_first_render_seconds,
+                max_widgets_ready_seconds=args.max_widgets_ready_seconds,
+                max_action_settle_seconds=args.max_action_settle_seconds,
+                route_query=args.route_query,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,

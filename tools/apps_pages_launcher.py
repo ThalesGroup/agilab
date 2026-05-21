@@ -6,10 +6,10 @@ Pick an apps-page to launch and we’ll start Streamlit for you.
 
 Usage examples:
   uv run python tools/apps_pages_launcher.py \
-      --active-app src/agilab/apps/builtin/flight_project \
+      --active-app src/agilab/apps/builtin/flight_telemetry_project \
       --page view_maps
 
-  uv run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_project
+  uv run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_telemetry_project
   (then pick from the menu)
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ PAGES: Dict[str, str] = {
     "view_maps_network": "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py",
     "view_barycentric": "src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py",
     "view_autoencoder_latentspace": (
-        "src/agilab/apps-pages/view_autoencoder_latenspace/src/"
+        "src/agilab/apps-pages/view_autoencoder_latentspace/src/"
         "view_autoencoder_latentspace/view_autoencoder_latentspace.py"
     ),
 }
@@ -86,8 +86,8 @@ def main() -> int:
         "--active-app",
         dest="active_app",
         type=str,
-        default="src/agilab/apps/builtin/flight_project",
-        help="Path to an active app (e.g. src/agilab/apps/builtin/flight_project)",
+        default="src/agilab/apps/builtin/flight_telemetry_project",
+        help="Path to an active app (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
     )
     parser.add_argument(
         "--page",

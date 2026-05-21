@@ -25,7 +25,7 @@ AGILAB workflow:
 - conceptual pipeline view in `migrated_project/pipeline_view.dot`
 - stable exported artifacts under `analysis_artifacts/`
 - reusable `ANALYSIS` page through `view_forecast_analysis`
-- and now a real runnable builtin app in `src/agilab/apps/builtin/meteo_forecast_project`
+- and now a real runnable builtin app in `src/agilab/apps/builtin/weather_forecast_project`
 
 ## Files
 
@@ -52,7 +52,7 @@ The migration story now exists in three layers:
 
 1. notebook source under `notebooks/`
 2. conceptual AGILAB skeleton under `migrated_project/`
-3. real builtin app under `src/agilab/apps/builtin/meteo_forecast_project`
+3. real builtin app under `src/agilab/apps/builtin/weather_forecast_project`
 
 That third layer is the important proof point: the notebook example does not
 stop at documentation. It now runs as an AGILAB project with `PROJECT`,

@@ -154,9 +154,10 @@ def test_connector_registry_handles_missing_unportable_and_broken_paths(
     def broken_relative_check(self: Path, other: Path) -> bool:
         raise RuntimeError("simulated relative-path failure")
 
-    monkeypatch.setattr(Path, "is_relative_to", broken_relative_check)
-    outside = tmp_path / "outside" / "artifact.csv"
-    assert registry.portable_label(outside) == str(outside)
+    with monkeypatch.context() as context:
+        context.setattr(Path, "is_relative_to", broken_relative_check)
+        outside = tmp_path / "outside" / "artifact.csv"
+        assert registry.portable_label(outside) == str(outside)
 
     class BrokenPath:
         def exists(self) -> bool:

@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.09"
+version = "2026.05.20"
 name = "agilab"
 description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
 requires-python = ">=3.11"
@@ -24,6 +24,8 @@ classifiers = [
 ]
 keywords = [
     "python",
+    "ai",
+    "ai-engineering",
     "machine-learning",
     "ai-experimentation",
     "reproducibility",
@@ -45,7 +47,7 @@ keywords = [
     "codex",
     "claude",
 ]
-dependencies = ["agi-core==2026.05.09", "legacy-cgi>=2.6.4; python_version >= '3.13'", "standard-imghdr>=3.13.0; python_version >= '3.13'"]
+dependencies = ["agi-core==2026.05.20", "legacy-cgi>=2.6.4; python_version >= '3.13'", "standard-imghdr>=3.13.0; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -60,11 +62,33 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 ai = ["openai>=2.32.0"]
-ui = ["agi-gui==2026.05.09", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
+ui = ["agi-apps==2026.05.20", "agi-pages==2026.05.20", "agi-gui==2026.05.20", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56,<1.57", "tomli_w>=1.2.0"]
 viz = ["matplotlib>=3.10.0", "plotly>=6.7.0"]
 mlflow = ["mlflow>=3.11.1"]
-local-llm = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
-offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+examples = ["agi-apps==2026.05.20", "jupyterlab>=4.4.0", "matplotlib>=3.10.0", "plotly>=6.7.0"]
+pages = ["agi-pages==2026.05.20"]
+agents = ["openai>=2.32.0"]
+local-llm = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "langchain-core>=1.3.3; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "langchain-core>=1.3.3; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+dev = ["build>=1.3.0", "cyclonedx-bom>=7.2.1", "pip-audit>=2.9.0", "pytest>=9.0.0", "pytest-asyncio>=1.3.0", "pytest-cov>=7.0.0", "tomlkit>=0.13.0", "twine>=6.2.0", "wheel>=0.45.0"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -278,6 +302,110 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-gui"
     editable = true
 
+[tool.uv.sources.agi-page-simplex-map]
+    path = "./src/agilab/apps-pages/view_barycentric"
+    editable = true
+
+[tool.uv.sources.agi-page-decision-evidence]
+    path = "./src/agilab/apps-pages/view_data_io_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-timeseries-forecast]
+    path = "./src/agilab/apps-pages/view_forecast_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-inference-report]
+    path = "./src/agilab/apps-pages/view_inference_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-map]
+    path = "./src/agilab/apps-pages/view_maps"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-3d]
+    path = "./src/agilab/apps-pages/view_maps_3d"
+    editable = true
+
+[tool.uv.sources.agi-page-network-map]
+    path = "./src/agilab/apps-pages/view_maps_network"
+    editable = true
+
+[tool.uv.sources.agi-page-queue-health]
+    path = "./src/agilab/apps-pages/view_queue_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-relay-health]
+    path = "./src/agilab/apps-pages/view_relay_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-scenario-cockpit]
+    path = "./src/agilab/apps-pages/view_scenario_cockpit"
+    editable = true
+
+[tool.uv.sources.agi-page-promotion-gate]
+    path = "./src/agilab/apps-pages/view_release_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-feature-attribution]
+    path = "./src/agilab/apps-pages/view_shap_explanation"
+    editable = true
+
+[tool.uv.sources.agi-page-app-ui]
+    path = "./src/agilab/apps-pages/view_app_ui"
+    editable = true
+
+[tool.uv.sources.agi-page-training-report]
+    path = "./src/agilab/apps-pages/view_training_analysis"
+    editable = true
+
+[tool.uv.sources.agi-apps]
+    path = "./src/agilab/lib/agi-apps"
+    editable = true
+
+[tool.uv.sources.agi-app-mission-decision]
+    path = "./src/agilab/lib/agi-app-mission-decision"
+    editable = true
+
+[tool.uv.sources.agi-app-pandas-execution]
+    path = "./src/agilab/lib/agi-app-pandas-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-polars-execution]
+    path = "./src/agilab/lib/agi-app-polars-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-flight-telemetry]
+    path = "./src/agilab/lib/agi-app-flight-telemetry"
+    editable = true
+
+[tool.uv.sources.agi-app-global-dag]
+    path = "./src/agilab/lib/agi-app-global-dag"
+    editable = true
+
+[tool.uv.sources.agi-app-weather-forecast]
+    path = "./src/agilab/lib/agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-pytorch-playground]
+    path = "./src/agilab/lib/agi-app-pytorch-playground"
+    editable = true
+
+[tool.uv.sources.agi-app-tescia-diagnostic-project]
+    path = "./src/agilab/lib/agi-app-tescia-diagnostic-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-queue-project]
+    path = "./src/agilab/lib/agi-app-uav-queue-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-relay-queue]
+    path = "./src/agilab/lib/agi-app-uav-relay-queue"
+    editable = true
+
+[tool.uv.sources.agi-pages]
+    path = "./src/agilab/lib/agi-pages"
+    editable = true
+
 [tool.uv.sources.agi-node]
     path = "./src/agilab/core/agi-node"
     editable = true
@@ -314,51 +442,9 @@ exclude = [
 [tool.setuptools.package-data]
 agilab = [
     "resources/*.*",
+    "resources/notebook_import_samples/*.ipynb",
     "resources/help/*",
-    "examples/README.md",
-    "examples/*/README.md",
-    "examples/*/AGI_*.py",
-    "examples/inter_project_dag/*.py",
-    "examples/mlflow_auto_tracking/*.py",
-    "examples/notebook_to_dask/*.py",
-    "examples/notebook_to_dask/*.json",
-    "examples/notebook_to_dask/*.toml",
-    "examples/notebook_to_dask/*.ipynb",
-    "examples/notebook_quickstart/*.ipynb",
-    "examples/notebook_migrations/*/README.md",
-    "examples/notebook_migrations/*/analysis_artifacts/*.csv",
-    "examples/notebook_migrations/*/analysis_artifacts/*.json",
-    "examples/notebook_migrations/*/data/*.csv",
-    "examples/notebook_migrations/*/migrated_project/*.dot",
-    "examples/notebook_migrations/*/migrated_project/*.toml",
-    "examples/notebook_migrations/*/notebooks/*.ipynb",
-    "examples/resilience_failure_injection/*.py",
-    "examples/service_mode/*.py",
-    "examples/train_then_serve/*.py",
     "pages/*.py",
-    "apps/install.py",
-    "apps/builtin/*/pyproject.toml",
-    "apps/builtin/*/README.md",
-    "apps/builtin/*/lab_stages.toml",
-    "apps/builtin/*/dag_templates/*.json",
-    "apps/builtin/*/scenario_templates/*.json",
-    "apps/builtin/*/service_templates/*.json",
-    "apps/builtin/*/tracking_templates/*.json",
-    "apps/builtin/*/pipeline_view.dot",
-    "apps/builtin/*/notebook_export.toml",
-    "apps/builtin/*/notebook_import_views.toml",
-    "apps/builtin/*/src/**/*.py",
-    "apps/builtin/*/src/**/*.pyx",
-    "apps/builtin/*/src/**/*.toml",
-    "apps/builtin/*/src/*.json",
-    "apps/builtin/*/src/**/*.csv",
-    "apps/builtin/*/src/**/*.dot",
-    "apps/builtin/*/src/*/*.7z",
-    "apps/builtin/*/src/*/sample_data/*.json",
-    "apps-pages/README.md",
-    "apps-pages/*/pyproject.toml",
-    "apps-pages/*/*.py",
-    "apps-pages/*/src/*/*.py",
     "*.toml",
     "*.ipynb",
 ]
@@ -367,16 +453,6 @@ agilab = [
 agilab = [
     # Keep internal tests out of the distribution.
     "test/*",
-    # Drop local build artifacts from packaged built-in apps.
-    "apps/builtin/*/src/__pycache__/*",
-    "apps/builtin/*/src/*/__pycache__/*",
-    "apps/builtin/*/src/*/*/__pycache__/*",
-    "apps/builtin/*/src/*.pyc",
-    "apps/builtin/*/src/*/*.pyc",
-    "apps/builtin/*/src/*/*/*.pyc",
-    "apps/builtin/*/src/*.egg-info/*",
-    "apps/builtin/*/src/*/*.egg-info/*",
-    "apps/builtin/*/src/*/*.c",
 ]
 
 [tool.mypy]
@@ -412,6 +488,7 @@ pythonpath = [
 asyncio_mode = "auto"
 markers = [
   "integration: live/external integration checks (excluded from default CI suite)",
+  "release_proof: expensive release-proof gates that run only during release validation",
   "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
 ]
 # addopts = "--import-mode=importlib"   # if you had it

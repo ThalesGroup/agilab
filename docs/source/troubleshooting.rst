@@ -53,15 +53,17 @@ C - Exemple of Tests Sequence:
 
 - ** zip-all gen**
 
-  TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
+  Generate a zip archive of the whole AGILab project directory using
+  .gitignore-style filtering. The command writes ``agi.zip`` at the project
+  root.
 
 - ** test-agi-env test**
 
-  This will lunch unitary test for agi_env components and display their pytest results
+  Run the unit tests for ``agi_env`` and display their pytest output.
 
 - ** core test**
 
-  This will lunch all the unitary tests for agi_core components and display their pytest results
+  Run all unit tests for ``agi_core`` and display their pytest output.
 
 - ** app_script gen**
 
@@ -270,7 +272,7 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 ------------------------
 
 while running uv into a project from another one:
-warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/builtin/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
 This is an informational ``uv`` warning, but AGILAB-managed PyCharm configs and run
 wrappers clear ``VIRTUAL_ENV`` before invoking ``uv`` so normal launches should not print
 it. If it appears, you are probably running ``uv`` directly from an activated shell. Use

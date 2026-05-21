@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/data_connector_facility_report.py").resolve()
 CORE_PATH = Path("src/agilab/data_connector_facility.py").resolve()
@@ -152,6 +154,47 @@ def test_data_connector_facility_accepts_aws_azure_and_gcp_object_storage(tmp_pa
     assert any(connector.get("account") == "agilabstorage" for connector in object_rows)
 
 
+def test_data_connector_facility_accepts_secret_uri_auth_refs(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_secret_uri_test_module")
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env://OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "secret://agilab/aws_profile",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "validated"
+    assert state["summary"]["raw_secret_count"] == 0
+
+
 def test_data_connector_facility_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
     core_module = _load_module(CORE_PATH, "data_connector_facility_search_test_module")
     catalog = {
@@ -270,3 +313,117 @@ def test_data_connector_facility_rejects_unknown_search_provider(tmp_path: Path)
         and "unsupported opensearch provider" in issue["message"]
         for issue in state["issues"]
     )
+
+
+def test_data_connector_facility_rejects_non_list_connector_rows(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_rows_test_module")
+
+    with pytest.raises(ValueError, match=r"\[\[connectors\]\]"):
+        core_module.build_data_connector_facility(
+            {"connectors": "not-a-list"},
+            source_path=tmp_path / "connectors.toml",
+        )
+
+
+def test_data_connector_facility_defensive_catalog_and_secret_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_helpers_test_module")
+    catalog_path = tmp_path / "connectors.toml"
+    catalog_path.write_text("connectors = []\n", encoding="utf-8")
+    monkeypatch.setattr(core_module.tomllib, "loads", lambda _text: ["not", "a", "table"])
+
+    with pytest.raises(ValueError, match="TOML table"):
+        core_module.load_connector_catalog(catalog_path)
+
+    assert core_module._has_raw_secret(None) is False
+    assert core_module._has_raw_secret("env:RAW_SECRET") is False
+    assert core_module._has_raw_secret("token=plaintext") is True
+
+
+def test_data_connector_facility_reports_required_field_auth_and_duplicate_errors(
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_edge_test_module")
+    catalog = {
+        "connectors": [
+            {"kind": "unknown"},
+            {
+                "id": "remote",
+                "kind": "opensearch",
+                "index": "logs-*",
+                "auth_ref": "plain-token",
+            },
+            {
+                "id": "remote",
+                "kind": "object_storage",
+                "label": "Remote duplicate",
+                "provider": "s3",
+                "bucket": "bucket",
+                "prefix": "runs/",
+                "auth_ref": "env:AWS_PROFILE",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    messages = {(issue["location"], issue["message"]) for issue in state["issues"]}
+    assert ("connector[0]", "unsupported connector kind: unknown") in messages
+    assert ("remote", "missing required field: label") in messages
+    assert ("remote", "missing required field: url or cluster_uri") in messages
+    assert (
+        "remote",
+        "remote connector auth_ref must use env:, env://, secret://, or vault://",
+    ) in messages
+    assert ("remote", "duplicate connector id") in messages
+
+
+def test_data_connector_facility_persist_accepts_relative_catalog_path(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_persist_test_module")
+    repo_root = tmp_path / "repo"
+    catalog_path = repo_root / "config" / "connectors.toml"
+    catalog_path.parent.mkdir(parents=True)
+    catalog_path.write_text(
+        """
+[[connectors]]
+id = "warehouse_sql"
+kind = "sql"
+label = "Warehouse SQL"
+uri = "sqlite:///warehouse.db"
+driver = "sqlite"
+query_mode = "read_only"
+
+[[connectors]]
+id = "ops_opensearch"
+kind = "opensearch"
+label = "Operations OpenSearch"
+url = "https://opensearch.example.invalid"
+index = "agilab-runs-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "artifact_object_store"
+kind = "object_storage"
+label = "Artifact Object Store"
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "experiments/"
+auth_ref = "env:AWS_PROFILE"
+""",
+        encoding="utf-8",
+    )
+
+    proof = core_module.persist_data_connector_facility(
+        repo_root=repo_root,
+        output_path=tmp_path / "facility.json",
+        catalog_path=Path("config/connectors.toml"),
+    )
+
+    assert proof["ok"] is True
+    assert proof["catalog_path"] == str(catalog_path)

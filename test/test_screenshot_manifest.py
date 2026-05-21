@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -21,9 +22,12 @@ from agilab.screenshot_manifest import (
     build_screenshot_record,
     image_dimensions,
     build_page_shots_manifest,
+    infer_page_id,
     load_screenshot_manifest,
+    sha256_file,
     screenshot_manifest_path,
     try_load_screenshot_manifest,
+    utc_now,
     write_screenshot_manifest,
 )
 
@@ -108,6 +112,44 @@ def test_screenshot_manifest_records_jpeg_and_external_paths(tmp_path: Path) -> 
     assert external_record.alt == "analysis page"
     assert external_record.url.endswith("/ANALYSIS")
     assert no_root_record.image_path == str(image)
+
+
+def test_screenshot_manifest_helpers_hash_and_infer_page_ids(tmp_path: Path) -> None:
+    payload = b"agilab screenshot evidence" * 32
+    artifact = tmp_path / "analysis-shot.png"
+    artifact.write_bytes(payload)
+
+    assert sha256_file(artifact) == hashlib.sha256(payload).hexdigest()
+    assert infer_page_id(Path("project-page.png")) == "project"
+    assert infer_page_id(Path("analysis-shot.png")) == "analysis-shot"
+
+
+def test_screenshot_manifest_utc_now_uses_stable_utc_suffix() -> None:
+    timestamp = utc_now()
+
+    assert timestamp.endswith("Z")
+    assert "+00:00" not in timestamp
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"\xff\xd8",
+        b"\xff\xd8\x00",
+        b"\xff\xd8\xff\xff\xc0",
+        b"\xff\xd8\xff\xe0\x00",
+        b"\xff\xd8\xff\xe0\x00\x01",
+        b"not-an-image",
+    ],
+)
+def test_screenshot_manifest_image_dimensions_handles_truncated_or_unknown_images(
+    tmp_path: Path,
+    payload: bytes,
+) -> None:
+    image = tmp_path / "broken-image.bin"
+    image.write_bytes(payload)
+
+    assert image_dimensions(image) == (None, None)
 
 
 def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> None:

@@ -1,0 +1,169 @@
+[project]
+version = "2026.05.20"
+name = "agi-apps"
+description = "AGILAB public app package umbrella and example assets"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "agilab",
+    "examples",
+    "apps",
+    "reproducibility",
+    "workflow-orchestration",
+]
+
+dependencies = ["agi-core==2026.05.20", "agi-app-mission-decision==2026.05.20", "agi-app-pandas-execution==2026.05.20", "agi-app-polars-execution==2026.05.20", "agi-app-flight-telemetry==2026.05.20", "agi-app-global-dag==2026.05.20", "agi-app-weather-forecast==2026.05.20", "agi-app-pytorch-playground==2026.05.20; python_version >= '3.12'", "agi-app-tescia-diagnostic-project==2026.05.20; python_version >= '3.13'", "agi-app-uav-relay-queue==2026.05.20; python_version >= '3.13'"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-apps"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv.sources.agi-core]
+    path = "../../core/agi-core"
+    editable = true
+
+[tool.uv.sources.agi-app-mission-decision]
+    path = "../agi-app-mission-decision"
+    editable = true
+
+[tool.uv.sources.agi-app-pandas-execution]
+    path = "../agi-app-pandas-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-polars-execution]
+    path = "../agi-app-polars-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-flight-telemetry]
+    path = "../agi-app-flight-telemetry"
+    editable = true
+
+[tool.uv.sources.agi-app-global-dag]
+    path = "../agi-app-global-dag"
+    editable = true
+
+[tool.uv.sources.agi-app-weather-forecast]
+    path = "../agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-pytorch-playground]
+    path = "../agi-app-pytorch-playground"
+    editable = true
+
+[tool.uv.sources.agi-app-tescia-diagnostic-project]
+    path = "../agi-app-tescia-diagnostic-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-queue-project]
+    path = "../agi-app-uav-queue-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-relay-queue]
+    path = "../agi-app-uav-relay-queue"
+    editable = true
+
+[build-system]
+requires = ["setuptools>=82.0.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+package-dir = {"" = "src"}
+packages = [
+    "agi_apps",
+    "agilab.apps",
+    "agilab.examples",
+]
+
+[tool.setuptools.package-data]
+"agi_apps" = [
+    "catalog.json",
+]
+"agilab.apps" = [
+    "README.md",
+    "install.py",
+    "builtin/mycode_project/**/*",
+]
+"agilab.examples" = [
+    "README.md",
+    "*/README.md",
+    "*/AGI_*.py",
+    "inter_project_dag/*.py",
+    "mlflow_auto_tracking/*.py",
+    "notebook_to_dask/*.py",
+    "notebook_to_dask/*.json",
+    "notebook_to_dask/*.toml",
+    "notebook_to_dask/*.ipynb",
+    "notebook_quickstart/*.ipynb",
+    "notebook_migrations/*/README.md",
+    "notebook_migrations/*/analysis_artifacts/*.csv",
+    "notebook_migrations/*/analysis_artifacts/*.json",
+    "notebook_migrations/*/data/*.csv",
+    "notebook_migrations/*/migrated_project/*.dot",
+    "notebook_migrations/*/migrated_project/*.toml",
+    "notebook_migrations/*/notebooks/*.ipynb",
+    "resilience_failure_injection/*.py",
+    "service_mode/*.py",
+    "train_then_serve/*.py",
+]
+
+[tool.setuptools.exclude-package-data]
+"agilab.apps" = [
+    "templates/**",
+    "builtin/**/.venv/**",
+    "builtin/**/__pycache__/**",
+    "builtin/**/*.egg-info/**",
+    "builtin/**/*.pyc",
+    "builtin/**/*.pyo",
+    "builtin/**/*.pyx",
+    "builtin/**/*.c",
+    "builtin/**/uv.lock",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+]
+"agilab.examples" = [
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

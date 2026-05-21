@@ -1,4 +1,4 @@
-# UAV Relay Queue Project
+# UAV Queue Project
 
 `uav_queue_project` is the AGILAB install id for this built-in lightweight UAV
 relay queue example.
@@ -31,10 +31,11 @@ Default flow:
 1. Select `uav_queue_project` in `PROJECT`.
 2. Review paths and routing parameters in the app args form.
 3. Run the app from `ORCHESTRATE`.
-4. Open `view_uav_queue_analysis` from `ANALYSIS`.
-5. Open `view_maps_network` from `ANALYSIS` to reuse the same run as a generic
+4. Open `view_scenario_cockpit` from `ANALYSIS`.
+5. Open `view_queue_resilience` from `ANALYSIS` for queue health evidence.
+6. Open `view_maps_network` from `ANALYSIS` to reuse the same run as a generic
    topology/trajectory/allocation map.
-6. Re-run with `routing_policy = "queue_aware"` to compare against the default
+7. Re-run with `routing_policy = "queue_aware"` to compare against the default
    queue hotspot created by `shortest_path`.
 
 The seeded scenario is not meant to be a full UAV research benchmark. It is a

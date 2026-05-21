@@ -165,6 +165,89 @@ def test_data_connector_runtime_adapters_accepts_aws_s3_alias(tmp_path: Path) ->
     assert adapter["credential_env_name"] == "AWS_PROFILE"
 
 
+def test_data_connector_runtime_adapters_accept_secret_uri_auth_refs(tmp_path: Path) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_secret_uri_test_module",
+    )
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env://OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "secret://agilab/aws_profile",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_runtime_adapters(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "ready_for_runtime_binding"
+    adapters = {row["connector_id"]: row for row in state["adapters"]}
+    assert adapters["ops_opensearch"]["credential_env_name"] == "OPENSEARCH_TOKEN"
+    assert adapters["artifact_object_store"]["credential_env_name"] == ""
+    assert adapters["artifact_object_store"]["credential_resolution"] == "deferred_to_operator_runtime"
+
+
+def test_data_connector_runtime_adapters_core_covers_unsupported_and_relative_catalog_edges(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_core_edges_test_module",
+    )
+
+    assert core_module._connector_target({"kind": "custom"}) == ""
+    assert core_module._sql_dependency({"driver": "mysql"}) == "package:pymysql"
+    assert core_module._sql_dependency({}) == "driver:unspecified"
+    unsupported = core_module._adapter_row({"id": "custom", "kind": "custom"})
+    assert unsupported["adapter_class"] == "UnsupportedRuntimeAdapter"
+    assert unsupported["runtime_dependency"] == "unsupported"
+
+    monkeypatch.setattr(core_module, "load_connector_catalog", lambda _path: {"connectors": []})
+    monkeypatch.setattr(
+        core_module,
+        "build_data_connector_runtime_adapters",
+        lambda catalog, *, source_path: {
+            "run_status": "ready_for_runtime_binding",
+            "source_path": str(source_path),
+        },
+    )
+
+    result = core_module.persist_data_connector_runtime_adapters(
+        repo_root=tmp_path,
+        output_path=tmp_path / "runtime_adapters.json",
+        catalog_path=Path("connectors.toml"),
+    )
+
+    assert result["ok"] is True
+    assert result["catalog_path"] == str(tmp_path / "connectors.toml")
+
+
 def test_data_connector_runtime_adapters_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
     core_module = _load_module(
         CORE_PATH,

@@ -11,14 +11,14 @@ BUILTIN_APPS_ENV="${BUILTIN_APPS:-}"
 unset BUILTIN_APPS
 declare -a BUILTIN_APPS=(
   mycode_project
-  flight_project
+  flight_telemetry_project
   uav_relay_queue_project
 )
 declare -a REPOSITORY_APPS=()
 declare -a INVALID_REPOSITORY_APPS=()
 
 declare -a DEFAULT_APPS_ORDER=(
-  flight_project
+  flight_telemetry_project
   flight_trajectory_project
   flowsynth_project
   ilp_project
@@ -33,7 +33,7 @@ declare -a DEFAULT_APPS_ORDER=(
 )
 
 declare -a DEFAULT_SELECTED_APPS=(
-  flight_project
+  flight_telemetry_project
   mycode_project
   sat_trajectory_project
   flight_trajectory_project
@@ -75,8 +75,25 @@ START_TIME=$(date +%s)
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
+configure_uv_link_mode() {
+  local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
+  case "$requested" in
+    clone|copy|hardlink|symlink) ;;
+    *)
+      echo -e "${RED}Invalid uv link mode '${requested}'. Expected one of: clone, copy, hardlink, symlink.${NC}"
+      exit 1
+      ;;
+  esac
+  export UV_LINK_MODE="$requested"
+  echo -e "${BLUE}uv link mode: ${UV_LINK_MODE}${NC}"
+}
+
+configure_uv_link_mode
+
 DO_TEST_APPS=0
 LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"
+REFRESH_WORKER_ENVS="${AGILAB_REFRESH_WORKER_ENVS:-0}"
+export AGILAB_SHARED_WORKER_VENV="${AGILAB_SHARED_WORKER_VENV:-1}"
 
 BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
 BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
@@ -280,6 +297,18 @@ app_dir_on_disk() {
   fi
 }
 
+app_declares_workerless() {
+  local app_dir="$1"
+  local pyproject="$app_dir/pyproject.toml"
+  [[ -f "$pyproject" ]] || return 1
+  awk '
+    /^[[:space:]]*\[tool\.agilab\.app\][[:space:]]*$/ { in_section = 1; next }
+    /^[[:space:]]*\[/ { in_section = 0 }
+    in_section && /^[[:space:]]*workerless[[:space:]]*=[[:space:]]*true[[:space:]]*(#.*)?$/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$pyproject"
+}
+
 app_has_required_sources() {
   local app_dir="$1"
   local app_name manager_name
@@ -292,7 +321,78 @@ app_has_required_sources() {
   manager="$app_dir/src/$manager_name/$manager_name.py"
   worker="$app_dir/src/${manager_name}_worker/${manager_name}_worker.py"
 
-  [[ -f "$pyproject" && -f "$manager" && -f "$worker" ]]
+  [[ -f "$pyproject" && -f "$manager" ]] || return 1
+  [[ -f "$worker" ]] || app_declares_workerless "$app_dir"
+}
+
+page_has_required_sources() {
+  local page_dir="$1"
+  local page_name pyproject source_match
+
+  page_name="$(basename -- "$page_dir")"
+  case "$page_name" in
+    ""|.*|.venv|__pycache__|templates|*.previous.*)
+      return 1
+      ;;
+  esac
+
+  pyproject="$page_dir/pyproject.toml"
+  [[ -f "$pyproject" ]] || return 1
+  grep -Fq '[project.entry-points."agilab.pages"]' "$pyproject" || return 1
+
+  if [[ -f "$page_dir/$page_name.py" || -f "$page_dir/main.py" || -f "$page_dir/app.py" ]]; then
+    return 0
+  fi
+  if [[ -f "$page_dir/src/$page_name/$page_name.py" \
+     || -f "$page_dir/src/$page_name/main.py" \
+     || -f "$page_dir/src/$page_name/app.py" ]]; then
+    return 0
+  fi
+
+  source_match="$(
+    find "$page_dir/src" \
+      -mindepth 2 \
+      -maxdepth 2 \
+      -type f \
+      \( -name "${page_name}.py" -o -name "view_*.py" -o -name "main.py" -o -name "app.py" \) \
+      -print -quit 2>/dev/null || true
+  )"
+  [[ -n "$source_match" ]]
+}
+
+page_venv_python_exists() {
+  local page_dir="$1"
+  [[ -x "$page_dir/.venv/bin/python" || -f "$page_dir/.venv/Scripts/python.exe" ]]
+}
+
+page_sync_fingerprint() {
+  local page_dir="$1"
+  local rel file
+  printf 'python=%s\n' "${AGI_PYTHON_VERSION:-}"
+  for rel in pyproject.toml uv.lock uv.toml; do
+    file="$page_dir/$rel"
+    if [[ -f "$file" ]]; then
+      printf '%s:' "$rel"
+      cksum "$file"
+    else
+      printf '%s:missing\n' "$rel"
+    fi
+  done
+}
+
+page_sync_is_fresh() {
+  local page_dir="$1"
+  local stamp="$page_dir/.venv/.agilab-sync-stamp"
+  page_venv_python_exists "$page_dir" || return 1
+  [[ -f "$stamp" ]] || return 1
+  cmp -s "$stamp" <(page_sync_fingerprint "$page_dir")
+}
+
+write_page_sync_stamp() {
+  local page_dir="$1"
+  local stamp="$page_dir/.venv/.agilab-sync-stamp"
+  mkdir -p -- "$(dirname -- "$stamp")"
+  page_sync_fingerprint "$page_dir" > "$stamp"
 }
 
 app_has_collectable_pytests() {
@@ -577,17 +677,19 @@ elif [[ -n "${BUILTIN_PAGES_FROM_ENV}" && -n "${BUILTIN_PAGES_FROM_ENV//[[:space
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
-    if [[ " ${BUILTIN_PAGES[@]-} " != *" ${dir_name} "* ]]; then
+    if page_has_required_sources "$dir" && [[ " ${BUILTIN_PAGES[@]-} " != *" ${dir_name} "* ]]; then
       BUILTIN_PAGES+=("$dir_name")
     fi
-  done < <(find "$PAGES_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
+  done < <(find "$PAGES_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -print0)
 fi
 
 if (( SKIP_REPOSITORY_PAGES == 0 )); then
   declare -a repository_pages_found=()
   while IFS= read -r -d '' dir; do
-    repository_pages_found+=("$(basename -- "$dir")")
-  done < <(find "$PAGES_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
+    if page_has_required_sources "$dir"; then
+      repository_pages_found+=("$(basename -- "$dir")")
+    fi
+  done < <(find "$PAGES_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d -print0)
   if (( ${#repository_pages_found[@]} )); then
     REPOSITORY_PAGES=("${repository_pages_found[@]}")
   else
@@ -1009,12 +1111,22 @@ pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
 
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     echo -e "${BLUE}Installing $page...${NC}"
-    pushd "$page" >/dev/null
+    page_dir="$AGILAB_REPO/apps-pages/$page"
+    if ! page_has_required_sources "$page_dir"; then
+        echo -e "${YELLOW}Skipping page '$page': not an installable AGILAB page project.${NC}"
+        continue
+    fi
+    pushd "$page_dir" >/dev/null
     unlink_linked_venv ".venv" "$page"
-    ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
-    status=$?
-    if (( status != 0 )); then
-        echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+    if page_sync_is_fresh "$page_dir"; then
+        echo -e "${GREEN}✓ '$page' page environment already up to date.${NC}"
+    else
+        if ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade; then
+            write_page_sync_stamp "$page_dir"
+        else
+            status=$?
+            echo -e "${RED}Error during 'uv sync' for page '$page'.${NC}"
+        fi
     fi
     popd >/dev/null
 done
@@ -1058,8 +1170,12 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
 	  if [[ "$worker_env_name" == *_project ]]; then
 	    worker_env_name="${worker_env_name%_project}_worker"
 	  fi
-	  echo "cleanup wenv/$worker_env_name"
-	  rm -fr "$HOME/wenv/$worker_env_name"
+	  if is_truthy "$REFRESH_WORKER_ENVS"; then
+	    echo "cleanup wenv/$worker_env_name"
+	    rm -fr "$HOME/wenv/$worker_env_name"
+	  elif [[ -d "$HOME/wenv/$worker_env_name" ]]; then
+	    echo "reuse wenv/$worker_env_name (set AGILAB_REFRESH_WORKER_ENVS=1 to rebuild)"
+	  fi
 
   echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
   if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \

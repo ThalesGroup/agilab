@@ -1,16 +1,47 @@
 [project]
-name = "view-maps-network"
-version = "2025.12.12"
-requires-python = ">=3.13"
+name = "agi-page-network-map"
+version = "2026.05.20"
+description = "AGILAB page bundle for network-aware geospatial analysis."
+readme = { text = "AGILAB page bundle for network-aware geospatial analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
 dependencies = [
-    "agi-gui",
-    "agi-node",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
     "ipython",
     "networkx",
     "plotly",
     "matplotlib",
     "sqlalchemy>=2.0.43",
 ]
+
+[project.optional-dependencies]
+fast = [
+    "numba>=0.62.1; python_version < '3.14'",
+]
+
+[project.entry-points."agilab.pages"]
+view_maps_network = "view_maps_network:bundle_root"
+
+
+
+
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_maps_network"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

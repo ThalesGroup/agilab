@@ -63,16 +63,18 @@ Main Content Area
   ``benchmark.json``, which is summarised under ``Benchmark results``.
 - ``Notebook`` exports the current ORCHESTRATE recipe as ``<app>_orchestrate.ipynb``.
   It includes the generated ``INSTALL``, ``CHECK distribute``, and ``RUN``
-  snippets that are available for the active configuration. It is export-only:
-  notebook import remains in :doc:`experiment-help` because import changes
-  ``lab_stages.toml`` and therefore belongs to the pipeline definition workflow.
+  snippets that are available for the active configuration. Use it when you want
+  a review, handoff, or no-lock-in copy of the orchestration work that remains
+  useful outside the AGILAB UI. It is export-only: notebook import remains in
+  :doc:`experiment-help` because import changes ``lab_stages.toml`` and
+  therefore belongs to the pipeline definition workflow.
 - ``Service mode (persistent workers)`` keeps long-lived worker loops alive and
   lets you trigger ``START/STATUS/HEALTH gate/STOP`` without rebuilding the execution
   context every time.
 - ``LOAD DATA`` fetches the latest dataframe path configured for the project and
   shows an in-place preview. The preview is available even after a rerun.
-- ``Prepare Data for Pipeline and Analysis`` creates (or updates) the CSV that
-  powers the Pipeline and Analysis pages. Use the column selector with
+- ``Prepare Data for WORKFLOW and ANALYSIS`` creates (or updates) the CSV that
+  powers the WORKFLOW and ANALYSIS pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
 
@@ -208,7 +210,7 @@ is:
 2. Let ORCHESTRATE generate the current ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, and ``AGI.run(...)`` snippets.
 3. Reuse the generated run snippet in :doc:`experiment-help` when the
-   distributed execution should become a reproducible Pipeline stage.
+   distributed execution should become a reproducible WORKFLOW stage.
 
 You usually do not write these orchestration snippets manually first. They are
 generated from the current UI configuration. See :doc:`distributed-workers` for
@@ -222,13 +224,15 @@ For a first pass through the UI, follow this sequence exactly:
    confirm the work plan matches the selected workers.
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
-   a runnable notebook for review or handoff.
-6. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
+   a runnable ``agi-core`` notebook for review, handoff, or reuse if the AGILAB
+   UI or distributed runtime is no longer the interface you want to keep. This
+   keeps execution on the stable core runtime.
+6. In :doc:`experiment-help`, import or regenerate that snippet as a WORKFLOW
    stage instead of retyping it.
 
-Snippet Handoff to Pipeline
+Snippet Handoff to WORKFLOW
 ---------------------------
-For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
+For newcomers, keep ORCHESTRATE and WORKFLOW in sync with this workflow:
 
 1. Generate the snippet in **Orchestrate** (typically ``AGI.run``).
 2. On **WORKFLOW**, open **Add stage** (or **New stage** when starting fresh),
@@ -237,7 +241,7 @@ For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
    import it directly.
 3. For app updates, update ``<module> args`` in the per-user workspace
    ``app_settings.toml`` / ``[args]`` then regenerate or re-import the matching
-   snippet in Pipeline.
+   snippet in WORKFLOW.
 
 This avoids running stale code that still references old app argument values.
 For example, when an app renames an argument, older saved snippets that still
@@ -332,5 +336,5 @@ See also
 --------
 
 - :doc:`agilab-help` to place Orchestrate in the full page flow.
-- :doc:`experiment-help` for running the generated snippet in the Pipeline assistant.
+- :doc:`experiment-help` for running the generated snippet in the WORKFLOW assistant.
 - :doc:`explore-help` for launching result views.

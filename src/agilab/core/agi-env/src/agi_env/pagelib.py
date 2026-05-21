@@ -131,6 +131,8 @@ _MLFLOW_SCHEMA_RESET_MARKERS = (
 )
 def background_services_enabled() -> bool:
     """Return False under automated UI tests or when explicitly disabled."""
+    if st.session_state.get("mlflow_autostart_disabled"):
+        return False
     disable_flag = os.getenv("AGILAB_DISABLE_BACKGROUND_SERVICES", "").strip().lower()
     if disable_flag in {"1", "true", "yes", "on"}:
         return False

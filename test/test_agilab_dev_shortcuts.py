@@ -35,16 +35,7 @@ def test_bugfix_shortcut_runs_impact_then_fast_regression_by_default():
             "extra-build-dependencies",
             "run",
             "python",
-            "tools/impact_validate.py",
-            "--staged",
-        ],
-        [
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "run",
-            "python",
-            "tools/ga_regression_selector.py",
+            "tools/bugfix_validate.py",
             "--staged",
             "--run",
         ],
@@ -59,17 +50,7 @@ def test_bugfix_shortcut_keeps_changed_file_arguments():
             "extra-build-dependencies",
             "run",
             "python",
-            "tools/impact_validate.py",
-            "--files",
-            "src/agilab/main_page.py",
-        ],
-        [
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "run",
-            "python",
-            "tools/ga_regression_selector.py",
+            "tools/bugfix_validate.py",
             "--files",
             "src/agilab/main_page.py",
             "--run",
@@ -86,6 +67,8 @@ def test_test_shortcut_keeps_pytest_arguments():
             "run",
             "pytest",
             "-q",
+            "-o",
+            "addopts=",
             "test/test_cluster_lan_discovery.py",
             "-k",
             "windows",
@@ -187,6 +170,85 @@ def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
     ]
 
 
+def test_release_shortcut_runs_local_release_guards():
+    assert agilab_dev.planned_commands(["release"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/impact_validate.py",
+            "--staged",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/release_plan.py",
+            "--check-workflow",
+            ".github/workflows/pypi-publish.yaml",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_release_version_policy.py",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_trusted_publisher_contract.py",
+            "--check-workflow",
+            ".github/workflows/pypi-publish.yaml",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/workflow_parity.py",
+            "--profile",
+            "dependency-policy",
+            "--profile",
+            "shared-core-typing",
+            "--profile",
+            "docs",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/coverage_badge_guard.py",
+            "--changed-only",
+            "--require-fresh-xml",
+        ],
+    ]
+
+
+def test_release_shortcut_keeps_impact_arguments():
+    assert agilab_dev.planned_commands(["release", "--files", "pyproject.toml"])[0] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/impact_validate.py",
+        "--files",
+        "pyproject.toml",
+    ]
+
+
 def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
     assert agilab_dev.planned_commands(["badge"]) == [
         [
@@ -231,6 +293,17 @@ def test_skills_shortcut_syncs_then_validates_and_generates():
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
+        ["python3", "tools/agent_skill_catalog.py", "--apply"],
+        ["python3", "tools/generate_skill_badges.py"],
+        [
+            "python3",
+            "tools/skill_security_scan.py",
+            "--roots",
+            ".claude/skills",
+            ".codex/skills",
+            "--fail-on",
+            "critical",
+        ],
     ]
 
 

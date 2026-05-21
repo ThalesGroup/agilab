@@ -73,6 +73,7 @@ def test_generate_vscode_configs_build_shell_tasks_launches_and_inputs(tmp_path:
     assert streamlit_task["command"].startswith("uv run streamlit run ${workspaceFolder}/src/agilab/main_page.py")
     assert streamlit_task["options"]["cwd"] == "${workspaceFolder}"
     assert streamlit_task["options"]["env"]["PYTHONUNBUFFERED"] == "1"
+    assert streamlit_task["options"]["env"]["VIRTUAL_ENV"] == ""
 
     zip_task = next(task for task in tasks if task["label"] == "zip_all")
     assert zip_task["command"] == (

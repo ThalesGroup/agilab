@@ -49,6 +49,7 @@ NON_GUI_ROOT_TESTS = {
     "test/test_pypi_publish.py",
     "test/test_pypi_publish_workflow.py",
     "test/test_impact_validate.py",
+    "test/test_agilab_dev_shortcuts.py",
     "test/test_workflow_parity.py",
 }
 
@@ -231,7 +232,8 @@ def _expected_svg(generator: ModuleType, component: str) -> str:
     combined_xml = REPO_ROOT / "coverage-agilab.combined.xml"
     percent = None
     if "aggregate" in config:
-        percent = generator.compute_aggregate_percent(config["aggregate"], combined_xml)
+        policy = str(config.get("aggregate_policy", "weighted"))
+        percent = generator.compute_aggregate_percent(config["aggregate"], combined_xml, policy=policy)
     else:
         counts = generator.resolve_component_counts(component, combined_xml)
         if counts is not None:

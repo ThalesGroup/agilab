@@ -4,7 +4,7 @@ agi-core Demo
 Use this page only when you intentionally want the notebook path first.
 
 If you want the main AGILAB product path first, use :doc:`quick-start` and run
-the built-in ``flight_project`` from the web UI. This page is the smallest
+the built-in ``flight_telemetry_project`` from the web UI. This page is the smallest
 published-package notebook route for the built-in MyCode example app.
 
 Start here

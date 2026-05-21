@@ -22,6 +22,7 @@ from agilab.data_connector_resolution import (
     build_data_connector_resolution,
     load_app_settings,
 )
+from agilab.secret_uri import is_credential_ref, is_env_ref
 
 
 SCHEMA = "agilab.data_connector_ui_preview.v1"
@@ -63,7 +64,11 @@ def _connector_cards(
                     "operator_context_required",
                     True,
                 ),
-                "auth_boundary": "env_ref" if auth_ref.startswith("env:") else "none",
+                "auth_boundary": (
+                    "env_ref"
+                    if is_env_ref(auth_ref)
+                    else "secret_ref" if is_credential_ref(auth_ref) else "none"
+                ),
             }
         )
     return cards

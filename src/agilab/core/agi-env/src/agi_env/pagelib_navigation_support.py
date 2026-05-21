@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping, Sequence
 
+from .app_provider_registry import app_name_aliases
+
 
 SessionStateLike = MutableMapping[str, Any]
 
@@ -114,8 +116,9 @@ def active_app_candidates(
         builtin_base / f"{name}_project",
     ]
 
+    requested_aliases = set(app_name_aliases(name))
     for project_name in projects:
-        if project_name == name or project_name.replace("_project", "") == name:
+        if requested_aliases & set(app_name_aliases(project_name)):
             candidates.extend(
                 [
                     apps_path / project_name,

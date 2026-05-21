@@ -21,9 +21,9 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import sys
 import math
+import logging
 import numpy as np
 from pathlib import Path
 import pandas as pd
@@ -54,9 +54,10 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
-from agi_gui.pagelib import sidebar_views, find_files, load_df, on_project_change, select_project, JumpToMain, update_datadir, \
-    initialize_csv_files, update_var, _dump_toml_payload
+from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
 import tomllib as _toml
+
+logger = logging.getLogger(__name__)
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -434,7 +435,7 @@ def page(env):
     for file in st.session_state["csv_files"]:
         try:
             csv_files_rel.append(Path(file).relative_to(datadir).as_posix())
-        except Exception:
+        except (TypeError, ValueError):
             continue
     csv_files_rel = sorted(csv_files_rel)
     settings_file = st.session_state.get("df_file")
@@ -463,8 +464,8 @@ def page(env):
     cache_buster = None
     try:
         cache_buster = df_file_abs.stat().st_mtime_ns
-    except Exception:
-        pass
+    except OSError:
+        logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
     try:
         st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
     except Exception as e:
@@ -498,7 +499,7 @@ def page(env):
             with open(settings_path, "wb") as fh:
                 _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
-            pass
+            logger.warning("Unable to persist view_barycentric settings to %s", settings_path, exc_info=True)
 
 
     if "df_file" in st.session_state and st.session_state["df_file"]:
@@ -506,8 +507,8 @@ def page(env):
         cache_buster = None
         try:
             cache_buster = df_file_abs.stat().st_mtime_ns
-        except Exception:
-            pass
+        except OSError:
+            logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
         st.session_state["loaded_df"] = load_df(df_file_abs, cache_buster=cache_buster)
 
     if "loaded_df" in st.session_state:
@@ -640,7 +641,7 @@ def main():
             "--active-app",
             dest="active_app",
             type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
+            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
             required=True,
         )
         args, _ = parser.parse_known_args()
@@ -653,7 +654,7 @@ def main():
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
-        # Short app name (e.g., 'flight_project')
+        # Short app name (e.g., 'flight_telemetry_project')
         app = active_app.name
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app

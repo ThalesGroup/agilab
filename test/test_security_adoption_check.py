@@ -28,8 +28,11 @@ def test_adoption_check_writes_advisory_artifact_without_blocking(tmp_path: Path
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert rc == 0
     assert payload["schema"] == "agilab.security_check.v1"
-    assert payload["status"] == "warn"
-    assert "mode=advisory" in capsys.readouterr().out
+    assert payload["status"] == "fail"
+    assert payload["summary"]["profile"] == "shared"
+    output_text = capsys.readouterr().out
+    assert "profile=shared" in output_text
+    assert "mode=advisory" in output_text
 
 
 def test_adoption_check_strict_env_fails_on_warnings(tmp_path: Path, monkeypatch):

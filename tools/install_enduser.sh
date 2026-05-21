@@ -13,6 +13,21 @@ NC='\033[0m' # No Color
 warn() {
   echo -e "${YELLOW}[warn] $*" >&2
 }
+
+configure_uv_link_mode() {
+  local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
+  case "$requested" in
+    clone|copy|hardlink|symlink) ;;
+    *)
+      echo -e "${RED}[error] Invalid uv link mode '${requested}'. Expected one of: clone, copy, hardlink, symlink.${NC}" >&2
+      exit 1
+      ;;
+  esac
+  export UV_LINK_MODE="$requested"
+  echo -e "${BLUE}[info] uv link mode: ${UV_LINK_MODE}${NC}"
+}
+
+configure_uv_link_mode
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 run_remote_shell_installer() {

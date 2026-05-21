@@ -2,7 +2,7 @@ agilab/
 __pycache__/ [excluded]
 apps/
     builtin/
-        flight_project/
+        flight_telemetry_project/
             .venv/ [excluded]
             agilab/
                 core/
@@ -17,18 +17,16 @@ apps/
             Modules/ [excluded]
             src/
                 __pycache__/ [excluded]
-                flight/
+                flight_telemetry/
                     __pycache__/ [excluded]
                     __init__.py
-                    flight.py
+                    flight_telemetry.py
                     flight_args.py
-                flight_worker/
+                flight_telemetry_worker/
                     __pycache__/ [excluded]
                     __init__.py
                     dataset.7z
-                    flight_worker.c
-                    flight_worker.py
-                    flight_worker.pyx
+                    flight_telemetry_worker.py
                 app_args_form.py
                 app_settings.toml
                 pre_prompt.json
@@ -154,7 +152,7 @@ apps/
     install.py
     README.md
 apps-pages/
-    view_autoencoder_latenspace/
+    view_autoencoder_latentspace/
         .venv/ [excluded]
         src/
             view_autoencoder_latentspace/
@@ -430,8 +428,8 @@ lib/
         README.md
 examples/
     flight/
-        AGI_install_flight.py
-        AGI_run_flight.py
+        AGI_install_flight_telemetry.py
+        AGI_run_flight_telemetry.py
     mycode/
         AGI_install_mycode.py
         AGI_run_mycode.py

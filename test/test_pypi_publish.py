@@ -10,7 +10,14 @@ from pathlib import Path
 import pytest
 
 
-MODULE_PATH = Path("tools/pypi_publish.py").resolve()
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = REPO_ROOT / "tools"
+sys.path.insert(0, str(TOOLS_ROOT))
+
+from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, WHEEL_ONLY_PACKAGE_NAMES
+
+
+MODULE_PATH = REPO_ROOT / "tools/pypi_publish.py"
 
 
 def _load_pypi_publish():
@@ -150,6 +157,22 @@ def test_update_static_badge_rewrites_svg(tmp_path, monkeypatch) -> None:
     assert 'width="158"' in text
 
 
+def test_git_paths_to_commit_includes_release_coverage_badges(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    coverage_badge = tmp_path / "badges" / "coverage-agilab.svg"
+    coverage_badge.parent.mkdir(parents=True)
+    coverage_badge.write_text("<svg />\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "builtin_app_pyprojects", lambda: [])
+    monkeypatch.setattr(module, "PUBLIC_RELEASE_METADATA_PATHS", [])
+
+    assert "badges/coverage-agilab.svg" in module.git_paths_to_commit()
+
+
 def test_fetch_url_text_falls_back_to_curl(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -180,16 +203,32 @@ def test_pypi_releases_uses_simple_index_when_json_is_stale(monkeypatch) -> None
     assert module.pypi_releases("agilab", "pypi") == {"2026.4.18", "2026.4.19"}
 
 
+def test_pypi_releases_parses_release_candidate_versions_from_simple_index(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    monkeypatch.setattr(module, "fetch_url_json", lambda *_args, **_kwargs: {"releases": {}})
+    monkeypatch.setattr(
+        module,
+        "fetch_url_text",
+        lambda *_args, **_kwargs: (
+            '<a href="https://files.pythonhosted.org/packages/x/agilab-2026.5.18rc1.tar.gz">'
+            "agilab-2026.5.18rc1.tar.gz</a>"
+        ),
+    )
+
+    assert module.pypi_releases("agilab", "pypi") == {"2026.5.18rc1"}
+
+
 def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    pyproject = tmp_path / "src/agilab/apps/builtin/flight_project/pyproject.toml"
+    pyproject = tmp_path / "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml"
     pyproject.parent.mkdir(parents=True)
     pyproject.write_text(
         "\n".join(
             [
                 "[project]",
-                'name = "flight_project"',
+                'name = "flight_telemetry_project"',
                 'version = "2026.04.28.post3"',
                 'dependencies = ["agi-env", "agi-node>=2026.04.28.post3", "streamlit"]',
                 "",
@@ -215,7 +254,7 @@ def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, 
     assert "[tool.uv.sources]" in text
 
 
-def test_main_syncs_builtin_apps_before_umbrella_build(tmp_path, monkeypatch) -> None:
+def test_main_does_not_rewrite_builtin_apps_for_umbrella_build(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     umbrella_pyproject = tmp_path / "pyproject.toml"
@@ -267,7 +306,7 @@ def test_main_syncs_builtin_apps_before_umbrella_build(tmp_path, monkeypatch) ->
 
     module.main()
 
-    assert order == ["sync-builtin", "build-root"]
+    assert order == ["build-root"]
 
 
 def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:
@@ -381,6 +420,48 @@ def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:
         raise AssertionError("require_safe_pypi_release() should reject skipping real release preflight")
 
 
+def test_public_post_release_policy_requires_documented_hotfix(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.delenv(module.ALLOW_PYPI_POST_RELEASE_ENV, raising=False)
+    monkeypatch.delenv(module.PYPI_POST_RELEASE_REASON_ENV, raising=False)
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.require_public_post_release_policy(
+            _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
+            {"agilab": "2026.05.18.post1"},
+        )
+
+    message = str(excinfo.value)
+    assert "critical hotfixes" in message
+    assert "release candidate or TestPyPI" in message
+    assert module.ALLOW_PYPI_POST_RELEASE_ENV in message
+    assert module.PYPI_POST_RELEASE_REASON_ENV in message
+
+
+def test_public_post_release_policy_allows_documented_hotfix(monkeypatch, capsys) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setenv(module.ALLOW_PYPI_POST_RELEASE_ENV, "1")
+    monkeypatch.setenv(module.PYPI_POST_RELEASE_REASON_ENV, "critical provenance attestation repair")
+
+    module.require_public_post_release_policy(
+        _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
+        {"agilab": "2026.05.18.post1"},
+    )
+
+    assert "Allowing documented public PyPI post-release hotfix" in capsys.readouterr().out
+
+
+def test_public_post_release_policy_warns_only_for_dry_run(capsys) -> None:
+    module = _load_pypi_publish()
+
+    module.require_public_post_release_policy(
+        _base_cfg(module, repo="pypi", dry_run=True),
+        {"agilab": "2026.05.18.post1"},
+    )
+
+    assert "Publication would require" in capsys.readouterr().out
+
+
 def test_release_preflight_profiles_only_for_real_pypi() -> None:
     module = _load_pypi_publish()
 
@@ -422,6 +503,7 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
         "installer",
         "shared-core-typing",
         "dependency-policy",
+        "release-proof",
     ]
 
 
@@ -456,6 +538,7 @@ def test_run_release_preflight_cleans_stale_coverage_before_workflow(tmp_path, m
     assert calls[0][1] == tmp_path
     assert calls[0][2] == [False, False, False]
     assert "tools/workflow_parity.py" in calls[0][0]
+    assert calls[0][0][-2:] == ["--profile", "release-proof"]
 
 
 def test_validate_wheel_external_machine_metadata_rejects_unmarked_mlx(tmp_path) -> None:
@@ -557,6 +640,21 @@ def test_compute_unified_version_uses_today_base_without_post_on_pypi(monkeypatc
 
     assert chosen == "2026.04.29"
     assert collisions == {"agi-env": [], "agi-node": [], "agilab": []}
+
+
+def test_compute_unified_version_accepts_explicit_release_candidate_on_pypi(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: set())
+
+    chosen, collisions = module.compute_unified_version(
+        ["agi-env", "agilab"],
+        "pypi",
+        "2026.05.18rc1",
+    )
+
+    assert chosen == "2026.05.18rc1"
+    assert collisions == {"agi-env": [], "agilab": []}
 
 
 def test_compute_unified_version_handles_testpypi_canonicalized_date_posts(monkeypatch) -> None:
@@ -948,6 +1046,29 @@ def test_builtin_app_pyprojects_includes_worker_manifests(tmp_path, monkeypatch)
     assert module.builtin_app_pyprojects() == [app_pyproject, worker_pyproject]
 
 
+def test_publishable_libs_include_asset_packages_in_release_order() -> None:
+    module = _load_pypi_publish()
+
+    package_names = [name for name, *_ in module.publishable_libs()]
+
+    assert package_names == [package.name for package in LIBRARY_PACKAGE_CONTRACTS]
+    assert "agi-pages" in package_names
+    assert "agi-apps" in package_names
+    assert package_names.index("agi-gui") < package_names.index("agi-pages")
+    assert package_names.index("agi-core") < package_names.index("agi-apps")
+
+
+def test_asset_packages_are_wheel_only_for_release_tooling() -> None:
+    module = _load_pypi_publish()
+
+    for package in WHEEL_ONLY_PACKAGE_NAMES:
+        assert module.effective_dist_kind(package, "wheel") == "wheel"
+        assert module.effective_dist_kind(package, "both") == "wheel"
+        with pytest.raises(SystemExit, match=f"{package} is wheel-only"):
+            module.effective_dist_kind(package, "sdist")
+    assert module.effective_dist_kind("agilab", "both") == "both"
+
+
 def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
@@ -983,10 +1104,10 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     public_demo_test.parent.mkdir(parents=True)
     public_demo_test.write_text("tests\n", encoding="utf-8")
 
-    builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     builtin_dir.mkdir(parents=True)
     builtin_toml = builtin_dir / "pyproject.toml"
-    builtin_toml.write_text("[project]\nname='flight_project'\nversion='1.0.0'\n", encoding="utf-8")
+    builtin_toml.write_text("[project]\nname='flight_telemetry_project'\nversion='1.0.0'\n", encoding="utf-8")
 
     monkeypatch.setattr(module, "CORE", [("agi-env", core_toml, core_dir)])
     monkeypatch.setattr(module, "UMBRELLA", ("agilab", umbrella_toml, umbrella_dir))
@@ -998,7 +1119,7 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "core/agi-env/pyproject.toml",
         "core/agi-env/README.md",
         "pyproject.toml",
-        "src/agilab/apps/builtin/flight_project/pyproject.toml",
+        "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml",
         "README.md",
         "badges/pypi-version-agilab.svg",
         "CHANGELOG.md",
@@ -1394,6 +1515,11 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
@@ -1603,7 +1729,10 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
     assert order[:4] == ["badge", "build", "badge", "build"]
 
 
-def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("upload_success_count", [0, 1])
+def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(
+    tmp_path, monkeypatch, upload_success_count
+) -> None:
     module = _load_pypi_publish()
 
     project_dir = tmp_path / "agi-env"
@@ -1651,7 +1780,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
 
     def _twine_upload(*_args, **_kwargs):
         module.UPLOAD_COLLISION_DETECTED = True
-        module.UPLOAD_SUCCESS_COUNT = 0
+        module.UPLOAD_SUCCESS_COUNT = upload_success_count
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
@@ -1671,6 +1800,11 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: order.append("external-install-guard"))
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
     monkeypatch.setattr(module, "update_release_proof_references", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -1683,7 +1817,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     else:
         raise AssertionError("main() should reject real PyPI upload collisions")
 
-    assert order == ["badge", "build", "external-install-guard", "commit", "reset"]
+    assert order == ["badge", "build", "external-install-guard", "coverage-workflow", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
@@ -1775,7 +1909,7 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     assert reset_calls == []
 
 
-def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
+def test_main_commits_after_successful_upload_before_tagging(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     project_dir = tmp_path / "agi-env"
@@ -1839,6 +1973,11 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
@@ -1851,12 +1990,70 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
         "preflight",
         "external-install-guard",
         "pre-upload-guard",
+        "coverage-workflow",
+        "upload",
         "release-refs",
         "commit",
-        "upload",
         "tag",
         "github-release",
     ]
+
+
+def test_main_does_not_publish_release_metadata_when_upload_fails(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = _base_cfg(
+        module,
+        repo="pypi",
+        version="2026.03.23",
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        packages=["agi-env"],
+    )
+    order: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("upload failed")),
+    )
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
+    monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_coverage_workflow_prerequisite", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
+    monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        module.main()
+
+    assert order == ["preflight", "reset"]
 
 
 def test_main_deletes_former_github_release_after_current_release(tmp_path, monkeypatch) -> None:
@@ -1910,7 +2107,7 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
     monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
     monkeypatch.setattr(module, "twine_check", lambda _files: None)
-    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: order.append("upload"))
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
@@ -1923,6 +2120,11 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
         module,
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
+    )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
@@ -1937,6 +2139,8 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
         "preflight",
         "external-install-guard",
         "pre-upload-guard",
+        "coverage-workflow",
+        "upload",
         "release-refs",
         "commit",
         "tag",
@@ -2264,6 +2468,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "generate_docs_in_docs_repository", lambda: order.append("gen-docs"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_commit_docs_repository", lambda *_args, **_kwargs: order.append("commit-docs"))
@@ -2279,10 +2488,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "external-install-guard",
         "pre-upload-guard",
         "gen-docs",
+        "coverage-workflow",
+        "upload",
         "release-refs",
         "commit",
         "commit-docs",
-        "upload",
         "tag",
         "github-release",
     ]
@@ -2328,11 +2538,15 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     def fake_run(cmd, **_kwargs):
         command_text = " ".join(str(part) for part in cmd)
         if "generate_component_coverage_badges.py" in command_text:
-            raise AssertionError("release guard must not regenerate coverage badges")
-        if "coverage_badge_guard.py" in command_text:
-            assert "--changed-only" in cmd
+            calls.append("coverage-badge-refresh")
+        elif "coverage_badge_guard.py" in command_text:
             assert "--require-fresh-xml" not in cmd
-            calls.append("coverage-guard")
+            if "--changed-only" in cmd:
+                assert "--allow-badge-only" in cmd
+                calls.append("coverage-guard-changed-only")
+            else:
+                assert "--allow-badge-only" not in cmd
+                calls.append("coverage-guard-all")
         else:
             calls.append(command_text)
 
@@ -2345,7 +2559,61 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         version_targets=["agilab"],
     )
 
-    assert calls == ["release-refs-guard", "preflight", "coverage-guard"]
+    assert calls == [
+        "release-refs-guard",
+        "preflight",
+        "coverage-badge-refresh",
+        "coverage-guard-all",
+        "coverage-guard-changed-only",
+    ]
+
+
+def test_release_coverage_workflow_prerequisite_triggers_and_waits(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+    states = iter(
+        [
+            [],
+            [{"status": "in_progress", "conclusion": "", "url": "https://example.test/runs/1"}],
+            [{"status": "completed", "conclusion": "success", "url": "https://example.test/runs/1"}],
+        ]
+    )
+    triggers: list[str] = []
+
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
+
+    module.run_release_coverage_workflow_prerequisite(
+        cfg,
+        timeout_seconds=30,
+        poll_seconds=1,
+        list_runs_fn=lambda _sha: next(states),
+        trigger_fn=lambda branch: triggers.append(branch),
+        sleep_fn=lambda _seconds: None,
+        time_fn=lambda: 0.0,
+    )
+
+    assert triggers == ["main"]
+
+
+def test_release_coverage_workflow_prerequisite_blocks_failed_run(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
+
+    with pytest.raises(SystemExit, match="Coverage workflow prerequisite failed"):
+        module.run_release_coverage_workflow_prerequisite(
+            cfg,
+            timeout_seconds=30,
+            list_runs_fn=lambda _sha: [
+                {"status": "completed", "conclusion": "failure", "url": "https://example.test/runs/1"}
+            ],
+            trigger_fn=lambda _branch: None,
+            sleep_fn=lambda _seconds: None,
+            time_fn=lambda: 0.0,
+        )
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:

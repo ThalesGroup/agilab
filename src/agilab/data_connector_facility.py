@@ -20,6 +20,7 @@ from agilab.data_connector_search import (
     ACCEPTED_SEARCH_INDEX_PROVIDERS,
     search_index_provider,
 )
+from agilab.secret_uri import is_credential_ref
 
 
 SCHEMA = "agilab.data_connector_facility.v1"
@@ -66,7 +67,7 @@ def _has_raw_secret(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     lowered = value.lower()
-    if value.startswith("env:"):
+    if is_credential_ref(value):
         return False
     return bool(re.search(r"(password|secret|token|access_key|api_key)=", lowered))
 
@@ -131,8 +132,8 @@ def _validate_connector(row: Mapping[str, Any], index: int) -> list[DataConnecto
                 )
             )
     auth_ref = str(row.get("auth_ref", "") or "")
-    if kind in {"opensearch", "object_storage"} and not auth_ref.startswith("env:"):
-        issues.append(_issue(connector_id, "remote connector auth_ref must use env:"))
+    if kind in {"opensearch", "object_storage"} and not is_credential_ref(auth_ref):
+        issues.append(_issue(connector_id, "remote connector auth_ref must use env:, env://, secret://, or vault://"))
     for key, value in row.items():
         if _has_raw_secret(value):
             issues.append(_issue(f"{connector_id}.{key}", "raw secret-like value found"))

@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 REPORT_PATH = Path("tools/data_connector_ui_preview_report.py").resolve()
+CORE_PATH = Path("src/agilab/data_connector_ui_preview.py").resolve()
 
 
 def _load_module(path: Path, name: str):
@@ -15,6 +16,56 @@ def _load_module(path: Path, name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _write_minimal_valid_catalog(path: Path) -> None:
+    path.write_text(
+        """
+[[connectors]]
+id = "warehouse_sql"
+kind = "sql"
+label = "Warehouse SQL"
+uri = "postgresql://warehouse.example.invalid/agilab"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "ops_search"
+kind = "opensearch"
+label = "Operations Search"
+provider = "opensearch"
+url = "search.example.invalid"
+index = "agilab-runs"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "artifact_store"
+kind = "object_storage"
+label = "Artifact Store"
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "experiments/"
+auth_ref = "env:AWS_PROFILE"
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def _write_minimal_settings(path: Path) -> None:
+    path.write_text(
+        """
+[connector_refs]
+training_sql = "warehouse_sql"
+
+[page_connector_refs.release_decision]
+evidence_index = "ops_search"
+artifact_store = "artifact_store"
+
+[legacy_paths]
+artifact_root = "~/export/agilab/artifacts"
+""".strip(),
+        encoding="utf-8",
+    )
 
 
 def test_data_connector_ui_preview_report_passes(tmp_path: Path) -> None:
@@ -70,3 +121,61 @@ def test_data_connector_ui_preview_writes_html(tmp_path: Path) -> None:
     assert "release_decision" in html
     assert "Legacy path fallbacks" in html
     assert "unknown_not_probed" in html
+
+
+def test_data_connector_ui_preview_accepts_relative_settings_and_catalog_paths(
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_ui_preview_relative_paths_module")
+    settings = tmp_path / "settings.toml"
+    catalog = tmp_path / "connectors.toml"
+    json_path = tmp_path / "preview.json"
+    html_path = tmp_path / "preview.html"
+    _write_minimal_settings(settings)
+    _write_minimal_valid_catalog(catalog)
+
+    result = core_module.persist_data_connector_ui_preview(
+        repo_root=tmp_path,
+        output_path=json_path,
+        html_output_path=html_path,
+        settings_path=Path("settings.toml"),
+        catalog_path=Path("connectors.toml"),
+    )
+
+    assert result["ok"] is True
+    assert result["settings_path"] == str(settings)
+    assert result["catalog_path"] == str(catalog)
+    assert result["html_written"] is True
+    assert result["state"]["summary"]["connector_card_count"] == 3
+    assert result["state"]["summary"]["page_binding_count"] == 2
+    assert result["state"]["summary"]["legacy_fallback_count"] == 1
+
+
+def test_data_connector_ui_preview_reports_invalid_source_states(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_ui_preview_invalid_sources_module")
+    settings = {"connector_refs": {"missing": "missing_connector"}}
+    catalog = {
+        "connectors": [
+            {
+                "id": "broken_sql",
+                "kind": "sql",
+                "label": "Broken SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+            }
+        ]
+    }
+
+    state = core_module.build_data_connector_ui_preview(
+        settings=settings,
+        catalog=catalog,
+        settings_path=tmp_path / "settings.toml",
+        catalog_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    assert [issue["location"] for issue in state["issues"]] == [
+        "facility",
+        "resolution",
+        "health",
+    ]
+    assert "not ready" in state["issues"][0]["message"]

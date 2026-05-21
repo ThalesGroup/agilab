@@ -1,11 +1,9 @@
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, List, Tuple
 
 import py7zr
 
-from agi_cluster.agi_distributor import AGI
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .pandas_app_args import (
@@ -18,7 +16,6 @@ from .pandas_app_args import (
 )
 
 logger = logging.getLogger(__name__)
-warnings.filterwarnings("ignore")
 
 
 class PandasApp(BaseWorker):
@@ -34,9 +31,9 @@ class PandasApp(BaseWorker):
     ) -> None:
         super().__init__()
         self.env = env
+        self.verbose = int(kwargs.pop("verbose", getattr(env, "verbose", 0) or 0))
 
         if args is None:
-            # Accept only declared model fields; drop any extra keys quietly
             allowed = set(PandasAppArgs.model_fields.keys())
             clean = {k: v for k, v in kwargs.items() if k in allowed}
             if extra := set(kwargs) - allowed:
@@ -47,12 +44,10 @@ class PandasApp(BaseWorker):
         self.args = args
 
         data_in = self._resolve_data_dir(env, args.data_in)
-        data_in.mkdir(parents=True, exist_ok=True)
+        self._ensure_dataset(data_in, app_root=self._app_root(env))
         self.path_rel = str(data_in)
         self.dir_path = data_in
         self.args.data_in = data_in
-
-        self._ensure_dataset(data_in)
 
         payload = args.model_dump(mode="json")
         payload["dir_path"] = str(data_in)
@@ -83,19 +78,29 @@ class PandasApp(BaseWorker):
         payload["dir_path"] = str(self.dir_path)
         return payload
 
-    def _ensure_dataset(self, data_in: Path) -> None:
+    @staticmethod
+    def _app_root(env: Any) -> Path:
+        configured = getattr(env, "app_abs", None)
+        if configured:
+            return Path(configured)
+        return Path(__file__).resolve().parents[2]
+
+    def _ensure_dataset(self, data_in: Path, *, app_root: Path) -> None:
         try:
-            if not data_in.exists():
-                logger.info("Creating data directory at %s", data_in)
-                data_in.mkdir(parents=True, exist_ok=True)
+            if data_in.exists() and any(data_in.iterdir()):
+                return
 
-                data_src = Path(AGI._env.app_abs) / "data.7z"
-                if not data_src.is_file():
-                    raise FileNotFoundError(f"Data archive not found at {data_src}")
+            logger.info("Creating data directory at %s", data_in)
+            data_in.mkdir(parents=True, exist_ok=True)
 
-                logger.info("Extracting data archive from %s to %s", data_src, data_in)
-                with py7zr.SevenZipFile(data_src, mode="r") as archive:
-                    archive.extractall(path=data_in)
+            data_src = app_root / "data.7z"
+            if not data_src.is_file():
+                logger.info("No data.7z archive found at %s; leaving %s empty", data_src, data_in)
+                return
+
+            logger.info("Extracting data archive from %s to %s", data_src, data_in)
+            with py7zr.SevenZipFile(data_src, mode="r") as archive:
+                archive.extractall(path=data_in)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.error("Failed to initialize data directory: %s", exc)
             raise
@@ -112,7 +117,7 @@ class PandasApp(BaseWorker):
 
     def stop(self) -> None:
         if self.verbose > 0:
-            print("PandasAppWorker All done!\n", end="")
+            logger.info("PandasAppWorker finished")
         super().stop()
 
     def build_distribution(
@@ -121,8 +126,4 @@ class PandasApp(BaseWorker):
         return [], [], "id", "nb_fct", ""
 
 
-class Pandas(PandasApp):
-    """Backward-compatible alias expected by older tooling."""
-
-
-__all__ = ["PandasApp", "Pandas"]
+__all__ = ["PandasApp"]

@@ -1,26 +1,86 @@
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import stat
+import importlib
 import importlib.util
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-import networkx as nx
-from networkx.readwrite import json_graph
 import pandas as pd
 import streamlit as st
 from code_editor import code_editor
 
 try:
-    import matplotlib.pyplot as plt
+    import networkx as nx
+    from networkx.readwrite import json_graph
 except ModuleNotFoundError as exc:
-    plt = None  # type: ignore[assignment]
-    _MATPLOTLIB_IMPORT_ERROR = exc
+    nx = None  # type: ignore[assignment]
+    json_graph = None  # type: ignore[assignment]
+    _NETWORKX_IMPORT_ERROR = exc
 else:
-    _MATPLOTLIB_IMPORT_ERROR = None
+    _NETWORKX_IMPORT_ERROR = None
+
+plt = None  # type: ignore[assignment]
+_MATPLOTLIB_IMPORT_ERROR: ModuleNotFoundError | None = None
+
+_NETWORKX_ERROR_TYPE = getattr(nx, "NetworkXError", RuntimeError) if nx is not None else RuntimeError
+_PREVIEW_LOAD_EXCEPTIONS = (OSError, RuntimeError, TypeError, ValueError, _NETWORKX_ERROR_TYPE)
+
+
+@dataclass(frozen=True)
+class _PreviewCandidate:
+    path: Path
+    stat_result: os.stat_result
+    suffix_rank: int
+
+    @property
+    def mtime(self) -> float:
+        return self.stat_result.st_mtime
+
+
+def _networkx_unavailable_message() -> str:
+    return (
+        f"networkx unavailable: {_NETWORKX_IMPORT_ERROR}. "
+        "Install the UI dependencies with `pip install 'agilab[ui]'` or run `uv sync --extra ui`."
+    )
+
+
+def _require_networkx():
+    if nx is None:
+        raise RuntimeError(_networkx_unavailable_message())
+    return nx
+
+
+def _matplotlib_unavailable_message() -> str:
+    return (
+        f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+        "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+    )
+
+
+def _require_matplotlib(import_module_fn=importlib.import_module):
+    global plt, _MATPLOTLIB_IMPORT_ERROR
+    if plt is not None:
+        return plt
+    if _MATPLOTLIB_IMPORT_ERROR is not None:
+        raise RuntimeError(_matplotlib_unavailable_message())
+    try:
+        plt = import_module_fn("matplotlib.pyplot")
+    except ModuleNotFoundError as exc:
+        plt = None  # type: ignore[assignment]
+        _MATPLOTLIB_IMPORT_ERROR = exc
+        raise RuntimeError(_matplotlib_unavailable_message()) from exc
+    return plt
+
+
+def _is_networkx_graph(value: object) -> bool:
+    return nx is not None and isinstance(value, nx.Graph)
+
 
 from agi_env import AgiEnv
 from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
@@ -33,6 +93,14 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
+_runtime_failure_diagnostics = import_agilab_module(
+    "agilab.runtime_failure_diagnostics",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "runtime_failure_diagnostics.py",
+    fallback_name="agilab_runtime_failure_diagnostics_fallback",
+)
+classify_runtime_failure = _runtime_failure_diagnostics.classify_runtime_failure
+
 _orchestrate_page_state = import_agilab_module(
     "agilab.orchestrate_page_state",
     current_file=__file__,
@@ -41,6 +109,14 @@ _orchestrate_page_state = import_agilab_module(
 )
 build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
 build_orchestrate_run_artifact_state = _orchestrate_page_state.build_orchestrate_run_artifact_state
+
+_orchestrate_page_support = import_agilab_module(
+    "agilab.orchestrate_page_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_support.py",
+    fallback_name="agilab_orchestrate_page_support_fallback",
+)
+app_declares_workerless = _orchestrate_page_support.app_declares_workerless
 
 _pinned_expander = import_agilab_module(
     "agilab.pinned_expander",
@@ -67,7 +143,14 @@ render_latest_run_card = _workflow_ui.render_latest_run_card
 render_log_actions = _workflow_ui.render_log_actions
 render_workflow_timeline = _workflow_ui.render_workflow_timeline
 
-PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+_pending_actions = import_agilab_module(
+    "agilab.orchestrate_pending_actions",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_pending_actions.py",
+    fallback_name="agilab_orchestrate_pending_actions_fallback",
+)
+
+PENDING_EXECUTE_ACTION_KEY = _pending_actions.PENDING_EXECUTE_ACTION_KEY
 EXECUTE_NOTICE_KEY = "_orchestrate_execute_notice"
 RUN_LOGS_PIN_ID = "orchestrate_run_logs"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
@@ -75,6 +158,17 @@ PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES",
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
 PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
+RUN_FATAL_STDERR_PATTERNS = (
+    "No virtual environment found",
+    "Command failed",
+    "Traceback",
+    "RuntimeError:",
+    "FileNotFoundError:",
+    "ModuleNotFoundError:",
+    "ImportError:",
+    "Process exited with non-zero",
+    "non-zero exit status",
+)
 
 
 @dataclass(frozen=True)
@@ -101,7 +195,12 @@ class OrchestrateExecuteDeps:
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
     candidate_roots: list[Path] = []
 
-    def _resolve_root(raw_path: Path | str, *, prefer_share: bool) -> Path:
+    def _resolve_root(
+        raw_path: Path | str,
+        *,
+        prefer_share: bool,
+        require_share: bool = False,
+    ) -> Path:
         path = Path(raw_path).expanduser()
         if path.is_absolute():
             return path
@@ -111,13 +210,30 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
                 try:
                     return Path(resolve_share_path(path)).expanduser()
                 except (OSError, TypeError, ValueError):
-                    pass
+                    if require_share:
+                        raise
         return Path.home() / path
 
-    def _attach_root(raw_path: Optional[Path | str], *, prefer_share: bool = False) -> None:
+    def _attach_root(
+        raw_path: Optional[Path | str],
+        *,
+        prefer_share: bool = False,
+        require_share: bool = False,
+    ) -> None:
         if not raw_path:
             return
-        candidate_roots.append(_resolve_root(raw_path, prefer_share=prefer_share))
+        try:
+            candidate_roots.append(
+                _resolve_root(
+                    raw_path,
+                    prefer_share=prefer_share,
+                    require_share=require_share,
+                ),
+            )
+        except (OSError, TypeError, ValueError):
+            if require_share and prefer_share:
+                return
+            candidate_roots.append(Path.home() / Path(raw_path).expanduser())
 
     _attach_root(getattr(env, "dataframe_path", None))
 
@@ -127,7 +243,7 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
     _attach_root(getattr(env, "app_data_rel", None))
 
     if isinstance(active_args, dict):
-        _attach_root(active_args.get("data_in"), prefer_share=True)
+        _attach_root(active_args.get("data_in"), prefer_share=True, require_share=True)
 
     unique_roots: list[Path] = []
     seen_roots: set[str] = set()
@@ -139,30 +255,80 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
     return unique_roots
 
 
-def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
-    search_files: list[Path] = []
+def _run_stderr_indicates_failure(stderr: Any) -> bool:
+    """Return whether returned stderr represents a failed AGILAB run."""
+    text = str(stderr or "")
+    return bool(text.strip()) and any(pattern in text for pattern in RUN_FATAL_STDERR_PATTERNS)
+
+
+def _preview_suffix_rank() -> dict[str, int]:
+    return {
+        Path(pattern).suffix.lower(): index
+        for index, pattern in enumerate(PREVIEW_FILE_PATTERNS)
+        if Path(pattern).suffix
+    }
+
+
+def _preview_candidate_records(candidate_roots: list[Path]) -> list[_PreviewCandidate]:
+    suffix_rank = _preview_suffix_rank()
+    records: list[_PreviewCandidate] = []
     seen_files: set[str] = set()
 
-    def _append_candidate(candidate: Path) -> bool:
-        if len(search_files) >= PREVIEW_MAX_SEARCH_FILES:
-            return False
+    def _append_candidate(bucket: list[_PreviewCandidate], candidate: Path, stat_result: os.stat_result) -> None:
+        suffix = candidate.suffix.lower()
+        rank = suffix_rank.get(suffix)
+        if rank is None:
+            return
         key = str(candidate)
         if key in seen_files:
-            return True
+            return
         seen_files.add(key)
-        search_files.append(candidate)
-        return True
+        bucket.append(_PreviewCandidate(path=candidate, stat_result=stat_result, suffix_rank=rank))
+
+    def _walk_directory(root: Path, bucket: list[_PreviewCandidate]) -> None:
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as entries:
+                    dirs: list[Path] = []
+                    for entry in entries:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                dirs.append(Path(entry.path))
+                                continue
+                            if not entry.is_file(follow_symlinks=False):
+                                continue
+                            path = Path(entry.path)
+                            if path.suffix.lower() not in suffix_rank:
+                                continue
+                            _append_candidate(bucket, path, entry.stat(follow_symlinks=False))
+                        except OSError:
+                            continue
+                    stack.extend(sorted(dirs, key=lambda path: str(path), reverse=True))
+            except OSError:
+                continue
 
     for root in candidate_roots:
-        if root.is_dir():
-            for pattern in PREVIEW_FILE_PATTERNS:
-                for candidate in sorted(root.rglob(pattern), key=lambda path: str(path)):
-                    if not _append_candidate(candidate):
-                        return search_files
-        elif root.is_file():
-            if not _append_candidate(root):
-                return search_files
-    return search_files
+        root_records: list[_PreviewCandidate] = []
+        try:
+            root_stat = root.stat()
+        except (FileNotFoundError, OSError):
+            continue
+        if stat.S_ISDIR(root_stat.st_mode):
+            _walk_directory(root, root_records)
+            root_records.sort(key=lambda record: (record.suffix_rank, str(record.path)))
+        elif stat.S_ISREG(root_stat.st_mode):
+            _append_candidate(root_records, root, root_stat)
+        for record in root_records:
+            if len(records) >= PREVIEW_MAX_SEARCH_FILES:
+                return records
+            records.append(record)
+    return records
+
+
+def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
+    return [record.path for record in _preview_candidate_records(candidate_roots)]
 
 
 def _is_preview_metadata_file(file_path: Path) -> bool:
@@ -171,27 +337,25 @@ def _is_preview_metadata_file(file_path: Path) -> bool:
 
 
 def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
-    search_files = _preview_candidate_paths(candidate_roots)
+    search_records = _preview_candidate_records(candidate_roots)
 
-    filtered_records: list[tuple[Path, float]] = []
-    for file_path in search_files:
+    filtered_records: list[_PreviewCandidate] = []
+    for record in search_records:
+        file_path = record.path
         if _is_preview_metadata_file(file_path):
             continue
-        try:
-            file_stat = file_path.stat()
-        except (FileNotFoundError, OSError):
-            continue
+        file_stat = record.stat_result
         if not stat.S_ISREG(file_stat.st_mode):
             continue
         if file_stat.st_size <= 0 or file_stat.st_size > PREVIEW_MAX_FILE_BYTES:
             continue
-        filtered_records.append((file_path, file_stat.st_mtime))
+        filtered_records.append(record)
 
     if not filtered_records:
         return None, []
 
-    filtered_files = [file_path for file_path, _mtime in filtered_records]
-    target_file = max(filtered_records, key=lambda item: (item[1], str(item[0])))[0]
+    filtered_files = [record.path for record in filtered_records]
+    target_file = max(filtered_records, key=lambda record: (record.mtime, str(record.path))).path
     try:
         target_file.stat()
     except (FileNotFoundError, OSError):
@@ -200,11 +364,11 @@ def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], li
 
 
 def queue_pending_execute_action(session_state, action: str) -> None:
-    session_state[PENDING_EXECUTE_ACTION_KEY] = action
+    _pending_actions.queue_pending_execute_action(session_state, action)
 
 
 def consume_pending_execute_action(session_state) -> Optional[str]:
-    return session_state.pop(PENDING_EXECUTE_ACTION_KEY, None)
+    return _pending_actions.consume_pending_execute_action(session_state)
 
 
 def queue_execute_notice(session_state, *, kind: str, message: str) -> None:
@@ -230,22 +394,19 @@ def render_execute_notice(streamlit_api, session_state) -> None:
     renderer(message)
 
 
-def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
-    if plt is None:
-        raise RuntimeError(
-            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
-            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
-        )
+def _render_graph_preview(graph_preview: "nx.Graph", source_preview_name: Optional[str]) -> None:
+    nx_module = _require_networkx()
+    plt_module = _require_matplotlib()
 
     st.caption("Graph preview generated from JSON output")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    pos = nx.spring_layout(graph_preview, seed=42)
-    nx.draw_networkx_nodes(graph_preview, pos, node_color="skyblue", ax=ax)
-    nx.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
-    nx.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
+    fig, ax = plt_module.subplots(figsize=(8, 6))
+    pos = nx_module.spring_layout(graph_preview, seed=42)
+    nx_module.draw_networkx_nodes(graph_preview, pos, node_color="skyblue", ax=ax)
+    nx_module.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
+    nx_module.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
     ax.axis("off")
     st.pyplot(fig, width="stretch")
-    plt.close(fig)
+    plt_module.close(fig)
     if source_preview_name:
         st.caption(f"Source: {source_preview_name}")
 
@@ -279,6 +440,7 @@ async def render_execute_section(
         cmd=cmd,
         project_path=project_path,
         worker_env_path=getattr(env, "wenv_abs", None),
+        worker_env_required=not app_declares_workerless(env),
     )
     dag_based_app = _is_dag_based_app(env, app_state_name)
 
@@ -337,12 +499,7 @@ async def render_execute_section(
 
         async def _run_and_stream():
             nonlocal log_file_path
-            runtime_root = (
-                Path(getattr(env, "agi_cluster"))
-                if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-                and getattr(env, "agi_cluster", None)
-                else project_path
-            )
+            runtime_root = Path(project_path)
             with log_file_path.open("w", encoding="utf-8") as log_file:
                 def _fanout(message: str) -> None:
                     clean = strip_ansi(message or "").rstrip()
@@ -368,11 +525,22 @@ async def render_execute_section(
                 stderr = str(exc)
                 st.session_state["_last_execute_failed"] = True
             st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
+        fatal_stderr = _run_stderr_indicates_failure(stderr)
+        if fatal_stderr:
+            st.session_state["_last_execute_failed"] = True
         with target_expander:
             log_placeholder.empty()
             log_body = st.session_state["run_log_cache"]
-            if run_error is not None:
+            if run_error is not None or fatal_stderr:
+                diagnostic = classify_runtime_failure(
+                    "\n".join(str(item) for item in (log_body, stderr)),
+                    phase="execute",
+                )
                 st.error("AGI execution failed.")
+                if diagnostic is not None:
+                    st.info(diagnostic.title)
+                    st.info(diagnostic.detail)
+                    st.info(f"Next: {diagnostic.next_action}")
                 if log_body:
                     st.caption("Full run diagnostic")
                     st.code(log_body, language="text")
@@ -401,7 +569,7 @@ async def render_execute_section(
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
-        if run_error is not None:
+        if run_error is not None or fatal_stderr:
             record_action_history(
                 st.session_state,
                 page_label="ORCHESTRATE",
@@ -446,7 +614,7 @@ async def render_execute_section(
             run_label = (
                 "Run workflow"
                 if dag_based_app
-                else ("Run benchmark" if st.session_state.get("benchmark") else "Run")
+                else ("RUN benchmark" if st.session_state.get("benchmark") else "RUN")
             )
             readiness_actions = [
                 (
@@ -516,7 +684,7 @@ async def render_execute_section(
                     disabled=not artifact_state.delete_action.enabled,
                     width="stretch",
                     help=artifact_state.delete_action.disabled_reason
-                    or "Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+                    or "Clear the cached dataframe preview so the next load reflects a fresh RUN.",
                 )
 
             if not dag_based_app and _update_delete_confirm_state(
@@ -583,20 +751,22 @@ async def render_execute_section(
             ):
                 _queue_execute_action("combo")
         else:
-            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.")
+            st.info("`Serve` mode selected. Switch to `Run now` to access RUN / LOAD actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
-        st.markdown("#### 5. Execute and inspect outputs")
+        st.markdown("#### 5. Run and inspect outputs")
         if dag_based_app:
             st.caption("Run the selected DAG workflow. Inspect stage artifacts and run evidence from WORKFLOW.")
         else:
             st.caption("Run the configured command, load the latest previewable output, and export tabular data when available.")
         _render_run_panel_controls()
     else:
-        consume_pending_execute_action(st.session_state)
+        pending_hidden_action = consume_pending_execute_action(st.session_state)
+        if pending_hidden_action:
+            st.error("RUN is not available yet. Run INSTALL first, then retry RUN.")
 
     pending_action = consume_pending_execute_action(st.session_state)
     run_clicked = pending_action == "run"
@@ -613,7 +783,9 @@ async def render_execute_section(
 
     if show_run_panel and load_clicked:
         load_action = _current_artifact_state().load_action
-        if not load_action.enabled:
+        if st.session_state.get("_last_execute_failed"):
+            st.info("Latest RUN failed. Check Run logs, fix the failure, then rerun before loading output.")
+        elif not load_action.enabled:
             st.info(load_action.disabled_reason)
         else:
             active_args = st.session_state.app_settings.get("args", {})
@@ -684,6 +856,8 @@ async def render_execute_section(
                     elif suffix == ".json":
                         payload = json.loads(target_file.read_text())
                         if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
+                            if json_graph is None:
+                                raise RuntimeError(_networkx_unavailable_message())
                             graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
                             st.session_state["loaded_df"] = None
                             st.session_state["_force_export_open"] = False
@@ -702,8 +876,9 @@ async def render_execute_section(
                             st.info(message)
                             load_notice = ("info", message)
                     elif suffix == ".gml":
-                        graph = nx.read_gml(target_file)
-                        edge_df = nx.to_pandas_edgelist(graph)
+                        nx_module = _require_networkx()
+                        graph = nx_module.read_gml(target_file)
+                        edge_df = nx_module.to_pandas_edgelist(graph)
                         if not edge_df.empty:
                             st.session_state["loaded_df"] = edge_df
                             st.session_state["_force_export_open"] = True
@@ -731,7 +906,7 @@ async def render_execute_section(
                         st.warning(f"Unsupported file format: {target_file.suffix}")
                 except json.JSONDecodeError as exc:
                     st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
-                except (OSError, RuntimeError, TypeError, ValueError, nx.NetworkXError) as exc:
+                except _PREVIEW_LOAD_EXCEPTIONS as exc:
                     st.error(f"Unable to load {target_file.name}: {exc}")
                 if loaded_output_changed:
                     if load_notice:
@@ -797,7 +972,7 @@ async def render_execute_section(
                 st.error(f"Failed to delete {file_path}: {exc}")
 
         if not deleted:
-            st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
+            st.info("Dataframe preview cleared. Click RUN then LOAD to refresh with new output.")
         st.session_state[delete_undo_key] = undo_payload
 
     if show_run_panel and run_clicked:
@@ -865,7 +1040,7 @@ async def render_execute_section(
             "detail": str(project_path),
         },
         {
-            "label": "Run workflow" if dag_based_app else "Run",
+            "label": "Run workflow" if dag_based_app else "RUN",
             "state": "done" if latest_log_path or existing_run_log else (
                 "ready" if execute_state.run_action.enabled else "blocked"
             ),
@@ -935,7 +1110,7 @@ async def render_execute_section(
         )
         if source_preview_name:
             st.caption(f"Previewing {source_preview_name}")
-    elif isinstance(graph_preview, nx.Graph):
+    elif _is_networkx_graph(graph_preview):
         try:
             _render_graph_preview(graph_preview, source_preview_name)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -1074,4 +1249,4 @@ async def render_execute_section(
         st.session_state.selected_cols = []
         st.session_state.check_all = False
         if controls_visible and not dag_based_app:
-            st.info("No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.")
+            st.info("No data loaded yet. Click LOAD after RUN to populate it before export.")

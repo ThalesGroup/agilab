@@ -19,6 +19,7 @@ from agilab.data_connector_facility import (
     load_connector_catalog,
 )
 from agilab.data_connector_search import search_index_provider, search_index_target
+from agilab.secret_uri import credential_env_name, is_secret_uri
 
 
 SCHEMA = "agilab.data_connector_live_endpoint_smoke.v1"
@@ -39,15 +40,19 @@ def _connector_target(connector: Mapping[str, Any]) -> str:
 
 
 def _credential_env_name(auth_ref: str) -> str:
-    return auth_ref.removeprefix("env:") if auth_ref.startswith("env:") else ""
+    return credential_env_name(auth_ref)
 
 
 def _credential_status(connector: Mapping[str, Any]) -> tuple[str, str]:
     auth_ref = str(connector.get("auth_ref", "") or "")
     env_name = _credential_env_name(auth_ref)
-    if not env_name:
+    if env_name:
+        return ("available", env_name) if os.getenv(env_name) else ("missing", env_name)
+    if is_secret_uri(auth_ref):
+        return "operator_runtime_required", ""
+    if not auth_ref:
         return "none_required", ""
-    return ("available", env_name) if os.getenv(env_name) else ("missing", env_name)
+    return "invalid", ""
 
 
 def _sqlite_target(uri: str) -> str:
@@ -126,6 +131,20 @@ def _smoke_row(
             "status": "skipped",
             "execution_status": "skipped_missing_credentials",
             "message": f"missing credential environment variable: {credential_env_name}",
+        }
+    if credential_status == "operator_runtime_required":
+        return {
+            **base,
+            "status": "skipped",
+            "execution_status": "skipped_operator_runtime_secret",
+            "message": "secret URI requires an operator-provided runtime resolver",
+        }
+    if credential_status == "invalid":
+        return {
+            **base,
+            "status": "skipped",
+            "execution_status": "skipped_invalid_credentials",
+            "message": "credential reference is invalid",
         }
     try:
         if kind == "sql":

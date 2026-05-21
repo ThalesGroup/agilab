@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-09
+  updated: 2026-05-19
 ---
 
 # AGILAB Installer Skill
@@ -40,6 +40,14 @@ Use this skill when working on:
   - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
 - Apps/pages install only:
   - `cd src/agilab && ./install_apps.sh --test-apps`
+- PyPI app package management:
+  - Use the PROJECT page `Install PyPI app` flow or the CLI
+    `agilab app search/check/install/list/update/remove` for promoted public
+    `agi-app-*` packages.
+  - This installs into the active Python environment with `uv pip install --python`;
+    discovery is via `agilab.apps` entry points, not copied source directories.
+  - Keep `APPS_REPOSITORY` for source-checkout app repositories and symlinked local
+    app development; do not mix it with the PyPI app-package path.
 
 ## Installer test switches
 
@@ -61,6 +69,34 @@ Use this skill when working on:
   - If an early install attempt used the real user `HOME`, discard that result
     as environment-polluted and rerun from a clean isolated `HOME` before
     publishing or deploying.
+
+- **Windows install surface**
+  - Treat native Windows package installs and source-checkout installs as separate
+    surfaces. The released package CLI first-proof and clean public install matrix
+    should pass on Windows. The source checkout installer still has POSIX shell
+    paths, so use WSL2 for source-checkout validation unless the work explicitly
+    targets `install.ps1` or native Windows installer parity.
+  - When debugging Windows clone/app linking failures, check whether symlink
+    creation was denied before blaming app metadata. Project clones and
+    app-repository links may use directory junction fallback for directories; if
+    both symlink and junction creation fail, the operation should skip or fail
+    with a clear message rather than deleting the source environment.
+  - Do not add placeholder Windows share credentials to workers. Network-drive
+    mapping should run only when `AGILAB_WINDOWS_NET_USE_USER` and
+    `AGILAB_WINDOWS_NET_USE_PASSWORD` are configured; `AGILAB_WINDOWS_NET_USE_DRIVE`
+    can override the default drive letter. Missing credentials are a supported
+    skip path, not an install failure by themselves.
+
+- **PyPI app package installs**
+  - Preflight a promoted app package before installing it from the UI or CLI.
+    Check Python compatibility, wheel/sdist availability, advertised entry
+    points, hashes, and provenance/signature metadata when available.
+  - If a PyPI app install succeeds but the PROJECT page does not list the app,
+    inspect the installed package's `agilab.apps` entry points before adding
+    source-repository aliases.
+  - Treat local repository apps and PyPI app packages as different sources of
+    truth. Fix the app package metadata or publish target when the package is
+    stale; do not copy payloads into `src/agilab/apps` to paper over it.
 
 - **Source checkout still resolves end-user install paths**
   - Symptom: after running from a source checkout, ORCHESTRATE or the first page reports

@@ -67,6 +67,7 @@ from agi_env.app_settings_support import (
     resolve_user_app_settings_file as resolve_workspace_app_settings_file,
 )
 from agi_env.connector_registry import resolve_connector_root
+from agi_env.app_provider_registry import resolve_app_runtime_target
 from agi_env.env_config_support import (
     clean_envar_value as _clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
@@ -131,6 +132,7 @@ from agi_env.bootstrap_support import (
     resolve_package_dir,
     resolve_requested_apps_path,
 )
+from agi_env.app_provider_registry import installed_app_project_paths
 from agi_env.credential_store_support import read_cluster_credentials
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
@@ -184,6 +186,24 @@ if FormattedTB is not None:
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
+
+
+def _optional_agi_pages_bundles_root() -> Path | None:
+    """Return the optional agi-pages bundle root without making it a hard dependency."""
+
+    if importlib.util.find_spec("agi_pages") is None:
+        return None
+    try:
+        import agi_pages  # type: ignore
+    except (ImportError, AttributeError, TypeError, OSError):
+        return None
+    bundles_root = getattr(agi_pages, "bundles_root", None)
+    if not callable(bundles_root):
+        return None
+    try:
+        return Path(bundles_root()).expanduser()
+    except (TypeError, OSError, RuntimeError):
+        return None
 
 
 def _ensure_dir(path: str | Path) -> Path:
@@ -443,15 +463,17 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             apps_repository_root=repo_apps,
         )
         self.apps_repository_root = apps_repository_root or repo_apps
+        self.installed_app_project_paths = installed_app_project_paths()
 
         active_app_selection = resolve_active_app_selection(
             app=app,
             active_app_override=active_app_override,
             apps_path=apps_path,
             builtin_apps_path=self.builtin_apps_path,
+            installed_app_projects=self.installed_app_project_paths,
             home_abs=home_abs,
             is_worker_env=self.is_worker_env,
-            default_app=str(envars.get("APP_DEFAULT", "flight_project") or "").strip(),
+            default_app=str(envars.get("APP_DEFAULT", "flight_telemetry_project") or "").strip(),
             path_cls=Path,
         )
         app = active_app_selection.app
@@ -471,7 +493,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.active_app = active_app
         self.apps_path = apps_path
 
-        target = app.replace("_project", "").replace("_worker","").replace("-", "_")
+        target = resolve_app_runtime_target(active_app, app)
         self.share_target_name = target
 
         self.verbose = verbose
@@ -633,7 +655,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             stamp_path = dataset_root / ".agilab_dataset_stamp"
 
             existing_files = (
-                [p for p in dataset_root.rglob("*") if p.is_file() and p != stamp_path]
+                [p for p in dataset_root.rglob("*") if p != stamp_path and p.is_file()]
                 if dataset_root.exists()
                 else []
             )
@@ -967,6 +989,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                         projects.append(name)
                         seen.add(name)
 
+        for project_path in sorted(getattr(self, "installed_app_project_paths", ()), key=lambda candidate: candidate.name):
+            try:
+                name = Path(project_path).name
+            except (TypeError, ValueError):
+                continue
+            if name.endswith("_project") and name not in seen:
+                projects.append(name)
+                seen.add(name)
+
         return projects
 
     def get_base_worker_cls(self, module_path, class_name):
@@ -1010,7 +1041,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             else:
                 return False
 
-        dest.symlink_to(candidate, target_is_directory=True)
+        if not AgiEnv.create_symlink(candidate, dest):
+            return False
         AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
         return True
 
@@ -1146,13 +1178,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if pages_override:
             pages_root = Path(pages_override).expanduser()
         else:
-            candidates = [self.agilab_pck / "agilab/apps-pages",
-                          self.agilab_pck / "apps-pages"]
+            candidates = [
+                self.agilab_pck / "apps-pages",
+                self.agilab_pck / "agilab/apps-pages",
+            ]
             repo_hint = self.read_agilab_path()
             if repo_hint:
                 repo_hint = Path(repo_hint)
                 for suffix in ("apps-pages", "agilab/apps-pages"):
                     candidates.append(repo_hint / suffix)
+            agi_pages_root = _optional_agi_pages_bundles_root()
+            if agi_pages_root is not None:
+                candidates.append(agi_pages_root)
 
             pages_root = next((c.resolve() for c in candidates if c and c.exists()), candidates[0])
 
@@ -1314,26 +1351,32 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
 
     @staticmethod
-    def create_symlink(src: Path, dest: Path):
+    def create_symlink(src: Path, dest: Path) -> bool:
         try:
             if dest.exists() or dest.is_symlink():
                 if dest.is_symlink() and dest.resolve() == src.resolve():
                     logger = AgiEnv.logger
                     if logger:
                         logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
-                    return
+                    return True
                 logger = AgiEnv.logger
                 if logger:
                     logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
+                if dest.is_dir():
+                    return False
                 dest.unlink()
             dest.symlink_to(src, target_is_directory=src.is_dir())
             logger = AgiEnv.logger
             if logger:
                 logger.info(f"Symlink created: @{dest.name} -> {src}")
+            return True
         except OSError as e:
+            if os.name == "nt" and src.is_dir() and AgiEnv.create_junction_windows(src, dest):
+                return True
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
+            return False
 
     def change_app(self, app):
         # Normalize current and requested app identifiers to comparable names
@@ -1421,7 +1464,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             return False
 
     @staticmethod
-    def create_junction_windows(source: Path, dest: Path):
+    def create_junction_windows(source: Path, dest: Path) -> bool:
         """
         Create a directory junction on Windows.
 
@@ -1435,10 +1478,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             logger = AgiEnv.logger
             if logger:
                 logger.info(f"Created junction: {dest} -> {source}")
-        except subprocess.CalledProcessError as e:
+            return True
+        except (OSError, subprocess.CalledProcessError) as e:
             logger = AgiEnv.logger
             if logger:
                 logger.error(f"Failed to create junction. Error: {e}")
+            return False
 
     @staticmethod
     def create_symlink_windows(source: Path, dest: Path):

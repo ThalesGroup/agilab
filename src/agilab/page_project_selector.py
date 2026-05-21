@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any, Callable, Iterable
+
+NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
+PROJECT_ROUTE_ID = "project"
+PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")
+MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
 
 
 def _unique_project_names(projects: Iterable[Any]) -> list[str]:
@@ -31,6 +37,27 @@ def _refresh_project_names(streamlit: Any, projects: Iterable[Any]) -> list[str]
         return _unique_project_names(refreshed)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return _unique_project_names(projects)
+
+
+def _registered_navigation_page(route_id: str) -> Any | None:
+    """Return a registered ``st.Page`` object from the active main navigation run."""
+    for module_name in MAIN_NAVIGATION_MODULES:
+        module = sys.modules.get(module_name)
+        routes = getattr(module, NAVIGATION_PAGE_ROUTES_ATTR, None)
+        if isinstance(routes, dict) and routes.get(route_id) is not None:
+            return routes[route_id]
+    return None
+
+
+def switch_to_project_page(streamlit: Any, *, active_app: str | None = None) -> bool:
+    """Switch to PROJECT using the active ``st.navigation`` page when available."""
+    switch_page = getattr(streamlit, "switch_page", None)
+    if not callable(switch_page):
+        return False
+    if active_app is not None:
+        streamlit.query_params["active_app"] = str(active_app)
+    switch_page(_registered_navigation_page(PROJECT_ROUTE_ID) or PROJECT_PAGE_PATH)
+    return True
 
 
 def render_project_selector(
@@ -73,9 +100,8 @@ def render_project_selector(
         help=help_text,
     )
     if show_edit_button:
-        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", use_container_width=True):
-            streamlit.query_params["active_app"] = selection
-            streamlit.switch_page(Path("pages/1_PROJECT.py"))
+        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", width="stretch"):
+            switch_to_project_page(streamlit, active_app=selection)
     if selection != current:
         on_change(selection)
     return selection

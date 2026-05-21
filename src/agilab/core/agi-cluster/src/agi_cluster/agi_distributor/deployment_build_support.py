@@ -96,11 +96,22 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
         ("agi-env", getattr(env, "agi_env", None)),
         ("agi-node", getattr(env, "agi_node", None)),
     )
-    for package_name, source_path in core_packages:
-        if getattr(env, "is_source_env", False) and source_path:
-            commands.append(f"{uv} {offline_flag}--project {app_path_arg} pip install -e '{source_path}'")
-        else:
-            commands.append(f"{uv} --project {app_path_arg} pip install {package_name} ")
+    if getattr(env, "is_source_env", False):
+        editable_specs = [
+            f"-e '{source_path}'"
+            for _package_name, source_path in core_packages
+            if source_path
+        ]
+        if editable_specs:
+            commands.append(
+                f"{uv} {offline_flag}--project {app_path_arg} pip install --upgrade --no-deps "
+                + " ".join(editable_specs)
+            )
+    else:
+        commands.append(
+            f"{uv} --project {app_path_arg} pip install "
+            + " ".join(package_name for package_name, _source_path in core_packages)
+        )
     return commands
 
 

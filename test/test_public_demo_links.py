@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 import tomllib
 
+from packaging.version import Version
+
 README = Path("README.md")
 PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
@@ -17,6 +19,8 @@ COMPONENT_READMES = (
     Path("src/agilab/core/agi-node/README.md"),
     Path("src/agilab/core/agi-cluster/README.md"),
     Path("src/agilab/lib/agi-gui/README.md"),
+    Path("src/agilab/lib/agi-apps/README.md"),
+    Path("src/agilab/lib/agi-pages/README.md"),
 )
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
@@ -48,6 +52,7 @@ RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 CURRENT_RELEASE_VERSION = "2026.05.01.post4"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
 NOTEBOOK_PIPELINE_IMPORT = Path("src/agilab/notebook_pipeline_import.py").resolve()
+AGI_APPS_PYPROJECT = Path("src/agilab/lib/agi-apps/pyproject.toml")
 
 
 @lru_cache(maxsize=1)
@@ -129,12 +134,106 @@ def test_pypi_readme_uses_same_public_demo_entry_points() -> None:
     assert PUBLIC_HF_SPACE_BADGE in readme
     assert AGI_CORE_NOTEBOOK_URL in readme
     assert AGI_CORE_NOTEBOOK_BADGE in readme
-    assert "flight_project" in readme
+    assert "flight_telemetry_project" in readme
     assert "uav_relay_queue_project" in readme
     assert "Advanced Proof Pack" in readme
     assert "advanced-proof-pack.html" in readme
     assert "demo request" not in readme.lower()
     assert "issues/new" not in readme
+
+
+def test_pypi_readme_tracks_public_readme_contract() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    compact_readme = " ".join(readme.split())
+    compact_pypi_readme = " ".join(pypi_readme.split())
+
+    assert pyproject["project"]["readme"] == "README.pypi.md"
+
+    synced_fragments = (
+        "AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.",
+        "It turns notebooks and scripts into executable, portable, evidence-backed apps",
+        "you do not lose your work if the AGILAB UI or distributed runtime is",
+        "reviewable run evidence",
+        "runnable outside the AGILAB UI as `agi-core` notebooks",
+        "production-grade core technology",
+        "AGILAB complements MLflow and production MLOps platforms.",
+        "## Core Flow",
+        "### Local PyPI UI Proof",
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"',
+        "## Production Boundary",
+        "## Security Reporting",
+        "## Dependency And Supply-Chain Boundaries",
+        "## Evidence Taxonomy",
+        "## Proof Capsule Direction",
+        "The first public proof-pack layer now adds",
+        "## Source Version vs Package Version",
+        "| `main` branch and root `pyproject.toml` |",
+        "| Release tag |",
+        "| PyPI package |",
+        "| Release proof |",
+        "## Source Checkout",
+        "## Published Package",
+        "| Distributed (Dask) | Stable |",
+        "| UI Streamlit | Beta |",
+        "| RL examples | Example available |",
+        "Current public evaluation summary, refreshed from the public KPI bundle:",
+        "Overall public evaluation, rounded category average: `3.8 / 5`.",
+        "Package publishing policy",
+    )
+    for fragment in synced_fragments:
+        assert fragment in readme or fragment in compact_readme
+        assert fragment in pypi_readme or fragment in compact_pypi_readme
+
+    stale_fragments = (
+        "Try this first",
+        "## First Run",
+        "## Install The Published Package",
+        "The PyPI package is the thinnest public entry point",
+        'pip install "agilab[ui]"',
+        "pip install agilab",
+        "| Distributed (Dask) | Beta |",
+        "| UI Streamlit | Stable |",
+        "| Agents RL | Roadmap |",
+        "CODEX 5.5",
+        "One forward-looking improvement area is elasticity",
+    )
+    for fragment in stale_fragments:
+        assert fragment not in pypi_readme
+
+    assert pypi_readme.count("agilab[ui]") == 1
+
+
+def test_source_package_version_contract_is_explicit_and_current() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    release = _release_proof_manifest()["release"]
+
+    source_version = pyproject["project"]["version"]
+    package_version = release["package_version"]
+    core_dependency = next(
+        dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("agi-core==")
+    )
+    core_version = core_dependency.removeprefix("agi-core==").split(";", 1)[0]
+    agi_apps_pyproject = tomllib.loads(
+        Path("src/agilab/lib/agi-apps/pyproject.toml").read_text(encoding="utf-8")
+    )
+    agi_apps_version = agi_apps_pyproject["project"]["version"]
+    optional_dependencies = pyproject["project"]["optional-dependencies"]
+
+    assert Version(source_version) == Version(package_version)
+    assert Version(core_version) <= Version(source_version)
+    assert Version(agi_apps_version) <= Version(source_version)
+    assert f"agi-apps=={agi_apps_version}" in optional_dependencies["ui"]
+    assert f"agi-apps=={agi_apps_version}" in optional_dependencies["examples"]
+    assert "version%20alignment-release%20proof" in readme
+    assert "version%20alignment-release%20proof" in pypi_readme
+    assert "main` branch and root `pyproject.toml" in readme
+    assert "main` branch and root `pyproject.toml" in pypi_readme
+    assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in readme
+    assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in pypi_readme
 
 
 def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
@@ -156,27 +255,98 @@ def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
     ) in readme
 
 
+def test_readme_agent_skill_badges_use_raw_urls_for_public_renderers() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert (
+        '<a href="AGENT_SKILLS.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" '
+        'alt="Skills" /></a>'
+    ) in readme
+    assert (
+        '<a href="tools/agent_workflows.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg" '
+        'alt="Agent API: CLI Python" /></a>'
+    ) in readme
+    assert "badges/agent-skills.svg" not in readme
+    assert 'src="badges/skills-codex.svg"' not in readme
+    assert 'src="badges/skills-claude.svg"' not in readme
+    assert "badges/skills-codex.svg" not in readme
+    assert "badges/skills-claude.svg" not in readme
+
+
+def test_readme_uses_explicit_wheel_yes_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "https://img.shields.io/badge/wheel-yes-0F766E" in readme
+    assert 'alt="Wheel: yes"' in readme
+    assert "https://img.shields.io/pypi/format/agilab" not in readme
+    assert 'alt="PyPI format"' not in readme
+
+
+def test_readmes_expose_supply_chain_evidence_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    badge = "https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E"
+    release_proof = "https://thalesgroup.github.io/agilab/release-proof.html"
+
+    assert (
+        f'<a href="{release_proof}"><img src="{badge}" '
+        'alt="Supply chain: SBOM, audit, provenance" /></a>'
+    ) in readme
+    assert (
+        f"[![Supply chain: SBOM, audit, provenance]({badge})]({release_proof})"
+        in pypi_readme
+    )
+
+
+def test_readmes_expose_first_proof_evidence_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    badge = "https://img.shields.io/badge/first%20proof-passing-0F766E"
+    release_proof = "https://thalesgroup.github.io/agilab/release-proof.html"
+
+    assert (
+        f'<a href="{release_proof}"><img src="{badge}" '
+        'alt="First proof: passing" /></a>'
+    ) in readme
+    assert f"[![First proof: passing]({badge})]({release_proof})" in pypi_readme
+
+
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
-    try_this_first = readme.split("### Try this first", 1)[1].split(
-        "The public AGILAB Space",
+    local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
+        "For a zero-install browser preview",
         1,
     )[0]
 
     assert (
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
-        in try_this_first
+        in local_proof
     )
-    assert "agilab first-proof --json --with-ui" in try_this_first
-    assert "agilab\n" in try_this_first
-    assert "python3 -m venv" not in try_this_first
-    assert "source ~/.agilab-first-proof/bin/activate" not in try_this_first
-    assert "python -m pip install --upgrade pip" not in try_this_first
+    assert "agilab first-proof" not in local_proof
+    assert "agilab first-proof --json --with-ui" in readme
+    assert "If startup fails, run a progressive fallback" in readme
+    assert "agilab\n" in local_proof
+    assert "python3 -m venv" not in local_proof
+    assert "source ~/.agilab-first-proof/bin/activate" not in local_proof
+    assert "python -m pip install --upgrade pip" not in local_proof
     assert "python -m agilab.lab_run" not in readme
+    assert (
+        readme.count(
+            'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
+        )
+        == 1
+    )
+    assert "The PyPI package is the thinnest public entry point" not in readme
 
 
 def test_quick_start_package_route_uses_tool_console_script_without_activation() -> None:
     quick_start = Path("docs/source/quick-start.rst").read_text(encoding="utf-8")
+    ui_route = quick_start.split(
+        "The base package install is intentionally CLI/core only. Install the UI profile",
+        1,
+    )[1].split("Optional feature stacks", 1)[0]
 
     assert (
         "uv --preview-features extra-build-dependencies tool install --upgrade agilab"
@@ -186,6 +356,8 @@ def test_quick_start_package_route_uses_tool_console_script_without_activation()
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
         in quick_start
     )
+    assert "agilab first-proof --json --max-seconds 60" in quick_start
+    assert "agilab first-proof --json --max-seconds 60" not in ui_route
     assert "agilab first-proof --json --with-ui" in quick_start
     assert "source .venv/bin/activate" not in quick_start
     assert "python -m agilab.lab_run" not in quick_start
@@ -229,15 +401,21 @@ def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
     index = Path("docs/source/index.rst").read_text(encoding="utf-8")
     demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
     agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
-    use_sidebar_block = index.split(":caption: Use", 1)[1].split(":caption: Build", 1)[0]
+    product_sidebar_block = index.split(":caption: Product", 1)[1].split(
+        ":caption: Notebooks and API",
+        1,
+    )[0]
+    notebook_sidebar_block = index.split(":caption: Notebooks and API", 1)[1].split(
+        ":caption: Build",
+        1,
+    )[0]
 
-    assert "AGILAB Demo <agilab-demo>" in index
-    assert "Advanced Proof Pack <advanced-proof-pack>" in index
-    assert "notebook-quickstart" in index
-    assert "AGILAB Demo <agilab-demo>" in use_sidebar_block
-    assert "Advanced Proof Pack <advanced-proof-pack>" in use_sidebar_block
-    assert "notebook-quickstart" in use_sidebar_block
-    assert use_sidebar_block.index("AGILAB Demo <agilab-demo>") < use_sidebar_block.index("notebook-quickstart")
+    assert "Public web demo <agilab-demo>" in index
+    assert "Advanced proof pack <advanced-proof-pack>" in index
+    assert "Notebook quickstart with agi-core <notebook-quickstart>" in index
+    assert "Public web demo <agilab-demo>" in product_sidebar_block
+    assert "Advanced proof pack <advanced-proof-pack>" in product_sidebar_block
+    assert "Notebook quickstart with agi-core <notebook-quickstart>" in notebook_sidebar_block
     assert ":doc:`agilab-demo`" in demos
     assert ":doc:`advanced-proof-pack`" in demos
     assert ":doc:`notebook-quickstart`" in demos
@@ -250,21 +428,21 @@ def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
     agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
     normalized_agilab_demo = " ".join(agilab_demo.split())
 
-    assert "``flight_project``" in demos
-    assert "``meteo_forecast_project``" in demos
+    assert "``flight_telemetry_project``" in demos
+    assert "``weather_forecast_project``" in demos
     assert "``view_maps``" in demos
     assert "``view_forecast_analysis``" in demos
     assert "``view_release_decision``" in demos
     assert "notebook-migration-skforecast-meteo" in demos
     assert "Notebook migration route" in demos
-    assert "Four short demos" in demos
+    assert "Short demo routes" in demos
     assert "``uav_relay_queue_project`` is the UAV Relay Queue RL demo" in demos
 
     for phrase in (
-        "confirm ``flight_project`` is selected in ``PROJECT``",
+        "confirm ``flight_telemetry_project`` is selected in ``PROJECT``",
         "inspect the generated execution snippet in ``ORCHESTRATE``",
         "open ``ANALYSIS`` and finish on the ``view_maps`` operator view",
-        "switch to ``meteo_forecast_project``",
+        "switch to ``weather_forecast_project``",
         "open ``view_forecast_analysis`` or ``view_release_decision``",
         "use :doc:`notebook-migration-skforecast-meteo` as the companion walkthrough",
         "``ANALYSIS`` opens the ``view_maps`` and ``view_forecast_analysis`` routes without a startup error",
@@ -281,7 +459,7 @@ def test_advanced_proof_pack_surfaces_deeper_public_routes() -> None:
 
     for text in (advanced, demos):
         for marker in (
-            "``data_io_2026_project``",
+            "``mission_decision_project``",
             "``execution_pandas_project``",
             "``execution_polars_project``",
             "``uav_relay_queue_project``",
@@ -310,10 +488,10 @@ def test_readme_surfaces_notebook_migration_as_demo_route() -> None:
 
     assert demo_url in readme
     assert "Notebook Migration Demo" in readme
-    assert "`meteo_forecast_project` notebook-migration demo" in readme
+    assert "`weather_forecast_project` notebook-migration demo" in readme
     assert "Understand notebook-to-app migration" in readme
     assert "Notebook Migration Demo" in pypi_readme
-    assert "`meteo_forecast_project` notebook-migration demo" in pypi_readme
+    assert "`weather_forecast_project` notebook-migration demo" in pypi_readme
 
 
 def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
@@ -333,15 +511,15 @@ def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
         source = METEO_NOTEBOOK_MIGRATION / relative_path
         assert source.is_file(), f"Missing repository meteo migration asset: {source}"
 
-    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+    package_data = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"][
         "package-data"
-    ]["agilab"]
+    ]["agilab.examples"]
     for pattern in (
-        "examples/notebook_migrations/*/notebooks/*.ipynb",
-        "examples/notebook_migrations/*/analysis_artifacts/*.json",
-        "examples/notebook_migrations/*/analysis_artifacts/*.csv",
-        "examples/notebook_migrations/*/migrated_project/*.toml",
-        "examples/notebook_migrations/*/migrated_project/*.dot",
+        "notebook_migrations/*/notebooks/*.ipynb",
+        "notebook_migrations/*/analysis_artifacts/*.json",
+        "notebook_migrations/*/analysis_artifacts/*.csv",
+        "notebook_migrations/*/migrated_project/*.toml",
+        "notebook_migrations/*/migrated_project/*.dot",
     ):
         assert pattern in package_data
 
@@ -365,20 +543,20 @@ def test_notebook_quickstart_assets_are_packaged_from_agilab_package_tree() -> N
     for notebook in required_notebooks:
         assert (notebook_dir / notebook).is_file(), notebook
 
-    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+    package_data = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"][
         "package-data"
-    ]["agilab"]
-    assert "examples/notebook_quickstart/*.ipynb" in package_data
+    ]["agilab.examples"]
+    assert "notebook_quickstart/*.ipynb" in package_data
 
 
-def test_meteo_forecast_project_declares_notebook_import_views() -> None:
-    manifest_path = Path("src/agilab/apps/builtin/meteo_forecast_project/notebook_import_views.toml")
+def test_weather_forecast_project_declares_notebook_import_views() -> None:
+    manifest_path = Path("src/agilab/apps/builtin/weather_forecast_project/notebook_import_views.toml")
     manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
     view_modules = {view["module"] for view in manifest["views"]}
     notebook_pipeline_import = _load_notebook_pipeline_import_module()
 
     assert manifest["schema"] == "agilab.notebook_import_views.v1"
-    assert manifest["app"] == "meteo_forecast_project"
+    assert manifest["app"] == "weather_forecast_project"
     assert {"view_forecast_analysis", "view_release_decision"} <= view_modules
     for module in view_modules:
         assert Path(f"src/agilab/apps-pages/{module}").is_dir(), module
@@ -400,7 +578,7 @@ def test_meteo_forecast_project_declares_notebook_import_views() -> None:
                 ],
             },
         },
-        module_name="meteo_forecast_project",
+        module_name="weather_forecast_project",
         manifest=notebook_pipeline_import.load_notebook_import_view_manifest(manifest_path),
         manifest_path=manifest_path,
     )
@@ -433,10 +611,11 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "API/notebook" not in readme
     assert 'alt="AGILAB Space"' in readme
     assert 'alt="agi-core notebook"' in readme
-    assert "## First Run" in readme
+    assert "## Source Checkout" in readme
+    assert "## First Run" not in readme
     assert "Then in the UI:" not in readme
     assert "PROJECT` -> select" not in readme
-    assert "tools/newcomer_first_proof.py --json" in readme
+    assert "tools/newcomer_first_proof.py --json" not in readme
     assert "ease of adoption" in readme
     assert _kpi_score("Ease of adoption") in readme
 
@@ -467,9 +646,9 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
 
     assert "## Evaluation Snapshot" in readme
     assert "## CODEX 5.5 Evaluation Snapshot" not in readme
-    assert "CODEX 5.5 working summary" in readme
-    assert "AI/ML experimentation workbench" in readme
-    assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
+    assert "CODEX 5.5" not in readme
+    assert "anti-lock-in reproducibility workbench" in readme
+    assert "complements MLflow and production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
     assert f"{_baseline_score()}` ->" not in readme
@@ -585,10 +764,40 @@ def test_public_docs_expose_three_clear_adoption_routes() -> None:
         assert "10 minutes" in text
 
 
+def test_public_docs_link_security_adoption_boundary() -> None:
+    index = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    security = Path("docs/source/security-adoption.rst").read_text(encoding="utf-8")
+
+    assert "Security and adoption <security-adoption>" in index
+    assert "Do not use public GitHub issues" in security
+    assert "GitHub Private Vulnerability Reporting" in security
+    assert "No-go as a standalone production platform" in security
+
+
+def test_newcomer_docs_choose_first_example_without_deprecation_confusion() -> None:
+    text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
+    decision_section = text.split("Which example should I start with?", 1)[1].split(
+        "Adoption evidence",
+        1,
+    )[0]
+
+    for phrase in (
+        "``flight_telemetry_project``",
+        "``mycode_project``",
+        "``weather_forecast_project`` or ``mission_decision_project``",
+        "Read-only preview examples",
+        "``notebook_migrations/skforecast_meteo_fr``",
+    ):
+        assert phrase in decision_section
+    assert "deprecated" not in decision_section.lower()
+    assert "deprecation" not in decision_section.lower()
+
+
 def test_newcomer_docs_capture_adoption_evidence() -> None:
     text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
 
     assert "Adoption evidence" in text
+    assert "agilab adoption-report" in text
     assert "Ease of adoption" in text
     assert _kpi_score("Ease of adoption") in text
     assert "5.86s" in text

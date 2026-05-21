@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 REPORT_PATH = Path("tools/global_pipeline_execution_plan_report.py").resolve()
@@ -100,18 +102,18 @@ def test_execution_plan_carries_app_template_execution_contracts() -> None:
 
     plan = module.build_execution_plan(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
     )
 
     assert plan.ok is True
     first, second = plan.runnable_units
-    assert first["execution_contract"]["entrypoint"] == "flight_project.flight_context"
+    assert first["execution_contract"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert first["execution_contract"]["params"]["output_format"] == "parquet"
-    assert first["execution_contract"]["data_in"] == "flight/dataset"
+    assert first["execution_contract"]["data_in"] == "flight_telemetry/dataset"
     assert first["execution_contract"]["stages"] == []
-    assert second["execution_contract"]["entrypoint"] == "meteo_forecast_project.meteo_forecast_review"
+    assert second["execution_contract"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert second["execution_contract"]["params"]["station"] == "Paris-Montsouris"
-    assert second["execution_contract"]["data_out"] == "meteo_forecast/results"
+    assert second["execution_contract"]["data_out"] == "weather_forecast/results"
 
 
 def test_execution_plan_report_handles_load_failure(tmp_path: Path) -> None:
@@ -133,3 +135,72 @@ def test_execution_plan_report_handles_load_failure(tmp_path: Path) -> None:
             "summary": "global pipeline execution plan could not be assembled",
         }
     ]
+
+
+def test_execution_plan_helper_edge_cases() -> None:
+    module = _load_core_module()
+
+    issue = module._issue("dag", "broken")
+    assert issue.as_dict() == {"level": "error", "location": "dag", "message": "broken"}
+    assert module._payload_rows({"nodes": "bad"}) == ()
+    assert module._payload_edges({"edges": "bad"}) == ()
+    assert module._artifact_paths("bad") == {}
+    assert module._artifact_paths([{"id": "", "path": "ignored"}, "bad", {"id": "a", "path": "out/a.json"}]) == {
+        "a": "out/a.json"
+    }
+    assert module._produced_artifacts({"produces": "bad"}) == []
+    assert module._produced_artifacts({"produces": ["bad", {"id": ""}, {"id": "a", "path": "x", "kind": "json"}]}) == [
+        {"artifact": "a", "path": "x", "kind": "json"}
+    ]
+    assert module._execution_stage_bindings({"execution": "bad"}) == {}
+    assert module._execution_stage_bindings({"execution": {"stage_bindings": "bad"}}) == {}
+
+    contract = module._execution_contract(
+        {
+            "id": "stage-1",
+            "execution": {
+                "command": "python -m demo --flag",
+                "run_params": {"alpha": 1},
+                "rapids_enabled": 1,
+                "benchmark_best_single_node": 0,
+            },
+        },
+        {"stage-1": "demo.entrypoint"},
+    )
+
+    assert contract == {
+        "entrypoint": "demo.entrypoint",
+        "command": ["python", "-m", "demo", "--flag"],
+        "params": {"alpha": 1},
+        "rapids_enabled": True,
+        "benchmark_best_single_node": False,
+    }
+    assert module._command_parts([" python ", "", 3]) == ["python", "3"]
+
+    with pytest.raises(ValueError, match="legacy 'steps'/'run_steps'"):
+        module._execution_contract({"id": "legacy", "execution": {"steps": []}}, {})
+
+
+def test_execution_plan_reports_missing_ordered_node(monkeypatch, tmp_path: Path) -> None:
+    module = _load_core_module()
+    graph = SimpleNamespace(
+        ok=True,
+        issues=(),
+        execution_order=("missing-node",),
+        app_pipeline_views=(),
+        dag_path="dag.json",
+        schema="agilab.global_pipeline_dag.v1",
+        runner_status="not_executed",
+    )
+    monkeypatch.setattr(module, "build_global_pipeline_dag", lambda **_kwargs: graph)
+    monkeypatch.setattr(module, "load_multi_app_dag", lambda _path: {"nodes": [], "edges": []})
+
+    plan = module.build_execution_plan(repo_root=tmp_path, dag_path=Path("dag.json"))
+
+    assert plan.ok is False
+    assert plan.runnable_units == ()
+    assert plan.issues[0].as_dict() == {
+        "level": "error",
+        "location": "units[0]",
+        "message": "execution node 'missing-node' is missing",
+    }

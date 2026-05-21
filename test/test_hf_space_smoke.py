@@ -25,18 +25,18 @@ def test_build_space_url_encodes_current_page_query() -> None:
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
 
-def test_build_space_url_encodes_meteo_view_query() -> None:
+def test_build_space_url_encodes_weather_view_query() -> None:
     module = _load_module()
     spec = module.route_specs()[5]
 
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=meteo_forecast_project" in url
+    assert "active_app=weather_forecast_project" in url
     assert (
         "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_forecast_analysis"
         "%2Fsrc%2Fview_forecast_analysis%2Fview_forecast_analysis.py"
@@ -51,11 +51,25 @@ def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
             {"path": "src/agilab/apps/builtin"},
             {"path": "src/agilab/apps/install.py"},
             {"path": "src/agilab/apps/uav_graph_routing_project"},
-            {"path": "src/agilab/apps/builtin/flight_project"},
+            {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
         ]
     )
 
     assert offenders == ["uav_graph_routing_project"]
+
+
+def test_builtin_app_profile_requires_current_first_proof_apps() -> None:
+    module = _load_module()
+
+    missing, unexpected = module.builtin_app_entry_mismatch(
+        [
+            {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+            {"path": "src/agilab/apps/builtin/tescia_diagnostic_project"},
+        ]
+    )
+
+    assert missing == ["weather_forecast_project"]
+    assert unexpected == ["tescia_diagnostic_project"]
 
 
 def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
@@ -67,12 +81,13 @@ def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
             {"path": "src/agilab/apps-pages/view_maps"},
             {"path": "src/agilab/apps-pages/view_forecast_analysis"},
             {"path": "src/agilab/apps-pages/view_release_decision"},
+            {"path": "src/agilab/apps-pages/view_scenario_cockpit"},
             {"path": "src/agilab/apps-pages/view_maps_network"},
             {"path": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"},
         ]
     )
 
-    assert offenders == ["view_maps_network"]
+    assert offenders == ["view_maps_network", "view_scenario_cockpit"]
 
 
 def test_unexpected_core_page_entries_flags_stale_renamed_pages() -> None:
@@ -80,6 +95,7 @@ def test_unexpected_core_page_entries_flags_stale_renamed_pages() -> None:
 
     offenders = module.unexpected_core_page_entries(
         [
+            {"path": "src/agilab/pages/0_SETTINGS.py"},
             {"path": "src/agilab/pages/1_PROJECT.py"},
             {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
             {"path": "src/agilab/pages/3_WORKFLOW.py"},
@@ -150,7 +166,9 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             2.8,
             3.6,
             3.6,
-            4.5,
+            3.8,
+            3.8,
+            4.7,
         ]
     )
 
@@ -160,8 +178,14 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     def _fetch_json(_url: str, _timeout: float):
         if _url.endswith("src/agilab/apps"):
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
+        if _url.endswith("src/agilab/apps/builtin"):
+            return [
+                {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/weather_forecast_project"},
+            ]
         if _url.endswith("src/agilab/pages"):
             return [
+                {"path": "src/agilab/pages/0_SETTINGS.py"},
                 {"path": "src/agilab/pages/1_PROJECT.py"},
                 {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
                 {"path": "src/agilab/pages/3_WORKFLOW.py"},
@@ -184,10 +208,11 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == 4.5
+    assert summary.total_duration_seconds == 4.7
     assert summary.within_target is True
-    assert [check.label for check in summary.checks][-3:] == [
+    assert [check.label for check in summary.checks][-4:] == [
         "public app tree",
+        "builtin app profile tree",
         "public pages tree",
         "core pages tree",
     ]
@@ -195,13 +220,19 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
 
 def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
     module = _load_module()
-    clock = iter([0.0, 0.1, 0.1, 0.3, 0.3, 0.6])
+    clock = iter([0.0, 0.1, 0.1, 0.3, 0.3, 0.6, 0.6, 1.0])
 
     def _fetch_json(_url: str, _timeout: float):
         if _url.endswith("src/agilab/apps"):
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
+        if _url.endswith("src/agilab/apps/builtin"):
+            return [
+                {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/weather_forecast_project"},
+            ]
         if _url.endswith("src/agilab/pages"):
             return [
+                {"path": "src/agilab/pages/0_SETTINGS.py"},
                 {"path": "src/agilab/pages/1_PROJECT.py"},
                 {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
                 {"path": "src/agilab/pages/3_WORKFLOW.py"},
@@ -222,9 +253,10 @@ def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == 0.6
+    assert summary.total_duration_seconds == 1.0
     assert [check.label for check in summary.checks] == [
         "public app tree",
+        "builtin app profile tree",
         "public pages tree",
         "core pages tree",
     ]

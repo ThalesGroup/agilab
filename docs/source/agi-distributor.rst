@@ -50,8 +50,7 @@ The current bit values are:
 Prefer the public constants instead of typing numeric bitmasks:
 
 - ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the MyCode docs example.
-- ``AGI.PYTHON_MODE | AGI.CYTHON_MODE | AGI.DASK_MODE`` for the Flight docs
-  example.
+- ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the Flight docs example.
 
 This is why the install examples below pass named constants through
 ``modes_enabled=...`` and the run examples pass the same intent through a
@@ -60,6 +59,12 @@ should not teach those values directly.
 
 In normal usage, these values are generated from the UI toggles rather than
 typed manually.
+
+The literal-included MyCode and Flight snippets below are kept aligned with the
+packaged examples under ``src/agilab/examples``: they resolve built-in apps from
+``apps/builtin`` and keep Cython off for the public first-run examples. Cython
+can still be enabled intentionally later, after the local Python/Dask path is
+known-good.
 
 Usage Example
 -------------
@@ -74,7 +79,7 @@ Install the ``mycode`` example:
 
 Install the ``flight`` example:
 
-.. literalinclude:: examples/flight/AGI.install-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.install-flight-telemetry.py
    :language: python
 
 Distribute
@@ -87,7 +92,7 @@ Create the distribution bundle that will be sent to the workers:
 
 Equivalent example for ``flight``:
 
-.. literalinclude:: examples/flight/AGI.get_distrib-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.get_distrib-flight-telemetry.py
    :language: python
 
 Run
@@ -110,7 +115,7 @@ distributed hosts, and app-specific arguments:
 
 Equivalent example for ``flight``:
 
-.. literalinclude:: examples/flight/AGI.run-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.run-flight-telemetry.py
    :language: python
 
 Reference

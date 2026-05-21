@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-from html import escape
+import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List
+from urllib.parse import urlencode
 
 import streamlit as st
 
@@ -28,10 +29,37 @@ _first_proof_wizard_module = import_agilab_module(
     fallback_path=_AGILAB_ROOT / "first_proof_wizard.py",
     fallback_name="agilab_first_proof_wizard_onboarding_fallback",
 )
-
-FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+FIRST_PROOF_NOTEBOOK_BUTTON = "Create from built-in notebook"
+FIRST_PROOF_NOTEBOOK_HINT = (
+    "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
+)
+FIRST_PROOF_NOTEBOOK_LANE_LABEL = "Notebook import: included sample"
+FIRST_PROOF_NOTEBOOK_PROJECT = "flight_telemetry_from_notebook_project"
+FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
+    f"Then click PROJECT `Create`; it builds `{FIRST_PROOF_NOTEBOOK_PROJECT}`."
+)
+FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
+FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
+FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
+FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
+FIRST_PROOF_VIEW_MAPS_PATH = (
+    _AGILAB_ROOT
+    / "apps-pages"
+    / "view_maps"
+    / "src"
+    / "view_maps"
+    / "view_maps.py"
+)
+_FIRST_PROOF_ACTION_CHAR_WIDTH_PX = 7
+_FIRST_PROOF_ACTION_TEXT_PADDING_PX = 28
+_FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX = 128
+_FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX = 20
+_FIRST_PROOF_ACTION_COLUMN_GAP_PX = 16
+_MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 
 
 def _newcomer_first_proof_content() -> Dict[str, Any]:
@@ -60,72 +88,47 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
 
 
 def _render_newcomer_first_proof_static() -> None:
-    """Render the legacy concise newcomer checklist used by helper tests."""
+    """Render the concise newcomer checklist used by helper tests."""
     content = _newcomer_first_proof_content()
-    steps_html = "".join(
-        f"<li><strong>{escape(str(label))}</strong>: {escape(str(detail))}</li>"
-        for label, detail in content["steps"]
+    steps_markdown = "\n".join(
+        f"{index}. **{label}**: {detail}"
+        for index, (label, detail) in enumerate(content["steps"], start=1)
     )
-    success_html = "".join(
-        f"<li>{escape(str(item))}</li>"
-        for item in content["success_criteria"]
-    )
+    success_markdown = "\n".join(f"- {item}" for item in content["success_criteria"])
     st.markdown(
         f"""
-        <style>
-          .agilab-proof-static {{
-            margin: 1rem 0 1.25rem;
-            padding: 1.15rem 1.25rem;
-            border: 1px solid rgba(10, 31, 51, 0.12);
-            border-radius: 20px;
-            background:
-              radial-gradient(circle at 100% 0%, rgba(255, 190, 94, 0.20), transparent 34%),
-              linear-gradient(135deg, #ffffff 0%, #f5f8f4 100%);
-            box-shadow: 0 14px 40px rgba(12, 27, 42, 0.08);
-            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-          }}
-          .agilab-proof-static h3 {{
-            margin: 0 0 0.45rem;
-            color: #0a1f33;
-            letter-spacing: -0.02em;
-          }}
-          .agilab-proof-static p,
-          .agilab-proof-static li {{
-            color: #4b6258;
-            line-height: 1.5;
-          }}
-          .agilab-proof-static strong {{
-            color: #0a1f33;
-          }}
-        </style>
-        <div class="agilab-proof-static">
-          <h3>{escape(str(content["title"]))}</h3>
-          <p style="margin-bottom: 0.75rem;">{escape(str(content["intro"]))}</p>
-          <p style="margin-bottom: 0.35rem;"><strong>Do this now</strong></p>
-          <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
-          <p style="margin-bottom: 0.35rem;"><strong>Done when</strong></p>
-          <ul style="margin-top: 0.1rem; margin-bottom: 0.5rem;">{success_html}</ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
+**{content["title"]}**
+
+{content["intro"]}
+
+**Follow these steps**
+
+{steps_markdown}
+
+**Success criteria**
+
+{success_markdown}
+        """
     )
 
 
 def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
-    """Return compact first-proof progress rows for the onboarding card."""
+    """Return compact first-proof progress rows for the diagnostics expander."""
     active_app = str(state.get("active_app_name") or "none")
     manifest_path = str(state.get("run_manifest_path") or "")
     output_dir = str(state.get("output_dir") or "")
 
     if not state["project_available"]:
         project_status = "Blocked"
-        project_detail = "`flight_project` is missing from the app list."
+        project_detail = (
+            "The built-in flight-telemetry project (`flight_telemetry_project`) is missing from the app list."
+        )
     elif state["current_app_matches"]:
         project_status = "Done"
-        project_detail = "Active project is `flight_project`."
+        project_detail = "The built-in flight-telemetry project is selected."
     else:
         project_status = "Next"
-        project_detail = f"Active project is `{active_app}`; choose `flight_project`."
+        project_detail = f"Active project is `{active_app}`; choose the built-in flight-telemetry project."
 
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         run_status = "Done"
@@ -135,7 +138,7 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
         run_status = "Waiting"
-        run_detail = "Select `flight_project` before running."
+        run_detail = "Select the built-in flight-telemetry project before running."
 
     if state["run_manifest_passed"]:
         manifest_status = "Done"
@@ -173,44 +176,38 @@ def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
     return "\n".join(table)
 
 
-def _first_proof_status_tone(status: str) -> str:
-    """Return a stable CSS tone for a first-proof status label."""
-    normalized = status.strip().lower()
-    if normalized == "done":
-        return "done"
-    if normalized == "next":
-        return "next"
-    if normalized in {"attention", "blocked"}:
-        return "attention"
-    return "waiting"
-
-
 def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
-    """Return first-run microcopy for the next visible user action."""
+    """Return first-proof microcopy for the next visible user action."""
     active_app = str(state.get("active_app_name") or "none")
     next_step = str(state.get("next_step") or "").strip()
     if not state["project_available"]:
         return {
             "tone": "attention",
             "phase": "Fix setup",
-            "title": "Restore the built-in flight demo",
-            "detail": next_step or "`flight_project` is missing from the app list.",
+            "title": "Restore the built-in flight-telemetry project",
+            "detail": (
+                next_step
+                or "The built-in flight-telemetry project (`flight_telemetry_project`) is missing from the app list."
+            ),
             "cta_label": "Open troubleshooting",
-            "proof_hint": "`flight_project` must exist before the first proof can run.",
+            "proof_hint": "The built-in flight-telemetry project must exist before the first proof can run.",
         }
     if not state["current_app_matches"]:
         return {
             "tone": "next",
-            "phase": "Stage 1",
-            "title": "Select `flight_project`",
-            "detail": f"You are on `{active_app}`. Switch to the guided demo before running anything.",
-            "cta_label": "Use `flight_project`",
-            "proof_hint": "This keeps the first proof on the documented, supportable route.",
+            "phase": "Next action",
+            "title": "Start with the known demo project",
+            "detail": (
+                f"You are on `{active_app}`. Select `flight_telemetry_project` first, "
+                "so any failure is an AGILAB setup issue rather than custom app code."
+            ),
+            "cta_label": "Select demo",
+            "proof_hint": "Known data, known path, no cluster or service mode.",
         }
     if state["run_manifest_passed"]:
         return {
             "tone": "done",
-            "phase": "Complete",
+            "phase": "Proof complete",
             "title": "First proof is green",
             "detail": "The manifest passes. Keep it as evidence before trying another demo.",
             "cta_label": "Try another demo",
@@ -219,272 +216,447 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         return {
             "tone": "attention",
-            "phase": "Stage 3",
-            "title": "Finish the evidence",
+            "phase": "Needs evidence",
+            "title": "Finish or inspect the evidence",
             "detail": next_step or "Generate or repair `run_manifest.json` before moving on.",
-            "cta_label": "Show proof details",
+            "cta_label": "Check proof details",
             "proof_hint": "Done when `run_manifest.json` passes the compatibility checks.",
         }
     return {
         "tone": "next",
-        "phase": "Stage 2",
-        "title": "Install, then execute",
-        "detail": "Open `ORCHESTRATE`; click `INSTALL`, then `EXECUTE` with cluster and service mode off.",
-        "cta_label": "Go to `ORCHESTRATE`",
-        "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` appears.",
+        "phase": "Next action",
+        "title": "Run the demo once",
+        "detail": "Open `ORCHESTRATE`; keep cluster, benchmark, and service mode off; click `INSTALL`, then `EXECUTE`.",
+        "cta_label": "Open run page",
+        "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` is written.",
     }
 
 
-def _first_proof_overview_html(
-    content: Dict[str, Any],
-    state: Dict[str, Any],
-    rows: List[Dict[str, str]],
-) -> str:
-    """Render the first-proof cockpit card."""
-    next_action = _first_proof_next_action_model(state)
-    cards_html = "".join(
+def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return clickable wizard steps for the newcomer proof path."""
+    return [
+        {
+            "id": "install",
+            "button": "1. INSTALL demo",
+            "hint": "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`.",
+        },
+        {
+            "id": "run",
+            "button": "2. EXECUTE demo",
+            "hint": "Runs ORCHESTRATE `EXECUTE` for the same demo.",
+        },
+        {
+            "id": "analysis",
+            "button": "3. OPEN ANALYSIS",
+            "hint": (
+                "`view_maps`: "
+                f"[Open]({_first_proof_analysis_view_maps_url()})."
+            ),
+        },
+    ]
+
+
+def _first_proof_page_url(page_name: str, query_params: Dict[str, str] | None = None) -> str:
+    """Build a relative Streamlit navigation URL for first-proof links."""
+    query = urlencode(query_params or {})
+    suffix = f"?{query}" if query else ""
+    return f"/{page_name}{suffix}"
+
+
+def _first_proof_analysis_view_maps_url() -> str:
+    """Return an ANALYSIS URL that opens the built-in view_maps page directly."""
+    return _first_proof_page_url(
+        "ANALYSIS",
+        {
+            "active_app": FIRST_PROOF_PROJECT,
+            "current_page": str(FIRST_PROOF_VIEW_MAPS_PATH.resolve(strict=False)),
+        },
+    )
+
+
+def _first_proof_orchestrate_action_url(action_id: str) -> str:
+    """Return an ORCHESTRATE URL carrying a one-shot first-proof action."""
+    return _first_proof_page_url(
+        "ORCHESTRATE",
+        {
+            "active_app": FIRST_PROOF_PROJECT,
+            FIRST_PROOF_ACTION_QUERY_KEY: action_id,
+        },
+    )
+
+
+def _first_proof_action_url(action_id: str) -> str:
+    """Return the new-tab URL for a first-proof wizard action."""
+    if action_id in {"install", "run"}:
+        return _first_proof_orchestrate_action_url(action_id)
+    if action_id == "analysis":
+        return _first_proof_analysis_view_maps_url()
+    return _first_proof_page_url("PROJECT", {"active_app": FIRST_PROOF_PROJECT})
+
+
+def _first_proof_visible_text_length(text: str) -> int:
+    """Return the approximate visible character count for compact layout sizing."""
+    visible_text = _MARKDOWN_LINK_PATTERN.sub(r"\1", text)
+    return len(visible_text.replace("`", ""))
+
+
+def _first_proof_text_column_width_px(texts: List[str]) -> int:
+    """Estimate the minimum readable pixel width for a column of short labels."""
+    max_chars = max((_first_proof_visible_text_length(text) for text in texts), default=0)
+    return max(
+        _FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX,
+        (max_chars * _FIRST_PROOF_ACTION_CHAR_WIDTH_PX)
+        + _FIRST_PROOF_ACTION_TEXT_PADDING_PX,
+    )
+
+
+def _first_proof_action_columns_layout(
+    proof_actions: List[Dict[str, str]],
+    *,
+    notebook_hint: str = FIRST_PROOF_NOTEBOOK_HINT,
+) -> tuple[List[int], int]:
+    """Return content-sized Streamlit column weights and total pixel width."""
+    proof_texts = [
+        text
+        for action in proof_actions
+        for text in (str(action["button"]), str(action["hint"]))
+    ]
+    proof_width = _first_proof_text_column_width_px(proof_texts)
+    notebook_width = _first_proof_text_column_width_px(
+        [
+            FIRST_PROOF_NOTEBOOK_BUTTON,
+            FIRST_PROOF_NOTEBOOK_LANE_LABEL,
+            notebook_hint,
+            FIRST_PROOF_NOTEBOOK_AFTER_HINT,
+            FIRST_PROOF_NOTEBOOK_RUN_HINT,
+        ]
+    )
+    spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
+    total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
+    return spec, total_width
+
+
+def _notebook_to_validated_app_project_path(env: Any) -> Path | None:
+    """Return the expected project path for the packaged notebook lane."""
+    apps_path = getattr(env, "apps_path", None)
+    if not apps_path:
+        return None
+    apps_root = Path(apps_path)
+    candidates = [
+        apps_root / FIRST_PROOF_NOTEBOOK_PROJECT,
+        apps_root / "builtin" / FIRST_PROOF_NOTEBOOK_PROJECT,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _notebook_to_validated_app_rows(env: Any) -> List[Dict[str, str]]:
+    """Return the visible proof contract for the notebook-to-app path."""
+    project_path = _notebook_to_validated_app_project_path(env)
+    project_exists = bool(project_path and project_path.exists())
+    project_detail = (
+        f"`{FIRST_PROOF_NOTEBOOK_PROJECT}` exists."
+        if project_exists
+        else f"`{FIRST_PROOF_NOTEBOOK_PROJECT}` will be created."
+    )
+    return [
+        {
+            "stage": "Import",
+            "status": "Done" if project_exists else "Start",
+            "action": f"Click `{FIRST_PROOF_NOTEBOOK_BUTTON}`, then PROJECT `Create`.",
+            "proof": project_detail,
+        },
+        {
+            "stage": "Install",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Open ORCHESTRATE and click `INSTALL`.",
+            "proof": "A project environment and worker environment are prepared.",
+        },
+        {
+            "stage": "Execute",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Click ORCHESTRATE `EXECUTE` with cluster and service mode off.",
+            "proof": "The imported notebook stages run as an AGILAB app.",
+        },
+        {
+            "stage": "Analyze",
+            "status": "Next" if project_exists else "Waiting",
+            "action": "Open ANALYSIS and inspect the generated outputs.",
+            "proof": "The result is visible outside the original notebook kernel.",
+        },
+        {
+            "stage": "Exit path",
+            "status": "Required proof",
+            "action": "Open WORKFLOW and click `Download pipeline notebook`.",
+            "proof": "`lab_stages.ipynb` can be kept if AGILAB is no longer needed.",
+        },
+    ]
+
+
+def _notebook_to_validated_app_markdown(rows: List[Dict[str, str]]) -> str:
+    """Render the notebook proof contract as a compact Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Step | Status | Action | Evidence |", "| --- | --- | --- | --- |"]
+    table.extend(
         (
-            f"""<article class="agilab-proof__status agilab-proof__status--{_first_proof_status_tone(row['status'])}">
-                  <span>{escape(str(row["status"]))}</span>
-                  <strong>{escape(str(row["step"]))}</strong>
-                  <p>{escape(str(row["detail"]))}</p>
-                </article>"""
+            f"| {_cell(row['stage'])} | {_cell(row['status'])} | "
+            f"{_cell(row['action'])} | {_cell(row['proof'])} |"
         )
         for row in rows
     )
-    target_seconds = float(state.get("target_seconds") or 0.0)
-    active_app = str(state.get("active_app_name") or "none")
-    route = str(state.get("recommended_path_label") or "recommended path")
-    return f"""
-        <style>
-          .agilab-proof {{
-            margin: 0.25rem 0 1.05rem;
-            padding: clamp(1rem, 2.2vw, 1.45rem);
-            border: 1px solid rgba(10, 31, 51, 0.11);
-            border-radius: 24px;
-            background:
-              radial-gradient(circle at 8% 0%, rgba(255, 190, 94, 0.24), transparent 32%),
-              radial-gradient(circle at 92% 15%, rgba(52, 211, 153, 0.16), transparent 32%),
-              linear-gradient(135deg, #ffffff 0%, #f4f8f5 100%);
-            box-shadow: 0 18px 48px rgba(12, 27, 42, 0.09);
-            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-          }}
-          .agilab-proof__head {{
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 1rem;
-            align-items: start;
-          }}
-          .agilab-proof__kicker {{
-            margin: 0 0 0.45rem;
-            color: #39513f;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof h2 {{
-            margin: 0;
-            color: #0a1f33;
-            font-size: clamp(1.55rem, 3vw, 2.25rem);
-            letter-spacing: -0.055em;
-            line-height: 1.02;
-          }}
-          .agilab-proof__intro {{
-            max-width: 760px;
-            margin: 0.75rem 0 0;
-            color: #587064;
-            line-height: 1.55;
-            font-size: 0.98rem;
-          }}
-          .agilab-proof__seal {{
-            min-width: 170px;
-            padding: 0.75rem 0.85rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.72);
-            text-align: right;
-          }}
-          .agilab-proof__seal span {{
-            display: block;
-            color: #77877f;
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__seal strong {{
-            display: block;
-            margin-top: 0.15rem;
-            color: #0a1f33;
-            font-size: 1.08rem;
-          }}
-          .agilab-proof__action {{
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 0.85rem;
-            align-items: center;
-            margin-top: 1rem;
-            padding: 0.9rem;
-            border: 1px solid rgba(10, 31, 51, 0.12);
-            border-radius: 20px;
-            background:
-              linear-gradient(135deg, rgba(10, 31, 51, 0.92), rgba(35, 58, 50, 0.90));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
-          }}
-          .agilab-proof__action--done {{
-            background: linear-gradient(135deg, #14532d, #2f5c40);
-          }}
-          .agilab-proof__action--attention {{
-            background: linear-gradient(135deg, #7f1d1d, #86450b);
-          }}
-          .agilab-proof__action span {{
-            display: inline-flex;
-            margin-bottom: 0.32rem;
-            color: #ffd28a;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__action strong {{
-            display: block;
-            color: #fffaf0;
-            font-size: 1.05rem;
-          }}
-          .agilab-proof__action p {{
-            margin: 0.28rem 0 0;
-            color: rgba(255, 250, 240, 0.78);
-            line-height: 1.45;
-          }}
-          .agilab-proof__action aside {{
-            min-width: 190px;
-            padding: 0.7rem 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.09);
-            color: rgba(255, 250, 240, 0.86);
-            font-size: 0.84rem;
-            font-weight: 800;
-            text-align: right;
-          }}
-          .agilab-proof__action aside small {{
-            display: block;
-            margin-top: 0.25rem;
-            color: rgba(255, 250, 240, 0.62);
-            font-weight: 650;
-            line-height: 1.35;
-          }}
-          .agilab-proof__rail {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.72rem;
-            margin-top: 1rem;
-          }}
-          .agilab-proof__status {{
-            min-height: 132px;
-            padding: 0.9rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.76);
-          }}
-          .agilab-proof__status span {{
-            display: inline-flex;
-            margin-bottom: 0.65rem;
-            padding: 0.18rem 0.52rem;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__status--done span {{
-            color: #14532d;
-            background: rgba(34, 197, 94, 0.16);
-          }}
-          .agilab-proof__status--next span {{
-            color: #7c4a03;
-            background: rgba(255, 190, 94, 0.24);
-          }}
-          .agilab-proof__status--attention span {{
-            color: #8a1f11;
-            background: rgba(248, 113, 113, 0.16);
-          }}
-          .agilab-proof__status--waiting span {{
-            color: #475569;
-            background: rgba(100, 116, 139, 0.13);
-          }}
-          .agilab-proof__status strong {{
-            display: block;
-            margin-bottom: 0.35rem;
-            color: #0a1f33;
-          }}
-          .agilab-proof__status p {{
-            margin: 0;
-            color: #60736c;
-            font-size: 0.9rem;
-            line-height: 1.42;
-          }}
-          .agilab-proof__meta {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.9rem;
-          }}
-          .agilab-proof__meta span {{
-            padding: 0.42rem 0.62rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.62);
-            color: #4d655b;
-            font-size: 0.84rem;
-            font-weight: 750;
-          }}
-          @media (max-width: 900px) {{
-            .agilab-proof__head,
-            .agilab-proof__rail,
-            .agilab-proof__action {{
-              grid-template-columns: 1fr;
-            }}
-            .agilab-proof__seal {{
-              text-align: left;
-            }}
-            .agilab-proof__action aside {{
-              text-align: left;
-            }}
-          }}
-        </style>
-        <section class="agilab-proof" aria-label="First proof onboarding">
-          <div class="agilab-proof__head">
-            <div>
-              <p class="agilab-proof__kicker">First proof path</p>
-              <h2>{escape(str(content["title"]))}</h2>
-              <p class="agilab-proof__intro">{escape(str(content["intro"]))}</p>
-            </div>
-            <div class="agilab-proof__seal">
-              <span>Target</span>
-              <strong>&lt;= {target_seconds:.0f}s</strong>
-            </div>
-          </div>
-          <div class="agilab-proof__action agilab-proof__action--{escape(next_action['tone'])}">
-            <div>
-              <span>{escape(next_action["phase"])}</span>
-              <strong>{escape(next_action["title"])}</strong>
-              <p>{escape(next_action["detail"])}</p>
-            </div>
-            <aside>
-              {escape(next_action["cta_label"])}
-              <small>{escape(next_action["proof_hint"])}</small>
-            </aside>
-          </div>
-          <div class="agilab-proof__rail">{cards_html}</div>
-          <div class="agilab-proof__meta">
-            <span>Route: {escape(route)}</span>
-            <span>Active project: {escape(active_app)}</span>
-            <span>PROJECT / ORCHESTRATE / ANALYSIS</span>
-          </div>
-        </section>
-        """
+    return "\n".join(table)
+
+
+def _first_proof_export_notebook_candidates(env: Any, state: Dict[str, Any]) -> List[Path]:
+    """Return project-local notebook export locations that prove a no-lock-in handoff."""
+    candidates: List[Path] = []
+
+    def _append_project(project_path: Any) -> None:
+        if not project_path:
+            return
+        candidates.append(Path(project_path) / "notebooks" / "lab_stages.ipynb")
+
+    _append_project(state.get("project_path"))
+    _append_project(_notebook_to_validated_app_project_path(env))
+
+    apps_path = getattr(env, "apps_path", None)
+    active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
+    if apps_path and active_app:
+        apps_root = Path(apps_path)
+        _append_project(apps_root / active_app)
+        _append_project(apps_root / "builtin" / active_app)
+
+    unique: List[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
+def _first_existing_path(paths: List[Path]) -> Path | None:
+    """Return the first existing path from a deterministic candidate list."""
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _first_proof_adoption_gate(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
+    """Return the visible readiness gate before widening adoption beyond one user."""
+    manifest_passed = bool(state.get("run_manifest_passed"))
+    outputs_seen = bool(state.get("run_output_detected") or state.get("visible_outputs"))
+    export_candidates = _first_proof_export_notebook_candidates(env, state)
+    exported_notebook = _first_existing_path(export_candidates)
+    expected_export = export_candidates[0] if export_candidates else None
+
+    if manifest_passed and exported_notebook:
+        return {
+            "status": "Ready for a controlled team trial",
+            "action": "Keep the manifest and exported notebook; add secrets, auth/TLS, quotas, and pinning before shared use.",
+            "evidence": f"`{state.get('run_manifest_path')}` and `{exported_notebook}`.",
+        }
+    if manifest_passed:
+        expected = f"`{expected_export}`" if expected_export else "`notebooks/lab_stages.ipynb`"
+        return {
+            "status": "Stay local: export missing",
+            "action": "Open WORKFLOW and download the pipeline notebook before handoff.",
+            "evidence": f"`run_manifest.json` passed; expected {expected}.",
+        }
+    if outputs_seen:
+        return {
+            "status": "Stay local: proof incomplete",
+            "action": "Generate a passing `run_manifest.json`, then export `lab_stages.ipynb`.",
+            "evidence": "Outputs exist, but no passing first-proof manifest was found.",
+        }
+    return {
+        "status": "Not ready yet",
+        "action": "Run one local proof first; keep cluster, service mode, and team sharing for later.",
+        "evidence": "No passing first-proof evidence was found.",
+    }
+
+
+def _first_proof_adoption_gate_caption(gate: Dict[str, str]) -> str:
+    """Render the adoption gate as one compact onboarding line."""
+    return (
+        f"Adoption gate: {gate['status']}. "
+        f"{gate['action']} Evidence: {gate['evidence']}"
+    )
+
+
+def _first_proof_compatibility_command(state: Dict[str, Any]) -> str:
+    """Return the compatibility-report command to attach to a handoff bundle."""
+    for command in state.get("evidence_commands", ()):
+        if "compatibility_report.py" in str(command):
+            return str(command)
+    manifest_path = str(state.get("run_manifest_path") or "~/log/execute/flight_telemetry/run_manifest.json")
+    return f"python tools/compatibility_report.py --manifest {manifest_path} --compact"
+
+
+def _first_proof_handoff_bundle_rows(env: Any, state: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return the minimal evidence package to share after a first proof."""
+    export_candidates = _first_proof_export_notebook_candidates(env, state)
+    exported_notebook = _first_existing_path(export_candidates)
+    expected_export = export_candidates[0] if export_candidates else Path("notebooks/lab_stages.ipynb")
+    manifest_path = str(state.get("run_manifest_path") or "~/log/execute/flight_telemetry/run_manifest.json")
+    manifest_status = "Ready" if state.get("run_manifest_passed") else "Missing or not passing"
+    notebook_status = "Ready" if exported_notebook else "Export from WORKFLOW"
+    notebook_path = exported_notebook or expected_export
+    return [
+        {
+            "item": "Run proof",
+            "status": manifest_status,
+            "evidence": f"`{manifest_path}`",
+        },
+        {
+            "item": "No-lock-in notebook",
+            "status": notebook_status,
+            "evidence": f"`{notebook_path}`",
+        },
+        {
+            "item": "Compatibility report",
+            "status": "Run before handoff",
+            "evidence": f"`{_first_proof_compatibility_command(state)}`",
+        },
+        {
+            "item": "Local security check",
+            "status": "Run before team use",
+            "evidence": "`agilab security-check --json --strict`",
+        },
+    ]
+
+
+def _first_proof_handoff_bundle_markdown(rows: List[Dict[str, str]]) -> str:
+    """Render the adoption handoff bundle as a compact Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Include | Status | Path or command |", "| --- | --- | --- |"]
+    table.extend(
+        f"| {_cell(row['item'])} | {_cell(row['status'])} | {_cell(row['evidence'])} |"
+        for row in rows
+    )
+    return "\n".join(table)
+
+
+def _first_proof_handoff_bundle_caption(rows: List[Dict[str, str]]) -> str:
+    """Return the one-line visible cue for the portable first-proof package."""
+    ready_core = rows[0]["status"] == "Ready" and rows[1]["status"] == "Ready"
+    if ready_core:
+        return (
+            "Handoff bundle: core proof files are ready; attach the compatibility "
+            "report and strict security-check output before team sharing."
+        )
+    return (
+        "Handoff bundle: keep the passing run manifest, exported pipeline notebook, "
+        "compatibility report, and strict security-check output before team sharing."
+    )
+
+
+def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
+    """Return query params that open PROJECT on the notebook-import create path."""
+    query_params = dict(FIRST_PROOF_NOTEBOOK_QUERY_PARAMS)
+    query_params[FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY] = FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE
+    active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
+    if active_app:
+        query_params["active_app"] = active_app
+    return query_params
+
+
+def _first_proof_link_button(
+    label: str,
+    url: str,
+    *,
+    key: str,
+    button_type: str = "secondary",
+    disabled: bool = False,
+) -> None:
+    """Render a first-proof action that opens a new browser tab/session."""
+    link_button = getattr(st, "link_button", None)
+    if callable(link_button):
+        link_button(
+            label,
+            url,
+            key=key,
+            type=button_type,
+            disabled=disabled,
+            help="Opens in a new browser tab.",
+            width="content",
+        )
+        return
+
+    if disabled:
+        st.caption(f"{label}: unavailable.")
+        return
+    st.markdown(f"[{label}]({url})")
+
+
+def _render_first_proof_wizard_actions(
+    env: Any,
+    state: Dict[str, Any],
+    activate_project: Callable[[Any, Path], bool] | None,
+    page_routes: Dict[str, Any] | None,
+) -> None:
+    """Render executable wizard actions for the first-proof pipeline."""
+    st.markdown("**First proof: choose one path**")
+    st.caption(
+        "Recommended: run the built-in demo. Notebook import is optional: use AGILAB's included "
+        "notebook with no file to find."
+    )
+    proof_actions = [
+        {
+            "id": str(step["id"]),
+            "button": str(step["button"]),
+            "hint": str(step["hint"]),
+            "type": "secondary",
+        }
+        for step in _first_proof_wizard_steps(state)
+    ]
+    columns_spec, columns_width = _first_proof_action_columns_layout(proof_actions)
+    proof_column, separator_column, notebook_column = st.columns(
+        columns_spec,
+        gap="small",
+        vertical_alignment="top",
+        width=columns_width,
+    )
+    with proof_column:
+        for action in proof_actions:
+            _first_proof_link_button(
+                action["button"],
+                _first_proof_action_url(action["id"]),
+                key=f"first_proof:wizard:{action['id']}",
+                button_type=action["type"],
+                disabled=not state["project_available"],
+            )
+            st.caption(action["hint"])
+    with separator_column:
+        st.markdown("or")
+    with notebook_column:
+        st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
+        _first_proof_link_button(
+            FIRST_PROOF_NOTEBOOK_BUTTON,
+            _first_proof_page_url("PROJECT", _first_proof_notebook_query_params(env, state)),
+            key="first_proof:wizard:sample_notebook",
+            button_type="secondary",
+        )
+        st.caption(FIRST_PROOF_NOTEBOOK_HINT)
+        st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
+        st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
+
+    st.markdown("**Notebook to validated app: full proof**")
+    st.caption(
+        "Use this lane when the starting asset is a notebook and the target is "
+        "a reusable app with a no-lock-in handoff."
+    )
+    st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
+    st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
+    st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
 
 
 def _render_first_proof_next_action(
@@ -503,10 +675,10 @@ def _render_first_proof_next_action(
             action["cta_label"],
             key="first_proof:activate",
             type="primary",
-            width="stretch",
+            width="content",
         ):
             if activate_project is not None and activate_project(env, state["project_path"]):
-                st.session_state["first_proof_feedback"] = "`flight_project` selected."
+                st.session_state["first_proof_feedback"] = "`flight_telemetry_project` selected."
                 st.rerun()
     elif state["run_manifest_passed"]:
         st.success(f"Next action: {action['title']} - {action['detail']}")
@@ -521,6 +693,7 @@ def render_newcomer_first_proof(
     *,
     activate_project: Callable[[Any, Path], bool] | None = None,
     display_landing_page: Callable[[Path], None] | None = None,
+    page_routes: Dict[str, Any] | None = None,
 ) -> None:
     """Render the first-proof onboarding surface."""
     if env is None:
@@ -528,88 +701,75 @@ def render_newcomer_first_proof(
         return
 
     state = _newcomer_first_proof_state(env)
-    content = state["content"]
     feedback = st.session_state.pop("first_proof_feedback", None)
     if feedback:
         st.success(str(feedback))
 
-    with st.expander(content["title"], expanded=False):
-        progress_rows = _first_proof_progress_rows(state)
-        st.markdown(
-            _first_proof_overview_html(content, state, progress_rows),
-            unsafe_allow_html=True,
+    progress_rows = _first_proof_progress_rows(state)
+    _render_first_proof_wizard_actions(env, state, activate_project, page_routes)
+
+    if state["visible_outputs"]:
+        preview = ", ".join(path.name for path in state["visible_outputs"][:3])
+        if len(state["visible_outputs"]) > 3:
+            preview += ", ..."
+        st.caption(f"Generated files found: {preview}")
+
+    with st.expander("If it fails / proof details", expanded=False):
+        st.markdown("**Progress**")
+        st.markdown(_first_proof_progress_markdown(progress_rows))
+        st.markdown("**Handoff bundle**")
+        st.markdown(_first_proof_handoff_bundle_markdown(_first_proof_handoff_bundle_rows(env, state)))
+        st.caption(
+            "This is review evidence for a controlled team trial; it is not "
+            "production, public exposure, or multi-tenant certification."
         )
-        st.markdown("**1. Goal**")
-        st.write(content["intro"])
-        _render_first_proof_next_action(env, state, activate_project)
-
-        st.markdown("**2. Do this now**")
-        step_lines = [
-            f"{index}. {detail}"
-            for index, (_, detail) in enumerate(content["steps"], start=1)
-        ]
-        st.markdown("\n".join(step_lines))
-
-        if state["visible_outputs"]:
-            preview = ", ".join(path.name for path in state["visible_outputs"][:3])
-            if len(state["visible_outputs"]) > 3:
-                preview += ", ..."
-            st.caption(f"Generated files found: {preview}")
-
-        st.markdown("**3. Done when**")
-        st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
-        st.caption("After that: try another demo. Keep cluster and service mode for later.")
-
-        with st.expander("If it fails / proof details", expanded=False):
-            st.markdown("**Progress**")
-            st.markdown(_first_proof_progress_markdown(progress_rows))
+        st.caption(
+            "Validated path: "
+            f"{state['recommended_path_label']} "
+            f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
+        )
+        st.caption(
+            "CLI proof command: "
+            f"`{state['cli_command']}` "
+            f"({', '.join(state['proof_command_labels'])}; "
+            f"target <= {state['target_seconds']:.0f}s)."
+        )
+        if state["run_manifest_loaded"]:
+            manifest_summary = state["run_manifest_summary"]
             st.caption(
-                "Validated path: "
-                f"{state['recommended_path_label']} "
-                f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
+                "Run manifest: "
+                f"`{state['run_manifest_path']}` "
+                f"({state['run_manifest_status']}; "
+                f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
             )
-            st.caption(
-                "CLI proof command: "
-                f"`{state['cli_command']}` "
-                f"({', '.join(state['proof_command_labels'])}; "
-                f"target <= {state['target_seconds']:.0f}s)."
+        else:
+            st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
+
+        if state["remediation_status"] == "passed":
+            st.caption(state["remediation_title"])
+        elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
+            st.info(state["remediation_title"])
+        else:
+            st.warning(state["remediation_title"])
+
+        st.markdown("**Recovery checklist**")
+        st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
+        st.markdown("**Evidence commands**")
+        st.code("\n".join(state["evidence_commands"]), language="bash")
+        if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
+            validation_preview = "; ".join(
+                f"{row['label']}={row['status']}"
+                for row in state["run_manifest_validation_rows"]
             )
-            if state["run_manifest_loaded"]:
-                manifest_summary = state["run_manifest_summary"]
-                st.caption(
-                    "Run manifest: "
-                    f"`{state['run_manifest_path']}` "
-                    f"({state['run_manifest_status']}; "
-                    f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
-                )
-            else:
-                st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
-
-            if state["remediation_status"] == "passed":
-                st.caption(state["remediation_title"])
-            elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
-                st.info(state["remediation_title"])
-            else:
-                st.warning(state["remediation_title"])
-
-            st.markdown("**Recovery checklist**")
-            st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
-            st.markdown("**Evidence commands**")
-            st.code("\n".join(state["evidence_commands"]), language="bash")
-            if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
-                validation_preview = "; ".join(
-                    f"{row['label']}={row['status']}"
-                    for row in state["run_manifest_validation_rows"]
-                )
-                st.caption(f"Manifest validations: {validation_preview}")
-            st.caption(
-                "Evidence links: "
-                + " | ".join(
-                    f"[{label}]({url})"
-                    for label, url in state["remediation_links"]
-                )
+            st.caption(f"Manifest validations: {validation_preview}")
+        st.caption(
+            "Evidence links: "
+            + " | ".join(
+                f"[{label}]({url})"
+                for label, url in state["remediation_links"]
             )
+        )
 
-        st.divider()
-        if display_landing_page is not None:
-            display_landing_page(Path(env.st_resources))
+    st.divider()
+    if display_landing_page is not None:
+        display_landing_page(Path(env.st_resources))

@@ -5,9 +5,9 @@ intro = [
 ]
 proof_bullets = [
   "The public GitHub Actions matrix validated the packaged first proof on Ubuntu, macOS, and Windows runners.",
-  "The hosted Hugging Face Space opened the public AGILAB demo route during the release guardrail run.",
+  "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
   "The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest successful all-built-in UI robot matrix sweep, including app/page/widget counts and zero detected UI failures.",
-  "The public demo scope includes the lightweight ``flight_project`` and ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.",
+  "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and aligned with the packaged examples catalog.",
   "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
 ]
 related_pages = [
@@ -20,50 +20,61 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.05.09"
+package_version = "2026.05.20"
+package_extras = [
+  "examples",
+]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.05.09"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.09"
+github_release_tag = "v2026.05.20"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "7fc82dee40b39ceb71700a9c07dbbe9cf3c7711e"
+hf_space_commit = "0318f466aefb6c60fbfa78cfa4054c7c2aba0e59"
 
 [[ci_runs]]
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25582096270"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096270"
+run_id = "25970993906"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25970993906"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "25581456410"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25581456410"
+run_id = "25970993933"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25970993933"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "25582096237"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096237"
+run_id = "25971241902"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971241902"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "25582096277"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096277"
+run_id = "25971242033"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971242033"
 summary = "passed component coverage and badge freshness checks"
+
+[[ci_runs]]
+id = "pypi-publish"
+label = "PyPI publish"
+workflow = "pypi-publish"
+run_id = "25971244152"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971244152"
+summary = "published the 2026.05.17.post2 package after preflight, release evidence, and supply-chain evidence passed; GitHub release evidence is recorded under v2026.05.17-6"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
 commands = [
-  "python -m pip install {package_spec}",
+  "python -m pip install \"{package_spec}\"",
   "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 
@@ -73,7 +84,7 @@ commands = [
   "python -m venv .venv",
   ". .venv/bin/activate",
   "python -m pip install --upgrade pip",
-  "python -m pip install {package_spec}",
+  "python -m pip install \"{package_spec}\"",
   "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
@@ -87,4 +98,4 @@ commands = [
 follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``, or ``--github-head-sha`` only when public evidence changes outside the default local repository and latest successful ``main`` workflow state. Use ``tools/ui_robot_evidence.py --run-id <run>`` when the release should pin a specific UI robot evidence run."
 
 [scope]
-paragraph = "This evidence proves the public package smoke, hosted demo availability at the time of validation, and documented first-proof routes. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."
+paragraph = "This evidence proves the public package smoke, hosted demo identity, and documented first-proof routes. It proves live hosted-demo availability only when a public-demo-smoke run is pinned or supplied separately. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."

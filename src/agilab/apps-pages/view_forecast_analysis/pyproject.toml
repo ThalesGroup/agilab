@@ -1,12 +1,38 @@
 [project]
-name = "view-forecast-analysis"
-version = "2026.04.08"
-requires-python = ">=3.13"
+name = "agi-page-timeseries-forecast"
+version = "2026.05.20"
+description = "AGILAB page bundle for time-series forecast review."
+readme = { text = "AGILAB page bundle for time-series forecast review.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
 dependencies = [
-    "agi-gui",
-    "agi-node",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
     "pandas>=2.3.0",
 ]
+
+[project.entry-points."agilab.pages"]
+view_forecast_analysis = "view_forecast_analysis:bundle_root"
+
+
+
+
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_forecast_analysis"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

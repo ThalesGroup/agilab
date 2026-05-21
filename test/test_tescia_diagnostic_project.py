@@ -4,6 +4,7 @@ import json
 import runpy
 import sys
 from pathlib import Path
+import tomllib
 from types import SimpleNamespace
 
 import pytest
@@ -24,6 +25,7 @@ class _FakeEnv:
         self.AGILAB_EXPORT_ABS = tmp_path / "export"
         self.agi_share_path = tmp_path / "share"
         self.agi_share_path_abs = tmp_path / "share"
+        self.app_settings_file = tmp_path / "app_settings.toml"
         self.agi_share_path.mkdir(parents=True, exist_ok=True)
 
     def share_root_path(self) -> Path:
@@ -314,6 +316,37 @@ def test_tescia_reduce_contract_merges_case_summaries(monkeypatch) -> None:
     assert 85.0 <= artifact.payload["student_score_mean"] <= 100.0
 
 
+def test_tescia_reduce_contract_counts_duplicate_case_runs(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import build_reduce_artifact, partial_from_diagnostic_summary
+
+    first = {
+        "case_id": "duplicate_case",
+        "status": "actionable",
+        "root_cause": "root cause",
+        "selected_fix_id": "strong_fix",
+        "evidence_quality": 0.9,
+        "regression_coverage": 0.8,
+        "student_score": 90.0,
+        "weak_assumption_count": 1,
+        "regression_step_count": 2,
+    }
+    second = {**first, "status": "needs_more_evidence", "student_score": 50.0}
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_diagnostic_summary(first, partial_id="first"),
+            partial_from_diagnostic_summary(second, partial_id="second"),
+        )
+    )
+
+    assert artifact.payload["case_count"] == 2
+    assert artifact.payload["unique_case_count"] == 1
+    assert artifact.payload["case_ids"] == ["duplicate_case"]
+    assert artifact.payload["student_score_mean"] == 70.0
+
+
 def test_tescia_manager_seeds_sample_and_builds_distribution(monkeypatch, tmp_path) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -359,6 +392,36 @@ def test_tescia_manager_can_seed_generated_cases_from_injected_ai_engine(monkeyp
     assert metadata[0][0]["diagnostic_file"] == "ai_cases.json"
 
 
+def test_tescia_app_args_form_exposes_standalone_ai_controls(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from streamlit.testing.v1 import AppTest
+    from tescia_diagnostic import DEFAULT_GPT_OSS_ENDPOINT, DEFAULT_GPT_OSS_MODEL
+
+    env = _FakeEnv(tmp_path)
+    at = AppTest.from_file(str(APP_ROOT / "src" / "app_args_form.py"), default_timeout=20)
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    source = at.selectbox(key="tescia_diagnostic_project:app_args_form:case_source")
+    assert source.options == ["Bundled deterministic sample", "Generate with standalone AI"]
+    assert source.value == "bundled"
+    assert not any(text_input.label == "AI endpoint" for text_input in at.text_input)
+
+    source.set_value("standalone_ai").run()
+
+    assert not at.exception
+    assert at.selectbox(key="tescia_diagnostic_project:app_args_form:ai_provider").value == "gpt-oss"
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:ai_endpoint").value == DEFAULT_GPT_OSS_ENDPOINT
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:ai_model").value == DEFAULT_GPT_OSS_MODEL
+    with Path(env.app_settings_file).open("rb") as f:
+        payload = tomllib.load(f)
+    assert payload["args"]["case_source"] == "standalone_ai"
+    assert payload["args"]["ai_endpoint"] == DEFAULT_GPT_OSS_ENDPOINT
+
+
 def test_tescia_worker_exports_json_csv_and_reduce_artifacts(monkeypatch, tmp_path) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -397,3 +460,19 @@ def test_tescia_worker_exports_json_csv_and_reduce_artifacts(monkeypatch, tmp_pa
     ).is_file()
     export_root = env.AGILAB_EXPORT_ABS / env.target / "tescia_diagnostic"
     assert (export_root / "pipeline_dag_stale_preview" / "pipeline_dag_stale_preview_diagnostic_summary.csv").is_file()
+
+
+def test_tescia_worker_rejects_invalid_case_file(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic_worker import TesciaDiagnosticWorker
+
+    payload = json.loads(SAMPLE_CASES.read_text(encoding="utf-8"))
+    payload["cases"][0]["candidate_fixes"][0]["expected_impact"] = 1.5
+    case_file = tmp_path / "bad_cases.json"
+    case_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    worker = TesciaDiagnosticWorker()
+
+    with pytest.raises(ValueError, match="Invalid TeSciA diagnostic file.*between 0.0 and 1.0"):
+        worker._load_cases(case_file)

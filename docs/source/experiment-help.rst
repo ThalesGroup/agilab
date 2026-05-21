@@ -57,7 +57,7 @@ The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.
 
-When your lab stage is based on app execution, use the **Pipeline** add flow:
+When your lab step is based on app execution, use the **WORKFLOW** add flow:
 
 - Generate the target snippet in **ORCHESTRATE** (typically ``AGI.run``).
 - In **Add stage** (or **New stage** on an empty project), choose ``Stage source =``
@@ -73,7 +73,7 @@ When your lab stage is based on app execution, use the **Pipeline** add flow:
 - Imported snippets are marked read-only and run with the project manager runtime.
 
 If you change values in Orchestrate arguments, regenerate or re-import the
-snippet in Pipeline before running the stage.
+snippet in WORKFLOW before running the stage.
 
 AGILab does not silently rewrite saved Python snippets when a lab is reopened.
 If a generated stage becomes stale after an app or orchestration change, the
@@ -86,7 +86,7 @@ still pass the removed name must be regenerated or replaced before they can run.
 Workflow graph scopes
 ~~~~~~~~~~~~~~~~~~~~~
 The **Workflow graph** expander is the transition path from a single-project
-pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
+workflow to cross-app artifact orchestration. Use the ``Workflow scope``
 selector to choose what the graph represents:
 
 * ``Project workflow`` renders the current ``lab_stages.toml`` as a read-only
@@ -97,28 +97,41 @@ selector to choose what the graph represents:
   path for connecting app stages through explicit produced and consumed
   artifacts.
 
-Use the ``DAG source`` selector to make the source explicit:
+For ``Multi-app DAG`` scope, use the ``Workplan source`` selector to choose
+where the plan comes from:
 
-* ``App templates`` loads checked-in DAG contracts bundled with the active app.
+* ``App templates`` loads checked-in workflow templates bundled with the active
+  app.
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
-* ``Workspace drafts`` loads DAGs saved from the current project workspace under
-  ``.agilab/global_dags``.
-* ``Custom path`` loads an external JSON contract by path.
+* ``Workspace drafts`` loads plans saved from the current project workspace
+  under ``.agilab/global_dags``.
+* ``Custom path`` loads an external JSON plan by path.
 
-The editor keeps normal users away from raw JSON by default. Define stages,
-artifacts, and stage connections with list selectors, then use ``Check DAG`` to
-validate the schema and handoffs. ``Show generated JSON`` is available for code
-review or export, but it is not the primary editing flow.
+The graph is hidden by default so small screens stay readable. Enable
+``Show graph`` only when the current screen has enough room. Enable
+``Show technical output details`` when you need the lower-level output handoff
+table behind the plan.
+
+To edit a plan, enable ``Edit plan``. The normal editing path stays away from
+raw JSON:
+
+* ``Steps`` chooses the app-level steps in the plan.
+* ``Creates`` chooses the outputs produced by those steps.
+* ``Uses`` chooses which later steps use earlier outputs.
+* ``Check plan`` validates the schema, app names, inputs, and outputs.
+* ``Save as workspace plan`` stores the draft for the current project.
+* ``Show generated JSON`` is available for review or export, but it is not the
+  primary editing flow.
 
 Execution is intentionally conservative:
 
-* ``Dispatch next runnable`` is a preview action. It updates the persisted
-  runner state and graph without claiming that an app really ran.
-* ``Run next stage`` is only available for checked-in DAGs with a controlled
-  execution marker. AGILAB ships controlled examples, and app-owned executable
-  templates saved under an app's ``dag_templates`` directory can use the generic
-  controlled contract adapter.
+* ``Preview next ready step`` is a preview action. It updates the persisted
+  runner state without claiming that an app really ran.
+* ``Run next stage`` is only available for checked-in workflow templates with a
+  controlled execution marker. AGILAB ships controlled examples, and app-owned
+  executable templates saved under an app's ``dag_templates`` directory can use
+  the generic controlled contract adapter.
 * ``Run ready stages`` executes every currently runnable controlled stage in
   one batch. Independent branches can run concurrently, and each stage still
   owns its app runtime, including any AGI/Dask distribution used inside that
@@ -140,16 +153,19 @@ Execution is intentionally conservative:
   subprocess so parallel ready stages do not share the in-process ``AGI`` class
   state.
 * Workspace drafts and custom DAGs remain preview-only until they are promoted
-  into a checked-in app template with an explicit controlled execution contract.
+  into a checked-in worker app template with an explicit controlled execution
+  contract. Workerless app templates are still valid AGILAB apps, but they do
+  not imply distributed DAG execution.
 
-Executable stage contracts are deliberately small:
+The technical JSON contract still uses stable field names so plans remain
+portable:
 
 * ``nodes[].execution.entrypoint`` names the stable stage executor, for example
-  ``flight_project.flight_context``. WORKFLOW displays this value in the stage
+  ``flight_telemetry_project.flight_context``. WORKFLOW displays this value in the stage
   table and graph so users can see what will execute before pressing
   ``Run next stage``.
 * ``nodes[].execution.command`` is an optional command-list executor for
-  deterministic local stages. Prefer a JSON list such as
+  deterministic local steps. Prefer a JSON list such as
   ``["python", "-m", "package.module"]`` over a shell string.
 * ``nodes[].execution.params``, ``steps``, ``data_in``, ``data_out``, and
   ``reset_target`` are preserved from the DAG template into the execution plan,
@@ -157,9 +173,9 @@ Executable stage contracts are deliberately small:
   evidence. This keeps cross-app DAG execution auditable instead of relying on
   hidden defaults.
 * ``produces`` and ``consumes`` declare the artifact contract between stages.
-  Executable app templates must declare at least one produced artifact per
-  controlled stage so the runner can publish evidence and unlock downstream
-  stages.
+  Distributed executable app templates must declare at least one produced
+  artifact per controlled stage so the runner can publish evidence and unlock
+  downstream stages.
 
 Use the smoke validator before a live two-node run:
 
@@ -180,21 +196,38 @@ execution history. Use the history table to distinguish preview dispatch events
 from controlled real stage completions before promoting a DAG into a broader
 orchestration flow.
 
-Notebook export
-~~~~~~~~~~~~~~~
+Notebook import and export
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 The closed-by-default ``Notebook`` expander keeps notebook import and export
 near the pipeline definition instead of in the sidebar:
 
 * ``Import notebook`` uploads an ``.ipynb`` file and previews the stages that
   would be merged into ``lab_stages.toml``.
+* After preview, keep ``All runnable cells`` to import the full runnable
+  notebook, or choose one cell as the import scope and promote that cell into an
+  AGILAB stage. Focused promotion keeps the selected cell's detected artifact
+  contract and environment hints without importing unrelated exploratory cells.
 * ``Download pipeline notebook`` exports the current lab as ``lab_stages.ipynb``.
 
 WORKFLOW can export the current lab as a runnable supervisor notebook. This is
-not just a static dump of code cells.
+not just a static dump of code cells. Its purpose is to avoid lock-in: if you
+later decide AGILAB is no longer needed for a project, the workflow you built is
+still available as a normal notebook that can be opened, reviewed, adapted, and
+executed in Jupyter-compatible tools. In short, you do not lose the work because
+you stop using the AGILAB UI.
 
 * The notebook is written beside ``lab_stages.toml`` as ``lab_stages.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
+* For a project-owned notebook layout, keep the same supervisor notebook at
+  ``<app-project>/notebooks/lab_stages.ipynb`` so it travels with the app:
+
+  .. code-block:: bash
+
+     APP_PROJECT="${APP_PROJECT:-/path/to/<app-project>}"
+     uv --project "$APP_PROJECT" run --with jupyterlab jupyter lab notebooks/lab_stages.ipynb
+     uv --project "$APP_PROJECT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace notebooks/lab_stages.ipynb
+
 * For a source checkout, prefer the mirror under
   ``exported_notebooks/<module>/lab_stages.ipynb`` and launch it from the AGILAB
   root project explicitly, for example:
@@ -225,9 +258,15 @@ pipeline outside the UI, but for mixed-runtime or multi-venv flows it does so as
 a supervisor notebook rather than pretending every stage belongs to one notebook
 kernel.
 
+Use notebook export when you want a durable exit path, an audit/review artifact,
+or a handoff to a team that prefers notebooks. Use project export/import when
+you want to move an AGILAB project snapshot between AGILAB workspaces. Use
+packaged ``agi-app-*`` or ``agi-page-*`` artifacts when you want long-term app or
+dashboard distribution.
+
 MLflow tracking
 ~~~~~~~~~~~~~~~
-Pipeline execution and MLflow tracking now share the same runtime contract:
+WORKFLOW execution and MLflow tracking now share the same runtime contract:
 
 .. figure:: diagrams/pipeline_mlflow_tracking.svg
    :alt: Diagram showing one parent MLflow run for the whole workflow and one nested run per executed stage.
@@ -296,7 +335,7 @@ See also
 --------
 
 - :doc:`agilab-help` for the overall page sequence.
-- :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported Pipeline stage.
+- :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported WORKFLOW stage.
 - :doc:`execute-help` for generating reliable snippets before running a stage.
 - :doc:`apps-pages` for analysis-side visualisations after a successful run.
 - :doc:`roadmap/versioned-pipeline-stages` for the proposed structured successor

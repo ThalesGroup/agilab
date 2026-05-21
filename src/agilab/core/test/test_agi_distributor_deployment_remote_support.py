@@ -45,6 +45,50 @@ def test_parse_remote_rapids_probe_rejects_missing_json():
         deployment_remote_support._parse_remote_rapids_probe("no json here")
 
 
+def test_remote_deployment_path_and_probe_helpers(tmp_path):
+    env = SimpleNamespace(home_abs=tmp_path / "home")
+    assert deployment_remote_support._resolve_local_share_path("share", env) == (tmp_path / "home" / "share").resolve(strict=False)
+    assert deployment_remote_support._remote_share_assignment("~/clustershare") == '"$HOME"/clustershare'
+    assert deployment_remote_support._remote_share_assignment("~") == '"$HOME"'
+    assert deployment_remote_support._remote_share_assignment("/mnt/share") == "/mnt/share"
+    assert deployment_remote_support._home_relative_share_setting(str(tmp_path / "home" / "clustershare"), env) == "clustershare"
+    assert deployment_remote_support._home_relative_share_setting("/Users/demo/clustershare", SimpleNamespace()) == "clustershare"
+
+    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@[fe80::1]:8786")) == "fe80::1"
+    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@10.0.0.1:8786")) == "10.0.0.1"
+    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip="10.0.0.1"), SimpleNamespace(user="agi")) == "agi@10.0.0.1"
+    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip=""), SimpleNamespace(user="agi")) == ""
+
+    assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (10, 15, 7)
+    assert deployment_remote_support._parse_version_prefix("beta") == ()
+    assert deployment_remote_support._parse_remote_rapids_probe('{"rapids_capable": false}\n[]\n{bad json}\n') is False
+
+
+@pytest.mark.asyncio
+async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
+    class _AgiNoScheduler:
+        _scheduler_ip = ""
+
+        async def exec_ssh(self, *_args):
+            return "ok"
+
+    env = SimpleNamespace(AGI_CLUSTER_SHARE="share", envars={}, home_abs=tmp_path, user="", verbose=0)
+    with pytest.raises(RuntimeError, match="scheduler host is unknown"):
+        await deployment_remote_support._prepare_remote_cluster_share(_AgiNoScheduler(), "10.0.0.2", env, "clustershare")
+
+    calls: list[str] = []
+
+    class _Agi:
+        async def exec_ssh(self, _ip, cmd):
+            calls.append(cmd)
+            if cmd == deployment_remote_support._remote_platform_probe_command():
+                raise RuntimeError("probe failed")
+            return "ok"
+
+    assert await deployment_remote_support._legacy_intel_macos_dependency_specs(_Agi(), "10.0.0.2") == ()
+    assert calls == [deployment_remote_support._remote_platform_probe_command()]
+
+
 async def _call_deploy_remote_worker(
     agi_cls,
     ip: str,
@@ -124,10 +168,32 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
     )
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
-    assert any("ensurepip" in cmd for cmd in ssh_calls)
+    assert any('python -c "import pip"' in cmd for cmd in ssh_calls)
+    assert not any("ensurepip" in cmd for cmd in ssh_calls)
     assert not any("dask[distributed]" in cmd for cmd in ssh_calls)
     assert not any("numba==0.62.1" in cmd for cmd in ssh_calls)
+    assert any("--upgrade agi-env agi-node" in cmd for cmd in ssh_calls)
     assert any("python -m demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_remote_project_has_pip_reports_missing_when_probe_fails():
+    calls: list[str] = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        calls.append(cmd)
+        raise RuntimeError("pip is missing")
+
+    agi_cls = SimpleNamespace(exec_ssh=_fake_exec_ssh)
+
+    assert await deployment_remote_support._remote_project_has_pip(
+        agi_cls,
+        "10.0.0.2",
+        uv="uv",
+        wenv_rel=Path("worker_env"),
+        pyvers="3.13",
+    ) is False
+    assert calls == ['uv --project worker_env run -p 3.13 python -c "import pip"']
 
 
 @pytest.mark.asyncio
@@ -182,12 +248,11 @@ async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled
         log=deployment_remote_support.logger,
     )
 
-    env_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env" in cmd)
-    node_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-node" in cmd)
+    core_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd)
     dask_index = next(i for i, cmd in enumerate(ssh_calls) if "dask[distributed]" in cmd)
 
     assert "uv --project worker_env add -p 3.13 'dask[distributed]'" in ssh_calls[dask_index]
-    assert env_index < node_index < dask_index
+    assert core_index < dask_index
 
 
 @pytest.mark.asyncio
@@ -325,12 +390,11 @@ async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
     )
 
     pin_index = next(i for i, cmd in enumerate(ssh_calls) if "numba==0.62.1" in cmd)
-    env_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env" in cmd)
-    node_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-node" in cmd)
+    core_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd)
 
     assert "pyarrow==17.0.0" in ssh_calls[pin_index]
     assert "add -p 3.11" in ssh_calls[pin_index]
-    assert pin_index < env_index < node_index
+    assert pin_index < core_index
 
 
 @pytest.mark.asyncio

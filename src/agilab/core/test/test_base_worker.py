@@ -419,12 +419,35 @@ def test_baseworker_candidate_roots_resolve_fallback(monkeypatch, tmp_path):
     assert share_root / "link_sim" in candidates
 
 
+def test_baseworker_windows_net_use_skips_without_credentials(monkeypatch):
+    calls = []
+    posix_path_cls = type(Path("/tmp"))
+    monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
+    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.delenv("AGILAB_WINDOWS_NET_USE_USER", raising=False)
+    monkeypatch.delenv("AGILAB_WINDOWS_NET_USE_PASSWORD", raising=False)
+    monkeypatch.setattr(
+        base_worker_mod.subprocess,
+        "run",
+        lambda cmd, **kwargs: calls.append((cmd, kwargs)),
+    )
+
+    result = BaseWorker.expand_and_join("/Users/demo/data", "child.txt")
+
+    assert calls == []
+    assert result.replace("\\", "/").endswith("/Users/demo/data/child.txt")
+
+
 def test_baseworker_expand_and_join_windows_mount_failure_is_swallowed(monkeypatch):
     calls = []
     posix_path_cls = type(Path("/tmp"))
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
     monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
     monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_DRIVE", "Y:")
 
     def _fake_run(cmd, **kwargs):
         calls.append((cmd, kwargs))
@@ -435,7 +458,8 @@ def test_baseworker_expand_and_join_windows_mount_failure_is_swallowed(monkeypat
     result = BaseWorker.expand_and_join("/Users/demo/data", "child.txt")
 
     assert calls
-    assert calls[0][0][:3] == ["net", "use", "Z:"]
+    assert calls[0][0][:3] == ["net", "use", "Y:"]
+    assert calls[0][0][-2:] == ["/user:demo-user", "demo-password"]
     assert calls[0][1]["check"] is True
     assert "shell" not in calls[0][1]
     assert result.replace("\\", "/").endswith("/Users/demo/data/child.txt")
@@ -468,6 +492,9 @@ def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fa
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(posix_path_cls, "resolve", _patched_resolve, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_DRIVE", "Y:")
 
     calls = []
 
@@ -480,7 +507,8 @@ def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fa
     result = BaseWorker.normalize_dataset_path("relative/data")
 
     assert calls
-    assert calls[0][0][:3] == ["net", "use", "Z:"]
+    assert calls[0][0][:3] == ["net", "use", "Y:"]
+    assert calls[0][0][-2:] == ["/user:demo-user", "demo-password"]
     assert calls[0][1]["check"] is True
     assert "shell" not in calls[0][1]
     assert result.endswith("relative/data")
@@ -492,6 +520,9 @@ def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypa
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
     monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
     monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_DRIVE", "Y:")
     monkeypatch.setattr(
         base_worker_mod.subprocess,
         "run",
@@ -501,7 +532,8 @@ def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypa
     result = BaseWorker.normalize_dataset_path("/tmp/demo/data")
 
     assert calls
-    assert calls[0][0][:3] == ["net", "use", "Z:"]
+    assert calls[0][0][:3] == ["net", "use", "Y:"]
+    assert calls[0][0][-2:] == ["/user:demo-user", "demo-password"]
     assert calls[0][1]["check"] is True
     assert "shell" not in calls[0][1]
     assert result.endswith("/tmp/demo/data")

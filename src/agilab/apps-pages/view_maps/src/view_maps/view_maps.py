@@ -12,8 +12,6 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-import math
-import os
 from pathlib import Path
 import re
 import sys
@@ -77,7 +75,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import find_files, load_df, update_datadir, initialize_csv_files
+from agi_gui.pagelib import find_files, load_df, update_datadir
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -886,7 +884,7 @@ def main():
             "--active-app",
             dest="active_app",
             type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
+            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
             required=True,
         )
         args, _ = parser.parse_known_args()
@@ -899,7 +897,7 @@ def main():
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
-        # Derive the short app name (e.g., 'flight_project')
+        # Derive the short app name (e.g., 'flight_telemetry_project')
         app = active_app.name
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app

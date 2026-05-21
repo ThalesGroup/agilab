@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/data_connector_resolution_report.py").resolve()
 CORE_PATH = Path("src/agilab/data_connector_resolution.py").resolve()
@@ -87,3 +89,150 @@ def test_data_connector_resolution_reports_missing_connector(tmp_path: Path) -> 
             "message": "unknown connector id: missing_connector",
         }
     ]
+
+
+def test_data_connector_resolution_defensive_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_resolution_helpers_test_module")
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("connector_refs = {}\n", encoding="utf-8")
+    monkeypatch.setattr(core_module.tomllib, "loads", lambda _text: ["not", "a", "table"])
+
+    with pytest.raises(ValueError, match="TOML table"):
+        core_module.load_app_settings(settings_path)
+
+    assert core_module._connector_by_id({"connectors": "bad"}) == {}
+    assert core_module._connector_target({"kind": "unknown"}) == ""
+    assert core_module._top_level_refs({"connector_refs": "bad"}) == {}
+    assert core_module._page_refs({"page_connector_refs": "bad"}) == []
+    assert core_module._page_refs({"page_connector_refs": {"analysis": "bad"}}) == []
+    assert core_module._legacy_paths({"legacy_paths": "bad"}) == {}
+    assert core_module._legacy_paths({"legacy_paths": {"": "x", "empty": ""}}) == {}
+
+
+def test_data_connector_resolution_catalog_path_resolution_branches(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_resolution_path_test_module")
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    absolute_catalog = tmp_path / "absolute.toml"
+    absolute_catalog.touch()
+    settings_dir = tmp_path / "settings"
+    settings_dir.mkdir()
+    sibling_catalog = settings_dir / "sibling.toml"
+    sibling_catalog.touch()
+
+    assert core_module._settings_catalog_path(
+        {"connector_catalog": {"path": str(absolute_catalog)}},
+        repo_root,
+    ) == absolute_catalog
+    assert core_module._settings_catalog_path(
+        {"connector_catalog": "not-a-table"},
+        repo_root,
+    ) == repo_root / core_module.DEFAULT_CONNECTORS_RELATIVE_PATH
+    assert core_module._settings_catalog_path(
+        {"connector_catalog": {"path": "docs/source/data/connectors.toml"}},
+        repo_root,
+    ) == repo_root / "docs/source/data/connectors.toml"
+    assert core_module._settings_catalog_path(
+        {"connector_catalog": {"path": "sibling.toml"}},
+        repo_root,
+        settings_dir / "app_settings.toml",
+    ) == sibling_catalog
+    assert core_module._settings_catalog_path(
+        {"connector_catalog": {"path": "missing.toml"}},
+        repo_root,
+        settings_dir / "app_settings.toml",
+    ) == repo_root / "missing.toml"
+
+
+def test_data_connector_resolution_reports_invalid_catalog_and_missing_page_ref(
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_resolution_invalid_test_module")
+    settings = {
+        "page_connector_refs": {"analysis": {"events": "missing_connector"}},
+    }
+    facility_state = {
+        "schema": "agilab.data_connector_facility.v1",
+        "run_status": "invalid",
+        "connectors": [],
+    }
+
+    state = core_module.build_data_connector_resolution(
+        settings=settings,
+        facility_state=facility_state,
+        settings_path=tmp_path / "app_settings.toml",
+        catalog_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["catalog_run_status"] == "invalid"
+    assert {
+        (issue["location"], issue["message"]) for issue in state["issues"]
+    } == {
+        ("connector_catalog", "catalog run status is not validated: invalid"),
+        (
+            "page_connector_refs.analysis.events",
+            "unknown connector id: missing_connector",
+        ),
+    }
+
+
+def test_data_connector_resolution_persist_accepts_relative_paths(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_resolution_persist_test_module")
+    repo_root = tmp_path / "repo"
+    settings_path = repo_root / "config" / "app_settings.toml"
+    catalog_path = repo_root / "config" / "connectors.toml"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        """
+[connector_catalog]
+path = "connectors.toml"
+
+[connector_refs]
+warehouse = "warehouse_sql"
+""",
+        encoding="utf-8",
+    )
+    catalog_path.write_text(
+        """
+[[connectors]]
+id = "warehouse_sql"
+kind = "sql"
+label = "Warehouse SQL"
+uri = "sqlite:///warehouse.db"
+driver = "sqlite"
+query_mode = "read_only"
+
+[[connectors]]
+id = "ops_opensearch"
+kind = "opensearch"
+label = "Operations OpenSearch"
+url = "https://opensearch.example.invalid"
+index = "agilab-runs-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "artifact_object_store"
+kind = "object_storage"
+label = "Artifact Object Store"
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "experiments/"
+auth_ref = "env:AWS_PROFILE"
+""",
+        encoding="utf-8",
+    )
+
+    proof = core_module.persist_data_connector_resolution(
+        repo_root=repo_root,
+        output_path=tmp_path / "resolution.json",
+        settings_path=Path("config/app_settings.toml"),
+        catalog_path=Path("config/connectors.toml"),
+    )
+
+    assert proof["ok"] is True
+    assert proof["settings_path"] == str(settings_path)
+    assert proof["catalog_path"] == str(catalog_path)

@@ -94,13 +94,21 @@ def _prime_current_agilab_package() -> None:
     sys.modules["agilab"] = pkg
 
 
+_ORCHESTRATE_PAGE_HELPERS_MODULE = None
+_ORCHESTRATE_MODULE = None
+
+
 def _load_orchestrate_page_helpers_module():
+    global _ORCHESTRATE_PAGE_HELPERS_MODULE
+    if _ORCHESTRATE_PAGE_HELPERS_MODULE is not None:
+        return _ORCHESTRATE_PAGE_HELPERS_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _ORCHESTRATE_PAGE_HELPERS_MODULE = module
     return module
 
 
@@ -153,12 +161,16 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
 
 
 def _load_orchestrate_module():
+    global _ORCHESTRATE_MODULE
+    if _ORCHESTRATE_MODULE is not None:
+        return _ORCHESTRATE_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _ORCHESTRATE_MODULE = module
     return module
 
 
@@ -508,8 +520,31 @@ def test_orchestrate_notebook_document_exports_current_recipe():
         "Notebook import remains on the WORKFLOW page" in "".join(cell["source"])
         for cell in document["cells"]
     )
+    assert any(
+        "INSTALL prepares environments and RUN executes" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
     assert ["".join(cell["source"]) for cell in code_cells] == ["print('install')\n", "print('run')\n"]
+
+
+def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
+    module = _load_orchestrate_module()
+    env = SimpleNamespace(app="demo_project", target="demo")
+
+    document = module._orchestrate_notebook_document(
+        env,
+        [
+            ("INSTALL", "print('install')"),
+            ("CHECK distribute", "print('check')"),
+            ("RUN", "print('run')"),
+        ],
+    )
+
+    assert any(
+        "CHECK distribute previews work" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
 
 
 def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
@@ -529,6 +564,20 @@ def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
 
     assert fake_st.expanders == [("Notebook", False)]
     assert fake_st.downloads == []
+    assert fake_st.infos == ["No orchestration snippets are available yet. Configure INSTALL or RUN first."]
+
+
+def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exists(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    fake_st = _NotebookExpanderStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    worker_path = tmp_path / "src" / "demo_worker" / "demo_worker.py"
+    worker_path.parent.mkdir(parents=True)
+    worker_path.write_text("class DemoWorker: pass\n", encoding="utf-8")
+    env = SimpleNamespace(target="fallback_project", worker_path=worker_path)
+
+    module._render_orchestrate_notebook_expander(env)
+
     assert fake_st.infos == [
         "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
     ]
@@ -729,6 +778,15 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
             "Remote command stderr: error: Permission denied (os error 13)",
             "Failed to update uv on 192.168.20.15 (skipping self update): Process exited with non-zero exit status 2",
             "None",
+            "Process finished",
+        ]
+    )
+    assert not orchestrate_page_support.log_indicates_install_failure(
+        [
+            "error: Self-update is only available for uv binaries installed via the standalone installation scripts.",
+            "app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update",
+            "app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2",
+            "app.deployment_orchestration_support.deploy_application Installing flight_telemetry_project",
             "Process finished",
         ]
     )
@@ -1079,7 +1137,7 @@ def test_install_status_warning_skips_first_launch_missing_manager(tmp_path: Pat
         "worker_ready": True,
         "manager_exists": False,
         "worker_exists": True,
-        "manager_problem": f"environment path does not exist: {tmp_path / 'flight_project' / '.venv'}",
+        "manager_problem": f"environment path does not exist: {tmp_path / 'flight_telemetry_project' / '.venv'}",
         "worker_problem": "",
     }
 
@@ -1109,6 +1167,25 @@ def test_install_status_warning_reports_existing_stale_environment():
     assert caption == "missing modules: agi_cluster"
 
 
+def test_install_status_workerless_labels_skip_worker_staleness():
+    module = _load_orchestrate_module()
+    install_status = {
+        "workerless": True,
+        "manager_ready": True,
+        "worker_ready": True,
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_problem": "",
+        "worker_problem": "worker path not configured",
+    }
+
+    assert module._install_status_warning_message(install_status) is None
+    assert module._runtime_status_label(install_status) == (
+        "Ready",
+        "Manager environment can import AGILAB runtime packages.",
+    )
+
+
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module = _load_orchestrate_module()
 
@@ -1119,6 +1196,38 @@ def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     monkeypatch.setattr(module, "st", SimpleNamespace(query_params=_BrokenQueryParams()))
 
     module._set_active_app_query_param("demo_project")
+
+
+def test_first_proof_orchestrate_query_seed_queues_install_and_cleans_url():
+    module = _load_orchestrate_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "active_app": "flight_telemetry_project",
+        "first_proof_action": "install",
+    }
+
+    action = module._consume_first_proof_action_query_seed(session_state, query_params)
+
+    assert action == "install"
+    assert session_state["_orchestrate_pending_install_action"] == "install"
+    assert session_state["show_install"] is True
+    assert query_params == {"active_app": "flight_telemetry_project"}
+
+
+def test_first_proof_orchestrate_query_seed_queues_run_and_cleans_url():
+    module = _load_orchestrate_module()
+    session_state: dict[str, object] = {}
+    query_params = {
+        "active_app": "flight_telemetry_project",
+        "first_proof_action": "run",
+    }
+
+    action = module._consume_first_proof_action_query_seed(session_state, query_params)
+
+    assert action == "run"
+    assert session_state["_orchestrate_pending_action"] == "run"
+    assert session_state["show_run"] is True
+    assert query_params == {"active_app": "flight_telemetry_project"}
 
 
 def test_clear_cached_distribution_calls_clear_when_available():
@@ -1241,18 +1350,18 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
     project_path = tmp_path / "project"
     stderr_log = "\n".join(
         [
-            "flight_project.runtime_misc_support.initialize_runtime_state AGI instance created for target flight with verbosity 1",
+            "flight_telemetry_project.runtime_misc_support.initialize_runtime_state AGI instance created for target flight with verbosity 1",
             "WARNING: Cache entry deserialization failed, entry ignored",
-            "flight_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
-            "flight_project.runtime_distribution_support.run_local debug=False",
-            "flight_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"from pathlib import Path",
+            "flight_telemetry_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
+            "flight_telemetry_project.runtime_distribution_support.run_local debug=False",
+            "flight_telemetry_project.execution_support.run_async Executing in /Users/agi/wenv/flight_telemetry_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_telemetry_worker --python 3.13.13 python -c \"from pathlib import Path",
             "from agi_env import AgiEnv",
             "from agi_node.agi_dispatcher import  BaseWorker",
             "import asyncio",
             "async def main():",
-            "  env = AgiEnv(apps_path=Path('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin'), app='flight_project', verbose=1)",
-            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
-            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  env = AgiEnv(apps_path=Path('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin'), app='flight_telemetry_project', verbose=1)",
+            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight_telemetry/dataset', 'data_out': 'flight_telemetry/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight_telemetry/dataset', 'data_out': 'flight_telemetry/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
             "  print(res)",
             "if __name__ == '__main__':",
             "  asyncio.run(main())\"",
@@ -1456,6 +1565,36 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
 
 
 @pytest.mark.asyncio
+async def test_install_worker_action_allows_recovered_local_uv_self_update_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("error: Self-update is only available for uv binaries installed via the standalone installation scripts.")
+        log_callback("app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update")
+        log_callback("app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2")
+        return "None\nProcess finished", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert result.detail is None
+    assert result.data["install_log"][-3:] == (
+        "None",
+        "Process finished",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
 async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []
@@ -1477,6 +1616,36 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
     assert result.status == "error"
     assert result.detail == "Detected install failure in logs."
     assert "rerun INSTALL" in str(result.next_action)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_classifies_corrupted_dataset_archive(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("agilab.data_archive_support.unzip_data Failed to extract '/tmp/dataset.7z': not a 7z file")
+        log_callback("py7zr.exceptions.Bad7zFile: not a 7z file")
+        return "", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Dataset archive is invalid."
+    assert result.detail == (
+        "dataset.7z could not be extracted. The archive is missing, truncated, "
+        "or not a valid .7z dataset archive."
+    )
+    assert result.data["failure_category"] == "archive"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
 
 
 @pytest.mark.asyncio
@@ -1557,7 +1726,7 @@ def test_app_args_env_uses_cluster_share_instead_of_stale_local_share(tmp_path):
     assert args_env.share_root_path() == cluster_share
     assert args_env.agi_share_path == cluster_share
     assert args_env.agi_share_path_abs == cluster_share
-    assert args_env.resolve_share_path("flight/dataset") == cluster_share / "flight/dataset"
+    assert args_env.resolve_share_path("flight_telemetry/dataset") == cluster_share / "flight_telemetry/dataset"
     assert args_env.envars["AGI_CLUSTER_SHARE"] == str(cluster_share)
 
 

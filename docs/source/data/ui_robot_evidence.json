@@ -10,7 +10,9 @@
     "required_files_present": true,
     "scenario_summary_file": "test-results/ui-robot-matrix/isolated-core-pages.json",
     "screenshot_count": 0,
-    "size_bytes": 4902
+    "size_bytes": 4902,
+    "trend_report_file": "test-results/ui-robot-matrix/trend-report.json",
+    "trend_report_schema": "agilab.ui_robot_trend_report.v1"
   },
   "generated_at": "2026-05-08T20:34:30Z",
   "result": {
@@ -25,6 +27,18 @@
     "status": "pass",
     "success": true,
     "total_duration_seconds": 411.5896649649999,
+    "trend": {
+      "budget_violation_count": 0,
+      "failed_page_count": 0,
+      "flaky_page_count": 0,
+      "mean_page_duration_seconds": 13.71965549883333,
+      "page_count": 30,
+      "parse_error_count": 0,
+      "schema": "agilab.ui_robot_trend_report.v1",
+      "slow_page_count": 0,
+      "success": true,
+      "total_duration_seconds": 411.5896649649999
+    },
     "widget_count": 532,
     "within_target": true
   },

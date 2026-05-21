@@ -31,10 +31,10 @@ def test_public_certification_profile_report_passes_contract(tmp_path: Path) -> 
     assert report["summary"]["schema"] == "agilab.public_certification_profile.v1"
     assert report["summary"]["execution_mode"] == "public_certification_static"
     assert report["summary"]["certification_profile"] == "bounded_public_evidence"
-    assert report["summary"]["path_count"] == 6
-    assert report["summary"]["certified_public_evidence_count"] == 5
+    assert report["summary"]["path_count"] == 7
+    assert report["summary"]["certified_public_evidence_count"] == 6
     assert report["summary"]["documented_not_certified_count"] == 1
-    assert report["summary"]["certified_beyond_newcomer_operator_count"] == 3
+    assert report["summary"]["certified_beyond_newcomer_operator_count"] == 4
     assert report["summary"]["production_certification_claimed"] is False
     assert report["summary"]["formal_third_party_certification"] is False
     assert report["summary"]["command_execution_count"] == 0
@@ -67,9 +67,71 @@ def test_public_certification_profile_marks_documented_routes() -> None:
     assert rows["published-package-route"]["certification_status"] == (
         "certified_public_evidence"
     )
+    assert rows["controlled-pilot-readiness-gate"]["certification_status"] == (
+        "certified_public_evidence"
+    )
     assert state["summary"]["certified_beyond_newcomer_operator_paths"] == [
         "web-ui-local-first-proof",
         "agilab-hf-demo",
+        "controlled-pilot-readiness-gate",
         "published-package-route",
     ]
     assert state["summary"]["production_certification_claimed"] is False
+
+
+def test_public_certification_profile_rejects_non_list_matrix_entries(tmp_path: Path) -> None:
+    core = _load_module(CORE_PATH, "public_certification_core_invalid_entries_module")
+    matrix = tmp_path / "matrix.toml"
+    matrix.write_text(
+        """
+entries = "bad"
+
+[metadata]
+version = "test"
+updated = "2026-05-18"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    try:
+        core.build_public_certification_profile(tmp_path, matrix_path=matrix)
+    except TypeError as exc:
+        assert "compatibility matrix entries must be a list" in str(exc)
+    else:
+        raise AssertionError("non-list compatibility matrix entries should fail closed")
+
+
+def test_public_certification_profile_reports_insufficient_public_evidence(tmp_path: Path) -> None:
+    core = _load_module(CORE_PATH, "public_certification_core_insufficient_matrix_module")
+    matrix = tmp_path / "relative_matrix.toml"
+    matrix.write_text(
+        """
+[metadata]
+version = "test"
+updated = "2026-05-18"
+
+[[entries]]
+id = "source-checkout-first-proof"
+label = "Source checkout first proof"
+surface = "web-ui"
+status = "validated"
+primary_proof = "local-proof"
+scope = "newcomer"
+limits = ["local only"]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = core.build_public_certification_profile(
+        tmp_path,
+        matrix_path=Path("relative_matrix.toml"),
+    )
+
+    assert state["source"]["matrix_path"] == str(matrix.resolve())
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["certified_public_evidence_count"] == 1
+    assert state["summary"]["certified_beyond_newcomer_operator_count"] == 0
+    assert {issue["location"] for issue in state["issues"]} == {
+        "certification.certified_public_evidence",
+        "certification.broader_public_slices",
+    }

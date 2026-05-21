@@ -19,6 +19,58 @@ import pytest
 from agi_env import pagelib, ui_support
 
 
+def _patch_mlflow_cli(monkeypatch):
+    monkeypatch.setattr(
+        pagelib.mlflow_store,
+        "mlflow_cli_argv",
+        lambda args, **_kwargs: ["mlflow", *args],
+    )
+
+
+def test_mlflow_cli_argv_prefers_installed_executable() -> None:
+    argv = pagelib.mlflow_store.mlflow_cli_argv(
+        ["server"],
+        which_fn=lambda name: "/tmp/bin/mlflow" if name == "mlflow" else None,
+        find_spec_fn=lambda _name: None,
+    )
+
+    assert argv == ["/tmp/bin/mlflow", "server"]
+
+
+def test_mlflow_cli_argv_falls_back_to_cli_entry_module() -> None:
+    argv = pagelib.mlflow_store.mlflow_cli_argv(
+        ["db", "upgrade", "sqlite:///tmp/mlflow.db"],
+        sys_executable="/tmp/python",
+        which_fn=lambda _name: None,
+        find_spec_fn=lambda name: object() if name == "mlflow.cli" else None,
+    )
+
+    assert argv[:3] == ["/tmp/python", "-c", pagelib.mlflow_store._MLFLOW_CLI_BOOTSTRAP]
+    assert argv[3:] == ["db", "upgrade", "sqlite:///tmp/mlflow.db"]
+    assert "-m" not in argv
+
+
+def test_mlflow_cli_argv_reports_missing_mlflow_cli() -> None:
+    with pytest.raises(RuntimeError, match=r"agilab\[mlflow\]"):
+        pagelib.mlflow_store.mlflow_cli_argv(
+            ["server"],
+            which_fn=lambda _name: None,
+            find_spec_fn=lambda _name: None,
+        )
+
+
+def test_mlflow_cli_argv_reports_broken_mlflow_cli_import() -> None:
+    def _broken_find_spec(_name: str):
+        raise TypeError("Descriptors cannot be created directly.")
+
+    with pytest.raises(RuntimeError, match=r"agilab\[mlflow\]"):
+        pagelib.mlflow_store.mlflow_cli_argv(
+            ["server"],
+            which_fn=lambda _name: None,
+            find_spec_fn=_broken_find_spec,
+        )
+
+
 def _load_pagelib_with_missing(module_name: str, *missing_modules: str):
     module_path = Path("src/agilab/core/agi-env/src/agi_env/pagelib.py")
     importlib.invalidate_caches()
@@ -71,6 +123,13 @@ def test_background_services_enabled_respects_streamlit_testing_state(monkeypatc
         "st",
         SimpleNamespace(session_state={"$$STREAMLIT_INTERNAL_KEY_TESTING": True}),
     )
+
+    assert pagelib.background_services_enabled() is False
+
+
+def test_background_services_enabled_respects_mlflow_autostart_disabled(monkeypatch):
+    monkeypatch.delenv("AGILAB_DISABLE_BACKGROUND_SERVICES", raising=False)
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={"mlflow_autostart_disabled": True}))
 
     assert pagelib.background_services_enabled() is False
 
@@ -888,6 +947,7 @@ def test_resolve_mlflow_tracking_dir_resolves_relative_path_under_home(tmp_path)
 
 def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     calls = {}
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -946,7 +1006,8 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
     command = launched["call"][0]
-    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    assert command[:2] == ["mlflow", "server"]
+    assert "-m" not in command
     assert command[command.index("--backend-store-uri") + 1] == pagelib._sqlite_uri_for_path(expected_db)
     assert command[command.index("--default-artifact-root") + 1] == expected_artifacts.resolve().as_uri()
     assert command[command.index("--port") + 1] == "50123"
@@ -960,6 +1021,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     (tracking_dir / "0").mkdir(parents=True)
     (tracking_dir / "meta.yaml").write_text("legacy", encoding="utf-8")
     migrate = {}
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -1002,9 +1064,12 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
 
     pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
 
-    assert migrate["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
-    assert migrate["cmd"][5] == str(tracking_dir)
-    assert migrate["cmd"][7] == pagelib._sqlite_uri_for_path(tracking_dir / "mlflow.db")
+    assert migrate["cmd"][:2] == ["mlflow", "migrate-filestore"]
+    assert "-m" not in migrate["cmd"]
+    assert migrate["cmd"][migrate["cmd"].index("--source") + 1] == str(tracking_dir)
+    assert migrate["cmd"][migrate["cmd"].index("--target") + 1] == pagelib._sqlite_uri_for_path(
+        tracking_dir / "mlflow.db"
+    )
 
 
 def test_reset_mlflow_sqlite_backend_moves_sidecars(tmp_path, monkeypatch):
@@ -1083,6 +1148,7 @@ def test_ensure_mlflow_sqlite_schema_current_raises_without_reset_marker(tmp_pat
         "run",
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="plain upgrade failure"),
     )
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 
     with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
@@ -1159,9 +1225,12 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
         conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
         conn.commit()
     calls = []
+    envs = []
+    _patch_mlflow_cli(monkeypatch)
 
-    def fake_run(cmd, check, capture_output, text):
+    def fake_run(cmd, check, capture_output, text, env=None):
         calls.append(cmd)
+        envs.append(env)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
@@ -1172,16 +1241,8 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
 
     assert first_uri == pagelib._sqlite_uri_for_path(db_path)
     assert second_uri == first_uri
-    assert calls == [
-        [
-            sys.executable,
-            "-m",
-            "mlflow",
-            "db",
-            "upgrade",
-            pagelib._sqlite_uri_for_path(db_path),
-        ]
-    ]
+    assert calls == [["mlflow", "db", "upgrade", pagelib._sqlite_uri_for_path(db_path)]]
+    assert envs[0]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
 
 
 def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, monkeypatch):
@@ -1200,6 +1261,7 @@ def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, m
             stderr="alembic.util.exc.CommandError: Can't locate revision identified by '1b5f0d9ad7c1'",
         )
 
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
     monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 
@@ -1546,13 +1608,14 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
         def __init__(self, stdout_value):
             self.stdout = stdout_value
 
-    def fake_popen(command, shell, cwd, stdout, stderr, text):
+    def fake_popen(command, shell, cwd, stdout, stderr, text, env):
         calls["command"] = command
         calls["shell"] = shell
         calls["cwd"] = cwd
         calls["stdout"] = stdout
         calls["stderr"] = stderr
         calls["text"] = text
+        calls["env"] = env
         return FakeProcess("stream-output")
 
     monkeypatch.setattr(pagelib.subprocess, "Popen", fake_popen)
@@ -1565,6 +1628,7 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     assert calls["cwd"] == os.path.abspath(tmp_path / ".." / tmp_path.name)
     assert calls["stdout"] == subprocess.PIPE
     assert calls["stderr"] == subprocess.STDOUT
+    assert isinstance(calls["env"], dict)
     assert calls["text"] is True
 
 
@@ -2054,6 +2118,7 @@ def test_pagelib_io_helpers_cover_ports_browser_json_and_run_agi(monkeypatch, tm
 def test_activate_mlflow_and_gpt_oss_cover_no_env_and_runtime_failures(monkeypatch, tmp_path):
     errors: list[str] = []
     warnings: list[str] = []
+    _patch_mlflow_cli(monkeypatch)
     fake_st = SimpleNamespace(
         session_state={},
         error=lambda message: errors.append(str(message)),
@@ -2126,6 +2191,7 @@ def test_ensure_default_mlflow_experiment_ignores_create_error_and_retries_only_
 
 def test_activate_mlflow_keeps_server_stopped_when_port_never_opens(tmp_path, monkeypatch):
     errors: list[str] = []
+    _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -2180,6 +2246,7 @@ def test_ensure_mlflow_backend_ready_raises_when_legacy_migration_fails(tmp_path
         "run",
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="migrate boom"),
     )
+    _patch_mlflow_cli(monkeypatch)
 
     with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store"):
         pagelib._ensure_mlflow_backend_ready(tracking_dir)
@@ -2204,6 +2271,7 @@ def test_ensure_mlflow_sqlite_schema_current_resets_on_known_marker(tmp_path, mo
     )
     monkeypatch.setattr(pagelib, "_reset_mlflow_sqlite_backend", lambda path: resets.append(path) or path)
     monkeypatch.setattr(pagelib, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
+    _patch_mlflow_cli(monkeypatch)
 
     pagelib._ensure_mlflow_sqlite_schema_current(db_path)
 

@@ -20,7 +20,7 @@ What belongs here
    * - Proof route
      - What it proves
      - Where to start
-   * - ``data_io_2026_project``
+   * - ``mission_decision_project``
      - Deterministic mission-data decision loop: ingest evidence, score routes,
        inject an event, re-plan, and export a decision bundle.
      - Select the built-in app, run ``ORCHESTRATE``, then open
@@ -33,8 +33,8 @@ What belongs here
      - Network-style experiment analysis: queue buildup, packet drops, routing
        policy changes, topology, trajectories, and generic network map views.
      - Select the built-in app, run it, then open
-       ``view_uav_queue_analysis``, ``view_uav_relay_queue_analysis``, or
-       ``view_maps_network``.
+       ``view_scenario_cockpit``, ``view_queue_resilience``,
+       ``view_relay_resilience``, or ``view_maps_network``.
    * - ``inter_project_dag`` packaged preview
      - App-to-app artifact handoff without private infrastructure: one app
        produces an explicit artifact contract that another app can consume.
@@ -77,7 +77,7 @@ Recommended order
 
 Run these in this order when you need a compact but convincing evaluation pass:
 
-1. **Mission decision**: ``data_io_2026_project``. This is the best product
+1. **Mission decision**: ``mission_decision_project``. This is the best product
    story because it shows an input-to-decision workflow, not only a data
    transform.
 2. **Execution credibility**: :doc:`execution-playground`. This is the best
@@ -106,7 +106,7 @@ How to demo it
 Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
 
 **Decision lane**
-  ``data_io_2026_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
+  ``mission_decision_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
   ``view_data_io_decision``. Stop when the selected strategy, re-plan event,
   decision deltas, and exported artifacts are visible.
 
@@ -117,9 +117,31 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
 
 **Network lane**
   ``uav_relay_queue_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
-  ``view_uav_relay_queue_analysis`` plus ``view_maps_network``. Stop when queue
-  buildup, relay choice, drops, topology, and trajectories are visible from the
-  same run artifacts.
+  ``view_scenario_cockpit`` -> ``view_relay_resilience`` plus
+  ``view_maps_network``. Stop when the baseline/candidate evidence bundle,
+  queue buildup, relay choice, drops, topology, and trajectories are visible
+  from the same run artifacts.
+
+  The source-checkout proof can be regenerated without the UI by running
+  ``uav_queue_project`` twice, once with the shortest-path policy and once with
+  the queue-aware policy, then packaging the result through the same Scenario
+  Cockpit evidence helpers:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean
+
+  Maintainers refresh the checked-in public sample only when intentionally
+  updating proof evidence:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean --write-doc-sample docs/source/data/scenario_cockpit_uav_queue_sample.json
+
+  The checked-in sample records a ``promotable`` queue-aware candidate against
+  the shortest-path baseline, 24 hashed artifacts, and zero missing peer
+  artifacts. It is source-checkout evidence for the proof route; it is not a
+  broader simulator certification.
 
 **Operator lane**
   ``service_mode`` preview and :doc:`service-health-schema`. Stop when the

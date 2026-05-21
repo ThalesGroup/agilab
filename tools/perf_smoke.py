@@ -103,16 +103,16 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             description="Shared base worker dispatcher import startup.",
             command=_import_command("agi_node.agi_dispatcher.base_worker"),
         ),
-        "view-maps-network-import": PerfScenario(
-            name="view-maps-network-import",
+        "agi-page-network-map-import": PerfScenario(
+            name="agi-page-network-map-import",
             description="Heavy network page package import startup.",
             command=_import_command(
                 "view_maps_network.view_maps_network",
                 extra_paths=[maps_network_src],
             ),
         ),
-        "view-maps-3d-import": PerfScenario(
-            name="view-maps-3d-import",
+        "agi-page-geospatial-3d-import": PerfScenario(
+            name="agi-page-geospatial-3d-import",
             description="Heavy 3D maps page package import startup.",
             command=_import_command(
                 "view_maps_3d.view_maps_3d",

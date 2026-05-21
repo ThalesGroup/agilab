@@ -144,6 +144,8 @@ async def test_prepare_local_env_online_handles_python_download_warning(tmp_path
 
     async def _fake_run(cmd, _cwd):
         run_calls.append(cmd)
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         if "python install" in cmd:
             raise RuntimeError("No download found for request")
         return ""
@@ -158,13 +160,14 @@ async def test_prepare_local_env_online_handles_python_download_warning(tmp_path
         log=mock.Mock(),
     )
 
-    assert any("self update" in cmd for cmd in run_calls)
+    assert not any("self update" in cmd for cmd in run_calls)
     assert any("python install 3.13" in cmd for cmd in run_calls)
 
 
 @pytest.mark.asyncio
 async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False)
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     run_calls = []
 
@@ -175,6 +178,8 @@ async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path)
         run_calls.append(cmd)
         if "self update" in cmd:
             raise RuntimeError("Self-update is only available for standalone installs")
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return ""
 
     await deployment_prepare_support.prepare_local_env(
@@ -194,6 +199,7 @@ async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path)
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_missing(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="uv --quiet")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
@@ -205,6 +211,8 @@ async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_mi
 
     async def _fake_run(cmd, _cwd):
         run_calls.append(cmd)
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return ""
 
     monkeypatch.setattr(deployment_prepare_support.os, "name", "nt", raising=False)
@@ -229,6 +237,7 @@ async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_mi
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="uv --quiet")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
@@ -241,6 +250,8 @@ async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monke
 
     async def _fake_run(cmd, _cwd):
         run_calls.append(cmd)
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return ""
 
     monkeypatch.setattr(deployment_prepare_support.os, "name", "nt", raising=False)
@@ -263,6 +274,7 @@ async def test_prepare_local_env_windows_uses_standalone_uv_when_available(monke
 @pytest.mark.asyncio
 async def test_prepare_local_env_windows_handles_empty_uv_and_self_update_failure(monkeypatch, tmp_path):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False, uv="")
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
     fake_home = tmp_path / "home"
     standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
@@ -278,6 +290,8 @@ async def test_prepare_local_env_windows_handles_empty_uv_and_self_update_failur
         run_calls.append(cmd)
         if "self update" in cmd:
             raise RuntimeError("standalone update failed")
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return ""
 
     monkeypatch.setattr(deployment_prepare_support.os, "name", "nt", raising=False)
@@ -307,6 +321,8 @@ async def test_prepare_local_env_online_re_raises_unexpected_python_install_erro
         return ""
 
     async def _fake_run(cmd, _cwd):
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         if "python install" in cmd:
             raise RuntimeError("unexpected install failure")
         return ""
@@ -357,7 +373,7 @@ async def test_prepare_cluster_env_happy_path_sends_files(tmp_path):
         log=mock.Mock(),
     )
 
-    assert any("self update" in cmd for _, cmd in remote_cmds)
+    assert not any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(file["name"] == "cli.py" for file in items) for _, items, _ in sent)
 
@@ -380,6 +396,8 @@ async def test_prepare_cluster_env_legacy_intel_macos_selects_python_311(tmp_pat
             return "Darwin\nx86_64\n10.15.8"
         if "--version" in cmd:
             return "uv 0.6.0"
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return "ok"
 
     async def _noop(*_args, **_kwargs):
@@ -490,6 +508,7 @@ ilp_worker = { path = "../deps/ilp_worker" }
 @pytest.mark.asyncio
 async def test_prepare_cluster_env_ignores_uv_self_update_failure(tmp_path):
     env = _build_cluster_env(tmp_path)
+    env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env)
     sent = []
     remote_cmds = []
@@ -503,6 +522,8 @@ async def test_prepare_cluster_env_ignores_uv_self_update_failure(tmp_path):
             return "uv 0.6.0"
         if "self update" in cmd:
             raise RuntimeError("Self-update is only available for standalone installs")
+        if "python find" in cmd:
+            raise RuntimeError("not found")
         return "ok"
 
     async def _noop(*_args, **_kwargs):
@@ -831,6 +852,8 @@ async def test_prepare_cluster_env_python_install_unknown_error_bubbles(tmp_path
     async def _fake_exec(_ip, cmd):
         if "--version" in cmd:
             return "uv 0.6.0"
+        if "python find" in cmd:
+            raise _ProcError("not found")
         if "python install" in cmd:
             raise _ProcError("unexpected install failure")
         return "ok"
@@ -1028,6 +1051,8 @@ async def test_prepare_cluster_env_fallback_installer_and_no_download(tmp_path):
             raise RuntimeError("windows installer failed")
         if "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o" in cmd:
             return "ok"
+        if "python find" in cmd:
+            raise _FakeProcessError("not found")
         if "python install" in cmd:
             raise _FakeProcessError("No download found for request")
         return "ok"

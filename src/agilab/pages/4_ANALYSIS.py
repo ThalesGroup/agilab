@@ -19,14 +19,16 @@ import socket
 import time
 import hashlib
 import html
+import json
 import re
 import inspect
+from collections.abc import Sequence
 from typing import Any, Union
 import asyncio
 import shlex
 import importlib.util
 import traceback
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 import shutil
 
 from pathlib import Path
@@ -92,6 +94,16 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
+import_agilab_symbols(
+    globals(),
+    "agilab.ui_performance",
+    {
+        "ui_discovery_cache_enabled": "ui_discovery_cache_enabled",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
+    fallback_name="agilab_ui_performance_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -114,7 +126,7 @@ _ANALYSIS_VIEW_PROFILES = {
     "view_maps": (
         "Map evidence",
         "Inspect trajectories, positions, and geographic consistency after a flight run.",
-        "Start here for flight_project outputs.",
+        "Start here for flight_telemetry_project outputs.",
     ),
     "view_maps_3d": (
         "3D cartography",
@@ -146,17 +158,27 @@ _ANALYSIS_VIEW_PROFILES = {
         "Aggregate run evidence into pass/fail release support.",
         "Use before publishing a demo, package, or validation result.",
     ),
+    "view_shap_explanation": (
+        "SHAP explanation",
+        "Inspect local feature attributions exported by SHAPKit, shap, or compatible explainers.",
+        "Use after a model workflow writes feature-attribution artifacts.",
+    ),
     "view_forecast_analysis": (
         "Forecast evidence",
         "Review forecast metrics and predictions.",
         "Use after a forecasting pipeline writes analysis artifacts.",
     ),
-    "view_uav_queue_analysis": (
+    "view_queue_resilience": (
         "Queue resilience",
-        "Review UAV queue metrics, delivery, and overload symptoms.",
+        "Review queue metrics, delivery, and overload symptoms.",
         "Use for failure-injection and queue-behavior examples.",
     ),
-    "view_uav_relay_queue_analysis": (
+    "view_scenario_cockpit": (
+        "Scenario cockpit",
+        "Compare scenario runs and export a hashed baseline/candidate evidence bundle.",
+        "Use before promoting or documenting a queue or relay scenario change.",
+    ),
+    "view_relay_resilience": (
         "Relay queue resilience",
         "Compare relay queue behavior across runs and degraded conditions.",
         "Use for relay-network resilience analysis.",
@@ -165,11 +187,6 @@ _ANALYSIS_VIEW_PROFILES = {
         "Data decision",
         "Inspect data ingestion decisions and feature evidence.",
         "Use for data-quality and source-selection examples.",
-    ),
-    "view_autoencoder_latenspace": (
-        "Latent-space view",
-        "Inspect reduced-dimensional embeddings and clustering behavior.",
-        "Use after dimensionality-reduction workflows.",
     ),
     "view_autoencoder_latentspace": (
         "Latent-space view",
@@ -191,128 +208,30 @@ _ANALYSIS_ARTIFACT_SUFFIXES = {
     ".html",
 }
 
-_MINIMAL_PAGE_TEMPLATE_PYPROJECT = """[project]
-name = "view-{module_slug}"
-version = "0.1.0"
-requires-python = ">=3.13"
-dependencies = [
-    "streamlit",
-    "agi-env",
-    "agi-node",
-]
+_NOTEBOOK_IGNORED_DIRS = {
+    ".git",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".venv",
+    "__pycache__",
+    "venv",
+}
 
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-"""
-
-_MINIMAL_PAGE_TEMPLATE_SCRIPT = """from __future__ import annotations
-
-import argparse
-from pathlib import Path
-
-import streamlit as st
-
-try:
-    from agi_env import AgiEnv
-except (ImportError, ModuleNotFoundError, OSError) as exc:  # pragma: no cover - dependency hint
-    AgiEnv = None
-    _AGI_ENV_IMPORT_ERROR = exc
-else:  # pragma: no cover
-    _AGI_ENV_IMPORT_ERROR = None
-
-
-PAGE_TITLE = "__TITLE__"
-
-
-def _parse_active_app() -> str:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app")
-    args, _ = parser.parse_known_args()
-    if args.active_app:
-        return args.active_app
-
-    # Support fallback query arguments in case page gets launched with custom params.
-    for key in ("active_app", "active-app", "project"):
-        value = st.query_params.get(key, "")
-        if value:
-            return value
-    return ""
-
-
-def _load_project_env(active_app: str):
-    if AgiEnv is None:
-        st.error(
-            "This template requires the ``agi-env`` package available in this page environment."
-        )
-        st.error(f"Import error: {_AGI_ENV_IMPORT_ERROR}")
-        st.stop()
-
-    active_app_path = Path(active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided active project path does not exist: {active_app_path}")
-        st.stop()
-
-    return AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-
-
-def main() -> None:
-    st.set_page_config(
-        page_title=PAGE_TITLE,
-        layout="wide",
-        menu_items=get_docs_menu_items(html_file="explore-help.html"),
-    )
-    st.title(PAGE_TITLE)
-
-    active_app = _parse_active_app().strip()
-    if not active_app:
-        st.info(
-            "Open this page from AGILAB Analysis so the active project is passed via --active-app."
-        )
-        return
-
-    env = _load_project_env(active_app)
-    st.subheader(f"Project: {env.app}")
-    st.caption(f"Project path: {env.active_app}")
-
-    dataset_root = env.app_data_rel / "dataset"
-    if not dataset_root.exists():
-        st.info("No dataset folder yet. Run your pipeline before exploring outputs here.")
-        return
-
-    csv_files = sorted(dataset_root.glob("*.csv"))
-    if not csv_files:
-        st.warning("No CSV file found in the dataset folder yet.")
-        return
-
-    st.success(f"{len(csv_files)} CSV file(s) available.")
-    with st.expander("Dataset files", expanded=False):
-        for file in csv_files:
-            st.write(file.name)
-
-
-if __name__ == "__main__":
-    main()
-"""
-
-_MINIMAL_PAGE_TEMPLATE_README = """# {title}
-
-This bundle was generated from AGILab's minimal custom page template.
-
-Quick start:
-
-- Open the page from Analysis after selecting a project.
-- Use the embedded AGILAB sidecar runner; `--active-app` is automatically passed.
-- Export results first, then refresh this page to inspect available CSV outputs.
-
-Files:
-
-- `pyproject.toml`: page-specific dependency declaration.
-- `src/{module}/__init__.py`: package module marker.
-- `src/{module}/{module}.py`: Streamlit page script.
-
-You can extend this page with your own charts, plots, and actions.
-"""
+_ANALYSIS_PAGE_TEMPLATE_NAME = "analysis_page_template"
+_ANALYSIS_PAGE_TEMPLATE_ROOT = (
+    Path(__file__).resolve().parents[1] / "apps-pages" / "templates" / _ANALYSIS_PAGE_TEMPLATE_NAME
+)
+_ANALYSIS_PAGE_TEMPLATE_IGNORED_NAMES = {
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+}
 
 
 def _normalize_page_name(value: str) -> str:
@@ -339,45 +258,84 @@ def _next_page_name(base_name: str, pages_root: Path) -> str:
     return candidate
 
 
+def _analysis_template_distribution_name(module_name: str) -> str:
+    return f"view-{module_name.replace('_', '-')}"
+
+
+def _render_analysis_template_text(text: str, module_name: str) -> str:
+    return (
+        text.replace("view-demo", _analysis_template_distribution_name(module_name))
+        .replace("view_demo", module_name)
+        .replace("View Demo", module_name.replace("_", " ").title())
+    )
+
+
+def _render_analysis_template_path(relative_path: Path, module_name: str) -> Path:
+    return Path(
+        *(_render_analysis_template_text(part, module_name) for part in relative_path.parts)
+    )
+
+
+def _analysis_template_entrypoint(template_root: Path, module_name: str) -> Path:
+    contract_path = template_root / "agilab.template.toml"
+    try:
+        contract = tomllib.loads(contract_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError(
+            f"Unable to read AGILAB analysis page template contract: {contract_path}"
+        ) from exc
+    entrypoint = str(contract.get("entrypoint", ""))
+    if not entrypoint:
+        raise RuntimeError(f"AGILAB analysis page template has no entrypoint: {contract_path}")
+    return _render_analysis_template_path(Path(entrypoint), module_name)
+
+
+def _should_copy_analysis_template_path(path: Path) -> bool:
+    if any(part in _ANALYSIS_PAGE_TEMPLATE_IGNORED_NAMES for part in path.parts):
+        return False
+    return not any(part.endswith(".egg-info") for part in path.parts)
+
+
 def _write_minimal_view_template(
     pages_root: Path, module_name: str
 ) -> tuple[Path, Path, Path]:
     """
-    Create a minimal page bundle from template files.
+    Create a minimal page bundle from the repository analysis page template.
 
     Returns:
         tuple: (bundle_root, entrypoint_path, readme_path)
     """
     pages_root = pages_root.resolve()
+    pages_root.mkdir(parents=True, exist_ok=True)
     bundle_root = pages_root / module_name
-    src_root = bundle_root / "src" / module_name
-    entrypoint = src_root / f"{module_name}.py"
+    template_root = _ANALYSIS_PAGE_TEMPLATE_ROOT
+    if not template_root.is_dir():
+        raise FileNotFoundError(f"Missing AGILAB analysis page template: {template_root}")
+    if bundle_root.exists():
+        raise FileExistsError(f"Analysis page bundle already exists: {bundle_root}")
+
+    for source_path in sorted(template_root.rglob("*")):
+        relative_source_path = source_path.relative_to(template_root)
+        if not _should_copy_analysis_template_path(relative_source_path):
+            continue
+        relative_target_path = _render_analysis_template_path(relative_source_path, module_name)
+        target_path = bundle_root / relative_target_path
+        if source_path.is_dir():
+            target_path.mkdir(parents=True, exist_ok=True)
+            continue
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            payload = source_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            shutil.copy2(source_path, target_path)
+            continue
+        target_path.write_text(_render_analysis_template_text(payload, module_name), encoding="utf-8")
+
+    entrypoint = bundle_root / _analysis_template_entrypoint(template_root, module_name)
     readme = bundle_root / "README.md"
-    pyproject = bundle_root / "pyproject.toml"
-    package_init = src_root / "__init__.py"
-    bundle_root.mkdir(parents=True, exist_ok=True)
-    src_root.mkdir(parents=True, exist_ok=True)
-
-    page_title = module_name
-    pyproject_payload = _MINIMAL_PAGE_TEMPLATE_PYPROJECT.replace("{module_slug}", module_name)
-    script_payload = (
-        _MINIMAL_PAGE_TEMPLATE_SCRIPT.replace("__TITLE__", page_title.replace('"', '\\"'))
-        .replace("__MODULE__", module_name)
-    )
-    readme_payload = (
-        _MINIMAL_PAGE_TEMPLATE_README.replace("{title}", page_title)
-        .replace("{module}", module_name)
-    )
-
-    if not pyproject.exists():
-        pyproject.write_text(pyproject_payload, encoding="utf-8")
-    if not entrypoint.exists():
-        entrypoint.write_text(script_payload, encoding="utf-8")
-    if not package_init.exists():
-        package_init.write_text("", encoding="utf-8")
-    if not readme.exists():
-        readme.write_text(readme_payload, encoding="utf-8")
-
+    if not entrypoint.is_file():
+        raise RuntimeError(f"Generated analysis page entrypoint is missing: {entrypoint}")
     return bundle_root, entrypoint, readme
 
 # =============== Streamlit page config ==================
@@ -469,6 +427,95 @@ def _iter_page_project_roots(view_path: Path) -> list[Path]:
         if (p / "pyproject.toml").exists():
             candidates.append(p)
     return candidates
+
+
+def _page_sync_stamp_path(project_root: Path) -> Path:
+    return project_root / ".venv" / ".agilab-sync-stamp.json"
+
+
+def _page_sync_file_entry(project_root: Path, relative_path: str) -> dict[str, Any]:
+    path = project_root / relative_path
+    if not path.exists() or not path.is_file():
+        return {"path": relative_path, "missing": True}
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        return {"path": relative_path, "error": type(exc).__name__}
+    return {
+        "path": relative_path,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "size": len(payload),
+    }
+
+
+def _page_sync_fingerprint(project_root: Path) -> dict[str, Any]:
+    return {
+        "schema": 1,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "files": [
+            _page_sync_file_entry(project_root, relative_path)
+            for relative_path in ("pyproject.toml", "uv.lock", "uv.toml")
+        ],
+    }
+
+
+def _page_sync_is_fresh(project_root: Path) -> bool:
+    if not _python_in_venv(project_root / ".venv").exists():
+        return False
+    stamp_path = _page_sync_stamp_path(project_root)
+    try:
+        saved = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return saved == _page_sync_fingerprint(project_root)
+
+
+def _write_page_sync_stamp(project_root: Path) -> None:
+    stamp_path = _page_sync_stamp_path(project_root)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(
+        json.dumps(_page_sync_fingerprint(project_root), sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
+def _source_bootstrap_stamp_path(project_root: Path) -> Path:
+    return project_root / ".venv" / ".agilab-source-bootstrap-stamp.json"
+
+
+def _source_bootstrap_fingerprint(project_root: Path, source_root: Path) -> dict[str, Any]:
+    resolved_source_root = source_root.resolve(strict=False)
+    return {
+        "schema": 1,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "page_sync": _page_sync_fingerprint(project_root),
+        "source_root": str(resolved_source_root),
+        "source_pyproject": _page_sync_file_entry(resolved_source_root, "pyproject.toml"),
+    }
+
+
+def _source_bootstrap_is_fresh(project_root: Path, source_root: Path) -> bool:
+    if not _python_in_venv(project_root / ".venv").exists():
+        return False
+    stamp_path = _source_bootstrap_stamp_path(project_root)
+    try:
+        saved = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return saved == _source_bootstrap_fingerprint(project_root, source_root)
+
+
+def _write_source_bootstrap_stamp(project_root: Path, source_root: Path) -> None:
+    stamp_path = _source_bootstrap_stamp_path(project_root)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(
+        json.dumps(
+            _source_bootstrap_fingerprint(project_root, source_root),
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
 
 
 def _short_page_token(view_path: Path) -> str:
@@ -574,7 +621,7 @@ def _apps_path_for_active_app(active_app_path: Path) -> Path:
 
 
 def _default_app_path(apps_path: Path | None) -> Path | None:
-    """Return a deterministic default *_project, preferring bundled flight_project."""
+    """Return a deterministic default *_project, preferring bundled flight_telemetry_project."""
     root = _safe_existing_dir(Path(apps_path).expanduser() if apps_path else None)
     if root is None:
         return None
@@ -585,7 +632,7 @@ def _default_app_path(apps_path: Path | None) -> Path | None:
             search_roots.append(builtin_root)
 
     for search_root in search_roots:
-        preferred = _safe_existing_dir(search_root / "flight_project")
+        preferred = _safe_existing_dir(search_root / "flight_telemetry_project")
         if preferred is not None:
             return preferred
 
@@ -621,6 +668,33 @@ def _store_active_app(env: AgiEnv) -> None:
         store_last_active_app(active_app_path)
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
+
+
+def _active_app_path_for_env(env: Any) -> Path | None:
+    """Resolve the active project path from the current Analysis page environment."""
+    apps_path_value = getattr(env, "apps_path", None)
+    if apps_path_value:
+        for name in (getattr(env, "target", None), getattr(env, "app", None)):
+            if not name:
+                continue
+            resolved = _resolve_app_path(Path(apps_path_value), str(name))
+            if resolved is not None:
+                return resolved
+
+    active_app_value = getattr(env, "active_app", None)
+    if active_app_value:
+        candidate = Path(active_app_value)
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _active_app_arg_for_env(env: Any) -> str:
+    active_app_path = _active_app_path_for_env(env)
+    if active_app_path is not None:
+        return str(active_app_path)
+    active_app_value = getattr(env, "active_app", None)
+    return str(active_app_value) if active_app_value else ""
 
 
 def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
@@ -671,7 +745,25 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
     return env
 
 
-def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | None = None) -> None:
+BgCommand = str | Sequence[str]
+
+
+def _split_local_command(value: str) -> list[str]:
+    return shlex.split(str(value), posix=os.name != "nt") if str(value).strip() else []
+
+
+def _local_uv_command(env: Any, ip: str = "127.0.0.1") -> list[str]:
+    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+    return [*_split_local_command(cmd_prefix), *_split_local_command(env.uv)]
+
+
+def _format_bg_command(cmd: BgCommand) -> str:
+    if isinstance(cmd, str):
+        return cmd
+    return shlex.join(str(part) for part in cmd)
+
+
+def exec_bg(agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, str] | None = None) -> None:
     """
     Execute background command
     Args:
@@ -687,9 +779,16 @@ def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | N
     env.pop("PYTHONPATH", None)
     if process_env:
         env.update(process_env)
+    command: str | list[str]
+    if isinstance(cmd, str):
+        command = cmd
+        shell = True
+    else:
+        command = [str(part) for part in cmd]
+        shell = False
     return subprocess.Popen(
-        cmd,
-        shell=isinstance(cmd, str),
+        command,
+        shell=shell,
         cwd=cwd,
         stdout=stdout,
         stderr=stderr,
@@ -711,8 +810,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         return True
     env = st.session_state['env']
     ip = "127.0.0.1"
-    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    uv = cmd_prefix + env.uv
+    uv = _local_uv_command(env, ip)
     attempts: list[str] = []
     last_error = ""
     project_roots = _iter_page_project_roots(view_page)
@@ -724,54 +822,117 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
     env.out_log = log_file
     env.err_log = err_file
 
-    view_arg = shlex.quote(str(view_page))
-    active_app_quoted = shlex.quote(active_app) if active_app else ""
-
     for page_root in project_roots:
         page_home = str(page_root)
-        page_home_quoted = shlex.quote(page_home)
         env.logger.info("Trying analysis page sidecar project root: %s", page_home)
         attempts.append(f"Trying uv project root: {page_home}")
 
-        sync_cmd = f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} sync"
-        env.logger.info(sync_cmd)
-        sync_process = exec_bg(env, sync_cmd, cwd=page_home)
-        sync_code = sync_process.wait()
-        if sync_code != 0:
-            last_error = f"sync failed with code {sync_code} for {page_home}"
-            env.logger.error(last_error)
-            continue
+        if _page_sync_is_fresh(page_root):
+            env.logger.info("Skipping analysis page sync; environment is up to date for %s", page_home)
+        else:
+            sync_cmd = [*uv, "--preview-features", "extra-build-dependencies", "--project", page_home, "sync"]
+            env.logger.info(_format_bg_command(sync_cmd))
+            sync_process = exec_bg(env, sync_cmd, cwd=page_home)
+            sync_code = sync_process.wait()
+            if sync_code != 0:
+                last_error = f"sync failed with code {sync_code} for {page_home}"
+                env.logger.error(last_error)
+                continue
+            try:
+                _write_page_sync_stamp(page_root)
+            except OSError as exc:
+                env.logger.warning("Could not write analysis page sync stamp for %s: %s", page_home, exc)
 
         if env.is_source_env:
-            ensure_cmd = (
-                f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} run python -m ensurepip"
-            )
-            env.logger.info(ensure_cmd)
-            ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
-            if ensure_process.wait() != 0:
-                last_error = f"ensurepip failed with code {ensure_process.wait()} for {page_home}"
-                env.logger.error(last_error)
-                continue
+            source_root = Path(env.env_pck).parent.parent
+            if _source_bootstrap_is_fresh(page_root, source_root):
+                env.logger.info("Skipping analysis page source bootstrap; environment is up to date for %s", page_home)
+            else:
+                pip_probe_cmd = [
+                    *uv,
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "--project",
+                    page_home,
+                    "run",
+                    "python",
+                    "-c",
+                    "import pip",
+                ]
+                env.logger.info(_format_bg_command(pip_probe_cmd))
+                pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home)
+                if pip_probe_process.wait() != 0:
+                    ensure_cmd = [
+                        *uv,
+                        "--preview-features",
+                        "extra-build-dependencies",
+                        "--project",
+                        page_home,
+                        "run",
+                        "python",
+                        "-m",
+                        "ensurepip",
+                    ]
+                    env.logger.info(_format_bg_command(ensure_cmd))
+                    ensure_process = exec_bg(env, ensure_cmd, cwd=page_home)
+                    ensure_code = ensure_process.wait()
+                    if ensure_code != 0:
+                        last_error = f"ensurepip failed with code {ensure_code} for {page_home}"
+                        env.logger.error(last_error)
+                        continue
 
-            install_cmd = (
-                f"{uv} --preview-features extra-build-dependencies --project {page_home_quoted} run python -m pip install -e {shlex.quote(str(env.env_pck.parent.parent))}"
-            )
-            env.logger.info(install_cmd)
-            install_process = exec_bg(env, install_cmd, cwd=page_home)
-            if install_process.wait() != 0:
-                last_error = f"pip install failed with code {install_process.wait()} for {page_home}"
-                env.logger.error(last_error)
-                continue
+                install_cmd = [
+                    *uv,
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "--project",
+                    page_home,
+                    "run",
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "-e",
+                    str(source_root),
+                ]
+                env.logger.info(_format_bg_command(install_cmd))
+                install_process = exec_bg(env, install_cmd, cwd=page_home)
+                install_code = install_process.wait()
+                if install_code != 0:
+                    last_error = f"pip install failed with code {install_code} for {page_home}"
+                    env.logger.error(last_error)
+                    continue
+                try:
+                    _write_source_bootstrap_stamp(page_root, source_root)
+                except OSError as exc:
+                    env.logger.warning("Could not write analysis page source bootstrap stamp for %s: %s", page_home, exc)
 
-        run_cmd = (
-            f"{uv} run --project {page_home_quoted} python -m streamlit run {view_arg} "
-            f"--server.port {port} --server.address 127.0.0.1 "
-            f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-            f"--browser.gatherUsageStats false"
-        )
-        if active_app_quoted:
-            run_cmd += f" -- --active-app {active_app_quoted}"
-        env.logger.info(run_cmd)
+        run_cmd = [
+            *uv,
+            "run",
+            "--project",
+            page_home,
+            "python",
+            "-m",
+            "streamlit",
+            "run",
+            str(view_page),
+            "--server.port",
+            str(port),
+            "--server.address",
+            "127.0.0.1",
+            "--server.headless",
+            "true",
+            "--server.enableCORS",
+            "false",
+            "--server.enableXsrfProtection",
+            "false",
+            "--browser.gatherUsageStats",
+            "false",
+        ]
+        if active_app:
+            run_cmd.extend(["--", "--active-app", active_app])
+        env.logger.info(_format_bg_command(run_cmd))
         run_process = exec_bg(env, run_cmd, cwd=page_home)
 
         # Wait a bit for the port to come up
@@ -807,22 +968,52 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             fallback_targets.append(
                 (
                     f"local page venv ({page_venv})",
-                    f"{shlex.quote(str(python))} -m streamlit run {view_arg} "
-                    f"--server.port {port} --server.address 127.0.0.1 "
-                    f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-                    f"--browser.gatherUsageStats false"
-                    + (f" -- --active-app {active_app_quoted}" if active_app_quoted else ""),
+                    [
+                        str(python),
+                        "-m",
+                        "streamlit",
+                        "run",
+                        str(view_page),
+                        "--server.port",
+                        str(port),
+                        "--server.address",
+                        "127.0.0.1",
+                        "--server.headless",
+                        "true",
+                        "--server.enableCORS",
+                        "false",
+                        "--server.enableXsrfProtection",
+                        "false",
+                        "--browser.gatherUsageStats",
+                        "false",
+                        *(["--", "--active-app", active_app] if active_app else []),
+                    ],
                     _page_pythonpath(view_page.parent),
                 )
             )
         fallback_targets.append(
             (
                 "manager python interpreter",
-                f"{shlex.quote(str(sys.executable))} -m streamlit run {view_arg} "
-                f"--server.port {port} --server.address 127.0.0.1 "
-                f"--server.headless true --server.enableCORS false --server.enableXsrfProtection false "
-                f"--browser.gatherUsageStats false"
-                + (f" -- --active-app {active_app_quoted}" if active_app_quoted else ""),
+                [
+                    str(sys.executable),
+                    "-m",
+                    "streamlit",
+                    "run",
+                    str(view_page),
+                    "--server.port",
+                    str(port),
+                    "--server.address",
+                    "127.0.0.1",
+                    "--server.headless",
+                    "true",
+                    "--server.enableCORS",
+                    "false",
+                    "--server.enableXsrfProtection",
+                    "false",
+                    "--browser.gatherUsageStats",
+                    "false",
+                    *(["--", "--active-app", active_app] if active_app else []),
+                ],
                 _page_pythonpath(view_page.parent, Path(env.env_pck).parent),
             )
         )
@@ -860,7 +1051,72 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
     return False
 
 
-def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
+ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV = "AGILAB_DISABLE_ANALYSIS_DISCOVERY_CACHE"
+_ANALYSIS_DISCOVERY_SKIP_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "templates",
+    "venv",
+}
+_VIEW_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], tuple[Path, ...]]] = {}
+_NOTEBOOK_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], dict[str, Path]]] = {}
+
+
+def _analysis_discovery_cache_enabled(environ: Any = os.environ) -> bool:
+    value = str(environ.get(ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV, "")).strip().lower()
+    return value not in {"1", "true", "yes", "on"} and ui_discovery_cache_enabled(environ)
+
+
+def _directory_tree_signature(root: Path, *, file_suffixes: tuple[str, ...]) -> tuple[Any, ...]:
+    """Return a cheap invalidation signature for discovery-relevant files."""
+    try:
+        resolved_root = root.expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        resolved_root = root
+    if not resolved_root.exists():
+        return ("missing", str(resolved_root))
+    if not resolved_root.is_dir():
+        try:
+            stat = resolved_root.stat()
+        except OSError as exc:
+            return ("file-error", str(resolved_root), type(exc).__name__)
+        return ("file", str(resolved_root), stat.st_mtime_ns, stat.st_size)
+
+    entries: list[tuple[Any, ...]] = []
+    suffixes = tuple(suffix.lower() for suffix in file_suffixes)
+    try:
+        for dirpath, dirnames, filenames in os.walk(resolved_root):
+            dirnames[:] = sorted(
+                dirname
+                for dirname in dirnames
+                if dirname not in _ANALYSIS_DISCOVERY_SKIP_DIRS
+                and not dirname.startswith(".")
+            )
+            current_dir = Path(dirpath)
+            try:
+                stat = current_dir.stat()
+                rel_dir = current_dir.relative_to(resolved_root).as_posix()
+            except (OSError, ValueError):
+                continue
+            relevant_files = tuple(
+                sorted(
+                    filename
+                    for filename in filenames
+                    if filename.lower().endswith(suffixes)
+                    and not filename.startswith(".")
+                )
+            )
+            entries.append((rel_dir, stat.st_mtime_ns, stat.st_size, tuple(dirnames), relevant_files))
+    except OSError as exc:
+        return ("walk-error", str(resolved_root), type(exc).__name__)
+    return ("dir", str(resolved_root), tuple(entries))
+
+
+def _discover_views_uncached(pages_dir: Path) -> list[Path]:
     """
     Dynamic discovery under env.AGILAB_PAGES_ABS with common layouts:
       - <root>/apps-pages/*.py
@@ -870,13 +1126,16 @@ def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
     Returns a list of concrete script Paths.
     """
     out: set[Path] = set()
-    pages_dir = Path(pages_dir).resolve()  # follow symlinks
 
     if not pages_dir.exists():
         return []
 
     for entry in pages_dir.iterdir():
-        if entry.name.startswith(".") or entry.name.startswith("_"):
+        if (
+            entry.name in _ANALYSIS_DISCOVERY_SKIP_DIRS
+            or entry.name.startswith(".")
+            or entry.name.startswith("_")
+        ):
             continue
         if entry.is_dir():
             entrypoint = _find_view_entrypoint(entry)
@@ -887,6 +1146,73 @@ def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
             out.add(entry.resolve())
 
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
+
+
+def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
+    try:
+        resolved_pages_dir = Path(pages_dir).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return []
+    if not _analysis_discovery_cache_enabled():
+        return _discover_views_uncached(resolved_pages_dir)
+
+    signature = _directory_tree_signature(resolved_pages_dir, file_suffixes=(".py",))
+    cached = _VIEW_DISCOVERY_CACHE.get(resolved_pages_dir)
+    if cached is not None and cached[0] == signature:
+        return list(cached[1])
+
+    discovered = tuple(_discover_views_uncached(resolved_pages_dir))
+    _VIEW_DISCOVERY_CACHE[resolved_pages_dir] = (signature, discovered)
+    return list(discovered)
+
+
+def _project_notebooks_root(project_root: str | Path | None) -> Path | None:
+    if project_root is None:
+        return None
+    try:
+        notebooks_root = (Path(project_root).expanduser() / "notebooks").resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return notebooks_root if notebooks_root.is_dir() else None
+
+
+def _discover_project_notebooks_uncached(notebooks_root: Path) -> dict[str, Path]:
+    discovered: dict[str, Path] = {}
+    try:
+        notebook_paths = sorted(notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix())
+    except OSError:
+        return {}
+    for notebook_path in notebook_paths:
+        try:
+            rel_path = notebook_path.resolve().relative_to(notebooks_root)
+        except (OSError, ValueError):
+            continue
+        if any(part in _NOTEBOOK_IGNORED_DIRS or part.startswith(".") for part in rel_path.parts):
+            continue
+        if notebook_path.name.endswith("-checkpoint.ipynb"):
+            continue
+        if notebook_path.is_file():
+            discovered[rel_path.as_posix()] = notebook_path.resolve()
+    return discovered
+
+
+def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Path]:
+    """Return project notebook labels mapped to concrete files under <project>/notebooks."""
+    notebooks_root = _project_notebooks_root(project_root)
+    if notebooks_root is None:
+        return {}
+
+    if not _analysis_discovery_cache_enabled():
+        return _discover_project_notebooks_uncached(notebooks_root)
+
+    signature = _directory_tree_signature(notebooks_root, file_suffixes=(".ipynb",))
+    cached = _NOTEBOOK_DISCOVERY_CACHE.get(notebooks_root)
+    if cached is not None and cached[0] == signature:
+        return dict(cached[1])
+
+    discovered = _discover_project_notebooks_uncached(notebooks_root)
+    _NOTEBOOK_DISCOVERY_CACHE[notebooks_root] = (signature, dict(discovered))
+    return discovered
 
 
 def _find_view_entrypoint(view_root: Path) -> Path | None:
@@ -900,6 +1226,9 @@ def _find_view_entrypoint(view_root: Path) -> Path | None:
         if view_root.suffix.lower() != ".py" or view_root.name == "__init__.py":
             return None
         return view_root.resolve()
+
+    if view_root.name in _ANALYSIS_DISCOVERY_SKIP_DIRS:
+        return None
 
     module = view_root.name
     candidates: list[Path] = [
@@ -930,7 +1259,7 @@ def _find_view_entrypoint(view_root: Path) -> Path | None:
     # Fallback: for custom or cloned pages where folder/module names differ, pick a
     # deterministic entry script under the page bundle.
     fallback_files = []
-    skip_dir = {".venv", "venv", ".git", ".pytest_cache", "__pycache__", ".mypy_cache"}
+    skip_dir = set(_ANALYSIS_DISCOVERY_SKIP_DIRS)
     for dirpath, dirnames, filenames in os.walk(view_root):
         dirnames[:] = [
             d
@@ -1129,54 +1458,135 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
     return result
 
 
+_APP_UI_PAGE_KEY = "view_app_ui"
+
+
+def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str] | None:
+    if active_app_path is None:
+        return None
+    settings_path = active_app_path / "src" / "app_settings.toml"
+    try:
+        with open(settings_path, "rb") as f:
+            seed_cfg = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    pages = seed_cfg.get("pages")
+    if not isinstance(pages, dict):
+        return None
+    page_cfg = pages.get(_APP_UI_PAGE_KEY)
+    if not isinstance(page_cfg, dict):
+        return None
+    entrypoint = page_cfg.get("entrypoint")
+    if not isinstance(entrypoint, str) or not entrypoint.strip():
+        return None
+    declared = {"entrypoint": entrypoint.strip()}
+    title = page_cfg.get("title")
+    if isinstance(title, str) and title.strip():
+        declared["title"] = title.strip()
+    return declared
+
+
+def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict) -> bool:
+    """Copy an app-owned ANALYSIS UI declaration into stale per-user settings."""
+    declared = _declared_app_ui_page_config(active_app_path)
+    if declared is None:
+        return False
+
+    pages = cfg.setdefault("pages", {})
+    if not isinstance(pages, dict):
+        cfg["pages"] = pages = {}
+
+    raw_page_cfg = pages.get(_APP_UI_PAGE_KEY)
+    has_page_cfg = (
+        isinstance(raw_page_cfg, dict)
+        and isinstance(raw_page_cfg.get("entrypoint"), str)
+        and bool(raw_page_cfg.get("entrypoint", "").strip())
+    )
+    if has_page_cfg:
+        return False
+
+    raw_modules = pages.get("view_module")
+    modules = (
+        [
+            value.strip()
+            for value in raw_modules
+            if isinstance(value, str) and value.strip()
+        ]
+        if isinstance(raw_modules, list)
+        else []
+    )
+    if _APP_UI_PAGE_KEY not in modules:
+        modules.insert(0, _APP_UI_PAGE_KEY)
+    pages["view_module"] = _dedupe_preserve_order(modules)
+    pages[_APP_UI_PAGE_KEY] = declared
+    return True
+
+
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
     """Migrate stale per-user analysis settings after app defaults change."""
-    if project not in {"flight", "flight_project"}:
+    if project not in {"flight", "flight_telemetry_project"}:
         return False
     pages = cfg.setdefault("pages", {})
     if not isinstance(pages, dict):
         cfg["pages"] = pages = {}
 
     raw_modules = pages.get("view_module")
-    has_legacy_module = isinstance(raw_modules, list) and any(
-        value == "view_maps_network" for value in raw_modules if isinstance(value, str)
+    raw_excluded = pages.get("excluded_views")
+    has_network_module = isinstance(raw_modules, list) and any(
+        value.strip() == "view_maps_network" for value in raw_modules if isinstance(value, str)
+    )
+    has_network_exclusion = isinstance(raw_excluded, list) and any(
+        value.strip() == "view_maps_network" for value in raw_excluded if isinstance(value, str)
     )
     has_legacy_default = pages.get("default_view") == "view_maps_network"
-    if not has_legacy_default and not has_legacy_module:
+    if not has_legacy_default and not has_network_module and not has_network_exclusion:
         return False
 
     changed = False
-    if pages.get("default_view") != "view_maps":
+    if has_legacy_default:
         pages["default_view"] = "view_maps"
         changed = True
 
     if not isinstance(raw_modules, list):
-        modules = ["view_maps"]
+        modules = ["view_maps", "view_maps_network"]
     else:
         modules = [
-            str(value)
+            value.strip()
             for value in raw_modules
-            if isinstance(value, str) and value.strip() and value != "view_maps_network"
+            if isinstance(value, str) and value.strip()
         ]
         if "view_maps" not in modules:
             modules.insert(0, "view_maps")
+        if "view_maps_network" not in modules:
+            insert_at = (
+                modules.index("view_maps") + 1
+                if "view_maps" in modules
+                else len(modules)
+            )
+            modules.insert(insert_at, "view_maps_network")
         modules = _dedupe_preserve_order(modules)
 
     if raw_modules != modules:
         pages["view_module"] = modules
         changed = True
 
-    raw_excluded = pages.get("excluded_views")
     excluded = (
-        [str(value) for value in raw_excluded if isinstance(value, str) and value.strip()]
+        [
+            value.strip()
+            for value in raw_excluded
+            if isinstance(value, str)
+            and value.strip()
+            and value.strip() != "view_maps_network"
+        ]
         if isinstance(raw_excluded, list)
         else []
     )
-    if "view_maps_network" not in excluded:
-        excluded.append("view_maps_network")
     excluded = _dedupe_preserve_order(excluded)
     if raw_excluded != excluded:
-        pages["excluded_views"] = excluded
+        if excluded:
+            pages["excluded_views"] = excluded
+        else:
+            pages.pop("excluded_views", None)
         changed = True
     return changed
 
@@ -1213,6 +1623,31 @@ def _configured_view_options(
     return _dedupe_preserve_order(options)
 
 
+def _normalize_notebook_name(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = value.strip().replace("\\", "/")
+    while normalized.startswith("/"):
+        normalized = normalized[1:]
+    return normalized
+
+
+def _configured_notebook_options(
+    configured_notebooks: object,
+    available_notebooks: list[str],
+) -> list[str]:
+    """Resolve persisted notebook selections into available multiselect options."""
+    if not isinstance(configured_notebooks, list):
+        return []
+    available = set(available_notebooks)
+    options: list[str] = []
+    for value in configured_notebooks:
+        normalized = _normalize_notebook_name(value)
+        if normalized in available:
+            options.append(normalized)
+    return _dedupe_preserve_order(options)
+
+
 async def _render_selected_view_route(current_page: str | None) -> bool:
     """Render a selected analysis view route and surface one explicit user-facing failure."""
     if not current_page or current_page in ("", "main"):
@@ -1221,6 +1656,19 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         await render_view_page(Path(current_page))
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
         st.error(f"Failed to render view: {exc}")
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
+    return True
+
+
+async def _render_selected_notebook_route(current_notebook: str | None) -> bool:
+    """Render a selected notebook route and surface one explicit user-facing failure."""
+    if not current_notebook or current_notebook in ("", "main"):
+        return False
+    try:
+        await render_notebook_page(Path(current_notebook))
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
+        st.error(f"Failed to render notebook: {exc}")
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
     return True
@@ -1432,6 +1880,8 @@ def _render_analysis_workspace_overview(
     *,
     selection_state: Any,
     available_view_count: int,
+    selected_notebook_count: int,
+    available_notebook_count: int,
 ) -> None:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
@@ -1442,9 +1892,16 @@ def _render_analysis_workspace_overview(
     latest_value = latest_label if artifact_count else "No output"
     latest_caption = "latest file timestamp" if artifact_count else "run a project first"
     views_caption = f"{selected_count} linked to {project_label}" if selected_count else "choose views below"
+    notebooks_caption = (
+        f"{selected_notebook_count} linked to {project_label}"
+        if selected_notebook_count
+        else "choose notebooks below"
+        if available_notebook_count
+        else "no notebooks found"
+    )
 
     with st.container(border=True):
-        cols = st.columns(3)
+        cols = st.columns(4)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
             _render_analysis_metric("Output files", f"{artifact_count}{suffix}", latest_label)
@@ -1452,6 +1909,12 @@ def _render_analysis_workspace_overview(
             _render_analysis_metric("Latest output", latest_value, latest_caption)
         with cols[2]:
             _render_analysis_metric("Views selected", f"{selected_count}/{available_view_count}", views_caption)
+        with cols[3]:
+            _render_analysis_metric(
+                "Notebooks selected",
+                f"{selected_notebook_count}/{available_notebook_count}",
+                notebooks_caption,
+            )
 
         if not artifact_summary["exists"]:
             st.info("Run ORCHESTRATE or WORKFLOW to create analysis outputs.")
@@ -1459,8 +1922,53 @@ def _render_analysis_workspace_overview(
             st.info("No output files detected yet.")
 
 
+def _render_analysis_surface_guide() -> None:
+    with st.container(border=True):
+        st.markdown("### Choose the analysis surface")
+        st.caption(
+            "AGI pages and notebooks can both inspect the same project outputs, "
+            "but they serve different jobs."
+        )
+        cols = st.columns(3)
+        with cols[0]:
+            st.markdown("**AGI page**")
+            st.markdown(
+                "Use when the analysis becomes part of the app contract: repeatable "
+                "dashboards, reviews, demos, validation evidence, and `agi-page-*` "
+                "packaging."
+            )
+            st.markdown(
+                "_Consequence: maintain a page bundle, declared dependencies, and stable exported artifacts._"
+            )
+        with cols[1]:
+            st.markdown("**Notebook / AGI snippets**")
+            st.markdown(
+                "Use when the analysis is still code-centric: exploration, debugging, "
+                "cell reruns, migration, snippets, or technical handoff."
+            )
+            st.markdown(
+                "_Consequence: reuse depends on the snippet/notebook contract, runtime, "
+                "and dependencies; the ANALYSIS Jupyter sidecar is the local interactive "
+                "launch path._"
+            )
+        with cols[2]:
+            st.markdown("**Use both**")
+            st.markdown(
+                "Keep an AGI page as the stable result surface and link a notebook for "
+                "the investigation trail or AGI snippets behind the result."
+            )
+            st.markdown("_Consequence: page state and notebook selections are saved separately._")
+
+
 def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
     params = {"current_page": str(view_path.resolve())}
+    if project:
+        params["active_app"] = project
+    return f"?{urlencode(params)}"
+
+
+def _analysis_sidebar_notebook_url(project: str | None, notebook_path: Path) -> str:
+    params = {"current_notebook": str(notebook_path.resolve())}
     if project:
         params["active_app"] = project
     return f"?{urlencode(params)}"
@@ -1516,6 +2024,55 @@ def _render_analysis_sidebar_view_launcher(
         )
     for display_label in missing_views:
         st.sidebar.caption(f"Missing: {display_label}")
+
+
+def _render_analysis_sidebar_notebook_launcher(
+    *,
+    project: str | None,
+    selected_notebooks: list[str],
+    notebook_names: list[str],
+    notebook_lookup: dict[str, Path],
+) -> None:
+    launch_options = list(dict.fromkeys(selected_notebooks or notebook_names))
+    if not launch_options:
+        return
+
+    linked_notebooks = set(selected_notebooks)
+    st.sidebar.markdown("### Notebooks")
+    link_rows: list[str] = []
+    missing_notebooks: list[str] = []
+    for notebook_name in launch_options:
+        notebook_path = notebook_lookup.get(notebook_name)
+        display_label = notebook_name
+        if notebook_path is None:
+            missing_notebooks.append(display_label)
+            continue
+        link_href = html.escape(_analysis_sidebar_notebook_url(project, notebook_path), quote=True)
+        link_label = html.escape(display_label)
+        link_weight = "650" if notebook_name in linked_notebooks else "450"
+        link_rows.append(
+            "<div class='agilab-analysis-notebook-link'>"
+            f"<a href='{link_href}' style='font-weight:{link_weight};'>{link_label}</a>"
+            "</div>"
+        )
+
+    if link_rows:
+        st.sidebar.markdown(
+            (
+                "<style>"
+                ".agilab-analysis-notebook-links{display:flex;flex-direction:column;"
+                "gap:.12rem;margin:.1rem 0 .45rem 0;}"
+                ".agilab-analysis-notebook-link a{font-size:.88rem;line-height:1.18;text-decoration:none;}"
+                ".agilab-analysis-notebook-link a:hover{text-decoration:underline;}"
+                "</style>"
+                "<div class='agilab-analysis-notebook-links'>"
+                + "".join(link_rows)
+                + "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+    for display_label in missing_notebooks:
+        st.sidebar.caption(f"Missing notebook: {display_label}")
 
 
 def _render_custom_analysis_page_authoring(
@@ -1645,6 +2202,119 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
                 pass
         sys.modules.pop(module_name, None)
 
+
+def _project_root_for_notebook(notebook_path: Path, active_app_path: Path | None) -> Path:
+    resolved_notebook = notebook_path.resolve()
+    if active_app_path is not None:
+        try:
+            resolved_notebook.relative_to((active_app_path / "notebooks").resolve())
+            return active_app_path.resolve()
+        except (OSError, ValueError):
+            pass
+    for parent in resolved_notebook.parents:
+        if parent.name == "notebooks":
+            return parent.parent
+    return active_app_path.resolve() if active_app_path is not None else resolved_notebook.parent
+
+
+def _notebook_log_paths(notebook_path: Path, logs_root: Path) -> tuple[str, str]:
+    stem = re.sub(r"[^0-9A-Za-z_-]", "_", notebook_path.stem) or "notebook"
+    token = _short_page_token(notebook_path)
+    base = logs_root / f"notebook_{stem}_{token}"
+    return str(base.with_suffix(".log")), str(base.with_suffix(".err"))
+
+
+def _notebook_lab_tree_path(notebook_path: Path, project_root: Path) -> str:
+    try:
+        rel_path = notebook_path.resolve().relative_to(project_root.resolve())
+    except (OSError, ValueError):
+        rel_path = Path(notebook_path.name)
+    return quote(rel_path.as_posix(), safe="/")
+
+
+def _notebook_iframe_tornado_settings_arg() -> str:
+    """Return Jupyter headers that allow the local Streamlit parent to embed Lab."""
+    settings = {
+        "headers": {
+            "Content-Security-Policy": "frame-ancestors *;",
+            "X-Frame-Options": "",
+        }
+    }
+    return json.dumps(settings, separators=(",", ":"))
+
+
+def _ensure_notebook_sidecar(
+    notebook_key: str,
+    notebook_path: Path,
+    port: int,
+    project_root: Path,
+) -> bool:
+    """Start a local JupyterLab sidecar rooted at the active project."""
+    if _is_port_open(port):
+        return True
+    env = st.session_state["env"]
+    ip = "127.0.0.1"
+    uv = _local_uv_command(env, ip)
+    attempts: list[str] = []
+    last_error = ""
+
+    log_file, err_file = _notebook_log_paths(notebook_path, env.AGILAB_LOG_ABS)
+    env.out_log = log_file
+    env.err_log = err_file
+
+    project_home = str(project_root.resolve())
+    tornado_settings = _notebook_iframe_tornado_settings_arg()
+    run_cmd = [
+        *uv,
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        project_home,
+        "--with",
+        "jupyterlab",
+        "--with",
+        "ipykernel",
+        "jupyter",
+        "lab",
+        "--no-browser",
+        "--ServerApp.ip=127.0.0.1",
+        f"--ServerApp.port={port}",
+        "--ServerApp.open_browser=False",
+        "--ServerApp.token=",
+        "--ServerApp.password=",
+        "--ServerApp.allow_origin=*",
+        "--ServerApp.disable_check_xsrf=True",
+        f"--ServerApp.root_dir={project_home}",
+        f"--ServerApp.tornado_settings={tornado_settings}",
+    ]
+    env.logger.info("Starting project notebook sidecar: %s", _format_bg_command(run_cmd))
+    attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
+    run_process = exec_bg(env, run_cmd, cwd=project_home)
+
+    for _ in range(240):
+        if _is_port_open(port):
+            return True
+        if run_process.poll() is not None:
+            break
+        time.sleep(0.1)
+
+    if run_process.poll() is not None and run_process.returncode != 0:
+        last_error = f"Notebook sidecar exited with code {run_process.returncode} for {project_home}"
+        attempts.append(last_error)
+        env.logger.error(last_error)
+    elif run_process.poll() is None:
+        _terminate_process_quietly(run_process)
+        last_error = f"Notebook sidecar did not open port {port} for {project_home}"
+        attempts.append(last_error)
+        env.logger.error(last_error)
+
+    if last_error:
+        env.logger.error("Failed to start notebook sidecar for %s", notebook_path)
+    st.session_state[f"notebook_sidecar_attempts__{notebook_key}"] = attempts
+    return False
+
+
 # --- helper: hide the parent (this page's) Streamlit sidebar when embedding a child ---
 def _hide_parent_sidebar():
     st.markdown(
@@ -1690,6 +2360,7 @@ async def main():
     # Navigation by query param
     qp = st.query_params
     current_page = qp.get("current_page")
+    current_notebook = qp.get("current_notebook")
     requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
@@ -1716,6 +2387,7 @@ async def main():
 
     # Where to store selected pages per project
     project = env.app
+    active_app_path = _active_app_path_for_env(env)
     app_settings = env.resolve_user_app_settings_file(project)
 
     # Discover pages dynamically under AGILAB_PAGES_ABS
@@ -1725,7 +2397,9 @@ async def main():
     custom_view_lookup: dict[str, Path] = {}
     pages_root = Path(env.AGILAB_PAGES_ABS)
 
-    # Route: only render a view when the param is a concrete path, not "main"/empty
+    # Route: only render a child surface when the param is concrete, not "main"/empty
+    if await _render_selected_notebook_route(current_notebook):
+        return
     if await _render_selected_view_route(current_page):
         return
 
@@ -1735,7 +2409,12 @@ async def main():
     cfg = _read_config(app_settings)
     if "pages" not in cfg:
         cfg["pages"] = {}
+    migrated_cfg = False
+    if _migrate_declared_app_ui_page_config(active_app_path, cfg):
+        migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
+        migrated_cfg = True
+    if migrated_cfg:
         _write_config(app_settings, cfg)
     configured_views: list[str] = [
         str(v)
@@ -1786,11 +2465,34 @@ async def main():
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
 
+    notebook_lookup = discover_project_notebooks(active_app_path)
+    notebook_names = list(notebook_lookup.keys())
+    notebook_selection_key = f"notebook_selection__{project or 'default'}"
+    notebooks_cfg = cfg.get("notebooks", {})
+    notebooks_cfg = notebooks_cfg if isinstance(notebooks_cfg, dict) else {}
+    has_notebook_session_selection = notebook_selection_key in st.session_state
+    if has_notebook_session_selection:
+        notebook_widget_selection = _configured_notebook_options(
+            st.session_state.get(notebook_selection_key, []),
+            notebook_names,
+        )
+    else:
+        notebook_widget_selection = _configured_notebook_options(
+            notebooks_cfg.get("selected", []),
+            notebook_names,
+        )
+    if st.session_state.get(notebook_selection_key) != notebook_widget_selection:
+        st.session_state[notebook_selection_key] = notebook_widget_selection
+    selected_notebooks = list(notebook_widget_selection)
+
     _render_analysis_workspace_overview(
         env,
         selection_state=selection_state,
         available_view_count=len(view_names),
+        selected_notebook_count=len(selected_notebooks),
+        available_notebook_count=len(notebook_names),
     )
+    _render_analysis_surface_guide()
 
     with st.expander("Choose analysis views", expanded=False):
         st.caption("Select which views appear in the sidebar launcher for this project.")
@@ -1801,6 +2503,15 @@ async def main():
             format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
             help="Selected views are persisted in the active project's app settings.",
         )
+
+    if notebook_names:
+        with st.expander("Choose notebooks", expanded=False):
+            selected_notebooks = st.multiselect(
+                "Notebooks",
+                notebook_names,
+                key=notebook_selection_key,
+                help="Selected notebooks are persisted in the active project's app settings.",
+            )
 
     pages_cfg_for_selection = dict(pages_cfg)
     selected_view_set = set(selected_views)
@@ -1827,6 +2538,7 @@ async def main():
         has_session_selection=True,
     )
     selected_views = list(selection_state.selected_views)
+    selected_notebooks = [name for name in selected_notebooks if name in notebook_lookup]
     _render_analysis_sidebar_view_launcher(
         project=project,
         selected_views=selected_views,
@@ -1834,9 +2546,16 @@ async def main():
         resolved_pages=resolved_pages,
         custom_view_lookup=custom_view_lookup,
     )
+    _render_analysis_sidebar_notebook_launcher(
+        project=project,
+        selected_notebooks=selected_notebooks,
+        notebook_names=notebook_names,
+        notebook_lookup=notebook_lookup,
+    )
 
     persisted_pages = cfg.setdefault("pages", {})
     config_changed = False
+
     normalized_config = list(selection_state.config_view_module)
     if persisted_pages.get("view_module") != normalized_config:
         persisted_pages["view_module"] = normalized_config
@@ -1848,6 +2567,16 @@ async def main():
     if "default_view" in persisted_pages:
         del persisted_pages["default_view"]
         config_changed = True
+
+    if notebook_names or isinstance(cfg.get("notebooks"), dict):
+        persisted_notebooks = cfg.setdefault("notebooks", {})
+        if not isinstance(persisted_notebooks, dict):
+            persisted_notebooks = {}
+            cfg["notebooks"] = persisted_notebooks
+            config_changed = True
+        if persisted_notebooks.get("selected") != selected_notebooks:
+            persisted_notebooks["selected"] = selected_notebooks
+            config_changed = True
     if config_changed:
         _write_config(app_settings, cfg)
 
@@ -1859,6 +2588,77 @@ async def main():
         custom_view_lookup=custom_view_lookup,
         all_available_views=all_available_views,
     )
+
+
+async def render_notebook_page(notebook_path: Path):
+    """Render a project notebook by launching JupyterLab as a project-rooted sidecar."""
+    env = st.session_state["env"]
+    resolved_notebook = Path(notebook_path).expanduser().resolve()
+    if resolved_notebook.suffix.lower() != ".ipynb":
+        raise ValueError(f"Selected notebook is not an .ipynb file: {resolved_notebook}")
+    if not resolved_notebook.exists():
+        raise FileNotFoundError(f"Notebook does not exist: {resolved_notebook}")
+
+    active_app_path = _active_app_path_for_env(env)
+    project_root = _project_root_for_notebook(resolved_notebook, active_app_path)
+    try:
+        notebook_label = resolved_notebook.relative_to(project_root / "notebooks").as_posix()
+    except ValueError:
+        notebook_label = resolved_notebook.name
+
+    _hide_parent_sidebar()
+
+    back_col, title_col, _ = st.columns([1, 6, 1])
+    with back_col:
+        if st.button("← Back to Analysis", type="primary"):
+            st.query_params["current_notebook"] = ""
+            st.query_params["current_page"] = "main"
+            st.rerun()
+    with title_col:
+        st.subheader(f"Notebook: `{notebook_label}`")
+
+    if _is_hosted_analysis_runtime(env):
+        st.warning("Notebook sidecars are available in local AGILAB runtimes only.")
+        return
+
+    notebook_key = f"{notebook_label}|{project_root.as_posix()}"
+    port = _port_for(f"notebook|{notebook_key}")
+    sidecar_ready = _ensure_notebook_sidecar(notebook_key, resolved_notebook, port, project_root)
+
+    qp = st.query_params
+    extras = {}
+    for key, value in qp.items():
+        if key in {"current_page", "current_notebook"}:
+            continue
+        extras[key] = value
+    extras["embed"] = "true"
+    query = urlencode(extras, doseq=True)
+    notebook_url_path = _notebook_lab_tree_path(resolved_notebook, project_root)
+    if not sidecar_ready:
+        env.logger.error("Notebook sidecar failed to start for %s on port %s.", resolved_notebook, port)
+        log_file, err_file = _notebook_log_paths(resolved_notebook, env.AGILAB_LOG_ABS)
+        logs = Path(log_file)
+        errors = Path(err_file)
+        st.error("The notebook sidecar did not start correctly.", icon="⚠️")
+        st.caption("If this persists, check logs and sidecar attempts below.")
+        with st.expander("Notebook sidecar logs", expanded=True):
+            if logs.exists():
+                st.code(logs.read_text(encoding="utf-8", errors="ignore"), language="bash")
+            else:
+                st.write("No log file found.")
+            if errors.exists():
+                st.code(errors.read_text(encoding="utf-8", errors="ignore"), language="bash")
+            else:
+                st.write("No error log file found.")
+            sidecar_attempts = st.session_state.get(f"notebook_sidecar_attempts__{notebook_key}", [])
+            if sidecar_attempts:
+                st.markdown("Attempt summary:")
+                st.code("\n".join(sidecar_attempts), language="bash")
+        return
+    url = f"http://127.0.0.1:{port}/lab/tree/{notebook_url_path}?{query}"
+    env.logger.info("notebook url: %s", url)
+    st.iframe(url, height=900)
+
 
 async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
@@ -1878,23 +2678,7 @@ async def render_view_page(view_path: Path):
     # --- sidecar per-view run + iframe embed ---
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
-    active_app_path: Path | None = None
-    if env.apps_path:
-        for name in (env.target, env.app):
-            if name:
-                candidate = Path(env.apps_path) / name
-                if candidate.exists():
-                    active_app_path = candidate
-                    break
-    if active_app_path is None and env.active_app:
-        candidate = Path(env.active_app)
-        if candidate.exists():
-            active_app_path = candidate
-
-    if active_app_path is None and env.active_app:
-        active_app_arg = str(env.active_app)
-    else:
-        active_app_arg = str(active_app_path) if active_app_path else ""
+    active_app_arg = _active_app_arg_for_env(env)
 
     if _is_hosted_analysis_runtime(env):
         env.logger.info("Hosted runtime detected; rendering analysis view inline: %s", view_path)
@@ -1908,7 +2692,7 @@ async def render_view_page(view_path: Path):
     qp = st.query_params
     extras = {}
     for k, v in qp.items():
-        if k == "current_page":
+        if k in {"current_page", "current_notebook"}:
             continue
         extras[k] = v
     extras["embed"] = "true"

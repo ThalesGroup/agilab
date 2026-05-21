@@ -4,6 +4,17 @@ All notable public AGILAB changes are summarized here. GitHub Releases remain
 the publication surface for tagged release artifacts; this file gives reviewers
 and adopters a versioned, repository-local upgrade trail.
 
+## Release Cadence Note
+
+AGILAB uses date-based public versions. During the April-May 2026 public-beta
+packaging hardening, several `.postN` releases were published in short
+succession to refresh package metadata, supply-chain evidence, provenance, and
+multi-package dependency pins from committed release snapshots. Those post
+releases are preserved for auditability; they are not the intended steady-state
+delivery rhythm. Normal feature or behavior changes should use a deliberate new
+date-based release, while `.postN` remains reserved for bounded packaging,
+publication, or evidence refreshes on an already published date version.
+
 ## Unreleased
 
 ### Added
@@ -34,6 +45,139 @@ and adopters a versioned, repository-local upgrade trail.
   `src/agilab/lib/agi-gui`.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
+
+## [2026.05.20] - 2026-05-19
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20
+
+### Changed
+
+- Published AGILAB `2026.05.20` to PyPI for `agi-env`, `agi-gui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-page-pytorch-playground`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.18] - 2026-05-18
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.18
+
+### Changed
+
+- Published AGILAB `2026.05.18` to PyPI for `agi-env`, `agi-gui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-tescia-diagnostic-project`, `agi-app-uav-queue-project`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.17.post2] - 2026-05-17
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-6
+
+### Fixed
+
+- Republished the public AGILAB package set as `2026.05.17.post2` with all
+  internal dependency pins aligned to the post-release package version.
+- Restored clean package installability after PyPI retention removed the
+  superseded `2026.5.17` releases.
+- Kept the release proof and hosted Hugging Face Space evidence aligned with
+  the corrective release tag.
+
+## [2026.05.17.post1] - 2026-05-17
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5
+
+### Changed
+
+- Published AGILAB `2026.05.17.post1` to PyPI for the public AGILAB package set.
+- Updated GitHub release evidence under `v2026.05.17-5` so the release proof records the full public package publish and Hugging Face Space sync source snapshot.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.17] - 2026-05-17
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
+
+### Changed
+
+- Published AGILAB `2026.05.17` to PyPI for `agi-env`, `agi-gui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-tescia-diagnostic-project`, `agi-app-uav-queue-project`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.16] - 2026-05-16
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16
+
+### Changed
+
+- Published AGILAB `2026.05.16` to PyPI for `agi-env`, `agi-gui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-tescia-diagnostic-project`, `agi-app-uav-queue-project`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.15.post1] - 2026-05-15
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
+
+### Changed
+
+- Published AGILAB `2026.05.15.post1` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.15] - 2026-05-15
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15
+
+### Changed
+
+- Published AGILAB `2026.05.15` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.14] - 2026-05-14
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.14
+
+### Changed
+
+- Published AGILAB `2026.05.14` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.12.post3] - 2026-05-12
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6
+
+### Changed
+
+- Published AGILAB `2026.05.12.post3` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Kept the Trusted Publishing contract visible in the release workflow so each PyPI project/environment claim is auditable before upload.
+- Used this corrective post release to prove fresh GitHub OIDC uploads instead of relying on skipped existing distributions.
+
+## [2026.05.12.post2] - 2026-05-12
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
+
+### Changed
+
+- Published AGILAB `2026.05.12.post2` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.12.post1] - 2026-05-12
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
+
+### Changed
+
+- Published AGILAB `2026.05.12.post1` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.05.11] - 2026-05-11
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.11-5
+
+### Changed
+
+- Published AGILAB `2026.05.11` to PyPI for `agi-env`, `agi-gui`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.05.09] - 2026-05-09
 
@@ -428,7 +572,7 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 - Added `tools/production_readiness_report.py` evidence reporting for the
   bounded production-readiness pilot scope.
 - Added public Hugging Face Space smoke checks covering Streamlit health, base
-  app, `flight_project`, `view_maps`, `view_maps_network`, and public app-tree
+  app, `flight_telemetry_project`, `view_maps`, `view_maps_network`, and public app-tree
   guardrails.
 - Added public KPI evidence in README/docs for ease of adoption, research
   experimentation, engineering prototyping, strategic potential, and production
@@ -509,3 +653,17 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.07
 [2026.05.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.08
 [2026.05.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.09
+[2026.05.11]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.11-5
+[2026.05.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-2
+[2026.05.12.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
+[2026.05.12.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
+[2026.05.12.post3]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6
+[2026.05.14]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.14
+[2026.05.15]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15
+[2026.05.15.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
+[2026.05.16]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16
+[2026.05.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17
+[2026.05.17.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5
+[2026.05.17.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-6
+[2026.05.18]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.18
+[2026.05.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20

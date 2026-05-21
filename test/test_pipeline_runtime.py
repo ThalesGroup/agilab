@@ -85,6 +85,14 @@ def _load_module_with_import_failures(module_name: str, relative_path: str, monk
 pipeline_runtime = _import_agilab_module("agilab.pipeline_runtime")
 
 
+def _patch_mlflow_cli(monkeypatch):
+    monkeypatch.setattr(
+        pipeline_runtime.mlflow_store,
+        "mlflow_cli_argv",
+        lambda args, **_kwargs: ["mlflow", *args],
+    )
+
+
 def test_to_bool_flag_parses_common_truthy_values():
     assert pipeline_runtime.to_bool_flag(True) is True
     assert pipeline_runtime.to_bool_flag("yes") is True
@@ -148,6 +156,25 @@ def test_pipeline_runtime_and_support_raise_when_local_fallback_specs_are_missin
             "src/agilab/pipeline_runtime_support.py",
             monkeypatch,
             {"agilab.pipeline_runtime_execution_support", "agilab.pipeline_runtime_mlflow_support"},
+        )
+
+
+def test_pipeline_runtime_support_raises_when_import_guard_spec_is_missing(monkeypatch):
+    original_spec = importlib.util.spec_from_file_location
+
+    def _missing_import_guard_spec(name, location, *args, **kwargs):
+        if name == "agilab_import_guard_local":
+            return None
+        return original_spec(name, location, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _missing_import_guard_spec)
+
+    with pytest.raises(ModuleNotFoundError, match="import_guard.py"):
+        _load_module_with_import_failures(
+            "agilab_pipeline_runtime_support_missing_import_guard",
+            "src/agilab/pipeline_runtime_support.py",
+            monkeypatch,
+            set(),
         )
 
 
@@ -660,15 +687,17 @@ def test_mlflow_tracking_uri_migrates_legacy_filestore(tmp_path, monkeypatch):
         calls["cmd"] = cmd
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
 
     uri = pipeline_runtime.mlflow_tracking_uri(SimpleNamespace(MLFLOW_TRACKING_DIR=tracking_root))
 
-    assert calls["cmd"][:4] == [sys.executable, "-m", "mlflow", "migrate-filestore"]
-    assert calls["cmd"][4] == "--source"
-    assert calls["cmd"][5] == str(tracking_root)
-    assert calls["cmd"][6] == "--target"
-    assert calls["cmd"][7] == pipeline_runtime.sqlite_uri_for_path(tracking_root / "mlflow.db")
+    assert calls["cmd"][:2] == ["mlflow", "migrate-filestore"]
+    assert "-m" not in calls["cmd"]
+    assert calls["cmd"][calls["cmd"].index("--source") + 1] == str(tracking_root)
+    assert calls["cmd"][calls["cmd"].index("--target") + 1] == pipeline_runtime.sqlite_uri_for_path(
+        tracking_root / "mlflow.db"
+    )
     assert uri == pipeline_runtime.sqlite_uri_for_path(tracking_root / "mlflow.db")
 
 
@@ -825,6 +854,7 @@ def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
         calls.append(cmd)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
     monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 
@@ -835,16 +865,7 @@ def test_mlflow_tracking_uri_upgrades_sqlite_schema_once(tmp_path, monkeypatch):
 
     assert first_uri == pipeline_runtime.sqlite_uri_for_path(db_path.resolve())
     assert second_uri == first_uri
-    assert calls == [
-        [
-            sys.executable,
-            "-m",
-            "mlflow",
-            "db",
-            "upgrade",
-            pipeline_runtime.sqlite_uri_for_path(db_path.resolve()),
-        ]
-    ]
+    assert calls == [["mlflow", "db", "upgrade", pipeline_runtime.sqlite_uri_for_path(db_path.resolve())]]
 
 
 def test_mlflow_tracking_uri_resets_unknown_alembic_revision(tmp_path, monkeypatch):
@@ -863,6 +884,7 @@ def test_mlflow_tracking_uri_resets_unknown_alembic_revision(tmp_path, monkeypat
             stderr="alembic.util.exc.CommandError: Can't locate revision identified by '1b5f0d9ad7c1'",
         )
 
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pipeline_runtime.subprocess, "run", fake_run)
     monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 
@@ -900,6 +922,7 @@ def test_ensure_mlflow_sqlite_schema_current_raises_for_unhandled_upgrade_error(
         "run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="", stderr="plain failure"),
     )
+    _patch_mlflow_cli(monkeypatch)
     monkeypatch.setattr(pipeline_runtime, "_MLFLOW_SQLITE_UPGRADE_CHECKED", set())
 
     with pytest.raises(RuntimeError, match="Failed to upgrade the local MLflow SQLite schema"):
@@ -921,6 +944,7 @@ def test_mlflow_tracking_uri_raises_when_legacy_migration_fails(tmp_path, monkey
         "run",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="", stderr="migration failed"),
     )
+    _patch_mlflow_cli(monkeypatch)
 
     with pytest.raises(RuntimeError, match="Failed to migrate the legacy MLflow file store to SQLite"):
         pipeline_runtime.mlflow_tracking_uri(env)
@@ -1095,11 +1119,11 @@ def test_safe_service_start_template_preserves_builtin_apps_path(tmp_path):
     settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     apps_path = tmp_path / "apps"
     builtin_apps = apps_path / "builtin"
-    (builtin_apps / "flight_project").mkdir(parents=True)
+    (builtin_apps / "flight_telemetry_project").mkdir(parents=True)
     env = SimpleNamespace(
         app_settings_file=settings,
         apps_path=apps_path,
-        app="flight_project",
+        app="flight_telemetry_project",
     )
 
     snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")

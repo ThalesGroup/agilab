@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/global_pipeline_operator_ui_report.py").resolve()
 CORE_PATH = Path("src/agilab/global_pipeline_operator_ui.py").resolve()
@@ -128,3 +130,113 @@ def test_operator_ui_report_handles_load_failure(tmp_path: Path) -> None:
             "summary": "global pipeline operator UI could not be persisted",
         }
     ]
+
+
+def test_operator_ui_helpers_handle_malformed_inputs(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_operator_ui_helpers_test_module")
+    issue = core_module._issue("source", "bad")
+    proof = core_module.OperatorUiProof(
+        ok=False,
+        issues=(issue,),
+        path=str(tmp_path / "ui.json"),
+        html_path=str(tmp_path / "ui.html"),
+        operator_actions_path=str(tmp_path / "actions.json"),
+        operator_ui={"summary": "bad", "components": "bad"},
+        reloaded_ui={},
+    )
+
+    assert issue.as_dict() == {"level": "error", "location": "source", "message": "bad"}
+    assert proof.round_trip_ok is False
+    assert proof.component_count == 0
+    assert proof.unit_card_count == 0
+    assert proof.action_control_count == 0
+    assert proof.artifact_row_count == 0
+    assert proof.as_dict()["issues"] == [issue.as_dict()]
+    assert core_module._request_rows({"requests": "bad"}) == ()
+    assert core_module._artifact_rows({"artifacts": "bad"}) == ()
+    assert core_module._update_rows({"updates": "bad"}) == ()
+    assert core_module._live_state_for_actions({"source": {}}) == {}
+    assert core_module._unit_cards({"latest_state": {"unit_states": "bad"}})[0]["state"] == "completed"
+    assert core_module._dependency_payload({"updates": [{"kind": "dependency_state_update", "payload": "bad"}]}) == {}
+
+    html = core_module.render_operator_ui_html(
+        {
+            "components": [
+                "bad",
+                {"id": "custom", "title": "<Custom>", "payload": "<unsafe>"},
+            ]
+        }
+    )
+
+    assert "<Custom>" not in html
+    assert "&lt;Custom&gt;" in html
+    assert "payload" in html
+
+
+def test_operator_ui_live_state_load_failure_and_persist_issues(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_operator_ui_issue_test_module")
+    actions_path = tmp_path / "operator_actions.json"
+    actions_path.write_text(
+        core_module.json.dumps(
+            {
+                "schema": "wrong",
+                "run_id": "run",
+                "run_status": "ready",
+                "source": {"live_state_updates_path": str(tmp_path / "missing.json")},
+                "requests": [],
+                "artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(core_module, "write_operator_ui_html", lambda path, operator_ui: path)
+
+    proof = core_module.persist_operator_ui(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "operator_ui.json",
+        html_output_path=tmp_path / "operator_ui.html",
+        operator_actions_path=actions_path,
+    )
+
+    assert proof.ok is False
+    assert {issue.location for issue in proof.issues} == {
+        "source.operator_actions_schema",
+        "rendering.html",
+    }
+
+
+def test_operator_ui_persist_reports_json_round_trip_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    core_module = _load_module(CORE_PATH, "global_pipeline_operator_ui_roundtrip_test_module")
+    actions_path = tmp_path / "operator_actions.json"
+    html_path = tmp_path / "operator_ui.html"
+    actions_path.write_text(
+        core_module.json.dumps(
+            {
+                "schema": core_module.OPERATOR_ACTIONS_SCHEMA,
+                "run_id": "run",
+                "run_status": "ready",
+                "source": {},
+                "requests": [],
+                "artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(core_module, "load_operator_ui", lambda _path: {"changed": True})
+
+    proof = core_module.persist_operator_ui(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "operator_ui.json",
+        html_output_path=html_path,
+        operator_actions_path=actions_path,
+    )
+
+    assert html_path.is_file()
+    assert proof.ok is False
+    assert proof.issues[0].location == "persistence.round_trip"

@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
+import tomllib
 from pathlib import Path
 
 
 REPORT_PATH = Path("tools/notebook_import_preflight.py").resolve()
 CORE_PATH = Path("src/agilab/notebook_pipeline_import.py").resolve()
+SAMPLE_HELPER_PATH = Path("src/agilab/notebook_import_sample.py").resolve()
+PYPROJECT_PATH = Path("pyproject.toml").resolve()
+LAB_STAGE_SOURCES = {
+    "weather_forecast": Path(
+        "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml"
+    ).resolve(),
+    "mission_decision": Path(
+        "src/agilab/apps/builtin/mission_decision_project/lab_stages.toml"
+    ).resolve(),
+}
 
 
 def _load_module(path: Path, name: str):
@@ -17,6 +29,21 @@ def _load_module(path: Path, name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _normalize_project_name(raw: str) -> str:
+    name = raw.strip().lower()
+    name = re.sub(r"[^0-9a-z_]+", "_", name)
+    name = re.sub(r"_+", "_", name).strip("_")
+    return name if name.endswith("_project") else name + "_project"
+
+
+def _first_lab_stage_list(path: Path) -> list[dict[str, object]]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    for value in data.values():
+        if isinstance(value, list):
+            return [stage for stage in value if isinstance(stage, dict)]
+    return []
 
 
 def _risky_notebook() -> dict[str, object]:
@@ -129,6 +156,402 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert view_plan["status"] == "matched"
     assert view_plan["matched_views"][0]["module"] == "view_dataframe"
     assert "artifacts/orders.parquet" in view_plan["matched_views"][0]["matched_artifacts"]
+
+
+def test_supervisor_notebook_import_preserves_artifact_role_inference() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_preflight_supervisor_roles_module")
+    source = "\n".join(
+        [
+            "import pandas as pd",
+            "df = pd.read_csv('shared/orders.csv')",
+            "df.to_parquet('shared/summary.parquet')",
+        ]
+    )
+    imported = core_module.build_notebook_pipeline_import(
+        notebook={
+            "cells": [],
+            "metadata": {
+                "agilab": {
+                    "stages": [
+                        {
+                            "description": "Build shared summary",
+                            "question": "Summarize orders.",
+                            "code": source,
+                        }
+                    ]
+                }
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        },
+        source_notebook="supervisor.ipynb",
+    )
+
+    preflight = core_module.build_notebook_import_preflight(imported)
+
+    assert imported["source"]["import_mode"] == "agilab_supervisor_metadata"
+    assert imported["pipeline_stages"][0]["source_cell_index"] == 1
+    assert preflight["artifact_contract"]["inputs"] == ["shared/orders.csv"]
+    assert preflight["artifact_contract"]["outputs"] == ["shared/summary.parquet"]
+    assert preflight["artifact_contract"]["unknown"] == []
+
+
+def test_supervisor_notebook_import_prefers_edited_exported_source_cell() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_preflight_supervisor_source_cell_module")
+    edited_source = "print('edited export')\n"
+    notebook = {
+        "cells": [
+            {"cell_type": "markdown", "source": ["# Exported notebook\n"]},
+            {"cell_type": "code", "source": ["# helper\n"]},
+            {"cell_type": "markdown", "source": ["## Stage 0\n"]},
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "tags": ["agilab.runtime.worker"],
+                    "agilab": {
+                        "runtime_role": "worker",
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "source",
+                            "stage_index": 0,
+                            "runtime": "agi.run",
+                            "env": "/tmp/worker-env",
+                        },
+                    },
+                },
+                "source": [
+                    f"STAGE_000_CODE = {edited_source!r}\n",
+                    "print(STAGE_000_CODE)\n",
+                ],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "agilab": {
+                        "stage_cell": {
+                            "schema": "agilab.notebook_export.stage_cell.v1",
+                            "kind": "runner",
+                            "stage_index": 0,
+                        }
+                    }
+                },
+                "source": ["run_agilab_stage(0, code_override=STAGE_000_CODE)\n"],
+            },
+        ],
+        "metadata": {
+            "agilab": {
+                "stages": [
+                    {
+                        "description": "Run edited export",
+                        "question": "Use edited source cell.",
+                        "code": "print('stale metadata')\n",
+                        "runtime": "runpy",
+                    }
+                ]
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="edited-supervisor.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+
+    stage = imported["pipeline_stages"][0]
+    assert stage["source_cell_index"] == 4
+    assert stage["source_lines"] == [edited_source]
+    assert stage["runtime_role"] == "worker"
+    assert stage["runtime"] == "agi.run"
+    assert stage["env"] == "/tmp/worker-env"
+    assert preview["demo_project"][0]["C"] == edited_source
+    assert preview["demo_project"][0]["R"] == "agi.run"
+    assert preview["demo_project"][0]["E"] == "/tmp/worker-env"
+    assert preview["demo_project"][0]["NB_RUNTIME_ROLE"] == "worker"
+
+
+def test_notebook_import_metadata_prefills_project_defaults_and_runtime_tags() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_metadata_defaults_module")
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"tags": ["agilab.manager"]},
+                "source": ["print('manager')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"agilab": {"runtime_role": "worker"}},
+                "source": ["print('worker')\n"],
+            },
+        ],
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "schema": "agilab.notebook_import.v1",
+                    "recommended_template": "flight_telemetry_project",
+                    "project_name_hint": "flight-telemetry-from-notebook-project",
+                }
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="sample.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+
+    assert core_module.extract_notebook_import_defaults(notebook) == {
+        "schema": "agilab.notebook_import.v1",
+        "recommended_template": "flight_telemetry_project",
+        "project_name_hint": "flight-telemetry-from-notebook-project",
+    }
+    assert imported["source"]["import_defaults"]["project_name_hint"] == (
+        "flight-telemetry-from-notebook-project"
+    )
+    assert [stage["NB_RUNTIME_ROLE"] for stage in preview["demo_project"]] == [
+        "manager",
+        "worker",
+    ]
+    assert [stage["R"] for stage in preview["demo_project"]] == ["runpy", "agi.run"]
+
+
+def test_notebook_runtime_role_aliases_and_invalid_metadata_are_handled() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_runtime_role_aliases_module")
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"tags": ["ignored", "agilab.runtime.worker"]},
+                "source": ["print('tagged worker')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "tags": "agilab.worker",
+                    "agilab": {"execution_location": "driver"},
+                },
+                "source": ["print('metadata manager')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"agilab_runtime": "app-runtime"},
+                "source": ["print('top-level worker')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": [],
+                "source": ["print('no metadata')\n"],
+            },
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="roles.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+    stages = imported["pipeline_stages"]
+
+    assert core_module.normalize_notebook_runtime_role(" MAIN ") == "manager"
+    assert core_module.normalize_notebook_runtime_role("agi.run") == "worker"
+    assert core_module.normalize_notebook_runtime_role("not-a-runtime") == ""
+    assert [stage.get("runtime_role", "") for stage in stages] == [
+        "worker",
+        "manager",
+        "worker",
+        "",
+    ]
+    assert [stage.get("runtime", "") for stage in stages] == [
+        "agi.run",
+        "runpy",
+        "agi.run",
+        "",
+    ]
+    assert [
+        entry.get("NB_RUNTIME_ROLE", "")
+        for entry in preview["demo_project"]
+    ] == ["worker", "manager", "worker", ""]
+
+
+def test_notebook_import_defaults_falls_back_to_legacy_metadata_key() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_legacy_defaults_module")
+    notebook = {
+        "metadata": {
+            "agilab": {
+                "import": [],
+                "notebook_import": {
+                    "schema": " agilab.notebook_import.v1 ",
+                    "recommended_template": " flight_telemetry_project ",
+                    "project_name_hint": " flight-telemetry-from-notebook-project ",
+                }
+            }
+        }
+    }
+
+    assert core_module.extract_notebook_import_defaults(notebook) == {
+        "schema": "agilab.notebook_import.v1",
+        "recommended_template": "flight_telemetry_project",
+        "project_name_hint": "flight-telemetry-from-notebook-project",
+    }
+    assert core_module.extract_notebook_import_defaults({"metadata": []}) == {}
+    assert core_module.extract_notebook_import_defaults({"metadata": {"agilab": []}}) == {}
+
+
+def test_apply_notebook_runtime_roles_sets_engines_without_mutating_source() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_runtime_role_apply_module")
+    notebook_import = {
+        "pipeline_stages": [
+            {"id": "load", "runtime_role": "manager", "runtime": "agi.run", "env": ["pandas"]},
+            {"id": "score", "runtime": "runpy", "env": ["numpy"]},
+            {"id": "notes", "runtime": "runpy"},
+        ]
+    }
+
+    updated = core_module.apply_notebook_runtime_roles(
+        notebook_import,
+        {"score": "worker", "notes": "unknown"},
+    )
+
+    assert notebook_import["pipeline_stages"][0]["env"] == ["pandas"]
+    assert updated["pipeline_stages"][0]["runtime_role"] == "manager"
+    assert updated["pipeline_stages"][0]["runtime"] == "runpy"
+    assert "env" not in updated["pipeline_stages"][0]
+    assert updated["pipeline_stages"][1]["runtime_role"] == "worker"
+    assert updated["pipeline_stages"][1]["runtime"] == "agi.run"
+    assert updated["pipeline_stages"][1]["env"] == ["numpy"]
+    assert updated["pipeline_stages"][2]["runtime"] == "runpy"
+
+
+def test_packaged_notebook_import_sample_declares_first_proof_defaults() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_packaged_sample_defaults_module")
+    sample_module = _load_module(SAMPLE_HELPER_PATH, "notebook_import_packaged_sample_module")
+    sample_path = sample_module.sample_notebook_path()
+    notebook = json.loads(sample_module.read_sample_notebook_bytes().decode("utf-8"))
+
+    defaults = core_module.extract_notebook_import_defaults(notebook)
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook=sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
+    )
+    preview = core_module.build_lab_stages_preview(
+        imported,
+        module_name="flight_telemetry_from_notebook_project",
+    )
+
+    assert sample_module.SAMPLE_NOTEBOOK_MIME == "application/x-ipynb+json"
+    assert sample_path.name == sample_module.SAMPLE_NOTEBOOK_RESOURCE_NAME
+    assert sample_path.is_file()
+    assert defaults["recommended_template"] == "flight_telemetry_project"
+    assert defaults["project_name_hint"] == "flight-telemetry-from-notebook-project"
+    assert [stage["R"] for stage in preview["flight_telemetry_from_notebook_project"]] == [
+        "runpy",
+        "runpy",
+    ]
+    assert "pd.read_csv(\"data/flights.csv\")" in preview[
+        "flight_telemetry_from_notebook_project"
+    ][1]["C"]
+
+
+def test_packaged_notebook_import_sample_rejects_unknown_sample_id() -> None:
+    sample_module = _load_module(
+        SAMPLE_HELPER_PATH,
+        "notebook_import_packaged_sample_unknown_module",
+    )
+
+    samples = sample_module.list_sample_notebooks()
+
+    assert [sample.sample_id for sample in samples] == [
+        "flight_telemetry",
+        "mycode",
+        "weather_forecast",
+        "mission_decision",
+    ]
+    try:
+        sample_module.get_sample_notebook("unknown")
+    except KeyError as exc:
+        assert "Unknown notebook import sample 'unknown'" in str(exc)
+        assert "flight_telemetry, mycode, weather_forecast, mission_decision" in str(exc)
+    else:
+        raise AssertionError("unknown notebook import sample id should fail closed")
+
+
+def test_packaged_notebook_import_samples_create_equivalent_from_notebook_projects() -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "notebook_import_packaged_sample_catalog_core_module",
+    )
+    sample_module = _load_module(
+        SAMPLE_HELPER_PATH,
+        "notebook_import_packaged_sample_catalog_module",
+    )
+
+    expected_samples = {
+        "flight_telemetry": (
+            "flight_telemetry_project",
+            "flight_telemetry_from_notebook_project",
+        ),
+        "mycode": ("mycode_project", "mycode_from_notebook_project"),
+        "weather_forecast": (
+            "weather_forecast_project",
+            "weather_forecast_from_notebook_project",
+        ),
+        "mission_decision": (
+            "mission_decision_project",
+            "mission_decision_from_notebook_project",
+        ),
+    }
+    samples = sample_module.list_sample_notebooks()
+
+    assert [sample.sample_id for sample in samples] == list(expected_samples)
+    for sample in samples:
+        sample_path = sample_module.sample_notebook_path(sample.sample_id)
+        notebook = json.loads(
+            sample_module.read_sample_notebook_bytes(sample.sample_id).decode("utf-8")
+        )
+        defaults = core_module.extract_notebook_import_defaults(notebook)
+        module_name = _normalize_project_name(sample.project_name_hint)
+        imported = core_module.build_notebook_pipeline_import(
+            notebook=notebook,
+            source_notebook=sample.download_name,
+        )
+        preview = core_module.build_lab_stages_preview(imported, module_name=module_name)
+        stages = preview[module_name]
+
+        expected_template, expected_project = expected_samples[sample.sample_id]
+        assert sample_path.is_file()
+        assert sample.project_name_hint.endswith("-from-notebook-project")
+        assert defaults["recommended_template"] == expected_template
+        assert defaults["project_name_hint"] == sample.project_name_hint
+        assert module_name == expected_project
+        assert stages
+        assert all(stage["NB_SOURCE_NOTEBOOK"] == sample.download_name for stage in stages)
+        assert all(stage["NB_RUNTIME_ROLE"] == "manager" for stage in stages)
+        assert all(stage["R"] == "runpy" for stage in stages)
+        if sample.sample_id in LAB_STAGE_SOURCES:
+            source_stages = _first_lab_stage_list(LAB_STAGE_SOURCES[sample.sample_id])
+            assert [
+                (stage["D"], stage["Q"], stage["M"], stage["C"], stage["R"])
+                for stage in stages
+            ] == [
+                (stage["D"], stage["Q"], stage.get("M", ""), stage["C"], stage["R"])
+                for stage in source_stages
+            ]
+
+
+def test_packaged_notebook_import_samples_are_included_in_root_package_data() -> None:
+    config = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    package_data = config["tool"]["setuptools"]["package-data"]["agilab"]
+
+    assert "resources/notebook_import_samples/*.ipynb" in package_data
 
 
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:

@@ -127,12 +127,12 @@ interactive exploration into a replayable, inspectable workflow:
   inputs, reducer merge semantics, and a standard reduce artefact schema
 - ``execution_pandas_project`` and ``execution_polars_project`` emit named
   benchmark reduce artefacts through that shared contract,
-  ``flight_project`` emits trajectory-summary reduce artefacts,
-  ``meteo_forecast_project`` emits forecast-metrics reduce artefacts, and
+  ``flight_telemetry_project`` emits trajectory-summary reduce artefacts,
+  ``weather_forecast_project`` emits forecast-metrics reduce artefacts, and
   ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
   ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics
 - the Release Decision evidence view surfaces those reducer artefacts,
-  including flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
+  including flight row/aircraft/speed fields, weather forecast MAE/RMSE/MAPE
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
 - a repository guardrail requires every non-template built-in app to expose a
@@ -190,7 +190,7 @@ history:
   definitions next to their ``app_settings.toml`` files
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
-- the in-product first-proof wizard now guides one validated ``flight_project``
+- the in-product first-proof wizard now guides one validated ``flight_telemetry_project``
   source-checkout path, reads ``run_manifest.json``, and shows
   manifest-driven remediation with exact evidence commands
 - the run-diff evidence report compares static baseline/candidate KPI checks,
@@ -207,7 +207,7 @@ history:
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
   ``multi_app_dag_sample.json``
 - the supplemental ``multi_app_dag_portfolio_sample.json`` expands the contract
-  sample suite across flight, meteo forecast, pandas execution, and polars
+  sample suite across flight, weather forecast, pandas execution, and polars
   execution apps without changing the executable UAV smoke baseline
 - the global pipeline DAG report combines that handoff with each app-local
   ``pipeline_view.dot`` so reviewers can inspect one read-only product graph
@@ -262,6 +262,10 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - the compatibility matrix marks which public paths are validated versus only
   documented
 - service health gates expose JSON and Prometheus-compatible operator checks
+- ``tools/controlled_pilot_readiness_report.py --compact`` turns the
+  controlled-pilot boundary into an executable proof for service health,
+  persisted artifacts, public-bind controls, secret redaction, and explicit
+  failure modes
 - the release-decision page gates on the first-proof ``run_manifest.json``,
   resolves artifact/log/export roots through the shared connector path registry,
   imports external manifest evidence, applies artifact and KPI gates, and
@@ -278,7 +282,7 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
-That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
+That supports a ``Production readiness`` score of ``3.2 / 5``. It is not scored
 higher because AGILab still does not provide production model serving, feature
 stores, online monitoring, drift detection, enterprise governance, or broad
 remote-topology certification.
@@ -515,8 +519,10 @@ This is a handoff sketch, not a roadmap.
 2. Once an approach stabilises, prepare the project artefacts for your target
    environment and integrate it with your organisation’s deployment toolchain
    (MLflow, Kubeflow, internal devops stack). In a source checkout, this commonly
-   uses ``tools/run_configs`` and ``src/agilab/apps/<app>``; in packaged
-   installs, use the generated app package artifacts available from your installer.
+   uses ``tools/run_configs`` and an app project under
+   ``src/agilab/apps/builtin/<project>`` or an external apps repository; in
+   packaged installs, use the installed ``agi-app-*`` payload artifacts available
+   from your installer.
 3. Track long-running metrics and governance artifacts using your preferred
    MLOps platform; AGILab does not replace those systems.
 

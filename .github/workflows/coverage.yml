@@ -10,6 +10,8 @@ on:
       - "src/**"
       - "test/**"
       - "tools/coverage_badge_guard.py"
+      - "tools/coverage_shard_plan.py"
+      - "tools/coverage_timing_report.py"
       - "tools/generate_component_coverage_badges.py"
       - "tools/workflow_parity.py"
       - "uv.lock"
@@ -29,7 +31,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python 3.13
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -37,7 +39,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.10.7"
 
@@ -99,7 +101,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python 3.13
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -107,7 +109,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.10.7"
 
@@ -213,10 +215,21 @@ jobs:
 
   agi-gui:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk:
+          - support
+          - pipeline
+          - robots
+          - pages-flow
+          - pages-rest
+          - views
+          - reports
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python 3.13
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -224,12 +237,21 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.10.7"
 
       - name: Prepare artifacts
         run: mkdir -p test-results
+
+      - name: Restore agi-gui timing history
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: test-results/coverage-agi-gui-timing-cache
+          key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-
+            agi-gui-junit-timings-${{ runner.os }}-main-
 
       - name: Define heartbeat helper
         shell: bash
@@ -244,24 +266,24 @@ jobs:
           }
           EOF
 
-      - name: Run agi-gui coverage
+      - name: Run agi-gui coverage chunk
         run: |
           set -e
           source "$RUNNER_TEMP/coverage-heartbeat.sh"
-          start_coverage_heartbeat "agi-gui coverage" &
+          start_coverage_heartbeat "agi-gui coverage ${{ matrix.chunk }}" &
           HEARTBEAT_PID=$!
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
-          rm -f .coverage.agi-gui coverage-agi-gui.xml test-results/junit-agi-gui-*.xml
+          rm -f test-results/coverage-agi-gui-${{ matrix.chunk }}.db* test-results/junit-agi-gui-${{ matrix.chunk }}.xml
           export AGILAB_DISABLE_BACKGROUND_SERVICES=1
 
           run_gui_chunk() {
             local label="$1"
             shift
-            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui \
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
               python -m coverage run \
               --rcfile=.coveragerc.agi-gui \
-              --data-file=.coverage.agi-gui \
-              --append \
+              --data-file="test-results/coverage-agi-gui-${label}.db" \
+              --parallel-mode \
               -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
               -m "not integration" \
               --junitxml="test-results/junit-agi-gui-${label}.xml" \
@@ -269,76 +291,116 @@ jobs:
               "$@"
           }
 
-          run_gui_chunk support \
-            src/agilab/test \
-            src/agilab/lib/agi-gui/test \
-            test/test_orchestrate_cluster.py \
-            test/test_orchestrate_distribution.py \
-            test/test_orchestrate_execute.py \
-            test/test_orchestrate_page_helpers.py \
-            test/test_orchestrate_page_state.py \
-            test/test_orchestrate_services.py \
-            test/test_orchestrate_support.py \
-            test/test_analysis_page_helpers.py \
-            test/test_about_agilab_helpers.py \
-            test/test_app_template_registry.py \
-            test/test_cluster_flight_validation.py \
-            test/test_cluster_lan_discovery.py \
-            test/test_dag_distributed_submitter.py \
-            test/test_agilab_dev_shortcuts.py \
-            test/test_ga_regression_selector.py \
-            test/test_pinned_expander.py \
-            test/test_venv_linker.py \
-            test/test_workflow_ui.py
+          label="${{ matrix.chunk }}"
+          uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py write \
+            --output-dir test-results/coverage-agi-gui-shards \
+            test-results/coverage-agi-gui-timing-cache/junit-agi-gui-*.xml
+          uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py print-args \
+            --plan test-results/coverage-agi-gui-shards/plan.json \
+            --chunk "$label" > "$RUNNER_TEMP/agi-gui-${label}.args"
+          mapfile -t pytest_args < "$RUNNER_TEMP/agi-gui-${label}.args"
+          if [ "${#pytest_args[@]}" -eq 0 ]; then
+            echo "No pytest arguments planned for AGI-GUI coverage chunk ${label}" >&2
+            exit 2
+          fi
+          printf 'AGI-GUI coverage chunk %s planned pytest args:\n' "$label"
+          printf '  %q\n' "${pytest_args[@]}"
+          run_gui_chunk "$label" "${pytest_args[@]}"
+          kill "$HEARTBEAT_PID" 2>/dev/null || true
+          trap - EXIT
 
-          run_gui_chunk pipeline \
-            test/test_first_proof_cli.py \
-            test/test_notebook_colab_support.py \
-            test/test_page_docs.py \
-            test/test_pipeline_ai.py \
-            test/test_pipeline_editor.py \
-            test/test_pipeline_lab.py \
-            test/test_pipeline_mistral.py \
-            test/test_pipeline_openai.py \
-            test/test_pipeline_openai_compatible.py \
-            test/test_pipeline_run_controls.py \
-            test/test_pipeline_runtime.py \
-            test/test_pipeline_service_guard.py \
-            test/test_pipeline_sidebar.py \
-            test/test_pipeline_stage_templates.py \
-            test/test_pipeline_stages.py \
-            test/test_pipeline_views.py \
-            test/test_tracking.py
+      - name: Archive agi-gui chunk coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-agi-gui-chunk-${{ matrix.chunk }}
+          path: test-results/coverage-agi-gui-${{ matrix.chunk }}.db*
+          if-no-files-found: error
+          retention-days: 3
 
-          run_gui_chunk robots \
-            test/test_agilab_web_robot.py \
-            test/test_agilab_widget_robot.py \
-            test/test_first_launch_robot.py \
-            test/test_screenshot_manifest.py
+      - name: Upload agi-gui chunk JUnit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-gui-junit-${{ matrix.chunk }}
+          path: test-results/junit-agi-gui-${{ matrix.chunk }}.xml
+          if-no-files-found: ignore
+          retention-days: 3
 
-          run_gui_chunk pages \
-            test/test_ui_pages.py \
-            test/test_apps_pages_launcher.py \
-            test/test_app_args.py \
-            test/test_streamlit_args.py \
-            test/test_pagelib.py \
-            test/test_connector_registry.py \
-            test/test_run_manifest.py
+  agi-gui-combine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - agi-gui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-          run_gui_chunk views \
-            test/test_view*.py
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
 
-          run_gui_chunk reports \
-            test/test_ci_provider_artifacts.py \
-            test/test_*_report.py
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
 
-          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui \
+      - name: Prepare artifacts
+        run: mkdir -p test-results
+
+      - name: Download agi-gui coverage chunks
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-agi-gui-chunk-*
+          path: test-results
+          merge-multiple: true
+
+      - name: Download agi-gui JUnit chunks
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-gui-junit-*
+          path: test-results
+          merge-multiple: true
+
+      - name: Combine agi-gui coverage
+        run: |
+          set -e
+          ls -R test-results
+          COVERAGE_FILE=.coverage.agi-gui timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
+            python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports")
+          paths: list[str] = []
+          missing: list[str] = []
+          for chunk in chunks:
+              candidates = sorted(
+                  path
+                  for path in Path("test-results").glob(f"coverage-agi-gui-{chunk}.db*")
+                  if path.is_file() and path.stat().st_size > 0
+              )
+              if not candidates:
+                  missing.append(chunk)
+              paths.extend(str(path) for path in candidates)
+
+          if missing:
+              print("Missing agi-gui coverage chunks: " + ", ".join(missing), file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [sys.executable, "-m", "coverage", "combine", "--keep", *paths]
+          sys.exit(subprocess.run(cmd, check=False).returncode)
+          PY
+
+      - name: Write agi-gui coverage XML
+        run: |
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
             python -m coverage xml \
             --rcfile=.coveragerc.agi-gui \
             --data-file=.coverage.agi-gui \
             -o coverage-agi-gui.xml
-          kill "$HEARTBEAT_PID" 2>/dev/null || true
-          trap - EXIT
 
       - name: Upload JUnit results
         if: always()
@@ -348,6 +410,37 @@ jobs:
           path: test-results/junit-agi-gui-*.xml
           if-no-files-found: ignore
           retention-days: 3
+
+      - name: Write agi-gui timing report
+        if: always()
+        run: |
+          python tools/coverage_timing_report.py test-results/junit-agi-gui-*.xml \
+            --markdown-output test-results/coverage-agi-gui-timing.md \
+            --json-output test-results/coverage-agi-gui-timing.json
+          cat test-results/coverage-agi-gui-timing.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare agi-gui timing cache
+        if: always() && hashFiles('test-results/junit-agi-gui-*.xml') != ''
+        run: |
+          rm -rf test-results/coverage-agi-gui-timing-cache
+          mkdir -p test-results/coverage-agi-gui-timing-cache
+          cp test-results/junit-agi-gui-*.xml test-results/coverage-agi-gui-timing-cache/
+
+      - name: Save agi-gui timing history
+        if: always() && hashFiles('test-results/coverage-agi-gui-timing-cache/*.xml') != ''
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: test-results/coverage-agi-gui-timing-cache
+          key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Upload agi-gui timing report
+        if: always() && hashFiles('test-results/coverage-agi-gui-timing.*') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-gui-timing-report
+          path: test-results/coverage-agi-gui-timing.*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
@@ -374,13 +467,13 @@ jobs:
     needs:
       - agi-env
       - agi-core
-      - agi-gui
+      - agi-gui-combine
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download coverage XML artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: coverage-*-xml
           path: merged-coverage

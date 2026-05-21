@@ -1,0 +1,26 @@
+[notebook_export]
+
+[[notebook_export.related_pages]]
+module = "view_relay_resilience"
+label = "UAV Relay Queue Analysis"
+description = "Inspect queue depth, packet delivery, relay routing summary, and node positions for the relay-queue demo."
+artifacts = [
+  "*_summary_metrics.json",
+  "*_queue_timeseries.csv",
+  "*_packet_events.csv",
+  "*_node_positions.csv",
+  "*_routing_summary.csv",
+]
+launch_note = "Open this first for the dedicated relay queue analysis view over the exported run artifacts."
+
+[[notebook_export.related_pages]]
+module = "view_maps_network"
+label = "Maps Network"
+description = "Reuse the same relay run as a topology, allocation, and trajectory map."
+artifacts = [
+  "pipeline/topology.gml",
+  "pipeline/allocations_steps.csv",
+  "*_trajectory_summary.json",
+  "*_trajectory*.csv",
+]
+launch_note = "Use this when you want the generic topology and trajectory exploration path for the same run."

@@ -8,9 +8,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_PS1 = REPO_ROOT / "install.ps1"
+INSTALL_APPS_SH = REPO_ROOT / "src" / "agilab" / "install_apps.sh"
+INSTALL_APPS_PS1 = REPO_ROOT / "src" / "agilab" / "install_apps.ps1"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
 INSTALL_ENDUSER_PS1 = REPO_ROOT / "tools" / "install_enduser.ps1"
 APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
+CORE_INSTALL_SH = REPO_ROOT / "src" / "agilab" / "core" / "install.sh"
 CORE_INSTALL_PS1 = REPO_ROOT / "src" / "agilab" / "core" / "install.ps1"
 
 
@@ -308,6 +311,71 @@ def test_installers_do_not_unconditionally_delete_existing_venvs() -> None:
     assert "$existingVenvPython = Get-VenvPython -VenvRoot $Venv" in enduser_ps1_text
     assert "if ($ForceRebuild)" in enduser_ps1_text
     assert "Remove-Item -LiteralPath $venvPath" not in core_install_ps1_text
+
+
+def test_installers_default_to_uv_hardlink_mode_with_explicit_override() -> None:
+    shell_scripts = [
+        INSTALL_SH,
+        INSTALL_APPS_SH,
+        CORE_INSTALL_SH,
+        INSTALL_ENDUSER_SH,
+    ]
+    powershell_scripts = [
+        INSTALL_PS1,
+        INSTALL_APPS_PS1,
+        CORE_INSTALL_PS1,
+        INSTALL_ENDUSER_PS1,
+    ]
+
+    for script_path in shell_scripts:
+        script_text = script_path.read_text(encoding="utf-8")
+        assert "configure_uv_link_mode()" in script_text
+        assert 'AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}' in script_text
+        assert "clone|copy|hardlink|symlink" in script_text
+        assert "export UV_LINK_MODE" in script_text
+
+    for script_path in powershell_scripts:
+        script_text = script_path.read_text(encoding="utf-8")
+        assert "function Set-UvLinkMode" in script_text
+        assert "$env:AGILAB_UV_LINK_MODE" in script_text
+        assert "$env:UV_LINK_MODE" in script_text
+        assert '"hardlink"' in script_text
+        assert '"clone", "copy", "hardlink", "symlink"' in script_text
+
+
+def test_core_installers_link_compatible_venvs_by_default() -> None:
+    shell_text = CORE_INSTALL_SH.read_text(encoding="utf-8")
+    ps1_text = CORE_INSTALL_PS1.read_text(encoding="utf-8")
+
+    assert 'LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"' in shell_text
+    assert "link_compatible_core_venvs()" in shell_text
+    assert 'local linker="$CORE_DIR/../venv_linker.py"' in shell_text
+    assert '--root "$CORE_DIR"' in shell_text
+    assert 'echo -e "${BLUE}Installing agi-core...${NC}"' in shell_text
+    assert 'pushd "$CORE_DIR/agi-core"' in shell_text
+    assert "link_compatible_core_venvs" in shell_text
+
+    assert '$LinkCompatibleVenvs = if ($env:AGILAB_LINK_COMPATIBLE_VENVS)' in ps1_text
+    assert "function Invoke-CompatibleCoreVenvLinking" in ps1_text
+    assert 'Join-Path (Split-Path -Parent $coreDir) "venv_linker.py"' in ps1_text
+    assert '"--root", $coreDir' in ps1_text
+    assert 'Install-ModulePath "agi-core" @("../agi-env", "../agi-node", "../agi-cluster")' in ps1_text
+    assert "Invoke-CompatibleCoreVenvLinking" in ps1_text
+
+
+def test_root_installer_installs_local_core_packages_without_dependency_resolution() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+
+    assert "$UV pip install --upgrade --no-deps \\" in root_text
+    for editable in (
+        "-e src/agilab/core/agi-env",
+        "-e src/agilab/core/agi-node",
+        "-e src/agilab/core/agi-cluster",
+        "-e src/agilab/core/agi-core",
+        "-e .",
+    ):
+        assert editable in root_text
+    assert "$UV pip install -e src/agilab/core/agi-env" not in root_text
 
 
 def test_shell_installers_stage_remote_scripts_before_execution() -> None:

@@ -26,10 +26,10 @@ from .dag_execution_registry import (
     CONTROLLED_RUNNER_STATUS,
     DagRealRunSupport,
     FLIGHT_CONTEXT_UNIT_ID,
-    FLIGHT_TO_METEO_ADAPTER,
-    FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
+    FLIGHT_TO_WEATHER_ADAPTER,
+    FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH,
     GLOBAL_DAG_SAMPLE_RELATIVE_PATH,
-    METEO_FORECAST_REVIEW_UNIT_ID,
+    WEATHER_FORECAST_REVIEW_UNIT_ID,
     UAV_QUEUE_ADAPTER,
     UAV_QUEUE_TEMPLATE_RELATIVE_PATH,
     resolve_real_run_support,
@@ -47,13 +47,14 @@ from .global_pipeline_runner_state import (
     persist_runner_state,
     write_runner_state,
 )
+from .workflow_run_manifest import WorkflowEvidenceBundle, write_workflow_run_evidence
 
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH = UAV_QUEUE_TEMPLATE_RELATIVE_PATH
-GLOBAL_DAG_FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+GLOBAL_DAG_FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH = FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
 GLOBAL_DAG_CONTROLLED_ADAPTER = UAV_QUEUE_ADAPTER
 GLOBAL_DAG_CONTROLLED_CONTRACT_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
-GLOBAL_DAG_FLIGHT_TO_METEO_ADAPTER = FLIGHT_TO_METEO_ADAPTER
+GLOBAL_DAG_FLIGHT_TO_WEATHER_ADAPTER = FLIGHT_TO_WEATHER_ADAPTER
 GLOBAL_DAG_CONTROLLED_RUNNER_STATUS = CONTROLLED_RUNNER_STATUS
 GLOBAL_DAG_CONTROLLED_CONTRACT_RUNNER_STATUS = CONTROLLED_CONTRACT_RUNNER_STATUS
 GLOBAL_DAG_STAGE_BACKEND_LOCAL = DAG_STAGE_BACKEND_LOCAL
@@ -62,7 +63,7 @@ GLOBAL_DAG_DISTRIBUTED_CONTRACT_EXECUTION_SCOPE = GLOBAL_DAG_DISTRIBUTED_EXECUTI
 GLOBAL_DAG_QUEUE_UNIT_ID = QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = RELAY_UNIT_ID
 GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID = FLIGHT_CONTEXT_UNIT_ID
-GLOBAL_DAG_METEO_FORECAST_REVIEW_UNIT_ID = METEO_FORECAST_REVIEW_UNIT_ID
+GLOBAL_DAG_WEATHER_FORECAST_REVIEW_UNIT_ID = WEATHER_FORECAST_REVIEW_UNIT_ID
 run_global_dag_queue_baseline_app = run_queue_baseline_app
 run_global_dag_relay_followup_app = run_relay_followup_app
 dispatch_next_runnable = dispatch_next_runnable_state
@@ -99,10 +100,37 @@ class DagRunEngine:
             output_path=self.state_path,
             dag_path=self.dag_path,
         )
+        self.write_evidence(
+            proof.runner_state,
+            state_path=self.state_path,
+            trigger={"surface": "workflow", "action": "state_created"},
+        )
         return proof.runner_state, self.state_path, self.dag_path
 
     def write_state(self, state: Mapping[str, Any]) -> Path:
-        return write_runner_state(self.state_path, state)
+        state_path = write_runner_state(self.state_path, state)
+        self.write_evidence(
+            state,
+            state_path=state_path,
+            trigger={"surface": "workflow", "action": "state_written"},
+        )
+        return state_path
+
+    def write_evidence(
+        self,
+        state: Mapping[str, Any],
+        *,
+        state_path: Path | None = None,
+        trigger: Mapping[str, Any] | None = None,
+    ) -> WorkflowEvidenceBundle:
+        return write_workflow_run_evidence(
+            state=state,
+            state_path=state_path or self.state_path,
+            repo_root=self.repo_root,
+            lab_dir=self.lab_dir,
+            dag_path=self.dag_path,
+            trigger=trigger,
+        )
 
     def dispatch_next_runnable(self, state: Mapping[str, Any]) -> RunnerDispatchResult:
         return dispatch_next_runnable_state(state)

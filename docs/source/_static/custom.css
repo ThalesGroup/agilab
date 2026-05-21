@@ -83,6 +83,20 @@
   min-width: 2400px;
 }
 
+.rst-content table.agilab-components-table {
+  table-layout: fixed;
+}
+
+.rst-content table.agilab-components-table th,
+.rst-content table.agilab-components-table td {
+  vertical-align: middle;
+}
+
+.rst-content table.agilab-components-table td p,
+.rst-content table.agilab-components-table th p {
+  margin-bottom: 0;
+}
+
 @media (max-width: 900px) {
   .rst-content div.figure.diagram-panel {
     padding: 0.75rem 0.75rem 0.7rem;

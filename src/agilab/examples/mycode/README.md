@@ -51,5 +51,5 @@ your copied project name, then add parameters to `RunRequest` one at a time.
 - If install succeeds but run returns nothing useful, inspect the worker source
   inside `mycode_project`.
 - If the command cannot import AGILAB packages, run the app installer again.
-- If you need dataset handling, move to `flight` or `meteo_forecast` before
-  adding custom data paths here.
+- If you need dataset handling, move to `flight_telemetry` or
+  `weather_forecast` before adding custom data paths here.

@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from typing import Callable, Sequence
 
+from . import mlflow_store
+
 
 _SHELL_METACHARS = frozenset(";&|<>\n\r`$")
 
@@ -99,16 +101,28 @@ def run(command, cwd=None, *, subprocess_module=subprocess, log_fn=None, sys_mod
         sys_module.exit(exc.returncode)
 
 
-def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os):
+def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os, env=None):
     """Execute a command in the background and return its stdout pipe."""
+    process_env = dict(env) if env is not None else os_module.environ.copy()
     return subprocess_module.Popen(
         _command_argv(command, os_module=os_module),
         shell=False,
         cwd=os_module.path.abspath(cwd),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=process_env,
         text=True,
     ).stdout
+
+
+def _launch_mlflow_server(subproc_fn, cmd: list[str], cwd) -> None:
+    env = mlflow_store.mlflow_subprocess_env()
+    try:
+        subproc_fn(cmd, cwd, env=env)
+    except TypeError as exc:
+        if "env" not in str(exc):
+            raise
+        subproc_fn(cmd, cwd)
 
 
 def is_port_in_use(target_port, *, socket_module=socket) -> bool:
@@ -165,6 +179,8 @@ def activate_mlflow(
     """Start the local MLflow server and persist its runtime state."""
     if not env:
         return None
+    if session_state.get("mlflow_autostart_disabled"):
+        return False
 
     session_state["rapids_default"] = True
     tracking_dir = resolve_mlflow_tracking_dir_fn(env)
@@ -179,21 +195,21 @@ def activate_mlflow(
             tracking_dir
         )
         artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-        cmd = [
-            sys.executable,
-            "-m",
-            "mlflow",
-            "server",
-            "--backend-store-uri",
-            backend_uri,
-            "--default-artifact-root",
-            artifact_uri,
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ]
-        subproc_fn(cmd, cwd)
+        cmd = mlflow_store.mlflow_cli_argv(
+            [
+                "server",
+                "--backend-store-uri",
+                backend_uri,
+                "--default-artifact-root",
+                artifact_uri,
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            sys_executable=sys.executable,
+        )
+        _launch_mlflow_server(subproc_fn, cmd, cwd)
         if not wait_for_listen_port_fn(port):
             session_state["server_started"] = False
             session_state.pop("mlflow_port", None)
@@ -204,6 +220,15 @@ def activate_mlflow(
         session_state["server_started"] = True
         session_state["mlflow_port"] = port
         return True
+    except mlflow_store.MissingMlflowCliError as exc:
+        session_state["server_started"] = False
+        session_state["mlflow_autostart_disabled"] = True
+        session_state["mlflow_status_message"] = str(exc)
+        session_state.pop("mlflow_port", None)
+        warning = getattr(streamlit, "warning", None)
+        if callable(warning):
+            warning(f"MLflow is optional and was not started automatically. {exc}")
+        return False
     except (RuntimeError, OSError, ValueError, AttributeError) as exc:
         session_state["server_started"] = False
         session_state.pop("mlflow_port", None)

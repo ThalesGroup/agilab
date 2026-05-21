@@ -24,10 +24,10 @@ def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tup
         core_root / "agi-core" / "src",
     )
     added: list[Path] = []
-    for candidate in candidates:
+    for candidate in reversed(candidates):
         if candidate.is_dir():
             candidate_str = str(candidate)
-            if candidate_str not in sys.path:
-                sys.path.insert(0, candidate_str)
-                added.append(candidate)
-    return tuple(added)
+            sys.path[:] = [entry for entry in sys.path if entry != candidate_str]
+            sys.path.insert(0, candidate_str)
+            added.append(candidate)
+    return tuple(reversed(added))

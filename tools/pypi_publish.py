@@ -6,8 +6,11 @@ agilab local publisher for TestPyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
-- Unified version for published AGI libraries + umbrella. Real PyPI never auto-bumps
-  to .postN; choose an explicit new version instead. TestPyPI may auto-bump for retries.
+- Per-package versions for published AGI components, bundles, and payload packages.
+  Real PyPI never auto-bumps to .postN; choose an explicit new version instead.
+  Public .postN releases are reserved for documented critical hotfixes. Use
+  release-candidate versions or TestPyPI for release rehearsals; TestPyPI may
+  auto-bump .postN for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -42,6 +45,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -49,6 +53,31 @@ from datetime import datetime, timezone
 from email.parser import Parser
 from typing import Dict, List, Tuple
 from html.parser import HTMLParser
+
+try:
+    from package_split_contract import (
+        APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
+        CORE_PACKAGE_NAMES,
+        EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        LIBRARY_PACKAGE_CONTRACTS,
+        PAGE_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+        WHEEL_ONLY_PACKAGE_NAMES,
+        package_by_name,
+    )
+except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
+    from tools.package_split_contract import (
+        APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
+        CORE_PACKAGE_NAMES,
+        EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        LIBRARY_PACKAGE_CONTRACTS,
+        PAGE_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+        WHEEL_ONLY_PACKAGE_NAMES,
+        package_by_name,
+    )
 
 # third-party bootstrap (install if missing)
 def _ensure_pkgs():
@@ -75,6 +104,10 @@ UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
 UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
 ALLOW_LOCAL_PYPI_TWINE_ENV = "AGILAB_ALLOW_LOCAL_PYPI_TWINE"
+ALLOW_PYPI_POST_RELEASE_ENV = "AGILAB_ALLOW_PYPI_POST_RELEASE"
+PYPI_POST_RELEASE_REASON_ENV = "AGILAB_PYPI_POST_RELEASE_REASON"
+VERSION_PATTERN = r"\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
+VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$", re.IGNORECASE)
 
 
 # ---------- CLI ----------
@@ -103,8 +136,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--version",
         help=(
-            "Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD. "
-            "Real PyPI refuses automatic .postN bumps when that version is already used."
+            "Explicit version 'X.Y.Z[rcN][.postN]'. If omitted, base=UTC YYYY.MM.DD. "
+            "Real PyPI refuses automatic .postN bumps when that version is already used; "
+            ".postN is reserved for documented critical hotfixes."
         ),
     )
 
@@ -240,36 +274,43 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
 # ---------- Repo layout (agilab) ----------
 REPO_ROOT = pathlib.Path.cwd().resolve()
 
-CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
-    ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
-    ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
-    ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
-    ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
-]
+def _package_entry(package_name: str) -> Tuple[str, pathlib.Path, pathlib.Path]:
+    package = package_by_name(package_name)
+    project_dir = REPO_ROOT if package.project == "." else REPO_ROOT / package.project
+    return package.name, REPO_ROOT / package.pyproject, project_dir
+
+
+CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [_package_entry(name) for name in CORE_PACKAGE_NAMES]
 def page_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
-    agi_gui = (
-        "agi-gui",
-        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
-        REPO_ROOT / "src/agilab/lib/agi-gui",
-    )
-    return [agi_gui] if agi_gui[1].exists() else []
+    return [entry for entry in (_package_entry(name) for name in PAGE_PACKAGE_NAMES) if entry[1].exists()]
+
+
+def app_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
+    return [entry for entry in (_package_entry(name) for name in APP_PACKAGE_NAMES) if entry[1].exists()]
 
 
 def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
     libs: List[Tuple[str, pathlib.Path, pathlib.Path]] = []
     inserted_page_libs = False
+    inserted_app_libs = False
     for entry in CORE:
         libs.append(entry)
         if entry[0] == "agi-env":
             libs.extend(page_libs())
             inserted_page_libs = True
+        if entry[0] == "agi-core":
+            libs.extend(app_libs())
+            inserted_app_libs = True
     if not inserted_page_libs:
         libs.extend(page_libs())
+    if not inserted_app_libs:
+        libs.extend(app_libs())
     return libs
 
 
-UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
+UMBRELLA = _package_entry(UMBRELLA_PACKAGE_CONTRACT.name)
 ALL_PACKAGE_NAMES = [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]
+WHEEL_ONLY_PACKAGES = set(WHEEL_ONLY_PACKAGE_NAMES)
 
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY",)
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
@@ -279,6 +320,8 @@ DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
 GITHUB_RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
+GITHUB_REPO = "ThalesGroup/agilab"
+COVERAGE_WORKFLOW = "coverage.yml"
 PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "CHANGELOG.md",
     "docs/.docs_source_mirror_stamp.json",
@@ -478,7 +521,7 @@ class _SimpleVersionParser(HTMLParser):
         self.versions: set[str] = set()
 
     def handle_data(self, data: str) -> None:
-        self.versions |= set(re.findall(r"\d+\.\d+\.\d+(?:\.post\d+)?", data or ""))
+        self.versions |= set(re.findall(VERSION_PATTERN, data or "", flags=re.IGNORECASE))
 
 
 def pypi_releases(name: str, repo_target: str) -> set[str]:
@@ -542,6 +585,51 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
         )
 
 
+def is_post_release_version(version: str) -> bool:
+    try:
+        return Version(version).post is not None
+    except InvalidVersion:
+        return bool(re.search(r"(?:^|[._-])post\d+\Z", version, flags=re.IGNORECASE))
+
+
+def _env_flag(name: str) -> bool:
+    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str]) -> None:
+    """Require an explicit critical-hotfix decision for public PyPI .postN releases."""
+
+    if cfg.repo != "pypi" or cfg.cleanup_only:
+        return
+    post_versions = {
+        package: version
+        for package, version in sorted(package_versions.items())
+        if is_post_release_version(version)
+    }
+    if not post_versions:
+        return
+
+    formatted = ", ".join(f"{package}={version}" for package, version in post_versions.items())
+    reason = os.environ.get(PYPI_POST_RELEASE_REASON_ENV, "").strip()
+    if cfg.dry_run:
+        print(
+            "[policy] Public PyPI .postN release detected in dry-run. "
+            f"Publication would require {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
+            f"{PYPI_POST_RELEASE_REASON_ENV}: {formatted}"
+        )
+        return
+    if _env_flag(ALLOW_PYPI_POST_RELEASE_ENV) and reason:
+        print(f"[policy] Allowing documented public PyPI post-release hotfix: {reason}")
+        return
+    raise SystemExit(
+        "ERROR: Public PyPI .postN releases are reserved for documented critical hotfixes. "
+        f"Selected post-release versions: {formatted}. Use a release candidate or TestPyPI for "
+        "rehearsal, then publish a deliberate new date-based final release. "
+        f"Break-glass post-release publication requires {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
+        f"{PYPI_POST_RELEASE_REASON_ENV} with the hotfix justification."
+    )
+
+
 def release_preflight_profiles(cfg: Cfg) -> list[str]:
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or not cfg.release_preflight:
         return []
@@ -553,6 +641,7 @@ def release_preflight_profiles(cfg: Cfg) -> list[str]:
         "installer",
         "shared-core-typing",
         "dependency-policy",
+        "release-proof",
     ]
 
 
@@ -604,6 +693,14 @@ def run_release_preflight(cfg: Cfg) -> None:
     run(cmd, cwd=REPO_ROOT)
 
 
+def run_release_coverage_badge_refresh() -> None:
+    """Refresh coverage badges from the release preflight XML before tagging."""
+
+    print("[preflight] Refreshing release coverage badges from local coverage XML")
+    run([sys.executable, "tools/generate_component_coverage_badges.py"], cwd=REPO_ROOT)
+    run([sys.executable, "tools/coverage_badge_guard.py"], cwd=REPO_ROOT)
+
+
 def run_pre_upload_release_guard(
     cfg: Cfg,
     *,
@@ -618,18 +715,144 @@ def run_pre_upload_release_guard(
         update_public_release_references_for_guard(planned_tag, chosen_version, version_targets)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
-    # Do not regenerate coverage badges here. Release-only metadata edits can
-    # produce local coverage XML that differs from the CI artifact source of
-    # truth, so the guard only verifies that no coverage-sensitive files were
-    # accidentally changed by the release metadata update.
+    run_release_coverage_badge_refresh()
     run(
         [
             sys.executable,
             "tools/coverage_badge_guard.py",
             "--changed-only",
+            "--allow-badge-only",
         ],
         cwd=REPO_ROOT,
     )
+
+
+def _git_head_sha(repo: pathlib.Path = REPO_ROOT) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return result.stdout.strip()
+
+
+def _gh_json(args: list[str]) -> object:
+    if shutil.which("gh") is None:
+        raise SystemExit("ERROR: GitHub CLI ('gh') is required for the release coverage prerequisite.")
+    result = subprocess.run(
+        ["gh", *args],
+        cwd=str(REPO_ROOT),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return json.loads(result.stdout or "null")
+
+
+def list_coverage_workflow_runs_for_head(head_sha: str) -> list[dict[str, object]]:
+    payload = _gh_json(
+        [
+            "run",
+            "list",
+            "--repo",
+            GITHUB_REPO,
+            "--workflow",
+            COVERAGE_WORKFLOW,
+            "--commit",
+            head_sha,
+            "--limit",
+            "5",
+            "--json",
+            "databaseId,status,conclusion,url,createdAt,headSha",
+        ]
+    )
+    if not isinstance(payload, list):
+        raise SystemExit("ERROR: could not read GitHub coverage workflow runs.")
+    return [run for run in payload if isinstance(run, dict)]
+
+
+def trigger_coverage_workflow(branch: str) -> None:
+    run(
+        [
+            "gh",
+            "workflow",
+            "run",
+            COVERAGE_WORKFLOW,
+            "--repo",
+            GITHUB_REPO,
+            "--ref",
+            branch,
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
+def release_coverage_workflow_required(cfg: Cfg) -> bool:
+    return cfg.repo == "pypi" and cfg.git_tag and not cfg.dry_run and not cfg.cleanup_only
+
+
+def run_release_coverage_workflow_prerequisite(
+    cfg: Cfg,
+    *,
+    timeout_seconds: int | None = None,
+    poll_seconds: int = 20,
+    list_runs_fn=list_coverage_workflow_runs_for_head,
+    trigger_fn=trigger_coverage_workflow,
+    sleep_fn=time.sleep,
+    time_fn=time.monotonic,
+) -> None:
+    """Require the GitHub coverage workflow to pass for the release commit."""
+
+    if not release_coverage_workflow_required(cfg):
+        return
+
+    branch = current_git_branch()
+    if branch == "HEAD":
+        raise SystemExit("ERROR: release coverage prerequisite requires a named git branch, not detached HEAD.")
+    head_sha = _git_head_sha()
+    timeout = timeout_seconds
+    if timeout is None:
+        timeout = int(os.environ.get("AGILAB_RELEASE_COVERAGE_TIMEOUT_SECONDS", "1800"))
+    deadline = time_fn() + max(1, timeout)
+    triggered = False
+    last_state: tuple[str, str] | None = None
+
+    print(f"[preflight] Requiring {COVERAGE_WORKFLOW} success for release commit {head_sha[:12]}")
+    while True:
+        runs = list_runs_fn(head_sha)
+        if runs:
+            run_info = runs[0]
+            status = str(run_info.get("status") or "")
+            conclusion = str(run_info.get("conclusion") or "")
+            url = str(run_info.get("url") or "")
+            state = (status, conclusion)
+            if status == "completed":
+                if conclusion == "success":
+                    print(f"[preflight] Coverage workflow passed for release commit: {url}")
+                    return
+                raise SystemExit(
+                    f"ERROR: Coverage workflow prerequisite failed for release commit {head_sha[:12]} "
+                    f"(conclusion={conclusion}). Fix coverage badges or tests before tagging: {url}"
+                )
+            if state != last_state:
+                print(f"[preflight] Waiting for coverage workflow ({status or 'unknown'}): {url}")
+                last_state = state
+        elif not triggered:
+            print(f"[preflight] No coverage workflow run found for {head_sha[:12]}; triggering {COVERAGE_WORKFLOW}")
+            trigger_fn(branch)
+            triggered = True
+        elif last_state != ("missing", ""):
+            print(f"[preflight] Waiting for triggered coverage workflow to appear for {head_sha[:12]}")
+            last_state = ("missing", "")
+
+        remaining = deadline - time_fn()
+        if remaining <= 0:
+            raise SystemExit(
+                f"ERROR: Timed out waiting for {COVERAGE_WORKFLOW} to pass for release commit {head_sha[:12]}."
+            )
+        sleep_fn(min(max(1, poll_seconds), remaining))
 
 
 EXTERNAL_INSTALL_PLATFORMS: tuple[str, ...] = (
@@ -907,6 +1130,52 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     return chosen, collisions
 
 
+def compute_package_versions(
+    targets: List[Tuple[str, pathlib.Path, pathlib.Path]],
+    repo_target: str,
+    explicit_version: str | None,
+) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+    versions: Dict[str, str] = {}
+    collisions: Dict[str, List[str]] = {}
+    for name, toml_path, _project_dir in targets:
+        if explicit_version is not None:
+            chosen, package_collisions = compute_unified_version([name], repo_target, explicit_version)
+            versions[name] = chosen
+            collisions.update(package_collisions)
+            continue
+
+        chosen = get_version_from_pyproject(toml_path)
+        versions[name] = chosen
+        releases = pypi_releases(name, repo_target)
+        hits = sorted(release for release in releases if versions_equivalent(chosen, release))
+        if hits:
+            collisions[name] = hits
+        latest = latest_existing_release([name], repo_target)
+        if latest is not None and safe_ver(chosen) < safe_ver(latest):
+            raise SystemExit(
+                f"ERROR: {name} pyproject version {chosen} is lower than existing release "
+                f"{latest} on {repo_target}. Choose a version >= the latest release."
+            )
+    return versions, collisions
+
+
+def primary_release_version(package_versions: Dict[str, str]) -> str:
+    for package_name in (UMBRELLA[0], "agi-core", "agi-pages", "agi-apps"):
+        version = package_versions.get(package_name)
+        if version:
+            return version
+    try:
+        return next(iter(package_versions.values()))
+    except StopIteration as exc:
+        raise SystemExit("ERROR: no packages selected for release") from exc
+
+
+def pin_internal_deps_for_package(package_name: str, pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
+    if package_name not in EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES:
+        return False
+    return pin_internal_deps(pyproject_path, pins)
+
+
 # ---------- TOML ops ----------
 def get_version_from_pyproject(pyproject_path: str | pathlib.Path) -> str:
     p = pathlib.Path(pyproject_path)
@@ -1160,6 +1429,19 @@ def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
         run(["uv", "build", "--project", str(project_dir), "--wheel"], cwd=project_dir)
     if dist_kind in ("sdist", "both"):
         run(["uv", "build", "--project", str(project_dir), "--sdist"], cwd=project_dir)
+
+
+def effective_dist_kind(package_name: str, requested: str) -> str:
+    """Return the build artifact kind supported by a published package."""
+    if package_name in WHEEL_ONLY_PACKAGES:
+        if requested == "sdist":
+            raise SystemExit(
+                f"ERROR: {package_name} is wheel-only by package policy. "
+                "Use --dist wheel or --dist both."
+            )
+        if requested == "both":
+            return "wheel"
+    return requested
 
 
 def uv_build_repo_root(dist_kind: str):
@@ -2083,6 +2365,8 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
         badge_path = static_badge_path(package_name)
         if badge_path.exists():
             paths.append(str(badge_path.relative_to(REPO_ROOT)))
+    for coverage_badge_path in sorted((REPO_ROOT / "badges").glob("coverage-*.svg")):
+        paths.append(str(coverage_badge_path.relative_to(REPO_ROOT)))
     for rel_path in PUBLIC_RELEASE_METADATA_PATHS:
         release_path = REPO_ROOT / rel_path
         if release_path.exists():
@@ -2198,8 +2482,8 @@ def main():
             docs_repo_ready = True
 
     # Validate explicit version if provided
-    if cfg.version is not None and not re.fullmatch(r"\d+\.\d+\.\d+(?:\.post\d+)?", cfg.version):
-        raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z or X.Y.Z.postN")
+    if cfg.version is not None and not VERSION_RE.fullmatch(cfg.version):
+        raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z, X.Y.ZrcN, or X.Y.Z.postN")
 
     selected_packages = set(cfg.packages or ALL_PACKAGE_NAMES)
     unknown = selected_packages - set(ALL_PACKAGE_NAMES)
@@ -2208,12 +2492,12 @@ def main():
 
     selected_core_entries = [entry for entry in publishable_libs() if entry[0] in selected_packages]
     build_umbrella = UMBRELLA[0] in selected_packages
-    sync_builtin_versions = bool(build_umbrella)
     if not selected_core_entries and not build_umbrella:
         raise SystemExit("ERROR: --packages must include at least one buildable package")
 
     selected_core_names = [name for name, *_ in selected_core_entries]
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
+    build_entries = selected_core_entries + ([UMBRELLA] if build_umbrella else [])
 
     if cfg.cleanup_only and cfg.delete_pypi_releases:
         delete_exact_pypi_releases(cfg, version_targets)
@@ -2235,26 +2519,14 @@ def main():
         # Name hygiene
         sanitize_project_names([p for _, p, _ in selected_core_entries])
 
-        # Determine version target
-        if cfg.packages and cfg.version is None:
-            existing_versions: set[str] = set()
-            for _, toml_path, _ in selected_core_entries:
-                existing_versions.add(get_version_from_pyproject(toml_path))
-            if build_umbrella:
-                existing_versions.add(get_version_from_pyproject(UMBRELLA[1]))
-            if len(existing_versions) != 1:
-                raise SystemExit(
-                    "ERROR: Selected packages have differing versions. "
-                    "Specify --version explicitly to override."
-                )
-            base_version = existing_versions.pop()
-        else:
-            base_version = cfg.version
+        package_versions, collisions = compute_package_versions(build_entries, cfg.repo, cfg.version)
+        chosen = primary_release_version(package_versions)
+        require_public_post_release_policy(cfg, package_versions)
 
-        chosen, collisions = compute_unified_version(version_targets, cfg.repo, base_version)
-
-        print(f"[plan] Unified version: {chosen}")
-        date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
+        print("[plan] Package versions:")
+        for name in version_targets:
+            print(f"  - {name}: {package_versions[name]}")
+        date_tag = normalize_base(chosen)  # primary date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
         planned_tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
         if cfg.dry_run:
@@ -2276,11 +2548,7 @@ def main():
         release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
         current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in publishable_libs()}
         pins = current_versions.copy()
-        for name in selected_core_names:
-            pins[name] = chosen
-
-        if sync_builtin_versions:
-            sync_builtin_app_versions(chosen, pins)
+        pins.update(package_versions)
 
         # Update README badges before building so the packaged long_description
         # and uploaded PyPI page embed the new versioned badge immediately.
@@ -2290,17 +2558,19 @@ def main():
 
         # core
         for name, toml, project in selected_core_entries:
+            package_version = package_versions[name]
             try:
-                set_version_in_pyproject(toml, chosen)
+                set_version_in_pyproject(toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
-            pin_internal_deps(toml, pins)
+            pin_internal_deps_for_package(name, toml, pins)
             update_release_badge_for_project(name, toml, project)
+            dist_kind = effective_dist_kind(name, cfg.dist)
             if cfg.dry_run:
-                print(f"[build] {name}: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                print(f"[build] {name}: (dry-run would build {dist_kind} artifacts for {package_version})")
                 files = []
             else:
-                uv_build_project(project, cfg.dist)
+                uv_build_project(project, dist_kind)
                 files = dist_files(project)
                 if files:
                     print(f"[build] {name}: {', '.join(files)}")
@@ -2308,15 +2578,16 @@ def main():
 
         # umbrella
         if build_umbrella:
+            package_version = package_versions[UMBRELLA[0]]
             _, umbrella_toml, _ = UMBRELLA
             try:
-                set_version_in_pyproject(umbrella_toml, chosen)
+                set_version_in_pyproject(umbrella_toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
-            pin_internal_deps(umbrella_toml, pins)
+            pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins)
             update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
             if cfg.dry_run:
-                print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {package_version})")
                 root_files = []
             else:
                 uv_build_repo_root(cfg.dist)
@@ -2344,53 +2615,37 @@ def main():
             generate_docs_in_docs_repository()
             docs_generated = True
 
-        if cfg.repo == "pypi" and cfg.git_commit_version:
-            with defer_sigint("pre-upload release metadata commit") as deferred_interrupt:
-                if planned_tag is not None:
-                    update_public_release_references(planned_tag, chosen, version_targets)
-                    release_references_updated = True
-                git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
-                if should_commit_docs_repository_after_release(
-                    docs_repo_ready=docs_repo_ready,
-                    gen_docs=cfg.gen_docs,
-                    release_tag=planned_tag,
-                ):
-                    git_commit_docs_repository(chosen, push=True)
-                release_metadata_committed = True
-            if deferred_interrupt["value"]:
-                raise KeyboardInterrupt(
-                    "Interrupted after release metadata was committed before upload"
-                )
+        run_release_coverage_workflow_prerequisite(cfg)
 
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
+        if not cfg.dry_run and cfg.repo == "pypi" and UPLOAD_COLLISION_DETECTED:
+            raise SystemExit(
+                f"ERROR: PyPI upload reported a version collision for {chosen}. "
+                "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+            )
         if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
-            if cfg.repo == "pypi":
-                raise SystemExit(
-                    f"ERROR: PyPI upload reported a version collision for {chosen}. "
-                    "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
-                )
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
-            base_only = normalize_base(chosen)
-            chosen2 = next_free_post_for_all(version_targets, cfg.repo, base_only)
+            package_versions2 = {
+                name: next_free_post_for_all([name], cfg.repo, normalize_base(version))
+                for name, version in package_versions.items()
+            }
+            chosen2 = primary_release_version(package_versions2)
             pins2 = pins.copy()
-            for name in selected_core_names:
-                pins2[name] = chosen2
+            pins2.update(package_versions2)
             update_selected_badges(selected_core_entries, build_umbrella)
             all_files2: List[str] = []
             for name, toml, project in selected_core_entries:
-                set_version_in_pyproject(toml, chosen2)
-                pin_internal_deps(toml, pins2)
+                set_version_in_pyproject(toml, package_versions2[name])
+                pin_internal_deps_for_package(name, toml, pins2)
                 update_release_badge_for_project(name, toml, project)
-                uv_build_project(project, cfg.dist)
+                uv_build_project(project, effective_dist_kind(name, cfg.dist))
                 all_files2.extend(dist_files(project))
             if build_umbrella:
-                if sync_builtin_versions:
-                    sync_builtin_app_versions(chosen2, pins2)
                 _, umbrella_toml, _ = UMBRELLA
-                set_version_in_pyproject(umbrella_toml, chosen2)
-                pin_internal_deps(umbrella_toml, pins2)
+                set_version_in_pyproject(umbrella_toml, package_versions2[UMBRELLA[0]])
+                pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins2)
                 update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
@@ -2406,6 +2661,7 @@ def main():
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
             twine_upload(all_files2, cfg.repo, cfg.skip_existing, cfg.retries)
             chosen = chosen2
+            package_versions = package_versions2
 
         if not cfg.dry_run:
             update_selected_badges(selected_core_entries, build_umbrella)

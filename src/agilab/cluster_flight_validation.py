@@ -25,7 +25,7 @@ from agilab.cluster_lan_discovery import (
 )
 
 
-DEFAULT_APP = "flight_project"
+DEFAULT_APP = "flight_telemetry_project"
 DEFAULT_DATASET_REL = Path("localshare/flight_cluster_validation/dataset/csv")
 DEFAULT_OUTPUT_REL = Path("flight_cluster_validation/dataframe_cluster_validation")
 DEFAULT_AIRCRAFT = tuple(range(60, 76))
@@ -120,7 +120,7 @@ def _default_apps_path() -> Path:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Validate the built-in Flight app on a small AGILAB cluster using "
+            "Validate the built-in flight-telemetry project on a small AGILAB cluster using "
             "synthetic CSV inputs and explicit local/remote path reporting."
         )
     )

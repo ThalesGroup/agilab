@@ -9,11 +9,58 @@ New to AGILab? Start with :doc:`quick-start` for a first run, use
 :doc:`architecture-five-minutes` for the compact layer map, then return here
 when you need the big picture of how the layers fit together.
 
-.. figure:: Agilab-Overview.svg
-   :alt: High-level view of AGILab runtime
+The short version is:
+
+.. code-block:: text
+
+   UI / CLI / notebook
+     -> AgiEnv
+     -> AGI.run / AGI.install / AGI.get_distrib
+     -> worker packaging
+     -> local, pool, Dask, or SSH execution
+     -> artifacts, evidence, ANALYSIS, notebook export
+
+Everything else in this page explains who owns each part of that path.
+
+Three-plane mental model
+------------------------
+
+AGILAB is easiest to understand as three planes kept in one releaseable
+monorepo:
+
+.. list-table::
+   :widths: 18 42 40
+   :header-rows: 1
+
+   * - Plane
+     - Owns
+     - Main roots
+   * - Control plane
+     - Product entry points, runtime APIs, environment resolution, worker
+       packaging, and local/distributed execution.
+     - ``src/agilab/core/*``, ``src/agilab/lib/agi-gui``,
+       ``src/agilab/pages``
+   * - Payload plane
+     - Apps, page bundles, templates, notebooks, examples, and PyPI payload
+       umbrellas.
+     - ``src/agilab/apps/builtin``, ``src/agilab/apps-pages``,
+       ``src/agilab/lib/agi-apps``, ``src/agilab/lib/agi-pages``,
+       ``src/agilab/examples``
+   * - Evidence plane
+     - Proof, audits, release contracts, supply-chain evidence, UI robot
+       outputs, docs mirror, and agent/runbook automation.
+     - ``tools``, ``.github``, ``docs/source``, ``.codex``, ``.claude``,
+       ``badges``
+
+This split is deliberate: the same source tree carries the runtime, the
+reusable app/page payloads, and the evidence proving those paths.
+
+.. figure:: diagrams/agilab_global_architecture.svg
+   :alt: Global view of AGILAB entry surfaces, project contract, control plane, execution targets, evidence, portability, and guardrails.
    :class: diagram-panel diagram-hero
 
-   AGILab layers from the web interface down to worker clusters.
+   Global AGILAB architecture from entry surfaces to the reusable app contract,
+   runtime back-planes, evidence, portability, and operational guardrails.
 
 Component view
 --------------
@@ -39,112 +86,128 @@ Pipeline example
 agilab.py navigation
 --------------------
 
-.. figure:: diagrams/agilab_pages.png
+.. figure:: diagrams/agilab_pages.svg
    :alt: agilab.py web interface entry showing core pages vs page bundles
    :width: 90%
 
-   agilab.py exposes core pages (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles
-   (sidecar dashboards), all routed into ``agi_core`` for orchestration.
+   agilab.py exposes the landing and SETTINGS entry points plus core workflow pages
+   (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles, all routed
+   into ``agi_core`` for orchestration.
 
 Manager vs worker responsibilities
 ----------------------------------
 
-.. figure:: diagrams/app_manager_worker.png
+.. figure:: diagrams/app_manager_worker.svg
    :alt: App manager orchestrates AGI.run; workers execute tasks
    :width: 90%
 
-   An app manager prepares arguments and submits plans via ``AGI.run``; workers
-   (BaseWorker subclasses) execute the distributed tasks.
+   An app manager prepares arguments and submits a ``WorkDispatcher`` plan through
+   ``AGI.run``; the selected local/pool/Dask back-plane executes packaged
+   worker runtimes.
 
-   Why setup.py exists: Dask serialises and ships worker code as .egg archives.
-   setup.py is the build hook that generates those archives when the cluster is initialised.
-   It has no role in the PyPI release pipeline — that is handled entirely by pyproject.toml and uv.
+   ``setup.py`` exists only for the worker-dispatch packaging path: some
+   distributed upload paths still serialize worker code as egg archives. Public
+   PyPI release packaging is handled by ``pyproject.toml`` and ``uv``.
 
-Layers at a glance
-------------------
+Runtime ownership
+-----------------
 
-.. list-table:: Layer responsibilities
-   :widths: 20 80
+.. list-table::
+   :widths: 22 34 44
    :header-rows: 1
 
-   * - Layer / Code roots
-     - What it does
+   * - Role
+     - Main code roots
+     - Contract
    * - **User surfaces**
-     - Web interface pages (``src/agilab/pages``) plus CLI mirrors in
-       ``src/agilab/examples`` and ``tools/run_configs``. They capture user
-       intent and translate it into ``AGI.*`` calls.
-   * - **agi_core**
-     - Reusable widgets, telemetry, app loaders. Keeps web-UI/CLI code thin
-       and prepares ``WorkDispatcher`` manifests. See :doc:`agi-core-architecture`.
-   * - **agi_env**
-     - Discovers datasets, resolves symlinks, stages bundles in ``~/wenv`` and
-       prepares environment variables. Every run builds an ``AgiEnv`` first.
-   * - **agi_cluster / agi_node**
-     - Scheduler, workers, balancer, SSH/zip helpers. Turns manifests into Dask
-       jobs locally or on remote hosts.
-   * - **Apps (``src/agilab/apps``)**
-     - Project-specific logic. App managers describe ``build_distribution`` and
-       worker arguments but rely on the shared layers above.
-   * - **Workers (``~/wenv/<app>_worker``)**
-     - Cythonised/packaged code deployed on cluster nodes.
+     - ``src/agilab/pages``, ``src/agilab/examples``, ``tools/run_configs``
+     - Capture user intent and translate it into the public ``AGI.*`` actions.
+   * - **Framework helpers**
+     - ``agi_core``, ``agi_gui``
+     - Keep pages and CLI mirrors thin: app loading, shared widgets, telemetry,
+       and UI/page helpers.
+   * - **Environment resolver**
+     - ``agi_env``
+     - Build an ``AgiEnv`` for the active project: paths, settings, shares, logs,
+       and runtime environment variables.
+   * - **Execution facade**
+     - ``agi_cluster.agi_distributor.AGI``
+     - Expose ``install``, ``get_distrib``, ``run``, and service actions used by
+       both UI and automation.
+   * - **Worker packaging and runtime**
+     - ``agi_node``, ``~/wenv/<app>_worker``
+     - Package worker code, bootstrap worker environments, and run app-specific
+       stages.
+   * - **Execution back-plane**
+     - local process, pool, Dask, SSH workers
+     - Execute one coarse AGILAB work item per worker and return artifacts,
+       logs, and telemetry.
+   * - **Apps**
+     - ``src/agilab/apps`` and packaged ``agi-app-*`` payloads
+     - Keep project-specific manager code, worker code, settings, datasets, and
+       examples behind the common app contract.
 
-**User surfaces**
-    - Web interface pages shipped in ``src/agilab/pages`` (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS).
-    - CLI mirrors under ``src/agilab/examples`` and ``tools/run_configs``.
-    - ``tools/run_configs/*.sh`` can be executed directly from a terminal (no
-      PyCharm required).
-    - Example scripts in ``src/agilab/examples`` (kept in sync via
-      ``pycharm/setup_pycharm.py``).
+Package names versus runtime roles
+----------------------------------
 
-**Core services**
-    - :doc:`agi-env` handles configuration, environment discovery, dataset
-      staging and artifact caching. Every entry point constructs an ``AgiEnv``
-      before touching a worker.
-    - :doc:`agi-node` and :doc:`agi-distributor` package the reusable logic shared
-      between all apps (dataset helpers, worker bootstrap, git/LFS utilities…).
-    - :doc:`framework-api` exposes ``AGI.run`` / ``AGI.get_distrib`` /
-      ``AGI.install`` orchestration.
-    - Apps under ``src/agilab/apps`` stay isolated but consume the same base
-      worker / dispatcher APIs. The repository includes example app templates
-      such as ``mycode_project``, ``flight_project``, and the lightweight
-      ``UAV Relay Queue`` demo (install id ``uav_relay_queue_project``); additional
-      templates can follow the same contract.
-    - AGILAB is intentionally a **two-runtime system**:
+Some names are close but not interchangeable:
 
-      - the manager/runtime side resolves settings, UI state, snippets, and orchestration
-      - the worker/runtime side runs the packaged worker code from ``~/wenv/<app>_worker``
+- ``agi_core`` is the shared app/page framework helper layer. It is not the
+  worker runtime.
+- ``agi_gui`` contains Streamlit-facing helpers and must stay out of headless
+  worker manifests.
+- ``agi_env`` resolves the selected app, settings, logs, workspace paths, and
+  environment variables.
+- ``agi_node`` owns worker bootstrap, worker base classes, and worker packaging.
+- ``agi_cluster`` exposes the ``AGI`` facade and the distributor that dispatches
+  local, pool, Dask, or SSH runs.
+- ``agi-distributor`` is the documentation/API page name for the distributor
+  implemented under ``agi_cluster.agi_distributor``.
 
-      This split is why manager imports and worker imports are different
-      contracts. A dependency or path can be valid on the manager side and
-      still be missing or packaged differently on the worker side.
+Manager and worker dependency rule
+----------------------------------
 
-**Execution back-plane**
-    - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and
-      capacity-weighted work-plan balancer. Workers are packaged
-      (``python -m agi_node…``) into ``~/wenv/<app>_worker`` before run time.
-    - Optional cluster helpers (SSH, remote installs, zip staging) live under
-      ``src/agilab/core/agi-node/agi_dispatcher`` and are reused by every app.
-    - AGILAB submits one coarse AGILAB task per worker to the outer Dask
-      scheduler. The code that runs inside ``BaseWorker.works(...)`` is
-      intentionally opaque to that outer scheduler.
-    - This boundary is deliberate. It keeps the worker contract stable across
-      plain local, pool-based, and Dask-based execution modes, reduces coupling
-      between app code and Dask internals, and keeps packaging/deployment at
-      one worker-runtime granularity.
-    - This means nested execution inside a worker is not first-class AGILAB
-      telemetry. If a worker starts its own inner Dask client or scheduler, the
-      outer Dask/Bokeh dashboard only sees the outer AGILAB worker future, not
-      the inner task graph.
-    - In practice, treat Dask as the cluster back-plane for AGILAB workers, not
-      as the supported inner orchestration engine inside one worker process.
+AGILAB is intentionally a two-runtime system. The manager/runtime side resolves
+settings, UI state, snippets, and orchestration. The worker/runtime side runs
+the packaged worker code from ``~/wenv/<app>_worker``.
+
+That split is why manager imports and worker imports are different contracts. A
+dependency or path can be valid on the manager side and still be missing or
+packaged differently on the worker side.
+
+Practical rule:
+
+- put UI and orchestration dependencies in the app project manifest
+- put compute-stage dependencies in ``src/<app>_worker/pyproject.toml``
+- do not put Streamlit or page-only dependencies in worker manifests
+- when a worker install fails, compare the source worker manifest with the
+  deployed copy under ``~/wenv/<app>_worker`` before changing app code
+
+Execution back-plane boundary
+-----------------------------
+
+:doc:`agi-distributor` contains the Dask-based scheduler, worker templates, and
+capacity-weighted work-plan balancer. Optional cluster helpers for SSH, remote
+installs, and zip staging live under ``src/agilab/core/agi-node`` and are reused
+by every app.
+
+AGILAB submits one coarse AGILAB task per worker to the outer Dask scheduler.
+The code that runs inside ``BaseWorker.works(...)`` is intentionally opaque to
+that outer scheduler. This keeps the worker contract stable across plain local,
+pool-based, and Dask-based execution modes.
+
+If a worker starts its own inner Dask client or scheduler, the outer Dask/Bokeh
+dashboard only sees the outer AGILAB worker future, not the inner task graph.
+Treat Dask as AGILAB's cluster back-plane for workers, not as a supported inner
+orchestration engine inside one worker process.
 
 Runtime flow
 ------------
 
-1. A run configuration (web button, CLI script, PyCharm run config) calls
-   an example in ``src/agilab/examples/<app>/AGI_run_*.py``.
-2. The script instantiates ``AgiEnv`` with the desired ``apps_dir`` and ``app``.
-   ``AgiEnv`` resolves symlinks, copies optional data bundles, seeds
+1. A web button, CLI script, notebook, or run configuration selects an app and
+   prepares run parameters.
+2. The entry point instantiates ``AgiEnv`` with the selected app. ``AgiEnv``
+   resolves symlinks, copies optional data bundles, seeds
    ``~/.agilab/apps/<app>/app_settings.toml`` from the app's versioned
    source ``app_settings.toml`` (``<project>/app_settings.toml`` or
    ``<project>/src/app_settings.toml``) when needed, and loads overrides from
@@ -154,8 +217,9 @@ Runtime flow
    the configured SSH hosts.
    The manager/runtime process does not execute the worker logic directly; it
    prepares and dispatches the worker/runtime package.
-4. :doc:`agi-distributor` spins up workers, streams ``WorkDispatcher`` plans derived
-   from the app manager, and feeds telemetry back into the capacity predictor.
+4. :doc:`agi-distributor` starts workers, streams ``WorkDispatcher`` plans
+   derived from the app manager, and feeds telemetry back into the capacity
+   predictor.
 5. Results land in ``~/agi-space`` (for end users) or the repo ``data``/``export``
    folders (for developers), while logs are mirrored to
    ``~/log/execute/<app>/`` for reproducibility.
@@ -187,12 +251,13 @@ Refresh the tracked tree after repository-layout changes by updating ``docs/sour
 Core vs optional apps
 ---------------------
 
-.. figure:: diagrams/repo_split.png
+.. figure:: diagrams/repo_split.svg
    :alt: Repository split between AGILAB core and optional apps
    :width: 90%
 
-   AGILAB (open-source framework) underpins optional apps that can be installed
-   separately. Public docs only cover the open-source layers and built-in apps.
+   AGILAB contains the shared runtime plus public built-in seeds; focused
+   ``agi-app-*`` and ``agi-pages`` payloads make the same app/page contracts
+   installable without depending on a source checkout.
 
 Documentation map
 -----------------

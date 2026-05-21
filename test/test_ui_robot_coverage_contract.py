@@ -1,0 +1,183 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+
+MODULE_PATH = Path("tools/ui_robot_coverage_contract.py").resolve()
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location("ui_robot_coverage_contract_test_module", MODULE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
+    module = _load_module()
+
+    payload = module.evaluate_contract()
+
+    assert payload["schema"] == module.SCHEMA
+    assert payload["success"] is True
+    assert payload["issues"] == []
+    for page in module.REQUIRED_CORE_PAGES:
+        assert payload["coverage"]["core_pages"][page]
+    for action in module.REQUIRED_HIGH_RISK_ACTIONS:
+        assert payload["coverage"]["high_risk_actions"][action]
+    assert payload["coverage"]["configured_apps_pages_scenarios"] == ["isolated-entry-and-app-pages"]
+    assert payload["coverage"]["hf_first_proof_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
+    assert payload["coverage"]["hf_first_proof_pages"] == [
+        "view_forecast_analysis",
+        "view_maps",
+        "view_release_decision",
+    ]
+    assert payload["coverage"]["hf_visual_smoke_profile_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+    ]
+    assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
+    assert payload["coverage"]["hf_visual_smoke_profile_scenarios"] == [
+        "hf-first-proof-app-pages-visual-smoke",
+        "hf-first-proof-visual-smoke",
+    ]
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
+        "actions": [],
+        "apps_pages": [],
+        "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
+        "pages": ["ANALYSIS", "HOME", "ORCHESTRATE", "PROJECT", "WORKFLOW"],
+    }
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-app-pages-visual-smoke"] == {
+        "actions": [],
+        "apps_pages": ["view_forecast_analysis", "view_maps", "view_release_decision"],
+        "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
+        "pages": [],
+    }
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-install"] == {
+        "actions": ["install"],
+        "apps_pages": [],
+        "flags": [],
+        "pages": ["ORCHESTRATE"],
+    }
+
+
+def test_ui_robot_coverage_contract_json_cli(capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(["--json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is True
+    assert payload["schema"] == module.SCHEMA
+    assert payload["coverage"]["hf_robot_scenarios"]
+
+
+def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> None:
+    module = _load_module()
+    core_scenario = SimpleNamespace(
+        name="core-selected-actions",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        apps_pages="none",
+        click_action_labels="INSTALL,CHECK distribute,Run -> Load -> Export",
+    )
+    incomplete_hf_visual = SimpleNamespace(
+        name="hf-first-proof-visual-smoke",
+        pages="HOME",
+        apps_pages="none",
+        click_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
+    widget_robot = SimpleNamespace(
+        page_label=lambda page: str(page),
+        resolve_pages=lambda pages: [page.strip() for page in str(pages).split(",") if page.strip()],
+        parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
+        _normalized_label=lambda value: str(value).strip().lower(),
+        public_builtin_apps=lambda: [SimpleNamespace(name="flight_telemetry_project")],
+        configured_apps_pages_for_app=lambda _app: [],
+    )
+    matrix = SimpleNamespace(
+        DEFAULT_SCENARIOS={"core-selected-actions": core_scenario},
+        ALL_SCENARIOS={
+            "core-selected-actions": core_scenario,
+            "hf-first-proof-visual-smoke": incomplete_hf_visual,
+        },
+        OPT_IN_SCENARIOS={"hf-first-proof-visual-smoke": incomplete_hf_visual},
+    )
+    hf_smoke = SimpleNamespace(
+        profile_builtin_app_entries=lambda _profile: {"flight_project"},
+        profile_page_entries=lambda _profile: {"view_maps"},
+    )
+    workflow_parity = SimpleNamespace(
+        _profile_commands=lambda _args: {
+            "hf-install-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-install"])],
+            "hf-visual-smoke-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-smoke"])],
+        }
+    )
+
+    def fake_load_module(_name, path):
+        if path == module.WIDGET_ROBOT_PATH:
+            return widget_robot
+        if path == module.MATRIX_PATH:
+            return matrix
+        if path == module.HF_SMOKE_PATH:
+            return hf_smoke
+        if path == module.WORKFLOW_PARITY_PATH:
+            return workflow_parity
+        raise AssertionError(f"unexpected module path: {path}")
+
+    monkeypatch.setattr(module, "_load_module", fake_load_module)
+
+    payload = module.evaluate_contract()
+
+    assert payload["success"] is False
+    details = [issue["detail"] for issue in payload["issues"]]
+    assert (
+        "first-proof HF profile is missing public demo apps: "
+        "flight_telemetry_project, weather_forecast_project"
+    ) in details
+    assert "first-proof HF profile still exposes stale demo apps: flight_project" in details
+    assert (
+        "first-proof HF profile is missing public demo pages: "
+        "view_forecast_analysis, view_release_decision"
+    ) in details
+    assert "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke" in details
+    assert "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke" in details
+    assert "hf-visual-smoke-robot is missing first-proof apps: flight_project" in details
+    assert "hf-install-robot does not run hf-first-proof-install" in details
+    assert "hf-install-robot is missing first-proof apps: flight_project" in details
+    assert any(
+        detail.startswith("hf-first-proof-visual-smoke is missing required pages:")
+        and "ANALYSIS" in detail
+        and "WORKFLOW" in detail
+        for detail in details
+    )
+    assert any(
+        detail.startswith("hf-first-proof-visual-smoke is missing required flags:")
+        and "above_fold_check" in detail
+        and "browser_error_check" in detail
+        and "success_screenshot" in detail
+        for detail in details
+    )
+    assert "hf-first-proof-app-pages-visual-smoke is missing from the robot matrix" in details
+    assert "hf-first-proof-install is missing from the robot matrix" in details

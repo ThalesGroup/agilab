@@ -121,6 +121,16 @@ render_latest_outputs = _workflow_ui_module.render_latest_outputs
 render_latest_run_card = _workflow_ui_module.render_latest_run_card
 render_workflow_timeline = _workflow_ui_module.render_workflow_timeline
 
+_run_manifest_module = import_agilab_module(
+    "agilab.run_manifest",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "run_manifest.py",
+    fallback_name="agilab_run_manifest_fallback",
+)
+RUN_MANIFEST_FILENAME = _run_manifest_module.RUN_MANIFEST_FILENAME
+load_run_manifest = _run_manifest_module.load_run_manifest
+manifest_summary = _run_manifest_module.manifest_summary
+
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
     current_file=__file__,
@@ -186,6 +196,18 @@ run_ready_controlled_global_dag_stages = _dag_run_engine_module.run_ready_contro
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
 write_runner_state = _dag_run_engine_module.write_runner_state
 
+_workflow_run_manifest_module = import_agilab_module(
+    "agilab.workflow_run_manifest",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_run_manifest.py",
+    fallback_name="agilab_workflow_run_manifest_fallback",
+)
+LATEST_WORKFLOW_EVIDENCE_FILENAME = _workflow_run_manifest_module.LATEST_WORKFLOW_EVIDENCE_FILENAME
+WORKFLOW_EVIDENCE_DIRNAME = _workflow_run_manifest_module.WORKFLOW_EVIDENCE_DIRNAME
+load_workflow_run_manifest = _workflow_run_manifest_module.load_workflow_run_manifest
+workflow_manifest_summary = _workflow_run_manifest_module.workflow_manifest_summary
+write_workflow_run_evidence = _workflow_run_manifest_module.write_workflow_run_evidence
+
 _multi_app_dag_module = import_agilab_module(
     "agilab.multi_app_dag",
     current_file=__file__,
@@ -237,7 +259,7 @@ GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GENERATE_STAGE_SOURCE = "Generate stage"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
-GLOBAL_DAG_EMPTY_STATE = "No workplan stages are available."
+GLOBAL_DAG_EMPTY_STATE = "No plan steps are available."
 GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
@@ -323,7 +345,7 @@ def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
             return template_path
     preferred = (
         GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH
-        if app_name in {"flight", "flight_project"}
+        if app_name in {"flight_telemetry", "flight_telemetry_project"}
         else GLOBAL_DAG_SAMPLE_RELATIVE_PATH
     )
     preferred_path = repo_root / preferred
@@ -352,7 +374,7 @@ def _resolve_global_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
 def _global_dag_label(path_text: str, repo_root: Path) -> str:
     path = _resolve_global_dag_input(path_text, repo_root)
     if path is None:
-        return "No DAG selected"
+        return "No plan selected"
     fallback = _repo_relative_text(path, repo_root)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -371,14 +393,14 @@ def _global_dag_display_name(path_text: str, repo_root: Path) -> str:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return path.stem or "custom DAG"
+        return path.stem or "custom plan"
     if not isinstance(payload, dict):
-        return path.stem or "custom DAG"
+        return path.stem or "custom plan"
     for field_name in ("label", "dag_id"):
         value = str(payload.get(field_name, "")).strip()
         if value:
             return value
-    return path.stem or "custom DAG"
+    return path.stem or "custom plan"
 
 
 def _global_dag_sample_options(repo_root: Path) -> list[str]:
@@ -502,14 +524,14 @@ def _global_dag_payload_from_text(editor_text: str) -> tuple[dict[str, Any] | No
     except json.JSONDecodeError as exc:
         return None, f"Invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
     if not isinstance(payload, dict):
-        return None, "DAG contract must be a JSON object."
+        return None, "Plan JSON must be a JSON object."
     return payload, ""
 
 
 def _load_global_dag_payload(path: Path | None) -> tuple[dict[str, Any], str]:
     editor_text = _global_dag_editor_text(path)
     if not editor_text.strip():
-        return _empty_global_dag_payload(), "No DAG contract is selected."
+        return _empty_global_dag_payload(), "No plan is selected."
     payload, error = _global_dag_payload_from_text(editor_text)
     if error or payload is None:
         return _empty_global_dag_payload(), error
@@ -547,7 +569,7 @@ def _save_global_dag_app_template(
     if validation_error:
         return None, validation_error
     if not _global_dag_has_controlled_contract_marker(payload):
-        return None, "Enable executable app template before saving an app-owned controlled DAG."
+        return None, "Enable executable app template before saving an app-owned controlled workflow."
 
     active_app = Path(active_app_name).name.strip()
     available_apps = builtin_app_names(repo_root)
@@ -559,7 +581,7 @@ def _save_global_dag_app_template(
         if isinstance(node, dict)
     }
     if active_app not in node_apps:
-        return None, f"App-owned DAG templates for `{active_app}` must include a `{active_app}` stage."
+        return None, f"App workflow templates for `{active_app}` must include a `{active_app}` step."
 
     template_dir = (
         repo_root / "src" / "agilab" / "apps" / "builtin" / active_app / "dag_templates"
@@ -782,7 +804,7 @@ def _artifact_option_label(option_key: str, artifact_options: dict[str, dict[str
     kind = artifact.get("kind", "")
     path = artifact.get("path", "")
     suffix = ", ".join(item for item in (kind, path) if item)
-    return f"{node_id} -> {artifact_id} ({suffix})" if suffix else f"{node_id} -> {artifact_id}"
+    return f"{node_id} creates {artifact_id} ({suffix})" if suffix else f"{node_id} creates {artifact_id}"
 
 
 def _handoff_key(source: str, target: str, artifact_id: str) -> str:
@@ -828,7 +850,7 @@ def _handoff_option_label(option_key: str, handoff_options: dict[str, dict[str, 
     source = handoff.get("from", "")
     target = handoff.get("to", "")
     artifact = handoff.get("artifact", "")
-    return f"{source} -> {target} via {artifact}"
+    return f"{target} uses {artifact} from {source}"
 
 
 def _default_artifact_keys(artifact_options: dict[str, dict[str, str]], tables: dict[str, pd.DataFrame]) -> list[str]:
@@ -870,10 +892,10 @@ def _selected_handoff_rows(
 def _workplan_output_rows(artifact_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [
         {
-            "stage": row.get("node", ""),
-            "produces": row.get("id", ""),
-            "kind": row.get("kind", ""),
-            "path": row.get("path", ""),
+            "Step": row.get("node", ""),
+            "Creates": row.get("id", ""),
+            "Type": row.get("kind", ""),
+            "Path": row.get("path", ""),
         }
         for row in artifact_rows
     ]
@@ -884,18 +906,29 @@ def _need_option_label(option_key: str, need_options: dict[str, dict[str, str]])
     target = need.get("to", "")
     artifact = need.get("artifact", "")
     source = need.get("from", "")
-    return f"{target} needs {artifact} from {source}"
+    return f"{target} uses {artifact} from {source}"
 
 
 def _workplan_need_rows(need_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [
         {
-            "stage": row.get("to", ""),
-            "needs": row.get("artifact", ""),
-            "from": row.get("from", ""),
-            "handoff": row.get("handoff", ""),
+            "Step": row.get("to", ""),
+            "Uses": row.get("artifact", ""),
+            "From step": row.get("from", ""),
+            "How it is used": row.get("handoff", ""),
         }
         for row in need_rows
+    ]
+
+
+def _workplan_step_rows(stage_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "Step": row.get("id", ""),
+            "App": row.get("app", ""),
+            "Why": row.get("purpose", ""),
+        }
+        for row in stage_rows
     ]
 
 
@@ -1189,12 +1222,12 @@ def _global_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[st
             continue
         rows.append(
             {
-                "stage": str(unit.get("id", "")),
-                "app": str(unit.get("app", "")),
-                "runs": _global_dag_executor_label(unit),
-                "needs": _global_dag_workplan_needs(unit),
-                "produces": _global_dag_workplan_produces(unit),
-                "state": _global_dag_workplan_state(unit),
+                "Step": str(unit.get("id", "")),
+                "App": str(unit.get("app", "")),
+                "Runs with": _global_dag_executor_label(unit),
+                "Uses": _global_dag_workplan_needs(unit),
+                "Creates": _global_dag_workplan_produces(unit),
+                "Status": _global_dag_workplan_state(unit),
             }
         )
     return rows
@@ -1267,14 +1300,14 @@ def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]
                 continue
             rows.append(
                 {
-                    "artifact": artifact_id,
-                    "from": str(dependency.get("from", "")),
-                    "from_app": str(dependency.get("from_app", "")),
-                    "to": target_id,
-                    "to_app": target_app,
-                    "status": "available" if artifact_id in available else "missing",
-                    "source_path": str(dependency.get("source_path", "")),
-                    "handoff": str(dependency.get("handoff", "")),
+                    "Output": artifact_id,
+                    "From step": str(dependency.get("from", "")),
+                    "From app": str(dependency.get("from_app", "")),
+                    "Used by step": target_id,
+                    "Used by app": target_app,
+                    "Status": "available" if artifact_id in available else "missing",
+                    "Path": str(dependency.get("source_path", "")),
+                    "How it is used": str(dependency.get("handoff", "")),
                 }
             )
     return rows
@@ -1328,13 +1361,13 @@ def _global_dag_next_action(state: Dict[str, Any]) -> str:
         return "Run the workflow again or reset the preview after editing project stages."
     failed = _global_dag_status_ids(state, "failed")
     if failed:
-        return f"Inspect failed stage `{failed[0]}`."
+        return f"Inspect failed step `{failed[0]}`."
     running = _global_dag_status_ids(state, "running")
     if running:
-        return f"Monitor running stage `{running[0]}`."
+        return f"Monitor running step `{running[0]}`."
     runnable = _global_dag_status_ids(state, "runnable")
     if runnable:
-        return f"Dispatch `{runnable[0]}`."
+        return f"Preview `{runnable[0]}`."
     blocked = _global_dag_status_ids(state, "blocked")
     if blocked:
         blocked_artifacts: list[str] = []
@@ -1346,26 +1379,26 @@ def _global_dag_next_action(state: Dict[str, Any]) -> str:
             if isinstance(raw_blocked, list):
                 blocked_artifacts = [str(item) for item in raw_blocked if str(item)]
             break
-        suffix = f" until `{', '.join(blocked_artifacts)}` is available" if blocked_artifacts else ""
+        suffix = f" until `{', '.join(blocked_artifacts)}` is ready" if blocked_artifacts else ""
         return f"Wait for `{blocked[0]}`{suffix}."
     completed = _global_dag_status_ids(state, "completed")
     if completed and len(completed) == _global_dag_unit_count(state):
-        return "All stages completed."
-    return "No runnable stage is available."
+        return "All steps completed."
+    return "No ready step is available."
 
 
 def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
     provenance = state.get("provenance", {})
     if not isinstance(provenance, dict):
-        return "preview dispatch, no app execution claimed"
+        return "preview only, no app run"
     if bool(provenance.get("real_app_execution")):
         return "live app execution"
     if bool(provenance.get("controlled_execution")):
         dispatch_mode = str(provenance.get("dispatch_mode", ""))
         if dispatch_mode == "controlled_contract_stage_execution":
             return "controlled contract execution"
-        return "controlled stage execution"
-    return "preview dispatch, no app execution claimed"
+        return "controlled step execution"
+    return "preview only, no app run"
 
 
 def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
@@ -1375,11 +1408,11 @@ def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
         return str(getattr(support, "status", "Preview-only") or "Preview-only")
     failed = _global_dag_status_ids(state, "failed")
     if failed:
-        return "Blocked: failed stage"
+        return "Blocked: failed step"
     if _global_dag_unit_count(state) and len(_global_dag_status_ids(state, "completed")) == _global_dag_unit_count(state):
         return "Completed"
     if _global_dag_status_ids(state, "blocked") and not _global_dag_status_ids(state, "runnable"):
-        return "Blocked: missing artifact"
+        return "Blocked: missing output"
     return str(getattr(support, "status", "Executable") or "Executable")
 
 
@@ -1400,14 +1433,14 @@ def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
 
 def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     summary = _global_dag_readiness_summary(state)
-    st.markdown("**Workplan readiness**")
+    st.markdown("**Plan readiness**")
     stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
-    stage_col.metric("Stages", int(summary["stage_count"]))
-    dependency_col.metric("Dependencies", int(summary["dependency_count"]))
-    runnable_col.metric("Runnable", int(summary["runnable_count"]))
-    blocked_col.metric("Blocked", int(summary["blocked_count"]))
+    stage_col.metric("Steps", int(summary["stage_count"]))
+    dependency_col.metric("Inputs", int(summary["dependency_count"]))
+    runnable_col.metric("Ready", int(summary["runnable_count"]))
+    blocked_col.metric("Waiting", int(summary["blocked_count"]))
     st.caption(f"Next action: {summary['next_action']}")
-    st.caption(f"Execution scope: {summary['execution_scope']}")
+    st.caption(f"Run mode: {summary['execution_scope']}")
 
 
 def _render_global_dag_execution_capability(
@@ -1416,17 +1449,266 @@ def _render_global_dag_execution_capability(
     execution_status: str,
     real_run_support: Any,
 ) -> None:
-    st.markdown("**Execution capability**")
+    st.markdown("**Run mode**")
     contract_col, mode_col, adapter_col = st.columns(3)
-    contract_col.metric("Contract", contract_name or "not selected")
-    mode_col.metric("Execution mode", execution_status)
+    contract_col.metric("Plan", contract_name or "not selected")
+    mode_col.metric("Run mode", execution_status)
     adapter_col.metric(
-        "Adapter",
+        "Runner",
         str(getattr(real_run_support, "adapter", "") or "preview only"),
     )
     message = str(getattr(real_run_support, "message", "")).strip()
     if message:
         st.caption(message)
+
+
+def _workflow_evidence_latest_path(state_path: Path) -> Path:
+    return state_path.expanduser().parent / WORKFLOW_EVIDENCE_DIRNAME / LATEST_WORKFLOW_EVIDENCE_FILENAME
+
+
+def _resolve_workflow_evidence_path(raw_path: Any, latest_path: Path) -> Path:
+    candidate = Path(str(raw_path or "")).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    return latest_path.parent / candidate
+
+
+def _workflow_evidence_status_label(status: str, run_status: str = "") -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "pass":
+        return "completed"
+    if normalized == "fail":
+        return "failed"
+    run_status = str(run_status or "").strip().lower()
+    if run_status in {"planned", "running", "stale", "completed", "failed"}:
+        return run_status
+    if normalized == "unknown":
+        return "planned/running"
+    return normalized or "not recorded"
+
+
+def _run_manifest_status_label(status: str) -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "pass":
+        return "done"
+    if normalized == "fail":
+        return "failed"
+    return normalized or "waiting"
+
+
+def _workflow_run_log_dir(env: Any) -> Path | None:
+    raw_runenv = getattr(env, "runenv", None)
+    if raw_runenv:
+        return Path(raw_runenv).expanduser()
+    target = str(getattr(env, "target", "") or getattr(env, "app", "") or "").strip()
+    if not target:
+        return None
+    return Path.home() / "log" / "execute" / target
+
+
+def _latest_run_log_file(run_log_dir: Path) -> Path | None:
+    try:
+        candidates = [path for path in run_log_dir.expanduser().glob("run_*.log") if path.is_file()]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not candidates:
+        return None
+
+    def _sort_key(path: Path) -> tuple[float, str]:
+        try:
+            return path.stat().st_mtime, path.name
+        except OSError:
+            return 0.0, path.name
+
+    return sorted(candidates, key=_sort_key)[-1]
+
+
+def _format_duration_seconds(value: Any) -> str:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if seconds < 0:
+        return ""
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    minutes, remainder = divmod(seconds, 60)
+    return f"{int(minutes)}m {remainder:.0f}s"
+
+
+def _latest_operational_run_summary(run_log_dir: Path | None) -> dict[str, Any]:
+    if run_log_dir is None:
+        return {
+            "available": False,
+            "status": "waiting",
+            "message": "No execution log directory is configured for this project.",
+            "run_log_dir": "",
+        }
+    run_log_dir = run_log_dir.expanduser()
+    manifest_path = run_log_dir / RUN_MANIFEST_FILENAME
+    latest_log_path = _latest_run_log_file(run_log_dir)
+    summary: dict[str, Any] = {
+        "available": bool(latest_log_path or manifest_path.is_file()),
+        "status": "done" if latest_log_path else "waiting",
+        "message": f"Execution logs are read from `{run_log_dir}`.",
+        "run_log_dir": str(run_log_dir),
+        "log_path": str(latest_log_path) if latest_log_path is not None else "",
+        "manifest_path": str(manifest_path) if manifest_path.is_file() else "",
+        "started_at": "",
+        "duration": "",
+        "run_id": "",
+    }
+    if manifest_path.is_file():
+        try:
+            manifest = load_run_manifest(manifest_path)
+            manifest_payload = manifest_summary(manifest)
+            summary.update(
+                {
+                    "available": True,
+                    "status": _run_manifest_status_label(str(manifest_payload.get("status", ""))),
+                    "started_at": manifest.timing.started_at,
+                    "duration": _format_duration_seconds(manifest.timing.duration_seconds),
+                    "run_id": str(manifest_payload.get("run_id", "")),
+                }
+            )
+        except Exception as exc:
+            summary.update(
+                {
+                    "available": True,
+                    "status": "warning",
+                    "message": f"Run manifest could not be read: {exc}",
+                    "manifest_path": str(manifest_path),
+                }
+            )
+    return summary
+
+
+def _render_existing_execution_log(run_log_dir: Path | None, *, key_prefix: str) -> None:
+    run_summary = _latest_operational_run_summary(run_log_dir)
+    st.markdown("**Execution log**")
+    if not run_summary.get("available"):
+        st.caption(str(run_summary.get("message", "No execution log has been recorded yet.")))
+        if run_summary.get("run_log_dir"):
+            st.caption(f"Log directory: `{run_summary['run_log_dir']}`")
+        return
+
+    render_latest_run_card(
+        st,
+        status=run_summary.get("status", ""),
+        log_path=run_summary.get("log_path", ""),
+        started_at=run_summary.get("started_at", ""),
+        duration=run_summary.get("duration", ""),
+        key_prefix=key_prefix,
+        title="Latest execution",
+    )
+    st.caption(str(run_summary.get("message", "")))
+    manifest_path = str(run_summary.get("manifest_path", ""))
+    if manifest_path:
+        st.caption(f"Run manifest: `{manifest_path}`")
+
+
+def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
+    latest_path = _workflow_evidence_latest_path(state_path)
+    if not latest_path.is_file():
+        return {
+            "available": False,
+            "status_label": "not recorded",
+            "message": "No workflow evidence has been recorded for this plan yet.",
+            "latest_path": str(latest_path),
+        }
+    try:
+        latest_payload = json.loads(latest_path.read_text(encoding="utf-8"))
+        if not isinstance(latest_payload, dict):
+            raise ValueError("latest evidence pointer must be a JSON object")
+        manifest_path = _resolve_workflow_evidence_path(latest_payload.get("manifest_path"), latest_path)
+        manifest = load_workflow_run_manifest(manifest_path)
+    except Exception as exc:
+        return {
+            "available": False,
+            "status_label": "unreadable",
+            "message": f"Latest workflow evidence could not be read: {exc}",
+            "latest_path": str(latest_path),
+        }
+
+    manifest_summary = workflow_manifest_summary(manifest)
+    runner_state = manifest.get("runner_state", {})
+    runner_state = runner_state if isinstance(runner_state, Mapping) else {}
+    runtime_contract = manifest.get("runtime_contract", {})
+    runtime_contract = runtime_contract if isinstance(runtime_contract, Mapping) else {}
+    ledger_payload = manifest.get("evidence_ledger", {})
+    ledger_payload = ledger_payload if isinstance(ledger_payload, Mapping) else {}
+    ledger_path = _resolve_workflow_evidence_path(
+        latest_payload.get("ledger_path") or ledger_payload.get("path"),
+        latest_path,
+    )
+    graph_payload = manifest.get("evidence_graph", {})
+    graph_payload = graph_payload if isinstance(graph_payload, Mapping) else {}
+    graph_path_value = latest_payload.get("graph_path") or graph_payload.get("path") or ""
+    graph_path = _resolve_workflow_evidence_path(graph_path_value, latest_path) if graph_path_value else None
+    status_label = _workflow_evidence_status_label(
+        str(manifest.get("status", "")),
+        str(runner_state.get("run_status", "")),
+    )
+    return {
+        "available": True,
+        "status_label": status_label,
+        "message": f"Latest workflow evidence: {status_label}.",
+        "latest_path": str(latest_path),
+        "manifest_path": str(manifest_path),
+        "ledger_path": str(ledger_path),
+        "graph_path": str(graph_path) if graph_path else "",
+        "manifest_id": manifest_summary.get("manifest_id", ""),
+        "run_id": manifest_summary.get("run_id", ""),
+        "unit_count": manifest_summary.get("unit_count", 0),
+        "produced_count": manifest_summary.get("produced_count", 0),
+        "consumed_count": manifest_summary.get("consumed_count", 0),
+        "phase": manifest_summary.get("phase", runtime_contract.get("phase", "unknown")),
+        "event_count": manifest_summary.get("event_count", runtime_contract.get("event_count", 0)),
+        "enabled_controls": _enabled_workflow_control_labels(runtime_contract),
+        "runner_state_sha256": str(runner_state.get("snapshot_sha256", "")),
+    }
+
+
+def _render_workflow_run_evidence(state_path: Path) -> None:
+    evidence = _latest_workflow_evidence_summary(state_path)
+    st.markdown("**Plan evidence**")
+    if not evidence.get("available"):
+        st.caption(str(evidence.get("message", "No workflow evidence has been recorded yet.")))
+        st.caption(f"Evidence pointer: `{evidence.get('latest_path', '')}`")
+        return
+
+    status_col, steps_col, creates_col, uses_col = st.columns(4)
+    status_col.metric("Evidence", str(evidence.get("status_label", "unknown")))
+    steps_col.metric("Steps", int(evidence.get("unit_count", 0) or 0))
+    creates_col.metric("Creates", int(evidence.get("produced_count", 0) or 0))
+    uses_col.metric("Uses", int(evidence.get("consumed_count", 0) or 0))
+    st.caption(str(evidence.get("message", "Latest workflow evidence recorded.")))
+    st.caption(
+        "Runtime phase: "
+        f"`{evidence.get('phase', 'unknown')}`; "
+        f"events: {int(evidence.get('event_count', 0) or 0)}; "
+        f"enabled controls: {', '.join(evidence.get('enabled_controls', ())) or 'none'}"
+    )
+    manifest_path = str(evidence.get("manifest_path", ""))
+    ledger_path = str(evidence.get("ledger_path", ""))
+    graph_path = str(evidence.get("graph_path", ""))
+    if manifest_path:
+        st.caption(f"Manifest: `{manifest_path}`")
+    if ledger_path:
+        st.caption(f"Ledger: `{ledger_path}`")
+    if graph_path:
+        st.caption(f"Evidence graph: `{graph_path}`")
+
+
+def _enabled_workflow_control_labels(runtime_contract: Mapping[str, Any]) -> tuple[str, ...]:
+    controls = runtime_contract.get("controls", [])
+    if not isinstance(controls, list):
+        return ()
+    return tuple(
+        str(control.get("label", "") or "")
+        for control in controls
+        if isinstance(control, Mapping) and bool(control.get("enabled")) and str(control.get("label", "") or "")
+    )
 
 
 def _dot_quote(value: Any) -> str:
@@ -1968,7 +2250,7 @@ def _build_pipeline_stages_runner_state(
                     "state": "ready_to_dispatch" if status == "runnable" else "blocked",
                     "severity": "info" if status == "runnable" else "warning",
                     "message": (
-                        f"{unit_id} is ready for preview dispatch."
+                        f"{unit_id} is ready for preview."
                         if status == "runnable"
                         else f"{unit_id} waits for `{previous_artifact_id}` from the previous project stage."
                     ),
@@ -2013,7 +2295,6 @@ def _build_pipeline_stages_runner_state(
             "stages_file": str(stages_file.expanduser()) if stages_file is not None else "",
             "stages_digest": stages_digest,
             "stage_count": len(pipeline_stages),
-            "stage_count": len(pipeline_stages),
             "execution_order": [unit["id"] for unit in units],
             "plan_schema": "agilab.lab_stages_dag_preview.v1",
             "plan_runner_status": "lab_stages_preview",
@@ -2057,6 +2338,25 @@ def _pipeline_stages_state_matches(
         str(source.get("stages_file", "")) == expected_stages_file
         and str(source.get("stages_digest", "")) == _pipeline_stages_digest(pipeline_stages)
     )
+
+
+def _write_pipeline_stages_runner_state_with_evidence(
+    state_path: Path,
+    state: Mapping[str, Any],
+    *,
+    lab_dir: Path,
+    trigger: Mapping[str, Any],
+) -> Path:
+    written_path = write_runner_state(state_path, state)
+    write_workflow_run_evidence(
+        state=state,
+        state_path=written_path,
+        repo_root=_repo_root_for_global_dag(),
+        lab_dir=lab_dir,
+        dag_path=None,
+        trigger=trigger,
+    )
+    return written_path
 
 
 def _load_or_create_pipeline_stages_runner_state(
@@ -2107,7 +2407,12 @@ def _load_or_create_pipeline_stages_runner_state(
                 reason="lab_stages.toml changed after the last observed workflow run.",
                 previous_digest=previous_digest,
             )
-            write_runner_state(state_path, stale_state)
+            _write_pipeline_stages_runner_state_with_evidence(
+                state_path,
+                stale_state,
+                lab_dir=lab_dir,
+                trigger={"surface": "workflow", "action": "project_stages_stale"},
+            )
             return stale_state, state_path
 
     state = _build_pipeline_stages_runner_state(
@@ -2128,7 +2433,12 @@ def _load_or_create_pipeline_stages_runner_state(
             )
         else:
             _apply_pipeline_stages_execution_evidence(state, evidence)
-    write_runner_state(state_path, state)
+    _write_pipeline_stages_runner_state_with_evidence(
+        state_path,
+        state,
+        lab_dir=lab_dir,
+        trigger={"surface": "workflow", "action": "project_stages_state_written"},
+    )
     return state, state_path
 
 
@@ -2141,6 +2451,7 @@ def _render_global_runner_state_view(
     repo_root: Path,
     index_page_str: str,
     dag_label_override: str = "",
+    run_log_dir: Path | None = None,
     project_stage_snippet_rows: list[dict[str, str]] | None = None,
     distributed_request_preview_rows: list[dict[str, str]] | None = None,
 ) -> None:
@@ -2154,7 +2465,7 @@ def _render_global_runner_state_view(
         _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
     )
     if dag_label:
-        st.caption(f"Contract path: `{dag_label}`")
+        st.caption(f"Plan path: `{dag_label}`")
     st.caption(f"State file: `{state_path}`")
     real_run_support = dag_engine.real_run_support(state)
     execution_status = _global_dag_execution_status(state, real_run_support)
@@ -2164,6 +2475,8 @@ def _render_global_runner_state_view(
         real_run_support=real_run_support,
     )
     _render_global_dag_readiness(state)
+    _render_existing_execution_log(run_log_dir, key_prefix=f"workflow:{index_page_str}:execution")
+    _render_workflow_run_evidence(state_path)
     running_col, completed_col, failed_col = st.columns(3)
     running_col.metric("Running", int(summary.get("running_count", 0) or 0))
     completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
@@ -2175,7 +2488,7 @@ def _render_global_runner_state_view(
         and st.checkbox(
             "Show graph",
             key=f"{index_page_str}_global_runner_show_graph",
-            help="Render the generated graph when the current screen has enough room.",
+            help="Show the generated graph if the current screen has enough room to read it.",
         )
     )
     if show_graph:
@@ -2183,7 +2496,7 @@ def _render_global_runner_state_view(
 
     workplan_rows = _global_dag_workplan_rows_for_display(state)
     if workplan_rows:
-        st.caption("Multi-app workplan")
+        st.caption("Multi-app plan")
         st.dataframe(workplan_rows, hide_index=True, width="stretch")
     else:
         st.caption(GLOBAL_DAG_EMPTY_STATE)
@@ -2196,13 +2509,13 @@ def _render_global_runner_state_view(
     show_artifacts = bool(
         artifact_rows
         and st.checkbox(
-            "Show artifact details",
+            "Show technical output details",
             key=f"{index_page_str}_global_runner_show_artifacts",
-            help="Inspect the raw artifact handoffs used to derive the workplan needs and outputs.",
+            help="Show the output handoffs used behind the plan.",
         )
     )
     if show_artifacts:
-        st.caption("Artifact handoffs")
+        st.caption("Output handoffs")
         st.dataframe(artifact_rows, hide_index=True, width="stretch")
 
     history_rows = _global_dag_execution_history_rows(state)
@@ -2210,7 +2523,7 @@ def _render_global_runner_state_view(
         st.caption("Execution history")
         st.dataframe(history_rows, hide_index=True, width="stretch")
     else:
-        st.caption("Execution history: no stage has been dispatched yet.")
+        st.caption("Execution history: no step has been started yet.")
 
     real_run_supported = real_run_support.supported
     if real_run_supported:
@@ -2263,7 +2576,7 @@ def _render_global_runner_state_view(
             try:
                 result = dag_engine.run_next_controlled_stage(state)
             except Exception as exc:
-                st.error("Controlled DAG stage execution failed.")
+                st.error("Controlled workflow step execution failed.")
                 st.caption("Full diagnostic")
                 st.code(str(exc), language="text")
                 return
@@ -2292,8 +2605,7 @@ def _render_global_runner_state_view(
                 st.warning(result.message)
     else:
         st.caption(
-            "Live stage execution requires a checked-in DAG with a controlled adapter marker; "
-            "other DAGs stay preview-only."
+            "Live runs require an approved checked-in workflow file; other plans stay preview-only."
         )
 
     provenance = state.get("provenance", {})
@@ -2305,13 +2617,13 @@ def _render_global_runner_state_view(
     dispatch_disabled = real_run_supported and controlled_run_started
     dispatch_clicked = action_button(
         st,
-        "Dispatch next runnable",
+        "Preview next ready step",
         key=f"{index_page_str}_global_runner_dispatch_next",
         kind="run",
         help=(
-            "Move the next runnable pipeline stage to running state without executing the app."
+            "Mark the next ready stage as running in the preview without executing the app."
             if not dispatch_disabled
-            else "Preview dispatch is disabled after a controlled live stage run starts; use Run next stage."
+            else "Preview is disabled after a controlled live run starts; use Run next ready step."
         ),
         disabled=dispatch_disabled,
     )
@@ -2419,7 +2731,7 @@ def _render_global_runner_state_panel(
         if save_notice:
             st.success(str(save_notice))
 
-        st.caption("Select a workplan, review readiness, and run only controlled templates.")
+        st.caption("Choose a plan, check what is ready, then run approved templates.")
         dag_source = st.session_state[source_key]
         selected_dag_text = ""
         if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STAGES:
@@ -2460,6 +2772,7 @@ def _render_global_runner_state_panel(
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override=GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+                run_log_dir=_workflow_run_log_dir(env),
                 project_stage_snippet_rows=_pipeline_stage_snippet_rows(project_stage_rows),
             )
             return
@@ -2478,13 +2791,13 @@ def _render_global_runner_state_panel(
         )
         if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
             if not app_template_options:
-                st.info("No app DAG template is bundled for this active project yet.")
+                st.info("No app workflow template is bundled for this active project yet.")
             selected_dag_text = st.selectbox(
                 "App template",
                 app_template_options or [""],
                 key=app_template_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
-                help="Choose an app-owned DAG template bundled with the active project.",
+                help="Choose an app workflow template bundled with the active project.",
             )
         elif dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
             selected_dag_text = st.selectbox(
@@ -2492,24 +2805,24 @@ def _render_global_runner_state_panel(
                 sample_options or [""],
                 key=library_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
-                help="Choose a checked-in sample. The UAV queue to relay sample is the only live-run enabled DAG.",
+                help="Choose a checked-in sample. The UAV queue to relay sample is the only live-run enabled plan.",
             )
         elif dag_source == GLOBAL_DAG_SOURCE_WORKSPACE:
             if not workspace_options:
-                st.info("No workspace DAG draft has been saved for this project yet.")
+                st.info("No workspace plan has been saved for this project yet.")
             selected_dag_text = st.selectbox(
                 "Saved draft",
                 workspace_options or [""],
                 key=workspace_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
-                help="Choose a DAG JSON saved from this project workspace.",
+                help="Choose a plan saved from this project workspace.",
             )
         else:
             selected_dag_text = st.text_input(
                 "Custom JSON path",
                 key=dag_input_key,
                 help=(
-                    "Relative paths resolve from the AGILAB checkout root. Custom DAGs stay preview-only "
+                    "Relative paths resolve from the AGILAB checkout root. Custom plans stay preview-only "
                     "until a controlled executor is explicitly implemented."
                 ),
             )
@@ -2525,13 +2838,13 @@ def _render_global_runner_state_panel(
             "Reset preview state",
             key=f"{index_page_str}_global_runner_reset",
             kind="reset",
-            help="Rebuild the preview runner state from the selected workplan.",
+            help="Rebuild the preview state from the selected plan.",
         )
         edit_contract_key = f"{index_page_str}_global_runner_edit_contract_{token}"
         edit_contract = st.checkbox(
-            "Edit workplan",
+            "Edit plan",
             key=edit_contract_key,
-            help="Change stages, artifacts, connections, or save a new contract.",
+            help="Change steps, outputs, inputs, or save a new plan.",
         )
         if not edit_contract:
             try:
@@ -2543,7 +2856,7 @@ def _render_global_runner_state_panel(
                 )
                 dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
             except Exception as exc:
-                st.error("Multi-app DAG orchestration preview is unavailable.")
+                st.error("Multi-app plan preview is unavailable.")
                 st.caption("Full diagnostic")
                 st.code(str(exc), language="text")
                 return
@@ -2555,6 +2868,7 @@ def _render_global_runner_state_panel(
                 dag_engine=dag_engine,
                 repo_root=repo_root,
                 index_page_str=index_page_str,
+                run_log_dir=_workflow_run_log_dir(env),
             )
             return
 
@@ -2567,10 +2881,10 @@ def _render_global_runner_state_panel(
         st.session_state.setdefault(metadata_keys["label"], str(base_payload.get("label", "")))
         st.session_state.setdefault(metadata_keys["description"], str(base_payload.get("description", "")))
 
-        st.markdown("**Describe workplan**")
+        st.markdown("**Name this plan**")
         metadata_cols = st.columns([1, 1], gap="medium")
         dag_id = metadata_cols[0].text_input(
-            "DAG id",
+            "Plan id",
             key=metadata_keys["dag_id"],
             help="Portable identifier used as the saved draft file name.",
         )
@@ -2591,15 +2905,15 @@ def _render_global_runner_state_panel(
             _global_dag_has_controlled_contract_marker(base_payload),
         )
         controlled_contract_enabled = st.checkbox(
-            "Executable app template",
+            "Make executable app template",
             key=controlled_contract_key,
             help=(
-                "Add the controlled contract adapter marker. Only checked-in app-owned DAG templates "
+                "Add the controlled adapter marker. Only checked-in app-owned workflow templates "
                 "saved under src/agilab/apps/builtin/<app>/dag_templates can execute from this view."
             ),
         )
         if controlled_contract_enabled:
-            st.caption("This draft will be saved with the controlled contract DAG execution marker.")
+            st.caption("This draft will be saved with the controlled execution marker.")
         else:
             st.caption("Workspace drafts stay preview-only. Enable this to save a checked-in executable template.")
 
@@ -2625,22 +2939,22 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["stages"]] = default_stage_ids
 
-        st.markdown("**Build workplan**")
+        st.markdown("**Pick steps and outputs**")
         selected_stage_ids = st.multiselect(
-            "Stages",
+            "Steps",
             stage_option_ids,
             key=table_keys["stages"],
             format_func=lambda stage_id: _stage_label(stage_id, stage_options),
-            help="Choose app-level stages from checked-in DAG templates and built-in apps.",
+            help="Choose app-level steps from checked-in workflow templates and built-in apps.",
         )
         selected_stage_rows = _selected_stage_rows(selected_stage_ids, stage_options)
         nodes_value = selected_stage_rows
         if selected_stage_rows:
-            st.dataframe(selected_stage_rows, hide_index=True, width="stretch")
+            st.dataframe(_workplan_step_rows(selected_stage_rows), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least two stages to form a valid multi-app DAG.")
+            st.warning("Select at least two steps to create a valid multi-app plan.")
 
-        st.markdown("**Stage outputs**")
+        st.markdown("**Outputs each step creates**")
         artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
         artifact_option_keys = list(artifact_options)
         default_artifact_keys = _default_artifact_keys(artifact_options, tables)
@@ -2651,19 +2965,19 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["produces"]] = default_artifact_keys
         selected_artifact_keys = st.multiselect(
-            "Produces",
+            "Creates",
             artifact_option_keys,
             key=table_keys["produces"],
             format_func=lambda key: _artifact_option_label(key, artifact_options),
-            help="Choose outputs exposed by the selected stages. Workplan needs can use these outputs.",
+            help="Choose outputs created by the selected steps. Other steps can use these outputs.",
         )
         produces_value = _selected_artifact_rows(selected_artifact_keys, artifact_options)
         if produces_value:
             st.dataframe(_workplan_output_rows(produces_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one output before adding stage needs.")
+            st.warning("Select at least one output before adding step inputs.")
 
-        st.markdown("**Stage needs**")
+        st.markdown("**Inputs each step uses**")
         selected_artifact_options = {
             key: artifact_options[key]
             for key in selected_artifact_keys
@@ -2683,20 +2997,20 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["needs"]] = default_need_keys
         selected_need_keys = st.multiselect(
-            "Needs",
+            "Uses",
             need_option_keys,
             key=table_keys["needs"],
             format_func=lambda key: _need_option_label(key, need_options),
-            help="Choose which stage needs an output from another stage. Artifact handoffs are generated automatically.",
+            help="Choose which step uses an output from another step. Links are generated automatically.",
         )
         edges_value = _selected_handoff_rows(selected_need_keys, need_options)
         consumes_value = _consumes_rows_from_handoffs(edges_value, selected_artifact_options)
         if edges_value:
             st.dataframe(_workplan_need_rows(edges_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one stage need to create a cross-app workplan.")
+            st.warning("Select at least one step input to create a cross-app plan.")
         if consumes_value:
-            st.caption("Consumed artifacts are derived from selected needs.")
+            st.caption("Technical input records are created from selected uses.")
             st.dataframe(consumes_value, hide_index=True, width="stretch")
 
         visual_payload = _global_dag_payload_from_visual_editor(
@@ -2715,13 +3029,13 @@ def _render_global_runner_state_panel(
         show_json_preview = st.checkbox(
             "Show generated JSON",
             key=f"{index_page_str}_global_runner_show_json_preview",
-            help="For review, export, or code review. Normal editing stays in the fields above.",
+            help="For export or review. Normal editing stays in the fields above.",
         )
         if show_json_preview:
-            st.caption("Read-only contract generated from the fields above.")
+            st.caption("Read-only workflow file generated from the fields above.")
             st.code(editor_text, language="json")
             st.download_button(
-                "Download DAG JSON",
+                "Download plan JSON",
                 data=editor_text,
                 file_name=f"{_portable_global_dag_stem(visual_payload, 'global-dag-draft')}.json",
                 mime="application/json",
@@ -2730,17 +3044,17 @@ def _render_global_runner_state_panel(
 
         validate_clicked = action_button(
             st,
-            "Check DAG",
+            "Check plan",
             key=f"{index_page_str}_global_runner_validate",
             kind="check",
-            help="Check schema, app names, dependencies, and artifact handoffs before saving.",
+            help="Check schema, app names, inputs, and outputs before saving.",
         )
         save_clicked = action_button(
             st,
-            "Save as workspace DAG",
+            "Save as workspace plan",
             key=f"{index_page_str}_global_runner_save_draft",
             kind="save",
-            help="Save the DAG contract to this project workspace and rebuild the preview state from it.",
+            help="Save the plan to this project workspace and rebuild the preview state from it.",
         )
         save_app_template_clicked = False
         if controlled_contract_enabled:
@@ -2750,30 +3064,30 @@ def _render_global_runner_state_panel(
                 key=f"{index_page_str}_global_runner_save_app_template",
                 kind="save",
                 help=(
-                    "Save a validated controlled-contract DAG under the active app's checked-in "
+                    "Save a validated controlled workflow under the active app's checked-in "
                     "dag_templates directory so it can execute from this view."
                 ),
             )
         if validate_clicked:
             validation_error = _global_dag_validation_error(editor_text, repo_root)
             if validation_error:
-                st.error("DAG draft is not valid.")
+                st.error("Plan draft is not valid.")
                 st.caption("Validation details")
                 st.code(validation_error, language="text")
             else:
-                st.success("DAG draft is valid.")
+                st.success("Plan draft is valid.")
 
         if save_clicked:
             draft_path, validation_error = _save_global_dag_draft(lab_dir, editor_text, repo_root)
             if validation_error:
-                st.error("DAG draft was not saved.")
+                st.error("Plan draft was not saved.")
                 st.caption("Validation details")
                 st.code(validation_error, language="text")
             else:
                 assert draft_path is not None
                 dag_path = draft_path
                 reset_clicked = True
-                notice = f"Saved DAG draft to `{draft_path}` and selected it for this preview."
+                notice = f"Saved plan draft to `{draft_path}` and selected it for this preview."
                 _queue_global_dag_source_selection(
                     index_page_str,
                     source=GLOBAL_DAG_SOURCE_WORKSPACE,
@@ -2791,14 +3105,14 @@ def _render_global_runner_state_panel(
                 editor_text=editor_text,
             )
             if validation_error:
-                st.error("App-owned DAG template was not saved.")
+                st.error("App workflow template was not saved.")
                 st.caption("Validation details")
                 st.code(validation_error, language="text")
             else:
                 assert template_path is not None
                 dag_path = template_path
                 reset_clicked = True
-                notice = f"Saved executable app DAG template to `{template_path}`."
+                notice = f"Saved executable app workflow template to `{template_path}`."
                 _queue_global_dag_source_selection(
                     index_page_str,
                     source=GLOBAL_DAG_SOURCE_APP_TEMPLATES,
@@ -2831,6 +3145,7 @@ def _render_global_runner_state_panel(
             dag_engine=dag_engine,
             repo_root=repo_root,
             index_page_str=index_page_str,
+            run_log_dir=_workflow_run_log_dir(env),
             distributed_request_preview_rows=distributed_preview_rows,
         )
 

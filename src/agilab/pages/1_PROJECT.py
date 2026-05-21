@@ -15,18 +15,24 @@
 import os
 import shutil
 import json
+import shlex
+import subprocess
 import time
 import zipfile
 import html
+import hashlib
+import tomllib
 from pathlib import Path
 import ast
 import re
 import importlib.util
+import sys
 from types import SimpleNamespace
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 import tomli_w
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -44,7 +50,7 @@ _page_docs_module = import_agilab_module(
 )
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
 
-from agi_gui.pagelib import render_logo, inject_theme
+from agi_gui.pagelib import inject_theme
 from agi_gui.pagelib import (
     background_services_enabled,
     get_classes_name,
@@ -58,9 +64,9 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
-from streamlit_modal import Modal
 from code_editor import code_editor
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
+from agi_env.app_provider_registry import resolve_installed_app_project
 
 _code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
@@ -116,6 +122,23 @@ ActionSpec = _action_execution_module.ActionSpec
 render_action_result = _action_execution_module.render_action_result
 run_streamlit_action = _action_execution_module.run_streamlit_action
 
+_pypi_app_packages_module = import_agilab_module(
+    "agilab.pypi_app_packages",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pypi_app_packages.py",
+    fallback_name="agilab_pypi_app_packages_fallback",
+)
+PYPI_APP_INSTALL_TIMEOUT_SECONDS = _pypi_app_packages_module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+_normalize_pypi_app_requirement = _pypi_app_packages_module.normalize_pypi_app_requirement
+_pypi_app_install_command = _pypi_app_packages_module.pypi_app_install_command
+_pypi_app_uninstall_command = _pypi_app_packages_module.pypi_app_uninstall_command
+_pypi_app_package_name = _pypi_app_packages_module.pypi_app_package_name
+_preflight_pypi_app_install = _pypi_app_packages_module.preflight_pypi_app_install
+_run_pypi_app_install = _pypi_app_packages_module.run_pypi_app_install
+_run_pypi_app_uninstall = _pypi_app_packages_module.run_pypi_app_uninstall
+_list_installed_pypi_apps = _pypi_app_packages_module.list_installed_pypi_apps
+_search_promoted_pypi_app_catalog = _pypi_app_packages_module.search_promoted_pypi_app_catalog
+
 _notebook_pipeline_import_module = import_agilab_module(
     "agilab.notebook_pipeline_import",
     current_file=__file__,
@@ -124,47 +147,213 @@ _notebook_pipeline_import_module = import_agilab_module(
 )
 _build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_preview
 _build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
-_build_notebook_import_pipeline_view = (
-    _notebook_pipeline_import_module.build_notebook_import_pipeline_view
-)
 _build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
-_build_notebook_import_view_plan = _notebook_pipeline_import_module.build_notebook_import_view_plan
 _build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
-_discover_notebook_import_view_manifest = (
-    _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+_apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
+_extract_notebook_import_defaults = _notebook_pipeline_import_module.extract_notebook_import_defaults
+_normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
+_notebook_import_sample_module = import_agilab_module(
+    "agilab.notebook_import_sample",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_import_sample.py",
+    fallback_name="agilab_notebook_import_sample_project_fallback",
 )
+_pipeline_editor_module = import_agilab_module(
+    "agilab.pipeline_editor",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_editor.py",
+    fallback_name="agilab_pipeline_editor_project_fallback",
+)
+_write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
+PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
+PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defaults_signature"
+PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX = "_project_notebook_runtime_role"
+PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
+PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
+PROJECT_NOTEBOOK_SAMPLE_ID_KEY = "_project_notebook_import_sample_id"
+PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
+PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
+PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = (
+    "start",
+    "create_mode",
+    "sidebar_selection",
+    PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+)
+NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
 NOTEBOOK_STEPS_FILE = "lab_stages.toml"
+NOTEBOOK_RUNTIME_ROLE_LABELS = {
+    "": "Select runtime role",
+    "manager": "Manager (local runpy)",
+    "worker": "Worker (AGILAB worker)",
+}
+NOTEBOOK_RUNTIME_ROLE_BY_LABEL = {label: role for role, label in NOTEBOOK_RUNTIME_ROLE_LABELS.items()}
 
 CLONE_ENV_STRATEGY_LABELS = {
-    "share_source_venv": "Temporary clone (share source .venv)",
     "detach_venv": "Working clone (no shared .venv)",
+    "share_source_venv": "Temporary clone (share source .venv)",
 }
 
 CLONE_ENV_STRATEGY_CAPTIONS = {
-    "share_source_venv": (
-        "Fast and lightweight. The clone keeps the source .venv by symlink, "
-        "so cleaning or deleting the source environment can break it."
-    ),
     "detach_venv": (
         "Safer for real development. The clone is created without .venv, "
         "so run INSTALL before EXECUTE."
     ),
+    "share_source_venv": (
+        "Fast and lightweight. The clone keeps the source .venv by symlink, "
+        "so cleaning or deleting the source environment can break it."
+    ),
 }
 CLONE_ENV_STRATEGY_HELP = (
-    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
-    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}\n\n"
     f"{CLONE_ENV_STRATEGY_LABELS['detach_venv']}: "
-    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}"
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}\n\n"
+    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}"
+)
+DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR = (
+    "_last_execute_failed",
+    "_service_logs_expanded",
+    "_show_run_app",
+    "benchmark",
+    "dataframe_deleted",
+    "delete_data_main_confirm",
+    "delete_data_main_undo_payload",
+    "last_run_log_path",
+    "log_text",
+    "run_log_cache",
+    "service_health_cache",
+    "service_log_cache",
+    "service_snapshot_path_cache",
+    "service_status_cache",
+    "show_distribute",
+    "show_install",
+    "show_run",
+)
+DELETE_RUNTIME_SESSION_KEY_SUFFIXES = (
+    "__last_run_log_file",
+    "__last_run_status",
+)
+WORKFLOW_UI_SESSION_ROOT_KEYS = (
+    "agilab:workflow_ui_state",
+    "agilab:workflow_action_history",
 )
 EDITOR_PIN_RESPONSE = "editor_pin"
 EDITOR_UNPIN_RESPONSE = "editor_unpin"
+
+
+def _project_query_param_value(query_params, key: str) -> str:
+    """Return a scalar query parameter value from Streamlit's query-param API."""
+    raw_value = query_params.get(key, "")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else ""
+    return str(raw_value or "").strip()
+
+
+def _query_params_as_dict(query_params) -> dict:
+    to_dict = getattr(query_params, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+        return dict(value or {})
+    return dict(query_params)
+
+
+def _remove_notebook_import_query_seed(query_params) -> bool:
+    """Remove one-shot notebook-import route parameters without touching app context."""
+    try:
+        current = _query_params_as_dict(query_params)
+        cleaned = {
+            key: value
+            for key, value in current.items()
+            if key not in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS
+        }
+        if cleaned == current:
+            return False
+
+        from_dict = getattr(query_params, "from_dict", None)
+        if callable(from_dict):
+            from_dict(cleaned)
+            return True
+
+        changed = False
+        for key in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS:
+            if key in query_params:
+                del query_params[key]
+                changed = True
+        return changed
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError, RecursionError):
+        return False
+
+
+def _resolve_notebook_import_sample_query(sample_query: str) -> tuple[str, str]:
+    requested = str(sample_query or "").strip()
+    if not requested:
+        return "", ""
+    sample_id = (
+        _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+        if requested == PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE
+        else requested
+    )
+    try:
+        sample = _notebook_import_sample_module.get_sample_notebook(sample_id)
+    except KeyError as exc:
+        return "", str(exc)
+    return str(sample.sample_id), ""
+
+
+def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
+    """Open PROJECT directly on the notebook file selector when requested by URL."""
+    start = _project_query_param_value(query_params, "start").lower()
+    requested_create_mode = _project_query_param_value(query_params, "create_mode")
+    requested_sidebar = _project_query_param_value(query_params, "sidebar_selection")
+    requested_sample = _project_query_param_value(
+        query_params,
+        PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+    )
+    notebook_requested = (
+        start in {PROJECT_NOTEBOOK_IMPORT_START, "notebook"}
+        or requested_create_mode == CREATE_MODE_NOTEBOOK
+        or (
+            requested_sidebar == "Create"
+            and requested_create_mode in {"", CREATE_MODE_NOTEBOOK}
+        )
+    )
+    sample_id, sample_error = _resolve_notebook_import_sample_query(requested_sample)
+    if not notebook_requested:
+        try:
+            if PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY in session_state:
+                del session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            pass
+        return False
+
+    seed_signature = "|".join((start, requested_create_mode, requested_sidebar, requested_sample))
+    if session_state.get(PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY) == seed_signature:
+        return False
+
+    session_state["sidebar_selection"] = "Create"
+    session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+    if sample_id:
+        session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ID_KEY] = sample_id
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+    elif requested_sample:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = sample_error
+    else:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+    session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
+    return True
 
 
 # -------------------- Source Extractor Class -------------------- #
@@ -541,7 +730,7 @@ def _update_function_source_action(
     )
 
 
-def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+def _resolve_clone_source_project(env: AgiEnv, target_project: Path) -> Path:
     source_project = target_project
     templates_root = env.apps_path / "templates"
     if not source_project.name.endswith("_project"):
@@ -549,6 +738,38 @@ def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
         if (env.apps_path / candidate).exists() or (templates_root / candidate).exists():
             source_project = candidate
 
+    if (env.apps_path / source_project).exists() or (templates_root / source_project).exists():
+        return source_project
+
+    if len(source_project.parts) == 1:
+        builtin_candidate = Path("builtin") / source_project
+        if (env.apps_path / builtin_candidate).exists():
+            return builtin_candidate
+
+    if len(source_project.parts) == 1:
+        active_app = getattr(env, "active_app", None)
+        if active_app is not None:
+            try:
+                active_app_path = Path(active_app).expanduser().resolve(strict=False)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                active_app_path = None
+            if active_app_path is not None and active_app_path.name == source_project.name:
+                if active_app_path.exists():
+                    return active_app_path
+
+        try:
+            installed_project = resolve_installed_app_project(source_project.name)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            installed_project = None
+        if installed_project is not None:
+            return installed_project
+
+    return source_project
+
+
+def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+    source_project = _resolve_clone_source_project(env, target_project)
+    templates_root = env.apps_path / "templates"
     source_root = env.apps_path / source_project
     if not source_root.exists() and templates_root.exists():
         source_root = templates_root / source_project
@@ -586,6 +807,366 @@ def _finalize_cloned_project_environment(
         )
 
     raise ValueError(f"Unknown clone environment strategy: {strategy}")
+
+
+def _install_pypi_app_package(
+    raw_requirement: str,
+    *,
+    runner=subprocess.run,
+    python_executable: str | None = None,
+    uv_executable: str | None = None,
+) -> ActionResult:
+    try:
+        requirement = _normalize_pypi_app_requirement(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "PyPI app package not installed.",
+            detail=str(exc),
+            next_action="Use a package name such as agi-app-weather-forecast.",
+        )
+
+    completed = _run_pypi_app_install(
+        requirement,
+        runner=runner,
+        python_executable=python_executable,
+        uv_executable=uv_executable,
+    )
+    data = completed.as_dict()
+    if completed.status == "success":
+        return ActionResult.success(
+            "PyPI app package installed.",
+            detail=completed.output_tail or requirement,
+            next_action="Refresh PROJECT or restart AGILAB, then select the new project.",
+            data=data,
+        )
+    return ActionResult.error(
+        "PyPI app package install failed.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
+        next_action="Check the package name, Python version support, and PyPI availability.",
+        data=data,
+    )
+
+
+def _remove_pypi_app_package(
+    raw_requirement: str,
+    *,
+    runner=subprocess.run,
+    python_executable: str | None = None,
+    uv_executable: str | None = None,
+) -> ActionResult:
+    try:
+        package = _pypi_app_package_name(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "PyPI app package not removed.",
+            detail=str(exc),
+            next_action="Select an installed agi-app-* package.",
+        )
+
+    completed = _run_pypi_app_uninstall(
+        package,
+        runner=runner,
+        python_executable=python_executable,
+        uv_executable=uv_executable,
+    )
+    data = completed.as_dict()
+    if completed.status == "success":
+        return ActionResult.success(
+            "PyPI app package removed.",
+            detail=completed.output_tail or package,
+            next_action="Refresh PROJECT or restart AGILAB.",
+            data=data,
+        )
+    return ActionResult.error(
+        "PyPI app package remove failed.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
+        next_action="Check the package name and current Python environment.",
+        data=data,
+    )
+
+
+def _preflight_pypi_app_package(raw_requirement: str) -> ActionResult:
+    try:
+        preflight = _preflight_pypi_app_install(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "PyPI app package preflight did not run.",
+            detail=str(exc),
+            next_action="Use a package name such as agi-app-weather-forecast.",
+        )
+    data = preflight.as_dict()
+    metadata = preflight.metadata
+    checks = [f"{key}: {value}" for key, value in preflight.checks.items()]
+    detail_parts = [
+        f"Package: {preflight.package}",
+        f"Version: {metadata.version if metadata else 'unknown'}",
+        *checks,
+    ]
+    if metadata and metadata.package_url:
+        detail_parts.append(f"URL: {metadata.package_url}")
+    if metadata and metadata.publisher:
+        detail_parts.append(f"Publisher: {metadata.publisher}")
+    detail = "\n".join(detail_parts)
+    if preflight.status == "pass":
+        return ActionResult.success(
+            "PyPI app package preflight passed.",
+            detail=detail,
+            next_action="Review the package metadata, then install if it matches the expected app.",
+            data=data,
+        )
+    return ActionResult.error(
+        "PyPI app package preflight failed.",
+        detail=detail,
+        next_action="Use another package or wait for a compatible release.",
+        data=data,
+    )
+
+
+def _refresh_projects_after_pypi_app_install(env) -> bool:
+    try:
+        from agi_env.app_provider_registry import installed_app_project_paths
+
+        env.installed_app_project_paths = installed_app_project_paths()
+        apps_repository_root = getattr(env, "apps_repository_root", None)
+        env.projects = env.get_projects(env.apps_path, env.builtin_apps_path, apps_repository_root)
+        st.session_state["env"] = env
+        st.session_state["_env"] = env
+        return True
+    except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -> None:
+    if not preflight_payload:
+        return
+    metadata = preflight_payload.get("metadata")
+    checks = preflight_payload.get("checks")
+    rows: list[dict[str, str]] = []
+    if isinstance(metadata, dict):
+        rows.extend(
+            [
+                {"Field": "Package", "Value": str(metadata.get("package") or "")},
+                {"Field": "Version", "Value": str(metadata.get("version") or "")},
+                {"Field": "Requires-Python", "Value": str(metadata.get("requires_python") or "<none>")},
+                {"Field": "Wheel", "Value": "yes" if metadata.get("wheel_available") else "no"},
+                {"Field": "sdist", "Value": "yes" if metadata.get("sdist_available") else "no"},
+                {"Field": "Provenance", "Value": "yes" if metadata.get("provenance_available") else "not advertised"},
+                {"Field": "Signature", "Value": "yes" if metadata.get("signed_files") else "not advertised"},
+                {"Field": "Entry point", "Value": ", ".join(metadata.get("entry_points") or ()) or "not found"},
+                {"Field": "Publisher", "Value": str(metadata.get("publisher") or "not advertised")},
+                {"Field": "PyPI", "Value": str(metadata.get("package_url") or "")},
+            ]
+        )
+    if isinstance(checks, dict):
+        rows.extend({"Field": f"Check: {key}", "Value": str(value)} for key, value in checks.items())
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def _render_installed_pypi_app_manager(env) -> None:
+    installed = _list_installed_pypi_apps()
+    st.caption("Installed PyPI apps")
+    if not installed:
+        st.info("No installed agi-app-* packages were discovered.")
+        return
+    rows = [
+        {
+            "Package": app.package,
+            "Version": app.version,
+            "Provider": app.provider,
+            "Entry point": app.entry_point,
+            "Project": app.project_root,
+        }
+        for app in installed
+    ]
+    st.dataframe(rows, hide_index=True, width="stretch")
+    package_options = sorted({app.package for app in installed}, key=str.lower)
+    selected_package = st.selectbox(
+        "Installed package",
+        options=package_options,
+        key="project_pypi_app_installed_package",
+    )
+    confirmed = st.checkbox(
+        "Confirmed package management",
+        key="project_pypi_app_manage_confirmed",
+        help="Update or remove only packages you intentionally installed into this AGILAB environment.",
+    )
+    update_col, remove_col = st.columns(2)
+    with update_col:
+        update_clicked = st.button(
+            "Update PyPI app",
+            key="project_pypi_app_update",
+            disabled=not selected_package or not confirmed,
+            width="stretch",
+        )
+    with remove_col:
+        remove_clicked = st.button(
+            "Remove PyPI app",
+            key="project_pypi_app_remove",
+            disabled=not selected_package or not confirmed,
+            width="stretch",
+        )
+    if update_clicked:
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Update PyPI app",
+                start_message=f"Updating {selected_package}...",
+                failure_title="PyPI app package update failed.",
+                failure_next_action="Check the package and current Python environment.",
+            ),
+            lambda: _install_pypi_app_package(selected_package),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
+    if remove_clicked:
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Remove PyPI app",
+                start_message=f"Removing {selected_package}...",
+                failure_title="PyPI app package remove failed.",
+                failure_next_action="Check the package and current Python environment.",
+            ),
+            lambda: _remove_pypi_app_package(selected_package),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
+
+
+def _render_pypi_app_install_action(env) -> None:
+    with st.sidebar.expander("Install PyPI app", expanded=False):
+        catalog_query = st.text_input(
+            "Catalog filter",
+            key="project_pypi_app_catalog_filter",
+            placeholder="weather",
+            help="Filter the promoted AGILAB app package catalog.",
+        )
+        catalog = _search_promoted_pypi_app_catalog(catalog_query)
+        catalog_options = ["", *catalog]
+        catalog_choice = st.selectbox(
+            "Catalog package",
+            options=catalog_options,
+            key="project_pypi_app_catalog_choice",
+        )
+        raw_requirement = st.text_input(
+            "Package",
+            key="project_pypi_app_requirement",
+            placeholder="agi-app-weather-forecast",
+            help="Install one trusted agi-app-* package into the current AGILAB environment.",
+        )
+        selected_requirement = str(raw_requirement or "").strip() or catalog_choice
+        requirement = ""
+        if selected_requirement:
+            try:
+                requirement = _normalize_pypi_app_requirement(selected_requirement)
+                command = _pypi_app_install_command(requirement)
+                st.code(shlex.join(command), language="bash")
+            except ValueError as exc:
+                st.warning(str(exc))
+
+        preflight_key = "project_pypi_app_preflight_payload"
+        check_clicked = st.button(
+            "Check PyPI app",
+            key="project_pypi_app_preflight",
+            disabled=not requirement,
+            width="stretch",
+        )
+        if check_clicked and requirement:
+            result = run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Check PyPI app",
+                    start_message=f"Checking {requirement}...",
+                    failure_title="PyPI app package preflight failed.",
+                    failure_next_action="Check the package name and PyPI availability.",
+                ),
+                lambda: _preflight_pypi_app_package(requirement),
+            )
+            st.session_state[preflight_key] = result.data
+
+        preflight_payload = st.session_state.get(preflight_key)
+        if isinstance(preflight_payload, dict):
+            payload_requirement = str(preflight_payload.get("requirement") or "")
+            if payload_requirement != requirement:
+                preflight_payload = None
+        _render_pypi_metadata_summary(preflight_payload if isinstance(preflight_payload, dict) else None)
+
+        trusted = st.checkbox(
+            "Reviewed package",
+            key="project_pypi_app_reviewed",
+            help="Only install PyPI packages you trust to run as local code.",
+        )
+        install_clicked = st.button(
+            "Install PyPI app",
+            key="project_pypi_app_install",
+            type="primary",
+            disabled=not requirement or not trusted,
+            width="stretch",
+        )
+        if install_clicked:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Install PyPI app",
+                    start_message=f"Installing {requirement}...",
+                    failure_title="PyPI app package install failed.",
+                    failure_next_action="Check the package name, Python version support, and PyPI availability.",
+                ),
+                lambda: _install_pypi_app_package(requirement),
+                on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+            )
+        _render_installed_pypi_app_manager(env)
+
+
+def _repair_cloned_builtin_core_source_paths(
+    env: AgiEnv,
+    source_root: Path,
+    dest_root: Path,
+) -> str | None:
+    """Rewrite local core uv source paths after cloning a builtin app to user apps."""
+    try:
+        source_root.relative_to(env.apps_path / "builtin")
+    except ValueError:
+        return None
+
+    core_root = env.apps_path.parent / "core"
+    repaired: list[Path] = []
+    for pyproject_path in sorted(dest_root.rglob("pyproject.toml")):
+        try:
+            data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        if not isinstance(sources, dict):
+            continue
+
+        modified = False
+        for source in sources.values():
+            if not isinstance(source, dict):
+                continue
+            raw_path = source.get("path")
+            if not isinstance(raw_path, str):
+                continue
+            parts = Path(raw_path).parts
+            if "core" not in parts:
+                continue
+            core_index = parts.index("core")
+            core_suffix = Path(*parts[core_index + 1 :])
+            if not core_suffix.parts:
+                continue
+            source["path"] = os.path.relpath(core_root / core_suffix, pyproject_path.parent)
+            modified = True
+
+        if modified:
+            with pyproject_path.open("wb") as handle:
+                tomli_w.dump(data, handle)
+            repaired.append(pyproject_path.relative_to(dest_root))
+
+    if not repaired:
+        return None
+    return "Repaired local core source paths in " + ", ".join(
+        path.as_posix() for path in repaired
+    )
 
 
 def _repair_renamed_project_environment(source_root: Path, dest_root: Path) -> str | None:
@@ -1767,15 +2348,15 @@ def _render_active_project_sidebar(env) -> None:
     projects = list(getattr(env, "projects", []) or [])
     if not projects:
         st.sidebar.info("No projects available.")
-        return
-
-    render_project_selector(
-        st,
-        projects,
-        env.app,
-        on_change=on_project_change,
-        show_edit_button=False,
-    )
+    else:
+        render_project_selector(
+            st,
+            projects,
+            env.app,
+            on_change=on_project_change,
+            show_edit_button=False,
+        )
+    _render_pypi_app_install_action(env)
     env = st.session_state["env"]
     st.session_state["_env"] = env
 
@@ -2298,9 +2879,10 @@ def _create_project_clone_action(
         )
 
     clone_source_path = Path(clone_source)
-    clone_source_root = _resolve_clone_source_root(env, clone_source_path)
+    resolved_clone_source_path = _resolve_clone_source_project(env, clone_source_path)
+    clone_source_root = _resolve_clone_source_root(env, resolved_clone_source_path)
     try:
-        env.clone_project(clone_source_path, Path(new_name))
+        env.clone_project(resolved_clone_source_path, Path(new_name))
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return ActionResult.error(
             f"Project '{new_name}' could not be cloned.",
@@ -2310,6 +2892,7 @@ def _create_project_clone_action(
                 "new_name": new_name,
                 "dest_root": dest_root,
                 "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
             },
         )
 
@@ -2317,7 +2900,31 @@ def _create_project_clone_action(
         return ActionResult.error(
             f"Error while creating '{new_name}'.",
             next_action="Check the clone source, destination path, and filesystem permissions.",
-            data={"new_name": new_name, "dest_root": dest_root},
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
+        )
+
+    try:
+        source_path_repair_message = _repair_cloned_builtin_core_source_paths(
+            env,
+            clone_source_root,
+            dest_root,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but local source paths could not be repaired.",
+            detail=str(exc),
+            next_action="Inspect the cloned pyproject.toml files, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
         )
 
     try:
@@ -2335,16 +2942,21 @@ def _create_project_clone_action(
                 "new_name": new_name,
                 "dest_root": dest_root,
                 "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
                 "clone_env_strategy": clone_env_strategy,
             },
         )
     return ActionResult.success(
         f"Project '{new_name}' created.",
-        detail=status_message,
+        detail="\n\n".join(
+            part for part in (status_message, source_path_repair_message) if part
+        )
+        or None,
         data={
             "new_name": new_name,
             "dest_root": dest_root,
             "clone_source": clone_source_path,
+            "resolved_clone_source": resolved_clone_source_path,
             "clone_env_strategy": clone_env_strategy,
         },
     )
@@ -2390,6 +3002,226 @@ def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
     return bytes(raw)
 
 
+def _packaged_sample_notebook_upload(sample_id: str | None = None):
+    """Return the packaged sample as an upload-like object without touching file_uploader state."""
+    selected_sample_id = sample_id or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+    sample = _notebook_import_sample_module.get_sample_notebook(selected_sample_id)
+    sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes(sample.sample_id)
+    return SimpleNamespace(
+        name=sample.download_name,
+        type=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
+        getvalue=lambda sample_bytes=sample_bytes: sample_bytes,
+        read=lambda sample_bytes=sample_bytes: sample_bytes,
+    )
+
+
+def _active_notebook_import_source(session_state):
+    """Return the user upload, or the one-shot packaged sample selected by the wizard."""
+    uploaded_notebook = session_state.get("create_notebook_upload")
+    if uploaded_notebook is not None:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+        return uploaded_notebook
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        try:
+            sample_id = str(
+                session_state.get(PROJECT_NOTEBOOK_SAMPLE_ID_KEY)
+                or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+            )
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            return _packaged_sample_notebook_upload(sample_id)
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+            session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = str(exc)
+    return None
+
+
+def _uploaded_notebook_signature(uploaded_notebook, notebook_bytes: bytes) -> str:
+    name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
+    digest = hashlib.sha256(notebook_bytes).hexdigest()[:16]
+    return f"{name}:{len(notebook_bytes)}:{digest}"
+
+
+def _notebook_import_defaults_from_upload(uploaded_notebook) -> dict[str, str]:
+    if uploaded_notebook is None:
+        return {}
+    notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+    if not notebook_bytes.strip():
+        return {}
+    payload = json.loads(notebook_bytes.decode("utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    defaults = _extract_notebook_import_defaults(payload)
+    defaults["_signature"] = _uploaded_notebook_signature(uploaded_notebook, notebook_bytes)
+    return defaults
+
+
+def _apply_notebook_import_defaults_from_upload(
+    session_state,
+    uploaded_notebook,
+    template_options: list[str],
+) -> dict[str, str]:
+    """Apply notebook metadata as UI defaults without overwriting user edits."""
+    if uploaded_notebook is None:
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+        return {}
+
+    try:
+        defaults = _notebook_import_defaults_from_upload(uploaded_notebook)
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+
+    signature = str(defaults.get("_signature", "") or "")
+    if not signature:
+        return {}
+
+    previous_signature = str(session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, "") or "")
+    previous_defaults = session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, {})
+    if not isinstance(previous_defaults, dict):
+        previous_defaults = {}
+    if signature == previous_signature:
+        return {key: value for key, value in defaults.items() if not key.startswith("_")}
+
+    visible_defaults = {key: value for key, value in defaults.items() if not key.startswith("_")}
+
+    previous_project_name = str(previous_defaults.get("project_name_hint", "") or "").strip()
+    if "project_name_hint" not in visible_defaults and previous_project_name:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if current_project_name == previous_project_name:
+            session_state.pop("clone_dest", None)
+
+    previous_template = str(previous_defaults.get("recommended_template", "") or "").strip()
+    current_template = str(session_state.get("notebook_clone_src", "") or "").strip()
+    if previous_template and current_template == previous_template:
+        if "recommended_template" not in visible_defaults:
+            session_state.pop("notebook_clone_src", None)
+            current_template = ""
+    elif current_template and current_template not in template_options:
+        session_state.pop("notebook_clone_src", None)
+        current_template = ""
+
+    project_name_hint = str(defaults.get("project_name_hint", "") or "").strip()
+    if project_name_hint:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if not current_project_name or current_project_name == previous_project_name:
+            session_state["clone_dest"] = project_name_hint
+
+    recommended_template = str(defaults.get("recommended_template", "") or "").strip()
+    if recommended_template in template_options:
+        current_template = str(session_state.get("notebook_clone_src", "") or "").strip()
+        if (
+            not current_template
+            or current_template == previous_template
+            or current_template not in template_options
+        ):
+            session_state["notebook_clone_src"] = recommended_template
+
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY] = visible_defaults
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY] = signature
+    return visible_defaults
+
+
+def _render_notebook_import_sample_actions(target, session_state) -> None:
+    """Render packaged notebook state without reselection UI."""
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        target.caption("Using AGILAB's included notebook; no local file is needed.")
+    elif session_state.get(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY):
+        target.caption(f"Sample notebook unavailable: {session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]}")
+
+
+def _is_guided_notebook_import(session_state, active_notebook_source) -> bool:
+    """Return true when PROJECT was opened from the ABOUT built-in notebook wizard."""
+    return bool(session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY)) and active_notebook_source is not None
+
+
+def _guided_notebook_import_values(
+    session_state,
+    notebook_defaults: dict[str, str],
+    *,
+    default_project: str,
+    default_template: str,
+    template_options: list[str],
+) -> tuple[str, str]:
+    """Resolve the fixed project/template values for the guided sample import."""
+    project_name = str(
+        notebook_defaults.get("project_name_hint")
+        or session_state.get("clone_dest")
+        or default_project
+    ).strip()
+    template_name = str(
+        notebook_defaults.get("recommended_template")
+        or session_state.get("notebook_clone_src")
+        or default_template
+    ).strip()
+    if template_name not in template_options:
+        template_name = default_template
+    session_state["clone_dest"] = project_name
+    session_state["notebook_clone_src"] = template_name
+    return project_name, template_name
+
+
+def _registered_navigation_page(route_id: str):
+    """Return a registered ``st.Page`` object from the active main navigation run."""
+    for module_name in ("__main__", "agilab.main_page"):
+        module = sys.modules.get(module_name)
+        routes = getattr(module, NAVIGATION_PAGE_ROUTES_ATTR, None)
+        if isinstance(routes, dict) and routes.get(route_id) is not None:
+            return routes[route_id]
+    return None
+
+
+def _switch_to_registered_navigation_page(
+    route_id: str,
+    label: str,
+    *,
+    query_params: dict[str, str] | None = None,
+) -> bool:
+    """Switch to a callable ``st.Page`` from ``st.navigation`` without legacy path crashes."""
+    switch_page = getattr(st, "switch_page", None)
+    page = _registered_navigation_page(route_id)
+    if not callable(switch_page) or page is None:
+        return False
+    try:
+        switch_page(page, query_params=query_params)
+    except StreamlitAPIException as exc:
+        st.session_state["project_navigation_warning"] = (
+            f"Project was created, but AGILAB could not open {label} automatically: {exc}"
+        )
+        return False
+    return True
+
+
+def _notebook_project_source_options(env: AgiEnv, template_options: list[str]) -> list[str]:
+    """Return cloneable sources for notebook import: app projects first, then templates."""
+    options: list[str] = []
+
+    def is_available_app_source(value: object) -> bool:
+        name = str(value or "").strip()
+        if not name:
+            return False
+        try:
+            source_project = _resolve_clone_source_project(env, Path(name))
+            source_root = _resolve_clone_source_root(env, source_project)
+            return source_root.exists()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def add(value: object, *, require_available: bool = False) -> None:
+        name = str(value or "").strip()
+        if name and name not in options and (not require_available or is_available_app_source(name)):
+            options.append(name)
+
+    add(getattr(env, "app", ""), require_available=True)
+    for project in getattr(env, "projects", []) or []:
+        add(project, require_available=True)
+    for template in template_options:
+        add(template)
+    return options
+
+
 def _decode_notebook_upload(uploaded_notebook) -> dict:
     raw = uploaded_notebook.read()
     if isinstance(raw, bytes):
@@ -2426,6 +3258,176 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
     }
 
 
+def _project_notebook_stage_identity(stage: dict, index: int) -> str:
+    return str(stage.get("id", "") or f"cell-{index}")
+
+
+def _project_notebook_string_list(value, limit: int = 5) -> str:
+    if not isinstance(value, list):
+        return "none"
+    items = [str(item) for item in value if str(item)]
+    if not items:
+        return "none"
+    visible = items[:limit]
+    suffix = f", +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _project_notebook_artifact_paths(stage: dict) -> list[str]:
+    references = stage.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _project_notebook_first_code_line(stage: dict) -> str:
+    source_lines = stage.get("source_lines", [])
+    if not isinstance(source_lines, list):
+        return ""
+    for line in source_lines:
+        text = str(line).strip()
+        if text:
+            return text[:96] + ("..." if len(text) > 96 else "")
+    return ""
+
+
+def _project_notebook_runtime_role_cell_hint(stage: dict, index: int) -> str:
+    source_cell_index = int(stage.get("source_cell_index", index) or index)
+    env_hints = stage.get("env_hints", [])
+    if not isinstance(env_hints, list):
+        env_hints = []
+    return (
+        f"Cell {source_cell_index}: {_project_notebook_first_code_line(stage) or 'code cell'}; "
+        f"artifacts: {_project_notebook_string_list(_project_notebook_artifact_paths(stage), limit=3)}; "
+        f"environment hints: {_project_notebook_string_list(env_hints, limit=4)}."
+    )
+
+
+def _project_notebook_import_stages(preview: dict) -> list[dict]:
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return []
+    stages = notebook_import.get("pipeline_stages", [])
+    return [stage for stage in stages if isinstance(stage, dict)]
+
+
+def _project_notebook_runtime_role_review_detail(preview: dict) -> str:
+    missing = [
+        _project_notebook_stage_identity(stage, index)
+        for index, stage in enumerate(_project_notebook_import_stages(preview), start=1)
+        if not _normalize_notebook_runtime_role(stage.get("runtime_role"))
+    ]
+    if not missing:
+        return ""
+    visible = ", ".join(missing[:8])
+    suffix = f", +{len(missing) - 8} more" if len(missing) > 8 else ""
+    return f"Select Manager or Worker for: {visible}{suffix}."
+
+
+def _project_notebook_import_preview_with_runtime_roles(preview: dict, runtime_roles: dict | None) -> dict:
+    role_map = runtime_roles or {}
+    if not role_map:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return preview
+
+    module = str(preview.get("module", "") or "notebook_import_project")
+    updated_import = _apply_notebook_runtime_roles(notebook_import, role_map)
+    preflight = _build_notebook_import_preflight(updated_import)
+    updated = dict(preview)
+    updated.update(
+        {
+            "notebook_import": updated_import,
+            "preflight": preflight,
+            "toml_content": _build_lab_stages_preview(updated_import, module_name=module),
+            "contract": _build_notebook_import_contract(
+                updated_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+        }
+    )
+    return updated
+
+
+def _project_notebook_preview_from_upload(uploaded_notebook, project_name: str) -> tuple[dict | None, str]:
+    if uploaded_notebook is None:
+        return None, ""
+    try:
+        notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+        preview_upload = SimpleNamespace(
+            name=_safe_uploaded_notebook_name(uploaded_notebook),
+            type=getattr(uploaded_notebook, "type", "application/x-ipynb+json"),
+            read=lambda notebook_bytes=notebook_bytes: notebook_bytes,
+        )
+        module_name = normalize_project_name(project_name) or "notebook_import_project"
+        preview = _build_project_notebook_import_preview(preview_upload, Path(module_name))
+        preview["source_signature"] = _uploaded_notebook_signature(uploaded_notebook, notebook_bytes)
+        return preview, ""
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return None, str(exc)
+
+
+def _render_project_notebook_runtime_role_review(target, uploaded_notebook, project_name: str) -> tuple[dict, str]:
+    preview, error = _project_notebook_preview_from_upload(uploaded_notebook, project_name)
+    if preview is None:
+        if error:
+            target.caption(f"Notebook runtime review unavailable: {error}")
+        return {}, ""
+
+    preflight = preview.get("preflight", {})
+    if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
+        return {}, ""
+
+    stages = _project_notebook_import_stages(preview)
+    if not stages:
+        return {}, ""
+
+    detail_before_review = _project_notebook_runtime_role_review_detail(preview)
+    expander = target.expander("Notebook runtime roles", expanded=bool(detail_before_review))
+    expander.caption("Select Manager or Worker for every runnable cell before creating the project.")
+
+    labels = list(NOTEBOOK_RUNTIME_ROLE_BY_LABEL)
+    source_signature = re.sub(r"[^A-Za-z0-9_]+", "_", str(preview.get("source_signature", "") or "")).strip("_")
+    selected_roles: dict[str, str] = {}
+    for index, stage in enumerate(stages, start=1):
+        stage_id = _project_notebook_stage_identity(stage, index)
+        current_role = _normalize_notebook_runtime_role(stage.get("runtime_role"))
+        default_label = NOTEBOOK_RUNTIME_ROLE_LABELS.get(current_role, NOTEBOOK_RUNTIME_ROLE_LABELS[""])
+        try:
+            default_index = labels.index(default_label)
+        except ValueError:
+            default_index = 0
+        selected_label = expander.selectbox(
+            f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
+            labels,
+            index=default_index,
+            key=f"{PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX}_{source_signature}_{stage_id}",
+            help=(
+                "Manager runs locally with runpy. Worker persists the stage for "
+                "AGILAB worker execution with agi.run."
+            ),
+        )
+        expander.caption(_project_notebook_runtime_role_cell_hint(stage, index))
+        role = NOTEBOOK_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
+        if role:
+            selected_roles[stage_id] = role
+
+    reviewed_preview = _project_notebook_import_preview_with_runtime_roles(preview, selected_roles)
+    detail = _project_notebook_runtime_role_review_detail(reviewed_preview)
+    if detail:
+        expander.warning(f"Runtime review required: {detail}")
+    return selected_roles, detail
+
+
 def _write_project_notebook_import_preview(
     preview: dict,
     module_dir: Path,
@@ -2433,45 +3435,14 @@ def _write_project_notebook_import_preview(
 ) -> int:
     module_dir = Path(module_dir)
     stages_file = Path(stages_file)
-    module = str(preview.get("module", "") or module_dir.name or "notebook_import_project")
-    preflight = preview.get("preflight", {})
-    notebook_import = preview.get("notebook_import", {})
-
-    stages_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(stages_file, "wb") as toml_file:
-        tomli_w.dump(preview.get("toml_content", {}), toml_file)
-
-    contract = _build_notebook_import_contract(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
+    return int(
+        _write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=module_dir,
+        )
     )
-    pipeline_view = _build_notebook_import_pipeline_view(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-    )
-    view_manifest_path = _discover_notebook_import_view_manifest(module_dir)
-    view_plan = _build_notebook_import_view_plan(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-        manifest_path=view_manifest_path,
-    )
-
-    (module_dir / "notebook_import_contract.json").write_text(
-        json.dumps(contract, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    (module_dir / "notebook_import_pipeline_view.json").write_text(
-        json.dumps(pipeline_view, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    (module_dir / "notebook_import_view_plan.json").write_text(
-        json.dumps(view_plan, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return int(preview.get("cell_count", 0) or 0)
 
 
 def _notebook_import_blocking_detail(preflight) -> str:
@@ -2525,6 +3496,7 @@ def _create_project_from_notebook_action(
     raw_project_name: str,
     uploaded_notebook,
     clone_env_strategy: str,
+    runtime_roles: dict | None = None,
 ) -> ActionResult:
     raw = raw_project_name.strip()
     if not raw:
@@ -2583,6 +3555,15 @@ def _create_project_from_notebook_action(
             next_action="Fix the notebook import errors, then retry project creation.",
             data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
         )
+    preview = _project_notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+    role_detail = _project_notebook_runtime_role_review_detail(preview)
+    if role_detail:
+        return ActionResult.error(
+            "Notebook runtime role review is incomplete.",
+            detail=role_detail,
+            next_action="Select Manager or Worker for each notebook code cell, then retry project creation.",
+            data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
+        )
 
     clone_result = _create_project_clone_action(
         env,
@@ -2618,6 +3599,10 @@ def _create_project_from_notebook_action(
     return ActionResult.success(
         f"Project '{new_name}' created from notebook.",
         detail=_notebook_project_detail(clone_result.detail, preflight, cell_count),
+        next_action=(
+            "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
+            "the imported notebook stages."
+        ),
         data={
             **dict(clone_result.data),
             "new_name": new_name,
@@ -2797,50 +3782,154 @@ def _delete_project_action(
     )
 
 
+def _clear_deleted_project_runtime_state(session_state, deleted_project: str) -> None:
+    """Drop transient runtime UI state that can outlive a deleted project."""
+    deleted_token = str(deleted_project or "").strip()
+    for key in DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR:
+        session_state.pop(key, None)
+
+    for key in list(session_state.keys()):
+        key_text = str(key)
+        if key_text.endswith(DELETE_RUNTIME_SESSION_KEY_SUFFIXES):
+            session_state.pop(key, None)
+
+    if not deleted_token:
+        return
+    for root_key in WORKFLOW_UI_SESSION_ROOT_KEYS:
+        root = session_state.get(root_key)
+        if not isinstance(root, dict):
+            continue
+        for scope in list(root.keys()):
+            if deleted_token in str(scope):
+                root.pop(scope, None)
+
+
+def _run_clearable_streamlit_action(
+    streamlit,
+    spec: ActionSpec,
+    action,
+    *,
+    on_success=None,
+) -> ActionResult:
+    """Run a page action and explicitly remove its spinner before rendering the result."""
+    spinner_slot = streamlit.empty()
+    try:
+        with spinner_slot:
+            with streamlit.spinner(spec.start_message):
+                result = action()
+    except Exception as exc:
+        result = ActionResult.error(
+            spec.failure_title or f"{spec.name} failed.",
+            detail=str(exc),
+            next_action=spec.failure_next_action,
+        )
+    finally:
+        spinner_slot.empty()
+
+    render_action_result(streamlit, result)
+    if result.status == "success" and on_success is not None:
+        on_success(result)
+    return result
+
+
 def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
     """
     st.header("Create project")
-    create_mode = compact_choice(
-        st.sidebar,
-        "Create mode",
-        [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
-        key="create_mode",
-        inline_limit=2,
-        fallback="radio",
-    )
+    sample_import_requested = bool(st.session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY))
+    if sample_import_requested:
+        st.session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+        create_mode = CREATE_MODE_NOTEBOOK
+    else:
+        create_mode = compact_choice(
+            st.sidebar,
+            "Create mode",
+            [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
+            key="create_mode",
+            inline_limit=2,
+            fallback="radio",
+        )
     env = st.session_state["env"]
+    guided_notebook_import = False
+    guided_project_name = ""
+    active_notebook_source = None
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
-            "Create a project from a notebook by importing code cells into a template pipeline."
+            "Start from a notebook. AGILAB clones a base project, imports the notebook steps, "
+            "then you can install and run the new project."
         )
-        template_options = list(st.session_state["templates"]) or [env.app]
+        template_options = _notebook_project_source_options(
+            env,
+            list(st.session_state["templates"]),
+        )
+        active_notebook_source = _active_notebook_import_source(st.session_state)
+        notebook_defaults = _apply_notebook_import_defaults_from_upload(
+            st.session_state,
+            active_notebook_source,
+            template_options,
+        )
         default_template = (
             NOTEBOOK_PROJECT_DEFAULT_TEMPLATE
             if NOTEBOOK_PROJECT_DEFAULT_TEMPLATE in template_options
             else template_options[0]
         )
-        compact_choice(
-            st.sidebar,
-            "Notebook template",
-            template_options,
-            key="notebook_clone_src",
-            default=default_template,
-            inline_limit=5,
+        guided_notebook_import = _is_guided_notebook_import(
+            st.session_state,
+            active_notebook_source,
         )
-        st.sidebar.file_uploader(
-            "Notebook",
-            type="ipynb",
-            key="create_notebook_upload",
-        )
+        if guided_notebook_import:
+            guided_project_name, guided_template_name = _guided_notebook_import_values(
+                st.session_state,
+                notebook_defaults,
+                default_project="flight-telemetry-from-notebook-project",
+                default_template=default_template,
+                template_options=template_options,
+            )
+            normalized_project_name = normalize_project_name(guided_project_name)
+            st.info(
+                "AGILAB's included notebook is selected. "
+                f"Click Create to build `{normalized_project_name}` from `{guided_template_name}`; "
+                "ORCHESTRATE opens next for INSTALL and EXECUTE."
+            )
+            st.sidebar.caption(f"Included notebook -> `{normalized_project_name}`.")
+        elif notebook_defaults:
+            default_project = notebook_defaults.get("project_name_hint", "")
+            default_template_hint = notebook_defaults.get("recommended_template", "")
+            if default_template_hint not in template_options:
+                default_template_hint = ""
+            if default_project and default_template_hint:
+                detail = f"`{default_project}` from `{default_template_hint}`"
+            elif default_project:
+                detail = f"`{default_project}`"
+            elif default_template_hint:
+                detail = f"a project from `{default_template_hint}`"
+            else:
+                detail = ""
+            if detail:
+                st.sidebar.caption(f"This notebook will create {detail}.")
+        if not guided_notebook_import:
+            compact_choice(
+                st.sidebar,
+                "Base project to clone",
+                template_options,
+                key="notebook_clone_src",
+                default=default_template,
+                inline_limit=5,
+            )
+            _render_notebook_import_sample_actions(st.sidebar, st.session_state)
+            st.sidebar.file_uploader(
+                "Upload your own notebook file",
+                type="ipynb",
+                key="create_notebook_upload",
+            )
     else:
         st.caption(
             "Create a new project from an existing template. "
             "Use a working clone for real development."
         )
-        # choose a template (relative project name, e.g. "flight_project")
+        # choose a template (relative project name, e.g. "flight_telemetry_project")
         compact_choice(
             st.sidebar,
             "Starting point",
@@ -2852,23 +3941,49 @@ def handle_project_creation():
             inline_limit=5,
         )
 
+    env_strategy_target = st.sidebar
+    if guided_notebook_import:
+        st.session_state.setdefault("clone_env_strategy", "detach_venv")
+        env_strategy_target = st.sidebar.expander("Advanced", expanded=False)
+
     clone_env_strategy = compact_choice(
-        st.sidebar,
+        env_strategy_target,
         "Environment strategy",
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
+        default="detach_venv",
         format_func=CLONE_ENV_STRATEGY_LABELS.get,
         help=CLONE_ENV_STRATEGY_HELP,
         fallback="radio",
     )
 
-    raw = st.sidebar.text_input(
-        "New project base name",
-        key="clone_dest",
-        help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
-    ).strip()
+    if guided_notebook_import:
+        raw = guided_project_name.strip()
+    else:
+        raw = st.sidebar.text_input(
+            "New project base name",
+            key="clone_dest",
+            help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
+        ).strip()
 
-    create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
+    notebook_runtime_roles: dict[str, str] = {}
+    notebook_role_detail = ""
+    notebook_source_missing = create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is None
+    if create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is not None:
+        notebook_runtime_roles, notebook_role_detail = _render_project_notebook_runtime_role_review(
+            st.sidebar,
+            active_notebook_source,
+            raw,
+        )
+    elif notebook_source_missing:
+        st.sidebar.info("Upload a notebook before creating the project.")
+
+    create_clicked = st.sidebar.button(
+        "Create",
+        type="primary",
+        width="stretch",
+        disabled=create_mode == CREATE_MODE_NOTEBOOK and (notebook_source_missing or bool(notebook_role_detail)),
+    )
     if create_clicked:
         def _activate_clone(result):
             new_name = str(result.data["new_name"])
@@ -2880,15 +3995,21 @@ def handle_project_creation():
         def _activate_notebook_project(result):
             new_name = str(result.data["new_name"])
             env.change_app(new_name)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
             st.session_state["project_changed"] = True
             st.session_state["_requested_lab_dir"] = new_name
-            st.session_state["lab_dir_selectbox"] = new_name
-            st.session_state["project_selectbox"] = new_name
             st.query_params["active_app"] = new_name
             st.query_params["lab_dir_selectbox"] = new_name
-            switch_page = getattr(st, "switch_page", None)
-            if callable(switch_page):
-                switch_page(Path("pages/3_WORKFLOW.py"))
+            st.session_state["show_install"] = True
+            if _switch_to_registered_navigation_page(
+                "orchestrate",
+                "ORCHESTRATE",
+                query_params={"active_app": new_name, "lab_dir_selectbox": new_name},
+            ):
                 return
             st.session_state["switch_to_edit"] = True
             st.rerun()
@@ -2905,16 +4026,17 @@ def handle_project_creation():
                         "and filesystem permissions."
                     ),
                 ),
-                lambda: _create_project_from_notebook_action(
-                    env,
-                    template_source=st.session_state.get(
-                        "notebook_clone_src",
-                        NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                    lambda: _create_project_from_notebook_action(
+                        env,
+                        template_source=st.session_state.get(
+                            "notebook_clone_src",
+                            NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                        ),
+                        raw_project_name=raw,
+                        uploaded_notebook=_active_notebook_import_source(st.session_state),
+                        clone_env_strategy=clone_env_strategy,
+                        runtime_roles=notebook_runtime_roles,
                     ),
-                    raw_project_name=raw,
-                    uploaded_notebook=st.session_state.get("create_notebook_upload"),
-                    clone_env_strategy=clone_env_strategy,
-                ),
                 on_success=_activate_notebook_project,
             )
         else:
@@ -3020,6 +4142,8 @@ def handle_project_delete():
     delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
     if delete_clicked:
         def _activate_after_delete(result):
+            deleted_project = str(result.data.get("app") or env.app)
+            _clear_deleted_project_runtime_state(st.session_state, deleted_project)
             next_app = result.data.get("next_app")
             if next_app:
                 on_project_change(str(next_app))
@@ -3028,7 +4152,7 @@ def handle_project_delete():
             st.session_state["switch_to_edit"] = True
             st.rerun()
 
-        run_streamlit_action(
+        _run_clearable_streamlit_action(
             st,
             ActionSpec(
                 name="Delete project",
@@ -3073,7 +4197,6 @@ def handle_project_import():
         )
 
         target_dir = env.apps_path / import_target
-        overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
         def _activate_import(result):
             imported_project = str(result.data["import_target"])
@@ -3100,6 +4223,15 @@ def handle_project_import():
                 on_success=_activate_import,
             )
 
+        @st.dialog("Import project")
+        def _confirm_import_overwrite() -> None:
+            st.write(f"Project '{import_target}' already exists. Overwrite it?")
+            cols = st.columns(2)
+            if cols[0].button("Overwrite", type="primary", width="stretch"):
+                _run_import_action(overwrite=True)
+            if cols[1].button("Cancel", width="stretch"):
+                st.rerun()
+
         import_clicked = st.sidebar.button(
             "Import", type="primary", width="stretch"
         )
@@ -3107,18 +4239,7 @@ def handle_project_import():
             if not target_dir.exists():
                 _run_import_action(overwrite=False)
             else:
-                overwrite_modal.open()
-
-        if overwrite_modal.is_open():
-            with overwrite_modal.container():
-                st.write(f"Project '{import_target}' already exists. Overwrite it?")
-                cols = st.columns(2)
-                if cols[0].button(
-                        "Overwrite", type="primary", width="stretch"
-                ):
-                    _run_import_action(overwrite=True)
-                if cols[1].button("Cancel", type="primary", width="stretch"):
-                    overwrite_modal.close()
+                _confirm_import_overwrite()
 
 
 # -------------------- Streamlit Page Rendering -------------------- #
@@ -3212,6 +4333,7 @@ def page():
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"
+    _consume_notebook_import_query_seed(st.session_state, st.query_params)
 
     _render_active_project_sidebar(env)
     env = st.session_state["env"]

@@ -33,10 +33,58 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
     assert check_ids == {
         "docs_mirror_stamp",
         "docs_workflow_parity_profile",
+        "production_readiness_workflow_profile",
         "compatibility_matrix_validated_paths",
         "service_health_json_prometheus",
+        "controlled_pilot_readiness_gate",
         "release_decision_promotion_export",
         "security_disclosure_hardening",
+        "security_adoption_strict_gate",
+        "profile_supply_chain_scan_gate",
+        "public_ui_bind_guard",
+        "cluster_share_fail_fast",
+        "production_boundary_docs",
+    }
+
+
+def test_build_report_includes_shared_adoption_hardening_controls() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    checks = {check["id"]: check for check in report["checks"]}
+
+    for check_id in {
+        "security_adoption_strict_gate",
+        "profile_supply_chain_scan_gate",
+        "public_ui_bind_guard",
+        "cluster_share_fail_fast",
+        "controlled_pilot_readiness_gate",
+        "production_boundary_docs",
+    }:
+        check = checks[check_id]
+        assert check["status"] == "pass"
+        assert check["evidence"]
+        if "missing" in check["details"]:
+            assert check["details"]["missing"] == {}
+
+
+def test_controlled_pilot_readiness_gate_supports_score_movement() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(
+        check for check in report["checks"] if check["id"] == "controlled_pilot_readiness_gate"
+    )
+
+    assert report["supported_score"] == "3.2 / 5"
+    assert check["status"] == "pass"
+    assert check["details"]["supported_score"] == "3.2 / 5"
+    assert set(check["details"]["check_ids"]) >= {
+        "service_health_execution",
+        "service_failure_modes",
+        "persisted_artifact_contract",
+        "public_bind_and_secret_boundary",
+        "compatibility_matrix_entry",
     }
 
 
@@ -58,6 +106,29 @@ def test_docs_workflow_profile_check_reports_expected_sphinx_command() -> None:
     assert "myst-parser" in sphinx_argv
 
 
+def test_production_readiness_workflow_profile_writes_artifact_contract() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "production_readiness_workflow_profile"
+    )
+
+    assert check["status"] == "pass"
+    assert check["details"]["argv"][-4:] == [
+        "--run-docs-profile",
+        "--output",
+        "test-results/production-readiness.json",
+        "--compact",
+    ]
+    assert check["details"]["commands"][0]["ensure_dirs"] == ["test-results"]
+    assert check["details"]["commands"][0]["remove_paths"] == [
+        "test-results/production-readiness.json"
+    ]
+
+
 def test_main_emits_json_and_returns_success(capsys) -> None:
     module = _load_module()
 
@@ -68,3 +139,17 @@ def test_main_emits_json_and_returns_success(capsys) -> None:
     assert payload["kpi"] == "Production readiness"
     assert payload["status"] == "pass"
     assert payload["summary"]["failed"] == 0
+
+
+def test_main_writes_output_artifact(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    output = tmp_path / "production-readiness.json"
+
+    exit_code = module.main(["--compact", "--output", str(output)])
+
+    assert exit_code == 0
+    stdout_payload = json.loads(capsys.readouterr().out)
+    file_payload = json.loads(output.read_text(encoding="utf-8"))
+    assert stdout_payload["status"] == "pass"
+    assert file_payload["status"] == "pass"
+    assert file_payload["summary"]["failed"] == 0

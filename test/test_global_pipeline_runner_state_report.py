@@ -190,13 +190,13 @@ def test_persisted_runner_state_validates_flight_plus_meteo_dag(tmp_path: Path) 
     assert proof.ok is True
     state = proof.runner_state
     assert state["source"]["dag_path"] == str(dag_path)
-    assert state["source"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert state["source"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert state["summary"]["unit_count"] == 2
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert [unit["app"] for unit in state["units"]] == [
-        "flight_project",
-        "meteo_forecast_project",
+        "flight_telemetry_project",
+        "weather_forecast_project",
     ]
     assert all(unit["provenance"]["pipeline_view"] for unit in state["units"])
 
@@ -220,3 +220,74 @@ def test_runner_state_report_handles_load_failure(tmp_path: Path) -> None:
             "summary": "global pipeline runner state could not be assembled",
         }
     ]
+
+
+def test_runner_state_helper_and_failure_edges(tmp_path: Path, monkeypatch) -> None:
+    module = _load_core_module()
+
+    issue = module._issue("schema", "bad")
+    assert issue.as_dict() == {"level": "error", "location": "schema", "message": "bad"}
+    assert module._as_str_list("bad") == []
+    assert module._dependency_summary([]) == "all artifact dependencies satisfied"
+    assert module._unit_rows({"units": "bad"}) == []
+    assert module._run_status_for_units([{"dispatch_status": "failed"}]) == "failed"
+    assert module._run_status_for_units([{"dispatch_status": "completed"}]) == "completed"
+    assert module._run_status_for_units(
+        [{"dispatch_status": "completed"}, {"dispatch_status": "blocked"}]
+    ) == "running"
+
+    non_object = tmp_path / "state.json"
+    non_object.write_text("[]", encoding="utf-8")
+    try:
+        module.load_runner_state(non_object)
+    except ValueError as exc:
+        assert "must be a JSON object" in str(exc)
+    else:
+        raise AssertionError("load_runner_state should reject non-object JSON")
+
+    proof = module.RunnerStatePersistenceProof(
+        ok=False,
+        issues=(issue,),
+        path="state.json",
+        runner_state={"a": 1},
+        reloaded_state={"a": 2},
+    )
+    assert proof.round_trip_ok is False
+    assert proof.as_dict()["issues"] == [issue.as_dict()]
+
+    dispatch = module.RunnerDispatchResult(
+        ok=False,
+        message="none",
+        dispatched_unit_id="",
+        state={},
+    )
+    assert dispatch.as_dict()["message"] == "none"
+
+    result = module.dispatch_next_runnable(
+        {
+            "state_units": [
+                {"id": "blocked", "dispatch_status": "blocked"},
+                {"id": "done", "dispatch_status": "completed"},
+            ],
+            "events": "bad",
+        },
+        now="2026-05-17T00:00:00Z",
+    )
+    assert result.ok is False
+    assert result.message == "No runnable global DAG unit is available to dispatch."
+    assert result.state["units"] == [
+        {"id": "blocked", "dispatch_status": "blocked"},
+        {"id": "done", "dispatch_status": "completed"},
+    ]
+    assert result.state["events"] == []
+
+    monkeypatch.setattr(
+        module,
+        "build_persisted_runner_state",
+        lambda **_kwargs: {"ok": True, "schema": module.SCHEMA},
+    )
+    monkeypatch.setattr(module, "write_runner_state", lambda output_path, state: output_path)
+    monkeypatch.setattr(module, "load_runner_state", lambda _path: {"ok": True, "schema": "changed"})
+    proof = module.persist_runner_state(repo_root=tmp_path, output_path=tmp_path / "state.json")
+    assert proof.ok is False
+    assert proof.issues[0].location == "persistence.round_trip"

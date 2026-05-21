@@ -9,12 +9,14 @@ from .app_args import (
     merge_args,
 )
 from .diagnostic import (
+    CASE_SCHEMA,
     diagnose_case,
     evidence_quality,
     rank_candidate_fixes,
     regression_coverage,
     student_score,
     summarize_report,
+    validate_case_payload,
 )
 from .generator import (
     DEFAULT_GPT_OSS_ENDPOINT,
@@ -43,6 +45,7 @@ __all__ = [
     "REDUCE_ARTIFACT_FILENAME_TEMPLATE",
     "REDUCE_ARTIFACT_NAME",
     "REDUCER_NAME",
+    "CASE_SCHEMA",
     "DEFAULT_GPT_OSS_ENDPOINT",
     "DEFAULT_GPT_OSS_MODEL",
     "DEFAULT_OLLAMA_ENDPOINT",
@@ -69,6 +72,7 @@ __all__ = [
     "regression_coverage",
     "student_score",
     "summarize_report",
+    "validate_case_payload",
     "validate_generated_cases",
     "write_reduce_artifact",
 ]

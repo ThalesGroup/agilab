@@ -234,6 +234,24 @@ def test_view_inference_analysis_keeps_empty_latency_p90_column_when_latency_mis
     assert enriched["p90_routed_latency"].isna().all()
 
 
+def test_view_inference_analysis_keeps_empty_latency_p90_column_when_p90_is_absent(monkeypatch) -> None:
+    module = _load_module()
+    step_kpi_df = pd.DataFrame({"time_index": [0], "run_label": ["run_a"], "delivered_bandwidth": [1.0]})
+
+    monkeypatch.setattr(
+        module,
+        "build_latency_percentile_frame",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {"time_index": [0], "latency": [10.0], "run_label": ["run_a"], "percentile": ["p50"]}
+        ),
+    )
+
+    enriched = module.attach_latency_p90_frame(step_kpi_df, {"run_a": pd.DataFrame()}, "time_index")
+
+    assert "p90_routed_latency" in enriched.columns
+    assert enriched["p90_routed_latency"].isna().all()
+
+
 def test_view_inference_analysis_compare_style_schema_produces_latency_p90() -> None:
     module = _load_module()
 
@@ -287,16 +305,31 @@ def test_view_inference_analysis_prefers_shared_time_index_for_mixed_time_axes()
     assert set(step_kpi_df["run_label"]) == {"uav", "fcas"}
 
 
-def test_view_inference_analysis_prefers_seconds_when_all_runs_have_t_now_s() -> None:
+def test_view_inference_analysis_prefers_canonical_seconds_when_all_runs_have_time_s() -> None:
     module = _load_module()
 
     frames = {
-        "run_a": pd.DataFrame({"time_index": [0], "t_now_s": [0.5], "delivered_bandwidth": [1.0]}),
-        "run_b": pd.DataFrame({"time_index": [0], "t_now_s": [1.0], "delivered_bandwidth": [2.0]}),
+        "run_a": pd.DataFrame({"time_index": [0], "time_s": [0.5], "delivered_bandwidth": [1.0]}),
+        "run_b": pd.DataFrame({"time_index": [0], "time_s": [1.0], "delivered_bandwidth": [2.0]}),
     }
 
-    assert module._choose_time_series_axis(frames) == "t_now_s"
-    assert module._axis_options_for_frames(frames) == ["time_index", "t_now_s"]
+    assert module._choose_time_series_axis(frames) == "time_s"
+    assert module._axis_options_for_frames(frames) == ["time_index", "time_s"]
+
+
+def test_view_inference_analysis_axis_helpers_cover_partial_and_empty_inputs() -> None:
+    module = _load_module()
+
+    partial_frames = {
+        "seconds_only": pd.DataFrame({"t_now_s": [0.5], "reward": [1.0]}),
+        "steps_only": pd.DataFrame({"time_index": [1], "reward": [2.0]}),
+        "empty": pd.DataFrame(),
+    }
+
+    assert module._choose_time_series_axis({}) == ""
+    assert module._axis_options_for_frames({"empty": pd.DataFrame()}) == []
+    assert module._choose_time_series_axis(partial_frames) == "time_index"
+    assert module._axis_options_for_frames(partial_frames) == ["time_index"]
 
 
 def test_view_inference_analysis_detects_when_requested_load_varies() -> None:
@@ -422,6 +455,7 @@ def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths
 
 def test_view_inference_analysis_helper_edges_cover_paths_patterns_and_empty_frames(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     module = _load_module()
     root = tmp_path / "dataset"
@@ -440,24 +474,63 @@ def test_view_inference_analysis_helper_edges_cover_paths_patterns_and_empty_fra
         def glob(self, _pattern: str):
             raise ValueError("bad glob")
 
+    class _OutsideRoot:
+        def __fspath__(self) -> str:
+            return str(root)
+
+        def exists(self) -> bool:
+            return True
+
+        def glob(self, _pattern: str):
+            return [outside]
+
     assert module._coerce_str_list(None) == []
+    assert module._coerce_selection("run_b", ["run_a", "run_b"], fallback=["run_a"]) == ["run_b"]
     assert module._default_dataset_subpath(SimpleNamespace(target=""), tmp_path / "demo") == "pipeline"
     assert module._relative_path_label(outside, root) == outside.as_posix()
     assert module._run_label(root / "allocations_steps.json", root) == "allocations_steps.json"
+    assert module._discover_allocation_files(tmp_path / "missing-root", ["**/allocations*.csv"]) == []
     assert module._discover_allocation_files(_BrokenRoot(), ["**/allocations*.csv"]) == []
     assert [path.relative_to(root).as_posix() for path in module._discover_allocation_files(root, ["**/allocations*.csv"])] == [
         "nested/allocations_real.csv"
     ]
+    assert module._discover_allocation_files(_OutsideRoot(), ["*.csv"]) == [outside.resolve()]
     assert module._matches_any_pattern("   ", ["**/*.csv"]) is False
     assert module._matches_any_pattern("nested/file.csv", ["   ", "["]) is False
+    monkeypatch.setattr(module.fnmatch, "fnmatch", lambda *_args, **_kwargs: False)
+
+    class _MatchingPath:
+        def __init__(self, value: str) -> None:
+            self.value = value
+
+        def match(self, pattern: str) -> bool:
+            if pattern == "broken":
+                raise ValueError("bad pattern")
+            return pattern == "path-match"
+
+    monkeypatch.setattr(module, "Path", _MatchingPath)
+    assert module._matches_any_pattern("nested/file.csv", ["path-match"]) is True
+    assert module._matches_any_pattern("nested/file.csv", ["broken"]) is False
     assert module._parse_structured_value("   ") == "   "
+    assert module._parse_allocations_cell(None) == []
     assert module._parse_allocations_cell(({"source": 1}, {"destination": 2}, "bad")) == [
         {"source": 1},
         {"destination": 2},
     ]
     assert module._apply_column_aliases(pd.DataFrame()).empty
     assert module._normalize_allocations_frame(pd.DataFrame()).empty
+    assert module._coerce_time_index(pd.DataFrame()).empty
     assert module._coerce_time_index(pd.DataFrame({"step": ["bad", "worse"]}))["time_index"].tolist() == [0, 1]
+    time_normalized = module._coerce_time_index(pd.DataFrame({"step": [1, 2], "time_s": ["1.5", "bad"]}))
+    assert time_normalized["time_s"].iloc[0] == pytest.approx(1.5)
+    assert time_normalized["t_now_s"].iloc[0] == pytest.approx(1.5)
+    assert pd.isna(time_normalized["t_now_s"].iloc[1])
+    assert module._series_varies(pd.Series([42.0])) is False
+    assert module._choose_time_series_axis({"run": pd.DataFrame({"latency": [1.0]})}) == ""
+    assert module.build_latency_percentile_frame(
+        {"run": pd.DataFrame({"time_index": [0], "latency": [10.0], "routed": [0]})},
+        "time_index",
+    ).empty
 
 
 def test_view_inference_analysis_normalizes_nested_allocations_with_row_index_and_time_fallback() -> None:
@@ -473,10 +546,24 @@ def test_view_inference_analysis_normalizes_nested_allocations_with_row_index_an
     )
 
     assert normalized["time_index"].tolist() == [0]
+    assert normalized["time_s"].tolist() == pytest.approx([1.5])
     assert normalized["t_now_s"].tolist() == pytest.approx([1.5])
     assert normalized["source"].tolist() == [1]
     assert normalized["destination"].tolist() == [2]
     assert normalized["delivered_bandwidth"].tolist() == pytest.approx([0.7])
+
+    normalized_with_context_time = module._normalize_allocations_frame(
+        pd.DataFrame(
+            {
+                "t_now_s": [3.5],
+                "allocations": ['[{"source": 3, "destination": 4}]'],
+            }
+        )
+    )
+
+    assert normalized_with_context_time["time_index"].tolist() == [0]
+    assert normalized_with_context_time["time_s"].tolist() == pytest.approx([3.5])
+    assert normalized_with_context_time["t_now_s"].tolist() == pytest.approx([3.5])
 
 
 def test_view_inference_analysis_discovers_visible_allocation_files_and_labels_runs(tmp_path: Path) -> None:
@@ -549,6 +636,7 @@ def test_view_inference_analysis_parses_structured_cells_and_coerces_time_index(
     assert normalized["path"].tolist() == ["[1, 2]", "[3, 4]"]
     assert normalized["capacity_mbps"].tolist() == pytest.approx([0.8, 0.9])
     assert normalized["time_index"].tolist() == [2, 1]
+    assert normalized["time_s"].tolist() == pytest.approx([0.5, 1.5])
     assert normalized["t_now_s"].tolist() == pytest.approx([0.5, 1.5])
 
     fallback = module._coerce_time_index(pd.DataFrame({"latency": [10.0, 20.0]}))
@@ -578,6 +666,13 @@ def test_view_inference_analysis_loads_allocation_files_from_common_formats(tmp_
         '{"steps": [{"step": 3, "source": 4, "destination": 5, "delivered_mbps": 1.1, "latency_ms": 18.0}]}',
         encoding="utf-8",
     )
+    single_json_path = tmp_path / "single.json"
+    single_json_path.write_text(
+        '{"step": 4, "source": 5, "destination": 6, "delivered_mbps": 1.3, "latency_ms": 20.0}',
+        encoding="utf-8",
+    )
+    scalar_json_path = tmp_path / "scalar.json"
+    scalar_json_path.write_text('"not a frame"', encoding="utf-8")
     invalid_path = tmp_path / "broken.json"
     invalid_path.write_text("{broken", encoding="utf-8")
 
@@ -585,6 +680,7 @@ def test_view_inference_analysis_loads_allocation_files_from_common_formats(tmp_
     jsonl_df = module.load_allocations(jsonl_path)
     json_df = module.load_allocations(json_path)
     steps_df = module._load_allocations_cached(str(steps_path), steps_path.stat().st_mtime_ns, 1)
+    single_df = module.load_allocations(single_json_path)
 
     assert csv_df["time_index"].tolist() == [0]
     assert csv_df["source"].tolist() == [1]
@@ -593,12 +689,33 @@ def test_view_inference_analysis_loads_allocation_files_from_common_formats(tmp_
     assert csv_df["latency"].tolist() == pytest.approx([12.0])
     assert csv_df["path"].tolist() == ["[1, 2]"]
     assert csv_df["capacity_mbps"].tolist() == pytest.approx([0.8])
+    assert csv_df["time_s"].tolist() == pytest.approx([1.5])
     assert csv_df["t_now_s"].tolist() == pytest.approx([1.5])
     assert jsonl_df["time_index"].tolist() == [1]
     assert json_df["time_index"].tolist() == [2]
     assert steps_df["time_index"].tolist() == [3]
+    assert single_df["time_index"].tolist() == [4]
     assert module.load_allocations(tmp_path / "missing.json").empty
+    assert module.load_allocations(scalar_json_path).empty
     assert module.load_allocations(invalid_path).empty
+
+
+def test_view_inference_analysis_loads_parquet_when_supported(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    parquet_path = tmp_path / "allocations.parquet"
+    parquet_path.write_text("placeholder", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module.pd,
+        "read_parquet",
+        lambda path: pd.DataFrame({"step": [5], "delivered_mbps": [2.0], "latency_ms": [21.0]}),
+    )
+
+    parquet_df = module.load_allocations(parquet_path)
+
+    assert parquet_df["time_index"].tolist() == [5]
+    assert parquet_df["delivered_bandwidth"].tolist() == pytest.approx([2.0])
+    assert parquet_df["latency"].tolist() == pytest.approx([21.0])
 
 
 @pytest.mark.parametrize(
@@ -710,6 +827,12 @@ def test_view_inference_analysis_handles_list_and_path_helper_edges() -> None:
     assert module._parse_list_like("scalar") == []
     assert module._is_missing_value(pd.NA) is True
     assert module._is_missing_value([1, 2]) is False
+    monkeypatch_target = module.pd.isna
+    module.pd.isna = lambda _value: (_ for _ in ()).throw(TypeError("bad missing check"))
+    try:
+        assert module._is_missing_value(object()) is False
+    finally:
+        module.pd.isna = monkeypatch_target
 
     routed = module._routed_flag_series(pd.DataFrame({"routed": [1, None, 2, -1]}))
     delivered = module._routed_flag_series(pd.DataFrame({"delivered_bandwidth": [0.0, 0.1, None]}))
@@ -725,7 +848,10 @@ def test_view_inference_analysis_handles_list_and_path_helper_edges() -> None:
     assert module._coerce_path_sequence("invalid") == []
     assert module._path_hop_count("[1, 2, 3, 4]") == 3
     assert module._path_hop_count("[[1, 2], [2, 3], [3, 4]]") == 3
+    assert module._path_hop_count("[1]") is None
     assert module._path_hop_count("[]") is None
+    assert module._bearer_hop_count('["SAT", "OPT"]') == 2
+    assert module._bearer_hop_count("[]") is None
 
 
 def test_view_inference_analysis_distribution_helpers_return_empty_when_inputs_do_not_qualify() -> None:
@@ -1318,6 +1444,75 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_missing(monkeyp
     assert module.ENV_KEY in fake_st.session_state
 
 
+def test_view_inference_analysis_main_stops_when_dataset_root_is_unresolved(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(_FakeStop):
+        module.main()
+
+    assert fake_st.warnings == ["Provide a custom base directory or switch back to AGI_CLUSTER_SHARE / AGILAB_EXPORT."]
+
+
+def test_view_inference_analysis_main_stops_when_no_allocation_files_match(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [])
+
+    with pytest.raises(_FakeStop):
+        module.main()
+
+    assert fake_st.warnings == [
+        f"No allocation file matched {['**/allocations_steps.json']!r} under {dataset_root}. "
+        "Adjust the subpath or glob patterns in the sidebar."
+    ]
+
+
 def test_view_inference_analysis_main_handles_no_selection_before_loading_frames(
     monkeypatch,
     tmp_path: Path,
@@ -1357,6 +1552,113 @@ def test_view_inference_analysis_main_handles_no_selection_before_loading_frames
     assert len(fake_st.dataframes) == 1
     inventory = fake_st.dataframes[0]["data"]
     assert inventory["run_label"].tolist() == ["allocations_steps.json"]
+
+
+def test_view_inference_analysis_main_renders_empty_run_and_empty_profile_states(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        f"""
+[pages.{module.PAGE_KEY}]
+default_metric = "missing_metric"
+""",
+        encoding="utf-8",
+    )
+    dataset_root = tmp_path / "dataset"
+    empty_path = dataset_root / "empty" / "allocations_steps.json"
+    run_path = dataset_root / "run_a" / "allocations_steps.json"
+    empty_path.parent.mkdir(parents=True)
+    run_path.parent.mkdir(parents=True)
+    empty_path.write_text("[]", encoding="utf-8")
+    run_path.write_text("[]", encoding="utf-8")
+    fake_st.session_state[module.DETAIL_RUNS_KEY] = []
+
+    frames_by_path = {
+        empty_path: pd.DataFrame(),
+        run_path: pd.DataFrame({"time_index": [0, 1], "reward": [1.0, 2.0], "routed": [1, 1]}),
+    }
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(settings_path)
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [empty_path, run_path])
+    monkeypatch.setattr(
+        module,
+        "_load_allocations_cached",
+        lambda path, *_args, **_kwargs: frames_by_path[Path(path)],
+    )
+    monkeypatch.setattr(module, "build_profile_frame", lambda *_args, **_kwargs: pd.DataFrame())
+
+    module.main()
+
+    assert fake_st.session_state[module.PROFILE_METRIC_KEY] == "reward"
+    assert fake_st.warnings == ["Some files were parsed but produced no rows: empty"]
+    assert "The selected files do not expose this metric on the requested step axis." in fake_st.infos
+    assert fake_st.infos[-1] == "Select at least one detailed run to compare."
+
+
+def test_view_inference_analysis_main_renders_no_axis_detail_state(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    dataset_root = tmp_path / "dataset"
+    run_path = dataset_root / "run_a" / "allocations_steps.json"
+    run_path.parent.mkdir(parents=True)
+    run_path.write_text("[]", encoding="utf-8")
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(tmp_path / "missing.toml")
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_path])
+    monkeypatch.setattr(
+        module,
+        "_load_allocations_cached",
+        lambda *_args, **_kwargs: pd.DataFrame({"reward": [1.0, 2.0]}),
+    )
+
+    module.main()
+
+    assert "The selected files do not expose a step axis such as `time_index` or `time_s`." in fake_st.infos
+    assert "run_a: No bearer involvement data available." in fake_st.infos
+    assert "No routed path data available." in fake_st.infos
 
 
 def test_view_inference_analysis_main_stops_when_selected_files_have_no_numeric_metrics(
@@ -1481,3 +1783,103 @@ def test_view_inference_analysis_main_renders_time_series_requested_reference(
         caption == "In the delivered bandwidth panel, thin dashed traces show requested bandwidth."
         for caption in fake_st.captions
     )
+
+
+def test_view_inference_analysis_main_renders_detailed_bearer_hop_and_heatmap_diagnostics(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    fake_st = _FakeStreamlit()
+    active_app = tmp_path / "demo_project"
+    active_app.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        f"""
+[pages.{module.PAGE_KEY}]
+dataset_base_choice = "unknown"
+default_aggregation = "mode"
+default_metric = "missing_metric"
+default_profile_axis = "missing_axis"
+""",
+        encoding="utf-8",
+    )
+    dataset_root = tmp_path / "dataset"
+    run_a_path = dataset_root / "run_a" / "allocations_steps.json"
+    run_b_path = dataset_root / "run_b" / "allocations_steps.json"
+    run_a_path.parent.mkdir(parents=True)
+    run_b_path.parent.mkdir(parents=True)
+    run_a_path.write_text("[]", encoding="utf-8")
+    run_b_path.write_text("[]", encoding="utf-8")
+
+    frames_by_path = {
+        run_a_path: pd.DataFrame(
+            {
+                "time_index": [0, 1, 1],
+                "source": [1, 1, 2],
+                "destination": [2, 2, 3],
+                "bandwidth": [10.0, 10.0, 5.0],
+                "delivered_bandwidth": [10.0, 0.0, 5.0],
+                "latency": [10.0, 20.0, 15.0],
+                "routed": [1, 0, 1],
+                "path": [[1, 4, 2], [], [2, 5, 3]],
+                "bearers": ['["SAT", "OPT"]', "[]", '["IVDL"]'],
+                "reward": [1.0, 2.0, 3.0],
+            }
+        ),
+        run_b_path: pd.DataFrame(
+            {
+                "time_index": [0, 1],
+                "source": [3, 3],
+                "destination": [4, 5],
+                "bandwidth": [4.0, 8.0],
+                "delivered_bandwidth": [4.0, 8.0],
+                "latency": [11.0, 13.0],
+                "routed": [1, 1],
+                "path": [[3, 4], [3, 9, 5]],
+                "bearers": ['["mesh"]', '["SAT"]'],
+                "reward": [4.0, 5.0],
+            }
+        ),
+    }
+
+    class _FakeEnv:
+        def __init__(self, **_kwargs):
+            self.active_app = active_app
+            self.target = ""
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "export")
+            self.app_settings_file = str(settings_path)
+            self.init_done = False
+
+        def share_root_path(self) -> str:
+            return str(tmp_path / "share")
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
+    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
+    monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
+    monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_a_path, run_b_path])
+    monkeypatch.setattr(
+        module,
+        "_load_allocations_cached",
+        lambda path, *_args, **_kwargs: frames_by_path[Path(path)],
+    )
+
+    module.main()
+
+    plot_keys = [call["key"] for call in fake_st.plot_calls]
+    assert fake_st.session_state[module.BASE_CHOICE_KEY] == "AGI_CLUSTER_SHARE"
+    assert fake_st.session_state[module.AGGREGATION_KEY] == "mean"
+    assert fake_st.session_state[module.PROFILE_METRIC_KEY] == "delivered_bandwidth"
+    assert fake_st.session_state[module.PROFILE_AXIS_KEY] == "time_index"
+    assert "Bearer involvement" in fake_st.writes
+    assert "Served bandwidth matrix" in fake_st.writes
+    assert "Rejected allocation matrix" in fake_st.writes
+    assert f"{module.PAGE_KEY}:detail:bearer:run_a" in plot_keys
+    assert f"{module.PAGE_KEY}:detail:hop_count_distribution" in plot_keys
+    assert f"{module.PAGE_KEY}:detail:served_heatmap:run_a" in plot_keys
+    assert f"{module.PAGE_KEY}:detail:rejected_heatmap:run_b" in plot_keys
+    assert any(caption.startswith("Hop count is computed") for caption in fake_st.captions)
+    assert any(caption.startswith("Matrices use one shared node list") for caption in fake_st.captions)

@@ -47,7 +47,7 @@ def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> Non
         "seeded script check",
     ]
     assert "src/agilab/apps/install.py" in " ".join(commands[2].argv)
-    assert "AGI_install_flight.py" in commands[3].argv[-1]
+    assert "AGI_install_flight_telemetry.py" in commands[3].argv[-1]
 
 
 def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_main_print_only_json_emits_selected_commands(capsys) -> None:
     assert payload["with_install"] is True
     assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
     assert payload["run_manifest_filename"] == "run_manifest.json"
-    assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
+    assert payload["run_manifest_path"].endswith("/log/execute/flight_telemetry/run_manifest.json")
     assert payload["commands"][0]["label"] == "preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
     serialized = json.dumps(payload)
@@ -227,7 +227,7 @@ def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None
     assert encoded["status"] == "pass"
     assert encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
     assert "OPENAI_API_KEY" not in encoded["command"]["env_overrides"]
-    assert encoded["environment"]["app_name"] == "flight_project"
+    assert encoded["environment"]["app_name"] == "flight_telemetry_project"
     assert encoded["timing"]["target_seconds"] == 600.0
     assert encoded["artifacts"][0]["name"] == "run_manifest"
     assert {item["label"]: item["status"] for item in encoded["validations"]} == {

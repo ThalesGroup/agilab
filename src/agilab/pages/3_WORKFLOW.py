@@ -10,7 +10,7 @@ import sys
 import sysconfig
 import subprocess
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
 import re
@@ -40,6 +40,7 @@ _page_project_selector_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
+switch_to_project_page = _page_project_selector_module.switch_to_project_page
 _page_docs_module = load_local_module(
     "agilab.page_docs",
     current_file=__file__,
@@ -64,6 +65,7 @@ from agi_gui.pagelib import (
 )
 from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv, normalize_path
+from agi_env.app_provider_registry import app_name_aliases
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
     globals(),
@@ -489,6 +491,14 @@ def _apply_dataframe_picker_selection(
     return current_df_rel is not None and current_df_rel != picked_df_rel
 
 
+def _clear_dataframe_picker_selection(dataframe_key: str, *, picker_key: str | None = None) -> None:
+    if picker_key:
+        st.session_state.pop(f"{picker_key}:selected_paths", None)
+    st.session_state.pop(dataframe_key, None)
+    st.session_state.pop(f"{dataframe_key}_file", None)
+    st.session_state["df_file"] = None
+
+
 @st.cache_data(show_spinner=False)
 def _read_stages(stages_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
     """Read stages for a specific module key from a TOML file.
@@ -552,19 +562,27 @@ def _render_notebook_actions(
     with st.expander("Notebook", expanded=False):
         st.caption(
             f"Active stages file: `{stages_file.name}`. "
-            "Import a notebook into this pipeline or download the current pipeline as `.ipynb`."
+            "Import a notebook into this pipeline or export the current pipeline as a runnable "
+            "`.ipynb` so the work remains reusable outside AGILAB."
         )
 
         key = index_page_str + "import_notebook"
+        import_module_dir = stages_file.parent
+        view_manifest_dir = _resolve_active_app_project_dir(env, project_name)
         st.markdown("##### Import")
         st.file_uploader(
             "Import notebook",
             type="ipynb",
             key=key,
             on_change=on_preview_notebook_import,
-            args=(key, module_path, index_page_str),
+            args=(key, import_module_dir, index_page_str, view_manifest_dir),
         )
-        render_notebook_import_preview(module_path, stages_file, index_page_str)
+        render_notebook_import_preview(
+            import_module_dir,
+            stages_file,
+            index_page_str,
+            view_manifest_dir=view_manifest_dir,
+        )
 
         export_context = build_notebook_export_context(
             env,
@@ -758,15 +776,9 @@ def _canonical_pipeline_project_name(raw_name: Any, project_catalog: List[str]) 
     name = Path(str(raw_name or "").strip()).name
     if not name or name == "apps":
         return ""
-    if name in project_catalog:
-        return name
-    suffixed = f"{name}_project"
-    if suffixed in project_catalog:
-        return suffixed
-    if name.endswith("_project"):
-        stem = name.removesuffix("_project")
-        if stem in project_catalog:
-            return stem
+    for alias in app_name_aliases(name):
+        if alias in project_catalog:
+            return alias
     return name
 
 
@@ -788,6 +800,52 @@ def _canonical_pipeline_project_modules(env: AgiEnv, raw_modules: List[str]) -> 
     # canonical *_project directory is known.
     _add(getattr(env, "target", ""))
     return modules
+
+
+def _resolve_active_app_project_dir(env: AgiEnv, project_name: str) -> Path | None:
+    raw_names = [project_name, getattr(env, "app", None), getattr(env, "target", None)]
+    app_names = [str(name).strip() for name in raw_names if str(name or "").strip()]
+    candidates: list[Any] = []
+    for root_attr in ("apps_path", "builtin_apps_path"):
+        root = getattr(env, root_attr, None)
+        if not root:
+            continue
+        for app_name in app_names:
+            candidates.append(Path(root) / app_name)
+    apps_path = getattr(env, "apps_path", None)
+    if apps_path:
+        for app_name in app_names:
+            candidates.append(Path(apps_path) / "builtin" / app_name)
+    for attr in ("active_app", "active_app_path", "app_path"):
+        value = getattr(env, attr, None)
+        if not value:
+            continue
+        try:
+            candidate = Path(value).expanduser()
+        except (OSError, TypeError, ValueError):
+            continue
+        if app_names and candidate.name not in app_names:
+            continue
+        candidates.append(candidate)
+
+    seen: set[Path] = set()
+    for raw_candidate in candidates:
+        try:
+            candidate = Path(raw_candidate).expanduser()
+        except (OSError, TypeError, ValueError):
+            continue
+        if not candidate.is_absolute() and len(candidate.parts) <= 1:
+            continue
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            resolved = candidate
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.is_dir():
+            return resolved
+    return None
 
 
 def sidebar_controls() -> None:
@@ -874,10 +932,9 @@ def sidebar_controls() -> None:
         "Edit",
         key="project_selectbox__edit",
         help=f"Edit {selected_lab}.",
-        use_container_width=True,
+        width="stretch",
     ):
-        st.query_params["active_app"] = selected_lab
-        st.switch_page(Path("pages/1_PROJECT.py"))
+        switch_to_project_page(st, active_app=selected_lab)
     st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
     if selected_lab != persisted_lab:
@@ -948,7 +1005,7 @@ def sidebar_controls() -> None:
         st.session_state["index_page"] = index_page
         index_page_str = str(index_page)
 
-    df_files = find_files(lab_dir)
+    df_files = _filter_pipeline_dataframe_files(find_files(lab_dir))
     st.session_state.df_files = df_files
 
     if not stages_file.parent.exists():
@@ -959,55 +1016,71 @@ def sidebar_controls() -> None:
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
     df_file_default = st.session_state.get("df_file")
     current_df_selection = st.session_state.get(key_df)
-    if current_df_selection is not None and current_df_selection not in df_files_rel:
+    if current_df_selection is not None and _resolve_dataframe_selection(
+        current_df_selection,
+        df_files_rel=df_files_rel,
+        export_root=Agi_export_abs,
+    ) is None:
         st.session_state.pop(key_df, None)
 
     picker_default: Path | None = None
-    if df_file_default:
+    if df_file_default and _resolve_dataframe_selection(
+        df_file_default,
+        df_files_rel=df_files_rel,
+        export_root=Agi_export_abs,
+    ):
         picker_default = Path(df_file_default)
     elif df_files_rel:
         picker_default = Agi_export_abs / df_files_rel[index]
     picker_key = f"{index_page_str}:dataframe_picker"
-    picked_df = agi_file_picker(
-        "Dataframe",
-        roots={lab_root: lab_dir},
-        key=picker_key,
-        patterns="*",
-        default=picker_default,
-        selection_mode="single",
-        allow_files=True,
-        allow_dirs=False,
-        recursive=True,
-        container=st.sidebar,
-        help="Browse and filter files under the active project workspace export directory.",
-    )
-    if picked_df:
-        try:
-            picked_df_rel = Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
-        except ValueError:
-            st.sidebar.warning("Selected dataframe is outside the export directory.")
+
+    if df_files_rel:
+        picked_df = agi_file_picker(
+            "Data source",
+            roots={lab_root: lab_dir},
+            key=picker_key,
+            patterns=_PIPELINE_DATA_SOURCE_PATTERNS,
+            default=picker_default,
+            selection_mode="single",
+            allow_files=True,
+            allow_dirs=False,
+            recursive=True,
+            container=st.sidebar,
+            help="Select a dataframe-like artifact under the active project export directory.",
+        )
+        st.sidebar.caption("Used by generated pipeline steps.")
+        if picked_df:
+            try:
+                picked_df_rel = Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
+            except ValueError:
+                st.sidebar.warning("Selected data source is outside the export directory.")
+            else:
+                if _resolve_dataframe_selection(
+                    picked_df_rel,
+                    df_files_rel=df_files_rel,
+                    export_root=Agi_export_abs,
+                ) is None:
+                    _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
+                else:
+                    dataframe_changed = _apply_dataframe_picker_selection(
+                        picked_df_rel,
+                        dataframe_key=key_df,
+                        df_files_rel=df_files_rel,
+                        export_root=Agi_export_abs,
+                    )
+                    if dataframe_changed:
+                        st.session_state.pop(index_page_str, None)
+                        st.session_state.page_broken = True
         else:
-            dataframe_changed = _apply_dataframe_picker_selection(
-                picked_df_rel,
-                dataframe_key=key_df,
-                df_files_rel=df_files_rel,
-                export_root=Agi_export_abs,
-            )
-            if dataframe_changed:
-                st.session_state.pop(index_page_str, None)
-                st.session_state.page_broken = True
+            _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
     else:
-        st.session_state.pop(key_df, None)
-        st.session_state.pop(f"{key_df}_file", None)
-        st.session_state["df_file"] = None
+        _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
     if _resolve_dataframe_selection(
         st.session_state.get(key_df),
         df_files_rel=df_files_rel,
         export_root=Agi_export_abs,
     ) is None:
-        st.session_state.pop(key_df, None)
-        st.session_state.pop(f"{key_df}_file", None)
-        st.session_state["df_file"] = None
+        _clear_dataframe_picker_selection(key_df)
 
     # Persist sidebar selections into query params for reloads
     st.query_params.update(
@@ -1090,6 +1163,9 @@ _PIPELINE_DATAFRAME_SUFFIXES = {
     ".xls",
     ".xlsx",
 }
+_PIPELINE_DATA_SOURCE_PATTERNS = tuple(
+    f"*{suffix}" for suffix in sorted(_PIPELINE_DATAFRAME_SUFFIXES)
+)
 _PIPELINE_OUTPUT_EXCLUDED_NAMES = {
     STAGES_FILE_NAME,
     "notebook_import_pipeline_view.json",
@@ -1107,6 +1183,17 @@ _PIPELINE_OUTPUT_EXCLUDED_DIRS = {
     "build",
     "dist",
 }
+
+
+def _filter_pipeline_dataframe_files(files: Iterable[Path]) -> List[Path]:
+    return sorted(
+        (
+            Path(file)
+            for file in files
+            if Path(file).suffix.lower() in _PIPELINE_DATAFRAME_SUFFIXES
+        ),
+        key=str,
+    )
 
 
 def _pipeline_header_value_state(value: str, caption: str = "") -> str:

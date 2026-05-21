@@ -33,6 +33,7 @@ SERVICE_SESSION_DEFAULTS: dict[str, Any] = {
     "service_log_cache": "",
     "service_status_cache": "idle",
     "service_snapshot_path_cache": "",
+    "service_last_submit_cache": {},
     "service_poll_interval": DEFAULT_SERVICE_POLL_INTERVAL_SEC,
     "service_stop_timeout": DEFAULT_SERVICE_STOP_TIMEOUT_SEC,
     "service_shutdown_on_stop": True,
@@ -100,6 +101,7 @@ class ServiceWorkflowStatus(str, Enum):
 
 class OrchestrateServiceAction(str, Enum):
     START = "start"
+    SUBMIT = "submit"
     STATUS = "status"
     HEALTH_GATE = "health"
     EXPORT_SNAPSHOT = "export_snapshot"
@@ -215,14 +217,23 @@ def build_orchestrate_service_state(
 
     all_actions = (
         OrchestrateServiceAction.START,
+        OrchestrateServiceAction.SUBMIT,
         OrchestrateServiceAction.STATUS,
         OrchestrateServiceAction.HEALTH_GATE,
         OrchestrateServiceAction.EXPORT_SNAPSHOT,
         OrchestrateServiceAction.STOP,
     )
     if enabled:
-        available_actions = all_actions
         blocked_actions: dict[OrchestrateServiceAction, str] = {}
+        available_actions_list = list(all_actions)
+        if status not in {
+            ServiceWorkflowStatus.RUNNING,
+            ServiceWorkflowStatus.DEGRADED,
+            ServiceWorkflowStatus.UNKNOWN,
+        }:
+            available_actions_list.remove(OrchestrateServiceAction.SUBMIT)
+            blocked_actions[OrchestrateServiceAction.SUBMIT] = "Start service before submitting work."
+        available_actions = tuple(available_actions_list)
     else:
         available_actions = ()
         blocked_actions = {
@@ -319,6 +330,47 @@ async def main():
         cleanup_failed_max_files={int(service_cleanup_failed_max_files)},
         cleanup_heartbeat_max_files={int(service_cleanup_heartbeat_max_files)},
         {args_serialized}
+    )
+    print(res)
+    return res
+
+if __name__ == "__main__":
+    asyncio.run(main())""")
+
+
+def _service_submit_task_name(env: Any) -> str:
+    target = str(getattr(env, "target", "") or getattr(env, "app", "") or "agilab").strip()
+    return f"{target or 'agilab'}-service-run"
+
+
+def build_service_submit_snippet(
+    *,
+    env: Any,
+    verbose: int,
+    workers: str,
+    args_serialized: str,
+) -> str:
+    arguments = [
+        "app_env",
+        f"workers={workers}",
+        f"task_name={json.dumps(_service_submit_task_name(env))}",
+    ]
+    serialized_args = args_serialized.strip().rstrip(",")
+    if serialized_args:
+        arguments.append(serialized_args)
+    argument_block = ",\n        ".join(arguments)
+    return textwrap.dedent(f"""
+import asyncio
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
+
+APPS_PATH = "{snippet_apps_path(env)}"
+APP = "{env.app}"
+
+async def main():
+    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={verbose})
+    res = await AGI.submit(
+        {argument_block}
     )
     print(res)
     return res
@@ -626,12 +678,19 @@ async def render_service_panel(
 
         preview_action = st.selectbox(
             "Service snippet action",
-            options=["start", "status", "health", "stop"],
+            options=["start", "submit", "status", "health", "stop"],
             index=0,
             key="service_snippet_action",
         )
-        st.code(
-            build_service_snippet(
+        preview_snippet = (
+            build_service_submit_snippet(
+                env=env,
+                verbose=verbose,
+                workers=workers,
+                args_serialized=st.session_state.args_serialized,
+            )
+            if preview_action == "submit"
+            else build_service_snippet(
                 env=env,
                 verbose=verbose,
                 service_action=preview_action,
@@ -649,17 +708,27 @@ async def render_service_panel(
                 service_cleanup_failed_max_files=int(service_cleanup_failed_max_files),
                 service_cleanup_heartbeat_max_files=int(service_cleanup_heartbeat_max_files),
                 args_serialized=st.session_state.args_serialized,
-            ),
+            )
+        )
+        st.code(
+            preview_snippet,
             language="python",
         )
 
-        start_col, status_col, health_col, export_col, stop_col = st.columns(5)
+        start_col, submit_col, status_col, health_col, export_col, stop_col = st.columns(6)
         start_service_clicked = action_button(
             start_col,
             "START service",
             key="service_start_btn",
             kind="run",
             disabled=not service_state.can(OrchestrateServiceAction.START),
+        )
+        submit_service_clicked = action_button(
+            submit_col,
+            "SUBMIT job",
+            key="service_submit_btn",
+            kind="run",
+            disabled=not service_state.can(OrchestrateServiceAction.SUBMIT),
         )
         status_service_clicked = action_button(
             status_col,
@@ -765,7 +834,7 @@ async def render_service_panel(
                 return ActionResult.error(
                     "Unsupported service action.",
                     detail=f"Unknown service action: {action_name}",
-                    next_action="Use START, STATUS, HEALTH gate, EXPORT snapshot, or STOP.",
+                    next_action="Use START, SUBMIT, STATUS, HEALTH gate, EXPORT snapshot, or STOP.",
                     data={"action": action_name},
                 )
             current_state = build_orchestrate_service_state(
@@ -777,10 +846,11 @@ async def render_service_panel(
                 heartbeat_timeout_sec=float(service_heartbeat_timeout),
             )
             if not current_state.can(action):
+                blocked_detail = current_state.blocked_actions.get(action, "Service action is blocked.")
                 return ActionResult.warning(
                     "Service action is unavailable.",
-                    detail=current_state.blocked_actions.get(action, "Service action is blocked."),
-                    next_action="Enable Cluster in deployment settings before using service mode.",
+                    detail=blocked_detail,
+                    next_action=blocked_detail,
                     data={"action": action.value, "status": current_state.status.value},
                 )
 
@@ -819,24 +889,33 @@ async def render_service_panel(
                 )
 
             _render_logs()
-            cmd_service = build_service_snippet(
-                env=env,
-                verbose=verbose,
-                service_action=action_name,
-                service_mode=current_state.mode,
-                scheduler=scheduler,
-                workers=workers,
-                service_poll_interval=float(service_poll_interval),
-                service_shutdown_on_stop=bool(service_shutdown_on_stop),
-                service_stop_timeout=float(service_stop_timeout),
-                service_heartbeat_timeout=float(service_heartbeat_timeout),
-                service_cleanup_done_ttl_hours=float(service_cleanup_done_ttl_hours),
-                service_cleanup_failed_ttl_hours=float(service_cleanup_failed_ttl_hours),
-                service_cleanup_heartbeat_ttl_hours=float(service_cleanup_heartbeat_ttl_hours),
-                service_cleanup_done_max_files=int(service_cleanup_done_max_files),
-                service_cleanup_failed_max_files=int(service_cleanup_failed_max_files),
-                service_cleanup_heartbeat_max_files=int(service_cleanup_heartbeat_max_files),
-                args_serialized=st.session_state.args_serialized,
+            cmd_service = (
+                build_service_submit_snippet(
+                    env=env,
+                    verbose=verbose,
+                    workers=workers,
+                    args_serialized=st.session_state.args_serialized,
+                )
+                if action is OrchestrateServiceAction.SUBMIT
+                else build_service_snippet(
+                    env=env,
+                    verbose=verbose,
+                    service_action=action_name,
+                    service_mode=current_state.mode,
+                    scheduler=scheduler,
+                    workers=workers,
+                    service_poll_interval=float(service_poll_interval),
+                    service_shutdown_on_stop=bool(service_shutdown_on_stop),
+                    service_stop_timeout=float(service_stop_timeout),
+                    service_heartbeat_timeout=float(service_heartbeat_timeout),
+                    service_cleanup_done_ttl_hours=float(service_cleanup_done_ttl_hours),
+                    service_cleanup_failed_ttl_hours=float(service_cleanup_failed_ttl_hours),
+                    service_cleanup_heartbeat_ttl_hours=float(service_cleanup_heartbeat_ttl_hours),
+                    service_cleanup_done_max_files=int(service_cleanup_done_max_files),
+                    service_cleanup_failed_max_files=int(service_cleanup_failed_max_files),
+                    service_cleanup_heartbeat_max_files=int(service_cleanup_heartbeat_max_files),
+                    args_serialized=st.session_state.args_serialized,
+                )
             )
             service_stdout = ""
             service_stderr = ""
@@ -870,8 +949,32 @@ async def render_service_panel(
                 deps.append_log_lines(local_log, service_stderr)
 
             result_payload = deps.extract_result_dict_from_output(service_stdout)
-            if isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
+            display_status = st.session_state.get("service_status_cache", "unknown")
+            if action is OrchestrateServiceAction.SUBMIT and isinstance(result_payload, dict):
+                st.session_state["service_last_submit_cache"] = result_payload
+                submit_status = str(result_payload.get("status") or "").strip()
+                if submit_status:
+                    display_status = submit_status
+                if submit_status == "queued":
+                    st.session_state["service_status_cache"] = "running"
+                    display_status = "queued"
+                elif submit_status:
+                    st.session_state["service_status_cache"] = submit_status
+                queued_files = result_payload.get("queued_files") or []
+                task_id = result_payload.get("task_id")
+                queue_dir = result_payload.get("queue_dir")
+                if task_id:
+                    deps.append_log_lines(local_log, f"service_task_id={task_id}")
+                if queue_dir:
+                    deps.append_log_lines(local_log, f"service_queue_dir={queue_dir}")
+                if queued_files:
+                    deps.append_log_lines(local_log, "=== Service queued files ===")
+                    for queued_file in queued_files:
+                        deps.append_log_lines(local_log, str(queued_file))
+                _render_service_operator_summary()
+            elif isinstance(result_payload, dict) and isinstance(result_payload.get("status"), str):
                 st.session_state["service_status_cache"] = result_payload["status"]
+                display_status = st.session_state["service_status_cache"]
                 if st.session_state["service_status_cache"] in {"stopped", "idle"}:
                     st.session_state["service_health_cache"] = []
                     _render_service_health_table()
@@ -955,12 +1058,14 @@ async def render_service_panel(
                     )
             return ActionResult.success(
                 f"Service action '{action_name}' completed with status "
-                f"'{st.session_state.get('service_status_cache', 'unknown')}'.",
+                f"'{display_status}'.",
                 data={"action": action_name, "payload": result_payload},
             )
 
         if start_service_clicked:
             render_action_result(st, await _execute_service_action("start"))
+        elif submit_service_clicked:
+            render_action_result(st, await _execute_service_action("submit"))
         elif status_service_clicked:
             render_action_result(st, await _execute_service_action("status"))
         elif health_gate_clicked:

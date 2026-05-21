@@ -54,6 +54,15 @@ def test_data_connector_cloud_emulator_report_passes(tmp_path: Path) -> None:
     }
 
 
+def test_object_storage_runtime_dependency_reports_unknown_provider() -> None:
+    _load_module()
+
+    from agilab.data_connector_cloud import object_storage_runtime_dependency
+
+    assert object_storage_runtime_dependency("custom_cloud") == "provider_sdk:custom_cloud"
+    assert object_storage_runtime_dependency("") == "provider_sdk:unspecified"
+
+
 def test_data_connector_cloud_emulator_report_rejects_real_cloud_endpoint(
     tmp_path: Path,
 ) -> None:

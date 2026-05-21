@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 from typing import List
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
@@ -17,7 +15,7 @@ from tools import apps_pages_launcher as launcher
 def test_run_streamlit_builds_expected_command(monkeypatch, tmp_path: Path):
     page_script = tmp_path / "page.py"
     page_script.touch()
-    active_app = tmp_path / "flight_project"
+    active_app = tmp_path / "flight_telemetry_project"
     active_app.mkdir()
 
     captured: List[List[str]] = []

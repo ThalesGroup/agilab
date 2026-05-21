@@ -5,7 +5,7 @@ This page maps the built-in AGILab web pages and shows how they fit together.
 
 The main web interface exposes one navigation surface for:
 
-- **Core pages** (Project, Orchestrate, Pipeline, Analysis), and
+- **Core pages** (Project, Orchestrate, Workflow, Analysis), and
 - **Page bundles** (optional dashboards launched from Analysis).
 
 How pages are presented
@@ -22,15 +22,21 @@ Core pages
 
 - :doc:`edit-help` — **PROJECT**: inspect and modify project sources and settings.
 - :doc:`execute-help` — **ORCHESTRATE**: install workers, generate distributions, and run pipelines.
-- :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_stages.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
+- :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_stages.toml``, run snippets against exported data, and export a runnable supervisor notebook so the work remains reusable outside the AGILAB UI.
 - :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
 Core page tour
 --------------
 
-Every built-in page now exposes direct documentation access from the sidebar,
-so you can reopen the relevant guide without navigating back to the landing
-page first.
+The workflow navigation stays focused on **PROJECT**, **ORCHESTRATE**,
+**WORKFLOW**, and **ANALYSIS**. These pages expose direct documentation access
+from their sidebars, so you can reopen the relevant guide without navigating
+back to the landing page first.
+
+Operational controls are kept out of the workflow page list. Use the landing
+sidebar **Settings** link to edit persisted environment variables and runtime
+diagnostics. The general AGILAB documentation link remains available from
+Streamlit's system menu under **Get help**.
 
 .. figure:: _static/page-shots/core-pages-overview.png
    :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS Streamlit pages.
@@ -39,8 +45,8 @@ page first.
 
    A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
 
-Page bundles (apps-pages)
--------------------------
+Page bundles
+------------
 
 Page bundles are optional dashboards stored under ``${AGILAB_PAGES_ABS}``
 (default: ``src/agilab/apps-pages``). They are enabled per project via
@@ -55,9 +61,10 @@ Use this as a page map, not as the newcomer proof path:
 2. Use :doc:`execute-help` (Orchestrate) to install dependencies, build
    distributions, configure distributed workers when needed, and generate a
    run snippet.
-3. Move to :doc:`experiment-help` (Pipeline) to import or iterate that
+3. Move to :doc:`experiment-help` (Workflow) to import or iterate that
    generated stage in ``lab_stages.toml`` and export a runnable supervisor
-   notebook when you want the pipeline outside the AGILAB UI.
+   notebook when you want a no-lock-in copy of the pipeline outside the AGILAB
+   UI.
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
    deeper views.
 
@@ -66,7 +73,7 @@ Public navigation split
 
 Keep these two public paths separate:
 
-- newcomer proof: ``flight_project`` through
+- newcomer proof: ``flight_telemetry_project`` through
   ``PROJECT -> ORCHESTRATE -> ANALYSIS``
 - full tour demo: ``uav_relay_queue_project`` through
   ``PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS``

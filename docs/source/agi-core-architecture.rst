@@ -1,10 +1,13 @@
 AGI Core Architecture
 =====================
 
-``agi_core`` packages the building blocks that every web interface page, CLI entry
-point, and worker relies on. This page maps the internals so you know where to
-plug new logic in—or where a behaviour is defined before drilling into the
-codebase.
+``agi_core`` is the shared framework-helper layer used by AGILAB pages, CLI
+mirrors, telemetry, and app-loading code. It is not the worker runtime and it
+does not own environment resolution or distributed execution. Those
+responsibilities live in ``agi_env``, ``agi_node``, and ``agi_cluster``.
+
+Use this page when you need to decide whether a change belongs in shared
+page/app helpers or should stay inside an app, page, or worker package.
 
 .. contents::
    :local:
@@ -17,15 +20,16 @@ Modules at a glance
    :alt: Visual summary of agi_core modules
    :class: diagram-panel diagram-standard
 
-   web interface and CLI entry points call into agi_core before handing work to agi_env
-   and agi_cluster.
+   Web interface and CLI entry points call into ``agi_core`` helpers before
+   handing environment resolution to ``agi_env`` and execution to
+   ``agi_cluster``.
 
 ``src/agilab/core/agi-core`` ships the following higher-level domains:
 
 ``agi_core.apps``
     Helper mixins for app metadata, dataset manifests, and path helpers that
-    every ``<app>_project`` imports. If you add a new manager or need an app to
-    opt-in to common validation, start here.
+    app managers can import from their project root. If you add a new manager or
+    need an app to opt in to common validation, start here.
 ``agi_core.streamlit``
     Shared web interface widgets (status panels, history view, deploy dialogs) used
     by PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS. Keeping them here avoids circular imports from the
@@ -36,6 +40,20 @@ Modules at a glance
 ``agi_core.services``
     Small utility services (encryption, local cache, dataset registry) designed
     to be reused by both the GUI and the app installers.
+
+What belongs here
+-----------------
+
+Put code in ``agi_core`` only when it is shared by multiple pages, CLI mirrors,
+or app managers and does not require worker-runtime imports. Keep these outside
+``agi_core``:
+
+- active-project path and environment resolution: use ``agi_env``
+- worker base classes, package bootstrap, and worker install hooks: use
+  ``agi_node``
+- run dispatch, Dask, SSH, service lifecycle, and ``AGI.run``: use
+  ``agi_cluster``
+- app-specific business logic: keep it under the app project
 
 Execution flow
 --------------
@@ -57,25 +75,15 @@ Execution flow
 Typical call stack when a user clicks **RUN** on the ORCHESTRATE page:
 
 1. ``src/agilab/pages/2_ORCHESTRATE.py`` collects form values and calls
-   ``agi_core.apps.loader.build_work_plan``.
-2. ``agi_core.apps`` builds an ``AppManifest`` and passes it to
-   ``framework_api.AGILabSession``.
-3. ``framework_api`` wraps the call to ``AGI.run`` (or ``AGI.get_distrib``)
-   while ``agi_core.telemetry`` starts a streamed log section.
-4. ``AGI.run`` (from :doc:`framework-api`) calls into ``agi_env`` to materialise
-   the environment, then hands control to ``agi_cluster.agi_distributor``.
-5. Workers report status via ``agi_core.telemetry`` so web widgets update
-   in place.
-
-1. A page/CLI handler receives the user request and immediately resolves an
-   ``AgiEnv`` instance (handled in :doc:`agilab`).
-2. The page calls into ``agi_core`` facades (for example
-   ``agi_core.apps.loader``) to build the app manifest and corresponding
-   ``WorkDispatcher`` settings.
-3. ``agi_core.telemetry`` structures the request context and streams it back to
-   the UI while ``AGI.run`` executes.
-4. Results propagate back through ``agi_core`` helpers (history, downloads,
-   dataset movers) before the UI renders the finished run.
+   shared app/page helpers.
+2. ``agi_core`` builds app metadata, page state, telemetry context, or
+   ``WorkDispatcher`` inputs without importing worker-only dependencies.
+3. The page resolves an ``AgiEnv`` and calls the public ``AGI`` facade.
+4. ``AGI.run`` hands execution to ``agi_cluster.agi_distributor`` and the
+   worker package built by ``agi_node``.
+5. Results propagate back through ``agi_core`` helpers such as history,
+   downloads, telemetry, and status widgets before the UI renders the finished
+   run.
 
 Repository pointers
 -------------------
@@ -92,8 +100,11 @@ Directory      Purpose
 Tips for contributions
 ----------------------
 
-- Keep business logic for a specific app inside ``src/agilab/apps/<app>``—only
-  move code into ``agi_core`` when *multiple* apps/pages need the abstraction.
+- Keep business logic for a specific app inside its app project root: source
+  built-ins use ``src/agilab/apps/builtin/<project>``, packaged payloads use
+  ``src/agilab/lib/agi-app-*``, and external apps stay in their app repository.
+  Only move code into ``agi_core`` when *multiple* apps/pages need the
+  abstraction.
 - When adding a new web widget, place it under ``agi_core/streamlit`` and
   export it through a small ``__all__``. That keeps import graphs manageable.
 - ``agi_core`` has no hard dependency on ``agi_env`` or ``agi_cluster``. If your

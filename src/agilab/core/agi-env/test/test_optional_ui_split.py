@@ -53,6 +53,14 @@ def test_agi_env_declares_no_streamlit_or_ui_extra() -> None:
     assert "agi-gui" in dev_dependencies
 
 
+def test_agi_env_resources_are_package_data_not_import_shadow_data_files() -> None:
+    data = tomllib.loads((AGI_ENV_ROOT / "pyproject.toml").read_text())
+    setuptools_config = data["tool"]["setuptools"]
+
+    assert "data-files" not in setuptools_config
+    assert "resources/**/*" in setuptools_config["package-data"]["agi_env"]
+
+
 def test_agi_gui_declares_streamlit_ui_runtime() -> None:
     data = tomllib.loads((AGI_GUI_ROOT / "pyproject.toml").read_text())
 
@@ -60,7 +68,7 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
 
     assert f"agi-env=={_project_version(AGI_ENV_ROOT / 'pyproject.toml')}" in dependencies
     assert any(
-        _requirement_name(dependency) == "streamlit" and ">=1.56.0" in dependency
+        _requirement_name(dependency) == "streamlit" and ">=1.56" in dependency
         for dependency in dependencies
     )
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
