@@ -19,6 +19,7 @@ from agilab.app_template_registry import (
     APP_TEMPLATE_SCHEMA,
     AppTemplateRegistry,
     AppTemplateSpec,
+    clear_app_template_discovery_cache,
     discover_app_template,
     discover_app_templates,
 )
@@ -62,6 +63,42 @@ def test_discover_app_templates_can_require_manifest_and_settings(tmp_path: Path
         "missing_pyproject_app_template",
         "missing_settings_app_template",
     )
+
+
+def test_discover_app_templates_reuses_cache_until_directory_signature_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_app_template_discovery_cache()
+    monkeypatch.delenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", raising=False)
+    _write_template(tmp_path, "first_app_template")
+
+    first = discover_app_templates(tmp_path)
+    second = discover_app_templates(tmp_path)
+
+    assert second is first
+
+    _write_template(tmp_path, "second_app_template")
+    third = discover_app_templates(tmp_path)
+
+    assert third is not first
+    assert third.names() == ("first_app_template", "second_app_template")
+    clear_app_template_discovery_cache()
+
+
+def test_discover_app_templates_cache_can_be_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_app_template_discovery_cache()
+    monkeypatch.setenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", "1")
+    _write_template(tmp_path, "first_app_template")
+
+    first = discover_app_templates(tmp_path)
+    second = discover_app_templates(tmp_path)
+
+    assert second is not first
+    clear_app_template_discovery_cache()
 
 
 def test_discover_app_template_resolves_one_template(tmp_path: Path) -> None:

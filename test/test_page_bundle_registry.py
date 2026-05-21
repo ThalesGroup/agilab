@@ -129,6 +129,21 @@ def test_discover_page_bundles_reuses_cache_until_directory_signature_changes(tm
     clear_page_bundle_discovery_cache()
 
 
+def test_discover_page_bundles_cache_can_be_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_page_bundle_discovery_cache()
+    monkeypatch.setenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", "1")
+    _write_bundle(tmp_path, "view_first")
+
+    first = discover_page_bundles(tmp_path)
+    second = discover_page_bundles(tmp_path)
+
+    assert second is not first
+    clear_page_bundle_discovery_cache()
+
+
 def test_discover_page_bundle_loads_contract_metadata(tmp_path: Path) -> None:
     script = _write_bundle(tmp_path, "view_demo")
     contract_path = _write_contract(script.parents[2])
@@ -333,6 +348,33 @@ def test_page_template_registry_discovers_contract_templates(tmp_path: Path) -> 
     assert discover_page_template(tmp_path, "analysis_page_template") == template
     with pytest.raises(ValueError, match="must end with '_page_template'"):
         PageTemplateSpec("analysis_page", tmp_path / "x", tmp_path / "x" / "pyproject.toml")
+
+
+def test_discover_page_templates_reuses_cache_until_directory_signature_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_page_bundle_discovery_cache()
+    monkeypatch.delenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", raising=False)
+    template_root = tmp_path / "first_page_template"
+    template_root.mkdir()
+    (template_root / "pyproject.toml").write_text("[project]\nname='first'\n", encoding="utf-8")
+    _write_contract(template_root)
+
+    first = discover_page_templates(tmp_path)
+    second = discover_page_templates(tmp_path)
+
+    assert second is first
+
+    second_template = tmp_path / "second_page_template"
+    second_template.mkdir()
+    (second_template / "pyproject.toml").write_text("[project]\nname='second'\n", encoding="utf-8")
+    _write_contract(second_template)
+    third = discover_page_templates(tmp_path)
+
+    assert third is not first
+    assert third.names() == ("first_page_template", "second_page_template")
+    clear_page_bundle_discovery_cache()
 
 
 def test_template_contract_helpers_handle_missing_and_malformed_optional_fields(tmp_path: Path) -> None:
