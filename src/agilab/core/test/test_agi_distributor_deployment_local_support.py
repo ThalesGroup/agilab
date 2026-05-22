@@ -2819,8 +2819,9 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
     )
     assert any(
         (
-            f"uv --offline pip install --upgrade --no-deps "
-            f"-e '{agi_env}' -e '{agi_node}' -e '{agi_cluster}' -e ."
+            f'uv --offline pip install --python "{_venv_python(app_path)}" '
+            f'--upgrade --no-deps -e "{agi_env}" -e "{agi_node}" '
+            f'-e "{agi_cluster}" -e "{app_path}"'
         )
         in cmd
         for cmd, _ in commands
@@ -3042,8 +3043,9 @@ path = "../sat_trajectory_project"
     )
     assert any(
         (
-            f"uv --offline pip install --upgrade --no-deps "
-            f"-e '{env_project}' -e '{node_project}' -e '{cluster_project}' -e ."
+            f'uv --offline pip install --python "{_venv_python(app_path)}" '
+            f'--upgrade --no-deps -e "{env_project}" -e "{node_project}" '
+            f'-e "{cluster_project}" -e "{app_path}"'
         )
         in cmd
         for cmd, _ in commands
@@ -3235,7 +3237,10 @@ path = "../sat_trajectory_project"
         for cmd, _ in commands
     )
     assert any(
-        f'pip install --python "{_venv_python(app_path)}" --upgrade --no-deps -e "{app_path}"'
+        (
+            f'pip install --python "{_venv_python(app_path)}" --upgrade --no-deps '
+            f'-e "{env_project}" -e "{node_project}" -e "{cluster_project}" -e "{app_path}"'
+        )
         in cmd
         for cmd, _ in commands
     )

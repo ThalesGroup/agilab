@@ -156,6 +156,24 @@ Use this skill when working on:
     - manager: `.../<app>_project/pyproject.toml`
     - worker:  `.../<app>_project/src/<app>_worker/pyproject.toml`
 
+- **Source app install pollutes the root AGILAB UI venv**
+  - Symptom: after installing a source app, the main Streamlit UI fails with
+    missing UI dependencies such as `pyarrow`, `streamlit`, or
+    `streamlit_code_editor`, while the app manager/worker venvs look unrelated.
+  - Treat this as installer isolation drift before adding UI dependencies to the
+    app. Check whether source-env install steps run `uv pip install` without
+    `--python <app>/.venv/bin/python`.
+  - Source app installs must target the app manager venv explicitly for manager
+    editable installs, and the worker venv explicitly for worker editable
+    installs. Do not let app install subprocesses mutate the repo root `.venv`
+    or ambient PyCharm/Streamlit environment.
+  - Reproduce with the real path:
+    `AGILAB_DISABLE_DEPLOY_STAGE_CACHE=1 uv --preview-features extra-build-dependencies run python src/agilab/apps/install.py <app-project-path> --verbose 1 --force-install`
+  - After the fix, verify both:
+    - root UI imports still work: `streamlit`, `code_editor`, `pyarrow`
+    - app readiness reports manager and worker ready through
+      `agilab.orchestrate_page_support.app_install_status`
+
 - **Plain `uv sync` works, AGILAB install still fails in worker phase**
   - Treat this as a shared installer candidate before patching the app.
   - `tools/impact_validate.py` should report this path as an install-contract gate; do not push until
