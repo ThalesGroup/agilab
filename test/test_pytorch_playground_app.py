@@ -21,6 +21,7 @@ MODULE_PATH = Path(
 APP_SURFACE_PATH = Path(
     "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py"
 )
+APP_ARGS_FORM_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py")
 INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
 README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
 PROJECT_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project")
@@ -35,6 +36,16 @@ def _load_module():
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_app_args_form_module():
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_args_form_test_module", APP_ARGS_FORM_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    module._AGILAB_APP_ARGS_FORM_IMPORT_ONLY = True
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
@@ -1677,18 +1688,104 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
 
     assert "render_form(" not in source
     assert "APP_FORM_ID" in source
+    assert "FORM_FIELDS" in source
+    assert "class FormField" in source
     assert "def _field_key" in source
     assert "key=key" in source
     assert "st.json(" not in source
     assert ".multiselect(" not in source
     assert "def _render_wide_args_form" in source
     assert "def _render_compact_args_form" in source
+    assert "def _render_dataset_fields" not in source
+    assert "def _render_model_fields" not in source
+    assert "def _render_evidence_fields" not in source
     assert "def persist_current_args" in source
     assert "Quick fields are enough" not in source
     assert ".columns(" in source
     assert "Loss landscape" in source
+    for label in ("Samples", "Epochs", "Learning rate", "Loss landscape", "Evidence path"):
+        assert source.count(f'"{label}"') == 1
     assert "def _build_synced_run_snippet" in source
     assert "Synced RUN snippet" in source
+
+
+def test_pytorch_playground_app_args_form_fields_are_single_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    form_module = _load_app_args_form_module()
+    monkeypatch.setattr(form_module.st, "session_state", {})
+
+    model_fields = set(form_module.app_args.PytorchPlaygroundArgs.model_fields)
+    form_fields = {field.name for field in form_module.FORM_FIELDS}
+    assert form_fields == model_fields
+    assert len(form_module.FORM_FIELDS) == len(form_fields)
+    assert {field.compact_group for field in form_module.FORM_FIELDS} == {"primary", "Advanced model", "Evidence"}
+    assert [field.name for field in form_module._fields_for_compact_group("primary")] == [
+        "dataset",
+        "sample_count",
+        "noise",
+        "epochs",
+    ]
+
+
+def test_pytorch_playground_compact_app_args_form_uses_shared_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    form_module = _load_app_args_form_module()
+    monkeypatch.setattr(form_module.st, "session_state", {})
+    events: list[tuple[str, str, bool | None]] = []
+
+    class FakeExpander:
+        def __init__(self, label: str):
+            self.label = label
+
+        def __enter__(self):
+            events.append(("expander_enter", self.label, None))
+            return self
+
+        def __exit__(self, *_args):
+            events.append(("expander_exit", self.label, None))
+            return False
+
+        def text_input(self, label, *, key):
+            events.append(("text_input", label, None))
+            return form_module.st.session_state[key]
+
+        def checkbox(self, label, *, key):
+            events.append(("checkbox", label, None))
+            return form_module.st.session_state[key]
+
+        def number_input(self, label, *, key, disabled=False, **_kwargs):
+            events.append(("number_input", label, disabled))
+            return form_module.st.session_state[key]
+
+        def slider(self, label, *, key, disabled=False, **_kwargs):
+            events.append(("slider", label, disabled))
+            return form_module.st.session_state[key]
+
+        def selectbox(self, label, options, *, key):
+            events.append(("selectbox", label, None))
+            return form_module.st.session_state[key]
+
+        def columns(self, _spec):
+            raise AssertionError("compact form should stack fields instead of using columns")
+
+    class FakeContainer(FakeExpander):
+        def __init__(self):
+            super().__init__("root")
+
+        def expander(self, label, *, expanded=False):
+            events.append(("expander", label, expanded))
+            return FakeExpander(label)
+
+    model = form_module.app_args.PytorchPlaygroundArgs()
+    values = form_module._render_compact_args_form(
+        model,
+        env=SimpleNamespace(app="pytorch_playground_project"),
+        container=FakeContainer(),
+    )
+
+    assert set(values) == {field.name for field in form_module.FORM_FIELDS}
+    assert ("expander", "Advanced model", False) in events
+    assert ("expander", "Evidence", False) in events
+    assert ("slider", "Resolution", True) in events
+    assert ("slider", "Span", True) in events
 
 
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
