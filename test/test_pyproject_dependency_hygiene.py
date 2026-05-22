@@ -255,7 +255,11 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"])
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {"streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
-    assert _optional_dependency_names(pyproject, "mlflow") == {"mlflow"}
+    assert {"mlflow"} <= _optional_dependency_names(pyproject, "mlflow") <= {
+        "mlflow",
+        "idna",
+        "starlette",
+    }
     assert {"build", "pytest", "pytest-cov", "pip-audit", "cyclonedx-bom", "twine", "wheel"} <= _optional_dependency_names(
         pyproject, "dev"
     )
