@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 import sys
 from typing import Any
@@ -14,15 +15,235 @@ if str(_HERE) not in sys.path:
 
 from agi_env.streamlit_args import load_args_state, persist_args
 from pytorch_playground import app_args
-from pytorch_playground.core import ACTIVATIONS, DATASETS, OPTIMIZERS, _coerce_feature_names
+from pytorch_playground.core import (
+    ACTIVATIONS,
+    DATASETS,
+    OPTIMIZERS,
+    _coerce_feature_names,
+)
 
 APP_FORM_ID = "pytorch_playground_args"
+
+
+@dataclass(frozen=True)
+class FormField:
+    name: str
+    label: str
+    section: str
+    widget: str
+    value_type: str = "str"
+    options: tuple[str, ...] = ()
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    step: int | float | None = None
+    wide_row: str = "main"
+    wide_weight: float = 1.0
+    compact_group: str = "primary"
+    disabled_unless: str | None = None
+
+
+FORM_FIELDS: tuple[FormField, ...] = (
+    FormField(
+        "dataset",
+        "Dataset",
+        "Dataset",
+        "selectbox",
+        options=DATASETS,
+        wide_row="dataset",
+        wide_weight=1.25,
+    ),
+    FormField(
+        "sample_count",
+        "Samples",
+        "Dataset",
+        "slider",
+        value_type="int",
+        min_value=64,
+        max_value=1000,
+        step=16,
+        wide_row="dataset",
+    ),
+    FormField(
+        "noise",
+        "Noise",
+        "Dataset",
+        "slider",
+        value_type="float",
+        min_value=0.0,
+        max_value=0.5,
+        step=0.01,
+        wide_row="dataset",
+    ),
+    FormField(
+        "train_ratio",
+        "Train split",
+        "Dataset",
+        "slider",
+        value_type="float",
+        min_value=0.5,
+        max_value=0.95,
+        step=0.05,
+        wide_row="dataset",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "feature_names",
+        "Feature names",
+        "Dataset",
+        "feature_names",
+        wide_row="features",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "hidden_layers",
+        "Hidden layers",
+        "Model",
+        "text_input",
+        wide_row="architecture",
+        wide_weight=1.6,
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "activation",
+        "Activation",
+        "Model",
+        "selectbox",
+        options=ACTIVATIONS,
+        wide_row="architecture",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "optimizer",
+        "Optimizer",
+        "Model",
+        "selectbox",
+        options=OPTIMIZERS,
+        wide_row="architecture",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "epochs",
+        "Epochs",
+        "Model",
+        "slider",
+        value_type="int",
+        min_value=10,
+        max_value=300,
+        step=10,
+        wide_row="training",
+    ),
+    FormField(
+        "batch_size",
+        "Batch",
+        "Model",
+        "slider",
+        value_type="int",
+        min_value=8,
+        max_value=256,
+        step=8,
+        wide_row="training",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "learning_rate",
+        "Learning rate",
+        "Model",
+        "number_input",
+        value_type="float",
+        min_value=0.001,
+        max_value=0.2,
+        step=0.001,
+        wide_row="training",
+        wide_weight=1.15,
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "seed",
+        "Seed",
+        "Model",
+        "number_input",
+        value_type="int",
+        min_value=0,
+        max_value=9999,
+        step=1,
+        wide_row="training",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "data_out",
+        "Evidence path",
+        "Evidence",
+        "text_input",
+        wide_row="output",
+        wide_weight=1.8,
+        compact_group="Evidence",
+    ),
+    FormField(
+        "grid_size",
+        "Grid size",
+        "Evidence",
+        "slider",
+        value_type="int",
+        min_value=12,
+        max_value=120,
+        step=4,
+        wide_row="output",
+        compact_group="Evidence",
+    ),
+    FormField(
+        "reset_target",
+        "Reset output",
+        "Evidence",
+        "checkbox",
+        value_type="bool",
+        wide_row="output",
+        compact_group="Evidence",
+    ),
+    FormField(
+        "compute_loss_landscape",
+        "Loss landscape",
+        "Evidence",
+        "checkbox",
+        value_type="bool",
+        wide_row="landscape",
+        wide_weight=1.35,
+        compact_group="Evidence",
+    ),
+    FormField(
+        "landscape_resolution",
+        "Resolution",
+        "Evidence",
+        "slider",
+        value_type="int",
+        min_value=5,
+        max_value=31,
+        step=2,
+        wide_row="landscape",
+        compact_group="Evidence",
+        disabled_unless="compute_loss_landscape",
+    ),
+    FormField(
+        "landscape_span",
+        "Span",
+        "Evidence",
+        "slider",
+        value_type="float",
+        min_value=0.1,
+        max_value=1.5,
+        step=0.05,
+        wide_row="landscape",
+        compact_group="Evidence",
+        disabled_unless="compute_loss_landscape",
+    ),
+)
 
 
 def _get_env():
     env = st.session_state.get("env") or st.session_state.get("_env")
     if env is None:
-        st.error("AGILAB environment is not initialised yet. Return to the main page and try again.")
+        st.error(
+            "AGILAB environment is not initialised yet. Return to the main page and try again."
+        )
         st.stop()
     return env
 
@@ -105,47 +326,42 @@ def _slider(
     )
 
 
-def _selectbox(container: Any, env: Any, name: str, label: str, options: tuple[str, ...], value: str) -> str:
+def _selectbox(
+    container: Any,
+    env: Any,
+    name: str,
+    label: str,
+    options: tuple[str, ...],
+    value: str,
+) -> str:
     key = _field_key(env, name)
     _seed_widget_value(key, value if value in options else options[0])
     return str(container.selectbox(label, options=options, key=key))
 
 
-def _feature_names(container: Any, env: Any, value: str) -> str:
+def _feature_names(container: Any, env: Any, name: str, label: str, value: str) -> str:
     selected = _coerce_feature_names(value)
-    return _text_input(container, env, "feature_names", "Feature names", ",".join(selected))
+    return _text_input(container, env, name, label, ",".join(selected))
 
 
 def _state_value(env: Any, name: str, fallback: Any) -> Any:
     return st.session_state.get(_field_key(env, name), fallback)
 
 
-def _current_form_values(model: app_args.PytorchPlaygroundArgs, *, env: Any) -> dict[str, Any]:
+def _current_form_values(
+    model: app_args.PytorchPlaygroundArgs, *, env: Any
+) -> dict[str, Any]:
     return {
-        "data_out": _state_value(env, "data_out", model.data_out),
-        "dataset": _state_value(env, "dataset", model.dataset),
-        "sample_count": _state_value(env, "sample_count", model.sample_count),
-        "noise": _state_value(env, "noise", model.noise),
-        "train_ratio": _state_value(env, "train_ratio", model.train_ratio),
-        "hidden_layers": _state_value(env, "hidden_layers", model.hidden_layers),
-        "activation": _state_value(env, "activation", model.activation),
-        "optimizer": _state_value(env, "optimizer", model.optimizer),
-        "learning_rate": _state_value(env, "learning_rate", model.learning_rate),
-        "epochs": _state_value(env, "epochs", model.epochs),
-        "batch_size": _state_value(env, "batch_size", model.batch_size),
-        "seed": _state_value(env, "seed", model.seed),
-        "feature_names": _state_value(env, "feature_names", model.feature_names),
-        "grid_size": _state_value(env, "grid_size", model.grid_size),
-        "compute_loss_landscape": _state_value(env, "compute_loss_landscape", model.compute_loss_landscape),
-        "landscape_resolution": _state_value(env, "landscape_resolution", model.landscape_resolution),
-        "landscape_span": _state_value(env, "landscape_span", model.landscape_span),
-        "reset_target": _state_value(env, "reset_target", model.reset_target),
+        field.name: _state_value(env, field.name, getattr(model, field.name))
+        for field in FORM_FIELDS
     }
 
 
 def persist_current_args(*, env: Any | None = None) -> app_args.PytorchPlaygroundArgs:
     active_env = env or _get_env()
-    defaults_model, defaults_payload, settings_path = load_args_state(active_env, args_module=app_args)
+    defaults_model, defaults_payload, settings_path = load_args_state(
+        active_env, args_module=app_args
+    )
     parsed = app_args.ensure_defaults(
         app_args.ArgsModel(**_current_form_values(defaults_model, env=active_env)),
         env=active_env,
@@ -236,7 +452,9 @@ def _optional_python_expr(enabled: bool, value: Any) -> str:
     return repr(value)
 
 
-def _split_run_request_payload(run_args: dict[str, Any]) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
+def _split_run_request_payload(
+    run_args: dict[str, Any],
+) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
     payload = dict(run_args)
     stages = payload.pop("stages", [])
     if "args" in payload:
@@ -246,13 +464,21 @@ def _split_run_request_payload(run_args: dict[str, Any]) -> tuple[dict[str, Any]
     data_in = payload.pop("data_in", None)
     data_out = payload.pop("data_out", None)
     reset_target = payload.pop("reset_target", None)
-    return payload, list(stages) if isinstance(stages, list) else [], data_in, data_out, reset_target
+    return (
+        payload,
+        list(stages) if isinstance(stages, list) else [],
+        data_in,
+        data_out,
+        reset_target,
+    )
 
 
 def _fallback_run_snippet(*, env: Any, run_args: dict[str, Any]) -> str:
     cluster = _cluster_settings()
     cluster_enabled = bool(cluster.get("cluster_enabled", False))
-    params, stages, data_in, data_out, reset_target = _split_run_request_payload(run_args)
+    params, stages, data_in, data_out, reset_target = _split_run_request_payload(
+        run_args
+    )
     snippet_lines = [
         "import asyncio",
         "import json",
@@ -296,7 +522,9 @@ def _fallback_run_snippet(*, env: Any, run_args: dict[str, Any]) -> str:
     return "\n".join(snippet_lines).strip()
 
 
-def _build_synced_run_snippet(parsed: app_args.PytorchPlaygroundArgs, *, env: Any) -> str:
+def _build_synced_run_snippet(
+    parsed: app_args.PytorchPlaygroundArgs, *, env: Any
+) -> str:
     run_args = dict(parsed.model_dump(mode="json"))
     cluster = _cluster_settings()
     cluster_enabled = bool(cluster.get("cluster_enabled", False))
@@ -309,7 +537,9 @@ def _build_synced_run_snippet(parsed: app_args.PytorchPlaygroundArgs, *, env: An
             run_mode=_run_mode(cluster, cluster_enabled=cluster_enabled),
             scheduler=_optional_string_expr(cluster_enabled, cluster.get("scheduler")),
             workers=_optional_python_expr(cluster_enabled, cluster.get("workers")),
-            workers_data_path=_optional_string_expr(cluster_enabled, cluster.get("workers_data_path")),
+            workers_data_path=_optional_string_expr(
+                cluster_enabled, cluster.get("workers_data_path")
+            ),
             rapids_enabled=bool(cluster.get("rapids", False)),
             benchmark_best_single_node=False,
             run_args=run_args,
@@ -323,7 +553,9 @@ def _store_synced_run_snippet(env: Any, snippet: str) -> None:
     st.session_state[key] = snippet
 
 
-def _render_synced_run_snippet(container: Any, *, env: Any, parsed: app_args.PytorchPlaygroundArgs, compact: bool) -> None:
+def _render_synced_run_snippet(
+    container: Any, *, env: Any, parsed: app_args.PytorchPlaygroundArgs, compact: bool
+) -> None:
     snippet = _build_synced_run_snippet(parsed, env=env)
     _store_synced_run_snippet(env, snippet)
     label = "Synced RUN snippet" if compact else "Generated RUN snippet"
@@ -331,235 +563,214 @@ def _render_synced_run_snippet(container: Any, *, env: Any, parsed: app_args.Pyt
         snippet_container.code(snippet, language="python")
 
 
-def _render_dataset_fields(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
-    dataset_col, samples_col, noise_col, split_col = container.columns([1.25, 1.0, 1.0, 1.0])
-    return {
-        "dataset": _selectbox(dataset_col, env, "dataset", "Dataset", DATASETS, model.dataset),
-        "sample_count": int(
-            _slider(samples_col, env, "sample_count", "Samples", model.sample_count, min_value=64, max_value=1000, step=16)
-        ),
-        "noise": float(
-            _slider(noise_col, env, "noise", "Noise", model.noise, min_value=0.0, max_value=0.5, step=0.01)
-        ),
-        "train_ratio": float(
-            _slider(split_col, env, "train_ratio", "Train split", model.train_ratio, min_value=0.5, max_value=0.95, step=0.05)
-        ),
-    }
+def _coerce_field_value(field: FormField, value: Any) -> Any:
+    if field.value_type == "bool":
+        return bool(value)
+    if field.value_type == "int":
+        return int(value)
+    if field.value_type == "float":
+        return float(value)
+    return value
 
 
-def _render_model_fields(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
-    architecture_col, activation_col, optimizer_col = container.columns([1.6, 1.0, 1.0])
-    training_col, batch_col, learning_col, seed_col = container.columns([1.0, 1.0, 1.15, 1.0])
-    return {
-        "hidden_layers": _text_input(architecture_col, env, "hidden_layers", "Hidden layers", model.hidden_layers),
-        "activation": _selectbox(activation_col, env, "activation", "Activation", ACTIVATIONS, model.activation),
-        "optimizer": _selectbox(optimizer_col, env, "optimizer", "Optimizer", OPTIMIZERS, model.optimizer),
-        "epochs": int(
-            _slider(training_col, env, "epochs", "Epochs", model.epochs, min_value=10, max_value=300, step=10)
-        ),
-        "batch_size": int(
-            _slider(batch_col, env, "batch_size", "Batch", model.batch_size, min_value=8, max_value=256, step=8)
-        ),
-        "learning_rate": float(
-            _number_input(
-                learning_col,
-                env,
-                "learning_rate",
-                "Learning rate",
-                model.learning_rate,
-                min_value=0.001,
-                max_value=0.2,
-                step=0.001,
+def _field_disabled(
+    field: FormField,
+    values: dict[str, Any],
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+) -> bool:
+    if field.disabled_unless is None:
+        return False
+    fallback = getattr(model, field.disabled_unless)
+    return not bool(
+        values.get(
+            field.disabled_unless, _state_value(env, field.disabled_unless, fallback)
+        )
+    )
+
+
+def _render_form_field(
+    field: FormField,
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+    container: Any,
+    values: dict[str, Any],
+) -> Any:
+    value = getattr(model, field.name)
+    disabled = _field_disabled(field, values, model, env=env)
+    if field.widget == "selectbox":
+        rendered = _selectbox(
+            container, env, field.name, field.label, field.options, value
+        )
+    elif field.widget == "slider":
+        rendered = _slider(
+            container,
+            env,
+            field.name,
+            field.label,
+            value,
+            min_value=field.min_value,
+            max_value=field.max_value,
+            step=field.step,
+            disabled=disabled,
+        )
+    elif field.widget == "number_input":
+        rendered = _number_input(
+            container,
+            env,
+            field.name,
+            field.label,
+            value,
+            min_value=field.min_value,
+            max_value=field.max_value,
+            step=field.step,
+            disabled=disabled,
+        )
+    elif field.widget == "checkbox":
+        rendered = _checkbox(container, env, field.name, field.label, value)
+    elif field.widget == "feature_names":
+        rendered = _feature_names(container, env, field.name, field.label, value)
+    else:
+        rendered = _text_input(container, env, field.name, field.label, value)
+    return _coerce_field_value(field, rendered)
+
+
+def _fields_for_section(section: str) -> list[FormField]:
+    return [field for field in FORM_FIELDS if field.section == section]
+
+
+def _fields_for_compact_group(group: str) -> list[FormField]:
+    return [field for field in FORM_FIELDS if field.compact_group == group]
+
+
+def _form_sections() -> list[str]:
+    return list(dict.fromkeys(field.section for field in FORM_FIELDS))
+
+
+def _compact_expander_groups() -> list[str]:
+    return list(
+        dict.fromkeys(
+            field.compact_group
+            for field in FORM_FIELDS
+            if field.compact_group != "primary"
+        )
+    )
+
+
+def _render_stacked_fields(
+    fields: list[FormField],
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+    container: Any,
+    values: dict[str, Any],
+) -> None:
+    for field in fields:
+        values[field.name] = _render_form_field(
+            field, model, env=env, container=container, values=values
+        )
+
+
+def _render_field_row(
+    fields: list[FormField],
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+    container: Any,
+    values: dict[str, Any],
+) -> None:
+    if len(fields) == 1:
+        _render_stacked_fields(
+            fields, model, env=env, container=container, values=values
+        )
+        return
+    columns = container.columns([field.wide_weight for field in fields])
+    for column, field in zip(columns, fields, strict=False):
+        values[field.name] = _render_form_field(
+            field, model, env=env, container=column, values=values
+        )
+
+
+def _render_section_fields(
+    section: str,
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+    container: Any,
+    values: dict[str, Any],
+    columns: bool,
+) -> None:
+    fields = _fields_for_section(section)
+    if not columns:
+        _render_stacked_fields(
+            fields, model, env=env, container=container, values=values
+        )
+        return
+    rows: dict[str, list[FormField]] = {}
+    for field in fields:
+        rows.setdefault(field.wide_row, []).append(field)
+    for row_fields in rows.values():
+        _render_field_row(
+            row_fields, model, env=env, container=container, values=values
+        )
+
+
+def _render_wide_args_form(
+    model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any
+) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for section in _form_sections():
+        container.markdown(f"#### {section}")
+        _render_section_fields(
+            section, model, env=env, container=container, values=values, columns=True
+        )
+    return values
+
+
+def _render_compact_args_form(
+    model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any
+) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    _render_stacked_fields(
+        _fields_for_compact_group("primary"),
+        model,
+        env=env,
+        container=container,
+        values=values,
+    )
+    for group in _compact_expander_groups():
+        with container.expander(group, expanded=False) as group_container:
+            _render_stacked_fields(
+                _fields_for_compact_group(group),
+                model,
+                env=env,
+                container=group_container,
+                values=values,
             )
-        ),
-        "seed": int(_number_input(seed_col, env, "seed", "Seed", model.seed, min_value=0, max_value=9999, step=1)),
-    }
-
-
-def _render_evidence_fields(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
-    path_col, grid_col, reset_col = container.columns([1.8, 1.0, 1.0])
-    values = {
-        "data_out": _text_input(path_col, env, "data_out", "Evidence path", model.data_out),
-        "grid_size": int(
-            _slider(grid_col, env, "grid_size", "Grid size", model.grid_size, min_value=12, max_value=120, step=4)
-        ),
-        "reset_target": _checkbox(reset_col, env, "reset_target", "Reset output", model.reset_target),
-    }
-    loss_col, resolution_col, span_col = container.columns([1.35, 1.0, 1.0])
-    compute_loss_landscape = _checkbox(
-        loss_col,
-        env,
-        "compute_loss_landscape",
-        "Loss landscape",
-        model.compute_loss_landscape,
-    )
-    values["compute_loss_landscape"] = compute_loss_landscape
-    values["landscape_resolution"] = int(
-        _slider(
-            resolution_col,
-            env,
-            "landscape_resolution",
-            "Resolution",
-            model.landscape_resolution,
-            min_value=5,
-            max_value=31,
-            step=2,
-            disabled=not compute_loss_landscape,
-        )
-    )
-    values["landscape_span"] = float(
-        _slider(
-            span_col,
-            env,
-            "landscape_span",
-            "Span",
-            model.landscape_span,
-            min_value=0.1,
-            max_value=1.5,
-            step=0.05,
-            disabled=not compute_loss_landscape,
-        )
-    )
     return values
 
 
-def _render_wide_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
+def _render_sidebar_args_form(
+    model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any
+) -> dict[str, Any]:
     values: dict[str, Any] = {}
-    container.markdown("#### Dataset")
-    values.update(_render_dataset_fields(model, env=env, container=container))
-    values["feature_names"] = _feature_names(container, env, model.feature_names)
-    container.markdown("#### Model")
-    values.update(_render_model_fields(model, env=env, container=container))
-    container.markdown("#### Evidence")
-    values.update(_render_evidence_fields(model, env=env, container=container))
-    return values
-
-
-def _render_compact_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
-    values: dict[str, Any] = {
-        "dataset": _selectbox(container, env, "dataset", "Dataset", DATASETS, model.dataset),
-        "sample_count": int(
-            _slider(container, env, "sample_count", "Samples", model.sample_count, min_value=64, max_value=1000, step=16)
-        ),
-        "noise": float(_slider(container, env, "noise", "Noise", model.noise, min_value=0.0, max_value=0.5, step=0.01)),
-        "epochs": int(_slider(container, env, "epochs", "Epochs", model.epochs, min_value=10, max_value=300, step=10)),
-    }
-    with container.expander("Advanced model", expanded=False) as advanced:
-        values.update(
-            {
-                "train_ratio": float(
-                    _slider(advanced, env, "train_ratio", "Train split", model.train_ratio, min_value=0.5, max_value=0.95, step=0.05)
-                ),
-                "feature_names": _feature_names(advanced, env, model.feature_names),
-                "hidden_layers": _text_input(advanced, env, "hidden_layers", "Hidden layers", model.hidden_layers),
-                "activation": _selectbox(advanced, env, "activation", "Activation", ACTIVATIONS, model.activation),
-                "optimizer": _selectbox(advanced, env, "optimizer", "Optimizer", OPTIMIZERS, model.optimizer),
-                "learning_rate": float(
-                    _number_input(
-                        advanced,
-                        env,
-                        "learning_rate",
-                        "Learning rate",
-                        model.learning_rate,
-                        min_value=0.001,
-                        max_value=0.2,
-                        step=0.001,
-                    )
-                ),
-                "batch_size": int(_slider(advanced, env, "batch_size", "Batch", model.batch_size, min_value=8, max_value=256, step=8)),
-                "seed": int(_number_input(advanced, env, "seed", "Seed", model.seed, min_value=0, max_value=9999, step=1)),
-            }
+    for section in _form_sections():
+        container.markdown(f"#### {section}")
+        _render_section_fields(
+            section, model, env=env, container=container, values=values, columns=False
         )
-    with container.expander("Evidence", expanded=False) as evidence:
-        values.update(_render_evidence_fields(model, env=env, container=evidence))
     return values
 
 
-def _render_sidebar_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
-    values: dict[str, Any] = {}
-    container.markdown("#### Dataset")
-    values.update(
-        {
-            "dataset": _selectbox(container, env, "dataset", "Dataset", DATASETS, model.dataset),
-            "sample_count": int(
-                _slider(container, env, "sample_count", "Samples", model.sample_count, min_value=64, max_value=1000, step=16)
-            ),
-            "noise": float(_slider(container, env, "noise", "Noise", model.noise, min_value=0.0, max_value=0.5, step=0.01)),
-            "train_ratio": float(
-                _slider(container, env, "train_ratio", "Train split", model.train_ratio, min_value=0.5, max_value=0.95, step=0.05)
-            ),
-            "feature_names": _feature_names(container, env, model.feature_names),
-        }
-    )
-    container.markdown("#### Model")
-    values.update(
-        {
-            "hidden_layers": _text_input(container, env, "hidden_layers", "Hidden layers", model.hidden_layers),
-            "activation": _selectbox(container, env, "activation", "Activation", ACTIVATIONS, model.activation),
-            "optimizer": _selectbox(container, env, "optimizer", "Optimizer", OPTIMIZERS, model.optimizer),
-            "learning_rate": float(
-                _number_input(
-                    container,
-                    env,
-                    "learning_rate",
-                    "Learning rate",
-                    model.learning_rate,
-                    min_value=0.001,
-                    max_value=0.2,
-                    step=0.001,
-                )
-            ),
-            "epochs": int(_slider(container, env, "epochs", "Epochs", model.epochs, min_value=10, max_value=300, step=10)),
-            "batch_size": int(_slider(container, env, "batch_size", "Batch", model.batch_size, min_value=8, max_value=256, step=8)),
-            "seed": int(_number_input(container, env, "seed", "Seed", model.seed, min_value=0, max_value=9999, step=1)),
-        }
-    )
-    container.markdown("#### Evidence")
-    compute_loss_landscape = _checkbox(
-        container,
-        env,
-        "compute_loss_landscape",
-        "Loss landscape",
-        model.compute_loss_landscape,
-    )
-    values.update(
-        {
-            "data_out": _text_input(container, env, "data_out", "Evidence path", model.data_out),
-            "grid_size": int(_slider(container, env, "grid_size", "Grid size", model.grid_size, min_value=12, max_value=120, step=4)),
-            "compute_loss_landscape": compute_loss_landscape,
-            "landscape_resolution": int(
-                _slider(
-                    container,
-                    env,
-                    "landscape_resolution",
-                    "Resolution",
-                    model.landscape_resolution,
-                    min_value=5,
-                    max_value=31,
-                    step=2,
-                    disabled=not compute_loss_landscape,
-                )
-            ),
-            "landscape_span": float(
-                _slider(
-                    container,
-                    env,
-                    "landscape_span",
-                    "Span",
-                    model.landscape_span,
-                    min_value=0.1,
-                    max_value=1.5,
-                    step=0.05,
-                    disabled=not compute_loss_landscape,
-                )
-            ),
-            "reset_target": _checkbox(container, env, "reset_target", "Reset output", model.reset_target),
-        }
-    )
-    return values
-
-
-def _render_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any, wide: bool = False) -> dict[str, Any]:
+def _render_args_form(
+    model: app_args.PytorchPlaygroundArgs,
+    *,
+    env: Any,
+    container: Any,
+    wide: bool = False,
+) -> dict[str, Any]:
     if wide:
         return _render_wide_args_form(model, env=env, container=container)
     return _render_sidebar_args_form(model, env=env, container=container)
@@ -573,9 +784,15 @@ def render(
     compact: bool = False,
 ) -> None:
     active_env = env or _get_env()
-    defaults_model, defaults_payload, settings_path = load_args_state(active_env, args_module=app_args)
+    defaults_model, defaults_payload, settings_path = load_args_state(
+        active_env, args_module=app_args
+    )
 
-    artifact_target = str(getattr(active_env, "target", "") or getattr(active_env, "app", "") or "pytorch_playground_project")
+    artifact_target = str(
+        getattr(active_env, "target", "")
+        or getattr(active_env, "app", "")
+        or "pytorch_playground_project"
+    )
     artifact_root = (
         Path(getattr(active_env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
         / artifact_target
@@ -587,18 +804,24 @@ def render(
             "PyTorch Playground is an executable app: ORCHESTRATE runs the configured "
             "training job and exports replayable evidence."
         )
-        output_container.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
+        output_container.caption(
+            f"Analysis artifacts are exported to `{artifact_root}`."
+        )
     snippet_rendered = False
     if compact and container is not None:
         try:
             current_parsed = app_args.ensure_defaults(
-                app_args.ArgsModel(**_current_form_values(defaults_model, env=active_env)),
+                app_args.ArgsModel(
+                    **_current_form_values(defaults_model, env=active_env)
+                ),
                 env=active_env,
             )
         except ValidationError:
             pass
         else:
-            _render_synced_run_snippet(output_container, env=active_env, parsed=current_parsed, compact=True)
+            _render_synced_run_snippet(
+                output_container, env=active_env, parsed=current_parsed, compact=True
+            )
             snippet_rendered = True
 
     form_container = container or st.sidebar
@@ -607,17 +830,29 @@ def render(
         with st.sidebar:
             st.markdown("### PyTorch Playground")
             st.caption("These fields are persisted as app arguments.")
-            form_values = _render_args_form(defaults_model, env=active_env, container=st.sidebar)
+            form_values = _render_args_form(
+                defaults_model, env=active_env, container=st.sidebar
+            )
     else:
-        form_container.markdown("### Settings")
         if compact:
-            form_values = _render_compact_args_form(defaults_model, env=active_env, container=form_container)
+            form_container.markdown("**Settings**")
+            form_values = _render_compact_args_form(
+                defaults_model, env=active_env, container=form_container
+            )
         else:
+            form_container.markdown("### Settings")
             form_container.caption("These fields are persisted as app arguments.")
-            form_values = _render_args_form(defaults_model, env=active_env, container=form_container, wide=use_wide_form)
+            form_values = _render_args_form(
+                defaults_model,
+                env=active_env,
+                container=form_container,
+                wide=use_wide_form,
+            )
 
     try:
-        parsed = app_args.ensure_defaults(app_args.ArgsModel(**form_values), env=active_env)
+        parsed = app_args.ensure_defaults(
+            app_args.ArgsModel(**form_values), env=active_env
+        )
     except ValidationError as exc:
         output_container.error("\n".join(active_env.humanize_validation_errors(exc)))
     else:
@@ -633,7 +868,9 @@ def render(
                 defaults_payload=defaults_payload,
             )
             if not snippet_rendered:
-                _render_synced_run_snippet(output_container, env=active_env, parsed=parsed, compact=compact)
+                _render_synced_run_snippet(
+                    output_container, env=active_env, parsed=parsed, compact=compact
+                )
             payload = json.dumps(
                 {
                     "dataset": config.dataset,
@@ -647,7 +884,9 @@ def render(
                 sort_keys=True,
             )
             if compact:
-                with output_container.expander("Current run payload", expanded=False) as payload_container:
+                with output_container.expander(
+                    "Current run payload", expanded=False
+                ) as payload_container:
                     payload_container.code(payload, language="json")
             else:
                 output_container.code(payload, language="json")
