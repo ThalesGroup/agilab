@@ -1291,7 +1291,8 @@ def test_pytorch_playground_summary_uses_shared_header_style(monkeypatch: pytest
     assert "agilab-header-card" in markup
     assert "Surface" in markup
     assert "PyTorch Playground" in markup
-    assert "Strong run: 96% validation, low overfit" in markup
+    assert "Strong run: low overfit, clear boundary" in markup
+    assert markup.count("96%") == 1
     assert "Train-val gap" in markup
     assert "3.8 pp" in markup
     assert "Decision confidence" in markup

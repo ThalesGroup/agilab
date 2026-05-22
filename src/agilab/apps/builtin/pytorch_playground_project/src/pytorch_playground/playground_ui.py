@@ -1243,7 +1243,7 @@ def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None
     parameter_count = _parameter_count(network_layers)
     headline = (
         f"{_run_quality_label(validation_accuracy, gap)}: "
-        f"{_format_percent(validation_accuracy)} validation, {_gap_quality_label(gap)}"
+        f"{_gap_quality_label(gap)}, {_decision_confidence_note(confidence)}"
     )
     st.markdown(
         _summary_banner(
