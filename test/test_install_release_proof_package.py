@@ -144,3 +144,42 @@ def test_pypi_release_visible_returns_false_when_release_is_absent() -> None:
         "2026.05.12.post3",
         opener=opener,
     )
+
+
+def test_pypi_release_installable_uses_pip_dry_run_exact_spec() -> None:
+    module = _load_module()
+    calls: list[list[str]] = []
+
+    def runner(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, returncode=0)
+
+    assert module.pypi_release_installable(
+        "agilab[examples]==2026.05.20",
+        runner=runner,
+    )
+
+    assert calls == [
+        [
+            module.sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--dry-run",
+            "--ignore-installed",
+            "--no-cache-dir",
+            "agilab[examples]==2026.05.20",
+        ]
+    ]
+
+
+def test_pypi_release_installable_returns_false_when_resolution_fails() -> None:
+    module = _load_module()
+
+    def runner(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(cmd, returncode=1)
+
+    assert not module.pypi_release_installable(
+        "agilab[examples]==2026.05.20",
+        runner=runner,
+    )
