@@ -600,6 +600,74 @@ def test_above_fold_probe_filters_targets_by_initial_fold() -> None:
     assert "EXECUTE" in probe.detail
 
 
+def test_required_text_probe_reads_child_frames() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, text: str):
+            self._text = text
+
+        def inner_text(self, **_kwargs) -> str:
+            return self._text
+
+    class _Frame:
+        def __init__(self, text: str):
+            self._text = text
+
+        def locator(self, _selector: str) -> _Locator:
+            return _Locator(self._text)
+
+    class _Page(_Frame):
+        url = "http://demo/ANALYSIS"
+
+        def __init__(self) -> None:
+            super().__init__("PyTorch Playground")
+            self.main_frame = object()
+            self.frames = [
+                self.main_frame,
+                _Frame("Run training\nSynced RUN snippet\nSettings"),
+            ]
+
+    probe = module._required_text_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_text=("Run training", "Synced RUN snippet"),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+    assert probe.kind == "required_text"
+
+
+def test_required_text_probe_reports_missing_text() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def inner_text(self, **_kwargs) -> str:
+            return "PyTorch Playground"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+    probe = module._required_text_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_text=("Run training",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "failed"
+    assert "Run training" in probe.detail
+
+
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
     module = _load_module()
 

@@ -4551,6 +4551,7 @@ def sweep_page(
     accessibility_check: bool = False,
     browser_error_check: bool = False,
     above_fold_check: bool = False,
+    required_text: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
@@ -4665,6 +4666,16 @@ def sweep_page(
                 probes.append(_accessibility_probe(page, app_name=app_name, display=display))
             if above_fold_check and not any(probe.status == "failed" for probe in probes):
                 probes.append(_above_fold_probe(page, app_name=app_name, display=display))
+            if required_text and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _required_text_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        required_text=required_text,
+                        timeout_ms=widget_timeout_ms,
+                    )
+                )
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
             preflight_detail = current_home_action_preflight_blocker(
                 app_name=app_name,
@@ -5424,6 +5435,68 @@ def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
     )
 
 
+def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:
+    texts: list[str] = []
+
+    def append_locator_text(owner: Any) -> None:
+        try:
+            text = owner.locator("body").inner_text(timeout=timeout_ms)
+        except Exception:
+            return
+        if text:
+            texts.append(str(text))
+
+    append_locator_text(page)
+    try:
+        frames = list(getattr(page, "frames", []) or [])
+    except Exception:
+        frames = []
+    try:
+        main_frame = getattr(page, "main_frame", None)
+    except Exception:
+        main_frame = None
+    for frame in frames:
+        if frame is main_frame:
+            continue
+        append_locator_text(frame)
+    return "\n".join(texts)
+
+
+def _required_text_probe(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    required_text: Sequence[str],
+    timeout_ms: float,
+) -> WidgetProbe:
+    expected = tuple(str(label).strip() for label in required_text if str(label).strip())
+    text = _page_and_frame_text(page, timeout_ms=timeout_ms)
+    normalized_text = text.lower()
+    missing = [label for label in expected if label.lower() not in normalized_text]
+    if missing:
+        detail = f"required text missing: {missing}; page/frame text sample={text[:500]!r}"
+        return WidgetProbe(
+            app_name,
+            display,
+            "required_text",
+            "page_and_frames",
+            "failed",
+            _short_detail(detail),
+            getattr(page, "url", ""),
+        )
+    detail = f"required text visible in page or child frames: {list(expected)}"
+    return WidgetProbe(
+        app_name,
+        display,
+        "required_text",
+        "page_and_frames",
+        "interacted",
+        _short_detail(detail),
+        getattr(page, "url", ""),
+    )
+
+
 def sweep_direct_apps_page(
     *,
     web_robot: Any,
@@ -5455,6 +5528,7 @@ def sweep_direct_apps_page(
     accessibility_check: bool = False,
     browser_error_check: bool = False,
     above_fold_check: bool = False,
+    required_text: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
@@ -5579,6 +5653,7 @@ def sweep_direct_apps_page(
                         accessibility_check=accessibility_check,
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
+                        required_text=required_text,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
@@ -5628,6 +5703,7 @@ def sweep_app(
     accessibility_check: bool = False,
     browser_error_check: bool = False,
     above_fold_check: bool = False,
+    required_text: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
@@ -5731,6 +5807,7 @@ def sweep_app(
                                 accessibility_check=accessibility_check,
                                 browser_error_check=browser_error_check,
                                 above_fold_check=above_fold_check,
+                                required_text=required_text,
                                 visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                                 success_screenshot=success_screenshot,
                                 failure_bundle_dir=failure_bundle_dir,
@@ -5843,6 +5920,7 @@ def sweep_app(
                     accessibility_check=accessibility_check,
                     browser_error_check=browser_error_check,
                     above_fold_check=above_fold_check,
+                    required_text=required_text,
                     visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
                     progress_log=progress_log,
@@ -5894,6 +5972,7 @@ def sweep_remote_app(
     accessibility_check: bool = False,
     browser_error_check: bool = False,
     above_fold_check: bool = False,
+    required_text: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
@@ -5975,6 +6054,7 @@ def sweep_remote_app(
                         accessibility_check=accessibility_check,
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
+                        required_text=required_text,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         success_screenshot=success_screenshot,
                         failure_bundle_dir=failure_bundle_dir,
@@ -6107,6 +6187,7 @@ def sweep_remote_app(
                             accessibility_check=accessibility_check,
                             browser_error_check=browser_error_check,
                             above_fold_check=above_fold_check,
+                            required_text=required_text,
                             visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                             failure_bundle_dir=failure_bundle_dir,
                             progress_log=progress_log,
@@ -6235,6 +6316,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--accessibility-check", action="store_true", help="Fail on missing accessible names, broken ARIA references, heading jumps, missing landmarks, or severe contrast risks.")
     parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
     parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
+    parser.add_argument("--required-text", default="", help="Comma-separated text that must be visible in the page or a child iframe after render.")
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
     parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
@@ -6303,6 +6385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--action-button-policy safe-click/click/click-selected only applies with --interaction-mode full")
     click_action_labels = parse_csv(args.click_action_labels)
     preselect_labels = parse_csv(args.preselect_labels)
+    required_text = parse_csv(args.required_text)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
     if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts or args.assert_analysis_artifacts):
@@ -6367,6 +6450,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accessibility_check=args.accessibility_check,
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
+                required_text=required_text,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
@@ -6418,6 +6502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accessibility_check=args.accessibility_check,
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
+                required_text=required_text,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,

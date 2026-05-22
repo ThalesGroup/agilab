@@ -23,6 +23,9 @@ REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Exp
 REQUIRED_HF_FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
 REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
+REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
+REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
+REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Run training", "Synced RUN snippet", "Settings")
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
         "pages": ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
@@ -73,6 +76,18 @@ def _scenario_apps_pages(widget_robot: Any, scenario: Any) -> set[str]:
         for name in widget_robot.parse_csv(str(getattr(scenario, "apps_pages", "")))
         if name and name != "none"
     }
+
+
+def _scenario_apps(widget_robot: Any, scenario: Any) -> set[str]:
+    return {
+        name
+        for name in widget_robot.parse_csv(str(getattr(scenario, "apps", "")))
+        if name and name != "all"
+    }
+
+
+def _scenario_required_text(widget_robot: Any, scenario: Any) -> set[str]:
+    return set(widget_robot.parse_csv(str(getattr(scenario, "required_text", ""))))
 
 
 def _scenario_flags(scenario: Any) -> set[str]:
@@ -238,6 +253,7 @@ def evaluate_contract() -> dict[str, Any]:
     hf_visual_smoke_profile_scenarios: list[str] = []
     hf_install_profile_apps: list[str] = []
     hf_install_profile_scenarios: list[str] = []
+    ui_robot_matrix_profile_scenarios: list[str] = []
     hf_visual_smoke_required_scenarios = {
         "hf-first-proof-visual-smoke",
         "hf-first-proof-app-pages-visual-smoke",
@@ -253,10 +269,13 @@ def evaluate_contract() -> dict[str, Any]:
         hf_install_profile_scenarios.extend(scenarios)
         if hf_install_required_scenarios.intersection(scenarios):
             hf_install_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
+    for command in parity_profiles.get("ui-robot-matrix", []):
+        ui_robot_matrix_profile_scenarios.extend(_argv_values(command.argv, "--scenario"))
     hf_visual_smoke_profile_apps = sorted(set(hf_visual_smoke_profile_apps))
     hf_visual_smoke_profile_scenarios = sorted(set(hf_visual_smoke_profile_scenarios))
     hf_install_profile_apps = sorted(set(hf_install_profile_apps))
     hf_install_profile_scenarios = sorted(set(hf_install_profile_scenarios))
+    ui_robot_matrix_profile_scenarios = sorted(set(ui_robot_matrix_profile_scenarios))
     missing_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_visual_smoke_profile_apps))
     missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
     if "hf-first-proof-visual-smoke" not in hf_visual_smoke_profile_scenarios:
@@ -295,6 +314,64 @@ def evaluate_contract() -> dict[str, Any]:
             )
         )
 
+    pytorch_analysis: dict[str, list[str]] = {}
+    pytorch_scenario = scenario_by_name.get(REQUIRED_PYTORCH_ANALYSIS_SCENARIO)
+    if pytorch_scenario is None:
+        issues.append(
+            CoverageIssue(
+                "pytorch_analysis_robot",
+                f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing from the robot matrix",
+            )
+        )
+    else:
+        pages = sorted(_scenario_pages(widget_robot, pytorch_scenario))
+        apps = sorted(_scenario_apps(widget_robot, pytorch_scenario))
+        required_text = sorted(_scenario_required_text(widget_robot, pytorch_scenario))
+        flags = sorted(_scenario_flags(pytorch_scenario))
+        pytorch_analysis = {
+            "pages": pages,
+            "apps": apps,
+            "required_text": required_text,
+            "flags": flags,
+        }
+        if "ANALYSIS" not in pages:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} does not cover ANALYSIS",
+                )
+            )
+        if REQUIRED_PYTORCH_ANALYSIS_APP not in apps:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} does not target {REQUIRED_PYTORCH_ANALYSIS_APP}",
+                )
+            )
+        missing_text = sorted(set(REQUIRED_PYTORCH_ANALYSIS_TEXT) - set(required_text))
+        if missing_text:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing required text probes: "
+                    + ", ".join(missing_text),
+                )
+            )
+        if "browser_error_check" not in flags:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} does not enable browser_error_check",
+                )
+            )
+    if REQUIRED_PYTORCH_ANALYSIS_SCENARIO not in ui_robot_matrix_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "pytorch_analysis_robot",
+                f"ui-robot-matrix profile does not run {REQUIRED_PYTORCH_ANALYSIS_SCENARIO}",
+            )
+        )
+
     return {
         "schema": SCHEMA,
         "success": not issues,
@@ -312,7 +389,9 @@ def evaluate_contract() -> dict[str, Any]:
             "hf_install_profile_scenarios": hf_install_profile_scenarios,
             "hf_visual_smoke_profile_apps": hf_visual_smoke_profile_apps,
             "hf_visual_smoke_profile_scenarios": hf_visual_smoke_profile_scenarios,
+            "ui_robot_matrix_profile_scenarios": ui_robot_matrix_profile_scenarios,
             "hf_robot_scenarios": hf_robot_scenarios,
+            "pytorch_analysis_robot": pytorch_analysis,
             "default_scenarios": [scenario.name for scenario in default_scenarios],
             "opt_in_scenarios": sorted(set(matrix.OPT_IN_SCENARIOS)),
         },
