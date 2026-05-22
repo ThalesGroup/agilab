@@ -481,6 +481,93 @@ function Test-VisualStudio {
     }
 }
 
+function Test-CppBuildTools {
+    Write-Info "Checking C++ build tools..."
+
+    # 1. cl.exe already on PATH (e.g. Developer Command Prompt)
+    $clCmd = Get-Command cl.exe -ErrorAction SilentlyContinue
+    if ($clCmd) {
+        Write-Success "MSVC compiler (cl.exe) found at $($clCmd.Source)."
+        return
+    }
+
+    # 2. VCToolsInstallDir set by vcvarsall.bat
+    if ($env:VCToolsInstallDir -and (Test-Path -LiteralPath $env:VCToolsInstallDir)) {
+        Write-Success "Visual C++ Tools detected via VCToolsInstallDir: $env:VCToolsInstallDir"
+        return
+    }
+
+    # 3. vswhere (present when VS Installer is installed)
+    $vswhere = if (${env:ProgramFiles(x86)}) {
+        Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    } else { "" }
+    if ($vswhere -and (Test-Path -LiteralPath $vswhere)) {
+        # Query without -requires so preview/next versions are found too;
+        # verify C++ tools are actually present by looking for cl.exe.
+        $vsPath = & $vswhere -latest -products * -property installationPath 2>$null
+        if ($vsPath) {
+            $clPattern = Join-Path $vsPath "VC\Tools\MSVC\*\bin\HostX64\x64\cl.exe"
+            if (Get-Item $clPattern -ErrorAction SilentlyContinue) {
+                Write-Success "Visual C++ Tools detected under $vsPath."
+                return
+            }
+        }
+    }
+
+    # 4. Scan well-known install roots — enumerate version dirs dynamically so
+    #    preview/next releases (e.g. "18") are found alongside "2022"/"2019".
+    $vsRoots = @(
+        "${env:ProgramFiles}\Microsoft Visual Studio",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio"
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    foreach ($root in $vsRoots) {
+        $verDirs = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue
+        foreach ($verDir in $verDirs) {
+            foreach ($ed in @("BuildTools","Community","Professional","Enterprise")) {
+                $clPattern = Join-Path $verDir.FullName "$ed\VC\Tools\MSVC\*\bin\HostX64\x64\cl.exe"
+                $found = Get-Item $clPattern -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) {
+                    Write-Success "MSVC compiler found at $($found.FullName)."
+                    return
+                }
+            }
+        }
+    }
+
+    Write-Failure "Microsoft Visual C++ Build Tools not found."
+    Write-Failure "  Install 'Desktop development with C++' from:"
+    Write-Failure "  https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+    Write-Failure "  Then open a new terminal and re-run the installer."
+    exit 1
+}
+
+function Test-SymlinkPrivilege {
+    Write-Info "Checking symlink privilege..."
+    # PS 5.1 New-Item SymbolicLink bypasses Developer Mode and always requires the
+    # full SeCreateSymbolicLinkPrivilege token entry.  cmd mklink /D respects Developer
+    # Mode, so use that for the probe instead.
+    $tgt = Join-Path $env:TEMP ("agi_sl_tgt_{0}" -f [System.IO.Path]::GetRandomFileName().Replace('.',''))
+    $lnk = Join-Path $env:TEMP ("agi_sl_lnk_{0}" -f [System.IO.Path]::GetRandomFileName().Replace('.',''))
+    $ok = $false
+    try {
+        New-Item -ItemType Directory -Path $tgt -Force -ErrorAction Stop | Out-Null
+        cmd /c "mklink /D `"$lnk`" `"$tgt`"" > $null 2>&1
+        $ok = ($LASTEXITCODE -eq 0) -and (Test-Path -LiteralPath $lnk)
+    } catch {}
+    finally {
+        if (Test-Path -LiteralPath $lnk) { cmd /c "rmdir `"$lnk`"" > $null 2>&1 }
+        Remove-Item -LiteralPath $tgt -Force -Recurse -ErrorAction SilentlyContinue
+    }
+    if ($ok) {
+        Write-Success "Symlink privilege: OK (Developer Mode or SeCreateSymbolicLinkPrivilege active)."
+    } else {
+        Write-Failure "Symlink creation not allowed (SeCreateSymbolicLinkPrivilege missing)."
+        Write-Failure "  Fix option 1: Settings > System > For Developers > Developer Mode  (then reboot)"
+        Write-Failure "  Fix option 2: grant SeCreateSymbolicLinkPrivilege via Local Security Policy (secpol.msc)"
+        exit 1
+    }
+}
+
 function Select-PythonVersion {
     Write-Info "Choosing Python version..."
     $requested = Read-Host "Enter Python major version [3.13]"
@@ -1101,9 +1188,9 @@ function Invoke-RepositoryCoverage {
     }
 
     $corePaths = @(
-        Join-Path $RepoRoot "src\agilab\core\agi-env\src",
-        Join-Path $RepoRoot "src\agilab\core\agi-node\src",
-        Join-Path $RepoRoot "src\agilab\core\agi-cluster\src"
+        (Join-Path $RepoRoot "src\agilab\core\agi-env\src"),
+        (Join-Path $RepoRoot "src\agilab\core\agi-node\src"),
+        (Join-Path $RepoRoot "src\agilab\core\agi-cluster\src")
     ) | Where-Object { Test-Path -LiteralPath $_ }
 
     $separator = [System.IO.Path]::PathSeparator
@@ -1192,6 +1279,8 @@ try {
 #    Remove-UnwantedPaths
     Check-Internet
     Test-VisualStudio
+    Test-CppBuildTools
+    Test-SymlinkPrivilege
     Install-Dependencies
     Ensure-Uv
     Ensure-Locale

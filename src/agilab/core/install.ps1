@@ -57,7 +57,11 @@ function Invoke-UvPreview {
 }
 
 function Ensure-PipIfMissing {
+    # PS 5.1: native-exe stderr is wrapped as ErrorRecords; suppress them for this probe.
+    $savedEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
     Invoke-UvPreview @("run", "-p", $env:AGI_PYTHON_VERSION, "python", "-c", "import pip") *> $null
+    $ErrorActionPreference = $savedEAP
     if ($LASTEXITCODE -eq 0) {
         Write-Host "pip already available." -ForegroundColor Green
         return

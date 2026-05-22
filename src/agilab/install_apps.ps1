@@ -207,6 +207,11 @@ function Resolve-AppDirectoryName {
         if (Test-Path -LiteralPath $candidatePath) {
             return $candidate
         }
+        # Builtin apps live under the 'builtin' subdirectory
+        $builtinPath = Join-PathSafe (Join-PathSafe $normalizedRoot "builtin") $candidate
+        if (Test-Path -LiteralPath $builtinPath) {
+            return (Join-Path "builtin" $candidate)
+        }
     }
     return $null
 }
@@ -916,7 +921,7 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
         }
         Push-Location $pagePath
         if (Test-PageSyncFresh $pagePath) {
-            Write-Color GREEN ("✓ '{0}' page environment already up to date." -f $page)
+            Write-Color GREEN ("[ok] '{0}' page environment already up to date." -f $page)
         } else {
             $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
             if ($exit -ne 0) {
