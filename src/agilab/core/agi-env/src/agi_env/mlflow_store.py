@@ -432,7 +432,12 @@ def _move_mlflow_sqlite_backend_files(
     for sidecar in ("", "-shm", "-wal", "-journal"):
         candidate = Path(f"{db_path}{sidecar}")
         if candidate.exists():
-            candidate.replace(Path(f"{backup_path}{sidecar}"))
+            target = Path(f"{backup_path}{sidecar}")
+            if os.name == "nt":
+                shutil.copy2(candidate, target)
+                candidate.unlink()
+            else:
+                candidate.replace(target)
 
 
 def _resolve_mlflow_artifact_uri(

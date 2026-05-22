@@ -157,6 +157,29 @@ def inject_uv_preview_flag(cmd: str | None) -> str | None:
         return cmd
 
 
+def _expand_inline_path_value(raw_value: str, current_path: str) -> str:
+    """Expand a shell-style PATH assignment into the host PATH format."""
+
+    expanded_parts: list[str] = []
+    for raw_part in str(raw_value).split(":"):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if part in {"$PATH", "${PATH}"}:
+            if current_path:
+                expanded_parts.extend(
+                    item for item in current_path.split(os.pathsep) if item
+                )
+            continue
+        if part.startswith("~/") or part == "~":
+            suffix = part[2:] if part.startswith("~/") else ""
+            expanded = Path.home() / Path(*PurePosixPath(suffix).parts)
+            expanded_parts.append(str(expanded))
+            continue
+        expanded_parts.append(os.path.expanduser(part))
+    return os.pathsep.join(expanded_parts)
+
+
 def apply_inline_path_export(cmd: str | None, process_env: MutableMapping[str, str]) -> str | None:
     """Apply a leading ``export PATH=...`` fragment directly into ``process_env``."""
 
@@ -168,9 +191,9 @@ def apply_inline_path_export(cmd: str | None, process_env: MutableMapping[str, s
         return cmd
 
     try:
-        raw_value = os.path.expanduser(match.group("value").strip())
         current_path = process_env.get("PATH") or os.environ.get("PATH") or ""
-        new_path = raw_value.replace("${PATH}", current_path).replace("$PATH", current_path)
+        raw_value = match.group("value").strip()
+        new_path = _expand_inline_path_value(raw_value, current_path)
         process_env["PATH"] = new_path
         rest = (match.group("rest") or "").lstrip(" ;")
         return rest or None

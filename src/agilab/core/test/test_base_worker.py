@@ -387,9 +387,17 @@ def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
     assert share_root / "link_sim" / "dataset" in candidates
 
     monkeypatch.setattr(base_worker_mod.Path, "home", staticmethod(lambda: tmp_path))
-    assert BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base").endswith("base/demo/file.csv")
-    assert BaseWorker.expand_and_join("~/data", "nested/file.csv").endswith("data/nested/file.csv")
-    assert BaseWorker.normalize_dataset_path("relative/data").endswith("relative/data")
+    assert Path(BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base")).parts[-3:] == (
+        "base",
+        "demo",
+        "file.csv",
+    )
+    assert Path(BaseWorker.expand_and_join("~/data", "nested/file.csv")).parts[-3:] == (
+        "data",
+        "nested",
+        "file.csv",
+    )
+    assert Path(BaseWorker.normalize_dataset_path("relative/data")).parts[-2:] == ("relative", "data")
 
 
 def test_baseworker_candidate_roots_resolve_fallback(monkeypatch, tmp_path):
@@ -511,7 +519,7 @@ def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fa
     assert calls[0][0][-2:] == ["/user:demo-user", "demo-password"]
     assert calls[0][1]["check"] is True
     assert "shell" not in calls[0][1]
-    assert result.endswith("relative/data")
+    assert Path(result).parts[-2:] == ("relative", "data")
 
 
 def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypatch):
@@ -536,7 +544,7 @@ def test_baseworker_normalize_dataset_path_windows_without_users_prefix(monkeypa
     assert calls[0][0][-2:] == ["/user:demo-user", "demo-password"]
     assert calls[0][1]["check"] is True
     assert "shell" not in calls[0][1]
-    assert result.endswith("/tmp/demo/data")
+    assert Path(result).parts[-3:] == ("tmp", "demo", "data")
 
 
 def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
@@ -904,10 +912,10 @@ def test_baseworker_loop_accepts_stop_event_without_base_polling(monkeypatch):
 def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
     expanded = BaseWorker.expand("folder/demo.csv", base_directory=tmp_path)
     assert expanded == str((tmp_path / "folder" / "demo.csv").resolve())
-    assert BaseWorker._join(str(tmp_path), "child.txt").endswith("/child.txt")
+    assert Path(BaseWorker._join(str(tmp_path), "child.txt")).name == "child.txt"
 
     monkeypatch.setattr(BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value)))
-    assert BaseWorker.expand_and_join("base", "child.txt").endswith("/base/child.txt")
+    assert Path(BaseWorker.expand_and_join("base", "child.txt")).parts[-2:] == ("base", "child.txt")
 
 def test_baseworker_expand_chunk():
     reconstructed, chunk_len, total_workers = BaseWorker._expand_chunk(
@@ -959,7 +967,7 @@ def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
     )
     assert result.input_path == input_dir.resolve()
     assert result.output_path == input_dir.parent / "output"
-    assert worker.data_out.endswith("/output")
+    assert Path(worker.data_out).name == "output"
 
     BaseWorker._share_path = tmp_path
     BaseWorker._worker = "127.0.0.1:8787"

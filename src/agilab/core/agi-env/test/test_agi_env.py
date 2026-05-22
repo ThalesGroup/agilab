@@ -1935,7 +1935,7 @@ def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path:
 
     assert result == 0
     assert created["cmd"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
-    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert process_env["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
 
 
@@ -1968,7 +1968,7 @@ def test_run_wait_rewrites_exported_path_and_uv_preview_flag(tmp_path: Path, mon
 
     assert result == ""
     assert created["args"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
-    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert process_env["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
 
 

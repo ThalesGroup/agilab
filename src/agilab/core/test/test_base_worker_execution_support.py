@@ -230,7 +230,7 @@ def test_log_worker_startup_context_reports_prefix_and_worker_origin():
 
     assert logged == [
         "venv: /tmp/venv",
-        "worker #3: local-worker from: /tmp/worker.py",
+        f"worker #3: local-worker from: {Path('/tmp/worker.py')}",
     ]
 
 
@@ -805,7 +805,7 @@ def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
     )
 
     assert written_payloads == ["\x00" * 8]
-    assert removed_paths == ["/tmp/share/127.0.0.1_8787"]
+    assert removed_paths == [str(Path("/tmp/share") / "127.0.0.1_8787")]
     assert write_speed == [4.0]
 
 

@@ -400,7 +400,7 @@ def test_run_success(monkeypatch):
 
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
 
-    pagelib.run("echo 'ok'", cwd="/tmp")
+    pagelib.run("echo ok", cwd="/tmp")
 
     assert recorded == {"command": ["echo", "ok"], "cwd": "/tmp"}
 
