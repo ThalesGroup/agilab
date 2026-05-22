@@ -67,9 +67,9 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "25971244152"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25971244152"
-summary = "published the 2026.05.17.post2 package after preflight, release evidence, and supply-chain evidence passed; GitHub release evidence is recorded under v2026.05.17-6"
+run_id = "26313040732"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/26313040732"
+summary = "passed the public release proof workflow gate"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
