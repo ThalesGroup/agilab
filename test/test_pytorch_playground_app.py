@@ -339,6 +339,7 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
 
     assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
     assert ("columns", [0.70, 0.30]) in events
+    assert not any(kind == "column_caption" for kind, _payload in events)
 
     form_event = next(payload for kind, payload in events if kind == "form")
     assert form_event["env"] is fake_runtime_env
@@ -1347,8 +1348,7 @@ def test_pytorch_playground_summary_uses_shared_header_style(monkeypatch: pytest
 
     markup = "\n".join(rendered)
     assert "agilab-header-card" in markup
-    assert "Surface" in markup
-    assert "PyTorch Playground" in markup
+    assert "ORCHESTRATE args" in markup
     assert "Strong run: low overfit, clear boundary" in markup
     assert markup.count("96%") == 1
     assert "Train-val gap" in markup
@@ -1360,6 +1360,52 @@ def test_pytorch_playground_summary_uses_shared_header_style(monkeypatch: pytest
     assert "50/50% class split" in markup
     assert "Boundary confidence" not in markup
     assert "mean distance from indecision" not in markup
+
+
+def test_pytorch_playground_compact_summary_keeps_tabs_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeStreamlit:
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    config = module.PlaygroundConfig(hidden_layers=(16, 8), feature_names=("x1", "x2"))
+    samples = pd.DataFrame(
+        {
+            "x1": [0.0, 0.1, 0.2, 0.3],
+            "x2": [0.0, 0.1, 0.2, 0.3],
+            "target": [0, 0, 1, 1],
+        }
+    )
+    result = {
+        "samples": samples,
+        "grid": pd.DataFrame({"probability": [0.0, 1.0]}),
+        "network_layers": pd.DataFrame({"parameters": [100, 154]}),
+        "summary": {
+            "train_accuracy": 0.998,
+            "validation_accuracy": 0.96,
+            "samples": 320,
+        },
+    }
+
+    module._render_compact_header(PROJECT_PATH.resolve(), "ORCHESTRATE args", config)
+    module._render_summary(config, result, compact=True)
+
+    markup = "\n".join(rendered)
+    assert "agilab-pt-compact-meta" in markup
+    assert "agilab-pt-run-panel" in markup
+    assert "agilab-header-card" not in markup
+    assert "Strong run: low overfit" not in markup
+    assert "Strong run" in markup
+    assert markup.count("96%") == 1
+    assert "ORCHESTRATE args" in markup
+    assert "app: pytorch_playground_project" in markup
+    assert "Validation" in markup
+    assert "Train-val gap" in markup
+    assert "Decision confidence" in markup
 
 
 def test_pytorch_playground_fake_nn_covers_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1638,6 +1684,7 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "def _render_wide_args_form" in source
     assert "def _render_compact_args_form" in source
     assert "def persist_current_args" in source
+    assert "Quick fields are enough" not in source
     assert ".columns(" in source
     assert "Loss landscape" in source
     assert "def _build_synced_run_snippet" in source

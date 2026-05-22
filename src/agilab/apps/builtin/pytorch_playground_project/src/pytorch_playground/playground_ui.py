@@ -633,6 +633,156 @@ def _render_page_styles() -> None:
   gap: 0.45rem;
   margin-top: 0.75rem;
 }
+.agilab-pt-compact-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.65rem;
+}
+.agilab-pt-run-panel {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(24rem, 2fr);
+  gap: 0.85rem 1rem;
+  align-items: stretch;
+  border: 1px solid rgba(247, 242, 232, 0.18);
+  border-radius: 8px;
+  padding: 0.85rem 0.95rem;
+  margin: 0.15rem 0 0.7rem;
+  background: linear-gradient(135deg, rgba(8, 17, 31, 0.94), rgba(18, 43, 51, 0.86));
+  box-shadow: 0 12px 32px rgba(7, 17, 31, 0.14), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.agilab-pt-run-main {
+  min-width: 0;
+}
+.agilab-pt-run-kicker {
+  color: rgba(247, 242, 232, 0.68);
+  font-size: 0.68rem;
+  font-weight: 820;
+  letter-spacing: 0.085em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.agilab-pt-run-headline {
+  color: #f7f2e8;
+  font-size: 1.32rem;
+  font-weight: 860;
+  line-height: 1.12;
+  margin-top: 0.28rem;
+}
+.agilab-pt-run-note {
+  color: rgba(247, 242, 232, 0.62);
+  font-size: 0.85rem;
+  line-height: 1.3;
+  margin-top: 0.35rem;
+}
+.agilab-pt-run-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.agilab-pt-run-metric {
+  min-width: 0;
+  border: 1px solid rgba(247, 242, 232, 0.14);
+  border-radius: 8px;
+  padding: 0.6rem 0.68rem;
+  background: rgba(247, 242, 232, 0.035);
+}
+.agilab-pt-run-metric-label {
+  color: rgba(247, 242, 232, 0.62);
+  font-size: 0.68rem;
+  font-weight: 820;
+  letter-spacing: 0.075em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.agilab-pt-run-metric-value {
+  color: #f7f2e8;
+  font-size: 1.12rem;
+  font-weight: 860;
+  line-height: 1.05;
+  margin-top: 0.24rem;
+}
+.agilab-pt-run-metric-note {
+  color: rgba(247, 242, 232, 0.58);
+  font-size: 0.74rem;
+  line-height: 1.25;
+  margin-top: 0.22rem;
+}
+.agilab-pt-run-context {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: -0.05rem;
+}
+.agilab-header-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(1.65rem, 1fr) auto;
+  align-content: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 6.25rem;
+  padding: 0.78rem 0.86rem 0.72rem 0.95rem;
+  border: 1px solid rgba(247, 242, 232, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025)), rgba(247, 242, 232, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.075), 0 10px 28px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+.agilab-header-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.62rem auto 0.62rem 0.52rem;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(247, 242, 232, 0.78);
+  opacity: 0.82;
+}
+.agilab-header-card--ready::before {
+  background: #72d6b4;
+}
+.agilab-header-card--incomplete::before {
+  background: #ffbe5e;
+}
+.agilab-header-label {
+  position: relative;
+  z-index: 1;
+  color: rgba(247, 242, 232, 0.68);
+  font-size: 0.7rem;
+  font-weight: 820;
+  letter-spacing: 0.085em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.agilab-header-value {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  margin-top: 0.22rem;
+  color: #f7f2e8;
+  font-size: 1.28rem;
+  font-weight: 860;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.agilab-header-value--ready {
+  color: #72d6b4 !important;
+}
+.agilab-header-value--incomplete {
+  color: #ffbe5e !important;
+}
+.agilab-header-caption {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  margin-top: 0.45rem;
+  color: rgba(247, 242, 232, 0.60);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
 .agilab-pt-card {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
@@ -714,6 +864,10 @@ def _render_page_styles() -> None:
 }
 @media (max-width: 860px) {
   .agilab-pt-guide {
+    grid-template-columns: 1fr;
+  }
+  .agilab-pt-run-panel,
+  .agilab-pt-run-metrics {
     grid-template-columns: 1fr;
   }
 }
@@ -837,6 +991,59 @@ def _summary_banner(headline: str, chips: Sequence[str]) -> str:
     )
 
 
+def _summary_chips(
+    *,
+    config: PlaygroundConfig,
+    samples: pd.DataFrame,
+    parameter_count: int,
+    sample_count: int,
+) -> list[str]:
+    return [
+        f"{parameter_count:,} params",
+        f"{len(config.hidden_layers)} hidden layer(s)",
+        f"{sample_count:,} samples",
+        _class_balance(samples),
+    ]
+
+
+def _compact_metric(label: str, value: str, note: str) -> str:
+    return (
+        '<div class="agilab-pt-run-metric">'
+        f'<div class="agilab-pt-run-metric-label">{html.escape(label)}</div>'
+        f'<div class="agilab-pt-run-metric-value">{html.escape(value)}</div>'
+        f'<div class="agilab-pt-run-metric-note">{html.escape(note)}</div>'
+        "</div>"
+    )
+
+
+def _compact_summary_panel(
+    *,
+    run_quality: str,
+    gap_note: str,
+    confidence_note: str,
+    validation_value: str,
+    gap_value: str,
+    confidence_value: str,
+    chips: Sequence[str],
+) -> str:
+    chip_html = "".join(f'<span class="agilab-pt-chip">{html.escape(chip)}</span>' for chip in chips)
+    return (
+        '<div class="agilab-pt-run-panel">'
+        '<div class="agilab-pt-run-main">'
+        '<div class="agilab-pt-run-kicker">Run quality</div>'
+        f'<div class="agilab-pt-run-headline">{html.escape(run_quality)}</div>'
+        f'<div class="agilab-pt-run-note">{html.escape(gap_note)}</div>'
+        "</div>"
+        '<div class="agilab-pt-run-metrics">'
+        + _compact_metric("Validation", validation_value, "held-out accuracy")
+        + _compact_metric("Train-val gap", gap_value, gap_note)
+        + _compact_metric("Decision confidence", confidence_value, confidence_note)
+        + "</div>"
+        f'<div class="agilab-pt-run-context">{chip_html}</div>'
+        "</div>"
+    )
+
+
 def _guide_step(title: str, text: str, css_class: str) -> str:
     return (
         f'<div class="agilab-pt-step {html.escape(css_class)}">'
@@ -940,16 +1147,20 @@ def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundC
 def _render_compact_header(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
     app_label = active_app.name if active_app is not None else "standalone"
     network = "-".join(str(width) for width in config.hidden_layers) or "linear"
-    columns = st.columns(4)
-    cards = [
-        _metric_card("Surface", PAGE_TITLE, "embedded ANALYSIS", state="neutral"),
-        _metric_card("Source", preset_label, f"app: {app_label}", state="neutral"),
-        _metric_card("Dataset", config.dataset, f"{len(config.feature_names)} feature(s)", state="neutral"),
-        _metric_card("Network", network, f"{config.epochs} epochs", state="neutral"),
+    chips = [
+        preset_label,
+        f"app: {app_label}",
+        f"dataset: {config.dataset}",
+        f"features: {len(config.feature_names)}",
+        f"network: {network}",
+        f"epochs: {config.epochs}",
     ]
-    for column, card in zip(columns, cards, strict=False):
-        with column:
-            st.markdown(card, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="agilab-pt-compact-meta">'
+        + "".join(f'<span class="agilab-pt-chip">{html.escape(chip)}</span>' for chip in chips)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_section_intro(title: str, text: str) -> None:
@@ -1231,7 +1442,7 @@ def _loss_landscape_figure(landscape: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None:
+def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any], *, compact: bool = False) -> None:
     summary = result.get("summary", {})
     samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
     grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
@@ -1241,30 +1452,51 @@ def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any]) -> None
     confidence = _confidence_score(grid)
     sample_count = _summary_sample_count(summary, samples)
     parameter_count = _parameter_count(network_layers)
+    run_quality = _run_quality_label(validation_accuracy, gap)
+    gap_note = _gap_quality_label(gap)
+    confidence_note = _decision_confidence_note(confidence)
+    validation_value = _format_percent(validation_accuracy)
+    gap_value = _format_percentage_points(gap)
+    confidence_value = _format_percent(confidence)
+    chips = _summary_chips(
+        config=config,
+        samples=samples,
+        parameter_count=parameter_count,
+        sample_count=sample_count,
+    )
+    if compact:
+        st.markdown(
+            _compact_summary_panel(
+                run_quality=run_quality,
+                gap_note=gap_note,
+                confidence_note=confidence_note,
+                validation_value=validation_value,
+                gap_value=gap_value,
+                confidence_value=confidence_value,
+                chips=chips,
+            ),
+            unsafe_allow_html=True,
+        )
+        return
     headline = (
-        f"{_run_quality_label(validation_accuracy, gap)}: "
-        f"{_gap_quality_label(gap)}, {_decision_confidence_note(confidence)}"
+        f"{run_quality}: "
+        f"{gap_note}, {confidence_note}"
     )
     st.markdown(
         _summary_banner(
             headline,
-            [
-                f"{parameter_count:,} params",
-                f"{len(config.hidden_layers)} hidden layer(s)",
-                f"{sample_count:,} samples",
-                _class_balance(samples),
-            ],
+            chips,
         ),
         unsafe_allow_html=True,
     )
     columns = st.columns(3)
     cards = [
-        _metric_card("Validation", _format_percent(validation_accuracy), "held-out accuracy"),
-        _metric_card("Train-val gap", _format_percentage_points(gap), _gap_quality_label(gap), state=_gap_state(gap)),
+        _metric_card("Validation", validation_value, "held-out accuracy"),
+        _metric_card("Train-val gap", gap_value, gap_note, state=_gap_state(gap)),
         _metric_card(
             "Decision confidence",
-            _format_percent(confidence),
-            _decision_confidence_note(confidence),
+            confidence_value,
+            confidence_note,
             state="ready" if confidence >= 0.35 else "incomplete",
         ),
     ]
@@ -1394,7 +1626,8 @@ def main(
         trained_config, result, evidence_root = evidence_result
         trained_preset = preset_label or "Latest ORCHESTRATE evidence"
         pending_changes = False
-        st.caption(f"Loaded evidence from `{evidence_root}`.")
+        if not compact:
+            st.caption(f"Loaded evidence from `{evidence_root}`.")
 
     trained_config_dict = asdict(trained_config)
     if interactive_controls:
@@ -1408,7 +1641,7 @@ def main(
         _render_compact_header(active_app, trained_preset, trained_config)
     else:
         _render_hero(active_app, trained_preset, trained_config)
-    if not interactive_controls:
+    if not interactive_controls and not compact:
         st.caption("Charts use the persisted ORCHESTRATE arguments for this app.")
     if result["status"] == "missing_torch":
         st.error(result["detail"])
@@ -1417,7 +1650,7 @@ def main(
     if pending_changes:
         st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
 
-    _render_summary(trained_config, result)
+    _render_summary(trained_config, result, compact=compact)
     if not compact:
         _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
         _render_interpretation_cards(result)
