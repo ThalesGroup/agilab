@@ -106,7 +106,7 @@ def test_resolve_default_selection_and_sidebar_dataframe_selection(tmp_path):
     assert sidebar.module_path == Path("lab_a")
     assert sidebar.df_files_rel == [Path("lab_a/default_df"), Path("lab_a/other.csv")]
     assert sidebar.index_page == Path("lab_a/default_df")
-    assert sidebar.key_df == "lab_a/default_dfdf"
+    assert sidebar.key_df == str(Path("lab_a") / "default_df") + "df"
     assert sidebar.default_index == 0
 
 

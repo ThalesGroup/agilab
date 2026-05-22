@@ -13,6 +13,18 @@ ENV_LOOKUP_EXCEPTIONS = (AttributeError, RuntimeError, TypeError)
 RELPATH_FALLBACK_EXCEPTIONS = (OSError, ValueError)
 
 
+def _toml_path_value(path_value: str | Path) -> str:
+    """Return a TOML-safe uv source path with forward separators."""
+    return str(path_value).replace("\\", "/")
+
+
+def _relative_toml_path(path: Path, *, start: Path) -> str:
+    try:
+        return _toml_path_value(os.path.relpath(path, start=start))
+    except RELPATH_FALLBACK_EXCEPTIONS:
+        return _toml_path_value(path)
+
+
 def _iter_local_uv_source_paths(pyproject_path: Path) -> list[tuple[str, Path]]:
     """Return existing local ``tool.uv.sources.*.path`` entries from a pyproject."""
     try:
@@ -152,10 +164,7 @@ def rewrite_uv_sources_paths_for_copied_pyproject(
         if dest_path is not None and dest_path.exists():
             continue
 
-        try:
-            new_path_value = os.path.relpath(src_path, start=dest_dir)
-        except RELPATH_FALLBACK_EXCEPTIONS:
-            new_path_value = str(src_path)
+        new_path_value = _relative_toml_path(src_path, start=dest_dir)
 
         if dest_path_value != new_path_value:
             dest_meta["path"] = new_path_value
@@ -247,10 +256,7 @@ def _stage_uv_source_dependency(
         staged_meta = staged_sources.get(nested_name)
         if not isinstance(staged_meta, dict):
             continue
-        try:
-            new_path_value = os.path.relpath(staged_nested_target, start=staged_target)
-        except RELPATH_FALLBACK_EXCEPTIONS:
-            new_path_value = str(staged_nested_target)
+        new_path_value = _relative_toml_path(staged_nested_target, start=staged_target)
         old_path_value = staged_meta.get("path")
         if old_path_value != new_path_value:
             staged_meta["path"] = new_path_value
@@ -314,10 +320,7 @@ def stage_uv_sources_for_copied_pyproject(
         )
         staged_any = True
 
-        try:
-            new_path_value = os.path.relpath(staged_target, start=dest_dir)
-        except RELPATH_FALLBACK_EXCEPTIONS:
-            new_path_value = str(staged_target)
+        new_path_value = _relative_toml_path(staged_target, start=dest_dir)
 
         old_path_value = dest_meta.get("path")
         if old_path_value != new_path_value:
@@ -414,7 +417,7 @@ def staged_uv_sources_pth_content(
         )
     else:
         rel = os.path.relpath(str(uv_sources_root), start=str(site_packages_dir))
-    return f"{rel}\n"
+    return f"{_toml_path_value(rel)}\n"
 
 
 def write_staged_uv_sources_pth(

@@ -1790,7 +1790,9 @@ def test_build_worker_extension_uses_expected_fields(tmp_path):
     )
 
     assert extension.name == "demo_worker_cy"
-    assert extension.sources == ["src/demo_worker/demo_worker.pyx"]
+    assert [Path(source).as_posix() for source in extension.sources] == [
+        "src/demo_worker/demo_worker.pyx"
+    ]
     assert extension.include_dirs == [str(tmp_path / "prefix" / "include")]
     assert extension.extra_compile_args == ["-Wfoo"]
     assert ("Py_GIL_DISABLED", "1") in extension.define_macros

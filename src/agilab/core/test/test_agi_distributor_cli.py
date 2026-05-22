@@ -210,6 +210,7 @@ def test_kill_pids_handles_process_lookup(monkeypatch):
     assert cli_mod.kill_pids({1}, signal.SIGTERM) == set()
 
 
+@pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="SIGKILL is not available on this platform")
 def test_kill_invokes_sigkill_after_grace(monkeypatch):
     calls = []
     monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: {10, 11})
@@ -283,6 +284,7 @@ def test_kill_logs_no_dask_when_no_processes_or_pid_files(monkeypatch, caplog):
     assert "No Dask process running." in caplog.text
 
 
+@pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="SIGKILL is not available on this platform")
 def test_kill_warns_on_pid_file_cleanup_failure_and_sigkills_survivors(monkeypatch, tmp_path, caplog):
     pid_file = tmp_path / "demo.pid"
     pid_file.write_text("321", encoding="utf-8")

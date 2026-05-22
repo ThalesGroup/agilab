@@ -63,7 +63,7 @@ def test_build_connector_registry_resolves_roots_children_and_labels(tmp_path, m
 
     summary = registry.summary()
     assert summary["connector_count"] == len(registry.paths)
-    assert summary["paths"]["execute_log_root"].endswith("/execute/demo_project")
+    assert Path(summary["paths"]["execute_log_root"]).parts[-2:] == ("execute", "demo_project")
     assert "first_proof_manifest" in summary["missing_connector_ids"]
 
 

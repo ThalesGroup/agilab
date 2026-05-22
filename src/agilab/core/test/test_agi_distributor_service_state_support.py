@@ -474,7 +474,7 @@ def test_service_state_path_falls_back_when_resolve_share_path_is_missing(tmp_pa
 
     path = service_state_support.service_state_path(env)
 
-    assert str(path).endswith(f"{env.target}/service_state.json")
+    assert path.parts[-2:] == (env.target, "service_state.json")
     assert path.exists() is False
     assert path.parent.exists()
 
@@ -487,7 +487,7 @@ def test_service_health_path_falls_back_when_resolve_share_path_is_missing(tmp_p
         health_output_path=Path("nested/health.json"),
     )
 
-    assert str(path).endswith(f"{env.target}/nested/health.json")
+    assert path.parts[-3:] == (env.target, "nested", "health.json")
     assert path.parent.exists()
 
 
@@ -496,7 +496,7 @@ def test_service_health_path_covers_default_relative_fallback(tmp_path):
 
     path = service_state_support.service_health_path(env)
 
-    assert str(path).endswith(f"{env.target}/health.json")
+    assert path.parts[-2:] == (env.target, "health.json")
 
 
 def test_service_cleanup_artifacts_ignores_racing_stat_and_unlink(monkeypatch, tmp_path):
@@ -688,7 +688,7 @@ def test_service_health_payload_counts_and_fields(tmp_path):
     assert payload["workers_healthy"] == ["w1"]
     assert payload["workers_unhealthy"] == ["w2"]
     assert payload["heartbeat_timeout_sec"] == 9.5
-    assert payload["queue_dir"] == "/tmp/queue"
+    assert Path(payload["queue_dir"]) == Path("/tmp/queue")
     assert payload["restart_reasons"]["w2"] == "missing-heartbeat"
 
 
