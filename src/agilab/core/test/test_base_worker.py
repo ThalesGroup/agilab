@@ -487,11 +487,21 @@ def test_baseworker_normalize_dataset_path_windows_unc(monkeypatch):
 
 def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fallback(monkeypatch):
     posix_path_cls = type(Path("/tmp"))
+    home_path = posix_path_cls.home()
+    candidate = (home_path / "relative" / "data").expanduser()
+
+    class _PosixPathFactory:
+        @staticmethod
+        def home():
+            return home_path
+
+        def __call__(self, *parts):
+            return posix_path_cls(*parts)
+
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
-    monkeypatch.setattr(base_worker_mod, "Path", posix_path_cls)
+    monkeypatch.setattr(base_worker_mod, "Path", _PosixPathFactory())
     monkeypatch.setattr(BaseWorker, "_is_managed_pc", False, raising=False)
 
-    candidate = (posix_path_cls.home() / "relative" / "data").expanduser()
     original_resolve = posix_path_cls.resolve
 
     def _patched_resolve(self, *args, **kwargs):

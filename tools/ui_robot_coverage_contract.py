@@ -25,8 +25,8 @@ REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_re
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
-REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Run training", "Synced RUN snippet", "Settings")
-REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Run training",)
+REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
+REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Refresh evidence",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
         "pages": ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
