@@ -605,8 +605,32 @@ def delete_release(
     auth_code: str | None = None,
     totp_secret: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
+    direct_web_only: bool = False,
     verbose: bool = False,
 ) -> None:
+    if direct_web_only:
+        print(
+            "[pypi-retention] using direct PyPI web deletion",
+            file=sys.stderr,
+        )
+        try:
+            delete_release_via_pypi_web(
+                package=package,
+                version=version,
+                repo=repo,
+                username=username,
+                password=password,
+                auth_code=auth_code,
+                totp_secret=totp_secret,
+                confirm_login_url_provider=confirm_login_url_provider,
+            )
+        except Exception as exc:
+            raise SystemExit(
+                "ERROR: direct PyPI web deletion failed for "
+                f"{package} {version}: {exc}"
+            ) from exc
+        return
+
     cmd = [
         "pypi-cleanup",
         "--version-regex",
@@ -817,6 +841,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--direct-web-only",
+        action="store_true",
+        help=(
+            "Use the in-process PyPI web deletion flow directly instead of "
+            "trying pypi-cleanup first. This keeps unrecognized-login "
+            "confirmation tied to the deletion session."
+        ),
+    )
     parser.add_argument("--verify-attempts", type=int, default=6)
     parser.add_argument("--retry-delay", type=float, default=10.0)
     parser.add_argument(
@@ -931,6 +964,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     auth_code=auth_code,
                     totp_secret=rotating_totp_secret,
                     confirm_login_url_provider=confirm_provider,
+                    direct_web_only=args.direct_web_only,
                     verbose=args.verbose,
                 )
                 if rotating_totp_secret:
