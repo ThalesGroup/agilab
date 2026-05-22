@@ -116,6 +116,221 @@ def _feature_names(container: Any, env: Any, value: str) -> str:
     return _text_input(container, env, "feature_names", "Feature names", ",".join(selected))
 
 
+def _state_value(env: Any, name: str, fallback: Any) -> Any:
+    return st.session_state.get(_field_key(env, name), fallback)
+
+
+def _current_form_values(model: app_args.PytorchPlaygroundArgs, *, env: Any) -> dict[str, Any]:
+    return {
+        "data_out": _state_value(env, "data_out", model.data_out),
+        "dataset": _state_value(env, "dataset", model.dataset),
+        "sample_count": _state_value(env, "sample_count", model.sample_count),
+        "noise": _state_value(env, "noise", model.noise),
+        "train_ratio": _state_value(env, "train_ratio", model.train_ratio),
+        "hidden_layers": _state_value(env, "hidden_layers", model.hidden_layers),
+        "activation": _state_value(env, "activation", model.activation),
+        "optimizer": _state_value(env, "optimizer", model.optimizer),
+        "learning_rate": _state_value(env, "learning_rate", model.learning_rate),
+        "epochs": _state_value(env, "epochs", model.epochs),
+        "batch_size": _state_value(env, "batch_size", model.batch_size),
+        "seed": _state_value(env, "seed", model.seed),
+        "feature_names": _state_value(env, "feature_names", model.feature_names),
+        "grid_size": _state_value(env, "grid_size", model.grid_size),
+        "compute_loss_landscape": _state_value(env, "compute_loss_landscape", model.compute_loss_landscape),
+        "landscape_resolution": _state_value(env, "landscape_resolution", model.landscape_resolution),
+        "landscape_span": _state_value(env, "landscape_span", model.landscape_span),
+        "reset_target": _state_value(env, "reset_target", model.reset_target),
+    }
+
+
+def persist_current_args(*, env: Any | None = None) -> app_args.PytorchPlaygroundArgs:
+    active_env = env or _get_env()
+    defaults_model, defaults_payload, settings_path = load_args_state(active_env, args_module=app_args)
+    parsed = app_args.ensure_defaults(
+        app_args.ArgsModel(**_current_form_values(defaults_model, env=active_env)),
+        env=active_env,
+    )
+    persist_args(
+        app_args,
+        parsed,
+        settings_path=settings_path,
+        defaults_payload=defaults_payload,
+    )
+    return parsed
+
+
+def _json_safe(value: Any) -> Any:
+    return json.loads(json.dumps(value, default=str, ensure_ascii=False))
+
+
+def _json_load_expr(value: Any) -> str:
+    literal = json.dumps(_json_safe(value), ensure_ascii=False, sort_keys=True)
+    return f"json.loads({literal!r})"
+
+
+def _python_string(value: Any) -> str:
+    return json.dumps(str(value))
+
+
+def _active_app_name(env: Any) -> str:
+    app = str(getattr(env, "app", "") or "").strip()
+    if app:
+        return app
+    active_app = getattr(env, "active_app", None)
+    if active_app not in (None, ""):
+        try:
+            return Path(active_app).name
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+    return "pytorch_playground_project"
+
+
+def _snippet_apps_path(env: Any) -> str:
+    active_app = getattr(env, "active_app", None)
+    if active_app not in (None, ""):
+        try:
+            active_path = Path(active_app)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            active_path = None
+        if active_path is not None and active_path.name == _active_app_name(env):
+            return str(active_path.parent)
+    return str(getattr(env, "apps_path", "") or "")
+
+
+def _cluster_settings() -> dict[str, Any]:
+    app_settings = st.session_state.get("app_settings")
+    if not isinstance(app_settings, dict):
+        return {}
+    cluster = app_settings.get("cluster", {})
+    return dict(cluster) if isinstance(cluster, dict) else {}
+
+
+def _coerce_verbose(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _run_mode(cluster: dict[str, Any], *, cluster_enabled: bool) -> int:
+    session_mode = st.session_state.get("mode")
+    if isinstance(session_mode, int):
+        return session_mode
+    return (
+        int(bool(cluster.get("pool", False)))
+        + int(bool(cluster.get("cython", False))) * 2
+        + int(cluster_enabled) * 4
+        + int(bool(cluster.get("rapids", False))) * 8
+    )
+
+
+def _optional_string_expr(enabled: bool, value: Any) -> str:
+    if not enabled or value in (None, ""):
+        return "None"
+    return _python_string(value)
+
+
+def _optional_python_expr(enabled: bool, value: Any) -> str:
+    if not enabled or value in (None, "", {}, []):
+        return "None"
+    return repr(value)
+
+
+def _split_run_request_payload(run_args: dict[str, Any]) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
+    payload = dict(run_args)
+    stages = payload.pop("stages", [])
+    if "args" in payload:
+        stages = payload.pop("args")
+    if stages is None:
+        stages = []
+    data_in = payload.pop("data_in", None)
+    data_out = payload.pop("data_out", None)
+    reset_target = payload.pop("reset_target", None)
+    return payload, list(stages) if isinstance(stages, list) else [], data_in, data_out, reset_target
+
+
+def _fallback_run_snippet(*, env: Any, run_args: dict[str, Any]) -> str:
+    cluster = _cluster_settings()
+    cluster_enabled = bool(cluster.get("cluster_enabled", False))
+    params, stages, data_in, data_out, reset_target = _split_run_request_payload(run_args)
+    snippet_lines = [
+        "import asyncio",
+        "import json",
+        "",
+        "from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest",
+        "from agi_env import AgiEnv",
+        "",
+        f"APPS_PATH = {_python_string(_snippet_apps_path(env))}",
+        f"APP = {_python_string(_active_app_name(env))}",
+        f"RUN_PARAMS = {_json_load_expr(params)}",
+        f"RUN_STAGES_PAYLOAD = {_json_load_expr(stages)}",
+        f"RUN_DATA_IN = {_json_load_expr(data_in)}",
+        f"RUN_DATA_OUT = {_json_load_expr(data_out)}",
+        f"RUN_RESET_TARGET = {_json_load_expr(reset_target)}",
+        "",
+        "async def main():",
+        f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={_coerce_verbose(cluster.get('verbose', 1))})",
+        "    run_stages = [",
+        "        StageRequest(name=stage['name'], args=stage.get('args') or {})",
+        "        for stage in RUN_STAGES_PAYLOAD",
+        "    ]",
+        "    request = RunRequest(",
+        "        params=RUN_PARAMS,",
+        "        stages=run_stages,",
+        "        data_in=RUN_DATA_IN,",
+        "        data_out=RUN_DATA_OUT,",
+        "        reset_target=RUN_RESET_TARGET,",
+        f"        mode={_run_mode(cluster, cluster_enabled=cluster_enabled)!r},",
+        f"        scheduler={_optional_string_expr(cluster_enabled, cluster.get('scheduler'))},",
+        f"        workers={_optional_python_expr(cluster_enabled, cluster.get('workers'))},",
+        f"        workers_data_path={_optional_string_expr(cluster_enabled, cluster.get('workers_data_path'))},",
+        f"        rapids_enabled={bool(cluster.get('rapids', False))!r},",
+        "    )",
+        "    res = await AGI.run(app_env, request=request)",
+        "    print(res)",
+        "    return res",
+        "",
+        'if __name__ == "__main__":',
+        "    asyncio.run(main())",
+    ]
+    return "\n".join(snippet_lines).strip()
+
+
+def _build_synced_run_snippet(parsed: app_args.PytorchPlaygroundArgs, *, env: Any) -> str:
+    run_args = dict(parsed.model_dump(mode="json"))
+    cluster = _cluster_settings()
+    cluster_enabled = bool(cluster.get("cluster_enabled", False))
+    try:
+        from agilab.orchestrate_page_support import build_run_snippet
+
+        return build_run_snippet(
+            env=env,
+            verbose=_coerce_verbose(cluster.get("verbose", 1)),
+            run_mode=_run_mode(cluster, cluster_enabled=cluster_enabled),
+            scheduler=_optional_string_expr(cluster_enabled, cluster.get("scheduler")),
+            workers=_optional_python_expr(cluster_enabled, cluster.get("workers")),
+            workers_data_path=_optional_string_expr(cluster_enabled, cluster.get("workers_data_path")),
+            rapids_enabled=bool(cluster.get("rapids", False)),
+            benchmark_best_single_node=False,
+            run_args=run_args,
+        )
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return _fallback_run_snippet(env=env, run_args=run_args)
+
+
+def _store_synced_run_snippet(env: Any, snippet: str) -> None:
+    key = f"orchestrate:notebook_snippet:{_active_app_name(env)}:run"
+    st.session_state[key] = snippet
+
+
+def _render_synced_run_snippet(container: Any, *, env: Any, parsed: app_args.PytorchPlaygroundArgs, compact: bool) -> None:
+    snippet = _build_synced_run_snippet(parsed, env=env)
+    _store_synced_run_snippet(env, snippet)
+    label = "Synced RUN snippet" if compact else "Generated RUN snippet"
+    with container.expander(label, expanded=False) as snippet_container:
+        snippet_container.code(snippet, language="python")
+
+
 def _render_dataset_fields(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
     dataset_col, samples_col, noise_col, split_col = container.columns([1.25, 1.0, 1.0, 1.0])
     return {
@@ -220,6 +435,46 @@ def _render_wide_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, c
     return values
 
 
+def _render_compact_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "dataset": _selectbox(container, env, "dataset", "Dataset", DATASETS, model.dataset),
+        "sample_count": int(
+            _slider(container, env, "sample_count", "Samples", model.sample_count, min_value=64, max_value=1000, step=16)
+        ),
+        "noise": float(_slider(container, env, "noise", "Noise", model.noise, min_value=0.0, max_value=0.5, step=0.01)),
+        "epochs": int(_slider(container, env, "epochs", "Epochs", model.epochs, min_value=10, max_value=300, step=10)),
+    }
+    with container.expander("Advanced model", expanded=False) as advanced:
+        values.update(
+            {
+                "train_ratio": float(
+                    _slider(advanced, env, "train_ratio", "Train split", model.train_ratio, min_value=0.5, max_value=0.95, step=0.05)
+                ),
+                "feature_names": _feature_names(advanced, env, model.feature_names),
+                "hidden_layers": _text_input(advanced, env, "hidden_layers", "Hidden layers", model.hidden_layers),
+                "activation": _selectbox(advanced, env, "activation", "Activation", ACTIVATIONS, model.activation),
+                "optimizer": _selectbox(advanced, env, "optimizer", "Optimizer", OPTIMIZERS, model.optimizer),
+                "learning_rate": float(
+                    _number_input(
+                        advanced,
+                        env,
+                        "learning_rate",
+                        "Learning rate",
+                        model.learning_rate,
+                        min_value=0.001,
+                        max_value=0.2,
+                        step=0.001,
+                    )
+                ),
+                "batch_size": int(_slider(advanced, env, "batch_size", "Batch", model.batch_size, min_value=8, max_value=256, step=8)),
+                "seed": int(_number_input(advanced, env, "seed", "Seed", model.seed, min_value=0, max_value=9999, step=1)),
+            }
+        )
+    with container.expander("Evidence", expanded=False) as evidence:
+        values.update(_render_evidence_fields(model, env=env, container=evidence))
+    return values
+
+
 def _render_sidebar_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, container: Any) -> dict[str, Any]:
     values: dict[str, Any] = {}
     container.markdown("#### Dataset")
@@ -310,7 +565,13 @@ def _render_args_form(model: app_args.PytorchPlaygroundArgs, *, env: Any, contai
     return _render_sidebar_args_form(model, env=env, container=container)
 
 
-def render(*, env: Any | None = None, container: Any | None = None) -> None:
+def render(
+    *,
+    env: Any | None = None,
+    container: Any | None = None,
+    wide: bool | None = None,
+    compact: bool = False,
+) -> None:
     active_env = env or _get_env()
     defaults_model, defaults_payload, settings_path = load_args_state(active_env, args_module=app_args)
 
@@ -326,17 +587,34 @@ def render(*, env: Any | None = None, container: Any | None = None) -> None:
         "training job and exports replayable evidence."
     )
     output_container.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
+    snippet_rendered = False
+    if compact and container is not None:
+        try:
+            current_parsed = app_args.ensure_defaults(
+                app_args.ArgsModel(**_current_form_values(defaults_model, env=active_env)),
+                env=active_env,
+            )
+        except ValidationError:
+            pass
+        else:
+            _render_synced_run_snippet(output_container, env=active_env, parsed=current_parsed, compact=True)
+            snippet_rendered = True
 
     form_container = container or st.sidebar
+    use_wide_form = container is not None if wide is None else wide
     if container is None:
         with st.sidebar:
             st.markdown("### PyTorch Playground")
             st.caption("These fields are persisted as app arguments.")
             form_values = _render_args_form(defaults_model, env=active_env, container=st.sidebar)
     else:
-        form_container.markdown("### PyTorch Playground")
-        form_container.caption("These fields are persisted as app arguments.")
-        form_values = _render_args_form(defaults_model, env=active_env, container=form_container, wide=True)
+        form_container.markdown("### Settings")
+        if compact:
+            form_container.caption("Quick fields are enough for most runs. Advanced controls stay collapsed.")
+            form_values = _render_compact_args_form(defaults_model, env=active_env, container=form_container)
+        else:
+            form_container.caption("These fields are persisted as app arguments.")
+            form_values = _render_args_form(defaults_model, env=active_env, container=form_container, wide=use_wide_form)
 
     try:
         parsed = app_args.ensure_defaults(app_args.ArgsModel(**form_values), env=active_env)
@@ -354,21 +632,25 @@ def render(*, env: Any | None = None, container: Any | None = None) -> None:
                 settings_path=settings_path,
                 defaults_payload=defaults_payload,
             )
-            output_container.code(
-                json.dumps(
-                    {
-                        "dataset": config.dataset,
-                        "samples": config.sample_count,
-                        "features": list(config.feature_names),
-                        "hidden_layers": list(config.hidden_layers),
-                        "epochs": config.epochs,
-                        "loss_landscape": parsed.compute_loss_landscape,
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ),
-                language="json",
+            if not snippet_rendered:
+                _render_synced_run_snippet(output_container, env=active_env, parsed=parsed, compact=compact)
+            payload = json.dumps(
+                {
+                    "dataset": config.dataset,
+                    "samples": config.sample_count,
+                    "features": list(config.feature_names),
+                    "hidden_layers": list(config.hidden_layers),
+                    "epochs": config.epochs,
+                    "loss_landscape": parsed.compute_loss_landscape,
+                },
+                indent=2,
+                sort_keys=True,
             )
+            if compact:
+                with output_container.expander("Current run payload", expanded=False) as payload_container:
+                    payload_container.code(payload, language="json")
+            else:
+                output_container.code(payload, language="json")
 
 
 if not globals().get("_AGILAB_APP_ARGS_FORM_IMPORT_ONLY", False):

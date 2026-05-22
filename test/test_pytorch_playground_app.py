@@ -158,6 +158,8 @@ def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
             "landscape_resolution": 17,
             "landscape_span": 0.4,
             "evidence_dirs": evidence_dirs,
+            "configure_page": True,
+            "compact": False,
         }
     ]
 
@@ -191,7 +193,7 @@ def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, 
     )
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
     monkeypatch.setattr(module, "_has_evidence", lambda _paths: False)
-    monkeypatch.setattr(module, "_render_missing_evidence", lambda paths: rendered.append(list(paths)))
+    monkeypatch.setattr(module, "_render_missing_evidence", lambda paths, **_kwargs: rendered.append(list(paths)))
 
     try:
         module.render(mode="analysis")
@@ -199,6 +201,255 @@ def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, 
         sys.modules.pop(spec.name, None)
 
     assert rendered == [evidence_dirs]
+
+
+def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_full_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    events: list[tuple[str, object]] = []
+    fake_runtime_env = SimpleNamespace(app="pytorch_playground_project")
+    fake_config = SimpleNamespace(dataset="circles")
+    fake_args = SimpleNamespace(
+        compute_loss_landscape=True,
+        landscape_resolution=17,
+        landscape_span=0.4,
+    )
+    evidence_dirs = [PROJECT_PATH.resolve() / "evidence"]
+
+    class _Column:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __enter__(self):
+            events.append((f"enter:{self.name}", self))
+            return self
+
+        def __exit__(self, *_args):
+            events.append((f"exit:{self.name}", self))
+            return False
+
+        def markdown(self, message):
+            events.append(("column_markdown", (self.name, message)))
+
+        def caption(self, message):
+            events.append(("column_caption", (self.name, message)))
+
+        def button(self, *_args, **_kwargs):
+            events.append(("button", self.name))
+            return False
+
+        def error(self, message):
+            events.append(("column_error", message))
+
+        def success(self, message):
+            events.append(("column_success", message))
+
+    class _FakeStreamlit:
+        def set_page_config(self, **kwargs):
+            events.append(("page_config", kwargs))
+
+        def columns(self, spec):
+            events.append(("columns", spec))
+            return [_Column("analysis"), _Column("controls")]
+
+        def error(self, message):
+            events.append(("error", message))
+
+    fake_app_args_form = SimpleNamespace(
+        render=lambda **kwargs: events.append(("form", kwargs)),
+    )
+    fake_app_args = SimpleNamespace(to_playground_config=lambda args: fake_config)
+    fake_playground_ui = SimpleNamespace(
+        PAGE_TITLE="PyTorch Playground",
+        main=lambda **kwargs: events.append(("analysis", kwargs)),
+    )
+    fake_package = ModuleType("pytorch_playground")
+    fake_package.app_args = fake_app_args
+    fake_package.playground_ui = fake_playground_ui
+
+    monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (fake_runtime_env, fake_args))
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
+    monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
+
+    try:
+        module.render(mode="full", active_app=PROJECT_PATH.resolve())
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
+    assert ("columns", [0.70, 0.30]) in events
+
+    form_event = next(payload for kind, payload in events if kind == "form")
+    assert form_event["env"] is fake_runtime_env
+    assert form_event["wide"] is False
+    assert form_event["compact"] is True
+
+    analysis_event = next(payload for kind, payload in events if kind == "analysis")
+    assert analysis_event == {
+        "config_override": fake_config,
+        "preset_label": "ORCHESTRATE args",
+        "interactive_controls": False,
+        "compute_loss_landscape": True,
+        "landscape_resolution": 17,
+        "landscape_span": 0.4,
+        "evidence_dirs": evidence_dirs,
+        "configure_page": False,
+        "compact": True,
+    }
+
+
+def test_app_surface_run_once_uses_pytorch_worker(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_run_once_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    events: list[tuple[str, object]] = []
+
+    class _FakeWorker:
+        def start(self):
+            events.append(("start", {"args": self.args, "env": self.env, "worker_id": self._worker_id}))
+
+        def work_pool(self, item):
+            events.append(("work_pool", item))
+            return pd.DataFrame([{"backend": "fake"}])
+
+    fake_worker_package = ModuleType("pytorch_playground_worker")
+    fake_worker_package.__path__ = []  # type: ignore[attr-defined]
+    fake_worker_module = ModuleType("pytorch_playground_worker.pytorch_playground_worker")
+    fake_worker_module.PytorchPlaygroundWorker = _FakeWorker
+
+    monkeypatch.setitem(sys.modules, "pytorch_playground_worker", fake_worker_package)
+    monkeypatch.setitem(sys.modules, "pytorch_playground_worker.pytorch_playground_worker", fake_worker_module)
+
+    runtime_env = SimpleNamespace(app="pytorch_playground_project")
+    args_model = SimpleNamespace(model_dump=lambda **kwargs: {"dataset": "circles", "dump": kwargs})
+
+    try:
+        summary = module._run_playground_once(runtime_env, args_model)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert summary.iloc[0]["backend"] == "fake"
+    assert events == [
+        (
+            "start",
+            {
+                "args": {"dataset": "circles", "dump": {"mode": "json"}},
+                "env": runtime_env,
+                "worker_id": 0,
+            },
+        ),
+        ("work_pool", "pytorch_playground"),
+    ]
+
+
+def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_full_run_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    events: list[tuple[str, object]] = []
+    runtime_env = SimpleNamespace(app="pytorch_playground_project")
+    args_model = SimpleNamespace(dataset="circles")
+
+    class _Column:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __enter__(self):
+            events.append((f"enter:{self.name}", self.name))
+            return self
+
+        def __exit__(self, *_args):
+            events.append((f"exit:{self.name}", self.name))
+            return False
+
+        def markdown(self, message):
+            events.append(("column_markdown", (self.name, message)))
+
+        def caption(self, message):
+            events.append(("column_caption", (self.name, message)))
+
+        def button(self, *_args, **_kwargs):
+            events.append(("button", self.name))
+            return self.name == "controls"
+
+        def error(self, message):
+            events.append(("column_error", message))
+
+        def success(self, message):
+            events.append(("column_success", message))
+
+    class _Spinner:
+        def __enter__(self):
+            events.append(("spinner_enter", None))
+            return self
+
+        def __exit__(self, *_args):
+            events.append(("spinner_exit", None))
+            return False
+
+    class _FakeStreamlit:
+        def set_page_config(self, **kwargs):
+            events.append(("page_config", kwargs))
+
+        def columns(self, spec):
+            events.append(("columns", spec))
+            return [_Column("analysis"), _Column("controls")]
+
+        def spinner(self, message):
+            events.append(("spinner", message))
+            return _Spinner()
+
+        def error(self, message):
+            events.append(("error", message))
+
+    fake_app_args_form = SimpleNamespace(render=lambda **kwargs: events.append(("form", kwargs)))
+    fake_playground_ui = SimpleNamespace(PAGE_TITLE="PyTorch Playground")
+    fake_package = ModuleType("pytorch_playground")
+    fake_package.playground_ui = fake_playground_ui
+
+    load_calls: list[Path] = []
+
+    def _load_args(path):
+        load_calls.append(path)
+        return runtime_env, args_model
+
+    monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
+    monkeypatch.setattr(module, "_load_orchestrate_args", _load_args)
+    monkeypatch.setattr(
+        module,
+        "_run_playground_once",
+        lambda env, args: events.append(("run", {"env": env, "args": args})) or pd.DataFrame([{"backend": "fake"}]),
+    )
+    monkeypatch.setattr(
+        module,
+        "_render_analysis_surface",
+        lambda path, **kwargs: events.append(("analysis", {"path": path, **kwargs})),
+    )
+
+    try:
+        module.render(mode="full", active_app=PROJECT_PATH.resolve())
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    ordered = [kind for kind, _payload in events if kind in {"form", "button", "run", "analysis"}]
+    assert ordered == ["button", "run", "form", "analysis"]
+    assert load_calls == [PROJECT_PATH.resolve(), PROJECT_PATH.resolve()]
+    assert ("column_success", "Run complete. Evidence refreshed (1 row).") in events
 
 
 def test_cached_train_uses_isolated_subprocess_in_streamlit_context() -> None:
@@ -1267,8 +1518,12 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "st.json(" not in source
     assert ".multiselect(" not in source
     assert "def _render_wide_args_form" in source
+    assert "def _render_compact_args_form" in source
+    assert "def persist_current_args" in source
     assert ".columns(" in source
     assert "Loss landscape" in source
+    assert "def _build_synced_run_snippet" in source
+    assert "Synced RUN snippet" in source
 
 
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:

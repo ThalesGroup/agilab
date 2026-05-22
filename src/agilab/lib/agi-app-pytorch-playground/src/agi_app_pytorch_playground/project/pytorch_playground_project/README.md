@@ -14,9 +14,10 @@ deterministic ZIP bundle.
 ## Run In AGILAB
 
 Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
-PyTorch Playground surface. That single surface contains the interactive
-controls, decision boundary, training curves, neuron/loss views, and evidence
-download.
+PyTorch Playground surface. That single surface places persisted ORCHESTRATE
+arguments next to the decision boundary, training curves, neuron/loss views,
+evidence download, and a run button that refreshes the evidence without leaving
+ANALYSIS.
 
 Open `ORCHESTRATE` when you want the reproducible AGILAB execution path:
 adjust the sidebar fields, then run `INSTALL` and `RUN`. The default

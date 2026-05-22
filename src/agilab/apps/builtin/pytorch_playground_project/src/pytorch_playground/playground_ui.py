@@ -847,6 +847,23 @@ def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundC
     )
 
 
+def _render_compact_header(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
+    app_label = active_app.name if active_app is not None else "standalone"
+    network = "-".join(str(width) for width in config.hidden_layers) or "linear"
+    st.caption(
+        " · ".join(
+            (
+                preset_label,
+                f"app: {app_label}",
+                f"dataset: {config.dataset}",
+                f"features: {len(config.feature_names)}",
+                f"network: {network}",
+                f"epochs: {config.epochs}",
+            )
+        )
+    )
+
+
 def _render_section_intro(title: str, text: str) -> None:
     st.markdown(
         f"""
@@ -1153,8 +1170,11 @@ def main(
     landscape_resolution: int = 21,
     landscape_span: float = 0.75,
     evidence_dirs: Sequence[str | Path] | None = None,
+    configure_page: bool = True,
+    compact: bool = False,
 ) -> None:
-    st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+    if configure_page:
+        st.set_page_config(page_title=PAGE_TITLE, layout="wide")
     render_logo()
     _render_page_styles()
     active_app = _resolve_active_app()
@@ -1272,7 +1292,10 @@ def main(
             st.caption(f"Charts show: {trained_preset}")
             if pending_changes:
                 st.warning("Pending changes. Press Train / refresh to update the run.")
-    _render_hero(active_app, trained_preset, trained_config)
+    if compact:
+        _render_compact_header(active_app, trained_preset, trained_config)
+    else:
+        _render_hero(active_app, trained_preset, trained_config)
     if not interactive_controls:
         st.caption("Charts use the persisted ORCHESTRATE arguments for this app.")
     if result["status"] == "missing_torch":
@@ -1283,8 +1306,9 @@ def main(
         st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
 
     _render_summary(trained_config, result)
-    _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
-    _render_interpretation_cards(result)
+    if not compact:
+        _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
+        _render_interpretation_cards(result)
     loaded_landscape = _result_frame(result, "loss_landscape", _empty_loss_landscape())
     landscape_result: dict[str, Any] = {
         "status": "not_computed",
