@@ -759,7 +759,17 @@ def _editable_install_proof_exists(
             continue
         if parsed.netloc and parsed.netloc not in {"localhost", "127.0.0.1"}:
             continue
-        installed_path = Path(unquote(parsed.path)).resolve(strict=False)
+        raw_path = unquote(parsed.path)
+        # On Windows ``file:///C:/...`` urlparses to ``/C:/...``; the leading
+        # slash breaks ``Path()`` so we strip it when a drive letter follows.
+        if (
+            os_name == "nt"
+            and len(raw_path) >= 3
+            and raw_path[0] == "/"
+            and raw_path[2] == ":"
+        ):
+            raw_path = raw_path[1:]
+        installed_path = Path(raw_path).resolve(strict=False)
         if installed_path == expected_path:
             return True
     return False
@@ -1298,7 +1308,8 @@ def _manager_overlay_core_sources(
             existing_path = existing.get("path")
             if isinstance(existing_path, str) and existing_path.strip():
                 continue
-        overlay_sources[package_name] = str(package_path.resolve(strict=False))
+        # uv expects POSIX separators in ``tool.uv.sources`` paths.
+        overlay_sources[package_name] = package_path.resolve(strict=False).as_posix()
     return overlay_sources
 
 
@@ -1345,7 +1356,8 @@ def _write_manager_sync_overlay(
             resolved = (source_pyproject.parent / resolved).resolve(strict=False)
         else:
             resolved = resolved.resolve(strict=False)
-        meta["path"] = str(resolved)
+        # uv expects POSIX separators in ``tool.uv.sources`` path values.
+        meta["path"] = resolved.as_posix()
 
     for package_name, package_path in sorted(local_core_sources.items()):
         inline = tomlkit.inline_table()

@@ -193,8 +193,9 @@ def test_build_subprocess_env_keeps_pythonpath_entries_for_current_venv(tmp_path
         sys_prefix=current_venv,
     )
 
+    bin_dir_name = "Scripts" if os.name == "nt" else "bin"
     assert env["VIRTUAL_ENV"] == str(current_venv)
-    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / "bin")
+    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / bin_dir_name)
     assert env["PYTHONPATH"] == os.pathsep.join(instance_entries)
     assert "PYTHONHOME" not in env
 
@@ -253,7 +254,7 @@ def test_inject_uv_preview_flag_and_apply_inline_path_export(monkeypatch):
     cmd = process_support.apply_inline_path_export('export PATH="~/.local/bin:$PATH"; uv self update', env)
 
     assert cmd == "uv self update"
-    assert env["PATH"].startswith(str(Path("~/.local/bin").expanduser()))
+    assert env["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert "/usr/bin" in env["PATH"]
 
 
@@ -294,7 +295,7 @@ def test_apply_inline_path_export_handles_operational_failure(monkeypatch):
     )
 
     env = {"PATH": "/usr/bin"}
-    cmd = 'export PATH="~/.local/bin:$PATH"; uv self update'
+    cmd = 'export PATH="/custom/bin:$PATH"; uv self update'
 
     assert process_support.apply_inline_path_export(cmd, env) == cmd
     assert env["PATH"] == "/usr/bin"
@@ -309,6 +310,6 @@ def test_apply_inline_path_export_propagates_unexpected_runtime_bug(monkeypatch)
 
     with pytest.raises(RuntimeError, match="expanduser bug"):
         process_support.apply_inline_path_export(
-            'export PATH="~/.local/bin:$PATH"; uv self update',
+            'export PATH="/custom/bin:$PATH"; uv self update',
             {"PATH": "/usr/bin"},
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -136,7 +137,8 @@ def test_background_env_from_prefixes_translates_export_and_assignments(monkeypa
         base_env={"PATH": "/usr/bin", "HOME": "/home/demo"},
     )
 
-    assert env["PATH"] == "/home/demo/.local/bin:/usr/bin"
+    expected_local_bin = str(Path("/home/demo") / ".local" / "bin")
+    assert env["PATH"] == os.pathsep.join([expected_local_bin, "/usr/bin"])
     assert env["DASK_DISTRIBUTED__LOGGING__distributed"] == "critical"
     assert "1BAD" not in env
 

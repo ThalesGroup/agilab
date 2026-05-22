@@ -118,6 +118,7 @@ def _same_storage(left: str, right: str) -> bool:
 
 
 def _fstab_bind_source_for_target(target: str) -> str | None:
+    target_norm = os.path.normpath(target)
     try:
         with open("/etc/fstab", "r") as handle:
             for raw in handle:
@@ -128,8 +129,8 @@ def _fstab_bind_source_for_target(target: str) -> str | None:
                 if len(parts) < 4:
                     continue
                 src, tgt, _fstype, opts = parts[:4]
-                if os.path.normpath(tgt) == target and "bind" in opts.split(","):
-                    return os.path.normpath(src)
+                if os.path.normpath(tgt) == target_norm and "bind" in opts.split(","):
+                    return src
     except OSError:
         pass
     return None

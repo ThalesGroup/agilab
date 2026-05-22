@@ -165,7 +165,7 @@ async def test_prepare_local_env_online_handles_python_download_warning(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path):
+async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path, monkeypatch):
     env = _build_local_env(tmp_path, internet_on="1", is_worker_env=False)
     env.envars["AGILAB_UV_SELF_UPDATE"] = "1"
     agi_cls = _build_agi(env, supports_rapids=lambda: True)
@@ -181,6 +181,10 @@ async def test_prepare_local_env_online_ignores_uv_self_update_failure(tmp_path)
         if "python find" in cmd:
             raise RuntimeError("not found")
         return ""
+
+    # Exercise the POSIX self-update branch explicitly so the test stays
+    # deterministic regardless of the operator's host OS.
+    monkeypatch.setattr(deployment_prepare_support.os, "name", "posix", raising=False)
 
     await deployment_prepare_support.prepare_local_env(
         agi_cls,
@@ -231,7 +235,14 @@ async def test_prepare_local_env_windows_skips_self_update_when_standalone_uv_mi
     standalone_uv = fake_home / ".local" / "bin" / "uv.exe"
     assert not any("self update" in cmd for cmd in run_calls)
     assert any("python install 3.13" in cmd for cmd in run_calls)
-    assert any(str(standalone_uv) in str(call) for call in log.warning.call_args_list)
+    # ``Path`` repr uses POSIX separators on Windows, so compare against the
+    # Path object itself rather than ``str()`` (which uses backslashes).
+    assert any(
+        standalone_uv in call.args
+        or str(standalone_uv) in str(call)
+        or standalone_uv.as_posix() in str(call)
+        for call in log.warning.call_args_list
+    )
 
 
 @pytest.mark.asyncio

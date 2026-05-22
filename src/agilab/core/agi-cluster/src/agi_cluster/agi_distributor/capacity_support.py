@@ -547,7 +547,14 @@ def update_capacity(agi_cls: Any) -> None:
         df = df[balancer_cols]
 
         if df[0, -1] and df[0, -1] != float("inf"):
-            with open(agi_cls._capacity_data_file, "a") as handle:
+            # Force UTF-8 so polars can re-read the CSV cross-platform; the
+            # system default on Windows is CP1252 which polars rejects.
+            with open(
+                agi_cls._capacity_data_file,
+                "a",
+                encoding="utf-8",
+                newline="",
+            ) as handle:
                 df.write_csv(
                     handle,
                     include_header=False,

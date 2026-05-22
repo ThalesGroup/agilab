@@ -133,7 +133,7 @@ async def test_deploy_application_calls_local_and_remote_workers():
 
     await deployment_orchestration_support.deploy_application(agi_cls, "127.0.0.1")
 
-    assert calls["local"] == [("/tmp/demo_app", "wenv", " --extra pandas-worker")]
+    assert calls["local"] == [(str(Path("/tmp/demo_app")), "wenv", " --extra pandas-worker")]
     assert calls["remote"] == [("10.0.0.2", "wenv", " --extra pandas-worker")]
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 
@@ -172,7 +172,7 @@ async def test_deploy_application_local_mode_skips_remote_workers():
 
     await deployment_orchestration_support.deploy_application(agi_cls, "127.0.0.1")
 
-    assert calls["local"] == [("/tmp/demo_app", "wenv", " --extra pandas-worker")]
+    assert calls["local"] == [(str(Path("/tmp/demo_app")), "wenv", " --extra pandas-worker")]
     assert calls["remote"] == []
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 

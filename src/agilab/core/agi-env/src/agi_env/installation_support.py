@@ -18,7 +18,12 @@ def installation_marker_path(
 
     active_os = os_name or os.name
     if active_os == "nt":
-        root = Path(localappdata or "")
+        if localappdata:
+            root = Path(localappdata)
+        elif home is not None:
+            root = Path(home) / "AppData" / "Local"
+        else:
+            root = Path.home() / "AppData" / "Local"
         return root / "agilab/.agilab-path"
     root = Path(home) if home is not None else Path.home()
     return root / ".local/share/agilab/.agilab-path"

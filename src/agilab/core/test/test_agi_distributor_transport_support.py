@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,6 +55,10 @@ async def test_send_file_local_directory_copies_tree(monkeypatch, tmp_path):
     ).read_text(encoding="utf-8") == "payload"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="sshpass is not available on Windows.",
+)
 @pytest.mark.asyncio
 async def test_send_file_remote_success_and_command_construction(monkeypatch, tmp_path):
     local_file = tmp_path / "src.bin"
@@ -88,7 +94,7 @@ async def test_send_file_remote_success_and_command_construction(monkeypatch, tm
 
     assert len(calls) == 1
     flat = list(calls[0])
-    assert flat[0] == "sshpass"
+    assert flat[0] == ("scp" if os.name == "nt" else "sshpass")
     assert "scp" in flat
     assert "-i" in flat
     assert str(local_file) in flat
@@ -123,14 +129,16 @@ async def test_send_file_remote_retries_with_password_auth_on_first_failure(monk
     )
 
     assert len(calls) == 2
-    assert calls[0][0] == "sshpass"
-    assert calls[1][0] == "sshpass"
-    assert "-e" in calls[0]
-    assert "-e" in calls[1]
+    expected_cmd = "scp" if os.name == "nt" else "sshpass"
+    assert calls[0][0] == expected_cmd
+    assert calls[1][0] == expected_cmd
+    assert ("-e" in calls[0]) is (os.name != "nt")
+    assert ("-e" in calls[1]) is (os.name != "nt")
     assert "-p" not in calls[0]
     assert "-p" not in calls[1]
-    assert call_envs[0]["SSHPASS"] == "secret"
-    assert call_envs[1]["SSHPASS"] == "secret"
+    if os.name != "nt":
+        assert call_envs[0]["SSHPASS"] == "secret"
+        assert call_envs[1]["SSHPASS"] == "secret"
 
 
 @pytest.mark.asyncio

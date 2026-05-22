@@ -137,12 +137,21 @@ async def prepare_local_env(
         if _uv_self_update_enabled(env.envars, envar_truthy_fn) and os.name == "nt":
             standalone_uv = Path.home() / ".local" / "bin" / "uv.exe"
             if standalone_uv.exists():
+                # ``shlex.quote`` produces POSIX-style single quotes that
+                # cmd.exe does not interpret, so build a cmd-friendly string
+                # instead: keep the path bare when it has no spaces, otherwise
+                # wrap in double quotes.
+                def _windows_quote(part: str) -> str:
+                    return f'"{part}"' if " " in part else part
+
                 uv_parts = shlex.split(env.uv)
                 if uv_parts:
                     uv_parts[0] = str(standalone_uv)
-                    windows_uv = cmd_prefix + " ".join(shlex.quote(part) for part in uv_parts)
+                    windows_uv = cmd_prefix + " ".join(
+                        _windows_quote(part) for part in uv_parts
+                    )
                 else:
-                    windows_uv = cmd_prefix + shlex.quote(str(standalone_uv))
+                    windows_uv = cmd_prefix + _windows_quote(str(standalone_uv))
                 try:
                     await run_fn(f"{windows_uv} self update", wenv_abs.parent)
                 except RuntimeError as exc:

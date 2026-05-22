@@ -664,6 +664,13 @@ def test_post_try_link_dir_returns_false_on_setup_and_symlink_failures(tmp_path,
     existing = tmp_path / "existing"
     existing.symlink_to(tmp_path / "wrong-target", target_is_directory=True)
     monkeypatch.setattr(post_mod.os, "symlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("symlink denied")))
+    # On Windows the helper falls back to ``mklink /J``; force that fallback to
+    # fail too so the function returns ``False`` as expected.
+    monkeypatch.setattr(
+        post_mod.subprocess,
+        "check_call",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mklink unavailable")),
+    )
     assert post_mod._try_link_dir(existing, target_path) is False
 
 
@@ -1790,7 +1797,9 @@ def test_build_worker_extension_uses_expected_fields(tmp_path):
     )
 
     assert extension.name == "demo_worker_cy"
-    assert extension.sources == ["src/demo_worker/demo_worker.pyx"]
+    assert [Path(source).as_posix() for source in extension.sources] == [
+        "src/demo_worker/demo_worker.pyx"
+    ]
     assert extension.include_dirs == [str(tmp_path / "prefix" / "include")]
     assert extension.extra_compile_args == ["-Wfoo"]
     assert ("Py_GIL_DISABLED", "1") in extension.define_macros

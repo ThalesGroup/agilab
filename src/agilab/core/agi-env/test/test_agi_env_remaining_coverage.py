@@ -504,15 +504,20 @@ def test_init_preserves_existing_dataset_without_stamp_and_uses_windows_export_b
         sys.path.remove(str(demo_src))
     AgiEnv.reset()
 
+    def _flip_os_name_after_init_apps(_self):
+        agi_env_module.os.name = "posix"
+
+    original_os_name = agi_env_module.os.name
     try:
         with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
-             mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
+             mock.patch.object(AgiEnv, "_init_apps", _flip_os_name_after_init_apps), \
              mock.patch.object(AgiEnv, "unzip_data", lambda self, archive, extract_to, force_extract=False: unzip_calls.append((archive, extract_to))):
             env = AgiEnv(apps_path=fake_apps, app="demo_project", verbose=0)
         assert unzip_calls == []
         assert str(demo_src) in sys.path
         assert env.export_local_bin == 'export PATH="~/.local/bin:$PATH";'
     finally:
+        agi_env_module.os.name = original_os_name
         sys.path[:] = original_sys_path
 
 
