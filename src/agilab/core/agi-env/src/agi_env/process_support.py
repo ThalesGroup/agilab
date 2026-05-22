@@ -40,8 +40,13 @@ DEFAULT_UV_LINK_MODE = "hardlink"
 
 
 def _is_virtualenv_path(path: Path) -> bool:
-    bin_dir = "Scripts" if os.name == "nt" else "bin"
-    return (path / "pyvenv.cfg").exists() or (path / bin_dir).exists()
+    # Accept the legacy ``bin`` directory in addition to the platform default so
+    # tests and tools that stage cross-platform virtualenv shapes still work.
+    return (
+        (path / "pyvenv.cfg").exists()
+        or (path / "Scripts").exists()
+        or (path / "bin").exists()
+    )
 
 
 def normalize_path(path):
@@ -49,10 +54,17 @@ def normalize_path(path):
 
     raw_path = "." if str(path) == "" else str(path)
     if os.name == "nt":
+        initial = _HOST_PATH_CLS(raw_path).expanduser()
         try:
-            candidate = _HOST_PATH_CLS(raw_path).expanduser().resolve(strict=False)
+            candidate = initial.resolve(strict=False)
         except PATH_RESOLVE_EXCEPTIONS:
-            candidate = _HOST_PATH_CLS(raw_path).expanduser()
+            candidate = initial
+        # Relative inputs (no drive letter, not absolute) round-trip unchanged
+        # so callers can compose them with workspace-relative paths.  We still
+        # call ``resolve`` first so unexpected runtime errors propagate
+        # consistently with the prior behaviour.
+        if not initial.is_absolute() and not initial.drive:
+            return raw_path
         return str(PureWindowsPath(candidate))
     candidate = Path(raw_path)
     return str(PurePosixPath(candidate))
@@ -122,10 +134,14 @@ def build_subprocess_env(
     venv_path = None
     if venv is not None:
         venv_path = Path(venv)
-        if not (venv_path / "bin").exists() and venv_path.name != ".venv":
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        if (
+            not (venv_path / bin_dir).exists()
+            and not (venv_path / "bin").exists()
+            and venv_path.name != ".venv"
+        ):
             venv_path = venv_path / ".venv"
         process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
 

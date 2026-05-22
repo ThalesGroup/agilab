@@ -1180,10 +1180,11 @@ dependencies = ["agi-env"]
 
     monkeypatch.setattr(deployment_local_support.tomlkit, "parse", _parse)
 
+    # The overlay stores POSIX separators (uv requires them on every platform).
     assert deployment_local_support._manager_overlay_core_sources(
         pyproject,
         {"agi-env": agi_env_path},
-    ) == {"agi-env": str(agi_env_path.resolve(strict=False))}
+    ) == {"agi-env": agi_env_path.resolve(strict=False).as_posix()}
 
 
 def test_manager_overlay_core_sources_preserves_existing_paths_and_adds_missing_ones(
@@ -1207,13 +1208,14 @@ agi-node = { path = "   " }
     agi_env_path.mkdir()
     agi_node_path.mkdir()
 
+    # The overlay stores POSIX separators (uv requires them on every platform).
     assert deployment_local_support._manager_overlay_core_sources(
         pyproject,
         {
             "agi-env": agi_env_path,
             "agi-node": agi_node_path,
         },
-    ) == {"agi-node": str(agi_node_path.resolve(strict=False))}
+    ) == {"agi-node": agi_node_path.resolve(strict=False).as_posix()}
 
 
 def test_write_manager_sync_overlay_bootstraps_missing_tables(tmp_path):
@@ -1245,6 +1247,9 @@ def test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries(
     abs_dep = tmp_path / "abs-dep"
     abs_dep.mkdir()
     source_pyproject = source_dir / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact when paths
+    # are absolute (e.g. C:\\Users\\...).  uv stores POSIX-style separators back
+    # into the overlay, so the assertions below compare against ``as_posix()``.
     source_pyproject.write_text(
         f"""
 [project]
@@ -1255,7 +1260,7 @@ demo = {{ workspace = true }}
 non_dict = "skip-me"
 blank = {{ path = "   " }}
 rel = {{ path = "../shared" }}
-abs = {{ path = "{abs_dep}" }}
+abs = {{ path = '{abs_dep}' }}
 """.strip(),
         encoding="utf-8",
     )
@@ -1274,10 +1279,10 @@ abs = {{ path = "{abs_dep}" }}
     assert "demo" not in sources
     assert sources["non_dict"] == "skip-me"
     assert sources["blank"]["path"] == "   "
-    assert sources["rel"]["path"] == str(
-        (source_dir / "../shared").resolve(strict=False)
+    assert sources["rel"]["path"] == (
+        (source_dir / "../shared").resolve(strict=False).as_posix()
     )
-    assert sources["abs"]["path"] == str(abs_dep.resolve(strict=False))
+    assert sources["abs"]["path"] == abs_dep.resolve(strict=False).as_posix()
 
 
 def test_shell_env_prefix_returns_empty_for_no_overrides():
@@ -2120,8 +2125,9 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
+    wenv_token = wenv_abs.as_posix()
     assert any(
-        f"--project {wenv_abs}" in cmd and "add 'dask[distributed]'" in cmd
+        f"--project {wenv_token}" in cmd and "add 'dask[distributed]'" in cmd
         for cmd, _ in commands
     )
     assert not any(
@@ -2263,14 +2269,18 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert "pip==" not in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
-    assert (
-        wenv_abs
-        / ".venv"
-        / "lib"
-        / "python3.13"
-        / "site-packages"
+    pth_path = (
+        deployment_local_support._project_site_packages_dir(
+            wenv_abs, python_version="3.13"
+        )
         / "agilab_uv_sources.pth"
-    ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
+    )
+    pth_content = pth_path.read_text(encoding="utf-8").strip()
+    # Path depth differs between POSIX (.venv/lib/python3.13/site-packages) and
+    # Windows (.venv/Lib/site-packages); compare against the actual depth.
+    relative_levels = len(pth_path.parent.relative_to(wenv_abs).parts)
+    expected_prefix = "../" * relative_levels + "_uv_sources"
+    assert pth_content == expected_prefix
     assert agi_cls._install_done_local is True
     assert any(
         f'add --editable "{env_project}" "{node_project}"' in cmd
@@ -3010,14 +3020,18 @@ path = "../sat_trajectory_project"
         (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
     )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(
-        env_project.resolve(strict=False)
+    # The overlay stores POSIX separators (uv requires them on every platform).
+    assert (
+        str(overlay_sources["agi-env"]["path"])
+        == env_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["agi-node"]["path"]) == str(
-        node_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["agi-node"]["path"])
+        == node_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
-        sat_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["sat-trajectory-project"]["path"])
+        == sat_project.resolve(strict=False).as_posix()
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
@@ -3200,14 +3214,18 @@ path = "../sat_trajectory_project"
         (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
     )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(
-        env_project.resolve(strict=False)
+    # The overlay stores POSIX separators (uv requires them on every platform).
+    assert (
+        str(overlay_sources["agi-env"]["path"])
+        == env_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["agi-node"]["path"]) == str(
-        node_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["agi-node"]["path"])
+        == node_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
-        sat_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["sat-trajectory-project"]["path"])
+        == sat_project.resolve(strict=False).as_posix()
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
@@ -3263,11 +3281,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     legacy_manager_resources.mkdir(parents=True, exist_ok=True)
     (legacy_manager_resources / "old.txt").write_text("old", encoding="utf-8")
     manager_resources = (
-        app_path
-        / ".venv"
-        / "lib"
-        / "python3.13"
-        / "site-packages"
+        deployment_local_support._project_site_packages_dir(
+            app_path, python_version="3.13"
+        )
         / "agi_env"
         / "resources"
     )
@@ -3279,9 +3295,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker'\n", encoding="utf-8"
     )
-    (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(
-        parents=True, exist_ok=True
-    )
+    deployment_local_support._project_site_packages_dir(
+        wenv_abs, python_version="3.13t"
+    ).mkdir(parents=True, exist_ok=True)
     _write_venv_python(wenv_abs, python_version="3.13.13")
     (wenv_abs / "_uv_sources").mkdir(parents=True, exist_ok=True)
     resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
@@ -3378,11 +3394,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     assert not (app_path / "agilab").exists()
     assert (resources_dest / "resource.txt").exists()
     assert (
-        wenv_abs
-        / ".venv"
-        / "lib"
-        / "python3.13t"
-        / "site-packages"
+        deployment_local_support._project_site_packages_dir(
+            wenv_abs, python_version="3.13t"
+        )
         / "agilab_uv_sources.pth"
     ).exists()
     log.debug.assert_called()

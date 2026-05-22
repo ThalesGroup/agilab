@@ -193,8 +193,9 @@ def test_build_subprocess_env_keeps_pythonpath_entries_for_current_venv(tmp_path
         sys_prefix=current_venv,
     )
 
+    bin_dir_name = "Scripts" if os.name == "nt" else "bin"
     assert env["VIRTUAL_ENV"] == str(current_venv)
-    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / "bin")
+    assert env["PATH"].split(os.pathsep)[0] == str(current_venv / bin_dir_name)
     assert env["PYTHONPATH"] == os.pathsep.join(instance_entries)
     assert "PYTHONHOME" not in env
 

@@ -45,7 +45,9 @@ def test_ui_support_global_state_and_last_active_app_round_trip(tmp_path, monkey
     app_dir.mkdir()
     state_file = tmp_path / "app_state.toml"
     legacy_file = tmp_path / ".last-active-app"
-    state_file.write_text(f'last_active_app = "{app_dir}"\n', encoding="utf-8")
+    # Use a TOML literal string ('...') so Windows backslashes are not interpreted
+    # as escape sequences when the file is parsed.
+    state_file.write_text(f"last_active_app = '{app_dir}'\n", encoding="utf-8")
 
     monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
     monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", legacy_file)
@@ -57,13 +59,13 @@ def test_ui_support_global_state_and_last_active_app_round_trip(tmp_path, monkey
 
     def _dump_payload(data, handle):
         dumped.append(dict(data))
-        handle.write(f'last_active_app = "{data["last_active_app"]}"\n'.encode("utf-8"))
+        handle.write(f"last_active_app = '{data['last_active_app']}'\n".encode("utf-8"))
 
     monkeypatch.setattr(ui_support, "_dump_toml_payload", _dump_payload)
     ui_support.persist_global_state({"last_active_app": str(app_dir)})
 
     assert dumped == [{"last_active_app": str(app_dir)}]
-    assert state_file.read_text(encoding="utf-8").strip() == f'last_active_app = "{app_dir}"'
+    assert state_file.read_text(encoding="utf-8").strip() == f"last_active_app = '{app_dir}'"
 
     current_state = {}
     persisted: list[dict[str, str]] = []

@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -255,6 +256,10 @@ async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled
     assert core_index < dask_index
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="sshfs/POSIX shell mount commands are not portable to Windows.",
+)
 @pytest.mark.asyncio
 async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tmp_path):
     dist_abs = tmp_path / "dist"

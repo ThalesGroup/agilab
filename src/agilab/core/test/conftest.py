@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -7,9 +8,29 @@ import pytest
 from agi_env import AgiEnv
 
 
+_ORIGINAL_PATH_HOME = Path.home
+
+
+def _home_from_env() -> Path:
+    """Resolve ``Path.home()`` while honouring an overridden ``HOME`` env var.
+
+    On Windows ``Path.home()`` reads ``USERPROFILE``/``HOMEDRIVE``+``HOMEPATH``
+    before ``HOME``, which leaks the developer profile into tests that only
+    ``monkeypatch.setenv("HOME", ...)``.  We prefer ``HOME`` when set so tests
+    stay fully isolated across platforms.
+    """
+
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home)
+    return _ORIGINAL_PATH_HOME()
+
+
 @pytest.fixture(autouse=True)
 def isolate_core_test_environment(tmp_path_factory, monkeypatch):
     """Keep core tests independent from developer-local AGILAB state."""
+
+    monkeypatch.setattr(Path, "home", staticmethod(_home_from_env))
 
     fake_home = tmp_path_factory.mktemp("agilab_fake_home")
     fake_agilab = fake_home / ".agilab"
@@ -18,6 +39,8 @@ def isolate_core_test_environment(tmp_path_factory, monkeypatch):
     fake_localappdata.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("HOMEDRIVE", str(fake_home.drive) if fake_home.drive else "")
+    monkeypatch.setenv("HOMEPATH", str(fake_home)[len(fake_home.drive):] if fake_home.drive else str(fake_home))
     monkeypatch.setenv("LOCALAPPDATA", str(fake_localappdata))
     monkeypatch.setenv("APPDATA", str(fake_home / "AppData" / "Roaming"))
     monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
