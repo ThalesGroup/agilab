@@ -105,15 +105,122 @@ def _has_evidence(paths: list[Path]) -> bool:
     return any((path / "manifest.json").is_file() for path in paths)
 
 
-def _render_missing_evidence(paths: list[Path]) -> None:
+def _render_missing_evidence(paths: list[Path], *, configure_page: bool = True) -> None:
     import streamlit as st
 
-    st.set_page_config(page_title="PyTorch Playground", layout="wide")
-    st.title("PyTorch Playground")
+    if configure_page:
+        st.set_page_config(page_title="PyTorch Playground", layout="wide")
+        st.title("PyTorch Playground")
     st.info("No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS.")
     if paths:
         st.caption("Checked evidence locations:")
         st.code("\n".join(str(path) for path in paths), language="text")
+
+
+def _render_analysis_surface(
+    active_app_path: Path | None,
+    *,
+    configure_page: bool = True,
+    compact: bool = False,
+) -> None:
+    if active_app_path is None:
+        from pytorch_playground import playground_ui
+
+        playground_ui.main(configure_page=configure_page, compact=compact)
+        return
+    try:
+        runtime_env, args_model = _load_orchestrate_args(active_app_path)
+        evidence_dirs = _analysis_evidence_dirs(runtime_env, args_model, active_app_path)
+        if not _has_evidence(evidence_dirs):
+            _render_missing_evidence(evidence_dirs, configure_page=configure_page)
+            return
+        from pytorch_playground import app_args, playground_ui
+
+        config = app_args.to_playground_config(args_model)
+    except Exception as exc:
+        import streamlit as st
+
+        st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
+        return
+    playground_ui.main(
+        config_override=config,
+        preset_label="ORCHESTRATE args",
+        interactive_controls=False,
+        compute_loss_landscape=args_model.compute_loss_landscape,
+        landscape_resolution=args_model.landscape_resolution,
+        landscape_span=args_model.landscape_span,
+        evidence_dirs=evidence_dirs,
+        configure_page=configure_page,
+        compact=compact,
+    )
+
+
+def _run_playground_once(runtime_env: Any, args_model: Any):
+    from pytorch_playground_worker.pytorch_playground_worker import PytorchPlaygroundWorker
+
+    worker = PytorchPlaygroundWorker.__new__(PytorchPlaygroundWorker)
+    dump = getattr(args_model, "model_dump", None)
+    worker.args = dump(mode="json") if callable(dump) else args_model
+    worker.env = runtime_env
+    worker._worker_id = 0
+    worker.start()
+    return worker.work_pool("pytorch_playground")
+
+
+def _render_run_button(active_app_path: Path, *, container: Any, app_args_form: Any | None = None) -> None:
+    import streamlit as st
+
+    if not container.button("Run training", type="primary", use_container_width=True):
+        return
+    try:
+        runtime_env, args_model = _load_orchestrate_args(active_app_path)
+        persist_current_args = getattr(app_args_form or _load_app_args_form(), "persist_current_args", None)
+        if callable(persist_current_args):
+            args_model = persist_current_args(env=runtime_env)
+        with st.spinner("Running PyTorch training"):
+            summary = _run_playground_once(runtime_env, args_model)
+    except Exception as exc:
+        container.error(f"Run failed: {exc}")
+        return
+    rows = len(summary) if hasattr(summary, "__len__") else 1
+    row_label = "row" if rows == 1 else "rows"
+    container.success(f"Run complete. Evidence refreshed ({rows} {row_label}).")
+
+
+def _render_full_surface(
+    active_app_path: Path | None,
+    *,
+    env: Any | None = None,
+    container: Any | None = None,
+) -> None:
+    from pytorch_playground import playground_ui
+
+    if active_app_path is None:
+        playground_ui.main()
+        return
+
+    import streamlit as st
+
+    if container is None:
+        st.set_page_config(page_title=playground_ui.PAGE_TITLE, layout="wide")
+
+    try:
+        runtime_env, _args_model = _load_orchestrate_args(active_app_path)
+    except Exception as exc:
+        st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
+        return
+
+    root = container or st
+    analysis_column, controls_column = root.columns([0.70, 0.30])
+
+    app_args_form = _load_app_args_form()
+    with controls_column:
+        controls_column.markdown("### Run")
+        controls_column.caption("Adjust the next run, refresh evidence, then inspect the result on the left.")
+        _render_run_button(active_app_path, container=controls_column, app_args_form=app_args_form)
+        app_args_form.render(env=env or runtime_env, container=controls_column, wide=False, compact=True)
+    with analysis_column:
+        _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
 
 def render(
@@ -129,43 +236,19 @@ def render(
         app_args_form = _load_app_args_form()
         app_args_form.render(env=env, container=container)
         return
-    if surface_mode in {"analysis", "full"}:
+    if surface_mode == "analysis":
         active_app_path = _resolve_active_app_path(active_app)
-
-        if active_app_path is None:
-            from pytorch_playground import playground_ui
-
-            playground_ui.main()
-            return
-        try:
-            runtime_env, args_model = _load_orchestrate_args(active_app_path)
-            evidence_dirs = _analysis_evidence_dirs(runtime_env, args_model, active_app_path)
-            if not _has_evidence(evidence_dirs):
-                _render_missing_evidence(evidence_dirs)
-                return
-            from pytorch_playground import app_args, playground_ui
-
-            config = app_args.to_playground_config(args_model)
-        except Exception as exc:
-            import streamlit as st
-
-            st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
-            return
-        playground_ui.main(
-            config_override=config,
-            preset_label="ORCHESTRATE args",
-            interactive_controls=False,
-            compute_loss_landscape=args_model.compute_loss_landscape,
-            landscape_resolution=args_model.landscape_resolution,
-            landscape_span=args_model.landscape_span,
-            evidence_dirs=evidence_dirs,
-        )
+        _render_analysis_surface(active_app_path)
+        return
+    if surface_mode == "full":
+        active_app_path = _resolve_active_app_path(active_app)
+        _render_full_surface(active_app_path, env=env, container=container)
         return
     raise ValueError(f"Unsupported PyTorch Playground app surface mode: {mode}")
 
 
 def main() -> None:
-    render(mode="analysis")
+    render(mode="full")
 
 
 if __name__ == "__main__":
