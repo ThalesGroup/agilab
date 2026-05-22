@@ -22,7 +22,10 @@ def _drop_shadowed_package_module() -> None:
     if module_file is None:
         return
     try:
-        shadows_package = Path(module_file).resolve() == (_SCRIPT_DIR / "pytorch_playground.py").resolve()
+        shadows_package = (
+            Path(module_file).resolve()
+            == (_SCRIPT_DIR / "pytorch_playground.py").resolve()
+        )
     except (OSError, RuntimeError, TypeError, ValueError):
         return
     if not shadows_package:
@@ -38,9 +41,13 @@ _drop_shadowed_package_module()
 
 def _load_app_args_form() -> ModuleType:
     entrypoint = _APP_SRC / "app_args_form.py"
-    spec = importlib.util.spec_from_file_location("_pytorch_playground_app_args_form_surface", entrypoint)
+    spec = importlib.util.spec_from_file_location(
+        "_pytorch_playground_app_args_form_surface", entrypoint
+    )
     if spec is None or spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load PyTorch Playground app form from {entrypoint}")
+        raise ModuleNotFoundError(
+            f"Unable to load PyTorch Playground app form from {entrypoint}"
+        )
     module = importlib.util.module_from_spec(spec)
     module._AGILAB_APP_ARGS_FORM_IMPORT_ONLY = True
     sys.modules[spec.name] = module
@@ -68,7 +75,9 @@ def _load_orchestrate_args(active_app_path: Path):
     from pytorch_playground import app_args
 
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-    args_model = app_args.ensure_defaults(app_args.load_args(env.app_settings_file), env=env)
+    args_model = app_args.ensure_defaults(
+        app_args.load_args(env.app_settings_file), env=env
+    )
     return env, args_model
 
 
@@ -81,7 +90,9 @@ def _append_unique_path(paths: list[Path], path: Path) -> None:
         paths.append(resolved)
 
 
-def _analysis_evidence_dirs(env: Any, args_model: Any, active_app_path: Path) -> list[Path]:
+def _analysis_evidence_dirs(
+    env: Any, args_model: Any, active_app_path: Path
+) -> list[Path]:
     paths: list[Path] = []
     export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
     for target in (
@@ -111,7 +122,9 @@ def _render_missing_evidence(paths: list[Path], *, configure_page: bool = True) 
     if configure_page:
         st.set_page_config(page_title="PyTorch Playground", layout="wide")
         st.title("PyTorch Playground")
-    st.info("No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS.")
+    st.info(
+        "No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS."
+    )
     if paths:
         st.caption("Checked evidence locations:")
         st.code("\n".join(str(path) for path in paths), language="text")
@@ -130,7 +143,9 @@ def _render_analysis_surface(
         return
     try:
         runtime_env, args_model = _load_orchestrate_args(active_app_path)
-        evidence_dirs = _analysis_evidence_dirs(runtime_env, args_model, active_app_path)
+        evidence_dirs = _analysis_evidence_dirs(
+            runtime_env, args_model, active_app_path
+        )
         if not _has_evidence(evidence_dirs):
             _render_missing_evidence(evidence_dirs, configure_page=configure_page)
             return
@@ -156,7 +171,9 @@ def _render_analysis_surface(
 
 
 def _run_playground_once(runtime_env: Any, args_model: Any):
-    from pytorch_playground_worker.pytorch_playground_worker import PytorchPlaygroundWorker
+    from pytorch_playground_worker.pytorch_playground_worker import (
+        PytorchPlaygroundWorker,
+    )
 
     worker = PytorchPlaygroundWorker.__new__(PytorchPlaygroundWorker)
     dump = getattr(args_model, "model_dump", None)
@@ -167,14 +184,18 @@ def _run_playground_once(runtime_env: Any, args_model: Any):
     return worker.work_pool("pytorch_playground")
 
 
-def _render_run_button(active_app_path: Path, *, container: Any, app_args_form: Any | None = None) -> None:
+def _render_run_button(
+    active_app_path: Path, *, container: Any, app_args_form: Any | None = None
+) -> None:
     import streamlit as st
 
     if not container.button("Run training", type="primary", use_container_width=True):
         return
     try:
         runtime_env, args_model = _load_orchestrate_args(active_app_path)
-        persist_current_args = getattr(app_args_form or _load_app_args_form(), "persist_current_args", None)
+        persist_current_args = getattr(
+            app_args_form or _load_app_args_form(), "persist_current_args", None
+        )
         if callable(persist_current_args):
             args_model = persist_current_args(env=runtime_env)
         with st.spinner("Running PyTorch training"):
@@ -185,6 +206,25 @@ def _render_run_button(active_app_path: Path, *, container: Any, app_args_form: 
     rows = len(summary) if hasattr(summary, "__len__") else 1
     row_label = "row" if rows == 1 else "rows"
     container.success(f"Run complete. Evidence refreshed ({rows} {row_label}).")
+
+
+def _render_surface_styles() -> None:
+    import streamlit as st
+
+    markdown = getattr(st, "markdown", None)
+    if not callable(markdown):
+        return
+    markdown(
+        """
+<style>
+.block-container,
+[data-testid="stMainBlockContainer"] {
+  padding-top: 0.85rem !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_full_surface(
@@ -211,13 +251,18 @@ def _render_full_surface(
         return
 
     root = container or st
+    _render_surface_styles()
     analysis_column, controls_column = root.columns([0.70, 0.30])
 
     app_args_form = _load_app_args_form()
     with controls_column:
-        controls_column.markdown("### Run")
-        _render_run_button(active_app_path, container=controls_column, app_args_form=app_args_form)
-        app_args_form.render(env=env or runtime_env, container=controls_column, wide=False, compact=True)
+        controls_column.markdown("**Run**")
+        _render_run_button(
+            active_app_path, container=controls_column, app_args_form=app_args_form
+        )
+        app_args_form.render(
+            env=env or runtime_env, container=controls_column, wide=False, compact=True
+        )
     with analysis_column:
         _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
