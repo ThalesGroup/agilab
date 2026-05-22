@@ -127,15 +127,10 @@ def _reset_agi_service_state(monkeypatch, tmp_path):
 
 
 def test_normalize_path():
-    # Given a relative path "."
-    input_path = ""
-    normalized = normalize_path(input_path)
-    if os.name == "nt":
-        assert os.path.isabs(normalized), "On Windows the normalized path should be absolute."
-    else:
-        # On POSIX, compare with the PurePosixPath version.
-        expected = str(PurePosixPath(Path(input_path)))
-        assert normalized == expected, f"Expected {expected} but got {normalized}"
+    # ``normalize_path`` keeps relative inputs intact across platforms so
+    # callers can compose them with workspace-relative paths; an empty input
+    # becomes ``"."`` (the current directory) on every operating system.
+    assert normalize_path("") == "."
 
 
 def test_mode_constants_exposed():

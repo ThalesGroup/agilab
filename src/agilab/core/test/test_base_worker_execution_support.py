@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import itertools
+import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -805,7 +806,10 @@ def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
     )
 
     assert written_payloads == ["\x00" * 8]
-    assert removed_paths == [str(Path("/tmp/share") / "127.0.0.1_8787")]
+    # ``os.path.join`` follows the host separator semantics, which on Windows
+    # mixes the literal ``/`` from the input with ``\\``.  Match against the
+    # same helper to stay portable.
+    assert removed_paths == [os.path.join("/tmp/share", "127.0.0.1_8787")]
     assert write_speed == [4.0]
 
 
@@ -987,9 +991,12 @@ def test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count():
         logger_obj=logger,
     )
 
+    # The helper formats the file path through ``Path(...)``, which uses native
+    # separators (``\\`` on Windows).  Build the expected message the same way.
+    worker_path_repr = str(Path("/tmp/worker.py"))
     assert plan_batch_count == 2
     assert logged == [
-        "worker #1: local-worker from /tmp/worker.py",
+        f"worker #1: local-worker from {worker_path_repr}",
         "work #2 / 2 - plan batches=2 metadata batches=3",
     ]
 
@@ -1041,8 +1048,11 @@ def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_c
     assert works_calls == [
         ([["plan-a"], ["plan-b"]], [["meta-a"], ["meta-b"]])
     ]
+    # The helper formats the file path through ``Path(...)``, which uses native
+    # separators on Windows.  Mirror that here so the assertion is portable.
+    worker_path_repr = str(Path("/tmp/worker.py"))
     assert logged == [
-        "worker #1: local-worker from /tmp/worker.py",
+        f"worker #1: local-worker from {worker_path_repr}",
         "work #2 / 2 - plan batches=1 metadata batches=1",
         "worker #1 completed 1 plan batches",
     ]

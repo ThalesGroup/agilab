@@ -16,6 +16,10 @@ from importlib import import_module
 from importlib.util import find_spec
 import os
 from pathlib import Path
+try:
+    from pathlib import UnsupportedOperation  # Python 3.13+
+except ImportError:  # pragma: no cover - older Pythons
+    UnsupportedOperation = NotImplementedError  # type: ignore[assignment]
 import shutil
 import sqlite3
 import subprocess
@@ -126,8 +130,16 @@ def resolve_mlflow_artifact_dir(tracking_dir: Path, *, default_artifact_dir: str
 
 
 def sqlite_uri_for_path(db_path: Path, *, os_name: str, path_cls=Path) -> str:
-    resolved = path_cls(db_path).expanduser().resolve()
-    posix_path = resolved.as_posix()
+    try:
+        resolved = path_cls(db_path).expanduser().resolve()
+    except UnsupportedOperation:
+        # ``os.name`` may be monkeypatched in tests, which breaks pathlib's
+        # cross-platform instantiation; fall back to a string-only approach.
+        resolved = None
+    if resolved is not None:
+        posix_path = resolved.as_posix()
+    else:
+        posix_path = str(db_path).replace("\\", "/")
     if os_name == "nt":
         return f"sqlite:///{posix_path}"
     return f"sqlite:////{posix_path.lstrip('/')}"
@@ -434,8 +446,26 @@ def _move_mlflow_sqlite_backend_files(
         if candidate.exists():
             target = Path(f"{backup_path}{sidecar}")
             if os.name == "nt":
+                # Windows holds onto recently-closed sqlite handles for a brief
+                # moment, so retry the unlink with a short backoff before giving
+                # up.  Releasing the GC also nudges lingering connection
+                # objects to actually close.
+                import gc
+                import time
+
                 shutil.copy2(candidate, target)
-                candidate.unlink()
+                last_exc: PermissionError | None = None
+                for _ in range(10):
+                    try:
+                        candidate.unlink()
+                        last_exc = None
+                        break
+                    except PermissionError as exc:
+                        last_exc = exc
+                        gc.collect()
+                        time.sleep(0.05)
+                if last_exc is not None:
+                    raise last_exc
             else:
                 candidate.replace(target)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import types
 from collections.abc import Callable
@@ -11,6 +12,24 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import pytest
+
+
+_ORIGINAL_PATH_HOME = Path.home
+
+
+def _home_from_env() -> Path:
+    """Resolve ``Path.home()`` while honouring an overridden ``HOME`` env var.
+
+    On Windows ``Path.home()`` reads ``USERPROFILE``/``HOMEDRIVE``+``HOMEPATH``
+    before ``HOME``, which makes tests that only ``monkeypatch.setenv("HOME", ...)``
+    leak into the real user profile.  We prefer ``HOME`` when set so tests stay
+    fully isolated across platforms.
+    """
+
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home)
+    return _ORIGINAL_PATH_HOME()
 
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -79,9 +98,32 @@ if "streamlit" not in sys.modules and importlib.util.find_spec("streamlit") is N
     sys.modules["streamlit"] = _StreamlitStub()
 
 
+def _posix_marker_path(
+    *,
+    os_name: str | None = None,
+    home: str | Path | None = None,
+    localappdata: str | Path | None = None,
+) -> Path:
+    """Test-only marker resolver that always lives under ``HOME``.
+
+    Production code stores ``.agilab-path`` under ``%LOCALAPPDATA%\\agilab`` on
+    Windows, but the test suite seeds the posix-style location under the fake
+    home directory.  Honouring that path on every platform keeps tests that
+    only override ``HOME`` portable across operating systems.
+    """
+
+    if home is not None:
+        root = Path(home)
+    else:
+        root = Path(os.environ.get("HOME", str(Path.home())))
+    return root / ".local/share/agilab/.agilab-path"
+
+
 @pytest.fixture(autouse=True)
 def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
     """Keep agi-env tests independent from developer-local AGILAB state."""
+
+    monkeypatch.setattr(Path, "home", staticmethod(_home_from_env))
 
     fake_home = tmp_path_factory.mktemp("agilab_fake_home")
     fake_agilab = fake_home / ".agilab"
@@ -90,6 +132,8 @@ def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
     fake_localappdata.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("HOMEDRIVE", str(fake_home.drive) if fake_home.drive else "")
+    monkeypatch.setenv("HOMEPATH", str(fake_home)[len(fake_home.drive):] if fake_home.drive else str(fake_home))
     monkeypatch.setenv("LOCALAPPDATA", str(fake_localappdata))
     monkeypatch.setenv("APPDATA", str(fake_home / "AppData" / "Roaming"))
     monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
@@ -118,6 +162,9 @@ def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
 
     from agi_env import AgiEnv
     from agi_env import ui_support
+    from agi_env import agi_env as _agi_env_module
+
+    monkeypatch.setattr(_agi_env_module, "installation_marker_path", _posix_marker_path)
 
     original_logger = AgiEnv.logger
     original_global_state_file = ui_support._GLOBAL_STATE_FILE

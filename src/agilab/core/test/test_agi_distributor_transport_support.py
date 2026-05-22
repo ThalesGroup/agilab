@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -54,6 +55,10 @@ async def test_send_file_local_directory_copies_tree(monkeypatch, tmp_path):
     ).read_text(encoding="utf-8") == "payload"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="sshpass is not available on Windows.",
+)
 @pytest.mark.asyncio
 async def test_send_file_remote_success_and_command_construction(monkeypatch, tmp_path):
     local_file = tmp_path / "src.bin"

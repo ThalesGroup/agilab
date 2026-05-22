@@ -119,7 +119,10 @@ non_dict = { path = "../bad/non_dict" }
     )
 
     content = dst_pyproject.read_text(encoding="utf-8")
-    expected_rel_foo = os.path.relpath((src_deps / "foo").resolve(strict=False), start=dst_dir)
+    # uv requires POSIX separators inside ``tool.uv.sources`` paths.
+    expected_rel_foo = os.path.relpath(
+        (src_deps / "foo").resolve(strict=False), start=dst_dir
+    ).replace("\\", "/")
     assert f'foo = {{ path = "{expected_rel_foo}" }}' in content
     assert 'bar = { path = "keep-bar" }' in content
     assert 'missing = { path = "../bad/missing" }' in content
@@ -266,11 +269,12 @@ def test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_an
 
     src_pyproject = src_dir / "pyproject.toml"
     dest_pyproject = dest_dir / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact.
     src_pyproject.write_text(
         f"""
 [tool.uv.sources]
 foo = {{ path = "deps/foo" }}
-bar = {{ path = "{abs_dep}" }}
+bar = {{ path = '{abs_dep}' }}
 baz = {{ path = "deps/foo" }}
 skip_meta = 3
 blank = {{ path = "" }}
@@ -301,8 +305,10 @@ missing = {{ path = "../ignored-missing" }}
     )
 
     content = dest_pyproject.read_text(encoding="utf-8")
+    # uv requires POSIX separators inside ``tool.uv.sources`` paths.
+    expected_rel_bar = os.path.relpath(abs_dep, start=dest_dir).replace("\\", "/")
     assert 'foo = { path = "../src/deps/foo" }' in content
-    assert f'bar = {{ path = "{os.path.relpath(abs_dep, start=dest_dir)}" }}' in content
+    assert f'bar = {{ path = "{expected_rel_bar}" }}' in content
     assert 'baz = { path = "vendored/baz" }' in content
     assert 'blank = { path = "../ignored-blank" }' in content
     assert 'missing = { path = "../ignored-missing" }' in content
@@ -329,7 +335,8 @@ def test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and
         dest_pyproject=dest_pyproject,
     )
 
-    assert f'foo = {{ path = "{dep.resolve(strict=False)}" }}' in dest_pyproject.read_text(encoding="utf-8")
+    expected_path = str(dep.resolve(strict=False)).replace("\\", "/")
+    assert f'foo = {{ path = "{expected_path}" }}' in dest_pyproject.read_text(encoding="utf-8")
     uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
         src_pyproject=tmp_path / "missing-src.toml",
         dest_pyproject=dest_pyproject,
@@ -382,7 +389,8 @@ def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp
 
     staged_target = dst_dir / "_uv_sources" / "foo"
     assert staged_entries == [dst_dir / "_uv_sources"]
-    assert f'foo = {{ path = "{staged_target}" }}' in dest_pyproject.read_text(encoding="utf-8")
+    expected_staged = str(staged_target).replace("\\", "/")
+    assert f'foo = {{ path = "{expected_staged}" }}' in dest_pyproject.read_text(encoding="utf-8")
 
 
 def test_stage_uv_sources_for_copied_pyproject_propagates_unexpected_relpath_bug(tmp_path, monkeypatch):
@@ -515,12 +523,14 @@ def test_iter_local_uv_source_paths_handles_missing_invalid_and_absolute_entries
 
     abs_dep = tmp_path / "abs-dep"
     abs_dep.mkdir()
+    # TOML literal strings ('...') keep Windows backslashes intact instead of
+    # treating them as escape sequences.
     pyproject.write_text(
         f"""
 [tool.uv.sources]
 bad = "value"
 blank = {{ path = "" }}
-abs = {{ path = "{abs_dep}" }}
+abs = {{ path = '{abs_dep}' }}
 """.strip(),
         encoding="utf-8",
     )
@@ -545,11 +555,12 @@ def test_rewrite_uv_sources_paths_handles_non_table_sources_and_noop_rewrites(tm
     existing_abs.mkdir()
     src_dep = tmp_path / "dep"
     src_dep.mkdir()
+    # TOML literal strings ('...') keep Windows backslashes intact.
     src_pyproject.write_text(
         f"""
 [tool.uv.sources]
-foo = {{ path = "{src_dep}" }}
-bar = {{ path = "{src_dep}" }}
+foo = {{ path = '{src_dep}' }}
+bar = {{ path = '{src_dep}' }}
 """.strip(),
         encoding="utf-8",
     )
@@ -557,7 +568,7 @@ bar = {{ path = "{src_dep}" }}
         f"""
 [tool.uv.sources]
 foo = "skip"
-bar = {{ path = "{existing_abs}" }}
+bar = {{ path = '{existing_abs}' }}
 """.strip(),
         encoding="utf-8",
     )
@@ -702,12 +713,13 @@ def test_missing_uv_source_paths_skips_blank_non_dict_and_absolute_existing_entr
     existing = tmp_path / "existing"
     existing.mkdir()
     pyproject = tmp_path / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact.
     pyproject.write_text(
         f"""
 [tool.uv.sources]
 bad = "value"
 blank = {{ path = "" }}
-abs = {{ path = "{existing}" }}
+abs = {{ path = '{existing}' }}
 """.strip(),
         encoding="utf-8",
     )

@@ -1042,10 +1042,15 @@ def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(mo
     )
 
     expected_fallback = fallback_base / "demo" / "output"
+    # On Windows the helper keeps native separators in ``normalized_output`` so
+    # downstream callers can pass it back to ``Path`` without translation.
+    expected_native = (
+        expected_fallback.as_posix() if os.name != "nt" else str(expected_fallback)
+    )
 
     assert result.input_path == input_dir.resolve()
-    assert result.normalized_output == expected_fallback.as_posix()
-    assert worker.data_out == expected_fallback.as_posix()
+    assert result.normalized_output == expected_native
+    assert worker.data_out == expected_native
     assert expected_fallback.is_dir()
     assert warnings
     assert "using fallback" in warnings[0]
@@ -1216,6 +1221,11 @@ def test_baseworker_setup_data_directories_without_env_falls_back_to_home(monkey
         target_subdir="output",
     )
 
+    # ``normalized_output`` keeps native separators on Windows so downstream
+    # callers can pass it back to ``Path`` without translation.
+    expected_native = (
+        fallback_output.as_posix() if os.name != "nt" else str(fallback_output)
+    )
     assert result.input_path == input_dir.resolve(strict=False)
-    assert result.normalized_output == fallback_output.as_posix()
-    assert worker.data_out == fallback_output.as_posix()
+    assert result.normalized_output == expected_native
+    assert worker.data_out == expected_native
