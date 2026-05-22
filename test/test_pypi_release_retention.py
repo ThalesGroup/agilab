@@ -247,6 +247,44 @@ def test_delete_release_falls_back_when_pypi_cleanup_cannot_parse_delete_form(mo
     assert "direct PyPI web fallback" in capsys.readouterr().err
 
 
+def test_delete_release_can_use_direct_web_only(monkeypatch, capsys) -> None:
+    module = _load_module()
+    fallback_calls = []
+
+    def fail_run(*args, **kwargs):
+        raise AssertionError("pypi-cleanup should not run in direct-web-only mode")
+
+    def fake_fallback(**kwargs):
+        fallback_calls.append(kwargs)
+
+    monkeypatch.setattr(module.subprocess, "run", fail_run)
+    monkeypatch.setattr(module, "delete_release_via_pypi_web", fake_fallback)
+
+    module.delete_release(
+        package="agilab",
+        version="2026.05.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        auth_code="123456",
+        direct_web_only=True,
+    )
+
+    assert fallback_calls == [
+        {
+            "package": "agilab",
+            "version": "2026.05.17",
+            "repo": "pypi",
+            "username": "maintainer",
+            "password": "secret",
+            "auth_code": "123456",
+            "totp_secret": None,
+            "confirm_login_url_provider": None,
+        }
+    ]
+    assert "direct PyPI web deletion" in capsys.readouterr().err
+
+
 def test_delete_form_parser_accepts_empty_action_and_fills_confirmation_fields() -> None:
     module = _load_module()
 
@@ -484,6 +522,7 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
         auth_code=None,
         totp_secret=None,
         confirm_login_url_provider=None,
+        direct_web_only=False,
         verbose=False,
     ):
         deletes.append((package, version, username, password, auth_code))
@@ -539,6 +578,7 @@ def test_main_deletes_old_versions_with_disaligned_protected_versions(monkeypatc
         auth_code=None,
         totp_secret=None,
         confirm_login_url_provider=None,
+        direct_web_only=False,
         verbose=False,
     ):
         deletes.append((package, version))
@@ -597,6 +637,7 @@ def test_main_rotates_totp_between_package_deletions(monkeypatch) -> None:
         auth_code=None,
         totp_secret=None,
         confirm_login_url_provider=None,
+        direct_web_only=False,
         verbose=False,
     ):
         deletes.append((package, auth_code, totp_secret))
