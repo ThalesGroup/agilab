@@ -259,7 +259,8 @@ def test_load_last_active_app_prefers_global_state_file(tmp_path, monkeypatch):
     legacy_file = tmp_path / ".last-active-app"
     app_dir = tmp_path / "demo_app"
     app_dir.mkdir()
-    state_file.write_text(f'last_active_app = "{app_dir}"\n', encoding="utf-8")
+    # TOML literal strings (single quotes) avoid backslash escape issues on Windows.
+    state_file.write_text(f"last_active_app = '{app_dir}'\n", encoding="utf-8")
 
     monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", state_file)
     monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", legacy_file)
@@ -400,7 +401,7 @@ def test_run_success(monkeypatch):
 
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
 
-    pagelib.run("echo 'ok'", cwd="/tmp")
+    pagelib.run("echo ok", cwd="/tmp")
 
     assert recorded == {"command": ["echo", "ok"], "cwd": "/tmp"}
 
@@ -1249,10 +1250,16 @@ def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, m
     tracking_dir = (tmp_path / ".mlflow").resolve()
     tracking_dir.mkdir(parents=True)
     db_path = tracking_dir / "mlflow.db"
-    with sqlite3.connect(db_path) as conn:
+    # ``sqlite3.connect`` as a context manager only manages the transaction, not
+    # the connection lifetime — explicitly ``close`` so Windows releases the
+    # file handle before the backend reset tries to rename/unlink it.
+    conn = sqlite3.connect(db_path)
+    try:
         conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
         conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
         conn.commit()
+    finally:
+        conn.close()
 
     def fake_run(cmd, check, capture_output, text):
         return SimpleNamespace(
@@ -1632,6 +1639,10 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     assert calls["text"] is True
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="/proc/mounts and /etc/fstab parsing is POSIX-only.",
+)
 def test_mount_helpers_cover_proc_fstab_and_shell_fallbacks(monkeypatch):
     real_path = Path
 

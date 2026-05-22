@@ -13,6 +13,30 @@ import tomlkit
 from agi_cluster.agi_distributor import deployment_local_support, uv_source_support
 
 
+def _venv_python(project: Path, *, os_name: str | None = None) -> Path:
+    return deployment_local_support._project_venv_python(
+        project,
+        os_name=os_name or os.name,
+    )
+
+
+def _write_venv_python(
+    project: Path,
+    *,
+    python_version: str | None = None,
+    os_name: str | None = None,
+) -> Path:
+    python_path = _venv_python(project, os_name=os_name)
+    python_path.parent.mkdir(parents=True, exist_ok=True)
+    python_path.write_text("", encoding="utf-8")
+    if python_version is not None:
+        (project / ".venv" / "pyvenv.cfg").write_text(
+            f"version = {python_version}\n",
+            encoding="utf-8",
+        )
+    return python_path
+
+
 def _write_editable_direct_url(
     venv_project: Path,
     package_project: Path,
@@ -239,7 +263,7 @@ async def test_install_into_project_venv_uses_target_python(tmp_path):
             tmp_path,
         ),
         (
-            f'uv pip install --python "{tmp_path / ".venv" / "bin" / "python"}" '
+            f'uv pip install --python "{_venv_python(tmp_path)}" '
             f'--upgrade --no-deps "{package_path}"',
             tmp_path,
         ),
@@ -251,9 +275,7 @@ async def test_install_into_project_venv_reuses_existing_target_python(tmp_path)
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
+    venv_python = _write_venv_python(tmp_path)
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -280,13 +302,8 @@ async def test_install_into_project_venv_reuses_existing_matching_python_version
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version_info = 3.13.13.final.0\n",
-        encoding="utf-8",
-    )
+    venv_python = _write_venv_python(tmp_path)
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text("version_info = 3.13.13.final.0\n", encoding="utf-8")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -314,13 +331,8 @@ async def test_install_into_project_venv_recreates_existing_mismatched_python_ve
     calls = []
     package_path = tmp_path / "pkg"
     package_path.mkdir()
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version_info = 3.12.9.final.0\n",
-        encoding="utf-8",
-    )
+    venv_python = _write_venv_python(tmp_path)
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text("version_info = 3.12.9.final.0\n", encoding="utf-8")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -353,12 +365,7 @@ async def test_install_into_project_venv_skips_cached_editable_metadata(tmp_path
     (package_path / "pyproject.toml").write_text(
         "[project]\nname='demo-pkg'\n", encoding="utf-8"
     )
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -398,12 +405,7 @@ async def test_install_into_project_venv_invalidates_editable_metadata_cache(tmp
     package_path.mkdir()
     pyproject = package_path / "pyproject.toml"
     pyproject.write_text("[project]\nname='demo-pkg'\n", encoding="utf-8")
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -455,12 +457,7 @@ async def test_install_many_into_project_venv_skips_cached_editables(tmp_path):
         (package_path / "pyproject.toml").write_text(
             f"[project]\nname='{package_path.name}'\n", encoding="utf-8"
         )
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -508,13 +505,7 @@ async def test_install_many_into_project_venv_reinstalls_only_missing_editable_p
             f"[project]\nname='{package_path.name}'\n",
             encoding="utf-8",
         )
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n",
-        encoding="utf-8",
-    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
 
     async def _fake_run(cmd, cwd):
         calls.append((cmd, cwd))
@@ -566,13 +557,7 @@ async def test_install_many_into_project_venv_reinstalls_only_missing_editable_p
 
 
 def test_remove_project_venv_if_mismatched_preserves_matching_venv(tmp_path):
-    venv_python = tmp_path / ".venv" / "bin" / "python"
-    venv_python.parent.mkdir(parents=True)
-    venv_python.write_text("", encoding="utf-8")
-    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n",
-        encoding="utf-8",
-    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
 
     removed = deployment_local_support._remove_project_venv_if_mismatched(
         tmp_path,
@@ -695,7 +680,7 @@ async def test_run_cached_deploy_stage_reuses_and_invalidates_metadata(tmp_path)
     project.mkdir()
     input_file = project / "pyproject.toml"
     input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
-    output_file = project / ".venv" / "bin" / "python"
+    output_file = _venv_python(project)
     cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
     calls = []
 
@@ -754,7 +739,7 @@ async def test_run_cached_deploy_stage_requires_output_probe(tmp_path):
     project.mkdir()
     input_file = project / "pyproject.toml"
     input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
-    output_file = project / ".venv" / "bin" / "python"
+    output_file = _venv_python(project)
     cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
     calls = []
 
@@ -846,7 +831,7 @@ async def test_deploy_plan_records_cached_skips(tmp_path):
     project.mkdir()
     input_file = project / "pyproject.toml"
     input_file.write_text("[project]\nname='demo'\n", encoding="utf-8")
-    output_file = project / ".venv" / "bin" / "python"
+    output_file = _venv_python(project)
     cache_path = tmp_path / "wenv" / ".agilab-stage-cache.json"
     calls = []
 
@@ -912,7 +897,7 @@ async def test_install_into_project_venv_can_resolve_dependencies_with_worker_py
             tmp_path,
         ),
         (
-            f'uv --offline pip install --python "{tmp_path / ".venv" / "bin" / "python"}" '
+            f'uv --offline pip install --python "{_venv_python(tmp_path)}" '
             f'--upgrade -e "{package_path}"',
             tmp_path,
         ),
@@ -1195,10 +1180,11 @@ dependencies = ["agi-env"]
 
     monkeypatch.setattr(deployment_local_support.tomlkit, "parse", _parse)
 
+    # The overlay stores POSIX separators (uv requires them on every platform).
     assert deployment_local_support._manager_overlay_core_sources(
         pyproject,
         {"agi-env": agi_env_path},
-    ) == {"agi-env": str(agi_env_path.resolve(strict=False))}
+    ) == {"agi-env": agi_env_path.resolve(strict=False).as_posix()}
 
 
 def test_manager_overlay_core_sources_preserves_existing_paths_and_adds_missing_ones(
@@ -1222,13 +1208,14 @@ agi-node = { path = "   " }
     agi_env_path.mkdir()
     agi_node_path.mkdir()
 
+    # The overlay stores POSIX separators (uv requires them on every platform).
     assert deployment_local_support._manager_overlay_core_sources(
         pyproject,
         {
             "agi-env": agi_env_path,
             "agi-node": agi_node_path,
         },
-    ) == {"agi-node": str(agi_node_path.resolve(strict=False))}
+    ) == {"agi-node": agi_node_path.resolve(strict=False).as_posix()}
 
 
 def test_write_manager_sync_overlay_bootstraps_missing_tables(tmp_path):
@@ -1260,6 +1247,9 @@ def test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries(
     abs_dep = tmp_path / "abs-dep"
     abs_dep.mkdir()
     source_pyproject = source_dir / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact when paths
+    # are absolute (e.g. C:\\Users\\...).  uv stores POSIX-style separators back
+    # into the overlay, so the assertions below compare against ``as_posix()``.
     source_pyproject.write_text(
         f"""
 [project]
@@ -1270,7 +1260,7 @@ demo = {{ workspace = true }}
 non_dict = "skip-me"
 blank = {{ path = "   " }}
 rel = {{ path = "../shared" }}
-abs = {{ path = "{abs_dep}" }}
+abs = {{ path = '{abs_dep}' }}
 """.strip(),
         encoding="utf-8",
     )
@@ -1289,10 +1279,10 @@ abs = {{ path = "{abs_dep}" }}
     assert "demo" not in sources
     assert sources["non_dict"] == "skip-me"
     assert sources["blank"]["path"] == "   "
-    assert sources["rel"]["path"] == str(
-        (source_dir / "../shared").resolve(strict=False)
+    assert sources["rel"]["path"] == (
+        (source_dir / "../shared").resolve(strict=False).as_posix()
     )
-    assert sources["abs"]["path"] == str(abs_dep.resolve(strict=False))
+    assert sources["abs"]["path"] == abs_dep.resolve(strict=False).as_posix()
 
 
 def test_shell_env_prefix_returns_empty_for_no_overrides():
@@ -1802,12 +1792,7 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
     (app_path / "pyproject.toml").write_text(
         "[project]\nname='demo-app'\n", encoding="utf-8"
     )
-    app_python = app_path / ".venv" / "bin" / "python"
-    app_python.parent.mkdir(parents=True)
-    app_python.write_text("", encoding="utf-8")
-    (app_path / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    app_python = _write_venv_python(app_path, python_version="3.13.13")
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
@@ -1828,12 +1813,7 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker-app'\n", encoding="utf-8"
     )
-    worker_python = wenv_abs / ".venv" / "bin" / "python"
-    worker_python.parent.mkdir(parents=True)
-    worker_python.write_text("", encoding="utf-8")
-    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    worker_python = _write_venv_python(wenv_abs, python_version="3.13.13")
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2145,8 +2125,9 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
+    wenv_token = wenv_abs.as_posix()
     assert any(
-        f"--project {wenv_abs}" in cmd and "add 'dask[distributed]'" in cmd
+        f"--project {wenv_token}" in cmd and "add 'dask[distributed]'" in cmd
         for cmd, _ in commands
     )
     assert not any(
@@ -2191,12 +2172,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker'\n", encoding="utf-8"
     )
-    (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
-    (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
-    (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
-    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    _write_venv_python(wenv_abs, python_version="3.13.13")
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "env_pck" / "agi_env"
@@ -2293,21 +2269,25 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert "pip==" not in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
-    assert (
-        wenv_abs
-        / ".venv"
-        / "lib"
-        / "python3.13"
-        / "site-packages"
+    pth_path = (
+        deployment_local_support._project_site_packages_dir(
+            wenv_abs, python_version="3.13"
+        )
         / "agilab_uv_sources.pth"
-    ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
+    )
+    pth_content = pth_path.read_text(encoding="utf-8").strip()
+    # Path depth differs between POSIX (.venv/lib/python3.13/site-packages) and
+    # Windows (.venv/Lib/site-packages); compare against the actual depth.
+    relative_levels = len(pth_path.parent.relative_to(wenv_abs).parts)
+    expected_prefix = "../" * relative_levels + "_uv_sources"
+    assert pth_content == expected_prefix
     assert agi_cls._install_done_local is True
     assert any(
         f'add --editable "{env_project}" "{node_project}"' in cmd
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
-    manager_python = app_path / ".venv" / "bin" / "python"
+    manager_python = _venv_python(app_path)
     assert any(
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands
@@ -2858,7 +2838,7 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
         in cmd
         for cmd, _ in commands
     )
-    worker_python = wenv_abs / ".venv" / "bin" / "python"
+    worker_python = _venv_python(wenv_abs)
     assert any(
         f'uv --offline venv --allow-existing --python 3.13 "{wenv_abs / ".venv"}"'
         in cmd
@@ -3040,14 +3020,18 @@ path = "../sat_trajectory_project"
         (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
     )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(
-        env_project.resolve(strict=False)
+    # The overlay stores POSIX separators (uv requires them on every platform).
+    assert (
+        str(overlay_sources["agi-env"]["path"])
+        == env_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["agi-node"]["path"]) == str(
-        node_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["agi-node"]["path"])
+        == node_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
-        sat_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["sat-trajectory-project"]["path"])
+        == sat_project.resolve(strict=False).as_posix()
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
@@ -3230,14 +3214,18 @@ path = "../sat_trajectory_project"
         (staged_overlay_root / "pyproject.toml").read_text(encoding="utf-8")
     )
     overlay_sources = overlay_doc["tool"]["uv"]["sources"]
-    assert str(overlay_sources["agi-env"]["path"]) == str(
-        env_project.resolve(strict=False)
+    # The overlay stores POSIX separators (uv requires them on every platform).
+    assert (
+        str(overlay_sources["agi-env"]["path"])
+        == env_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["agi-node"]["path"]) == str(
-        node_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["agi-node"]["path"])
+        == node_project.resolve(strict=False).as_posix()
     )
-    assert str(overlay_sources["sat-trajectory-project"]["path"]) == str(
-        sat_project.resolve(strict=False)
+    assert (
+        str(overlay_sources["sat-trajectory-project"]["path"])
+        == sat_project.resolve(strict=False).as_posix()
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
@@ -3247,7 +3235,7 @@ path = "../sat_trajectory_project"
         for cmd, _ in commands
     )
     assert any(
-        f'pip install --python "{app_path / ".venv" / "bin" / "python"}" --upgrade --no-deps -e "{app_path}"'
+        f'pip install --python "{_venv_python(app_path)}" --upgrade --no-deps -e "{app_path}"'
         in cmd
         for cmd, _ in commands
     )
@@ -3293,11 +3281,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     legacy_manager_resources.mkdir(parents=True, exist_ok=True)
     (legacy_manager_resources / "old.txt").write_text("old", encoding="utf-8")
     manager_resources = (
-        app_path
-        / ".venv"
-        / "lib"
-        / "python3.13"
-        / "site-packages"
+        deployment_local_support._project_site_packages_dir(
+            app_path, python_version="3.13"
+        )
         / "agi_env"
         / "resources"
     )
@@ -3309,14 +3295,10 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker'\n", encoding="utf-8"
     )
-    (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(
-        parents=True, exist_ok=True
-    )
-    (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
-    (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
-    (wenv_abs / ".venv" / "pyvenv.cfg").write_text(
-        "version = 3.13.13\n", encoding="utf-8"
-    )
+    deployment_local_support._project_site_packages_dir(
+        wenv_abs, python_version="3.13t"
+    ).mkdir(parents=True, exist_ok=True)
+    _write_venv_python(wenv_abs, python_version="3.13.13")
     (wenv_abs / "_uv_sources").mkdir(parents=True, exist_ok=True)
     resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
     resources_dest.mkdir(parents=True, exist_ok=True)
@@ -3412,11 +3394,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     assert not (app_path / "agilab").exists()
     assert (resources_dest / "resource.txt").exists()
     assert (
-        wenv_abs
-        / ".venv"
-        / "lib"
-        / "python3.13t"
-        / "site-packages"
+        deployment_local_support._project_site_packages_dir(
+            wenv_abs, python_version="3.13t"
+        )
         / "agilab_uv_sources.pth"
     ).exists()
     log.debug.assert_called()
@@ -4107,8 +4087,7 @@ def test_deployment_local_small_helper_edges(monkeypatch, tmp_path):
         )
         is False
     )
-    (cfg_project / ".venv" / "bin").mkdir()
-    (cfg_project / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    _write_venv_python(cfg_project)
     assert (
         deployment_local_support._project_venv_matches(
             cfg_project, python_version="3.13"

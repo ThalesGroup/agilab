@@ -40,8 +40,13 @@ DEFAULT_UV_LINK_MODE = "hardlink"
 
 
 def _is_virtualenv_path(path: Path) -> bool:
-    bin_dir = "Scripts" if os.name == "nt" else "bin"
-    return (path / "pyvenv.cfg").exists() or (path / bin_dir).exists()
+    # Accept the legacy ``bin`` directory in addition to the platform default so
+    # tests and tools that stage cross-platform virtualenv shapes still work.
+    return (
+        (path / "pyvenv.cfg").exists()
+        or (path / "Scripts").exists()
+        or (path / "bin").exists()
+    )
 
 
 def normalize_path(path):
@@ -49,10 +54,17 @@ def normalize_path(path):
 
     raw_path = "." if str(path) == "" else str(path)
     if os.name == "nt":
+        initial = _HOST_PATH_CLS(raw_path).expanduser()
         try:
-            candidate = _HOST_PATH_CLS(raw_path).expanduser().resolve(strict=False)
+            candidate = initial.resolve(strict=False)
         except PATH_RESOLVE_EXCEPTIONS:
-            candidate = _HOST_PATH_CLS(raw_path).expanduser()
+            candidate = initial
+        # Relative inputs (no drive letter, not absolute) round-trip unchanged
+        # so callers can compose them with workspace-relative paths.  We still
+        # call ``resolve`` first so unexpected runtime errors propagate
+        # consistently with the prior behaviour.
+        if not initial.is_absolute() and not initial.drive:
+            return raw_path
         return str(PureWindowsPath(candidate))
     candidate = Path(raw_path)
     return str(PurePosixPath(candidate))
@@ -122,10 +134,14 @@ def build_subprocess_env(
     venv_path = None
     if venv is not None:
         venv_path = Path(venv)
-        if not (venv_path / "bin").exists() and venv_path.name != ".venv":
+        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        if (
+            not (venv_path / bin_dir).exists()
+            and not (venv_path / "bin").exists()
+            and venv_path.name != ".venv"
+        ):
             venv_path = venv_path / ".venv"
         process_env["VIRTUAL_ENV"] = str(venv_path)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
         venv_bin = venv_path / bin_dir
         process_env["PATH"] = str(venv_bin) + os.pathsep + process_env.get("PATH", "")
 
@@ -157,6 +173,29 @@ def inject_uv_preview_flag(cmd: str | None) -> str | None:
         return cmd
 
 
+def _expand_inline_path_value(raw_value: str, current_path: str) -> str:
+    """Expand a shell-style PATH assignment into the host PATH format."""
+
+    expanded_parts: list[str] = []
+    for raw_part in str(raw_value).split(":"):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if part in {"$PATH", "${PATH}"}:
+            if current_path:
+                expanded_parts.extend(
+                    item for item in current_path.split(os.pathsep) if item
+                )
+            continue
+        if part.startswith("~/") or part == "~":
+            suffix = part[2:] if part.startswith("~/") else ""
+            expanded = Path.home() / Path(*PurePosixPath(suffix).parts)
+            expanded_parts.append(str(expanded))
+            continue
+        expanded_parts.append(os.path.expanduser(part))
+    return os.pathsep.join(expanded_parts)
+
+
 def apply_inline_path_export(cmd: str | None, process_env: MutableMapping[str, str]) -> str | None:
     """Apply a leading ``export PATH=...`` fragment directly into ``process_env``."""
 
@@ -168,9 +207,9 @@ def apply_inline_path_export(cmd: str | None, process_env: MutableMapping[str, s
         return cmd
 
     try:
-        raw_value = os.path.expanduser(match.group("value").strip())
         current_path = process_env.get("PATH") or os.environ.get("PATH") or ""
-        new_path = raw_value.replace("${PATH}", current_path).replace("$PATH", current_path)
+        raw_value = match.group("value").strip()
+        new_path = _expand_inline_path_value(raw_value, current_path)
         process_env["PATH"] = new_path
         rest = (match.group("rest") or "").lstrip(" ;")
         return rest or None

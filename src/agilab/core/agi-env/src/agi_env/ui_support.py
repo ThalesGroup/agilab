@@ -48,22 +48,30 @@ except ModuleNotFoundError:
             ) from _import_error
 
 
-_GLOBAL_STATE_FILE = Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
-_LEGACY_LAST_APP_FILE = Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+_GLOBAL_STATE_FILE: Path | None = None
+_LEGACY_LAST_APP_FILE: Path | None = None
 _DOCS_ALREADY_OPENED = False
 _LAST_DOCS_URL: Optional[str] = None
 
 
+def _global_state_file() -> Path:
+    return _GLOBAL_STATE_FILE or Path.home() / ".local" / "share" / "agilab" / "app_state.toml"
+
+
+def _legacy_last_app_file() -> Path:
+    return _LEGACY_LAST_APP_FILE or Path.home() / ".local" / "share" / "agilab" / ".last-active-app"
+
+
 def load_global_state() -> dict[str, str]:
     return _load_global_state_impl(
-        _GLOBAL_STATE_FILE,
-        _LEGACY_LAST_APP_FILE,
+        _global_state_file(),
+        _legacy_last_app_file(),
     )
 
 
 def persist_global_state(data: dict[str, str]) -> None:
     _persist_global_state_impl(
-        _GLOBAL_STATE_FILE,
+        _global_state_file(),
         data,
         dump_payload_fn=_dump_toml_payload,
     )

@@ -1,7 +1,7 @@
 import os
 import shlex
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Mapping, Protocol, Sequence, cast
 
@@ -118,6 +118,28 @@ def background_env_from_prefixes(
 ) -> dict[str, str]:
     """Translate simple shell-style env prefixes into a subprocess env mapping."""
     process_env = dict(base_env or os.environ)
+
+    def _expand_value(key: str, value: str) -> str:
+        if key != "PATH":
+            return os.path.expandvars(os.path.expanduser(value))
+        expanded_parts: list[str] = []
+        for raw_part in str(value).split(":"):
+            part = raw_part.strip()
+            if not part:
+                continue
+            if part in {"$PATH", "${PATH}"}:
+                expanded_parts.extend(
+                    item for item in process_env.get("PATH", "").split(os.pathsep) if item
+                )
+                continue
+            if part.startswith("$HOME/"):
+                home = process_env.get("HOME") or os.environ.get("HOME") or str(Path.home())
+                suffix = part[len("$HOME/") :]
+                expanded_parts.append(str(Path(home) / Path(*PurePosixPath(suffix).parts)))
+                continue
+            expanded_parts.append(os.path.expandvars(os.path.expanduser(part)))
+        return os.pathsep.join(expanded_parts)
+
     for prefix in prefixes:
         for segment in str(prefix or "").split(";"):
             segment = segment.strip()
@@ -125,13 +147,13 @@ def background_env_from_prefixes(
                 continue
             if segment.startswith("export "):
                 segment = segment[len("export "):].strip()
-            for token in shlex.split(segment, posix=os.name != "nt"):
+            for token in shlex.split(segment, posix=True):
                 if "=" not in token:
                     continue
                 key, value = token.split("=", 1)
                 if not key.isidentifier():
                     continue
-                process_env[key] = os.path.expandvars(os.path.expanduser(value))
+                process_env[key] = _expand_value(key, value)
     return process_env
 
 

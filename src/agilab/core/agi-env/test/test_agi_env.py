@@ -721,7 +721,11 @@ def test_run_nonzero_command_does_not_log_traceback_for_runtime_error(tmp_path: 
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
 
-    cmd = f"{shlex.quote(sys.executable)} -c \"import sys; sys.exit(3)\""
+    import subprocess as _subprocess
+
+    cmd = _subprocess.list2cmdline(
+        [sys.executable, "-c", "import sys; sys.exit(3)"]
+    )
     with pytest.raises(RuntimeError, match="Command failed with exit code 3"):
         asyncio.run(AgiEnv.run(cmd, tmp_path))
 
@@ -742,9 +746,14 @@ def test_run_nonzero_command_prefers_last_subprocess_line_in_runtime_error(tmp_p
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
 
-    cmd = (
-        f"{shlex.quote(sys.executable)} -c "
-        "\"import sys; print('RuntimeError: concise failure', file=sys.stderr); sys.exit(5)\""
+    import subprocess as _subprocess
+
+    cmd = _subprocess.list2cmdline(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('RuntimeError: concise failure', file=sys.stderr); sys.exit(5)",
+        ]
     )
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -1935,7 +1944,7 @@ def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path:
 
     assert result == 0
     assert created["cmd"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
-    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert process_env["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
 
 
@@ -1968,7 +1977,7 @@ def test_run_wait_rewrites_exported_path_and_uv_preview_flag(tmp_path: Path, mon
 
     assert result == ""
     assert created["args"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
-    assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
+    assert process_env["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
 
 
@@ -2052,11 +2061,21 @@ def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, mo
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
 
-    success_cmd = f"{shlex.quote(sys.executable)} -c \"import sys; print('out'); print('err', file=sys.stderr)\""
+    import subprocess as _subprocess
+
+    success_cmd = _subprocess.list2cmdline(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('out'); print('err', file=sys.stderr)",
+        ]
+    )
     last_line = asyncio.run(AgiEnv.run_async(success_cmd, venv=tmp_path, cwd=tmp_path, timeout=10))
     assert last_line == "err"
 
-    fail_cmd = f"{shlex.quote(sys.executable)} -c \"import sys; sys.exit(4)\""
+    fail_cmd = _subprocess.list2cmdline(
+        [sys.executable, "-c", "import sys; sys.exit(4)"]
+    )
     with pytest.raises(RuntimeError, match="exit code 4"):
         asyncio.run(AgiEnv.run_async(fail_cmd, venv=tmp_path, cwd=tmp_path, timeout=10))
 
@@ -2192,9 +2211,14 @@ def test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error
     mock_logger = mock.Mock()
     monkeypatch.setattr(AgiEnv, "logger", mock_logger)
 
-    cmd = (
-        f"{shlex.quote(sys.executable)} -c "
-        "\"import sys; print('FileNotFoundError: missing artifact', file=sys.stderr); sys.exit(6)\""
+    import subprocess as _subprocess
+
+    cmd = _subprocess.list2cmdline(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('FileNotFoundError: missing artifact', file=sys.stderr); sys.exit(6)",
+        ]
     )
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -2628,8 +2652,21 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
 
     failing = tmp_path / "failing"
     monkeypatch.setattr(agi_env_module.Path, "symlink_to", lambda self, *_a, **_k: (_ for _ in ()).throw(OSError("denied")), raising=False)
+    # On Windows the production path falls back to ``create_junction_windows``
+    # when symlink creation fails, so suppress that fallback to exercise the
+    # generic ``logger.error`` branch.
+    original_create_junction_windows = AgiEnv.create_junction_windows
+    monkeypatch.setattr(
+        AgiEnv,
+        "create_junction_windows",
+        staticmethod(lambda *_a, **_k: False),
+    )
     AgiEnv.create_symlink(src_dir, failing)
     assert mock_logger.error.called
+
+    # Restore the real ``create_junction_windows`` so the helper-specific
+    # assertions below exercise the production implementation.
+    monkeypatch.setattr(AgiEnv, "create_junction_windows", original_create_junction_windows)
 
     calls = []
     monkeypatch.setattr(agi_env_module.subprocess, "check_call", lambda cmd: calls.append(cmd))

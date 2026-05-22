@@ -224,8 +224,12 @@ async def run_local(
         python_selector = f" --python {pyvers_worker}" if pyvers_worker else ""
         manager_apps_path = _manager_apps_path(env)
         manager_app = _manager_app_name(env)
+        # Use POSIX-style separators so the embedded ``Path(...)`` literal stays
+        # portable when the spawned worker decodes the script on either OS.
         manager_apps_expr = (
-            f"Path({repr(str(manager_apps_path))})" if manager_apps_path is not None else "None"
+            f"Path({repr(manager_apps_path.as_posix())})"
+            if manager_apps_path is not None
+            else "None"
         )
         manager_app_expr = repr(manager_app)
         worker_args = _worker_startup_args(agi_cls)
