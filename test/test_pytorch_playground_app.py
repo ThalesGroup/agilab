@@ -1244,6 +1244,65 @@ def test_pytorch_playground_evidence_and_figure_helpers_cover_fallbacks(monkeypa
     assert module._cached_loss_landscape(module.asdict(config), 4, 0.5)["status"] == "missing_torch"
 
 
+def test_pytorch_playground_summary_uses_shared_header_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    class FakeStreamlit:
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeColumn() for _ in range(count)]
+
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    config = module.PlaygroundConfig(hidden_layers=(16, 8), feature_names=("x1", "x2"))
+    samples = pd.DataFrame(
+        {
+            "x1": [0.0, 0.1, 0.2, 0.3],
+            "x2": [0.0, 0.1, 0.2, 0.3],
+            "target": [0, 0, 1, 1],
+        }
+    )
+    result = {
+        "samples": samples,
+        "grid": pd.DataFrame({"probability": [0.0, 1.0]}),
+        "network_layers": pd.DataFrame({"parameters": [100, 154]}),
+        "summary": {
+            "train_accuracy": 0.998,
+            "validation_accuracy": 0.96,
+            "samples": 320,
+        },
+    }
+
+    module._render_compact_header(PROJECT_PATH.resolve(), "ORCHESTRATE args", config)
+    module._render_summary(config, result)
+
+    markup = "\n".join(rendered)
+    assert "agilab-header-card" in markup
+    assert "Surface" in markup
+    assert "PyTorch Playground" in markup
+    assert "Strong run: 96% validation, low overfit" in markup
+    assert "Train-val gap" in markup
+    assert "3.8 pp" in markup
+    assert "Decision confidence" in markup
+    assert "254 params" in markup
+    assert "2 hidden layer(s)" in markup
+    assert "320 samples" in markup
+    assert "50/50% class split" in markup
+    assert "Boundary confidence" not in markup
+    assert "mean distance from indecision" not in markup
+
+
 def test_pytorch_playground_fake_nn_covers_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
 
