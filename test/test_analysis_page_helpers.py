@@ -889,8 +889,38 @@ def test_migrate_declared_app_surface_config_replaces_legacy_app_ui_bridge(tmp_p
     }
     assert cfg["pages"] == {
         "restrict_to_view_module": True,
-        "view_module": [],
+        "view_module": ["view_app_ui"],
     }
+
+
+def test_migrate_declared_app_surface_config_keeps_single_sidebar_launcher(tmp_path: Path):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                "restrict_to_view_module = true",
+                "view_module = []",
+                "",
+                "[app_surface]",
+                'title = "Demo Surface"',
+                'entrypoint = "demo/app_surface.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {"pages": {"view_module": []}}
+
+    changed = module._migrate_declared_app_surface_config(app, cfg)
+
+    assert changed is True
+    assert cfg["pages"]["restrict_to_view_module"] is True
+    assert cfg["pages"]["view_module"] == ["view_app_ui"]
+    assert "view_app_ui" not in cfg["pages"]
 
 
 def test_configured_view_options_restricts_to_declared_available_views(tmp_path: Path):

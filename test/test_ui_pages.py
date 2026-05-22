@@ -1471,6 +1471,63 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     assert "current_page=" in reloaded_sidebar_markdown
 
 
+def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_env):
+    """Returning from an app surface keeps the sidebar scoped to the app UI launcher."""
+    pages_dir = mock_ui_env["pages_dir"]
+    (pages_dir / "view_app_ui.py").write_text(
+        "import streamlit as st\n\n"
+        "def main():\n"
+        "    st.write('app ui bridge')\n",
+        encoding="utf-8",
+    )
+    (pages_dir / "view_other.py").write_text(
+        "import streamlit as st\n\n"
+        "def main():\n"
+        "    st.write('other view')\n",
+        encoding="utf-8",
+    )
+    app_surface = mock_ui_env["project_dir"] / "src" / "demo" / "app_surface.py"
+    app_surface.parent.mkdir(parents=True)
+    app_surface.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
+    settings_payload = (
+        "[pages]\n"
+        "restrict_to_view_module = true\n"
+        "view_module = []\n"
+        "\n"
+        "[app_surface]\n"
+        "title = 'Demo Surface'\n"
+        "entrypoint = 'demo/app_surface.py'\n"
+    )
+    (mock_ui_env["project_dir"] / "src" / "app_settings.toml").write_text(
+        settings_payload,
+        encoding="utf-8",
+    )
+
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.query_params["current_page"] = "main"
+    at.query_params["hide_app_surface"] = "true"
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.AGILAB_PAGES_ABS = str(pages_dir)
+    env.resolve_user_app_settings_file("flight_telemetry_project").write_text(
+        settings_payload,
+        encoding="utf-8",
+    )
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "view_app_ui" in sidebar_markdown
+    assert "view_other" not in sidebar_markdown
+    assert "current_page=" in sidebar_markdown
+    with env.resolve_user_app_settings_file("flight_telemetry_project").open("rb") as f:
+        persisted = tomllib.load(f)
+    assert persisted["pages"]["restrict_to_view_module"] is True
+    assert persisted["pages"]["view_module"] == ["view_app_ui"]
+    assert "view_app_ui" not in persisted["pages"]
+
+
 def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     """ANALYSIS persists selected project notebook launcher links."""
     notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
