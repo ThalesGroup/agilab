@@ -117,6 +117,60 @@ def test_app_surface_import_prefers_package_when_streamlit_puts_script_dir_first
         sys.modules.update(original_modules)
 
 
+def test_app_surface_drops_shadowing_script_module(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_shadow_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    shadow = ModuleType("pytorch_playground")
+    shadow.__file__ = str(APP_SURFACE_PATH.resolve().parent / "pytorch_playground.py")
+    child = ModuleType("pytorch_playground.core")
+    monkeypatch.setitem(sys.modules, "pytorch_playground", shadow)
+    monkeypatch.setitem(sys.modules, "pytorch_playground.core", child)
+
+    try:
+        module._drop_shadowed_package_module()
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert "pytorch_playground" not in sys.modules
+    assert "pytorch_playground.core" not in sys.modules
+
+
+def test_app_surface_resolves_active_app_from_argv_and_evidence_dirs(monkeypatch, tmp_path: Path):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_paths_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    app_path = tmp_path / "pytorch_playground_project"
+    app_path.mkdir()
+    monkeypatch.setattr(sys, "argv", ["app_surface.py", "--active-app", str(app_path)])
+
+    env = SimpleNamespace(
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="pytorch_target",
+        app="pytorch_playground_project",
+    )
+    args = SimpleNamespace(data_out="pytorch_playground/evidence")
+
+    try:
+        resolved = module._resolve_active_app_path()
+        evidence_dirs = module._analysis_evidence_dirs(env, args, app_path)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert resolved == app_path.resolve()
+    assert evidence_dirs == [
+        (tmp_path / "export" / "pytorch_target" / "pytorch_playground").resolve(),
+        (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground").resolve(),
+        Path("pytorch_playground/evidence").resolve(),
+    ]
+
+
 def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_analysis_test", APP_SURFACE_PATH)
     assert spec is not None and spec.loader is not None
@@ -1085,6 +1139,10 @@ def test_pytorch_playground_analysis_uses_evidence_without_training(
         "_cached_loss_landscape",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("analysis must not compute landscape on render")),
     )
+    monkeypatch.setattr(module, "_decision_figure", lambda *_args, **_kwargs: "decision-figure")
+    monkeypatch.setattr(module, "_history_figure", lambda *_args, **_kwargs: "history-figure")
+    monkeypatch.setattr(module, "_network_figure", lambda *_args, **_kwargs: "network-figure")
+    monkeypatch.setattr(module, "_loss_landscape_figure", lambda *_args, **_kwargs: "landscape-figure")
 
     module.main(
         interactive_controls=False,

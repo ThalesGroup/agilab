@@ -167,6 +167,12 @@ def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
+def test_agi_gui_coverage_includes_pytorch_playground_app_surface_regressions() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_pytorch_playground_app.py" in run_block
+
+
 def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     run_block = _agi_gui_run_block()
     combine_block = _agi_gui_combine_block()
