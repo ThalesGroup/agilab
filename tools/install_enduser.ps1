@@ -211,9 +211,9 @@ function Get-VenvPython {
     param([Parameter(Mandatory)][string]$VenvRoot)
 
     $candidates = @(
-        Join-Path $VenvRoot "Scripts/python.exe",
-        Join-Path $VenvRoot "Scripts/python",
-        Join-Path $VenvRoot "bin/python"
+        (Join-Path $VenvRoot "Scripts/python.exe"),
+        (Join-Path $VenvRoot "Scripts/python"),
+        (Join-Path $VenvRoot "bin/python")
     )
 
     foreach ($candidate in $candidates) {
