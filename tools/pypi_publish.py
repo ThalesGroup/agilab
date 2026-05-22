@@ -2265,6 +2265,7 @@ def update_public_docs_mirror_stamp_from_current_tree() -> None:
 
 def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
     update_docs_index_release_link(tag)
+    update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
     update_release_proof_references(tag)
@@ -2278,6 +2279,7 @@ def update_public_release_references_for_guard(
     """Update only release metadata tracked in this repository for pre-upload tests."""
 
     update_public_docs_index_release_link(tag)
+    update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
     public_source = REPO_ROOT / "docs/source"
