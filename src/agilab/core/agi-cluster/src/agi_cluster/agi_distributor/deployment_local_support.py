@@ -1855,11 +1855,16 @@ async def deploy_local_worker(
                     )
 
     if env.is_source_env:
-        cmd = (
-            f"{uv} {offline_flag}pip install --upgrade --no-deps "
-            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}' -e ."
+        await _install_many_into_project_venv(
+            f"{uv} {offline_flag}".strip(),
+            app_path,
+            [env.agi_env, env.agi_node, env.agi_cluster, app_path],
+            run_fn=run_fn,
+            editable=True,
+            no_deps=True,
+            python_version=pyvers,
+            install_cache_enabled=stage_cache_enabled,
         )
-        await run_fn(cmd, app_path)
 
     await agi_cls._build_lib_local()
 
