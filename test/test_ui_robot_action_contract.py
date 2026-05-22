@@ -70,6 +70,7 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert actions_by_label["Run -> Load -> Export"]["disposition"] == "selected-click"
     assert actions_by_label["Delete"]["disposition"] == "trial-only"
     assert actions_by_label["Export"]["disposition"] == "trial-only"
+    assert actions_by_label["Run training"]["disposition"] == "trial-only"
     assert actions_by_label["Train / refresh"]["disposition"] == "trial-only"
 
 
