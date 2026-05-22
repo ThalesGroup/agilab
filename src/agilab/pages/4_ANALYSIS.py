@@ -1601,7 +1601,7 @@ def _migrate_declared_app_surface_config(active_app_path: Path | None, cfg: dict
         else []
     )
     if seed_restricts_views:
-        desired_modules = _dedupe_preserve_order(seed_modules)
+        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
         if pages.get("restrict_to_view_module") is not True:
             pages["restrict_to_view_module"] = True
             changed = True
@@ -1610,16 +1610,6 @@ def _migrate_declared_app_surface_config(active_app_path: Path | None, cfg: dict
             changed = True
 
     if _declared_app_ui_page_config(active_app_path) is None:
-        raw_modules = pages.get("view_module")
-        if isinstance(raw_modules, list):
-            desired_modules = [
-                value
-                for value in raw_modules
-                if not (isinstance(value, str) and value.strip() == _APP_UI_PAGE_KEY)
-            ]
-            if pages.get("view_module") != desired_modules:
-                pages["view_module"] = desired_modules
-                changed = True
         if _APP_UI_PAGE_KEY in pages:
             del pages[_APP_UI_PAGE_KEY]
             changed = True

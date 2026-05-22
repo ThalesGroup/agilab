@@ -582,11 +582,12 @@ def render(
         / "pytorch_playground"
     )
     output_container = container or st
-    output_container.caption(
-        "PyTorch Playground is an executable app: ORCHESTRATE runs the configured "
-        "training job and exports replayable evidence."
-    )
-    output_container.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
+    if not compact:
+        output_container.caption(
+            "PyTorch Playground is an executable app: ORCHESTRATE runs the configured "
+            "training job and exports replayable evidence."
+        )
+        output_container.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
     snippet_rendered = False
     if compact and container is not None:
         try:
@@ -610,7 +611,6 @@ def render(
     else:
         form_container.markdown("### Settings")
         if compact:
-            form_container.caption("Quick fields are enough for most runs. Advanced controls stay collapsed.")
             form_values = _render_compact_args_form(defaults_model, env=active_env, container=form_container)
         else:
             form_container.caption("These fields are persisted as app arguments.")

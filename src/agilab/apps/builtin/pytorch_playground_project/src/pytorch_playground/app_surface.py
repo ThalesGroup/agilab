@@ -216,7 +216,6 @@ def _render_full_surface(
     app_args_form = _load_app_args_form()
     with controls_column:
         controls_column.markdown("### Run")
-        controls_column.caption("Adjust the next run, refresh evidence, then inspect the result on the left.")
         _render_run_button(active_app_path, container=controls_column, app_args_form=app_args_form)
         app_args_form.render(env=env or runtime_env, container=controls_column, wide=False, compact=True)
     with analysis_column:
