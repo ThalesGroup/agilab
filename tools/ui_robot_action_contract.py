@@ -87,10 +87,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",
     ),
-    "Run training": (
-        "trial-only",
-        "embedded PyTorch ANALYSIS training action is frame-trial-clicked by the required-action robot and execution is covered by focused app tests",
-    ),
     "Remove PyPI app": (
         "trial-only",
         "removes an installed external app package only after explicit user confirmation",

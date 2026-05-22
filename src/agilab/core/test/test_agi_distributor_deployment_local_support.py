@@ -2864,6 +2864,7 @@ async def test_deploy_local_worker_source_env_offline_manager_overlay_for_extern
 ):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
+    (repo_root / "apps").mkdir(parents=True, exist_ok=True)
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
     cluster_project = repo_root / "core" / "agi-cluster"
@@ -3043,9 +3044,9 @@ path = "../sat_trajectory_project"
     )
     assert any(
         (
-            f'uv --offline pip install --python "{_venv_python(app_path)}" '
+            f'uv --offline pip install --python "{_venv_python(wenv_abs)}" '
             f'--upgrade --no-deps -e "{env_project}" -e "{node_project}" '
-            f'-e "{cluster_project}" -e "{app_path}"'
+            f'-e "{app_path}"'
         )
         in cmd
         for cmd, _ in commands
@@ -3058,6 +3059,7 @@ async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sourc
 ):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
+    (repo_root / "apps").mkdir(parents=True, exist_ok=True)
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
     core_project = repo_root / "core" / "agi-core"
@@ -3236,14 +3238,18 @@ path = "../sat_trajectory_project"
         and str(staged_overlay_root) in cmd
         for cmd, _ in commands
     )
-    assert any(
-        (
-            f'pip install --python "{_venv_python(app_path)}" --upgrade --no-deps '
-            f'-e "{env_project}" -e "{node_project}" -e "{cluster_project}" -e "{app_path}"'
+    manager_python = _venv_python(app_path)
+    expected_manager_installs = [
+        f'pip install --python "{manager_python}" --upgrade --no-deps -e "{app_path}"',
+        f'pip install --python "{manager_python}" --upgrade "{env_project}"',
+        f'pip install --python "{manager_python}" --upgrade "{node_project}"',
+        f'pip install --python "{manager_python}" --upgrade --no-deps "{core_project}"',
+        f'pip install --python "{manager_python}" --upgrade "{cluster_project}"',
+    ]
+    for expected in expected_manager_installs:
+        assert any(expected in cmd for cmd, _ in commands), "\n".join(
+            cmd for cmd, _ in commands
         )
-        in cmd
-        for cmd, _ in commands
-    )
     assert any(
         f'add --editable "{env_project}" "{node_project}"' in cmd
         and str(wenv_abs) in cmd

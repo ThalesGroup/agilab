@@ -64,8 +64,8 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "apps": ["pytorch_playground_project"],
         "flags": ["browser_error_check"],
         "pages": ["ANALYSIS"],
-        "required_actions": ["Run training"],
-        "required_text": ["PyTorch Playground", "Run training", "Settings", "Synced RUN snippet"],
+        "required_actions": ["Refresh evidence"],
+        "required_text": ["PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
         "actions": [],
