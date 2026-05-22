@@ -92,6 +92,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "isolated-layout-integrity-mobile" not in [scenario.name for scenario in scenarios]
     assert "isolated-accessibility-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-browser-error-core-pages" not in [scenario.name for scenario in scenarios]
+    assert "isolated-pytorch-playground-analysis" not in [scenario.name for scenario in scenarios]
     assert "isolated-above-fold-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-visual-baseline-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-cross-browser-core-pages" not in [scenario.name for scenario in scenarios]
@@ -144,6 +145,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     layout_mobile = module.resolve_scenarios(["isolated-layout-integrity-mobile"])[0]
     accessibility = module.resolve_scenarios(["isolated-accessibility-core-pages"])[0]
     browser_error = module.resolve_scenarios(["isolated-browser-error-core-pages"])[0]
+    pytorch_analysis = module.resolve_scenarios(["isolated-pytorch-playground-analysis"])[0]
     above_fold = module.resolve_scenarios(["isolated-above-fold-core-pages"])[0]
     visual_baseline = module.resolve_scenarios(["isolated-visual-baseline-core-pages"])[0]
     hf_visual_smoke = module.resolve_scenarios(["hf-first-proof-visual-smoke"])[0]
@@ -159,6 +161,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert layout_mobile.name not in default_names
     assert accessibility.name not in default_names
     assert browser_error.name not in default_names
+    assert pytorch_analysis.name not in default_names
     assert above_fold.name not in default_names
     assert visual_baseline.name not in default_names
     assert hf_visual_smoke.name not in default_names
@@ -181,6 +184,10 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert layout_mobile.viewport_height == 844
     assert accessibility.accessibility_check is True
     assert browser_error.browser_error_check is True
+    assert pytorch_analysis.apps == "pytorch_playground_project"
+    assert pytorch_analysis.pages == "ANALYSIS"
+    assert pytorch_analysis.required_text == "PyTorch Playground,Run training,Synced RUN snippet,Settings"
+    assert pytorch_analysis.browser_error_check is True
     assert above_fold.above_fold_check is True
     assert visual_baseline.success_screenshot is True
     assert visual_baseline.visual_mask_dynamic_regions is True
@@ -463,6 +470,30 @@ def test_build_robot_command_enables_browser_error_check(tmp_path) -> None:
 
     assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--browser-error-check" in argv
+
+
+def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-pytorch-playground-analysis"]
+    options = module.MatrixOptions(
+        apps="all",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--apps") + 1] == "pytorch_playground_project"
+    assert argv[argv.index("--pages") + 1] == "ANALYSIS"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--required-text") + 1] == "PyTorch Playground,Run training,Synced RUN snippet,Settings"
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
+    assert progress_path == tmp_path / "isolated-pytorch-playground-analysis.ndjson"
 
 
 def test_build_robot_command_enables_above_fold_check(tmp_path) -> None:

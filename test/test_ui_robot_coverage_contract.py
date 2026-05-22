@@ -59,6 +59,13 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "hf-first-proof-app-pages-visual-smoke",
         "hf-first-proof-visual-smoke",
     ]
+    assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
+    assert payload["coverage"]["pytorch_analysis_robot"] == {
+        "apps": ["pytorch_playground_project"],
+        "flags": ["browser_error_check"],
+        "pages": ["ANALYSIS"],
+        "required_text": ["PyTorch Playground", "Run training", "Settings", "Synced RUN snippet"],
+    }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
         "actions": [],
         "apps_pages": [],
@@ -130,6 +137,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     )
     workflow_parity = SimpleNamespace(
         _profile_commands=lambda _args: {
+            "ui-robot-matrix": [SimpleNamespace(argv=["--scenario", "legacy-ui-matrix"])],
             "hf-install-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-install"])],
             "hf-visual-smoke-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-smoke"])],
         }
@@ -181,3 +189,5 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     )
     assert "hf-first-proof-app-pages-visual-smoke is missing from the robot matrix" in details
     assert "hf-first-proof-install is missing from the robot matrix" in details
+    assert "isolated-pytorch-playground-analysis is missing from the robot matrix" in details
+    assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details

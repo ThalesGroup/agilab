@@ -43,8 +43,10 @@ class RobotScenario:
     apps_pages: str
     runtime_isolation: str
     action_button_policy: str
+    apps: str = ""
     click_action_labels: str = ""
     preselect_labels: str = ""
+    required_text: str = ""
     route_query: str = ""
     missing_selected_action_policy: str = "fail"
     action_timeout_seconds: float = 90.0
@@ -438,6 +440,24 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=1200.0,
         browser_error_check=True,
     ),
+    "isolated-pytorch-playground-analysis": RobotScenario(
+        name="isolated-pytorch-playground-analysis",
+        description=(
+            "Open the PyTorch Playground ANALYSIS app surface and assert the "
+            "combined run controls plus reproducibility snippet are visible in "
+            "the embedded app frame."
+        ),
+        pages="ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        apps="pytorch_playground_project",
+        required_text="PyTorch Playground,Run training,Synced RUN snippet,Settings",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=900.0,
+        browser_error_check=True,
+    ),
     "isolated-above-fold-core-pages": RobotScenario(
         name="isolated-above-fold-core-pages",
         description=(
@@ -678,7 +698,7 @@ def build_robot_command(
         sys.executable,
         str(ROBOT_PATH),
         "--apps",
-        options.apps,
+        scenario.apps or options.apps,
         "--pages",
         scenario.pages,
         "--apps-pages",
@@ -715,6 +735,8 @@ def build_robot_command(
         argv.extend(["--preselect-labels", scenario.preselect_labels])
     if scenario.route_query:
         argv.extend(["--route-query", scenario.route_query])
+    if scenario.required_text:
+        argv.extend(["--required-text", scenario.required_text])
     if scenario.assert_orchestrate_artifacts:
         argv.append("--assert-orchestrate-artifacts")
     if scenario.assert_workflow_artifacts:

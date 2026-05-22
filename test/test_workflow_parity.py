@@ -360,6 +360,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         },
         "quality": {
             "isolated-browser-error-core-pages",
+            "isolated-pytorch-playground-analysis",
             "isolated-above-fold-core-pages",
             "isolated-keyboard-focus-core-pages",
             "isolated-accessibility-core-pages",
