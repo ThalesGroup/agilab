@@ -26,6 +26,7 @@ FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "meteo_forecast_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Run training", "Synced RUN snippet", "Settings")
+REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Run training",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
         "pages": ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"),
@@ -88,6 +89,10 @@ def _scenario_apps(widget_robot: Any, scenario: Any) -> set[str]:
 
 def _scenario_required_text(widget_robot: Any, scenario: Any) -> set[str]:
     return set(widget_robot.parse_csv(str(getattr(scenario, "required_text", ""))))
+
+
+def _scenario_required_actions(widget_robot: Any, scenario: Any) -> set[str]:
+    return set(widget_robot.parse_csv(str(getattr(scenario, "required_action_labels", ""))))
 
 
 def _scenario_flags(scenario: Any) -> set[str]:
@@ -327,11 +332,13 @@ def evaluate_contract() -> dict[str, Any]:
         pages = sorted(_scenario_pages(widget_robot, pytorch_scenario))
         apps = sorted(_scenario_apps(widget_robot, pytorch_scenario))
         required_text = sorted(_scenario_required_text(widget_robot, pytorch_scenario))
+        required_actions = sorted(_scenario_required_actions(widget_robot, pytorch_scenario))
         flags = sorted(_scenario_flags(pytorch_scenario))
         pytorch_analysis = {
             "pages": pages,
             "apps": apps,
             "required_text": required_text,
+            "required_actions": required_actions,
             "flags": flags,
         }
         if "ANALYSIS" not in pages:
@@ -355,6 +362,15 @@ def evaluate_contract() -> dict[str, Any]:
                     "pytorch_analysis_robot",
                     f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing required text probes: "
                     + ", ".join(missing_text),
+                )
+            )
+        missing_actions = sorted(set(REQUIRED_PYTORCH_ANALYSIS_ACTIONS) - set(required_actions))
+        if missing_actions:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing required action probes: "
+                    + ", ".join(missing_actions),
                 )
             )
         if "browser_error_check" not in flags:

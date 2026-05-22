@@ -4552,6 +4552,7 @@ def sweep_page(
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     success_screenshot: bool = False,
     failure_bundle_dir: Path | None = None,
@@ -4673,6 +4674,16 @@ def sweep_page(
                         app_name=app_name,
                         display=display,
                         required_text=required_text,
+                        timeout_ms=widget_timeout_ms,
+                    )
+                )
+            if required_action_labels and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _required_action_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        required_action_labels=required_action_labels,
                         timeout_ms=widget_timeout_ms,
                     )
                 )
@@ -5462,6 +5473,23 @@ def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:
     return "\n".join(texts)
 
 
+def _page_and_child_frame_owners(page: Any) -> list[tuple[str, Any]]:
+    owners: list[tuple[str, Any]] = [("page", page)]
+    try:
+        frames = list(getattr(page, "frames", []) or [])
+    except Exception:
+        frames = []
+    try:
+        main_frame = getattr(page, "main_frame", None)
+    except Exception:
+        main_frame = None
+    for index, frame in enumerate(frames):
+        if frame is main_frame:
+            continue
+        owners.append((f"frame[{index}]", frame))
+    return owners
+
+
 def _required_text_probe(
     page: Any,
     *,
@@ -5492,6 +5520,95 @@ def _required_text_probe(
         "required_text",
         "page_and_frames",
         "interacted",
+        _short_detail(detail),
+        getattr(page, "url", ""),
+    )
+
+
+def _trial_click_required_button(
+    owner: Any,
+    label: str,
+    *,
+    timeout_ms: float,
+) -> tuple[bool, str]:
+    if not hasattr(owner, "get_by_role"):
+        return False, "owner has no role locator"
+    try:
+        locator = owner.get_by_role("button", name=re.compile(re.escape(label), re.IGNORECASE))
+    except TypeError:
+        try:
+            locator = owner.get_by_role("button", name=label)
+        except Exception as exc:
+            return False, f"button role lookup failed: {exc}"
+    except Exception as exc:
+        return False, f"button role lookup failed: {exc}"
+    try:
+        count = int(locator.count())
+    except Exception as exc:
+        return False, f"button candidate count failed: {exc}"
+    if count <= 0:
+        return False, "no button candidates"
+    last_detail = "no visible enabled button candidates"
+    for index in range(min(count, 20)):
+        try:
+            candidate = locator.nth(index)
+            if not candidate.is_visible(timeout=timeout_ms):
+                last_detail = "button candidate was not visible"
+                continue
+            if not candidate.is_enabled(timeout=timeout_ms):
+                last_detail = "button candidate was not enabled"
+                continue
+            candidate.click(timeout=timeout_ms, trial=True)
+            return True, "button is visible, enabled, and trial-clickable"
+        except Exception as exc:
+            last_detail = f"button candidate was not trial-clickable: {exc}"
+    return False, last_detail
+
+
+def _required_action_probe(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    required_action_labels: Sequence[str],
+    timeout_ms: float,
+) -> WidgetProbe:
+    expected = tuple(str(label).strip() for label in required_action_labels if str(label).strip())
+    missing: list[str] = []
+    found: list[str] = []
+    details: list[str] = []
+    owners = _page_and_child_frame_owners(page)
+    for label in expected:
+        label_found = False
+        label_details: list[str] = []
+        for owner_name, owner in owners:
+            ok, detail = _trial_click_required_button(owner, label, timeout_ms=timeout_ms)
+            if ok:
+                found.append(f"{label}@{owner_name}")
+                label_found = True
+                break
+            label_details.append(f"{owner_name}: {detail}")
+        if not label_found:
+            missing.append(label)
+            details.append(f"{label}: {'; '.join(label_details)}")
+    if missing:
+        detail = f"required actions not trial-clickable: {missing}; " + " | ".join(details)
+        return WidgetProbe(
+            app_name,
+            display,
+            "required_action",
+            "page_and_frames",
+            "failed",
+            _short_detail(detail),
+            getattr(page, "url", ""),
+        )
+    detail = f"required actions visible, enabled, and trial-clickable without firing callbacks: {found}"
+    return WidgetProbe(
+        app_name,
+        display,
+        "required_action",
+        "page_and_frames",
+        "probed",
         _short_detail(detail),
         getattr(page, "url", ""),
     )
@@ -5529,6 +5646,7 @@ def sweep_direct_apps_page(
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
     progress_log: Path | None = None,
@@ -5654,6 +5772,7 @@ def sweep_direct_apps_page(
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
                         required_text=required_text,
+                        required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         failure_bundle_dir=failure_bundle_dir,
                         progress_log=progress_log,
@@ -5704,6 +5823,7 @@ def sweep_app(
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
@@ -5808,6 +5928,7 @@ def sweep_app(
                                 browser_error_check=browser_error_check,
                                 above_fold_check=above_fold_check,
                                 required_text=required_text,
+                                required_action_labels=required_action_labels,
                                 visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                                 success_screenshot=success_screenshot,
                                 failure_bundle_dir=failure_bundle_dir,
@@ -5921,6 +6042,7 @@ def sweep_app(
                     browser_error_check=browser_error_check,
                     above_fold_check=above_fold_check,
                     required_text=required_text,
+                    required_action_labels=required_action_labels,
                     visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
                     progress_log=progress_log,
@@ -5973,6 +6095,7 @@ def sweep_remote_app(
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
     viewport_height: int = DEFAULT_VIEWPORT_HEIGHT,
@@ -6055,6 +6178,7 @@ def sweep_remote_app(
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
                         required_text=required_text,
+                        required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         success_screenshot=success_screenshot,
                         failure_bundle_dir=failure_bundle_dir,
@@ -6188,6 +6312,7 @@ def sweep_remote_app(
                             browser_error_check=browser_error_check,
                             above_fold_check=above_fold_check,
                             required_text=required_text,
+                            required_action_labels=required_action_labels,
                             visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                             failure_bundle_dir=failure_bundle_dir,
                             progress_log=progress_log,
@@ -6317,6 +6442,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
     parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
     parser.add_argument("--required-text", default="", help="Comma-separated text that must be visible in the page or a child iframe after render.")
+    parser.add_argument("--required-action-labels", default="", help="Comma-separated button labels that must be visible, enabled, and trial-clickable in the page or a child iframe.")
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
     parser.add_argument("--failure-bundle-dir", help="Directory where per-page failure evidence bundles are written.")
@@ -6386,6 +6512,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     click_action_labels = parse_csv(args.click_action_labels)
     preselect_labels = parse_csv(args.preselect_labels)
     required_text = parse_csv(args.required_text)
+    required_action_labels = parse_csv(args.required_action_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
     if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts or args.assert_analysis_artifacts):
@@ -6451,6 +6578,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
+                required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,
@@ -6503,6 +6631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
+                required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
                 viewport_height=args.viewport_height,

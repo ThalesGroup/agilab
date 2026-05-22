@@ -105,6 +105,20 @@ UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --with playwri
   --runtime-isolation current-home
 ```
 
+Use this when an embedded ANALYSIS app surface must expose app-owned controls
+without firing callbacks. The text and button probes inspect the top page and
+child iframes, and `--required-action-labels` only trial-clicks buttons:
+
+```bash
+UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
+  --scenario isolated-pytorch-playground-analysis \
+  --json \
+  --quiet-progress \
+  --no-result-cache \
+  --output-dir /tmp/agilab-pytorch-analysis-robot \
+  --screenshot-dir /tmp/agilab-pytorch-analysis-robot-screenshots
+```
+
 Use this before release or after broad navigation/sidebar work:
 
 ```bash

@@ -130,6 +130,7 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.accessibility_check is False
     assert args.browser_error_check is False
     assert args.above_fold_check is False
+    assert args.required_action_labels == ""
     assert args.visual_mask_dynamic_regions is False
     assert args.success_screenshot is False
     assert args.failure_bundle_dir is None
@@ -661,6 +662,94 @@ def test_required_text_probe_reports_missing_text() -> None:
         app_name="pytorch_playground_project",
         display="ANALYSIS",
         required_text=("Run training",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "failed"
+    assert "Run training" in probe.detail
+
+
+def test_required_action_probe_trial_clicks_child_frame_button() -> None:
+    module = _load_module()
+
+    class _ButtonLocator:
+        clicked_with_trial = False
+
+        def count(self) -> int:
+            return 1
+
+        def nth(self, _index):
+            return self
+
+        def is_visible(self, **_kwargs) -> bool:
+            return True
+
+        def is_enabled(self, **_kwargs) -> bool:
+            return True
+
+        def click(self, **kwargs) -> None:
+            self.clicked_with_trial = bool(kwargs.get("trial"))
+
+    class _EmptyLocator:
+        @staticmethod
+        def count() -> int:
+            return 0
+
+    class _Frame:
+        def __init__(self, locator):
+            self._locator = locator
+
+        def get_by_role(self, _role: str, **_kwargs):
+            return self._locator
+
+    button_locator = _ButtonLocator()
+
+    class _Page(_Frame):
+        url = "http://demo/ANALYSIS"
+
+        def __init__(self) -> None:
+            super().__init__(_EmptyLocator())
+            self.main_frame = object()
+            self.frames = [
+                self.main_frame,
+                _Frame(button_locator),
+            ]
+
+    probe = module._required_action_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_action_labels=("Run training",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "probed"
+    assert probe.kind == "required_action"
+    assert button_locator.clicked_with_trial is True
+
+
+def test_required_action_probe_reports_missing_button() -> None:
+    module = _load_module()
+
+    class _EmptyLocator:
+        @staticmethod
+        def count() -> int:
+            return 0
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def get_by_role(_role: str, **_kwargs):
+            return _EmptyLocator()
+
+    probe = module._required_action_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_action_labels=("Run training",),
         timeout_ms=100,
     )
 
