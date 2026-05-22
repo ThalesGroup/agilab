@@ -117,6 +117,60 @@ def test_app_surface_import_prefers_package_when_streamlit_puts_script_dir_first
         sys.modules.update(original_modules)
 
 
+def test_app_surface_drops_shadowing_script_module(monkeypatch):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_shadow_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    shadow = ModuleType("pytorch_playground")
+    shadow.__file__ = str(APP_SURFACE_PATH.resolve().parent / "pytorch_playground.py")
+    child = ModuleType("pytorch_playground.core")
+    monkeypatch.setitem(sys.modules, "pytorch_playground", shadow)
+    monkeypatch.setitem(sys.modules, "pytorch_playground.core", child)
+
+    try:
+        module._drop_shadowed_package_module()
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert "pytorch_playground" not in sys.modules
+    assert "pytorch_playground.core" not in sys.modules
+
+
+def test_app_surface_resolves_active_app_from_argv_and_evidence_dirs(monkeypatch, tmp_path: Path):
+    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_paths_test", APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    app_path = tmp_path / "pytorch_playground_project"
+    app_path.mkdir()
+    monkeypatch.setattr(sys, "argv", ["app_surface.py", "--active-app", str(app_path)])
+
+    env = SimpleNamespace(
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="pytorch_target",
+        app="pytorch_playground_project",
+    )
+    args = SimpleNamespace(data_out="pytorch_playground/evidence")
+
+    try:
+        resolved = module._resolve_active_app_path()
+        evidence_dirs = module._analysis_evidence_dirs(env, args, app_path)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert resolved == app_path.resolve()
+    assert evidence_dirs == [
+        (tmp_path / "export" / "pytorch_target" / "pytorch_playground").resolve(),
+        (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground").resolve(),
+        Path("pytorch_playground/evidence").resolve(),
+    ]
+
+
 def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_analysis_test", APP_SURFACE_PATH)
     assert spec is not None and spec.loader is not None
@@ -285,6 +339,7 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
 
     assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
     assert ("columns", [0.70, 0.30]) in events
+    assert not any(kind == "column_caption" for kind, _payload in events)
 
     form_event = next(payload for kind, payload in events if kind == "form")
     assert form_event["env"] is fake_runtime_env
@@ -1085,6 +1140,10 @@ def test_pytorch_playground_analysis_uses_evidence_without_training(
         "_cached_loss_landscape",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("analysis must not compute landscape on render")),
     )
+    monkeypatch.setattr(module, "_decision_figure", lambda *_args, **_kwargs: "decision-figure")
+    monkeypatch.setattr(module, "_history_figure", lambda *_args, **_kwargs: "history-figure")
+    monkeypatch.setattr(module, "_network_figure", lambda *_args, **_kwargs: "network-figure")
+    monkeypatch.setattr(module, "_loss_landscape_figure", lambda *_args, **_kwargs: "landscape-figure")
 
     module.main(
         interactive_controls=False,
@@ -1242,6 +1301,111 @@ def test_pytorch_playground_evidence_and_figure_helpers_cover_fallbacks(monkeypa
     }
     assert module._cached_train(module.asdict(config))["status"] == "missing_torch"
     assert module._cached_loss_landscape(module.asdict(config), 4, 0.5)["status"] == "missing_torch"
+
+
+def test_pytorch_playground_summary_uses_shared_header_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    class FakeStreamlit:
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeColumn() for _ in range(count)]
+
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    config = module.PlaygroundConfig(hidden_layers=(16, 8), feature_names=("x1", "x2"))
+    samples = pd.DataFrame(
+        {
+            "x1": [0.0, 0.1, 0.2, 0.3],
+            "x2": [0.0, 0.1, 0.2, 0.3],
+            "target": [0, 0, 1, 1],
+        }
+    )
+    result = {
+        "samples": samples,
+        "grid": pd.DataFrame({"probability": [0.0, 1.0]}),
+        "network_layers": pd.DataFrame({"parameters": [100, 154]}),
+        "summary": {
+            "train_accuracy": 0.998,
+            "validation_accuracy": 0.96,
+            "samples": 320,
+        },
+    }
+
+    module._render_compact_header(PROJECT_PATH.resolve(), "ORCHESTRATE args", config)
+    module._render_summary(config, result)
+
+    markup = "\n".join(rendered)
+    assert "agilab-header-card" in markup
+    assert "ORCHESTRATE args" in markup
+    assert "Strong run: low overfit, clear boundary" in markup
+    assert markup.count("96%") == 1
+    assert "Train-val gap" in markup
+    assert "3.8 pp" in markup
+    assert "Decision confidence" in markup
+    assert "254 params" in markup
+    assert "2 hidden layer(s)" in markup
+    assert "320 samples" in markup
+    assert "50/50% class split" in markup
+    assert "Boundary confidence" not in markup
+    assert "mean distance from indecision" not in markup
+
+
+def test_pytorch_playground_compact_summary_keeps_tabs_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeStreamlit:
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    config = module.PlaygroundConfig(hidden_layers=(16, 8), feature_names=("x1", "x2"))
+    samples = pd.DataFrame(
+        {
+            "x1": [0.0, 0.1, 0.2, 0.3],
+            "x2": [0.0, 0.1, 0.2, 0.3],
+            "target": [0, 0, 1, 1],
+        }
+    )
+    result = {
+        "samples": samples,
+        "grid": pd.DataFrame({"probability": [0.0, 1.0]}),
+        "network_layers": pd.DataFrame({"parameters": [100, 154]}),
+        "summary": {
+            "train_accuracy": 0.998,
+            "validation_accuracy": 0.96,
+            "samples": 320,
+        },
+    }
+
+    module._render_compact_header(PROJECT_PATH.resolve(), "ORCHESTRATE args", config)
+    module._render_summary(config, result, compact=True)
+
+    markup = "\n".join(rendered)
+    assert "agilab-pt-compact-meta" in markup
+    assert "agilab-pt-run-panel" in markup
+    assert "agilab-header-card" not in markup
+    assert "Strong run: low overfit" not in markup
+    assert "Strong run" in markup
+    assert markup.count("96%") == 1
+    assert "ORCHESTRATE args" in markup
+    assert "app: pytorch_playground_project" in markup
+    assert "Validation" in markup
+    assert "Train-val gap" in markup
+    assert "Decision confidence" in markup
 
 
 def test_pytorch_playground_fake_nn_covers_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1520,6 +1684,7 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "def _render_wide_args_form" in source
     assert "def _render_compact_args_form" in source
     assert "def persist_current_args" in source
+    assert "Quick fields are enough" not in source
     assert ".columns(" in source
     assert "Loss landscape" in source
     assert "def _build_synced_run_snippet" in source

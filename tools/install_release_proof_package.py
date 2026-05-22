@@ -101,6 +101,25 @@ def _show_available_versions(package_name: str, runner: Runner) -> None:
     runner([sys.executable, "-m", "pip", "index", "versions", package_name])
 
 
+def pypi_release_installable(
+    package_spec: str,
+    *,
+    runner: Runner = _run,
+) -> bool:
+    """Return whether pip can resolve the manifest-pinned release spec."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--dry-run",
+        "--ignore-installed",
+        "--no-cache-dir",
+        package_spec,
+    ]
+    return int(runner(cmd).returncode) == 0
+
+
 def install_with_retry(
     package_name: str,
     package_spec: str,
@@ -170,15 +189,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             "release tag."
         ),
     )
+    parser.add_argument(
+        "--check-installable-only",
+        action="store_true",
+        help=(
+            "Exit 0 only when pip can resolve the exact release-proof package "
+            "spec from PyPI. This is stricter than visibility and catches stale "
+            "split-package dependencies."
+        ),
+    )
     args = parser.parse_args(argv)
 
     package_name, package_version, package_spec = release_package_spec(args.manifest)
+    if args.check_available_only and args.check_installable_only:
+        parser.error("--check-available-only and --check-installable-only are mutually exclusive")
     if args.check_available_only:
         if pypi_release_visible(package_name, package_version):
             print(f"[install] {package_name} {package_version} is visible on PyPI")
             return 0
         print(
             f"[install] {package_name} {package_version} is not visible on PyPI",
+            file=sys.stderr,
+        )
+        _show_available_versions(package_name, _run)
+        return 1
+    if args.check_installable_only:
+        if pypi_release_installable(package_spec):
+            print(f"[install] {package_spec} is installable from PyPI")
+            return 0
+        print(
+            f"[install] {package_spec} is not installable from PyPI",
             file=sys.stderr,
         )
         _show_available_versions(package_name, _run)

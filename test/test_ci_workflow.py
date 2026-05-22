@@ -159,8 +159,8 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "clean-public-install" in text
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" in text
     assert "tools/install_release_proof_package.py" in text
-    assert "Check release package is visible on PyPI" in text
-    assert "python tools/install_release_proof_package.py --check-available-only" in text
+    assert "Check release package is installable from PyPI" in text
+    assert "python tools/install_release_proof_package.py --check-installable-only" in text
     assert "steps.release-package.outputs.available == 'true'" in text
     assert "GITHUB_EVENT_NAME" in text
     assert "python tools/install_release_proof_package.py --retries 20 --delay-seconds 15" in text
