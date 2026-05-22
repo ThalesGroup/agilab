@@ -345,6 +345,12 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
         "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
+        "update_public_release_references_for_guard(": (
+            "workflow must refresh public release metadata before release-proof checks"
+        ),
+        "badges/pypi-version-agilab.svg": (
+            "workflow must commit the static PyPI badge when release metadata changes"
+        ),
         "--hf-space-commit \"$hf_commit\"": (
             "workflow must refresh release proof with the deployed HF Space commit"
         ),

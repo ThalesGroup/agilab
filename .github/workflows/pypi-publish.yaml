@@ -702,6 +702,7 @@ jobs:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}
       HF_SPACE_PROFILE: ${{ vars.AGILAB_HF_SPACE_PROFILE || 'first-proof' }}
+      PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout release source
@@ -749,6 +750,24 @@ jobs:
           git fetch origin main
           git switch -C main origin/main
 
+          RELEASE_TAG_NORMALIZED="$release_tag" python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from tools import pypi_publish
+
+          release_tag = os.environ["RELEASE_TAG_NORMALIZED"]
+          package_names = [name for name in os.environ.get("PROVENANCE_PACKAGES", "").split() if name]
+          if not package_names:
+              package_names = ["agilab"]
+          chosen_version = pypi_publish.get_version_from_pyproject(Path("pyproject.toml"))
+          pypi_publish.update_public_release_references_for_guard(
+              release_tag,
+              chosen_version,
+              package_names,
+          )
+          PY
+
           python tools/release_proof_report.py \
             --refresh-from-local \
             --github-release-tag "$release_tag" \
@@ -765,11 +784,21 @@ jobs:
             --delete \
             --quiet
 
-          if git diff --quiet -- docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json; then
+          release_metadata_paths=(
+            CHANGELOG.md
+            badges/pypi-version-agilab.svg
+            docs/source/index.rst
+            docs/source/data/release_proof.toml
+            docs/source/release-proof.rst
+            docs/.docs_source_mirror_stamp.json
+            test/test_public_demo_links.py
+          )
+
+          if git diff --quiet -- "${release_metadata_paths[@]}"; then
             echo "Release proof already records HF Space commit ${hf_commit}."
             exit 0
           fi
 
-          git add docs/source/data/release_proof.toml docs/source/release-proof.rst docs/.docs_source_mirror_stamp.json
+          git add "${release_metadata_paths[@]}"
           git commit -m "docs(release): record HF Space sync"
           git push origin HEAD:main

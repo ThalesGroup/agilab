@@ -292,8 +292,13 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "HF_TOKEN secret is required" in text
     assert "--github-output \"$GITHUB_OUTPUT\"" in text
     assert "hf_commit=\"${{ steps.hf-sync.outputs.hf_space_commit }}\"" in text
+    assert "PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
+    assert "update_public_release_references_for_guard(" in text
     assert "--hf-space-commit \"$hf_commit\"" in text
     assert "tools/sync_docs_source.py" in text
+    assert "badges/pypi-version-agilab.svg" in text
+    assert "docs/source/index.rst" in text
+    assert "git add \"${release_metadata_paths[@]}\"" in text
     assert "git push origin HEAD:main" in text
 
 
