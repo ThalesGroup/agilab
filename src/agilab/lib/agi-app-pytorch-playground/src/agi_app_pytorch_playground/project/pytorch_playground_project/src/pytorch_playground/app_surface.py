@@ -189,7 +189,7 @@ def _render_run_button(
 ) -> None:
     import streamlit as st
 
-    if not container.button("Run training", type="primary", use_container_width=True):
+    if not container.button("Refresh evidence", type="primary", use_container_width=True):
         return
     try:
         runtime_env, args_model = _load_orchestrate_args(active_app_path)
@@ -198,7 +198,7 @@ def _render_run_button(
         )
         if callable(persist_current_args):
             args_model = persist_current_args(env=runtime_env)
-        with st.spinner("Running PyTorch training"):
+        with st.spinner("Refreshing PyTorch evidence"):
             summary = _run_playground_once(runtime_env, args_model)
     except Exception as exc:
         container.error(f"Run failed: {exc}")

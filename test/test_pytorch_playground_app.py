@@ -447,8 +447,8 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
         def caption(self, message):
             events.append(("column_caption", (self.name, message)))
 
-        def button(self, *_args, **_kwargs):
-            events.append(("button", self.name))
+        def button(self, label, **kwargs):
+            events.append(("button", (self.name, label, kwargs)))
             return self.name == "controls"
 
         def error(self, message):
@@ -514,6 +514,11 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
 
     ordered = [kind for kind, _payload in events if kind in {"form", "button", "run", "analysis"}]
     assert ordered == ["button", "run", "form", "analysis"]
+    assert (
+        "button",
+        ("controls", "Refresh evidence", {"type": "primary", "use_container_width": True}),
+    ) in events
+    assert ("spinner", "Refreshing PyTorch evidence") in events
     assert load_calls == [PROJECT_PATH.resolve(), PROJECT_PATH.resolve()]
     assert ("column_success", "Run complete. Evidence refreshed (1 row).") in events
 
