@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import os
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 from flight_telemetry import (
     FlightArgs,
