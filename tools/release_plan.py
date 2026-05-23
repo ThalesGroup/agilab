@@ -360,6 +360,16 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         for fragment, description in required_fragments.items()
         if fragment not in text
     ]
+    forbidden_fragments = {
+        "--allow-delete-failure-warning": (
+            "PyPI release retention must fail closed in the release workflow"
+        ),
+    }
+    missing.extend(
+        f"{description}: forbidden {fragment!r}"
+        for fragment, description in forbidden_fragments.items()
+        if fragment in text
+    )
     if "\n          - package: " in text:
         missing.append("library package matrix must not be hard-coded in the workflow")
     return missing
