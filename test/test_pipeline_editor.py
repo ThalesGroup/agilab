@@ -2509,6 +2509,68 @@ def test_notebook_export_manifest_and_verifier_edge_helpers(tmp_path):
     assert checks["stage_source_99"]["status"] == "fail"
 
 
+def test_notebook_export_preserves_import_provenance_metadata(tmp_path):
+    support = notebook_export_support
+    stages_file = tmp_path / "lab_stages.toml"
+    toml_data = {
+        "flight_telemetry_from_notebook_project": [
+            {
+                "D": "Build summary artifacts",
+                "Q": "Imported cell-4 from notebook",
+                "C": "print('summary')\n",
+                "R": "runpy",
+                "NB_CELL_ID": "cell-4",
+                "NB_CELL_INDEX": 4,
+                "NB_CONTEXT_IDS": ["markdown-3"],
+                "NB_ENV_HINTS": ["json", "pandas", "pathlib"],
+                "NB_ARTIFACT_REFERENCES": ["data/flights.csv", "artifacts/summary.json"],
+                "NB_EXECUTION_MODE": "not_executed_import",
+                "NB_SOURCE_NOTEBOOK": "notebooks/source/flight_telemetry_from_notebook.ipynb",
+                "NB_RUNTIME_ROLE": "worker",
+            }
+        ]
+    }
+    context = support.NotebookExportContext(
+        project_name="flight_telemetry_from_notebook_project",
+        module_path="flight_telemetry_from_notebook_project",
+        artifact_dir=str(tmp_path),
+    )
+
+    notebook = support.build_notebook_document(toml_data, stages_file, export_context=context)
+    manifest = support.build_notebook_export_manifest(notebook, stages_file.with_suffix(".ipynb"))
+
+    notebook_stage = notebook["metadata"]["agilab"]["stages"][0]
+    stage = manifest["stages"][0]
+    source_cell = next(cell for cell in manifest["stage_cells"] if cell["kind"] == "source")
+    runner_cell = next(cell for cell in manifest["stage_cells"] if cell["kind"] == "runner")
+    expected_import = {
+        "cell_id": "cell-4",
+        "source_cell_index": 4,
+        "context_ids": ["markdown-3"],
+        "env_hints": ["json", "pandas", "pathlib"],
+        "artifact_references": ["data/flights.csv", "artifacts/summary.json"],
+        "execution_mode": "not_executed_import",
+        "source_notebook": "notebooks/source/flight_telemetry_from_notebook.ipynb",
+        "runtime_role": "worker",
+    }
+
+    assert notebook_stage["notebook_import"] == expected_import
+    assert stage["notebook_import"] == expected_import
+    assert stage["runtime_role"] == "worker"
+    assert source_cell["notebook_import"] == expected_import
+    assert runner_cell["notebook_import"] == expected_import
+    assert source_cell["runtime_role"] == "worker"
+    context_cell_source = "".join(notebook["cells"][4]["source"])
+    assert (
+        "Source notebook: `notebooks/source/flight_telemetry_from_notebook.ipynb`"
+        in context_cell_source
+    )
+    assert (
+        "Artifact references: `data/flights.csv`, `artifacts/summary.json`"
+        in context_cell_source
+    )
+
+
 def test_save_stage_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
     stages_file = tmp_path / "lab_stages.toml"
     errors: list[str] = []

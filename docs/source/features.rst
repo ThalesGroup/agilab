@@ -258,7 +258,9 @@ current public evaluation snapshot.
 - the release-proof profile includes the packaged notebook import lane:
   it creates ``flight_telemetry_from_notebook_project``, runs ``INSTALL``,
   executes the imported project, and opens ANALYSIS far enough to prove the
-  project notebook and analysis links are discoverable
+  project notebook and analysis links are discoverable; it also refreshes the
+  exported ``lab_stages.ipynb`` handoff and verifies the manifest, source cell
+  IDs, runtime roles, artifact references, and handoff file
 - ``tools/newcomer_first_proof.py --json`` writes
   ``~/log/execute/flight_telemetry/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
