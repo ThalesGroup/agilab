@@ -255,6 +255,10 @@ current public evaluation snapshot.
   ``run_manifest.json``, and shows a manifest-driven remediation checklist
   with exact evidence commands when the proof is missing, invalid, incomplete,
   or failing
+- the release-proof profile includes the packaged notebook import lane:
+  it creates ``flight_telemetry_from_notebook_project``, runs ``INSTALL``,
+  executes the imported project, and opens ANALYSIS far enough to prove the
+  project notebook and analysis links are discoverable
 - ``tools/newcomer_first_proof.py --json`` writes
   ``~/log/execute/flight_telemetry/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release

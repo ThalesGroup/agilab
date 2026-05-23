@@ -77,10 +77,10 @@ Concrete items:
 - keep the release guard as the mandatory pre-tag path: install smoke,
   first-proof, security check, docs mirror check, badge freshness, dependency
   policy, and trusted-publisher contract
-- make imported-notebook projects part of the release smoke, not a separate
-  best-effort demo path
-- require each shipped notebook sample to create an installable and runnable app
-  equivalent to its packaged example
+- keep the imported-notebook release smoke in the mandatory release-proof
+  profile, not as a separate best-effort demo path
+- require each shipped notebook sample to keep creating an installable and
+  runnable app equivalent to its packaged example
 - keep PyPI, GitHub release proof, public docs, and Hugging Face demo text
   aligned before publication
 - keep the package-aware `pypi-publish` reuse gate healthy: detect expected
@@ -93,7 +93,7 @@ Concrete items:
 
 Done means:
 
-- a clean install can run the default first proof and at least one imported
+- a clean install can run the default first proof and the guarded imported
   notebook project end to end
 - release proof points to the exact version, commands, evidence, and known
   limitations
@@ -446,7 +446,8 @@ Acceptance gate:
   `<example>-from-notebook-project`
 - manager/worker cell roles are explicit or force review before project
   creation
-- at least one imported notebook project is included in the release smoke
+- the release smoke keeps at least one imported notebook project in the guarded
+  create -> install -> execute -> analysis path
 
 Why now:
 
