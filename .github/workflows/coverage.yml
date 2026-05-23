@@ -245,7 +245,7 @@ jobs:
         run: mkdir -p test-results
 
       - name: Restore agi-gui timing history
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: test-results/coverage-agi-gui-timing-cache
           key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
@@ -428,7 +428,7 @@ jobs:
 
       - name: Save agi-gui timing history
         if: always() && hashFiles('test-results/coverage-agi-gui-timing-cache/*.xml') != ''
-        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: test-results/coverage-agi-gui-timing-cache
           key: agi-gui-junit-timings-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
