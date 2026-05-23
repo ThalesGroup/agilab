@@ -25,11 +25,11 @@ package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.05.23-1"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23-1"
+github_release_tag = "v2026.05.23-2"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23-2"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "7aeffb97767016d7ad285cc63fcdd9f6fb505c63"
+hf_space_commit = "11735a486d543a7b7273837e006131433912511d"
 
 [[ci_runs]]
 id = "release-guardrails"
