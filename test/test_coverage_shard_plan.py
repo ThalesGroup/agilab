@@ -62,6 +62,8 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
         "execute_page or experiment_page or pipeline_page_project_selectbox",
     ]
     assert "test/test_notebook_import_sample.py" in chunks["pipeline"]
+    assert "test/test_pypi_app_packages.py" in chunks["pages-rest"]
+    assert "test/test_agi_pages_chart_spec.py" in chunks["pages-rest"]
     assert "test/test_*_report.py" not in chunks["reports"]
     assert "test/test_adoption_report.py" in chunks["reports"]
     assert "test/test_view*.py" not in chunks["views"]
