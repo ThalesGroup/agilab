@@ -24,7 +24,7 @@ def _k(name: str) -> str:
 def _get_env():
     env = st.session_state.get("env") or st.session_state.get("_env")
     if env is None:
-        st.error("AGILab environment is not initialised yet. Return to the main page and try again.")
+        st.error("AGILAB environment is not initialised yet. Return to the main page and try again.")
         st.stop()
     return env
 
@@ -138,7 +138,11 @@ else:
         app_settings.setdefault("cluster", {})
         app_settings["args"] = validated_payload
         app_settings.setdefault("pages", {})
-        app_settings["pages"]["view_module"] = ["view_relay_resilience", "view_maps_network"]
+        app_settings["pages"]["view_module"] = [
+            "view_scenario_cockpit",
+            "view_relay_resilience",
+            "view_maps_network",
+        ]
         st.session_state["app_settings"] = app_settings
         st.session_state["is_args_from_ui"] = True
         st.success(f"Saved to `{settings_path}`.")

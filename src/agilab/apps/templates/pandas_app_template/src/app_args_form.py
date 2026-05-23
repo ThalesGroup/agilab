@@ -7,10 +7,7 @@ from pandas_app import PandasAppArgs as ArgsModel
 
 
 def _get_env():
-    try:
-        return st.session_state["_env"]
-    except KeyError:
-        return None
+    return st.session_state.get("env") or st.session_state.get("_env")
 
 
 def render() -> None:
