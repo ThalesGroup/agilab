@@ -16,12 +16,31 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
-from agilab.ui_performance import (
-    UI_TIMING_SESSION_KEY,
-    UI_TIMING_TRACE_ENV_KEY,
-    record_ui_timing_span,
-    ui_timing_trace_enabled,
-)
+
+try:
+    from agilab.ui_performance import (
+        UI_TIMING_SESSION_KEY,
+        UI_TIMING_TRACE_ENV_KEY,
+        record_ui_timing_span,
+        ui_timing_trace_enabled,
+    )
+except ModuleNotFoundError as exc:
+    if getattr(exc, "name", "") not in {"agilab", "agilab.ui_performance"}:
+        raise
+    _ui_performance_path = Path(__file__).resolve().parent / "ui_performance.py"
+    _ui_performance_spec = importlib.util.spec_from_file_location(
+        "agilab_ui_performance_local",
+        _ui_performance_path,
+    )
+    if _ui_performance_spec is None or _ui_performance_spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load ui_performance.py from {_ui_performance_path}") from exc
+    _ui_performance_module = importlib.util.module_from_spec(_ui_performance_spec)
+    sys.modules[_ui_performance_spec.name] = _ui_performance_module
+    _ui_performance_spec.loader.exec_module(_ui_performance_module)
+    UI_TIMING_SESSION_KEY = _ui_performance_module.UI_TIMING_SESSION_KEY
+    UI_TIMING_TRACE_ENV_KEY = _ui_performance_module.UI_TIMING_TRACE_ENV_KEY
+    record_ui_timing_span = _ui_performance_module.record_ui_timing_span
+    ui_timing_trace_enabled = _ui_performance_module.ui_timing_trace_enabled
 
 try:
     from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
