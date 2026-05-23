@@ -247,6 +247,132 @@ print(marker + "=" + json.dumps(payload, sort_keys=True))
             f"log={install_log}\n{tail}"
         )
 
+    execute_code = r"""
+import asyncio
+import json
+import os
+from pathlib import Path
+import tomllib
+
+from agi_cluster.agi_distributor import AGI, RunRequest
+from agi_env import AgiEnv
+from streamlit.testing.v1 import AppTest
+
+root = Path.cwd()
+marker = "NOTEBOOK_IMPORT_EXECUTE_ANALYSIS_SMOKE"
+project_name = os.environ["AGILAB_NOTEBOOK_IMPORT_PROJECT"]
+apps_path = root / "src/agilab/apps"
+
+
+def _resolve_shared_path(env: AgiEnv, raw_path: object) -> Path | None:
+    if raw_path in (None, ""):
+        return None
+    path = Path(str(raw_path)).expanduser()
+    if path.is_absolute():
+        return path
+    return env.resolve_share_path(path)
+
+
+async def main() -> None:
+    app_env = AgiEnv(apps_path=apps_path, app=project_name, verbose=1)
+    app_env.init_done = True
+    settings = tomllib.loads(Path(app_env.app_settings_file).read_text(encoding="utf-8"))
+    run_args = dict(settings.get("args") or {})
+    data_in = run_args.pop("data_in", None)
+    data_out = run_args.pop("data_out", None)
+    reset_target = run_args.pop("reset_target", None)
+    request = RunRequest(
+        params=run_args,
+        data_in=data_in,
+        data_out=data_out,
+        reset_target=reset_target,
+        mode=AGI.PYTHON_MODE,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+    )
+    result = await AGI.run(app_env, request=request)
+    output_root = _resolve_shared_path(app_env, data_out)
+    output_files = []
+    if output_root is not None and output_root.exists():
+        output_files = sorted(
+            path.relative_to(output_root).as_posix()
+            for path in output_root.rglob("*")
+            if path.is_file()
+        )
+
+    analysis_env = AgiEnv(apps_path=apps_path, app=project_name, verbose=0)
+    analysis_env.init_done = True
+    analysis = AppTest.from_file(str(root / "src/agilab/pages/4_ANALYSIS.py"), default_timeout=90)
+    analysis.query_params["current_page"] = "main"
+    analysis.session_state["env"] = analysis_env
+    analysis.run(timeout=90)
+    analysis_exceptions = [str(item) for item in analysis.exception]
+    sidebar_markdown = "\n".join(str(item.value) for item in analysis.sidebar.markdown)
+    notebook_label = "source/flight_telemetry_from_notebook.ipynb"
+
+    print(marker + "=" + json.dumps({
+        "status": "pass" if not analysis_exceptions and output_files else "fail",
+        "project_name": project_name,
+        "run_result_type": type(result).__name__,
+        "run_mode": int(request.mode),
+        "data_in": str(data_in),
+        "data_out": str(data_out),
+        "output_root": str(output_root) if output_root is not None else "",
+        "output_files": output_files,
+        "analysis_exception_count": len(analysis_exceptions),
+        "analysis_exceptions": analysis_exceptions,
+        "analysis_has_notebook_link": (
+            "current_notebook=" in sidebar_markdown and notebook_label in sidebar_markdown
+        ),
+        "analysis_has_view_links": "agilab-analysis-view-links" in sidebar_markdown,
+    }, sort_keys=True))
+
+
+asyncio.run(main())
+"""
+    execute_log = clone_root / ".notebook-import-release-execute-analysis.log"
+    execute_env = {**env, "AGILAB_NOTEBOOK_IMPORT_PROJECT": project_name}
+    with execute_log.open("w", encoding="utf-8") as log_stream:
+        execute = subprocess.run(
+            [
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "python",
+                "-c",
+                execute_code,
+            ],
+            cwd=clone_root,
+            check=False,
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=execute_env,
+            timeout=8 * 60,
+        )
+    payload["execute_returncode"] = execute.returncode
+    execute_output = execute_log.read_text(encoding="utf-8", errors="replace")
+    if execute.returncode:
+        tail = "\n".join(execute_output.splitlines()[-100:])
+        raise AssertionError(
+            f"notebook import execute/analysis smoke failed with {execute.returncode}; "
+            f"log={execute_log}\n{tail}"
+        )
+    execute_payload = _extract_marked_json(
+        execute_output,
+        "NOTEBOOK_IMPORT_EXECUTE_ANALYSIS_SMOKE",
+    )
+    payload["execute_analysis"] = execute_payload
+    if execute_payload.get("status") != "pass":
+        tail = "\n".join(execute_output.splitlines()[-100:])
+        raise AssertionError(
+            "notebook import execute/analysis smoke did not pass; "
+            f"payload={execute_payload!r}; log={execute_log}\n{tail}"
+        )
+
     return payload
 
 
@@ -326,6 +452,19 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
     assert notebook_payload["source_notebook"] == "notebooks/source/flight_telemetry_from_notebook.ipynb"
     assert notebook_payload["stage_count"] == 2
     assert notebook_payload["install_returncode"] == 0
+    assert notebook_payload["execute_returncode"] == 0
     assert notebook_payload["contract_schema"] == "agilab.notebook_import_contract.v1"
     assert notebook_payload["contract_stage_count"] == 2
     assert notebook_payload["runtime_roles"] == ["manager", "manager"]
+    execute_analysis = notebook_payload["execute_analysis"]
+    assert execute_analysis["project_name"] == "flight_telemetry_from_notebook_project"
+    assert execute_analysis["data_in"] == "flight_telemetry_from_notebook/dataset"
+    assert execute_analysis["data_out"] == "flight_telemetry_from_notebook/dataframe"
+    assert execute_analysis["run_mode"] == 1
+    assert execute_analysis["analysis_exception_count"] == 0
+    assert execute_analysis["analysis_has_notebook_link"] is True
+    assert execute_analysis["analysis_has_view_links"] is True
+    assert any(
+        output_file.endswith((".parquet", ".csv", ".json"))
+        for output_file in execute_analysis["output_files"]
+    )
