@@ -18,6 +18,10 @@ import_guard = importlib.util.module_from_spec(_IMPORT_GUARD_SPEC)
 _IMPORT_GUARD_SPEC.loader.exec_module(import_guard)
 
 
+def test_repo_src_root_is_not_a_python_package() -> None:
+    assert not (_SRC_ROOT / "__init__.py").exists()
+
+
 def _ensure_repo_agilab_package() -> None:
     """Make real-package imports deterministic when pytest installed a shim."""
     package_root = str(_SRC_ROOT / "agilab")
