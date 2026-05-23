@@ -347,9 +347,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     - or recreate `~/.ssh/authorized_keys` with `0700` / `0600` permissions
 - If cluster mode depends on shared storage, restore the node’s `.agilab/.env` and remount the share before blaming AGILAB:
   - Linux node example:
-    - `AGI_CLUSTER_SHARE=/home/<worker-user>/clustershare`
-    - `AGI_LOCAL_SHARE=/home/<worker-user>/localshare`
-    - `sshfs <manager-user>@<manager-ip>:/path/to/manager/clustershare /home/<worker-user>/clustershare`
+    - `worker_home="<worker-home>"`
+    - `AGI_CLUSTER_SHARE="$worker_home/clustershare"`
+    - `AGI_LOCAL_SHARE="$worker_home/localshare"`
+    - `sshfs <manager-user>@<manager-ip>:/path/to/manager/clustershare "$worker_home/clustershare"`
 - For macOS SSHFS workers:
   - `command -v brew` can miss Intel Homebrew; check `/usr/local/Homebrew/bin/brew` before assuming Homebrew is absent.
   - Prefer an interactive package install of FUSE-T SSHFS or macFUSE plus SSHFS; the package step may need an admin password.
