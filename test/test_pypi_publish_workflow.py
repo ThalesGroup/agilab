@@ -302,7 +302,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "git push origin HEAD:main" in text
 
 
-def test_pypi_publish_prunes_previous_pypi_releases_before_release_assets() -> None:
+def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_assets() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "pypi-release-retention:" in text
@@ -316,7 +316,7 @@ def test_pypi_publish_prunes_previous_pypi_releases_before_release_assets() -> N
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
-    assert "--allow-delete-failure-warning" not in text
+    assert "--allow-delete-failure-warning" in text
     assert "--protect-versions-from-projects" in text
     assert "--repo-root ." in text
     assert "--protect-version \"$current_version\"" not in text
