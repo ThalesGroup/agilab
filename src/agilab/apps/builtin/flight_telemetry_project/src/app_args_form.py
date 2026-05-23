@@ -27,7 +27,7 @@ def _k(name: str) -> str:
 def _get_env():
     env = st.session_state.get("env") or st.session_state.get("_env")
     if env is None:
-        st.error("AGILab environment is not initialised yet. Return to the main page and try again.")
+        st.error("AGILAB environment is not initialised yet. Return to the main page and try again.")
         st.stop()
     return env
 
