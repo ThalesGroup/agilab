@@ -315,7 +315,8 @@ def test_pypi_publish_prunes_previous_pypi_releases_before_release_assets() -> N
     assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup" in text
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
-    assert "--allow-delete-failure-warning" in text
+    assert "--direct-web-only" in text
+    assert "--allow-delete-failure-warning" not in text
     assert "--protect-versions-from-projects" in text
     assert "--repo-root ." in text
     assert "--protect-version \"$current_version\"" not in text
