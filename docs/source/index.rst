@@ -109,6 +109,7 @@ references, and example projects.
    :caption: Examples
 
    Demo chooser <demos>
+   Public app catalog <public-app-catalog>
    Execution playground <execution-playground>
    Industrial optimization examples <industrial-optimization-examples>
    Notebook migration example <notebook-migration-skforecast-meteo>
