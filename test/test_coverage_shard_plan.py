@@ -51,8 +51,10 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert plan.mode == "static"
     assert list(chunks) == list(module.AGI_GUI_CHUNKS)
     assert "src/agilab/lib/agi-gui/test/test_agi_gui_package.py" in chunks["support"]
+    assert "src/agilab/test" not in chunks["support"]
     assert "test/test_env_footprint.py" in chunks["support"]
     assert "test/test_pytorch_playground_app.py" in chunks["support"]
+    assert "test/test_python_versions.py" in chunks["support"]
     assert chunks["pages-flow"] == [
         "test/test_ui_pages.py",
         "-k",
@@ -87,6 +89,25 @@ def test_timing_balanced_plan_greedily_spreads_slow_files(tmp_path) -> None:
             _item_chunk(plan, "test/test_first_launch_robot.py"),
         }
     ) == 3
+
+
+def test_timing_balanced_plan_does_not_schedule_legacy_src_test_package(tmp_path) -> None:
+    module = _load_module()
+    junit_path = tmp_path / "junit-agi-gui-robots.xml"
+    _write_junit(
+        junit_path,
+        [
+            ("src.agilab.test.test_action_execution", "test_old_duplicate", 10.0),
+            ("test.test_action_execution", "test_root_copy", 1.0),
+        ],
+    )
+
+    plan = module.build_plan([str(junit_path)], default_seconds=0.0)
+    planned_args = [arg for shard in plan.shards for arg in shard.pytest_args]
+
+    assert plan.mode == "timing-balanced"
+    assert "test/test_action_execution.py" in planned_args
+    assert not any(arg.startswith("src/agilab/test") for arg in planned_args)
 
 
 def test_selector_chunks_stay_locked_when_balancing(tmp_path) -> None:

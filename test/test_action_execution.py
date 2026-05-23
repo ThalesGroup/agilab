@@ -20,6 +20,25 @@ importlib.invalidate_caches()
 action_execution = importlib.import_module("agilab.action_execution")
 
 
+def test_action_result_factories_normalize_optional_data():
+    for factory_name in ("success", "warning", "error", "info"):
+        factory = getattr(action_execution.ActionResult, factory_name)
+
+        result = factory(
+            "Action title",
+            detail="detail text",
+            next_action="retry later",
+            data={"job": "demo"},
+        )
+
+        assert result.status == factory_name
+        assert result.title == "Action title"
+        assert result.detail == "detail text"
+        assert result.next_action == "retry later"
+        assert result.data == {"job": "demo"}
+        assert factory("Minimal").data == {}
+
+
 class _FakeStreamlit:
     def __init__(self):
         self.messages: list[tuple[str, str]] = []
