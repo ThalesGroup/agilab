@@ -679,6 +679,7 @@ jobs:
             --repo-root .
             --protect-versions-from-projects
             --confirm-delete
+            --allow-delete-failure-warning
             --direct-web-only
             --json
             --github-step-summary "$GITHUB_STEP_SUMMARY"

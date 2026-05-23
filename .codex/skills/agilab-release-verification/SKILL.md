@@ -98,7 +98,7 @@ workflow dispatch:
 - `publish-library-packages`: publishes selected split packages with PyPI Trusted Publishing.
 - `publish-agilab`: publishes the top-level `agilab` package.
 - `pypi-provenance-evidence`: verifies PyPI attestations after upload.
-- `pypi-release-retention`: prunes older public PyPI releases for selected projects.
+- `pypi-release-retention`: attempts to prune older public PyPI releases for selected projects; missing current releases remain a hard failure, while PyPI web-login cleanup blockage is recorded as a warning after provenance passes.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
 - `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
 - `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof; package-only app/page publishes should skip it by release scope.
@@ -120,7 +120,8 @@ gh run view <run-id> --repo ThalesGroup/agilab --json status,conclusion,url,jobs
 
 Success requires the relevant publish, provenance, retention, release-assets,
 and `sync-hf-space` jobs to be successful or intentionally skipped by release
-scope.
+scope. A successful retention job can still report old-release cleanup warnings
+when PyPI blocks destructive web-management actions from the runner.
 
 ### GitHub Release
 
@@ -193,10 +194,11 @@ print(json.dumps({"missing_expected": missing, "stale_old_releases": stale}, sor
 PY
 ```
 
-After PyPI pruning, `missing_expected` and `stale_old_releases` must both be
-empty. If stale releases remain, distinguish between a retention job that
-concluded success and actual PyPI state; the job can be non-fatal when PyPI web
-login or reauthentication blocks deletion.
+After PyPI pruning, `missing_expected` must be empty. `stale_old_releases`
+should be empty when strict retention succeeds, but stale versions can remain as
+cleanup debt when PyPI web login, unrecognized-login confirmation, or
+reauthentication blocks deletion. Do not confuse that warning state with a
+failed publish or failed provenance check.
 
 ### Release Proof and Docs
 
@@ -307,9 +309,10 @@ after the badge/source change.
 - `sync-hf-space` failed immediately with a missing token: configure the
   repository `HF_TOKEN` secret from a valid local or service Hugging Face token,
   then rerun the workflow job or perform a clean-worktree manual sync.
-- PyPI retention stops at an interactive authentication prompt: verify
-  `PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time `PYPI_RELEASE_PRUNE_OTP` is
-  configured. Do not weaken retention logic just to bypass 2FA.
+- PyPI retention records an interactive authentication or unrecognized-login
+  warning: verify `PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time
+  `PYPI_RELEASE_PRUNE_OTP`, then use a self-hosted/static-IP runner or manual
+  cleanup from a confirmed device if strict one-release retention is required.
 - HF Space changed but release proof stale: inspect the `sync-hf-space` commit
   step before applying a manual docs refresh.
 - Release proof shows the new tag/commit but still mentions an old tag in a

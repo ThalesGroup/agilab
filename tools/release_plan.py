@@ -333,6 +333,10 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "workflow must support non-interactive PyPI 2FA for release pruning"
         ),
         "--confirm-delete": "workflow must make destructive PyPI retention explicit",
+        "--allow-delete-failure-warning": (
+            "PyPI release retention must warn when PyPI web deletion is "
+            "operationally blocked after provenance passes"
+        ),
         "needs.pypi-release-retention.result == 'success'": (
             "release assets must wait for PyPI release retention to finish"
         ),
@@ -360,16 +364,6 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         for fragment, description in required_fragments.items()
         if fragment not in text
     ]
-    forbidden_fragments = {
-        "--allow-delete-failure-warning": (
-            "PyPI release retention must fail closed in the release workflow"
-        ),
-    }
-    missing.extend(
-        f"{description}: forbidden {fragment!r}"
-        for fragment, description in forbidden_fragments.items()
-        if fragment in text
-    )
     if "\n          - package: " in text:
         missing.append("library package matrix must not be hard-coded in the workflow")
     return missing
