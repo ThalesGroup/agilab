@@ -1,18 +1,24 @@
-import sys
-import json
+from __future__ import annotations
+
 import importlib.util
+import json
+import sys
 from pathlib import Path
-ROOT_DIR = Path(__file__).resolve().parents[3]
-SRC_DIR = ROOT_DIR / 'src'
-MODULE_NAME = 'agilab.core.get_supported_python_versions'
-MODULE_PATH = SRC_DIR / 'agilab' / 'core' / 'get_supported_python_versions.py'
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT_DIR / "src"
+MODULE_NAME = "agilab.core.get_supported_python_versions"
+MODULE_PATH = SRC_DIR / "agilab" / "core" / "get_supported_python_versions.py"
 spec = importlib.util.spec_from_file_location(MODULE_NAME, MODULE_PATH)
+assert spec and spec.loader
 gspv = importlib.util.module_from_spec(spec)
 sys.modules.setdefault(MODULE_NAME, gspv)
 spec.loader.exec_module(gspv)
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+
 
 def write_pyproject(tmp_path: Path, filename: str, content: str) -> Path:
     path = tmp_path / filename
@@ -48,18 +54,30 @@ def test_extract_requires_python_from_poetry(tmp_path, capsys):
 
 def test_main_collects_supported_versions(tmp_path, capsys):
     paths = [
-        write_pyproject(tmp_path, "pkg1.toml", """
+        write_pyproject(
+            tmp_path,
+            "pkg1.toml",
+            """
         [project]
         requires-python = ">=3.8,<3.11"
-        """),
-        write_pyproject(tmp_path, "pkg2.toml", """
+        """,
+        ),
+        write_pyproject(
+            tmp_path,
+            "pkg2.toml",
+            """
         [tool.poetry.dependencies]
         python = ">=3.10"
-        """),
-        write_pyproject(tmp_path, "pkg3.toml", """
+        """,
+        ),
+        write_pyproject(
+            tmp_path,
+            "pkg3.toml",
+            """
         [project]
         name = "no-python"
-        """),
+        """,
+        ),
     ]
 
     gspv.main([str(p) for p in paths])
