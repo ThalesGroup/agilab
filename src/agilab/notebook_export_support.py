@@ -199,6 +199,13 @@ def _runtime_role_from_engine(value: Any) -> str:
     return ""
 
 
+def _normalize_notebook_runtime_role(value: Any) -> str:
+    normalized = str(value or "").strip().lower().replace("_", "-")
+    if normalized in {"manager", "worker"}:
+        return normalized
+    return ""
+
+
 def _allow_workspace_sibling_apps() -> bool:
     return _truthy_env(os.environ.get(ALLOW_WORKSPACE_SIBLING_APPS_ENV))
 
@@ -717,6 +724,64 @@ def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
     return notebook_data
 
 
+def _metadata_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item)]
+
+
+def _notebook_import_metadata_from_stage(raw_stage: Mapping[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    cell_id = str(raw_stage.get("NB_CELL_ID", "") or "")
+    if cell_id:
+        metadata["cell_id"] = cell_id
+
+    raw_cell_index = raw_stage.get("NB_CELL_INDEX")
+    if raw_cell_index not in (None, ""):
+        try:
+            metadata["source_cell_index"] = int(raw_cell_index)
+        except (TypeError, ValueError):
+            metadata["source_cell_index"] = str(raw_cell_index)
+
+    context_ids = _metadata_string_list(raw_stage.get("NB_CONTEXT_IDS", []))
+    if context_ids:
+        metadata["context_ids"] = context_ids
+
+    env_hints = _metadata_string_list(raw_stage.get("NB_ENV_HINTS", []))
+    if env_hints:
+        metadata["env_hints"] = env_hints
+
+    artifact_references = _metadata_string_list(raw_stage.get("NB_ARTIFACT_REFERENCES", []))
+    if artifact_references:
+        metadata["artifact_references"] = artifact_references
+
+    execution_mode = str(raw_stage.get("NB_EXECUTION_MODE", "") or "")
+    if execution_mode:
+        metadata["execution_mode"] = execution_mode
+
+    source_notebook = str(raw_stage.get("NB_SOURCE_NOTEBOOK", "") or "")
+    if source_notebook:
+        metadata["source_notebook"] = source_notebook
+
+    runtime_role = _normalize_notebook_runtime_role(raw_stage.get("NB_RUNTIME_ROLE", ""))
+    if runtime_role:
+        metadata["runtime_role"] = runtime_role
+
+    return metadata
+
+
+def _stage_runtime_role(stage: Mapping[str, Any]) -> str:
+    notebook_import = stage.get("notebook_import", {})
+    if isinstance(notebook_import, Mapping):
+        explicit_role = _normalize_notebook_runtime_role(notebook_import.get("runtime_role", ""))
+        if explicit_role:
+            return explicit_role
+    explicit_role = _normalize_notebook_runtime_role(stage.get("runtime_role", ""))
+    if explicit_role:
+        return explicit_role
+    return _runtime_role_from_engine(stage.get("runtime", ""))
+
+
 def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     global_index = 0
@@ -731,6 +796,7 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
                 model = str(raw_stage.get("M", "") or "")
                 runtime = str(raw_stage.get("R", "") or "")
                 env_root = _normalize_path(raw_stage.get("E", ""))
+                notebook_import = _notebook_import_metadata_from_stage(raw_stage)
             elif isinstance(raw_stage, str):
                 code_text = raw_stage
                 description = ""
@@ -738,23 +804,29 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
                 model = ""
                 runtime = ""
                 env_root = ""
+                notebook_import = {}
             else:
                 continue
             if not code_text:
                 continue
-            records.append(
-                {
-                    "index": global_index,
-                    "module": str(module),
-                    "module_index": module_index,
-                    "description": description,
-                    "question": question,
-                    "model": model,
-                    "runtime": runtime,
-                    "env": env_root,
-                    "code": code_text,
-                }
-            )
+            runtime_role = _normalize_notebook_runtime_role(
+                notebook_import.get("runtime_role", "")
+            ) or _runtime_role_from_engine(runtime)
+            record = {
+                "index": global_index,
+                "module": str(module),
+                "module_index": module_index,
+                "description": description,
+                "question": question,
+                "model": model,
+                "runtime": runtime,
+                "runtime_role": runtime_role,
+                "env": env_root,
+                "code": code_text,
+            }
+            if notebook_import:
+                record["notebook_import"] = notebook_import
+            records.append(record)
             global_index += 1
     return records
 
@@ -844,20 +916,24 @@ def _stage_cell_manifest_records(notebook_data: Mapping[str, Any]) -> list[dict[
         stage_cell = agilab_metadata.get("stage_cell", {})
         if not isinstance(stage_cell, Mapping) or not stage_cell:
             continue
-        records.append(
-            {
-                "cell_index": index,
-                "cell_id": str(cell.get("id", "") or ""),
-                "kind": str(stage_cell.get("kind", "") or ""),
-                "stage_index": stage_cell.get("stage_index"),
-                "stage_id": str(stage_cell.get("stage_id", "") or ""),
-                "module": str(stage_cell.get("module", "") or ""),
-                "module_index": stage_cell.get("module_index"),
-                "runtime": str(stage_cell.get("runtime", "") or ""),
-                "runtime_role": str(stage_cell.get("runtime_role", "") or agilab_metadata.get("runtime_role", "") or ""),
-                "env": str(stage_cell.get("env", "") or ""),
-            }
-        )
+        record = {
+            "cell_index": index,
+            "cell_id": str(cell.get("id", "") or ""),
+            "kind": str(stage_cell.get("kind", "") or ""),
+            "stage_index": stage_cell.get("stage_index"),
+            "stage_id": str(stage_cell.get("stage_id", "") or ""),
+            "module": str(stage_cell.get("module", "") or ""),
+            "module_index": stage_cell.get("module_index"),
+            "runtime": str(stage_cell.get("runtime", "") or ""),
+            "runtime_role": str(
+                stage_cell.get("runtime_role", "") or agilab_metadata.get("runtime_role", "") or ""
+            ),
+            "env": str(stage_cell.get("env", "") or ""),
+        }
+        notebook_import = stage_cell.get("notebook_import", {})
+        if isinstance(notebook_import, Mapping) and notebook_import:
+            record["notebook_import"] = dict(notebook_import)
+        records.append(record)
     return records
 
 
@@ -900,18 +976,20 @@ def _stage_source_hashes(metadata: Mapping[str, Any]) -> list[dict[str, Any]]:
     for offset, stage in enumerate(stage for stage in stages if isinstance(stage, Mapping)):
         stage_index = int(stage.get("index", offset) or 0)
         source = str(stage.get("code", "") or "")
-        records.append(
-            {
-                "stage_index": stage_index,
-                "stage_id": f"supervisor-stage-{stage_index + 1}",
-                "module": str(stage.get("module", "") or ""),
-                "module_index": stage.get("module_index"),
-                "source_sha256": _sha256_text(source),
-                "source_hash": _sha256_text(source)[:16],
-                "runtime": str(stage.get("runtime", "") or ""),
-                "runtime_role": _runtime_role_from_engine(stage.get("runtime", "")),
-            }
-        )
+        record = {
+            "stage_index": stage_index,
+            "stage_id": f"supervisor-stage-{stage_index + 1}",
+            "module": str(stage.get("module", "") or ""),
+            "module_index": stage.get("module_index"),
+            "source_sha256": _sha256_text(source),
+            "source_hash": _sha256_text(source)[:16],
+            "runtime": str(stage.get("runtime", "") or ""),
+            "runtime_role": _stage_runtime_role(stage),
+        }
+        notebook_import = stage.get("notebook_import", {})
+        if isinstance(notebook_import, Mapping) and notebook_import:
+            record["notebook_import"] = dict(notebook_import)
+        records.append(record)
     return records
 
 
@@ -923,21 +1001,23 @@ def _stage_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str, Any]]
     for offset, stage in enumerate(stage for stage in stages if isinstance(stage, Mapping)):
         stage_index = int(stage.get("index", offset) or 0)
         runtime = str(stage.get("runtime", "") or "")
-        records.append(
-            {
-                "stage_index": stage_index,
-                "stage_id": f"supervisor-stage-{stage_index + 1}",
-                "module": str(stage.get("module", "") or ""),
-                "module_index": stage.get("module_index"),
-                "description": str(stage.get("description", "") or ""),
-                "question": str(stage.get("question", "") or ""),
-                "model": str(stage.get("model", "") or ""),
-                "runtime": runtime,
-                "runtime_role": _runtime_role_from_engine(runtime),
-                "env": str(stage.get("env", "") or ""),
-                "source_hash": _sha256_text(str(stage.get("code", "") or ""))[:16],
-            }
-        )
+        record = {
+            "stage_index": stage_index,
+            "stage_id": f"supervisor-stage-{stage_index + 1}",
+            "module": str(stage.get("module", "") or ""),
+            "module_index": stage.get("module_index"),
+            "description": str(stage.get("description", "") or ""),
+            "question": str(stage.get("question", "") or ""),
+            "model": str(stage.get("model", "") or ""),
+            "runtime": runtime,
+            "runtime_role": _stage_runtime_role(stage),
+            "env": str(stage.get("env", "") or ""),
+            "source_hash": _sha256_text(str(stage.get("code", "") or ""))[:16],
+        }
+        notebook_import = stage.get("notebook_import", {})
+        if isinstance(notebook_import, Mapping) and notebook_import:
+            record["notebook_import"] = dict(notebook_import)
+        records.append(record)
     return records
 
 
@@ -2446,7 +2526,7 @@ def _stage_runner_cell(stage: dict[str, Any]) -> str:
 def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
     stage_index = int(stage.get("index", 0) or 0)
     runtime = str(stage.get("runtime", "") or "")
-    runtime_role = _runtime_role_from_engine(runtime)
+    runtime_role = _stage_runtime_role(stage)
     stage_cell = {
         "schema": NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA,
         "kind": kind,
@@ -2462,6 +2542,9 @@ def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
     }
     if runtime_role:
         stage_cell["runtime_role"] = runtime_role
+    notebook_import = stage.get("notebook_import", {})
+    if isinstance(notebook_import, Mapping) and notebook_import:
+        stage_cell["notebook_import"] = dict(notebook_import)
 
     agilab_payload: dict[str, Any] = {
         "schema": NOTEBOOK_EXPORT_SCHEMA,
@@ -2469,11 +2552,40 @@ def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
     }
     if runtime_role:
         agilab_payload["runtime_role"] = runtime_role
+    if isinstance(notebook_import, Mapping) and notebook_import:
+        agilab_payload["notebook_import"] = dict(notebook_import)
 
     metadata: dict[str, Any] = {"agilab": agilab_payload}
     if runtime_role:
         metadata["tags"] = [f"agilab.runtime.{runtime_role}"]
     return metadata
+
+
+def _stage_notebook_import_context_lines(stage: Mapping[str, Any]) -> list[str]:
+    notebook_import = stage.get("notebook_import", {})
+    if not isinstance(notebook_import, Mapping) or not notebook_import:
+        return []
+
+    lines = ["", "Notebook import metadata:"]
+    source_notebook = str(notebook_import.get("source_notebook", "") or "")
+    cell_id = str(notebook_import.get("cell_id", "") or "")
+    source_cell_index = notebook_import.get("source_cell_index")
+    if source_notebook:
+        lines.append(f"- Source notebook: `{source_notebook}`")
+    if cell_id or source_cell_index not in (None, ""):
+        cell_bits = []
+        if cell_id:
+            cell_bits.append(f"id `{cell_id}`")
+        if source_cell_index not in (None, ""):
+            cell_bits.append(f"index `{source_cell_index}`")
+        lines.append("- Source cell: " + ", ".join(cell_bits))
+    env_hints = _metadata_string_list(notebook_import.get("env_hints", []))
+    if env_hints:
+        lines.append("- Environment hints: " + ", ".join(f"`{hint}`" for hint in env_hints))
+    artifacts = _metadata_string_list(notebook_import.get("artifact_references", []))
+    if artifacts:
+        lines.append("- Artifact references: " + ", ".join(f"`{artifact}`" for artifact in artifacts))
+    return lines
 
 
 def _agilab_notebook_payload(
@@ -2578,6 +2690,7 @@ def build_notebook_document(
                         f"- Question: `{stage.get('question') or ''}`",
                         f"- Runtime: `{stage.get('runtime') or 'runpy'}`",
                         f"- Environment root: `{stage.get('env') or '(current kernel / controller default)'}`",
+                        *_stage_notebook_import_context_lines(stage),
                         "",
                         f"- Edit the next cell if you want to override the saved stage source.",
                         f"- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",

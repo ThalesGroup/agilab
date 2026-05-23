@@ -284,7 +284,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert dependency_policy.label == "dependency policy"
     assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
     assert "addopts=" in dependency_policy.argv
-    assert release_proof.label == "fresh source clone first-proof plus notebook import proof"
+    assert release_proof.label == "fresh source clone first-proof plus notebook import/export proof"
     assert release_proof.env["AGILAB_RUN_RELEASE_PROOF_SLOW"] == "1"
     assert release_proof.timeout_seconds == 15 * 60
     assert "-m" in release_proof.argv

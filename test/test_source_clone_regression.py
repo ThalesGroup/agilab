@@ -373,6 +373,191 @@ asyncio.run(main())
             f"payload={execute_payload!r}; log={execute_log}\n{tail}"
         )
 
+    export_code = r"""
+import json
+import os
+from pathlib import Path
+
+from agi_env import AgiEnv
+from agilab.notebook_export_support import (
+    build_notebook_export_context,
+    notebook_export_manifest_path,
+    verify_notebook_export_manifest,
+)
+from agilab.pipeline_editor import refresh_notebook_export
+
+root = Path.cwd()
+marker = "NOTEBOOK_IMPORT_EXPORT_HANDOFF_SMOKE"
+project_name = os.environ["AGILAB_NOTEBOOK_IMPORT_PROJECT"]
+apps_path = root / "src/agilab/apps"
+app_root = apps_path / project_name
+stages_file = app_root / "lab_stages.toml"
+
+app_env = AgiEnv(apps_path=apps_path, app=project_name, verbose=0)
+app_env.init_done = True
+export_context = build_notebook_export_context(
+    app_env,
+    project_name,
+    stages_file,
+    project_name=project_name,
+)
+notebook_path = refresh_notebook_export(stages_file, export_context=export_context)
+if notebook_path is None:
+    print(marker + "=" + json.dumps({"status": "fail", "phase": "refresh"}, sort_keys=True))
+    raise SystemExit(1)
+
+manifest_path = notebook_export_manifest_path(notebook_path)
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+notebook = json.loads(Path(notebook_path).read_text(encoding="utf-8"))
+verification = verify_notebook_export_manifest(notebook_path)
+stage_records = [stage for stage in manifest.get("stages", []) if isinstance(stage, dict)]
+stage_cells = [cell for cell in manifest.get("stage_cells", []) if isinstance(cell, dict)]
+source_cells = [cell for cell in stage_cells if cell.get("kind") == "source"]
+runner_cells = [cell for cell in stage_cells if cell.get("kind") == "runner"]
+stage_imports = [
+    stage.get("notebook_import", {})
+    for stage in stage_records
+    if isinstance(stage.get("notebook_import", {}), dict)
+]
+source_imports = [
+    cell.get("notebook_import", {})
+    for cell in source_cells
+    if isinstance(cell.get("notebook_import", {}), dict)
+]
+
+compile_errors = []
+for index, cell in enumerate(notebook.get("cells", [])):
+    if not isinstance(cell, dict) or cell.get("cell_type") != "code":
+        continue
+    source = cell.get("source", [])
+    source_text = source if isinstance(source, str) else "".join(str(line) for line in source)
+    try:
+        compile(source_text, f"{notebook_path}#cell-{index}", "exec")
+    except SyntaxError as exc:
+        compile_errors.append(f"cell-{index}: {exc}")
+
+artifact_references = sorted(
+    {
+        str(artifact)
+        for metadata in stage_imports
+        for artifact in metadata.get("artifact_references", [])
+        if str(artifact)
+    }
+)
+env_hints = sorted(
+    {
+        str(hint)
+        for metadata in stage_imports
+        for hint in metadata.get("env_hints", [])
+        if str(hint)
+    }
+)
+source_cell_indexes = [
+    metadata.get("source_cell_index")
+    for metadata in stage_imports
+    if metadata.get("source_cell_index") is not None
+]
+source_notebooks = sorted(
+    {
+        str(metadata.get("source_notebook"))
+        for metadata in stage_imports
+        if str(metadata.get("source_notebook", ""))
+    }
+)
+runtime_roles = [str(stage.get("runtime_role", "")) for stage in stage_records]
+mirror_path_text = str(manifest.get("mirror_path", "") or "")
+mirror_exists = bool(mirror_path_text and Path(mirror_path_text).is_file())
+handoff_path_text = str(manifest.get("handoff_path", "") or "")
+handoff_text = Path(handoff_path_text).read_text(encoding="utf-8") if handoff_path_text else ""
+
+checks = {
+    "verification_ok": bool(verification.get("ok")),
+    "stage_count": manifest.get("stage_count") == 2,
+    "source_cell_count": len(source_cells) == 2,
+    "runner_cell_count": len(runner_cells) == 2,
+    "stage_import_count": len(stage_imports) == 2,
+    "source_import_count": len(source_imports) == 2,
+    "source_cell_indexes": source_cell_indexes == [2, 4],
+    "artifact_references": {
+        "data/flights.csv",
+        "artifacts/summary.json",
+    }.issubset(set(artifact_references)),
+    "env_hints": {"pandas", "pathlib"}.issubset(set(env_hints)),
+    "runtime_roles": runtime_roles == ["manager", "manager"],
+    "source_notebook": source_notebooks == ["notebooks/source/flight_telemetry_from_notebook.ipynb"],
+    "mirror_exists": mirror_exists,
+    "handoff_has_validation": "validate_agilab_export()" in handoff_text,
+    "compile": not compile_errors,
+}
+failed_checks = sorted(name for name, ok in checks.items() if not ok)
+print(marker + "=" + json.dumps({
+    "status": "pass" if not failed_checks else "fail",
+    "project_name": project_name,
+    "notebook_path": str(notebook_path),
+    "manifest_path": str(manifest_path),
+    "handoff_path": handoff_path_text,
+    "mirror_path": mirror_path_text,
+    "manifest_schema": str(manifest.get("schema", "")),
+    "stage_count": manifest.get("stage_count"),
+    "source_cell_count": len(source_cells),
+    "runner_cell_count": len(runner_cells),
+    "source_cell_indexes": source_cell_indexes,
+    "artifact_references": artifact_references,
+    "env_hints": env_hints,
+    "runtime_roles": runtime_roles,
+    "source_notebooks": source_notebooks,
+    "verification_ok": bool(verification.get("ok")),
+    "verification_failed_checks": [
+        str(check.get("id", ""))
+        for check in verification.get("checks", [])
+        if isinstance(check, dict) and check.get("status") != "pass"
+    ],
+    "failed_checks": failed_checks,
+    "compile_errors": compile_errors,
+}, sort_keys=True))
+"""
+    export_log = clone_root / ".notebook-import-release-export-handoff.log"
+    with export_log.open("w", encoding="utf-8") as log_stream:
+        export = subprocess.run(
+            [
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "python",
+                "-c",
+                export_code,
+            ],
+            cwd=clone_root,
+            check=False,
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=execute_env,
+            timeout=4 * 60,
+        )
+    payload["export_returncode"] = export.returncode
+    export_output = export_log.read_text(encoding="utf-8", errors="replace")
+    if export.returncode:
+        tail = "\n".join(export_output.splitlines()[-100:])
+        raise AssertionError(
+            f"notebook import export handoff smoke failed with {export.returncode}; "
+            f"log={export_log}\n{tail}"
+        )
+    export_payload = _extract_marked_json(
+        export_output,
+        "NOTEBOOK_IMPORT_EXPORT_HANDOFF_SMOKE",
+    )
+    payload["export_handoff"] = export_payload
+    if export_payload.get("status") != "pass":
+        tail = "\n".join(export_output.splitlines()[-100:])
+        raise AssertionError(
+            "notebook import export handoff smoke did not pass; "
+            f"payload={export_payload!r}; log={export_log}\n{tail}"
+        )
+
     return payload
 
 
@@ -453,6 +638,7 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
     assert notebook_payload["stage_count"] == 2
     assert notebook_payload["install_returncode"] == 0
     assert notebook_payload["execute_returncode"] == 0
+    assert notebook_payload["export_returncode"] == 0
     assert notebook_payload["contract_schema"] == "agilab.notebook_import_contract.v1"
     assert notebook_payload["contract_stage_count"] == 2
     assert notebook_payload["runtime_roles"] == ["manager", "manager"]
@@ -468,3 +654,23 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
         output_file.endswith((".parquet", ".csv", ".json"))
         for output_file in execute_analysis["output_files"]
     )
+    export_handoff = notebook_payload["export_handoff"]
+    assert export_handoff["status"] == "pass"
+    assert export_handoff["project_name"] == "flight_telemetry_from_notebook_project"
+    assert export_handoff["manifest_schema"] == "agilab.notebook_export_manifest.v1"
+    assert export_handoff["stage_count"] == 2
+    assert export_handoff["source_cell_count"] == 2
+    assert export_handoff["runner_cell_count"] == 2
+    assert export_handoff["source_cell_indexes"] == [2, 4]
+    assert export_handoff["runtime_roles"] == ["manager", "manager"]
+    assert export_handoff["source_notebooks"] == [
+        "notebooks/source/flight_telemetry_from_notebook.ipynb"
+    ]
+    assert {"data/flights.csv", "artifacts/summary.json"}.issubset(
+        set(export_handoff["artifact_references"])
+    )
+    assert {"pandas", "pathlib"}.issubset(set(export_handoff["env_hints"]))
+    assert export_handoff["verification_ok"] is True
+    assert export_handoff["verification_failed_checks"] == []
+    assert export_handoff["failed_checks"] == []
+    assert export_handoff["compile_errors"] == []
