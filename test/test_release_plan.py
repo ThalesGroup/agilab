@@ -176,16 +176,25 @@ publish-library-packages:
     assert "library package matrix must not be hard-coded in the workflow" in missing
 
 
-def test_release_plan_workflow_contract_rejects_warning_only_pypi_retention(tmp_path: Path) -> None:
+def test_release_plan_workflow_contract_requires_warning_capable_pypi_retention(
+    tmp_path: Path,
+) -> None:
     module = _load_module()
     workflow = tmp_path / "pypi-publish.yaml"
-    workflow.write_text("--allow-delete-failure-warning\n", encoding="utf-8")
+    workflow.write_text(
+        """
+pypi-release-retention:
+tools/pypi_release_retention.py
+""",
+        encoding="utf-8",
+    )
 
     missing = module.validate_workflow_contract(workflow)
 
     assert (
-        "PyPI release retention must fail closed in the release workflow: "
-        "forbidden '--allow-delete-failure-warning'"
+        "PyPI release retention must warn when PyPI web deletion is "
+        "operationally blocked after provenance passes: "
+        "missing '--allow-delete-failure-warning'"
     ) in missing
 
 

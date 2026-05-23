@@ -234,9 +234,10 @@ Python and GitHub Actions manifests, release workflows publish per-profile
 `tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
 locally. PyPI publication uses Trusted Publishing/OIDC and the release workflow
 runs `tools/pypi_provenance_check.py` after upload so missing PyPI attestations
-fail before GitHub release assets are published. The workflow then prunes older
-PyPI releases for each selected project so the current release version is the
-only retained public PyPI release before GitHub release assets are published.
+fail before GitHub release assets are published. The workflow then attempts to
+prune older PyPI releases for each selected project; missing current versions
+remain a hard failure, while PyPI web-login cleanup blockage is recorded as a
+warning so release assets can still be published after provenance succeeds.
 After release assets are published, the same workflow syncs the public Hugging
 Face Space, runs the hosted smoke test, and records the resulting Space commit
 in release proof.
