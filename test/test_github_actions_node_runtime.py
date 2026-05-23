@@ -8,6 +8,8 @@ WORKFLOW_GLOBS = ("*.yml", "*.yaml")
 WORKFLOW_DIR = Path(".github/workflows")
 
 NODE24_COMPATIBLE_ACTIONS = {
+    "actions/cache/restore": {"v5"},
+    "actions/cache/save": {"v5"},
     "actions/checkout": {"v5", "v6"},
     "actions/setup-python": {"v6"},
     "actions/upload-artifact": {"v6", "v7"},
@@ -30,7 +32,7 @@ def _workflow_files() -> list[Path]:
 
 def test_github_actions_use_node24_compatible_major_versions() -> None:
     failures: list[str] = []
-    uses_pattern = re.compile(r"uses:\s+([\w.-]+/[\w.-]+)@([^\s#]+)")
+    uses_pattern = re.compile(r"uses:\s+([\w.-]+/[\w.-]+(?:/[\w.-]+)*)@([^\s#]+)")
     pinned_sha_pattern = re.compile(r"^[0-9a-f]{40}$")
 
     for workflow in _workflow_files():
