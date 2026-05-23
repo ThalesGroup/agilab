@@ -1,11 +1,11 @@
 [project]
 name = "pytorch_playground_worker"
-version = "2026.05.22"
+version = "2026.05.23"
 description = "Worker package for the AGILAB PyTorch playground app"
 requires-python = ">=3.12"
 dependencies = [
-    "agi-env>=2026.05.22",
-    "agi-node>=2026.05.22",
+    "agi-env>=2026.05.23",
+    "agi-node>=2026.05.23",
     "numpy>=2.2",
     "pandas>=2.3.0",
     "pydantic",

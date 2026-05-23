@@ -48,7 +48,7 @@ publication, or evidence refreshes on an already published date version.
 
 ## [2026.05.23] - 2026-05-23
 
-GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23-1
 
 ### Changed
 
@@ -691,4 +691,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.18]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.18
 [2026.05.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20
 [2026.05.22]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.22-3
-[2026.05.23]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23
+[2026.05.23]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23-1
