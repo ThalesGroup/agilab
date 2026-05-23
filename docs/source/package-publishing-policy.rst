@@ -86,6 +86,9 @@ package artifacts. Each package carries one project payload and exposes it
 through the ``agilab.apps`` entry point group so ``agi-env`` can resolve
 installed apps without the monorepo checkout once that package is installed:
 
+For a user-facing map from PROJECT names to package names, PyPI status, and
+recommended use cases, see :doc:`public-app-catalog`.
+
 - ``agi-app-mission-decision``
 - ``agi-app-pandas-execution``
 - ``agi-app-polars-execution``
