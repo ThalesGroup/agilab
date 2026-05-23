@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 import tomllib
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 
@@ -53,7 +55,10 @@ PACKAGED_FORM_PAIRS = (
 )
 
 
-class _MycodeEnv(SimpleNamespace):
+class _BuiltinFormEnv(SimpleNamespace):
+    def share_root_path(self):
+        return self.share_root
+
     def resolve_share_path(self, value):
         path = Path(value)
         if path.is_absolute():
@@ -70,6 +75,27 @@ def _app_args_forms() -> list[Path]:
     for pattern in APP_ARGS_FORM_PATTERNS:
         paths.update(APP_ARGS_FORM_ROOT.glob(pattern))
     return sorted(paths)
+
+
+def _builtin_app_args_forms() -> list[Path]:
+    return sorted(Path("src/agilab/apps/builtin").glob("*_project/src/app_args_form.py"))
+
+
+def _app_name_from_form(form_path: Path) -> str:
+    return form_path.parent.parent.name
+
+
+def _seed_settings_for_form(form_path: Path, tmp_path: Path) -> Path:
+    app_name = _app_name_from_form(form_path)
+    settings_root = tmp_path / app_name
+    settings_root.mkdir(parents=True, exist_ok=True)
+    settings_file = settings_root / "app_settings.toml"
+    source_settings = form_path.parent / "app_settings.toml"
+    if source_settings.is_file():
+        shutil.copyfile(source_settings, settings_file)
+    else:
+        settings_file.write_text("[args]\n", encoding="utf-8")
+    return settings_file
 
 
 def test_all_app_args_form_files_are_non_empty() -> None:
@@ -99,12 +125,43 @@ def test_packaged_app_args_forms_match_builtin_sources() -> None:
         assert source_path.read_text(encoding="utf-8") == packaged_path.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize(
+    "form_path",
+    _builtin_app_args_forms(),
+    ids=lambda path: _app_name_from_form(path),
+)
+def test_builtin_app_args_form_renders_without_streamlit_exception(
+    form_path: Path,
+    tmp_path: Path,
+) -> None:
+    app_name = _app_name_from_form(form_path)
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _BuiltinFormEnv(
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        active_app=str(form_path.parent.parent),
+        app=app_name,
+        app_settings_file=str(settings_file),
+        apps_path=str(form_path.parents[2]),
+        envars={},
+        share_root=tmp_path / "share",
+        target=app_name,
+    )
+
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+
+    at.run()
+
+    assert not at.exception
+
+
 def test_mycode_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
-    settings_root = tmp_path / "mycode_project"
-    settings_root.mkdir()
-    settings_file = settings_root / "app_settings.toml"
+    settings_file = tmp_path / "mycode_project" / "app_settings.toml"
+    settings_file.parent.mkdir()
     settings_file.write_text("[args]\n", encoding="utf-8")
-    env = _MycodeEnv(
+    env = _BuiltinFormEnv(
         app_settings_file=str(settings_file),
         share_root=tmp_path / "share",
     )
