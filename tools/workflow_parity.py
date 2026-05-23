@@ -1198,7 +1198,7 @@ def _dependency_policy_profile() -> list[CommandSpec]:
 def _release_proof_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
-            label="fresh source clone first-proof install",
+            label="fresh source clone first-proof plus notebook import proof",
             argv=[
                 "uv",
                 "--preview-features",
