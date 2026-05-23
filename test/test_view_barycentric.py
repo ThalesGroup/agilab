@@ -12,6 +12,13 @@ import pytest
 
 
 MODULE_PATH = Path("src/agilab/apps-pages/view_barycentric/src/view_barycentric/view_barycentric.py")
+FAKE_DEP_MODULES = (
+    "barviz",
+    "scipy",
+    "scipy.signal",
+    "sklearn",
+    "sklearn.preprocessing",
+)
 
 BARVIZ_STUB = """
 from types import SimpleNamespace
@@ -91,6 +98,18 @@ class _State(dict):
 
     def __setattr__(self, item, value):
         self[item] = value
+
+
+@pytest.fixture(autouse=True)
+def _restore_page_dependency_modules():
+    sentinel = object()
+    original_modules = {name: sys.modules.get(name, sentinel) for name in FAKE_DEP_MODULES}
+    yield
+    for name, original in original_modules.items():
+        if original is sentinel:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = original
 
 
 def _load_module():
