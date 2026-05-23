@@ -84,6 +84,8 @@ Advanced scenarios such as `mission_decision_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
+For the full project/package/status matrix, see the
+[Public App Catalog](https://thalesgroup.github.io/agilab/public-app-catalog.html).
 
 If startup fails, run a progressive fallback:
 
