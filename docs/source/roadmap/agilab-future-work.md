@@ -79,6 +79,9 @@ Concrete items:
   policy, and trusted-publisher contract
 - keep the imported-notebook release smoke in the mandatory release-proof
   profile, not as a separate best-effort demo path
+- keep the exported-notebook handoff smoke in the same release-proof lane so
+  the no-lock-in claim is guarded by manifest, source-cell, runtime-role, and
+  artifact-reference checks
 - require each shipped notebook sample to keep creating an installable and
   runnable app equivalent to its packaged example
 - keep PyPI, GitHub release proof, public docs, and Hugging Face demo text
