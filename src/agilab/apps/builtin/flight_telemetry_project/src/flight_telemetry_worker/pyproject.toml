@@ -1,10 +1,10 @@
 [project]
 name = "flight_telemetry_project"
-version = "2026.05.22"
+version = "2026.05.23"
 description = ""
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
-dependencies = ["agi-env>=2026.05.22", "agi-node>=2026.05.22", "polars", "pydantic"]
+dependencies = ["agi-env>=2026.05.23", "agi-node>=2026.05.23", "polars", "pydantic"]
 
 [[project.authors]]
 name = "Jean-Pierre Morard"
