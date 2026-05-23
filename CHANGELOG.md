@@ -46,6 +46,19 @@ publication, or evidence refreshes on an already published date version.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
 
+## [2026.05.23] - 2026-05-23
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23
+
+### Changed
+
+- Published AGILAB `2026.05.23` to PyPI for the current public package set.
+- Preserved notebook-import provenance in exported notebook handoffs so the
+  no-lock-in path keeps source notebook, source cell, runtime-role, environment
+  hint, and artifact-reference metadata.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.05.22] - 2026-05-22
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.22-3
@@ -678,3 +691,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.18]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.18
 [2026.05.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.20
 [2026.05.22]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.22-3
+[2026.05.23]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.23
