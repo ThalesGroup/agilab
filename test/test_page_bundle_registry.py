@@ -17,6 +17,7 @@ import agilab as _agilab_package
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
+import agilab.page_bundle_registry as page_registry
 from agilab.page_bundle_registry import (
     PAGE_BUNDLE_SCHEMA,
     PAGE_TEMPLATE_SCHEMA,
@@ -377,6 +378,25 @@ def test_discover_page_templates_reuses_cache_until_directory_signature_changes(
     clear_page_bundle_discovery_cache()
 
 
+def test_discover_page_templates_cache_can_be_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_page_bundle_discovery_cache()
+    monkeypatch.setenv("AGILAB_DISABLE_UI_DISCOVERY_CACHE", "1")
+    template_root = tmp_path / "analysis_page_template"
+    template_root.mkdir()
+    (template_root / "pyproject.toml").write_text("[project]\nname='analysis'\n", encoding="utf-8")
+    _write_contract(template_root)
+
+    first = discover_page_templates(tmp_path)
+    second = discover_page_templates(tmp_path)
+
+    assert second is not first
+    assert first.names() == ("analysis_page_template",)
+    clear_page_bundle_discovery_cache()
+
+
 def test_template_contract_helpers_handle_missing_and_malformed_optional_fields(tmp_path: Path) -> None:
     assert load_optional_template_contract(tmp_path) == (None, None)
 
@@ -424,6 +444,116 @@ def test_configured_page_bundle_names_reads_default_and_view_module() -> None:
 
     assert configured_page_bundle_names(settings) == ("view_default", "view_extra")
     assert configured_page_bundle_names({}) == ()
+    assert configured_page_bundle_names({"pages": {"default_view": " ", "view_module": ("view_tuple",)}}) == ()
+
+
+def test_resolve_page_bundles_uses_direct_discovery_fallback(tmp_path: Path, monkeypatch) -> None:
+    script = tmp_path / "view_dynamic.py"
+    script.write_text("def main(): pass\n", encoding="utf-8")
+    dynamic = PageBundleSpec("view_dynamic", tmp_path, script)
+
+    monkeypatch.setattr(page_registry, "discover_page_bundles", lambda *_args, **_kwargs: PageBundleRegistry())
+    monkeypatch.setattr(page_registry, "discover_page_bundle", lambda *_args, **_kwargs: dynamic)
+
+    assert resolve_page_bundles(("view_dynamic",), pages_root=tmp_path) == (dynamic,)
+
+
+def test_page_bundle_cache_keys_cover_error_and_signature_edges(tmp_path: Path, monkeypatch) -> None:
+    clear_page_bundle_discovery_cache()
+    pages_root = tmp_path / "pages"
+    pages_root.mkdir()
+    hidden = pages_root / ".hidden.py"
+    hidden.write_text("def main(): pass\n", encoding="utf-8")
+    direct = pages_root / "view_direct.py"
+    direct.write_text("def main(): pass\n", encoding="utf-8")
+    bundle_root = pages_root / "view_bundle"
+    view_dir = bundle_root / "src" / "custom"
+    view_dir.mkdir(parents=True)
+    view_file = view_dir / "view_custom.py"
+    view_file.write_text("def main(): pass\n", encoding="utf-8")
+    src_note = bundle_root / "src" / "notes.txt"
+    src_note.write_text("not a package\n", encoding="utf-8")
+    root_note = pages_root / "README.txt"
+    root_note.write_text("not a page\n", encoding="utf-8")
+    template_root = tmp_path / "templates"
+    template_root.mkdir()
+    template = template_root / "analysis_page_template"
+    template.mkdir()
+    _write_contract(template)
+
+    bundle_key = page_registry._page_bundle_discovery_cache_key(
+        pages_root,
+        require_pyproject=False,
+        require_contract=False,
+    )
+    template_key = page_registry._page_template_discovery_cache_key(
+        template_root,
+        require_pyproject=False,
+        require_contract=False,
+    )
+
+    assert any(signature[0] == "view_direct.py" for signature in bundle_key[3])
+    assert any(signature[0].endswith("view_custom.py") for signature in bundle_key[3])
+    assert any(signature[0].endswith("notes.txt") for signature in bundle_key[3])
+    assert any(signature[0].startswith("analysis_page_template/") for signature in template_key[3])
+
+    original_iterdir = Path.iterdir
+    original_glob = Path.glob
+    original_stat_signature = page_registry._stat_signature
+
+    def fail_iterdir_for_selected(path: Path):
+        if path in {pages_root, template_root, bundle_root / "src"}:
+            raise OSError("cannot scan")
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", fail_iterdir_for_selected)
+
+    assert page_registry._page_bundle_dir_signature(bundle_root)
+    assert page_registry._page_bundle_discovery_cache_key(
+        pages_root,
+        require_pyproject=False,
+        require_contract=False,
+    )[3]
+    assert page_registry._page_template_discovery_cache_key(
+        template_root,
+        require_pyproject=False,
+        require_contract=False,
+    )[3]
+
+    monkeypatch.setattr(Path, "iterdir", original_iterdir)
+
+    def fail_glob_for_view_dir(path: Path, pattern: str):
+        if path == view_dir:
+            raise OSError("cannot glob")
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(Path, "glob", fail_glob_for_view_dir)
+    assert page_registry._page_bundle_dir_signature(bundle_root)
+    monkeypatch.setattr(Path, "glob", original_glob)
+
+    missing_signature_paths = {pages_root, template_root, direct, view_dir, view_file, src_note}
+
+    def missing_signature_for_selected(path: Path, *, label: str | None = None):
+        if path in missing_signature_paths:
+            return None
+        return original_stat_signature(path, label=label)
+
+    monkeypatch.setattr(page_registry, "_stat_signature", missing_signature_for_selected)
+
+    no_signature_bundle_key = page_registry._page_bundle_discovery_cache_key(
+        pages_root,
+        require_pyproject=False,
+        require_contract=False,
+    )
+    no_signature_template_key = page_registry._page_template_discovery_cache_key(
+        template_root,
+        require_pyproject=False,
+        require_contract=False,
+    )
+
+    assert not any(signature[0] == "view_direct.py" for signature in no_signature_bundle_key[3])
+    assert not any(signature[0].endswith("view_custom.py") for signature in no_signature_bundle_key[3])
+    assert not any(signature[0] == "." for signature in no_signature_template_key[3])
 
 
 @pytest.mark.parametrize("provider_name", sorted(PAGE_PROVIDER_PATHS))
@@ -492,8 +622,12 @@ def test_page_provider_iter_bundles_deduplicates_source_and_installed_bundles(
     provider = _load_page_provider(provider_name)
     pages_root = tmp_path / "apps-pages"
     pages_root.mkdir()
+    (pages_root / "__init__.py").write_text("", encoding="utf-8")
+    (pages_root / ".hidden.py").write_text("def main(): pass\n", encoding="utf-8")
     top_level = pages_root / "view_top.py"
     top_level.write_text("def main(): pass\n", encoding="utf-8")
+    duplicate_source_dir = pages_root / "view_top"
+    duplicate_source_dir.mkdir()
     packaged_script = _write_bundle(pages_root, "view_packaged")
     installed_root = tmp_path / "site-packages" / "view_installed"
     installed_root.mkdir(parents=True)
@@ -616,6 +750,119 @@ def test_page_provider_handles_broken_entry_points_and_mapping_api(
 
 
 @pytest.mark.parametrize("provider_name", sorted(PAGE_PROVIDER_PATHS))
+def test_page_provider_installed_resolution_covers_edge_fallbacks(
+    provider_name: str,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    provider = _load_page_provider(provider_name)
+    valid_root = tmp_path / "site-packages" / "view_valid"
+    valid_root.mkdir(parents=True)
+    valid_script = valid_root / "view_valid.py"
+    valid_script.write_text("def main(): pass\n", encoding="utf-8")
+    no_script_root = tmp_path / "site-packages" / "view_no_script"
+    no_script_root.mkdir(parents=True)
+    invalid_location = tmp_path / "site-packages" / "view_invalid_location"
+
+    class FakeEntryPoint:
+        def __init__(self, name: str, root: Path):
+            self.name = name
+            self._root = root
+
+        def load(self):
+            return lambda: self._root
+
+    class FakeEntryPoints(tuple):
+        def select(self, *, group: str):
+            if group == provider.PAGE_BUNDLE_ENTRYPOINT_GROUP:
+                return self
+            return ()
+
+    monkeypatch.setattr(
+        provider.importlib.metadata,
+        "entry_points",
+        lambda: FakeEntryPoints(
+            (
+                FakeEntryPoint("ignored", valid_root),
+                FakeEntryPoint("view_no_script", no_script_root),
+                FakeEntryPoint("view_valid", valid_root),
+                FakeEntryPoint("view_valid", valid_root),
+            )
+        ),
+    )
+    monkeypatch.setattr(provider, "PUBLIC_PAGE_MODULES", ())
+
+    assert provider.resolve_bundle("view_valid", pages_root=tmp_path / "stale").script_path == valid_script.resolve()
+    assert provider.resolve_bundle("view_no_script", pages_root=tmp_path / "stale") is None
+    assert tuple(bundle.name for bundle in provider._iter_installed_bundles()) == ("view_valid",)
+    assert provider._bundle_from_installed_module("") is None
+
+    def fake_find_spec(name: str):
+        if name == "view_valid":
+            return SimpleNamespace(submodule_search_locations=[str(invalid_location), str(valid_root)])
+        if name == "view_no_script":
+            return SimpleNamespace(submodule_search_locations=[str(no_script_root)])
+        if name == "raise":
+            raise ValueError("bad module")
+        return None
+
+    monkeypatch.setattr(provider.importlib.metadata, "entry_points", lambda: FakeEntryPoints(()))
+    monkeypatch.setattr(provider.importlib.util, "find_spec", fake_find_spec)
+
+    assert provider._bundle_from_installed_module("raise") is None
+    assert provider._bundle_from_installed_module("view_no_script") is None
+    assert provider._bundle_from_installed_module("view_valid").script_path == valid_script.resolve()
+
+
+@pytest.mark.parametrize("provider_name", sorted(PAGE_PROVIDER_PATHS))
+def test_page_provider_public_modules_and_root_error_branches(
+    provider_name: str,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    provider = _load_page_provider(provider_name)
+    public_root = tmp_path / "site-packages" / "view_public"
+    public_root.mkdir(parents=True)
+    public_script = public_root / "view_public.py"
+    public_script.write_text("def main(): pass\n", encoding="utf-8")
+
+    monkeypatch.setattr(provider.importlib.metadata, "entry_points", lambda: ())
+    monkeypatch.setattr(provider, "PUBLIC_PAGE_MODULES", ("view_public",))
+    monkeypatch.setattr(
+        provider.importlib.util,
+        "find_spec",
+        lambda name: SimpleNamespace(submodule_search_locations=[str(public_root)])
+        if name == "view_public"
+        else None,
+    )
+
+    bundles = provider._iter_installed_bundles()
+
+    assert tuple(bundle.name for bundle in bundles) == ("view_public",)
+    assert bundles[0].script_path == public_script.resolve()
+
+    class BrokenRoot:
+        def exists(self):
+            return True
+
+        def is_dir(self):
+            return True
+
+        def glob(self, _pattern: str):
+            return ()
+
+        def iterdir(self):
+            raise OSError("cannot scan")
+
+    class BrokenScript:
+        def resolve(self, *, strict: bool = False):
+            raise OSError("cannot resolve")
+
+    assert provider._has_bundle_payload(BrokenRoot()) is False
+    assert provider._inline_renderer_target(BrokenScript()) == ""
+
+
+@pytest.mark.parametrize("provider_name", sorted(PAGE_PROVIDER_PATHS))
 def test_page_provider_root_helpers_cover_payload_and_checkout_fallbacks(
     provider_name: str,
     tmp_path: Path,
@@ -631,12 +878,16 @@ def test_page_provider_root_helpers_cover_payload_and_checkout_fallbacks(
     (empty_root / "__init__.py").write_text("", encoding="utf-8")
     directory_payload = tmp_path / "directory-payload"
     _write_bundle(directory_payload, "view_directory")
+    (directory_payload / "empty").mkdir()
 
     assert provider._has_bundle_payload(tmp_path / "missing") is False
     assert provider._has_bundle_payload(empty_root) is False
     assert provider._has_bundle_payload(fallback_root) is True
     assert provider._has_bundle_payload(directory_payload) is True
     assert provider._source_checkout_bundle_roots(package_root)
+
+    monkeypatch.setattr(provider, "_has_bundle_payload", lambda root: root == package_root)
+    assert provider.bundles_root() == package_root
 
     monkeypatch.setattr(provider, "_has_bundle_payload", lambda root: root == fallback_root)
     monkeypatch.setattr(provider, "_source_checkout_bundle_roots", lambda root: (tmp_path / "missing", fallback_root))

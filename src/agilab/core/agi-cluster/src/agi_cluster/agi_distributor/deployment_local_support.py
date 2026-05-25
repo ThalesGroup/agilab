@@ -8,6 +8,7 @@ import re
 import shutil
 import stat
 import subprocess
+import time
 from dataclasses import dataclass
 from shlex import quote
 from importlib.metadata import (
@@ -36,7 +37,9 @@ SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
 REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
 DISABLE_DEPLOY_STAGE_CACHE_ENV = "AGILAB_DISABLE_DEPLOY_STAGE_CACHE"
+PERF_TRACE_ENV = "AGILAB_PERF_TRACE"
 DEPLOY_STAGE_CACHE_SCHEMA = "agilab-deploy-stage-cache-v1"
+DEPLOY_TIMING_TRACE_SCHEMA = "agilab-deploy-timing-v1"
 DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
 DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
@@ -329,6 +332,37 @@ def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
         return
 
 
+def _deploy_timing_trace_path(wenv_abs: Path) -> Path:
+    return wenv_abs / ".agilab-deploy-timing.json"
+
+
+def _write_deploy_timing_trace(
+    path: Path,
+    *,
+    stages: list[dict[str, Any]],
+    results: dict[str, str],
+    app_path: Path,
+    worker_project: Path,
+) -> None:
+    payload = {
+        "schema": DEPLOY_TIMING_TRACE_SCHEMA,
+        "app_path": _deploy_path_key(app_path),
+        "worker_project": _deploy_path_key(worker_project),
+        "stages": stages,
+        "results": results,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.tmp")
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        return
+
+
 def _deploy_path_key(path: Path) -> str:
     try:
         return path.expanduser().resolve(strict=False).as_posix()
@@ -579,14 +613,26 @@ class _DeployPlan:
         cache_state: dict[str, Any],
         cache_path: Path,
         log: logging.Logger | Any,
+        time_fn: Callable[[], float] = time.perf_counter,
     ) -> None:
         self._run_fn = run_fn
         self._cache_enabled = cache_enabled
         self._cache_state = cache_state
         self._cache_path = cache_path
         self._log = log
+        self._time_fn = time_fn
         self._completed: set[str] = set()
         self.results: dict[str, str] = {}
+        self.timings: list[dict[str, Any]] = []
+
+    def record_timing(self, stage: str, result: str, seconds: float) -> None:
+        self.timings.append(
+            {
+                "stage": stage,
+                "result": result,
+                "seconds": round(float(seconds), 6),
+            }
+        )
 
     async def run(self, node: _DeployPlanNode) -> str:
         missing = [
@@ -599,22 +645,27 @@ class _DeployPlan:
                 f"Deploy plan stage {node.name!r} is missing dependencies: {', '.join(missing)}"
             )
 
-        ran = await _run_cached_deploy_stage(
-            stage_name=node.name,
-            cmd=node.cmd,
-            cwd=node.cwd,
-            run_fn=self._run_fn,
-            cache_enabled=self._cache_enabled,
-            cache_state=self._cache_state,
-            cache_path=self._cache_path,
-            inputs=node.inputs,
-            output_probe=node.output_probe,
-            log=self._log,
-        )
-        result = "ran" if ran else "skipped"
-        self.results[node.name] = result
-        self._completed.add(node.name)
-        return result
+        result = "failed"
+        started_at = self._time_fn()
+        try:
+            ran = await _run_cached_deploy_stage(
+                stage_name=node.name,
+                cmd=node.cmd,
+                cwd=node.cwd,
+                run_fn=self._run_fn,
+                cache_enabled=self._cache_enabled,
+                cache_state=self._cache_state,
+                cache_path=self._cache_path,
+                inputs=node.inputs,
+                output_probe=node.output_probe,
+                log=self._log,
+            )
+            result = "ran" if ran else "skipped"
+            self.results[node.name] = result
+            self._completed.add(node.name)
+            return result
+        finally:
+            self.record_timing(node.name, result, self._time_fn() - started_at)
 
 
 def _file_fingerprint(path: Path) -> dict[str, Any]:
@@ -1866,7 +1917,13 @@ async def deploy_local_worker(
             install_cache_enabled=stage_cache_enabled,
         )
 
+    started_at = time.perf_counter()
     await agi_cls._build_lib_local()
+    deploy_plan.record_timing(
+        "worker-build-lib",
+        "ran",
+        time.perf_counter() - started_at,
+    )
 
     uv_worker = cmd_prefix + env.uv_worker
     pyvers_worker = env.pyvers_worker
@@ -2294,6 +2351,7 @@ async def deploy_local_worker(
         f'"{env.active_app}"'
     )
 
+    started_at = time.perf_counter()
     if env.user and env.user != getpass.getuser():
         try:
             await agi_cls.exec_ssh("127.0.0.1", post_install_cmd)
@@ -2305,6 +2363,11 @@ async def deploy_local_worker(
             await run_fn(post_install_cmd, wenv_abs)
     else:
         await run_fn(post_install_cmd, wenv_abs)
+    deploy_plan.record_timing(
+        "worker-post-install",
+        "ran",
+        time.perf_counter() - started_at,
+    )
 
     await agi_cls._uninstall_modules()
     agi_cls._install_done_local = True
@@ -2317,4 +2380,20 @@ async def deploy_local_worker(
             log.error("Missing cli.py for local worker: %s", exc)
             raise
     cmd = f'{uv_worker} run --no-sync --project "{wenv_abs}" python "{cli}" threaded'
+    started_at = time.perf_counter()
     await run_fn(cmd, wenv_abs)
+    deploy_plan.record_timing(
+        "worker-cli-threaded",
+        "ran",
+        time.perf_counter() - started_at,
+    )
+    agi_cls._deploy_stage_results = dict(deploy_plan.results)
+    agi_cls._deploy_stage_timings = list(deploy_plan.timings)
+    if _env_truthy(getattr(env, "envars", {}), PERF_TRACE_ENV):
+        _write_deploy_timing_trace(
+            _deploy_timing_trace_path(wenv_abs),
+            stages=deploy_plan.timings,
+            results=deploy_plan.results,
+            app_path=app_path,
+            worker_project=worker_venv_project,
+        )
