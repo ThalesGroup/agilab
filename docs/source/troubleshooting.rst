@@ -240,18 +240,30 @@ Run this from the second Mac:
      sudo umount "$HOME/clustershare" || true
      sudo umount "$HOME/clustershare" || true
 
-Known Bugs
-==========
+Known Limitations And Deprecations
+==================================
 
-<install.sh> do not install your Run/Debug Configurations :
------------------------------------------------------------
-If your worker failed to install its <home>/wenv/<app>_worker/.venv pycharm/setup_pycharm will not generate your script
-in that case you can run the pycharm configuration ``app install (local)`` that will prompt for your app path to debug
-your app installation and when it is fix run ``uv run python pycharm/setup_pycharm.py``
+This section is for known limitations, deprecation-sensitive behavior, and
+workarounds that still matter to operators. Each entry should explain the user
+impact, the current workaround, and the expected migration or removal target.
 
-<install.sh> freeze:
---------------------
-When you run install.sh it may looks like it is freezed at some point.
+<install.sh> does not generate Run/Debug configurations after worker install failure
+------------------------------------------------------------------------------------
+If a worker install fails before ``<home>/wenv/<app>_worker/.venv`` is created,
+``pycharm/setup_pycharm.py`` cannot generate the matching run configuration.
+Run the PyCharm configuration ``app install (local)`` for the affected app path
+to debug the installation, fix the app, then run:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
+
+Migration target: keep this as a documented recovery path until the installer can
+emit a single actionable remediation command for failed worker environments.
+
+<install.sh> appears frozen while building heavy dependencies
+-------------------------------------------------------------
+When you run ``install.sh`` it may appear frozen at some point.
 
 .. code-block:: none
 
@@ -262,17 +274,24 @@ When you run install.sh it may looks like it is freezed at some point.
    Resolved xxx packages in xxms
    Building agi-cluster @ file:///path/to/checkout/src/agilab/core/agi-cluster
 
-The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from
-  source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
-  3.12 they can fall back to a full compile that takes many minutes before any log progress appears.
-Unfortunatly when NumPy/Numba falls back to compiling from source you won’t see messages until the compiler finishes, so it
-  looks like the run “hung”.
+The sync keeps waiting because ``uv`` still has to build heavy dependencies
+from source. Wheels for packages such as ``numba``/``llvmlite`` are only
+pre-built for selected Python versions; unsupported versions can fall back to a
+full compile that takes many minutes before any log progress appears.
+
+Migration target: prefer Python versions with published wheels in public
+installer docs, and keep dependency-policy checks focused on avoiding accidental
+heavy dependencies in base packages.
 
 <UV> VIRTUAL_ENV Warning
 ------------------------
 
-while running uv into a project from another one:
+While running ``uv`` inside a project from another one:
+
+.. code-block:: none
+
 warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/builtin/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+
 This is an informational ``uv`` warning, but AGILAB-managed PyCharm configs and run
 wrappers clear ``VIRTUAL_ENV`` before invoking ``uv`` so normal launches should not print
 it. If it appears, you are probably running ``uv`` directly from an activated shell. Use
@@ -280,8 +299,11 @@ the matching ``tools/run_configs`` wrapper or run ``unset VIRTUAL_ENV`` before t
 command. Do not add ``--active`` unless you intentionally want to reuse the currently
 activated virtual environment instead of the AGILAB project environment.
 
-<Python> Python
--------------------
+Migration target: keep launch wrappers clearing ``VIRTUAL_ENV``; do not migrate
+AGILAB launch guidance to ``uv --active``.
+
+<Python> pip resolver warning during ensurepip
+----------------------------------------------
 While installing an app, you might encounter the following error:
 
 .. code-block:: none
@@ -290,7 +312,13 @@ While installing an app, you might encounter the following error:
 
    ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
 
-In fact this is not an Error but just a warning without any consequences, you can ignore it.
+This is a warning from ``pip`` rather than an AGILAB install failure. Re-run the
+latest installer if the environment is otherwise incomplete, especially if
+``No module named pip`` appears in ``~/agi-space/.venv``.
+
+Migration target: keep the installer guarantee that ``pip`` exists inside the
+managed environment, and retire this note once install logs distinguish this
+warning from actionable failures.
 
 
 <UV> Sync Failed

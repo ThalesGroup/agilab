@@ -10,7 +10,6 @@ import math
 import os
 import re
 import traceback
-import warnings
 from datetime import datetime as dt
 from pathlib import Path
 
@@ -22,7 +21,6 @@ from flight_telemetry.flight_args import UNSUPPORTED_DATA_SOURCE_MESSAGE
 from flight_telemetry.reduction import write_reduce_artifact
 
 logger = AgiLogger.get_logger(__name__)
-warnings.filterwarnings("ignore")
 
 import polars as pl
 

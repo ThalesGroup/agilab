@@ -26,7 +26,6 @@ import socket
 import sys
 import time
 import shlex
-import warnings
 from copy import deepcopy
 from ipaddress import ip_address as is_ip
 from pathlib import Path, PurePosixPath
@@ -132,7 +131,6 @@ _node_src = _bootstrap_node_src()
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
-warnings.filterwarnings("ignore")
 _workers_default = {socket.gethostbyname("localhost"): 1}
 
 from agi_env.agi_logger import AgiLogger

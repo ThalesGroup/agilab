@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -52,6 +55,19 @@ def test_extract_requires_python_from_poetry(tmp_path, capsys):
     assert "Parsed requires-python" in capsys.readouterr().err
 
 
+def test_extract_requires_python_from_poetry_without_python_dependency(tmp_path, capsys):
+    poetry_toml = """
+    [tool.poetry.dependencies]
+    requests = "*"
+    """
+    path = write_pyproject(tmp_path, "poetry-no-python.toml", poetry_toml)
+
+    value = gspv.extract_requires_python(path)
+
+    assert value is None
+    assert "Parsed requires-python" in capsys.readouterr().err
+
+
 def test_main_collects_supported_versions(tmp_path, capsys):
     paths = [
         write_pyproject(
@@ -97,3 +113,29 @@ def test_main_reports_parse_error(tmp_path, capsys):
     captured = capsys.readouterr()
     assert captured.out.strip() == "[]"
     assert "Error parsing" in captured.err
+
+
+def test_cli_without_pyproject_paths_prints_usage(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["get_supported_python_versions.py"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+    assert excinfo.value.code == 1
+    assert "Usage: python get_supported_python_versions.py" in capsys.readouterr().err
+
+
+def test_cli_with_pyproject_path_prints_supported_versions(tmp_path, monkeypatch, capsys):
+    path = write_pyproject(
+        tmp_path,
+        "project.toml",
+        """
+        [project]
+        requires-python = ">=3.12,<3.14"
+        """,
+    )
+    monkeypatch.setattr(sys, "argv", ["get_supported_python_versions.py", str(path)])
+
+    runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+    assert json.loads(capsys.readouterr().out) == ["3.12", "3.13"]

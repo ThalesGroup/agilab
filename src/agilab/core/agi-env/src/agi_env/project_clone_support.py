@@ -9,7 +9,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
@@ -22,6 +21,12 @@ except ImportError:
 
 PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
+
+
+def _ast_to_source(tree: ast.AST) -> str:
+    ast.fix_missing_locations(tree)
+    source = ast.unparse(tree)
+    return f"{source}\n" if source else ""
 
 
 def _safe_resolve(path: Path, *, strict: bool = False) -> Path:
@@ -338,8 +343,7 @@ def clone_directory(
                 tree = ast.parse(source_text)
                 renamer = content_renamer_cls(rename_map)
                 new_tree = renamer.visit(tree)
-                ast.fix_missing_locations(new_tree)
-                output = astor.to_source(new_tree)
+                output = _ast_to_source(new_tree)
             except SyntaxError:
                 output = source_text
             output = replace_content_fn(output, rename_map)

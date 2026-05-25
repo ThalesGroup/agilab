@@ -49,9 +49,11 @@ What was proved
 - The release proof records the hosted Hugging Face Space URL and commit. Live
   public-demo availability is checked only when a public-demo-smoke run is
   pinned or supplied separately.
-- The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest
-  successful all-built-in UI robot matrix sweep, including app/page/widget
-  counts and zero detected UI failures.
+- The checked-in ``docs/source/data/ui_robot_evidence.json`` records the pinned
+  release UI robot matrix evidence, including app/page/widget counts and zero
+  detected UI failures for that run. Use ``tools/ui_robot_coverage_contract.py
+  --json`` and the local ``ui-robot-matrix`` profile to verify the current
+  checkout after apps are added or removed.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and
   aligned with the packaged examples catalog.

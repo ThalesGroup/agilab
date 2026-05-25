@@ -6,6 +6,7 @@ import pytest
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
+from agi_env.content_renamer_support import ContentRenamer
 import agi_env.project_clone_support as project_clone_support
 from agi_env.project_clone_support import (
     cleanup_rename,
@@ -14,6 +15,7 @@ from agi_env.project_clone_support import (
     copy_existing_projects,
     create_rename_map,
 )
+from agi_env.rename_gitignore_support import replace_text_content
 
 
 def test_create_rename_map_covers_core_aliases():
@@ -418,6 +420,37 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     assert (cleanup_root / "demo").exists()
     assert (cleanup_root / "demo_project").exists()
     assert (cleanup_root / "demo.txt").read_text(encoding="utf-8") == "demo text"
+
+
+def test_clone_directory_rewrites_valid_python_with_stdlib_ast_unparse(tmp_path: Path):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    dest_root = tmp_path / "dest"
+    rename_map = {"flight": "demo", "Flight": "Demo"}
+    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    (source_root / "flight.py").write_text(
+        "class Flight:\n"
+        "    def run(self):\n"
+        "        flight = 'flight'\n"
+        "        return flight\n",
+        encoding="utf-8",
+    )
+
+    clone_directory(
+        source_root,
+        dest_root,
+        rename_map,
+        spec,
+        source_root,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        content_renamer_cls=ContentRenamer,
+        replace_content_fn=replace_text_content,
+    )
+
+    cloned = (dest_root / "demo.py").read_text(encoding="utf-8")
+    assert "class Demo" in cloned
+    assert "flight" not in cloned
+    assert "demo" in cloned
 
 
 def test_clone_directory_keeps_explicit_venv_symlink_when_gitignored(tmp_path: Path):

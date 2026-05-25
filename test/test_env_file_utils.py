@@ -47,5 +47,21 @@ def test_load_env_file_map_can_ignore_commented_template_defaults(tmp_path: Path
     assert load_env_file_map(env_file, include_commented=False) == {"AGI_LOG_DIR": "log"}
 
 
+def test_load_env_file_map_ignores_assignments_without_key(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "=missing",
+                "# =commented-missing",
+                "VALID=value",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_env_file_map(env_file) == {"VALID": "value"}
+
+
 def test_load_env_file_map_returns_empty_mapping_for_missing_file(tmp_path: Path):
     assert load_env_file_map(tmp_path / "missing.env") == {}

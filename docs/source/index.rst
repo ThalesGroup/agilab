@@ -8,7 +8,8 @@ notebooks, keep reproducibility evidence, and hand off tracking evidence to
 MLflow when that integration is enabled. The notebook export is an ``agi-core``
 runtime handoff: you can continue to run the saved project and stage contract
 with only the stable core runtime, without depending on the AGILAB UI or
-distributed worker layer.
+distributed worker layer. That stable, production-grade core technology remains
+the smallest supported handoff surface.
 
 If you are new to AGILab, choose one route first:
 

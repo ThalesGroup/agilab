@@ -17,7 +17,7 @@ Classes:
     PolarsWorker: Worker class for data processing tasks.
 
 Internal Libraries:
-    os, warnings
+    os
 
 External Libraries:
     concurrent.futures.ProcessPoolExecutor
@@ -31,7 +31,6 @@ External Libraries:
 
 # Internal Libraries:
 import os
-import warnings
 
 # External Libraries:
 from concurrent.futures import ThreadPoolExecutor
@@ -43,7 +42,6 @@ from agi_node.agi_dispatcher import BaseWorker
 
 import polars as pl
 import logging
-warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
 class PolarsWorker(BaseWorker):

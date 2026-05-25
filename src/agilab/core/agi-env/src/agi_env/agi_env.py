@@ -46,7 +46,6 @@ from pathlib import Path
 import tomlkit
 from typing import Tuple
 import logging
-import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 import py7zr

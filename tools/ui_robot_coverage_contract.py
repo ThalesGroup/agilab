@@ -17,6 +17,8 @@ WIDGET_ROBOT_PATH = REPO_ROOT / "tools" / "agilab_widget_robot.py"
 MATRIX_PATH = REPO_ROOT / "tools" / "agilab_widget_robot_matrix.py"
 HF_SMOKE_PATH = REPO_ROOT / "tools" / "hf_space_smoke.py"
 WORKFLOW_PARITY_PATH = REPO_ROOT / "tools" / "workflow_parity.py"
+PUBLIC_PROOF_SCENARIOS_PATH = REPO_ROOT / "tools" / "public_proof_scenarios.py"
+DEMOS_DOC_PATH = REPO_ROOT / "docs" / "source" / "demos.rst"
 SCHEMA = "agilab.ui_robot_coverage_contract.v1"
 REQUIRED_CORE_PAGES = ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS", "SETTINGS")
 REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
@@ -41,6 +43,42 @@ REQUIRED_HF_ROBOT_SCENARIOS = {
         "actions": ("INSTALL",),
     },
 }
+REQUIRED_DEMO_DOC_SNIPPETS = (
+    "Robot/proof coverage",
+    "UI robot",
+    "Static/CLI proof",
+    "tools/ui_robot_coverage_contract.py --json",
+    "tools/public_proof_scenarios.py --compact",
+)
+REQUIRED_DEMO_UI_APPS = (
+    "flight_telemetry_project",
+    "weather_forecast_project",
+    "mission_decision_project",
+    "execution_pandas_project",
+    "execution_polars_project",
+    "uav_queue_project",
+    "uav_relay_queue_project",
+)
+REQUIRED_DEMO_UI_PAGES = (
+    "view_maps",
+    "view_forecast_analysis",
+    "view_release_decision",
+    "view_data_io_decision",
+    "view_scenario_cockpit",
+    "view_queue_resilience",
+    "view_relay_resilience",
+    "view_maps_network",
+)
+REQUIRED_DEMO_PROOF_SCENARIOS = (
+    "flight-local-first-proof",
+    "weather-forecast-hosted-proof",
+    "mlflow-tracking-proof",
+    "distributed-worker-health-proof",
+    "notebook-migration-proof",
+    "resilience-failure-injection-proof",
+    "train-then-serve-proof",
+    "service-mode-preview-proof",
+)
 
 
 @dataclass(frozen=True)
@@ -119,6 +157,7 @@ def evaluate_contract() -> dict[str, Any]:
     matrix = _load_module("agilab_widget_robot_matrix_contract", MATRIX_PATH)
     hf_smoke = _load_module("hf_space_smoke_contract", HF_SMOKE_PATH)
     workflow_parity = _load_module("workflow_parity_contract", WORKFLOW_PARITY_PATH)
+    public_proof_scenarios = _load_module("public_proof_scenarios_contract", PUBLIC_PROOF_SCENARIOS_PATH)
     issues: list[CoverageIssue] = []
     default_scenarios = list(matrix.DEFAULT_SCENARIOS.values())
     all_scenarios = list(matrix.ALL_SCENARIOS.values())
@@ -140,6 +179,7 @@ def evaluate_contract() -> dict[str, Any]:
         routes = widget_robot.configured_apps_pages_for_app(app)
         if routes:
             configured_apps_pages[app.name] = [route.name for route in routes]
+    configured_apps_page_names = sorted({name for routes in configured_apps_pages.values() for name in routes})
     configured_scenarios = [
         scenario.name
         for scenario in default_scenarios
@@ -258,6 +298,7 @@ def evaluate_contract() -> dict[str, Any]:
     hf_visual_smoke_profile_scenarios: list[str] = []
     hf_install_profile_apps: list[str] = []
     hf_install_profile_scenarios: list[str] = []
+    ui_robot_matrix_profile_apps: list[str] = []
     ui_robot_matrix_profile_scenarios: list[str] = []
     hf_visual_smoke_required_scenarios = {
         "hf-first-proof-visual-smoke",
@@ -275,11 +316,13 @@ def evaluate_contract() -> dict[str, Any]:
         if hf_install_required_scenarios.intersection(scenarios):
             hf_install_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
     for command in parity_profiles.get("ui-robot-matrix", []):
+        ui_robot_matrix_profile_apps.extend(widget_robot.parse_csv(_argv_value(command.argv, "--apps")))
         ui_robot_matrix_profile_scenarios.extend(_argv_values(command.argv, "--scenario"))
     hf_visual_smoke_profile_apps = sorted(set(hf_visual_smoke_profile_apps))
     hf_visual_smoke_profile_scenarios = sorted(set(hf_visual_smoke_profile_scenarios))
     hf_install_profile_apps = sorted(set(hf_install_profile_apps))
     hf_install_profile_scenarios = sorted(set(hf_install_profile_scenarios))
+    ui_robot_matrix_profile_apps = sorted(set(ui_robot_matrix_profile_apps))
     ui_robot_matrix_profile_scenarios = sorted(set(ui_robot_matrix_profile_scenarios))
     missing_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_visual_smoke_profile_apps))
     missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
@@ -388,6 +431,56 @@ def evaluate_contract() -> dict[str, Any]:
             )
         )
 
+    demo_doc_text = DEMOS_DOC_PATH.read_text(encoding="utf-8") if DEMOS_DOC_PATH.is_file() else ""
+    missing_demo_doc_snippets = [snippet for snippet in REQUIRED_DEMO_DOC_SNIPPETS if snippet not in demo_doc_text]
+    if missing_demo_doc_snippets:
+        issues.append(
+            CoverageIssue(
+                "public_demo_docs",
+                "demos page is missing robot/proof coverage wording: "
+                + ", ".join(missing_demo_doc_snippets),
+            )
+        )
+    missing_demo_ui_apps = sorted(set(REQUIRED_DEMO_UI_APPS) - set(built_in_apps))
+    if missing_demo_ui_apps:
+        issues.append(
+            CoverageIssue(
+                "public_demo_ui_app",
+                "documented UI demo apps are missing from built-in app discovery: "
+                + ", ".join(missing_demo_ui_apps),
+            )
+        )
+    ui_robot_matrix_covers_all_apps = "all" in ui_robot_matrix_profile_apps
+    if not ui_robot_matrix_covers_all_apps:
+        missing_robot_profile_apps = sorted(set(REQUIRED_DEMO_UI_APPS) - set(ui_robot_matrix_profile_apps))
+        if missing_robot_profile_apps:
+            issues.append(
+                CoverageIssue(
+                    "public_demo_ui_app",
+                    "ui-robot-matrix profile is missing documented demo apps: "
+                    + ", ".join(missing_robot_profile_apps),
+                )
+            )
+    missing_demo_pages = sorted(set(REQUIRED_DEMO_UI_PAGES) - set(configured_apps_page_names))
+    if missing_demo_pages:
+        issues.append(
+            CoverageIssue(
+                "public_demo_apps_page",
+                "documented demo apps-pages are not configured on any built-in app: "
+                + ", ".join(missing_demo_pages),
+            )
+        )
+    proof_scenario_ids = [str(scenario["id"]) for scenario in public_proof_scenarios.SCENARIOS]
+    missing_proof_scenarios = sorted(set(REQUIRED_DEMO_PROOF_SCENARIOS) - set(proof_scenario_ids))
+    if missing_proof_scenarios:
+        issues.append(
+            CoverageIssue(
+                "public_demo_proof",
+                "public proof scenarios are missing documented demo routes: "
+                + ", ".join(missing_proof_scenarios),
+            )
+        )
+
     return {
         "schema": SCHEMA,
         "success": not issues,
@@ -397,17 +490,30 @@ def evaluate_contract() -> dict[str, Any]:
             "built_in_apps_covered_by": "ui-robot-matrix --apps all" if default_apps_all else "",
             "core_pages": page_to_scenarios,
             "configured_apps_pages": configured_apps_pages,
+            "configured_apps_page_names": configured_apps_page_names,
             "configured_apps_pages_scenarios": configured_scenarios,
             "high_risk_actions": action_to_scenarios,
             "hf_first_proof_apps": hf_first_proof_apps,
             "hf_first_proof_pages": hf_first_proof_pages,
             "hf_install_profile_apps": hf_install_profile_apps,
             "hf_install_profile_scenarios": hf_install_profile_scenarios,
+            "ui_robot_matrix_profile_apps": ui_robot_matrix_profile_apps,
             "hf_visual_smoke_profile_apps": hf_visual_smoke_profile_apps,
             "hf_visual_smoke_profile_scenarios": hf_visual_smoke_profile_scenarios,
             "ui_robot_matrix_profile_scenarios": ui_robot_matrix_profile_scenarios,
             "hf_robot_scenarios": hf_robot_scenarios,
             "pytorch_analysis_robot": pytorch_analysis,
+            "public_demo_contract": {
+                "doc_snippets": list(REQUIRED_DEMO_DOC_SNIPPETS),
+                "ui_apps": list(REQUIRED_DEMO_UI_APPS),
+                "ui_apps_covered_by": (
+                    "ui-robot-matrix --apps all"
+                    if ui_robot_matrix_covers_all_apps
+                    else "ui-robot-matrix explicit --apps"
+                ),
+                "apps_pages": list(REQUIRED_DEMO_UI_PAGES),
+                "proof_scenarios": proof_scenario_ids,
+            },
             "default_scenarios": [scenario.name for scenario in default_scenarios],
             "opt_in_scenarios": sorted(set(matrix.OPT_IN_SCENARIOS)),
         },

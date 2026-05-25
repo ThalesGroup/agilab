@@ -32,6 +32,15 @@ That score reflects bridge-layer value: reducing friction between exploratory
 AI work and engineering-grade validation. Future score updates should be based
 on new public evidence, not stronger wording.
 
+Score movement rule
+-------------------
+
+The score can move only when public evidence changes. Raise it for reproducible
+fresh-machine proofs, broader third-party adoption, tighter supply-chain
+attestations, or stronger validated app contracts. Lower it if public demos,
+release proof, package publishing, or documented boundaries drift from the
+current code.
+
 Unique value thesis
 -------------------
 
