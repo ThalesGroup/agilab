@@ -145,6 +145,16 @@ agilab
     ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
     inside an isolated interpreter.
 
+- **PyTorch Lightning evidence bridge:**
+
+  - Use ``agilab.lightning_evidence.AgilabLightningEvidenceCallback`` inside an
+    existing Lightning ``Trainer`` to write ``lightning_evidence.json``,
+    ``metrics.jsonl``, and ``checkpoint_manifest.json`` without making Lightning
+    a base AGILAB dependency.
+  - Use ``agilab.lightning_evidence.verify_lightning_evidence()`` to check the
+    emitted files and checkpoint hashes before accepting or replaying a training
+    run.
+
 Engineering prototyping evidence
 --------------------------------
 

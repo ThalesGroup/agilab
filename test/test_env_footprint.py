@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import runpy
 import sys
 from pathlib import Path
 
@@ -120,6 +121,87 @@ def test_footprint_iterators_skip_missing_and_reserved_dirs(tmp_path: Path) -> N
 
     assert list(env_footprint._iter_venvs(tmp_path)) == [tmp_path / "project" / ".venv"]
     assert list(env_footprint._iter_build_outputs(tmp_path)) == [tmp_path / "package" / "dist"]
+
+
+def test_footprint_defensive_filesystem_branches(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "target.txt"
+    _write_file(target, b"target")
+    symlink = tmp_path / "target-link.txt"
+    try:
+        symlink.symlink_to(target)
+    except OSError:
+        symlink = target
+
+    if symlink.is_symlink():
+        monkeypatch.setattr(env_footprint.os, "readlink", lambda _path: (_ for _ in ()).throw(OSError("denied")))
+        assert env_footprint._path_entry(symlink, allocated_bytes=1, apparent_bytes=1)["symlink_target"] == "<unreadable>"
+
+    original_lstat = Path.lstat
+
+    def flaky_lstat(path: Path):
+        if path.name == "broken-lstat":
+            raise OSError("denied")
+        return original_lstat(path)
+
+    broken_lstat = tmp_path / "broken-lstat"
+    _write_file(broken_lstat, b"broken")
+    monkeypatch.setattr(Path, "lstat", flaky_lstat)
+    assert env_footprint._scan_path(broken_lstat) == (0, 0)
+
+    monkeypatch.setattr(Path, "lstat", original_lstat)
+    original_iterdir = Path.iterdir
+
+    def flaky_iterdir(path: Path):
+        if path.name in {"broken-scan", "broken-venvs", "broken-builds"}:
+            raise OSError("denied")
+        return original_iterdir(path)
+
+    for dirname in ("broken-scan", "broken-venvs", "broken-builds"):
+        (tmp_path / dirname).mkdir()
+    monkeypatch.setattr(Path, "iterdir", flaky_iterdir)
+    allocated, apparent = env_footprint._scan_path(tmp_path / "broken-scan")
+    assert allocated > 0
+    assert apparent > 0
+    assert list(env_footprint._iter_venvs(tmp_path / "broken-venvs")) == []
+    assert list(env_footprint._iter_build_outputs(tmp_path / "broken-builds")) == []
+
+
+def test_repo_root_detection_and_main_module_branch(tmp_path: Path, monkeypatch, capsys) -> None:
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    nested = repo / "sub" / "dir"
+    _write_file(repo / "pyproject.toml", b"[project]\nname='agilab'\n")
+    _write_file(repo / "src" / "agilab" / "__init__.py", b"")
+    nested.mkdir(parents=True)
+    home.mkdir()
+
+    monkeypatch.chdir(nested)
+    assert env_footprint._repo_root_from_here() == repo
+
+    module_globals = runpy.run_path(str(MODULE_PATH), run_name="not_main")
+    assert module_globals["SCHEMA"] == env_footprint.SCHEMA
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(MODULE_PATH),
+            "--repo-root",
+            str(repo),
+            "--home",
+            str(home),
+            "--json",
+            "--top",
+            "0",
+        ],
+    )
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:
+        raise AssertionError("env_footprint __main__ did not exit")
+    assert json.loads(capsys.readouterr().out)["schema"] == env_footprint.SCHEMA
 
 
 def test_footprint_cli_emits_json_and_text(tmp_path: Path, monkeypatch, capsys) -> None:

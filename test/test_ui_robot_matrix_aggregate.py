@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
 
@@ -349,6 +350,11 @@ def test_load_shard_payload_ignores_non_mapping_failure_samples(tmp_path: Path) 
             "app": "flight_telemetry_project",
             "page": "ORCHESTRATE",
         },
+        {
+            "scenario": "missing-bundle-scenario",
+            "app": "flight_telemetry_project",
+            "page": "ANALYSIS",
+        },
     ]
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
 
@@ -361,8 +367,11 @@ def test_load_shard_payload_ignores_non_mapping_failure_samples(tmp_path: Path) 
         exit_code_path=shard_root / "exit-code.txt",
     )
 
-    assert len(payload["failure_samples"]) == 1
+    assert len(payload["failure_samples"]) == 2
     assert payload["failure_samples"][0]["scenario"] == "core-scenario"
+    assert payload["failure_samples"][0]["failure_bundle"]
+    assert payload["failure_samples"][1]["scenario"] == "missing-bundle-scenario"
+    assert "failure_bundle" not in payload["failure_samples"][1]
 
 
 def test_render_markdown_includes_failure_replay_command(tmp_path: Path) -> None:
@@ -418,6 +427,35 @@ def test_render_markdown_handles_minimal_retry_without_artifact_paths() -> None:
     assert "Trace:" not in markdown
     assert "HAR:" not in markdown
     assert "Video:" not in markdown
+
+
+def test_render_markdown_reports_bundle_without_retry() -> None:
+    module = _load_module()
+
+    markdown = module.render_markdown(
+        {
+            "success": False,
+            "summary": {"shard_count": 1, "expected_shard_count": 1},
+            "missing_shards": [],
+            "shards": [],
+            "failure_samples": [
+                {
+                    "shard": "core",
+                    "scenario": "demo",
+                    "page": "ANALYSIS",
+                    "kind": "text",
+                    "label": "View",
+                    "detail": "missing",
+                    "failure_bundle": "bundle/path",
+                    "failure_replay_command": "uv run replay",
+                }
+            ],
+        }
+    )
+
+    assert "Bundle: `bundle/path`" in markdown
+    assert "Replay: `uv run replay`" in markdown
+    assert "Artifact retry:" not in markdown
 
 
 def test_render_markdown_skips_non_mapping_rows() -> None:
@@ -537,6 +575,35 @@ def test_parse_expected_shards_uses_default_for_empty_input() -> None:
     module = _load_module()
 
     assert module._parse_expected_shards(" ,, ") == module.DEFAULT_EXPECTED_SHARDS
+
+
+def test_module_entrypoint_writes_compact_aggregate(tmp_path: Path, monkeypatch, capsys) -> None:
+    _write_shard(tmp_path / "artifacts", "core")
+    output = tmp_path / "aggregate.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(MODULE_PATH),
+            "--root",
+            str(tmp_path / "artifacts"),
+            "--expected-shards",
+            "core",
+            "--output",
+            str(output),
+            "--compact",
+        ],
+    )
+
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected entrypoint to raise SystemExit")
+
+    assert json.loads(output.read_text(encoding="utf-8"))["success"] is True
+    assert json.loads(capsys.readouterr().out)["success"] is True
 
 
 def test_load_json_rejects_non_object_payload(tmp_path: Path) -> None:

@@ -29,6 +29,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-page-decision-evidence",
         "agi-page-timeseries-forecast",
         "agi-page-inference-report",
+        "agi-page-live-artifacts",
         "agi-page-geospatial-map",
         "agi-page-geospatial-3d",
         "agi-page-network-map",

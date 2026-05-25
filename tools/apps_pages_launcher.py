@@ -30,6 +30,9 @@ PAGES: Dict[str, str] = {
         "src/agilab/apps-pages/view_autoencoder_latentspace/src/"
         "view_autoencoder_latentspace/view_autoencoder_latentspace.py"
     ),
+    "view_live_artifacts": (
+        "src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py"
+    ),
 }
 
 
