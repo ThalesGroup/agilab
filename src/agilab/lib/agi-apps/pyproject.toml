@@ -150,6 +150,7 @@ packages = [
     "notebook_migrations/*/notebooks/*.ipynb",
     "resilience_failure_injection/*.py",
     "service_mode/*.py",
+    "sklearn_pipeline_proof/*.py",
     "train_then_serve/*.py",
 ]
 
