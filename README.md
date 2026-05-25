@@ -230,6 +230,7 @@ what they need:
 | `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
+| `proof` extra | Optional `cryptography` dependency for detached Ed25519 proof-capsule signatures. | Signing `.agipack` archives and verifying them against local trust policies. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
 | `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
 | `ai` and `viz` extras | API LLM clients and optional plotting packages. | Assistant-backed workflows or richer visual analysis. |
@@ -301,12 +302,15 @@ manifests, notebook export, release proof, supply-chain scans, robot artifacts,
 and adoption reports. The first public proof-pack layer now adds
 `agilab prove`, `agilab verify`, `agilab replay`, `agilab export-lineage`,
 `agilab export-traces`, `agilab policy-check`, `agilab cards`, and
-`agilab metadata-store` for `run_manifest.json` evidence, plus an unsigned,
+`agilab metadata-store` for `run_manifest.json` evidence, plus a
 hash-verifiable `.agipack` archive for portable handoff with
-`agilab prove --export proof.agipack`. Detached signing/attestation for
-`.agipack`, native lineage or observability transport, durable ML metadata,
-rich app-authored cards, and enterprise governance integrations remain roadmap
-work. See the
+`agilab prove --export proof.agipack`. The `proof` extra adds detached Ed25519
+signing with `agilab sign proof.agipack --key signer.pem --signature
+proof.agipack.sig.json` and trust-policy verification with `agilab verify
+proof.agipack --signature proof.agipack.sig.json --trust-policy policy.toml`.
+External Sigstore/SLSA attestation binding, native lineage or observability
+transport, durable ML metadata, rich app-authored cards, and enterprise
+governance integrations remain roadmap work. See the
 [proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
 contract for the intended boundary.
 
