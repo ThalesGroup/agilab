@@ -185,6 +185,8 @@ view_maps
 
 - Input: CSV/parquet with latitude/longitude columns.
 - Output: interactive map with sampling, palette, and basemap controls.
+- UI convention: the sidebar exposes a compact ``Data source`` expander for
+  the full directory path, and the page header includes ``Back to ANALYSIS``.
 
 view_maps_3d
 ^^^^^^^^^^^^
@@ -204,6 +206,9 @@ Network topology viewer synchronised with geographic views.
 - It can also reuse any queue-analysis run that provides
   ``pipeline/topology.gml``, ``pipeline/allocations_steps.csv``, and
   trajectory CSV files in the same run directory.
+- UI convention: the resolved data path is kept under ``Resolved data path`` so
+  the normal sidebar stays focused on choices rather than long filesystem
+  strings.
 
 view_queue_resilience
 ^^^^^^^^^^^^^^^^^^^^^
