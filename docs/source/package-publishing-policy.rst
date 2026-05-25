@@ -451,7 +451,10 @@ OIDC tokens for packages marked
      - ``pypi-agilab``
 
 The corresponding OIDC subject for each row is
-``repo:ThalesGroup/agilab:environment:<environment>``.
+``repo:ThalesGroup/agilab:environment:<environment>``. Rows whose generated
+release-plan entry has ``publish_to_pypi = "false"`` are pre-registered for a
+future promotion but are skipped by the real PyPI publish step; their artifacts
+remain GitHub Release archive payloads until promotion.
 
 The local ``tools/pypi_publish.py`` helper may still build packages and publish
 to TestPyPI for rehearsals, but local twine upload to real PyPI is disabled by
@@ -473,7 +476,10 @@ GitHub deployment environments
 ------------------------------
 
 The real PyPI workflow uses one GitHub deployment environment per PyPI project
-so Trusted Publishing receives a project-specific OIDC claim:
+so Trusted Publishing receives a project-specific OIDC claim. The list also
+keeps pre-registered archive-only app payload environments from the generated
+release plan, but those entries are skipped while ``publish_to_pypi`` is
+``false``:
 
 - ``pypi-agi-env``
 - ``pypi-agi-node``

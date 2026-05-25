@@ -1,8 +1,8 @@
 # agi-app-uav-queue-project
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-app-uav-queue-project.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-uav-queue-project/)
-[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-uav-queue-project.svg)](https://pypi.org/project/agi-app-uav-queue-project/)
-[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-uav-queue-project)](https://opensource.org/licenses/BSD-3-Clause)
+![Release artifact](https://img.shields.io/badge/release%20artifact-wheel%2Bsdist-blue)
+![PyPI](https://img.shields.io/badge/PyPI-not%20promoted-lightgrey)
+[![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD%203--Clause-blue)](https://opensource.org/licenses/BSD-3-Clause)
 
 `agi-app-uav-queue-project` packages the `uav_queue_project` AGILAB app. It is
 a lightweight UAV queue simulation example with scenario evidence and
@@ -22,15 +22,17 @@ The distribution name is `agi-app-uav-queue-project`; the AGILAB project name is
 `AgiEnv(app="uav_queue_project")` resolves the project without a monorepo
 checkout.
 
-## Install
+## Install From A Release Artifact
 
 ```bash
-pip install agi-app-uav-queue-project
+pip install /path/to/agi_app_uav_queue_project-<version>-py3-none-any.whl
 ```
 
-This package is not pulled by the `agi-apps` umbrella until it is promoted for a
-release. Install it directly when validating the UAV queue app package from an
-index or a locally built wheel.
+This app project is built as wheel and source-distribution artifacts in the
+GitHub Release archive, but it is not promoted to PyPI in the current release
+plan and is not pulled by the `agi-apps` umbrella. Install it directly only when
+validating the UAV queue app package from a release artifact or a locally built
+wheel.
 
 ## Run In AGILAB
 

@@ -99,6 +99,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "ignored",
         "writes local environment configuration and depends on user-provided settings",
     ),
+    "Save classroom uploads": (
+        "trial-only",
+        "writes classroom intake files; focused TeSciA tests cover upload handling without mutating generic robot state",
+    ),
     "Start GPT-OSS server": (
         "ignored",
         "starts an external local service and is not deterministic in CI robots",
