@@ -87,6 +87,7 @@ Start with the public browser preview or the demo chooser:
 - [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
 - [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html)
+- [Voila notebook proof](https://thalesgroup.github.io/agilab/voila-users.html)
 - [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview)
 - [Local quick start](#quick-start)
@@ -99,6 +100,11 @@ repository so other engineers can find it.
 For spreadsheet-first users, the packaged `excel_workbook_proof` preview keeps
 Excel as the familiar interface and writes a proof workbook, Power Query-friendly
 CSV files, and JSON hash evidence without requiring an Office add-in.
+
+For notebook-dashboard users, the packaged `voila_notebook_proof` preview keeps
+the notebook dashboard flow and writes a hide-code manifest, widget-to-args
+hints, an app-view plan, and JSON evidence without requiring Voila in the base
+install.
 
 ## Featured Opt-In App
 

@@ -83,6 +83,17 @@ def reset_pipeline_ai_test_state(isolate_home_for_root_tests):
         clear()
 
 
+def _mark_openai_sdk_present(monkeypatch) -> None:
+    real_find_spec = pipeline_ai.importlib.util.find_spec
+
+    def find_spec_with_openai(name: str, *args, **kwargs):
+        if name == "openai":
+            return SimpleNamespace()
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_ai.importlib.util, "find_spec", find_spec_with_openai)
+
+
 def test_extract_code_splits_detail_and_python_block():
     message = "Use this.\n```python\nprint('ok')\n```\nDone."
 
@@ -2329,6 +2340,7 @@ def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):
 def test_ask_gpt_routes_to_selected_provider(monkeypatch):
     fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "gpt-oss"})
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    _mark_openai_sdk_present(monkeypatch)
     monkeypatch.setattr(pipeline_ai, "chat_offline", lambda *args: ("```python\nprint(1)\n```", "gpt-oss"))
     result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
     assert result[2:] == ["gpt-oss", "print(1)", ""]
@@ -2373,6 +2385,7 @@ demo_project = [
         }
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    _mark_openai_sdk_present(monkeypatch)
 
     def _chat_online(question, prompt, envars):
         captured["question"] = question
@@ -2404,6 +2417,7 @@ def test_ask_gpt_safe_actions_returns_validated_contract_and_code(monkeypatch):
         }
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    _mark_openai_sdk_present(monkeypatch)
 
     def _fake_chat_online(question, prompt, envars, **kwargs):
         captured["question"] = question
@@ -2617,6 +2631,7 @@ def test_ask_gpt_safe_actions_fails_closed_for_raw_python_and_unknown_column(mon
         }
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    _mark_openai_sdk_present(monkeypatch)
     responses = iter(
         [
             ("```python\nimport os\nos.system('whoami')\n```", "gpt-safe"),
@@ -2826,6 +2841,7 @@ def test_mistral_online_env_update_and_api_error(monkeypatch):
 def test_generated_action_dataframe_and_empty_safe_response_paths(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "openai"})
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    _mark_openai_sdk_present(monkeypatch)
 
     assert pipeline_ai._dataframe_for_generated_actions(Path("df.csv"), load_df_cached=None) is None
     assert pipeline_ai._dataframe_for_generated_actions("", load_df_cached=lambda *_args, **_kwargs: pd.DataFrame()) is None

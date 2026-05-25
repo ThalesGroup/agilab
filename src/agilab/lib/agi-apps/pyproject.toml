@@ -139,6 +139,7 @@ packages = [
     "notebook_to_dask/*.json",
     "notebook_to_dask/*.toml",
     "notebook_to_dask/*.ipynb",
+    "voila_notebook_proof/*.py",
     "notebook_quickstart/*.ipynb",
     "notebook_migrations/*/README.md",
     "notebook_migrations/*/analysis_artifacts/*.csv",

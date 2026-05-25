@@ -58,6 +58,7 @@ EXAMPLE_PREVIEWS = {
     ),
     "service_mode": ("preview_service_mode.py",),
     "train_then_serve": ("preview_train_then_serve.py",),
+    "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
 DEPRECATED_EXAMPLE_DIR_NAMES = {
     "data_io_2026",
@@ -730,6 +731,37 @@ def test_excel_workbook_proof_preview_writes_workbook_refresh_and_evidence(tmp_p
     assert evidence["office_add_in_required"] is False
 
 
+def test_voila_notebook_proof_preview_writes_notebook_view_plan_and_evidence(
+    tmp_path: Path,
+) -> None:
+    script = EXAMPLES_ROOT / "voila_notebook_proof" / "preview_voila_notebook_proof.py"
+    spec = importlib.util.spec_from_file_location("voila_notebook_proof_preview_test", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    preview = module.build_preview(output_dir=tmp_path)
+
+    notebook = json.loads((tmp_path / "dashboard.ipynb").read_text(encoding="utf-8"))
+    contract = json.loads((tmp_path / "widget_to_args.json").read_text(encoding="utf-8"))
+    plan = json.loads((tmp_path / "agilab_app_view_plan.json").read_text(encoding="utf-8"))
+    evidence = json.loads((tmp_path / "voila_notebook_evidence.json").read_text(encoding="utf-8"))
+
+    assert notebook["nbformat"] == 4
+    assert any("ipywidgets" in "".join(cell.get("source", [])) for cell in notebook["cells"])
+    assert contract["app_args"]["region"]["widget"] == "Dropdown"
+    assert "notebooks/dashboard.ipynb" in plan["app_owned_files"]
+    assert plan["shared_pages_boundary"][0]["component"] == "view_app_ui"
+    assert evidence["schema"] == module.SCHEMA
+    assert evidence["voila_dependency_required_for_preview"] is False
+    assert (
+        evidence["artifacts"]["dashboard_notebook"]["sha256"]
+        == preview["artifacts"]["dashboard_notebook"]["sha256"]
+    )
+    assert preview["artifacts"]["evidence"]["path"] == "voila_notebook_evidence.json"
+
+
 def test_native_rust_worker_preview_writes_pyo3_project_and_evidence(tmp_path: Path) -> None:
     script = EXAMPLES_ROOT / "native_rust_worker" / "preview_native_rust_worker.py"
     spec = importlib.util.spec_from_file_location("native_rust_worker_preview_test", script)
@@ -894,6 +926,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "notebook_to_dask/*.json" in package_data
     assert "notebook_to_dask/*.toml" in package_data
     assert "notebook_to_dask/*.ipynb" in package_data
+    assert "voila_notebook_proof/*.py" in package_data
     assert "notebook_quickstart/*.ipynb" in package_data
     assert "notebook_migrations/*/README.md" in package_data
     assert "notebook_migrations/*/analysis_artifacts/*.csv" in package_data
