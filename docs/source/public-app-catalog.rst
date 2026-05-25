@@ -41,7 +41,8 @@ Status legend:
    * - ``execution_pandas_project``
      - ``agi-app-pandas-execution``
      - PyPI app package
-     - Synthetic worker execution playground for the Pandas path and reducer
+     - Cython worker speedup demo for the Pandas path: typed contiguous
+       ``float64`` kernel, Python/Cython runtime evidence, and reducer
        evidence.
    * - ``execution_polars_project``
      - ``agi-app-polars-execution``

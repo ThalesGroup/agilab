@@ -14,7 +14,7 @@ reset_target = false
 
 [cluster]
 verbose = 1
-cython = false
+cython = true
 pool = false
 rapids = false
 cluster_enabled = false
