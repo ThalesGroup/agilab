@@ -88,6 +88,7 @@ Start with the public browser preview or the demo chooser:
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
 - [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html)
 - [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
+- [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview)
 - [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 - [50-star promotion kit](PROMOTE.md)

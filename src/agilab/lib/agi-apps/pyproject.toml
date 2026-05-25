@@ -134,6 +134,7 @@ packages = [
     "excel_workbook_proof/*.py",
     "inter_project_dag/*.py",
     "mlflow_auto_tracking/*.py",
+    "native_rust_worker/*.py",
     "notebook_to_dask/*.py",
     "notebook_to_dask/*.json",
     "notebook_to_dask/*.toml",

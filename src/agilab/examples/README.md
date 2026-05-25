@@ -26,6 +26,7 @@ the command shape stable.
 | 11 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
 | 12 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
 | 13 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
+| 14 | `native_rust_worker` | optional native worker preview | Read-only Rust/PyO3 skeleton: keep AGILAB orchestration in Python while moving only a typed hot kernel to Rust. |
 
 ## Execution Map
 
@@ -35,7 +36,7 @@ app execution from read-only contract previews.
 | Class | Examples | What actually runs | Primary output |
 |---|---|---|---|
 | Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
-| Source/package read-only previews | `notebook_to_dask`, `excel_workbook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, or workbook artifacts under `~/log/execute/<example>/` or the configured output path. |
+| Source/package read-only previews | `notebook_to_dask`, `excel_workbook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
 | Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
 
 Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
@@ -95,6 +96,11 @@ From an installed package, locate one with
 - `train_then_serve/preview_train_then_serve.py` reads a
   `uav_relay_queue_project` built-in service template and shows the handoff
   from a trained policy artifact to a service contract.
+- `native_rust_worker/preview_native_rust_worker.py` writes a PyO3/maturin
+  skeleton for a worker-owned native hot kernel, plus evidence that keeps the
+  AGILAB boundary explicit: orchestration and artifacts stay in Python, the
+  measured CPU-bound kernel can move to Rust when the packaging cost is worth
+  it.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
 - Run modes use named AGI constants instead of magic numbers, and keep Cython
@@ -141,7 +147,9 @@ workers for an already-working app. Use `mlflow_auto_tracking` when you want
 to show tracking as optional memory around AGILAB execution, not a competing
 experiment system. Use `resilience_failure_injection` when you want to explain
 fixed versus adaptive behavior on the same degraded scenario before training or
-serving a policy. Use `excel_workbook_proof` when the stakeholder lives in
+serving a policy. Use `native_rust_worker` when you want to explain the advanced
+native-worker lane without adding Rust to the base install. Use
+`excel_workbook_proof` when the stakeholder lives in
 Excel and needs to see workbook output plus refreshable CSV and evidence before
 they care about notebooks, DAGs, or clusters. Use `train_then_serve` when you
 want to explain what must be frozen after training before a policy becomes
