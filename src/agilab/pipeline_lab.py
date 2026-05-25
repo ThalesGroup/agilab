@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import pandas as pd
 import streamlit as st
-import tomllib
 from code_editor import code_editor
 
 from agi_env import AgiEnv
@@ -20,7 +19,6 @@ from agi_gui.pagelib import (
     get_info_bar,
     render_dataframe_preview,
     run_lab,
-    save_csv,
 )
 from agi_gui.ux_widgets import action_button, compact_choice, confirm_button, empty_state, status_container, toast
 from agi_env.snippet_contract import (

@@ -32,29 +32,22 @@ try:
     from IPython.core.ultratb import FormattedTB
 except (ImportError, AttributeError):  # Optional dependency; fallback if absent
     FormattedTB = None  # type: ignore
-import ast
-import errno
 import getpass
 import os
-import re
 import shutil
 import psutil
 import socket
 import subprocess
 import sys
 from pathlib import Path
-import tomlkit
-from typing import Tuple
 import logging
 from pathspec import PathSpec
 import py7zr
 import urllib.request
-import uuid
 import inspect
 import ctypes
 from ctypes import wintypes
 import importlib.util
-from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from agi_env.defaults import get_default_openai_model
 from agi_env.app_settings_support import (
@@ -91,9 +84,7 @@ from agi_env.worker_runtime_support import configure_worker_runtime
 from agi_env.process_support import (
     build_subprocess_env,
     fix_windows_drive as _fix_windows_drive,
-    is_packaging_cmd,
     normalize_path,
-    parse_level,
 )
 from agi_env.repository_support import (
     collect_pythonpath_entries as build_pythonpath_entries,
@@ -1599,16 +1590,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     @staticmethod
     def check_internet():
-        AgiEnv.logger.info(f"Checking internet connectivity...")
+        AgiEnv.logger.info("Checking internet connectivity...")
         try:
             # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception
         except OSError:
-            AgiEnv.logger.error(f"No internet connection detected. Aborting.")
+            AgiEnv.logger.error("No internet connection detected. Aborting.")
             return False
-        AgiEnv.logger.info(f"Internet connection is OK.")
+        AgiEnv.logger.info("Internet connection is OK.")
         return True
 
 

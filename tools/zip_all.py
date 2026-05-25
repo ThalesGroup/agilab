@@ -30,7 +30,6 @@
 import os
 import posixpath
 import zipfile
-from pathspec import PathSpec
 from pathspec.gitignore import GitIgnoreSpec
 import argparse
 from pathlib import Path

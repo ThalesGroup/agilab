@@ -7,7 +7,6 @@ import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import sys
 import time
 import tomllib
 from typing import Any, Callable, Iterable, Sequence

@@ -283,14 +283,14 @@ missing = {{ path = "deps/missing" }}
         encoding="utf-8",
     )
     dest_pyproject.write_text(
-        f"""
+        """
 [tool.uv.sources]
-foo = {{ path = "../broken/foo" }}
-bar = {{ path = "../broken/bar" }}
-baz = {{ path = "vendored/baz" }}
-skip_meta = {{ path = "../ignored" }}
-blank = {{ path = "../ignored-blank" }}
-missing = {{ path = "../ignored-missing" }}
+foo = { path = "../broken/foo" }
+bar = { path = "../broken/bar" }
+baz = { path = "vendored/baz" }
+skip_meta = { path = "../ignored" }
+blank = { path = "../ignored-blank" }
+missing = { path = "../ignored-missing" }
 """.strip(),
         encoding="utf-8",
     )

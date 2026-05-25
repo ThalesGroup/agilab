@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import csv
 import json
-import os
 import shlex
 import statistics
 import subprocess

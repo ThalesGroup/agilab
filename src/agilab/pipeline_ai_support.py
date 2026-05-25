@@ -11,7 +11,7 @@ import traceback
 import urllib.error
 import urllib.request
 from pathlib import Path
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
@@ -591,7 +591,7 @@ def gpt_oss_readiness(
             detail=f"GPT-OSS endpoint returned HTTP {exc.code}.",
             action="Check the GPT-OSS server route and `GPT_OSS_ENDPOINT`.",
         )
-    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError) as exc:
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError):
         return LocalLlmReadiness(
             backend="gpt-oss",
             status="service_unreachable",

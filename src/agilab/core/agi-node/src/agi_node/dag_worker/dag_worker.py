@@ -23,7 +23,7 @@ import inspect
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any
 
 # Import BaseWorker from agi_dispatcher.py (as you requested)
 from agi_node.agi_dispatcher import BaseWorker
@@ -158,8 +158,6 @@ class DagWorker(BaseWorker):
         round‑robin, then honoring dependencies per worker.
         """
         import logging
-        from concurrent.futures import ThreadPoolExecutor
-        import os
 
         workers_plan = workers_plan or []
         workers_plan_metadata = workers_plan_metadata or []

@@ -12,7 +12,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

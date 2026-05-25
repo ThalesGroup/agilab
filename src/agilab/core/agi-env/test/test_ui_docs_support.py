@@ -4,7 +4,6 @@ import importlib
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 
 from agi_env.ui_docs_support import (
     detect_dev_version_suffix,

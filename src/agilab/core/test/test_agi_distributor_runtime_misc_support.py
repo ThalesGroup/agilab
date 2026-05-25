@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import io
 import json
-import pickle
 import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
