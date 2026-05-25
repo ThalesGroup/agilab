@@ -73,4 +73,3 @@ Audit notes:
 | typing-inspection | 0.4.2 | MIT |
 | urllib3 | 2.7.0 | MIT |
 | watchdog | 6.0.0 | APACHE SOFTWARE LICENSE |
-
