@@ -9,6 +9,9 @@ Overview
 - Demonstrates how to orchestrate file-based distributions, run inside the
   cluster pool and keep the web interface responsive while the
   worker pipeline operates asynchronously.
+- Demonstrates the real-world worker-only Cython pattern: Polars ingestion,
+  output writing, pages, and reducer contracts stay in Python, while the
+  per-row haversine distance kernel can run as a typed compiled worker hot loop.
 - Bundles web-view lab material (``lab_stages.toml``) and prompt examples to help
   you reproduce the workflow showcased in AGILab live demos.
 
@@ -28,6 +31,11 @@ with Earth radius :math:`R` and angular differences
 The public demo stores this per-sample segment distance in the historical
 ``speed`` column so existing analysis pages and reducer contracts remain
 compatible.
+
+The worker also records ``speed_kernel_runtime``, ``speed_dtype_contract``, and
+``speed_kernel_checksum_m`` in the reducer summary. That makes Cython mode
+auditable without moving dataframe I/O, map/network analysis, or artifact
+generation out of normal Python.
 
 Public scope
 ------------
@@ -59,6 +67,8 @@ Worker (`flight_telemetry_worker.flight_telemetry_worker`)
   segment distances between samples, and partition files across the cluster.
 - Can be compiled by the AGILab dispatcher when Cython is enabled; generated
   ``.pyx``/``.c`` files are build artefacts, not source-of-truth files.
+- Keeps Cython scoped to the worker hot loop. The app manager, UI forms,
+  analysis pages, and reducer schema remain regular Python.
 - Demonstrates Windows-friendly path handling and data staging for managed
   environments.
 

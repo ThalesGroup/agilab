@@ -14,6 +14,11 @@ Use this package to run a compact flight-data ingestion demo: raw public sample
 files are converted into a reusable dataframe dataset, then inspected through
 AGILAB analysis pages such as maps and network-style trajectory views.
 
+It also demonstrates AGILAB's worker-only Cython pattern on a real app. The
+Polars ingestion, output writing, and reducer artifact contract stay in Python,
+while the per-row haversine distance kernel can run as a typed compiled worker
+hot loop and reports runtime/checksum evidence.
+
 ## Installed Project
 
 The distribution name is `agi-app-flight-telemetry`; the AGILAB project name is
@@ -49,6 +54,8 @@ required for the default proof.
 The run writes the processed flight dataframe, reducer summaries, and
 analysis-ready artifacts under the project output paths. Open `ANALYSIS` with
 `view_maps` or `view_maps_network` to inspect the generated evidence.
+The reducer summary includes `speed_kernel_runtime`, `speed_dtype_contract`,
+and `speed_kernel_checksum_m` fields for the worker-only Cython path.
 
 ## Change One Thing
 

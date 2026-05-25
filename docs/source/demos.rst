@@ -130,6 +130,12 @@ The static scenario contract is available as JSON:
   runs still include CSV reads, dataframe grouping, result writes, worker
   startup, and optional Dask/process orchestration.
 
+  For the real-world version of the same pattern, run
+  ``flight_telemetry_project``. Its Polars ingestion and map/network analysis
+  stay in Python, while the haversine speed kernel records
+  ``speed_kernel_runtime``, ``speed_dtype_contract``, and checksum evidence in
+  the reducer summary.
+
 **Distributed worker route**
   Use the same public app, then switch ORCHESTRATE from the local path to the
   configured worker or SSH-host path. Keep the demo bounded: prove that worker

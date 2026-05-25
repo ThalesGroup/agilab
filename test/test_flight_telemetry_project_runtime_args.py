@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 import tomllib
 from datetime import date
@@ -41,6 +42,20 @@ def test_flight_telemetry_project_declares_polars_runtime_compat():
 
     assert "polars[rtcompat]" in project["dependencies"]
     assert "geopy" not in project["dependencies"]
+
+
+def test_flight_telemetry_project_declares_worker_only_cython_contract():
+    repo_root = Path(__file__).resolve().parents[1]
+    app_root = repo_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+    settings = tomllib.loads((app_root / "src" / "app_settings.toml").read_text(encoding="utf-8"))
+    worker_project = tomllib.loads(
+        (app_root / "src" / "flight_telemetry_worker" / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert settings["cluster"]["cython"] is True
+    assert {"setuptools", "cython"} <= set(worker_project["build-system"]["requires"])
 
 
 class _FakeEnv:
@@ -351,6 +366,24 @@ def test_flight_telemetry_worker_helper_and_error_branches(monkeypatch, tmp_path
     assert worker_module._haversine_distance_m({"prev_lat": None, "prev_long": 2, "lat": 3, "long": 4}) == 0.0
     assert worker_module._haversine_distance_m({"prev_lat": "bad", "prev_long": 2, "lat": 3, "long": 4}) == 0.0
     assert worker_module._haversine_distance_m({"prev_lat": 48.0, "prev_long": 2.0, "lat": 48.001, "long": 2.001}) > 0
+    kernel_df = pl.DataFrame(
+        {
+            "prev_lat": pl.Series("prev_lat", [None, 48.0, "bad"], strict=False),
+            "prev_long": [None, 2.0, 2.0],
+            "lat": [48.0, 48.001, 48.002],
+            "long": [2.0, 2.001, 2.002],
+        }
+    )
+    kernel_series, runtime, dtype_contract, checksum = worker_module._haversine_distance_series(kernel_df)
+    expected = worker_module._haversine_distance_m(
+        {"prev_lat": 48.0, "prev_long": 2.0, "lat": 48.001, "long": 2.001}
+    )
+    assert kernel_series.to_list()[0] == 0.0
+    assert math.isclose(kernel_series.to_list()[1], expected, rel_tol=1e-12)
+    assert kernel_series.to_list()[2] == 0.0
+    assert math.isclose(checksum, expected, rel_tol=1e-12)
+    assert runtime in {"python", "cython"}
+    assert dtype_contract == worker_module.SPEED_DTYPE_CONTRACT
 
     worker = object.__new__(FlightWorker)
     worker.pool_init({"args": MutableNamespace(data_source="file")})
@@ -466,6 +499,9 @@ def test_flight_reduce_contract_merges_trajectory_partials(monkeypatch):
     assert artifact.payload["output_formats"] == ["parquet"]
     assert artifact.payload["mean_speed_m"] == 50.0
     assert artifact.payload["max_speed_m"] == 100.0
+    assert artifact.payload["speed_kernel_runtimes"] == []
+    assert artifact.payload["speed_dtype_contracts"] == []
+    assert artifact.payload["speed_kernel_checksum_m"] == 0.0
     assert artifact.payload["time_start"] == "2021-01-01T00:00:00"
     assert artifact.payload["time_end"] == "2021-01-01T00:02:00"
 
@@ -537,6 +573,16 @@ def test_flight_telemetry_worker_emits_reduce_artifact(monkeypatch, tmp_path):
 
     result = worker.work_pool(str(source.relative_to(tmp_path)))
     assert "source_file" in result.columns
+    assert "speed_kernel_runtime" in result.columns
+    assert "speed_dtype_contract" in result.columns
+    assert "speed_kernel_checksum_m" in result.columns
+    assert result.select("speed_dtype_contract").unique().to_series().to_list() == [
+        "float64-contiguous"
+    ]
+    assert result.select("speed_kernel_runtime").unique().to_series().to_list()[0] in {
+        "python",
+        "cython",
+    }
     absolute_result = worker.work_pool(str(source))
     assert absolute_result.select("source_file").unique().to_series().to_list() == ["01_track.csv"]
 
@@ -559,3 +605,6 @@ def test_flight_telemetry_worker_emits_reduce_artifact(monkeypatch, tmp_path):
     assert artifact.payload["output_formats"] == ["parquet"]
     assert artifact.payload["mean_speed_m"] > 0.0
     assert artifact.payload["max_speed_m"] > 0.0
+    assert artifact.payload["speed_kernel_runtimes"][0] in {"python", "cython"}
+    assert artifact.payload["speed_dtype_contracts"] == ["float64-contiguous"]
+    assert artifact.payload["speed_kernel_checksum_m"] > 0.0

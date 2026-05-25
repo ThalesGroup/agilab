@@ -166,6 +166,12 @@ optional Dask/process orchestration. The reducer records ``kernel_mode``,
 ``kernel_runtime``, and ``dtype_contract`` so the output artifact makes that
 distinction explicit.
 
+The real-world companion is ``flight_telemetry_project``: it keeps Polars
+ingestion, output writing, pages, and reducer artifacts in Python, but moves the
+per-row haversine distance calculation into the same worker-only Cython pattern.
+Its reducer summary records ``speed_kernel_runtime``,
+``speed_dtype_contract``, and ``speed_kernel_checksum_m``.
+
 2-node 16-mode matrix
 ---------------------
 
