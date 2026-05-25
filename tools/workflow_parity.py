@@ -1353,6 +1353,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
             "--preview-features",
             "extra-build-dependencies",
             "run",
+            "--extra",
+            "ai",
             "--with",
             "playwright",
             "python",

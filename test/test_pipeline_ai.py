@@ -391,6 +391,20 @@ def test_default_ollama_model_prefers_code_model_and_fallbacks(monkeypatch):
     assert pipeline_ai._default_ollama_model("http://ollama", prefer_code=True) == "codestral:latest"
     assert pipeline_ai._default_ollama_model("http://ollama") == "qwen2.5-coder:latest"
 
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ollama_available_models",
+        lambda _endpoint: ["llama3:latest", "preferred-model"],
+    )
+    assert (
+        pipeline_ai._default_ollama_model(
+            "http://ollama",
+            preferred="preferred-model",
+            prefer_code=True,
+        )
+        == "preferred-model"
+    )
+
     monkeypatch.setattr(pipeline_ai, "_ollama_available_models", lambda _endpoint: [])
     assert pipeline_ai._default_ollama_model("http://ollama", preferred="fallback-model") == "fallback-model"
 
@@ -2434,6 +2448,166 @@ def test_ask_gpt_safe_actions_returns_validated_contract_and_code(monkeypatch):
     assert captured["system_instructions"] == pipeline_ai.GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS
 
 
+def test_ask_gpt_missing_openai_sdk_returns_warning_response(monkeypatch):
+    fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "openai"})
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    real_find_spec = pipeline_ai.importlib.util.find_spec
+
+    def find_spec_without_openai(name: str, *args, **kwargs):
+        if name == "openai":
+            return None
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_ai.importlib.util, "find_spec", find_spec_without_openai)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "chat_online",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("chat_online must not run")),
+    )
+
+    result = pipeline_ai.ask_gpt("generate", Path("df.csv"), "page", {})
+
+    assert result[:4] == [Path("df.csv"), "generate", "", ""]
+    assert "optional AI dependency" in result[4]
+    assert "agilab[ai]" in result[4]
+
+
+def test_ask_gpt_safe_actions_missing_openai_sdk_preserves_extra_fields(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "openai",
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    real_find_spec = pipeline_ai.importlib.util.find_spec
+
+    def find_spec_without_openai(name: str, *args, **kwargs):
+        if name == "openai":
+            return None
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_ai.importlib.util, "find_spec", find_spec_without_openai)
+
+    result = pipeline_ai.ask_gpt(
+        "double x",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+
+    assert result[:4] == [Path("df.csv"), "double x", "", ""]
+    assert "optional AI dependency" in result[4]
+    assert result[5][pipeline_ai.STAGE_GENERATION_MODE_FIELD] == pipeline_ai.GENERATION_MODE_SAFE_ACTIONS
+    assert result[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD] is None
+
+
+def test_ask_gpt_openai_compatible_missing_sdk_uses_specific_warning(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": pipeline_ai.OPENAI_COMPAT_PROVIDER,
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    real_find_spec = pipeline_ai.importlib.util.find_spec
+
+    def find_spec_without_openai(name: str, *args, **kwargs):
+        if name == "openai":
+            return None
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline_ai.importlib.util, "find_spec", find_spec_without_openai)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "chat_openai_compatible",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("compatible provider must not run")),
+    )
+
+    result = pipeline_ai.ask_gpt("generate", Path("df.csv"), "page", {})
+
+    assert result[:4] == [Path("df.csv"), "generate", "", ""]
+    assert "OpenAI-compatible generation is unavailable" in result[4]
+    assert "agilab[ai]" in result[4]
+
+
+def test_ask_gpt_provider_exceptions_return_generation_failures(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "gpt-oss",
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_call_selected_provider",
+        lambda *args, **kwargs: (_ for _ in ()).throw(pipeline_ai.JumpToMain("provider offline")),
+    )
+
+    safe_result = pipeline_ai.ask_gpt(
+        "double x",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+    code_result = pipeline_ai.ask_gpt("write python", Path("df.csv"), "page", {})
+
+    assert safe_result[:4] == [Path("df.csv"), "double x", "", ""]
+    assert safe_result[4] == "Safe action generation failed: provider offline"
+    assert safe_result[5][pipeline_ai.STAGE_GENERATION_MODE_FIELD] == pipeline_ai.GENERATION_MODE_SAFE_ACTIONS
+    assert safe_result[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD] is None
+    assert code_result[:4] == [Path("df.csv"), "write python", "", ""]
+    assert code_result[4] == "Code generation failed: provider offline"
+
+
+def test_generated_actions_dataframe_loader_fallback_handles_second_failure(monkeypatch):
+    fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "gpt-oss"})
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    calls: list[tuple[Path, object]] = []
+
+    def load_df_cached(path: Path, with_index=None):
+        calls.append((path, with_index))
+        if with_index is False:
+            raise TypeError("legacy loader")
+        raise ValueError("bad csv")
+
+    assert pipeline_ai._dataframe_for_generated_actions(Path("df.csv"), load_df_cached=load_df_cached) is None
+    assert calls == [(Path("df.csv"), False), (Path("df.csv"), None)]
+
+
+def test_ask_gpt_safe_actions_without_dataframe_skips_column_validation(monkeypatch):
+    fake_st = SimpleNamespace(session_state={"lab_prompt": [], "lab_llm_provider": "gpt-oss"})
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    response = """
+    {
+      "schema_version": 1,
+      "kind": "agilab.generated_dataframe_actions",
+      "actions": [
+        {"action": "select_columns", "columns": ["missing"]}
+      ]
+    }
+    """
+    monkeypatch.setattr(pipeline_ai, "_call_selected_provider", lambda *args, **kwargs: (response, "safe-model"))
+
+    result = pipeline_ai.ask_gpt(
+        "select a column before loading data",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+
+    assert result[:3] == [Path("df.csv"), "select a column before loading data", "safe-model"]
+    assert "df = df[['missing']].copy()" in result[3]
+    assert result[4] == "Safe action contract: select columns."
+    assert result[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD]["actions"][0]["columns"] == ["missing"]
+
+
 def test_ask_gpt_safe_actions_fails_closed_for_raw_python_and_unknown_column(monkeypatch):
     fake_st = SimpleNamespace(
         session_state={
@@ -2550,6 +2724,21 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
         timeout_s=3.0,
     )
     assert pipeline_ai._openai_compatible_safe_error("bad secret-token", settings) == "bad <redacted>"
+    default_key_settings = pipeline_ai.OpenAICompatibleSettings(
+        base_url="http://gpu-box:8000/v1",
+        api_key=pipeline_ai.DEFAULT_OPENAI_COMPAT_API_KEY,
+        model="served-model",
+        temperature=0.1,
+        max_tokens=None,
+        timeout_s=3.0,
+    )
+    assert (
+        pipeline_ai._openai_compatible_safe_error(
+            f"bad {pipeline_ai.DEFAULT_OPENAI_COMPAT_API_KEY}",
+            default_key_settings,
+        )
+        == f"bad {pipeline_ai.DEFAULT_OPENAI_COMPAT_API_KEY}"
+    )
 
     errors: list[str] = []
     fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
@@ -4179,6 +4368,56 @@ def test_chat_offline_uses_instructions_and_response_object(monkeypatch):
     assert "print(7)" in text
     assert model == "demo-model"
     assert captured["payload"]["instructions"] == "rules"
+
+
+def test_chat_offline_falls_back_to_plain_dict_output(monkeypatch):
+    captured: dict[str, object] = {}
+    fake_st = SimpleNamespace(session_state={"gpt_oss_backend_active": "transformers"}, error=lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    class _FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "output": [
+                    {"type": "tool_call", "content": [{"text": "ignored"}]},
+                    {"type": "message", "content": [{"text": ""}, {"other": "ignored"}, {"text": "fallback one"}]},
+                    "ignored",
+                    {"type": "message", "content": [{"text": "fallback two"}]},
+                ]
+            }
+
+    fake_requests = ModuleType("requests")
+    fake_requests.exceptions = SimpleNamespace(RequestException=RuntimeError)
+    fake_requests.post = lambda endpoint, json=None, timeout=None: captured.update(  # type: ignore[attr-defined]
+        {"endpoint": endpoint, "payload": json, "timeout": timeout}
+    ) or _FakeResponse()
+
+    fake_types = ModuleType("gpt_oss.responses_api.types")
+
+    class ResponseObject:
+        @staticmethod
+        def model_validate(_data):
+            raise ValueError("unsupported response shape")
+
+    fake_types.ResponseObject = ResponseObject
+    monkeypatch.setitem(sys.modules, "requests", fake_requests)
+    monkeypatch.setitem(sys.modules, "gpt_oss", ModuleType("gpt_oss"))
+    monkeypatch.setitem(sys.modules, "gpt_oss.responses_api", ModuleType("gpt_oss.responses_api"))
+    monkeypatch.setitem(sys.modules, "gpt_oss.responses_api.types", fake_types)
+
+    text, model = pipeline_ai.chat_offline(
+        "question",
+        [{"role": "assistant", "content": "history"}],
+        {"GPT_OSS_MODEL": "demo-model", "GPT_OSS_BACKEND": "transformers"},
+        system_instructions="strict rules",
+    )
+
+    assert text == "fallback one\nfallback two"
+    assert model == "demo-model"
+    assert captured["payload"]["instructions"] == "strict rules"
 
 
 def test_normalize_user_path_uses_absolute_fallback_when_resolve_fails(monkeypatch, tmp_path):
