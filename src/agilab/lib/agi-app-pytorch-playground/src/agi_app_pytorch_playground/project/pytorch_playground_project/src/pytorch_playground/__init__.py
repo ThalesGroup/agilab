@@ -14,12 +14,14 @@ from .app_args import (
     to_playground_config,
 )
 from .pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
+from .reduction import PYTORCH_PLAYGROUND_REDUCE_CONTRACT
 
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
     "PytorchPlayground",
     "PytorchPlaygroundApp",
+    "PYTORCH_PLAYGROUND_REDUCE_CONTRACT",
     "PytorchPlaygroundArgs",
     "PytorchPlaygroundArgsTD",
     "dump_args",

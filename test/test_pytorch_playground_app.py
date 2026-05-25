@@ -1651,6 +1651,59 @@ def test_pytorch_playground_distribution_marks_extra_workers_idle(monkeypatch: p
     assert (id_name, count_name, label) == ("run", "work_items", "items")
 
 
+def test_pytorch_playground_reduce_contract_merges_training_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    reduction = importlib.import_module("pytorch_playground.reduction")
+
+    partials = [
+        reduction.partial_from_summary(
+            {
+                "samples": 64,
+                "features": 2,
+                "backend": "torch",
+                "hidden_layers": [4, 2],
+                "train_accuracy": 0.75,
+                "validation_accuracy": 0.70,
+                "validation_loss": 0.35,
+                "loss_landscape_points": 25,
+            },
+            partial_id="worker-0",
+        ),
+        reduction.partial_from_summary(
+            {
+                "samples": 128,
+                "features": 3,
+                "backend": "missing",
+                "hidden_layers": [8],
+                "train_accuracy": 0.85,
+                "validation_accuracy": 0.80,
+                "validation_loss": 0.25,
+                "loss_landscape_points": 0,
+            },
+            partial_id="worker-1",
+        ),
+    ]
+
+    artifact = reduction.build_reduce_artifact(partials)
+
+    assert artifact.name == reduction.REDUCE_ARTIFACT_NAME
+    assert artifact.reducer == reduction.REDUCER_NAME
+    assert artifact.partial_count == 2
+    assert artifact.partial_ids == ("worker-0", "worker-1")
+    assert artifact.payload["run_count"] == 2
+    assert artifact.payload["sample_count"] == 192
+    assert artifact.payload["feature_count"] == 3
+    assert artifact.payload["validation_run_count"] == 2
+    assert artifact.payload["train_accuracy"] == pytest.approx(0.80)
+    assert artifact.payload["validation_accuracy"] == pytest.approx(0.75)
+    assert artifact.payload["validation_loss"] == pytest.approx(0.30)
+    assert artifact.payload["loss_landscape_points"] == 25
+    assert artifact.payload["backends"] == ["missing", "torch"]
+    assert artifact.payload["hidden_layer_shapes"] == ["2", "4", "8"]
+
+
 def test_pytorch_playground_analysis_artifact_dir_uses_env_fallback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

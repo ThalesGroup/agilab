@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-app-ui"
-version = "2026.05.23"
+version = "2026.05.25"
 description = "AGILAB page bundle for app-owned interactive Streamlit UIs."
 readme = { text = "AGILAB page bundle for app-owned interactive Streamlit UIs.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ keywords = [
     "reproducibility",
 ]
 dependencies = [
-    "agi-pages>=2026.05.23,<2027.0",
+    "agi-pages>=2026.05.25,<2027.0",
     "agi-gui>=2026.05.21,<2027.0",
 ]
 

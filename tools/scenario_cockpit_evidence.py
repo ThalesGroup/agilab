@@ -28,14 +28,30 @@ SCHEMA = "agilab.scenario_cockpit_source_proof.v1"
 POLICIES = ("shortest_path", "queue_aware")
 
 
+def _prepend_source_path(source_path: Path) -> None:
+    source_text = str(source_path)
+    sys.path[:] = [entry for entry in sys.path if entry != source_text]
+    sys.path.insert(0, source_text)
+
+
+def _clear_stale_app_modules() -> None:
+    module_prefixes = (
+        "uav_queue",
+        "uav_queue_worker",
+        "view_scenario_cockpit",
+    )
+    for module_name in list(sys.modules):
+        if any(module_name == prefix or module_name.startswith(f"{prefix}.") for prefix in module_prefixes):
+            sys.modules.pop(module_name, None)
+
+
 for source_path in (
     REPO_ROOT / "src",
     UAV_QUEUE_APP_ROOT / "src",
     SCENARIO_COCKPIT_SRC,
 ):
-    source_text = str(source_path)
-    if source_text not in sys.path:
-        sys.path.insert(0, source_text)
+    _prepend_source_path(source_path)
+_clear_stale_app_modules()
 
 from uav_queue import UavQueue, UavQueueArgs  # noqa: E402
 from uav_queue_worker import UavQueueWorker  # noqa: E402

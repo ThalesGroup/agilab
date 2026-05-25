@@ -32,7 +32,7 @@ def test_license_inventory_filters_retired_local_packages() -> None:
 
     rows = module._merge_packages(
         [
-            {"name": "agi-env", "version": "2026.5.23", "license": ""},
+            {"name": "agi-env", "version": "2026.5.25", "license": ""},
             {"name": "agi-app-retired-demo", "version": "2026.5.1", "license": ""},
             {"name": "agilab-old-addon", "version": "2026.5.1", "license": ""},
             {"name": "numpy", "version": "2.3.5", "license": "BSD"},

@@ -69,6 +69,7 @@ def test_test_shortcut_keeps_pytest_arguments():
             "-q",
             "-o",
             "addopts=",
+            "--import-mode=importlib",
             "test/test_cluster_lan_discovery.py",
             "-k",
             "windows",

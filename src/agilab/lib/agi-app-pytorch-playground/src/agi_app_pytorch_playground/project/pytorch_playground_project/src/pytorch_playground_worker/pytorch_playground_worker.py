@@ -24,6 +24,7 @@ from pytorch_playground.core import (
     _loss_landscape_summary,
     _train_playground,
 )
+from pytorch_playground.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -143,6 +144,12 @@ class PytorchPlaygroundWorker(PandasWorker):
         summary["data_out"] = str(self.data_out)
         summary["artifact_dir"] = str(self.artifact_dir)
         summary["loss_landscape_points"] = int(len(loss_landscape))
+        for root in (Path(self.data_out), Path(self.artifact_dir)):
+            write_reduce_artifact(
+                summary,
+                root,
+                worker_id=int(getattr(self, "_worker_id", 0)),
+            )
         logger.info("wrote PyTorch playground evidence to %s", self.data_out)
         return pd.DataFrame([summary])
 

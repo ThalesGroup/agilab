@@ -99,6 +99,10 @@ def _safe_mean(series: pd.Series) -> float | None:
     return float(series.mean())
 
 
+def _write_stable_csv(frame: pd.DataFrame, path: Path) -> None:
+    frame.to_csv(path, index=False, float_format="%.10g", lineterminator="\n")
+
+
 def _build_topology_graph(
     *,
     source_id: str,
@@ -686,7 +690,7 @@ class UavQueueWorker(PandasWorker):
             )
             for name, df in csv_payloads.items():
                 payload_df = df if isinstance(df, pd.DataFrame) else pd.DataFrame(df)
-                payload_df.to_csv(root / f"{stem}_{name}.csv", index=False)
+                _write_stable_csv(payload_df, root / f"{stem}_{name}.csv")
             pipeline_dir = root / "pipeline"
             pipeline_dir.mkdir(parents=True, exist_ok=True)
             nx.write_gml(result["topology_graph"], pipeline_dir / "topology.gml")
@@ -697,13 +701,13 @@ class UavQueueWorker(PandasWorker):
             allocations_df = result["allocations_steps"]
             if not isinstance(allocations_df, pd.DataFrame):
                 allocations_df = pd.DataFrame(allocations_df)
-            allocations_df.to_csv(pipeline_dir / "allocations_steps.csv", index=False)
+            _write_stable_csv(allocations_df, pipeline_dir / "allocations_steps.csv")
             (pipeline_dir / "_trajectory_summary.json").write_text(
                 json.dumps(result["trajectory_summary"], indent=2),
                 encoding="utf-8",
             )
             for file_name, df in sorted(result["trajectory_frames"].items()):
                 payload_df = df if isinstance(df, pd.DataFrame) else pd.DataFrame(df)
-                payload_df.to_csv(pipeline_dir / file_name, index=False)
+                _write_stable_csv(payload_df, pipeline_dir / file_name)
 
         logger.info("Saved UAV relay queue artifacts to %s and %s", self.data_out, self.artifact_dir)

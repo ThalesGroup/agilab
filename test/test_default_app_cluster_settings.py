@@ -39,5 +39,7 @@ def test_default_apps_seed_local_worker_settings_by_template_type() -> None:
         assert cluster.get("scheduler") == "127.0.0.1:8786", settings_file
         if "simple_app_template" in settings_file.parts:
             assert cluster.get("workers") == {}, settings_file
+        elif "pytorch_playground_project" in settings_file.parts:
+            assert cluster.get("workers") == {"127.0.0.1": 1}, settings_file
         else:
             assert cluster.get("workers") == {"127.0.0.1": 2}, settings_file

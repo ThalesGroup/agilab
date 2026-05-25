@@ -42,14 +42,15 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
     assert check["details"]["checked_apps"] == sorted([
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_telemetry_project",
-        "meteo_forecast_project",
-        "mission_decision_project",
-        "tescia_diagnostic_project",
-        "uav_queue_project",
-        "uav_relay_queue_project",
-        "weather_forecast_project",
-    ])
+            "flight_telemetry_project",
+            "meteo_forecast_project",
+            "mission_decision_project",
+            "pytorch_playground_project",
+            "tescia_diagnostic_project",
+            "uav_queue_project",
+            "uav_relay_queue_project",
+            "weather_forecast_project",
+        ])
     assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
 
 

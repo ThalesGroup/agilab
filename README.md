@@ -90,7 +90,6 @@ Start with the route that matches the proof you want to show:
 |---|---|---|
 | Try AGILAB in the browser | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | Hosted `PROJECT` -> `ORCHESTRATE` -> `WORKFLOW` -> `ANALYSIS` path. |
 | Choose by objective | [Demo chooser](https://thalesgroup.github.io/agilab/demos.html) | Public router for notebook, UI, proof-pack, and performance demos. |
-| Stay notebook-first | [agi-core notebook demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html) | Small `AgiEnv` / `AGI.run(...)` runtime path before the web UI. |
 | Migrate a notebook into an app | [Weather notebook migration](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | Notebook stages, `lab_stages.toml`, artifacts, and reusable analysis views. |
 | Keep Excel as the front end | [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html) | Workbook inputs plus CSV and JSON evidence without an Office add-in. |
 | Keep a notebook dashboard | [Voila notebook proof](https://thalesgroup.github.io/agilab/voila-users.html) | Hide-code notebook dashboard path plus widget-to-args and app-view evidence. |

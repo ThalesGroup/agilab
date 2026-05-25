@@ -4,7 +4,7 @@
     "artifact_count": 24,
     "hashed_artifact_count": 24,
     "missing_artifact_count": 0,
-    "total_bytes": 219067
+    "total_bytes": 212317
   },
   "artifacts": [
     {
@@ -14,28 +14,28 @@
       "sha256": "99fafeaff4a39933fb0251e5175bbe8a19c25f2bd8d9b11c2489ab9f88abddcb"
     },
     {
-      "bytes": 17837,
+      "bytes": 17378,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/allocations_steps.csv",
-      "sha256": "5ce8ae3da7f414d972c736c0c4cdf2106dd39ceb6f919373ed10dbebce9d9b21"
+      "sha256": "f56a4b7cc5a1d9ce9eaa6c98ed715c2d09468d42cd8ba5daa877c1e2c21106e8"
     },
     {
-      "bytes": 3448,
+      "bytes": 3264,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/ground_sink_trajectory.csv",
-      "sha256": "6f3e27a6a8cfedf543e33068b46baf47582e3b87e03350af9edb2a55fa10a65f"
+      "sha256": "d402f5d96910567c5d23185a8763a4b8c41e3a15ffd087235ed605b0e1123027"
     },
     {
-      "bytes": 3193,
+      "bytes": 3009,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/relay_a_trajectory.csv",
-      "sha256": "e0ffb3df5fcfca486e0b89f73daf10ddfce49d44cb063e188aba75c23583b4ff"
+      "sha256": "d353e98d47975022979ebf2e3e73d4a77c465a869dcb3c6cd72ce0925e60dac1"
     },
     {
-      "bytes": 3192,
+      "bytes": 3008,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/relay_b_trajectory.csv",
-      "sha256": "5aa2ba69c19028db5889cb0547747786e7e4739f745ab0c5ea16481f124e7d43"
+      "sha256": "a3c1f1f8e082c8095821dde66a5772a0f08dcf33ce23b180455752accc02891c"
     },
     {
       "bytes": 983,
@@ -44,34 +44,34 @@
       "sha256": "f48e160477ad0fe49e7535d29bfcb9ba6c7b70c4000d5d12c089eddb8915a742"
     },
     {
-      "bytes": 3448,
+      "bytes": 3264,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/uav_source_trajectory.csv",
-      "sha256": "145232071709c664884ad520012e8e654d93f53f502991c3ce5b44089f09eebd"
+      "sha256": "b1062e2a0b4e70bd6670ec71c560d8ba4ea6256ac7b8f2171796fc915b198956"
     },
     {
-      "bytes": 13621,
+      "bytes": 12113,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_node_positions.csv",
-      "sha256": "442b8989094f2f7fe5ab62edb5585b84917c2295080bcddf6380991fce207505"
+      "sha256": "5f17874bb31d565dac11ddc1d52a6b2f6269ae31e5a62c8230f6918fb19b5a6b"
     },
     {
-      "bytes": 59327,
+      "bytes": 59137,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_packet_events.csv",
-      "sha256": "029e9c74202b0fdd60c35856fa23e36519e3f74c8e558916a0691b4db7b7f445"
+      "sha256": "6b0b3d7e1f13fd00e6a45b9940b30fe9d074ad6f59f9cf4c7fec74be3d0691f2"
     },
     {
-      "bytes": 2448,
+      "bytes": 2080,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_queue_timeseries.csv",
-      "sha256": "0056f4747efa6d81d39cd5800dcf01c03ce7a63b215807db97ce7f58e28108c2"
+      "sha256": "f1c12e46cdee581a71758fa8413ac408f3a0a3125dfd882a2b88a17a211c2bc3"
     },
     {
-      "bytes": 259,
+      "bytes": 217,
       "exists": true,
       "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_routing_summary.csv",
-      "sha256": "b2923e9c26efa7b3d39e2b7852a12853cb3afa5bec79ae5501f8c8960f9d74a9"
+      "sha256": "e02e56094dd98aac3c527aece5474dff2a77c415f166af26b4dff73a28701999"
     },
     {
       "bytes": 635,
@@ -86,28 +86,28 @@
       "sha256": "99fafeaff4a39933fb0251e5175bbe8a19c25f2bd8d9b11c2489ab9f88abddcb"
     },
     {
-      "bytes": 17501,
+      "bytes": 16756,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/allocations_steps.csv",
-      "sha256": "edf3268d7c4ef927801122d72aa5068c1065e4892ad75a80968633854bb36df1"
+      "sha256": "f5e4d581a0fd710dc561b5fcb3deb5ab46ee4fa7308e08805d57f06fbad6946f"
     },
     {
-      "bytes": 3448,
+      "bytes": 3264,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/ground_sink_trajectory.csv",
-      "sha256": "6f3e27a6a8cfedf543e33068b46baf47582e3b87e03350af9edb2a55fa10a65f"
+      "sha256": "d402f5d96910567c5d23185a8763a4b8c41e3a15ffd087235ed605b0e1123027"
     },
     {
-      "bytes": 3193,
+      "bytes": 3009,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/relay_a_trajectory.csv",
-      "sha256": "e0ffb3df5fcfca486e0b89f73daf10ddfce49d44cb063e188aba75c23583b4ff"
+      "sha256": "d353e98d47975022979ebf2e3e73d4a77c465a869dcb3c6cd72ce0925e60dac1"
     },
     {
-      "bytes": 3192,
+      "bytes": 3008,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/relay_b_trajectory.csv",
-      "sha256": "5aa2ba69c19028db5889cb0547747786e7e4739f745ab0c5ea16481f124e7d43"
+      "sha256": "a3c1f1f8e082c8095821dde66a5772a0f08dcf33ce23b180455752accc02891c"
     },
     {
       "bytes": 983,
@@ -116,34 +116,34 @@
       "sha256": "f48e160477ad0fe49e7535d29bfcb9ba6c7b70c4000d5d12c089eddb8915a742"
     },
     {
-      "bytes": 3448,
+      "bytes": 3264,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/uav_source_trajectory.csv",
-      "sha256": "145232071709c664884ad520012e8e654d93f53f502991c3ce5b44089f09eebd"
+      "sha256": "b1062e2a0b4e70bd6670ec71c560d8ba4ea6256ac7b8f2171796fc915b198956"
     },
     {
-      "bytes": 13621,
+      "bytes": 12113,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_node_positions.csv",
-      "sha256": "442b8989094f2f7fe5ab62edb5585b84917c2295080bcddf6380991fce207505"
+      "sha256": "5f17874bb31d565dac11ddc1d52a6b2f6269ae31e5a62c8230f6918fb19b5a6b"
     },
     {
-      "bytes": 61278,
+      "bytes": 61208,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_packet_events.csv",
-      "sha256": "76cc6efeed686cb827cabab4c402ce973a302456bfd765ee43ed31c222c2de19"
+      "sha256": "947c8b50ef3afb557a88449248315b5906cc268d3f04b7cc448afe54c97e83b7"
     },
     {
-      "bytes": 2506,
+      "bytes": 2138,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_queue_timeseries.csv",
-      "sha256": "e7fc75ead8c8ec01b316e8a71d38b3fcb1e1ea0a8c45cb064b52ed9b145111e2"
+      "sha256": "07c8d515df08cfb54dd4a330cf556788984edd1f0fccf8ed2a9d786c99c59305"
     },
     {
-      "bytes": 188,
+      "bytes": 168,
       "exists": true,
       "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_routing_summary.csv",
-      "sha256": "0192c5dafc9945f04f1d9e67f1f740ca0a0ca57c3cc1d8200c9f8f6b6ea569f4"
+      "sha256": "477c99d63fe63a50835fb155496b471d6787d04895310e5e26230465bdb203b1"
     },
     {
       "bytes": 646,
@@ -194,7 +194,7 @@
     ],
     "status": "promotable"
   },
-  "normalized_bundle_sha256": "6b16f7692a15eb2042bb7ba4dca6434eb3f62b24270334e51d5569b9ba6e1b36",
+  "normalized_bundle_sha256": "9b4c4a869dc4f53db190f5b894924f3a1ff0fac3691dd197654b75e79921910b",
   "page_bundle": "view_scenario_cockpit",
   "producer": "tools/scenario_cockpit_evidence.py",
   "rerun_command": "uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean --write-doc-sample docs/source/data/scenario_cockpit_uav_queue_sample.json",

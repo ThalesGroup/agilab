@@ -133,7 +133,7 @@ def test_project_selector_refreshes_names_from_environment() -> None:
     assert env.projects == ["beta_project", "alpha_project"]
 
 
-def test_project_selector_edit_button_updates_query_and_switches_page() -> None:
+def test_project_selector_edit_button_updates_query_and_switches_page(monkeypatch) -> None:
     module = _load_module()
     switched: list[Path] = []
     changed: list[str] = []
@@ -159,6 +159,8 @@ def test_project_selector_edit_button_updates_query_and_switches_page() -> None:
         query_params={},
         switch_page=switched.append,
     )
+    monkeypatch.delattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", raising=False)
+    monkeypatch.setitem(sys.modules, "agilab.main_page", SimpleNamespace(_NAVIGATION_PAGE_ROUTES={}))
 
     selection = module.render_project_selector(
         streamlit,

@@ -52,7 +52,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/bugfix_validate.py", *helper_args)]
 
     if command == "test":
-        return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", *args]]
+        return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", "--import-mode=importlib", *args]]
 
     if command in {"regress", "ga-regress"}:
         forwarded = args or ["--staged", "--run"]
