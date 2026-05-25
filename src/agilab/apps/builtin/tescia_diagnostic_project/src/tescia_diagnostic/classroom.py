@@ -268,6 +268,139 @@ def _aggregate_rows(rows: Sequence[dict[str, Any]], *, key: str) -> list[dict[st
     return result
 
 
+def _aggregate_student_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        student_ref = str(row.get("student_ref", "")).strip()
+        if not student_ref:
+            continue
+        grouped[
+            (
+                str(row.get("class_id", "")).strip(),
+                str(row.get("session_id", "")).strip(),
+                student_ref,
+            )
+        ].append(row)
+
+    result: list[dict[str, Any]] = []
+    for (class_id, session_id, student_ref), item_rows in sorted(grouped.items()):
+        scores = [float(row["student_score"]) for row in item_rows]
+        result.append(
+            {
+                "class_id": class_id,
+                "session_id": session_id,
+                "student_ref": student_ref,
+                "submission_count": len(item_rows),
+                "average_score": _average(scores),
+                "needs_attention_count": sum(1 for row in item_rows if bool(row["needs_attention"])),
+                "weakest_exercise_id": min(
+                    item_rows,
+                    key=lambda row: (float(row["student_score"]), str(row.get("exercise_id", ""))),
+                )["exercise_id"],
+            }
+        )
+    return sorted(result, key=lambda row: (float(row["average_score"]), row["student_ref"]))
+
+
+def _intervention_priority(*, average_score: float, needs_attention_count: int) -> str:
+    if average_score < 50.0 or needs_attention_count >= 2:
+        return "high"
+    if average_score < 70.0 or needs_attention_count:
+        return "medium"
+    return "low"
+
+
+def build_classroom_intervention_plan(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    max_rows: int = 12,
+) -> list[dict[str, Any]]:
+    """Return deterministic teacher actions for a live classroom run."""
+
+    normalized_rows = [_normalize_progress_row(row) for row in rows]
+    student_rows = _aggregate_student_rows(normalized_rows)
+    curriculum_rows = sorted(
+        _aggregate_rows(normalized_rows, key="curriculum_ids"),
+        key=lambda row: (float(row["average_score"]), -int(row["needs_attention_count"]), str(row["curriculum_ids"])),
+    )
+    exercise_rows = sorted(
+        _aggregate_rows(normalized_rows, key="exercise_id"),
+        key=lambda row: (float(row["average_score"]), -int(row["needs_attention_count"]), str(row["exercise_id"])),
+    )
+
+    actions: list[dict[str, Any]] = []
+    for row in student_rows:
+        average_score = float(row["average_score"])
+        needs_attention_count = int(row["needs_attention_count"])
+        if average_score >= 70.0 and not needs_attention_count:
+            continue
+        actions.append(
+            {
+                "priority": _intervention_priority(
+                    average_score=average_score,
+                    needs_attention_count=needs_attention_count,
+                ),
+                "action_type": "student_follow_up",
+                "target": row["student_ref"],
+                "reason": f"Average {average_score} with {needs_attention_count} flagged submission(s).",
+                "suggested_action": f"Review `{row['weakest_exercise_id']}` feedback with this student.",
+                "average_score": average_score,
+                "needs_attention_count": needs_attention_count,
+            }
+        )
+
+    for row in curriculum_rows:
+        average_score = float(row["average_score"])
+        needs_attention_count = int(row["needs_attention_count"])
+        if average_score >= 70.0 and not needs_attention_count:
+            continue
+        actions.append(
+            {
+                "priority": _intervention_priority(
+                    average_score=average_score,
+                    needs_attention_count=needs_attention_count,
+                ),
+                "action_type": "curriculum_reteach",
+                "target": row["curriculum_ids"],
+                "reason": f"Average {average_score} across {row['submission_count']} submission(s).",
+                "suggested_action": "Run a short board correction before the next exercise.",
+                "average_score": average_score,
+                "needs_attention_count": needs_attention_count,
+            }
+        )
+
+    for row in exercise_rows:
+        average_score = float(row["average_score"])
+        needs_attention_count = int(row["needs_attention_count"])
+        if average_score >= 70.0 and not needs_attention_count:
+            continue
+        actions.append(
+            {
+                "priority": _intervention_priority(
+                    average_score=average_score,
+                    needs_attention_count=needs_attention_count,
+                ),
+                "action_type": "exercise_review",
+                "target": row["exercise_id"],
+                "reason": f"{needs_attention_count} submission(s) need attention.",
+                "suggested_action": "Project the reference correction and ask students to revise their answer.",
+                "average_score": average_score,
+                "needs_attention_count": needs_attention_count,
+            }
+        )
+
+    priority_rank = {"high": 0, "medium": 1, "low": 2}
+    return sorted(
+        actions,
+        key=lambda row: (
+            priority_rank.get(str(row["priority"]), 99),
+            float(row["average_score"]),
+            str(row["action_type"]),
+            str(row["target"]),
+        ),
+    )[: max(0, int(max_rows))]
+
+
 def _normalize_progress_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "class_id": _as_string(row.get("class_id")),
@@ -309,9 +442,12 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
         for row in rows
     ]
     needs_attention = [row for row in rows if bool(row["needs_attention"])]
+    student_rows = _aggregate_student_rows(rows)
+    intervention_rows = build_classroom_intervention_plan(rows)
     unique_students = sorted({str(row["student_ref"]) for row in rows if row["student_ref"]})
     class_ids = sorted({str(row["class_id"]) for row in rows if row["class_id"]})
     session_ids = sorted({str(row["session_id"]) for row in rows if row["session_id"]})
+    latest_submitted_at = max((row["submitted_at"] for row in rows if row["submitted_at"]), default="")
     return {
         "schema": CLASSROOM_RUN_REPORT_SCHEMA,
         "class_ids": class_ids,
@@ -324,8 +460,16 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
         "progress_rows": rows,
         "heatmap_rows": heatmap_rows,
         "needs_attention_rows": needs_attention,
+        "student_rows": student_rows,
         "case_rows": _aggregate_rows(rows, key="exercise_id"),
         "curriculum_rows": _aggregate_rows(rows, key="curriculum_ids"),
+        "intervention_rows": intervention_rows,
+        "live_status": {
+            "status": "attention_needed" if needs_attention else "on_track",
+            "latest_submitted_at": latest_submitted_at,
+            "lowest_score": min(score_values) if score_values else 0.0,
+            "ready_for_next_round": bool(rows) and not needs_attention and _average(score_values) >= 70.0,
+        },
         "cluster_execution": {
             "parallel_unit": "classroom submission",
             "submission_count": len(rows),
@@ -406,14 +550,18 @@ def write_classroom_artifacts(
         "progress": root / "classroom_progress.csv",
         "heatmap": root / "classroom_heatmap.csv",
         "needs_attention": root / "classroom_needs_attention.csv",
+        "students": root / "classroom_students.csv",
         "curriculum": root / "classroom_curriculum.csv",
+        "interventions": root / "classroom_interventions.csv",
     }
     paths["report"].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     paths["teacher_summary"].write_text(classroom_report_to_markdown(report), encoding="utf-8")
     _write_csv(paths["progress"], report["progress_rows"])
     _write_csv(paths["heatmap"], report["heatmap_rows"])
     _write_csv(paths["needs_attention"], report["needs_attention_rows"])
+    _write_csv(paths["students"], report["student_rows"])
     _write_csv(paths["curriculum"], report["curriculum_rows"])
+    _write_csv(paths["interventions"], report["intervention_rows"])
     return paths
 
 
@@ -476,6 +624,11 @@ def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
         [dict(row) for row in _as_list(report.get("case_rows")) if isinstance(row, Mapping)],
         key=lambda row: (float(row.get("average_score", 0.0) or 0.0), str(row.get("exercise_id", ""))),
     )
+    intervention_rows = [
+        dict(row)
+        for row in _as_list(report.get("intervention_rows"))
+        if isinstance(row, Mapping)
+    ]
     needs_attention = [
         dict(row)
         for row in _as_list(report.get("needs_attention_rows"))
@@ -509,6 +662,13 @@ def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
                 ["student_ref", "exercise_id", "student_score", "score_band"],
             ),
             "",
+            "## Next Classroom Actions",
+            "",
+            *_markdown_table(
+                intervention_rows,
+                ["priority", "action_type", "target", "suggested_action"],
+            ),
+            "",
             "## Weakest Curriculum Areas",
             "",
             *_markdown_table(
@@ -539,6 +699,7 @@ __all__ = [
     "anonymized_student_ref",
     "build_classroom_run_report",
     "build_classroom_run_report_from_rows",
+    "build_classroom_intervention_plan",
     "classroom_report_to_markdown",
     "classroom_metadata",
     "classroom_progress_row",

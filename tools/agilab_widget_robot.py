@@ -1188,6 +1188,7 @@ class ProgressReporter:
     def emit(self, event: str, **payload: Any) -> dict[str, Any]:
         record = {"ts": datetime.now(UTC).isoformat(), "event": event, **payload}
         if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, sort_keys=True) + "\n")
         if self.stderr:

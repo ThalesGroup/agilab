@@ -67,6 +67,52 @@ def test_baseworker_writes_manifest_to_args_artifact_dir(tmp_path):
     assert manifest["metrics"] == [{"name": "accuracy", "value": 0.91}]
 
 
+def test_artifact_contract_resets_records_and_preserves_metric_metadata(tmp_path):
+    worker = DummyWorker()
+    worker.data_out = tmp_path
+
+    worker.record_artifact("summary.json", kind="summary")
+    metric = worker.record_metric("loss", 0.12, metadata={"split": "validation"})
+
+    assert metric == {
+        "name": "loss",
+        "value": 0.12,
+        "metadata": {"split": "validation"},
+    }
+
+    worker.reset_artifact_contract()
+    manifest = worker.artifact_manifest()
+
+    assert manifest["artifact_count"] == 0
+    assert manifest["metric_count"] == 0
+    assert manifest["artifacts"] == []
+    assert manifest["metrics"] == []
+
+
+def test_artifact_manifest_resolves_mapping_args_and_cwd_fallback(tmp_path, monkeypatch):
+    mapping_root = tmp_path / "mapping-root"
+    mapping_root.mkdir()
+    (mapping_root / "mapped.json").write_text("{}\n", encoding="utf-8")
+    worker = DummyWorker()
+    worker.args = {"data_out": mapping_root}
+    worker.record_artifact("mapped.json", kind="json")
+
+    mapping_manifest = worker.artifact_manifest()
+
+    assert mapping_manifest["artifacts"][0]["exists"] is True
+
+    cwd_root = tmp_path / "cwd-root"
+    cwd_root.mkdir()
+    (cwd_root / "cwd.txt").write_text("ok\n", encoding="utf-8")
+    cwd_worker = DummyWorker()
+    cwd_worker.record_artifact("cwd.txt", kind="text")
+
+    monkeypatch.chdir(cwd_root)
+    cwd_manifest = cwd_worker.artifact_manifest()
+
+    assert cwd_manifest["artifacts"][0]["exists"] is True
+
+
 def test_artifact_contract_is_available_on_dag_worker(tmp_path):
     worker = DagWorker()
     artifact = tmp_path / "dag-output.txt"

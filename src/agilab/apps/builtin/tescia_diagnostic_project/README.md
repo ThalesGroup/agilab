@@ -19,8 +19,11 @@ For classroom use, TeSciA also accepts a classroom submission batch where each
 student answer references an exercise id. The batch expands into independent
 scoring rows, so local or cluster workers can process submissions concurrently
 and export a teacher-facing progress table, heatmap table, and needs-attention
-list. The `Classroom live` ANALYSIS tab reads the latest exported classroom run
-first and falls back to the bundled preview when no run exists yet.
+list. It also writes per-student rollups and a deterministic intervention plan
+so a teacher can decide who to help, which curriculum area to reteach, and which
+exercise to review next. The `Classroom live` ANALYSIS tab reads the latest
+exported classroom run first and falls back to the bundled preview when no run
+exists yet.
 
 The bundled exercises now include a 2026 French mathematics-program coverage
 contract at top-level domain granularity. The contract tracks the official 2026
@@ -124,7 +127,9 @@ When the input is a classroom batch, the worker also writes:
 - `classroom/classroom_progress.csv`
 - `classroom/classroom_heatmap.csv`
 - `classroom/classroom_needs_attention.csv`
+- `classroom/classroom_students.csv`
 - `classroom/classroom_curriculum.csv`
+- `classroom/classroom_interventions.csv`
 
 During live or distributed runs, workers can also publish partial progress under
 `classroom/partials/` as `classroom_partial_worker_<id>_<source>.json` and

@@ -213,6 +213,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "- shard: quality" in text
     assert "- shard: layout" in text
     assert "tools/agilab_widget_robot_matrix.py" in text
+    assert "uv --preview-features extra-build-dependencies run --extra ai --with playwright python tools/agilab_widget_robot_matrix.py" in text
     for scenario in {
         scenario
         for scenarios in _ui_robot_matrix_workflow_shards().values()

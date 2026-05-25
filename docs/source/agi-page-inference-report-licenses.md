@@ -19,6 +19,7 @@ Audit notes:
 |--------------|---------|---------|
 | agi-env | 2026.5.23 | BSD-3-Clause |
 | agi-gui | 2026.5.23 | BSD-3-Clause |
+| agi-node | 2026.5.23 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | attrs | 23.2.0 | MIT LICENSE |
@@ -29,8 +30,10 @@ Audit notes:
 | certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | 3.4.7 | MIT |
 | click | 8.4.0 | BSD-3-CLAUSE |
+| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
+| humanize | 4.15.0 | MIT |
 | idna | 3.15 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | 3.1.6 | BSD LICENSE |
@@ -42,9 +45,12 @@ Audit notes:
 | numpy | 2.3.5 | BSD LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
+| parso | 0.8.7 | MIT LICENSE |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pillow | 12.2.0 | MIT-CMU |
 | plotly | 6.7.0 | MIT LICENSE |
+| polars | 1.40.1 | MIT LICENSE |
+| polars-runtime-32 | 1.40.1 | MIT LICENSE |
 | protobuf | 7.34.1 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
@@ -60,6 +66,7 @@ Audit notes:
 | referencing | 0.37.0 | MIT |
 | requests | 2.34.2 | APACHE SOFTWARE LICENSE |
 | rpds-py | 0.30.0 | MIT |
+| setuptools | 81.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | smmap | 5.0.3 | BSD LICENSE |
 | streamlit | 1.56.0 | APACHE-2.0 |

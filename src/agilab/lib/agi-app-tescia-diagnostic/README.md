@@ -24,7 +24,8 @@ Bundled cases also carry a 2026 French mathematics-program coverage matrix at
 top-level domain granularity for the 2026-2027 rollout, with at least two
 exercises required per declared curriculum id.
 Classroom batches export anonymized teacher artifacts: progress, heatmap,
-needs-attention, curriculum-level CSV files, and a printable teacher summary.
+needs-attention, per-student, curriculum-level, intervention-plan CSV files,
+and a printable teacher summary.
 
 ## Installed Project
 
@@ -83,7 +84,9 @@ For classroom batches it also writes:
 - `classroom/classroom_progress.csv`
 - `classroom/classroom_heatmap.csv`
 - `classroom/classroom_needs_attention.csv`
+- `classroom/classroom_students.csv`
 - `classroom/classroom_curriculum.csv`
+- `classroom/classroom_interventions.csv`
 
 During live or distributed runs, workers can also publish partial progress under
 `classroom/partials/` as `classroom_partial_worker_<id>_<source>.json` and
