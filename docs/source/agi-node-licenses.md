@@ -17,9 +17,8 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-env | 2026.5.18 | BSD-3-Clause |
+| agi-env | 2026.5.23 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
-| astor | 0.8.1 | BSD LICENSE |
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | cython | 3.2.4 | APACHE SOFTWARE LICENSE |

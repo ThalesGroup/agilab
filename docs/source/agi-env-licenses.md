@@ -18,7 +18,6 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | annotated-types | 0.7.0 | MIT LICENSE |
-| astor | 0.8.1 | BSD LICENSE |
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |

@@ -96,6 +96,123 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
             "External MLflow server operations remain deployment-specific",
         ],
     },
+    {
+        "id": "distributed-worker-health-proof",
+        "label": "Distributed worker health proof",
+        "route": "bounded distributed-worker readiness and service-health gate",
+        "target_seconds": FULL_INSTALL_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python tools/service_health_check.py --format json",
+        ],
+        "evidence_files": [
+            "tools/service_health_check.py",
+            "src/agilab/orchestrate_services.py",
+            "docs/source/service-health-schema.rst",
+        ],
+        "expected_artifacts": [
+            "service-health gate JSON",
+            "explicit pass/fail reason",
+        ],
+        "scope": "Operator proof that the distributed-worker route has an explicit health gate and does not silently claim every remote topology.",
+        "limits": [
+            "Does not certify arbitrary SSH, GPU, Kubernetes, or cloud topologies",
+            "Health thresholds remain app/operator configuration",
+        ],
+    },
+    {
+        "id": "notebook-migration-proof",
+        "label": "Notebook migration proof",
+        "route": "packaged notebook-to-AGILAB migration preview",
+        "target_seconds": FULL_INSTALL_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py --output /tmp/notebook_to_dask_preview.json",
+        ],
+        "evidence_files": [
+            "src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py",
+            "docs/source/notebook-migration-skforecast-meteo.rst",
+            "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
+            "src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
+        ],
+        "expected_artifacts": [
+            "notebook migration preview JSON",
+            "weather forecast analysis route",
+        ],
+        "scope": "Static proof for the notebook-to-AGILAB story and its reusable weather analysis route.",
+        "limits": [
+            "Does not execute every source notebook cell in the public docs",
+            "Hosted UI availability remains a separate Hugging Face smoke",
+        ],
+    },
+    {
+        "id": "resilience-failure-injection-proof",
+        "label": "Resilience failure-injection proof",
+        "route": "deterministic resilience strategy comparison preview",
+        "target_seconds": FULL_INSTALL_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py --output /tmp/resilience_preview.json",
+        ],
+        "evidence_files": [
+            "src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py",
+            "docs/source/advanced-proof-pack.rst",
+            "docs/source/industrial-optimization-examples.rst",
+        ],
+        "expected_artifacts": [
+            "resilience preview JSON",
+            "route ranking before and after failure",
+        ],
+        "scope": "Deterministic preview proving the failure-injection demo route has a concrete evidence payload.",
+        "limits": [
+            "Does not train a production policy",
+            "Does not certify live operational resilience",
+        ],
+    },
+    {
+        "id": "train-then-serve-proof",
+        "label": "Train-then-serve proof",
+        "route": "deterministic experiment-to-service handoff preview",
+        "target_seconds": FULL_INSTALL_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python src/agilab/examples/train_then_serve/preview_train_then_serve.py --output-dir /tmp/train_then_serve_preview",
+        ],
+        "evidence_files": [
+            "src/agilab/examples/train_then_serve/preview_train_then_serve.py",
+            "docs/source/advanced-proof-pack.rst",
+            "docs/source/industrial-optimization-examples.rst",
+        ],
+        "expected_artifacts": [
+            "service_contract.json",
+            "prediction_sample.json",
+            "service_health.json",
+        ],
+        "scope": "Static proof for the handoff from experiment evidence to service-ready contract artifacts.",
+        "limits": [
+            "Does not start persistent workers",
+            "Does not certify production serving infrastructure",
+        ],
+    },
+    {
+        "id": "service-mode-preview-proof",
+        "label": "Service mode preview proof",
+        "route": "service-mode packaging and health-contract preview",
+        "target_seconds": FULL_INSTALL_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python src/agilab/examples/service_mode/preview_service_mode.py --output-dir /tmp/service_mode_preview",
+        ],
+        "evidence_files": [
+            "src/agilab/examples/service_mode/preview_service_mode.py",
+            "docs/source/service-mode.rst",
+            "docs/source/service-health-schema.rst",
+        ],
+        "expected_artifacts": [
+            "service-mode preview manifest",
+            "service health contract",
+        ],
+        "scope": "Static preview proof for service-mode contracts used by advanced demos.",
+        "limits": [
+            "Does not start a long-running service",
+            "Does not replace deployment-specific health monitoring",
+        ],
+    },
 )
 
 

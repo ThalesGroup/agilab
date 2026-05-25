@@ -394,6 +394,7 @@ def test_streamlit_runtime_is_capped_below_blank_starlette_frontend_release() ->
 def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
     stale_by_manifest = {
         "src/agilab/core/agi-env/pyproject.toml": {
+            "astor",
             "humanize",
             "numba",
             "setuptools",

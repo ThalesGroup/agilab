@@ -17,36 +17,31 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| absl-py | 2.4.0 | APACHE SOFTWARE LICENSE |
-| agi-env | 2026.5.18 | BSD-3-Clause |
-| agi-gui | 2026.5.18 | BSD-3-Clause |
+| absl-py | 2.4.0 | APACHE-2.0 |
+| agi-env | 2026.5.23 | BSD-3-Clause |
+| agi-gui | 2026.5.23 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
-| anyio | 4.13.0 | MIT |
-| astor | 0.8.1 | BSD LICENSE |
 | attrs | 23.2.0 | MIT LICENSE |
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | blinker | 1.9.0 | MIT LICENSE |
 | brotli | 1.2.0 | MIT |
-| cachetools | 7.1.1 | MIT |
+| cachetools | 7.1.2 | MIT |
 | certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | 3.4.7 | MIT |
-| click | 8.3.3 | BSD-3-CLAUSE |
+| click | 8.4.0 | BSD-3-CLAUSE |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
 | grpcio | 1.80.0 | APACHE-2.0 |
-| h11 | 0.16.0 | MIT LICENSE |
-| httptools | 0.7.1 | MIT |
 | idna | 3.15 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| itsdangerous | 2.2.0 | BSD LICENSE |
 | jinja2 | 3.1.6 | BSD LICENSE |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
 | markdown | 3.10.2 | BSD-3-CLAUSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| narwhals | 2.21.0 | MIT LICENSE |
+| narwhals | 2.21.2 | MIT LICENSE |
 | numpy | 2.3.5 | BSD LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
@@ -65,15 +60,13 @@ Audit notes:
 | pyppmd | 1.3.1 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
-| python-multipart | 0.0.28 | APACHE SOFTWARE LICENSE |
 | referencing | 0.37.0 | MIT |
-| requests | 2.34.0 | APACHE SOFTWARE LICENSE |
+| requests | 2.34.2 | APACHE SOFTWARE LICENSE |
 | rpds-py | 0.30.0 | MIT |
 | setuptools | 81.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | smmap | 5.0.3 | BSD LICENSE |
-| starlette | 0.52.1 | BSD-3-CLAUSE |
-| streamlit | 1.57.0 | APACHE-2.0 |
+| streamlit | 1.56.0 | APACHE-2.0 |
 | streamlit-code-editor | 0.1.22 | UNKNOWN |
 | tenacity | 9.1.4 | APACHE SOFTWARE LICENSE |
 | tensorboard | 2.20.0 | APACHE SOFTWARE LICENSE |
@@ -81,10 +74,9 @@ Audit notes:
 | texttable | 1.7.0 | MIT LICENSE |
 | toml | 0.10.2 | MIT LICENSE |
 | tomlkit | 0.15.0 | MIT LICENSE |
+| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |
 | urllib3 | 2.7.0 | MIT |
-| uvicorn | 0.46.0 | BSD-3-CLAUSE |
 | watchdog | 6.0.0 | APACHE SOFTWARE LICENSE |
-| websockets | 16.0 | BSD-3-CLAUSE |
 | werkzeug | 3.1.8 | BSD-3-CLAUSE |

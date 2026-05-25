@@ -19,8 +19,9 @@ AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
 It turns notebooks and scripts into executable, portable, evidence-backed apps
 while preserving a notebook export path.
 That export is an `agi-core` runtime handoff: you can continue to run the saved
-project and stage contract with only the stable core runtime, without depending
-on the AGILAB UI or distributed worker layer.
+project and stage contract with only the stable, production-grade core
+technology, without depending on the AGILAB UI or distributed worker layer.
+The stable core runtime remains the smallest supported handoff surface.
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface. Those apps can run locally or on distributed
 workers, and the workflow stays portable: export it back to an `agi-core`
@@ -54,7 +55,7 @@ notebook / MLflow / UI handoff
 The flow is reversible where it matters for long-term reuse: WORKFLOW can
 export the saved pipeline as a runnable `agi-core` supervisor notebook, so the
 code, stage order, runtime hints, and review context remain usable through the
-stable core runtime if the AGILAB UI or distributed
+stable, production-grade core technology if the AGILAB UI or distributed
 runtime is no longer the right interface for that work.
 
 Start with the public browser preview or the demo chooser:

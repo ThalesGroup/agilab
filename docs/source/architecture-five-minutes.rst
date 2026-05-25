@@ -6,7 +6,8 @@ teams. It bridges local interactive development, distributed execution, and
 result analysis while preserving an exit path: workflows can be exported back
 to runnable ``agi-core`` notebooks if the AGILAB UI or distributed runtime is
 no longer the right interface for a project. That export keeps execution on the
-stable core runtime while preserving the project and stage contract.
+stable, production-grade core technology while preserving the project and stage
+contract. The stable core runtime remains the smallest supported handoff surface.
 
 Use this page for the mental model before opening the detailed architecture
 reference. The global map shows the current level of abstraction: AGILAB is not

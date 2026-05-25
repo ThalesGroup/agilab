@@ -17,16 +17,15 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-cluster | 2026.5.18 | BSD-3-Clause |
-| agi-env | 2026.5.18 | BSD-3-Clause |
-| agi-node | 2026.5.18 | BSD-3-Clause |
+| agi-cluster | 2026.5.23 | BSD-3-Clause |
+| agi-env | 2026.5.23 | BSD-3-Clause |
+| agi-node | 2026.5.23 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
-| astor | 0.8.1 | BSD LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | cffi | 2.0.0 | MIT |
-| click | 8.3.3 | BSD-3-CLAUSE |
+| click | 8.4.0 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
 | cython | 3.2.4 | APACHE SOFTWARE LICENSE |

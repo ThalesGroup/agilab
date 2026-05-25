@@ -37,7 +37,6 @@ keywords = [
 ]
 
 dependencies = [
-    "astor",
     "pathspec",
     "psutil",
     "py7zr",

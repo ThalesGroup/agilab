@@ -13,7 +13,6 @@
 
 import os
 import shutil
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +31,6 @@ from .flight_args import (
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
-warnings.filterwarnings("ignore")
 
 
 class FlightTelemetry(BaseWorker):

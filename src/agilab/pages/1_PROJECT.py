@@ -547,27 +547,33 @@ def _parse_python_file(path: Path) -> tuple[str, ast.AST]:
     return source_code, ast.parse(source_code)
 
 
+def _ast_to_source(tree: ast.AST) -> str:
+    ast.fix_missing_locations(tree)
+    source = ast.unparse(tree)
+    return f"{source}\n" if source else ""
+
+
 def _extract_attributes_code(parsed_code: ast.AST, selected_class: str) -> str:
     attributes_code = ""
     for node in ast.walk(parsed_code):
         if isinstance(node, ast.ClassDef) and node.name == selected_class:
             for item in node.body:
                 if isinstance(item, (ast.Assign, ast.AnnAssign)):
-                    attributes_code += astor.to_source(item)
+                    attributes_code += _ast_to_source(item)
         elif (
             isinstance(node, (ast.Assign, ast.AnnAssign))
             and selected_class == "module-level"
         ):
-            attributes_code += astor.to_source(node)
+            attributes_code += _ast_to_source(node)
     return attributes_code
 
 
 def _extract_function_code(parsed_code: ast.AST, selected_item: str) -> str:
     for node in ast.walk(parsed_code):
         if isinstance(node, ast.FunctionDef) and node.name == selected_item:
-            return astor.to_source(node)
+            return _ast_to_source(node)
         if isinstance(node, ast.AsyncFunctionDef) and node.name == selected_item:
-            return astor.to_source(node)
+            return _ast_to_source(node)
     return ""
 
 
@@ -602,12 +608,12 @@ def _build_updated_attributes_source(
     new_attributes_ast = ast.parse(updated_attributes_code).body
     if selected_class == "module-level":
         parsed_original.body = _replace_attribute_nodes(parsed_original.body, new_attributes_ast)
-        return astor.to_source(parsed_original)
+        return _ast_to_source(parsed_original)
 
     for node in parsed_original.body:
         if isinstance(node, ast.ClassDef) and node.name == selected_class:
             node.body = _replace_attribute_nodes(node.body, new_attributes_ast)
-            return astor.to_source(parsed_original)
+            return _ast_to_source(parsed_original)
 
     raise ValueError(f"Class '{selected_class}' not found.")
 
@@ -630,7 +636,7 @@ def _build_updated_function_source(
     updated_ast = func_updater.visit(parsed_original)
     if not func_updater.found:
         raise ValueError(f"Function/Method '{selected_item}' not found.")
-    return astor.to_source(updated_ast)
+    return _ast_to_source(updated_ast)
 
 
 def _write_python_source(path: Path, source_code: str) -> None:
@@ -1512,7 +1518,7 @@ def import_project(project_zip, ignore=False):
         """
         Recursively copy + rename directories, files, and contents.
         """
-        import ast, astor
+        import ast
 
         for item in source_dir.iterdir():
             rel = item.relative_to(source_root).as_posix()
@@ -1547,8 +1553,7 @@ def import_project(project_zip, ignore=False):
                     try:
                         tree = ast.parse(src)
                         tree = ContentRenamer(rename_map).visit(tree)
-                        ast.fix_missing_locations(tree)
-                        out = astor.to_source(tree)
+                        out = _ast_to_source(tree)
                     except SyntaxError:
                         out = src
                     out = replace_content(out, rename_map)
@@ -1622,8 +1627,7 @@ def clone_directory(self,
                     tree = ast.parse(src)
                     renamer = ContentRenamer(rename_map)
                     new_tree = renamer.visit(tree)
-                    ast.fix_missing_locations(new_tree)
-                    out = astor.to_source(new_tree)
+                    out = _ast_to_source(new_tree)
                 except SyntaxError:
                     out = src
                 out = replace_content(out, rename_map)
@@ -1683,7 +1687,6 @@ def _cleanup_rename(self, root: Path, rename_map: dict):
 
 
 import ast
-import astor
 import streamlit as st
 
 
