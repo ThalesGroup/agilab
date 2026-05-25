@@ -2776,13 +2776,16 @@ def _is_orchestrate_preview_file(path: Path) -> bool:
 def _snapshot_artifact_files(roots: Sequence[Path], *, include_trash: bool = False) -> ArtifactFileSnapshot:
     files: dict[Path, tuple[int, int]] = {}
     for root in roots:
-        if root.is_file():
-            candidates = [root]
-        elif root.is_dir():
-            candidates = []
-            for suffix in ORCHESTRATE_PREVIEW_FILE_SUFFIXES:
-                candidates.extend(root.rglob(f"*{suffix}"))
-        else:
+        try:
+            if root.is_file():
+                candidates = [root]
+            elif root.is_dir():
+                candidates = []
+                for suffix in ORCHESTRATE_PREVIEW_FILE_SUFFIXES:
+                    candidates.extend(root.rglob(f"*{suffix}"))
+            else:
+                continue
+        except (FileNotFoundError, OSError):
             continue
         for candidate in sorted(candidates, key=lambda path: str(path)):
             if not include_trash and ".agilab-trash" in candidate.parts:

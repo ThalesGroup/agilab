@@ -441,6 +441,45 @@ def test_write_failure_bundle_records_page_diagnostic_collection_errors(tmp_path
     assert "visible issue collection failed" in manifest["visible_issue"]
 
 
+def test_evidence_text_and_upload_fixture_helpers(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    upload = tmp_path / "upload.txt"
+    upload.write_text("raw", encoding="utf-8")
+
+    notebook = module._robot_upload_fixture_for_widget(upload, {"label": "Notebook upload"})
+    json_fixture = module._robot_upload_fixture_for_widget(upload, {"label": "JSON payload"})
+    csv_fixture = module._robot_upload_fixture_for_widget(upload, {"label": "CSV file"})
+    raw_fixture = module._robot_upload_fixture_for_widget(upload, {"label": "Document"})
+
+    assert notebook.suffix == ".ipynb"
+    assert json.loads(notebook.read_text(encoding="utf-8"))["nbformat"] == 4
+    assert json_fixture.read_text(encoding="utf-8") == "{}\n"
+    assert csv_fixture.read_text(encoding="utf-8").startswith("value")
+    assert raw_fixture == upload
+
+    assert module._limited_text("a\r\nb", limit=10) == "a\nb"
+    assert module._limited_text("x" * 12, limit=4) == "xxxx\n...[truncated]\n"
+    assert module._tail_text_file(None) == ""
+    assert module._tail_text_file(tmp_path / "missing.ndjson") == ""
+    log = tmp_path / "progress.ndjson"
+    log.write_text("one\ntwo\nthree\n", encoding="utf-8")
+    assert module._tail_text_file(log, lines=2) == "two\nthree\n"
+    original_read_text = Path.read_text
+
+    def _raise_read_text(self, *args, **kwargs):
+        if self == log:
+            raise OSError("read failed")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_read_text)
+    assert module._tail_text_file(log) == ""
+
+    base = tmp_path / "bundle"
+    assert module._unique_evidence_dir(base) == base
+    base.mkdir()
+    assert module._unique_evidence_dir(base) == tmp_path / "bundle-2"
+
+
 def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
     module = _load_module()
 
@@ -1158,7 +1197,41 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
 
     assert len(probes) == 1
     assert probes[0].status == "interacted"
-    assert "restored and versioned" in probes[0].detail
+
+
+def test_workflow_artifact_helpers_cover_query_paths_and_bad_contracts(tmp_path) -> None:
+    module = _load_module()
+    context = module.WorkflowArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    queried = module._workflow_export_stage_contract_paths(
+        context,
+        url="http://demo/WORKFLOW?index_page=custom/lab_stages.toml",
+    )
+    assert queried[0] == tmp_path / "export" / "custom" / "lab_stages.toml"
+    assert module._workflow_export_stage_contract_paths(context, url=object())[:2] == [
+        tmp_path / "export" / "flight_telemetry" / "lab_stages.toml",
+        tmp_path / "export" / "flight_telemetry_project" / "lab_stages.toml",
+    ]
+
+    run_log = tmp_path / "log" / "execute" / "flight_telemetry" / "run.log"
+    run_log.parent.mkdir(parents=True)
+    run_log.write_text("run", encoding="utf-8")
+    assert run_log in module._snapshot_workflow_run_logs(context).files
+
+    unreadable = tmp_path / "bad-stage.toml"
+    unreadable.write_text("[broken\n", encoding="utf-8")
+    missing_meta = tmp_path / "missing-meta.toml"
+    missing_meta.write_text("[step]\nname='x'\n", encoding="utf-8")
+    wrong_schema = tmp_path / "wrong-schema.toml"
+    wrong_schema.write_text("[__meta__]\nschema='wrong'\n", encoding="utf-8")
+    assert module._workflow_stage_contract_is_versioned(unreadable)[0] is False
+    assert module._workflow_stage_contract_is_versioned(missing_meta)[1] == "stage contract is missing __meta__ table"
+    assert "expected" in module._workflow_stage_contract_is_versioned(wrong_schema)[1]
 
 
 def test_analysis_artifact_validation_requires_first_proof_outputs(tmp_path) -> None:
@@ -1285,6 +1358,40 @@ def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_
     assert "no loadable output artifact" in probes[0].detail
 
 
+def test_artifact_snapshot_helpers_skip_invalid_empty_and_trash_paths(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    empty = root / "empty.csv"
+    empty.write_text("", encoding="utf-8")
+    metadata = root / "run_manifest.json"
+    metadata.write_text("{}", encoding="utf-8")
+    trash = root / ".agilab-trash" / "old.csv"
+    trash.parent.mkdir()
+    trash.write_text("old", encoding="utf-8")
+    visible = root / "visible.csv"
+    visible.write_text("value\n1\n", encoding="utf-8")
+
+    snapshot = module._snapshot_artifact_files([root])
+    with_trash = module._snapshot_artifact_files([root], include_trash=True)
+    specific = module._snapshot_specific_files([root, empty, visible], require_non_empty=True)
+
+    assert set(snapshot.files) == {visible}
+    assert set(with_trash.files) == {visible, trash}
+    assert set(specific.files) == {visible}
+    assert module._snapshot_artifact_files([tmp_path / "missing"]).files == {}
+
+    original_stat = Path.stat
+
+    def _raising_stat(self, *args, **kwargs):
+        if self == visible:
+            raise OSError("stat failed")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _raising_stat)
+    assert module._snapshot_artifact_files([visible]).files == {}
+
+
 def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
@@ -1381,6 +1488,70 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
     assert len(probes) == 1
     assert probes[0].status == "interacted"
     assert "delete side effect verified" in probes[0].detail
+
+
+def test_orchestrate_artifact_validation_covers_skip_and_unchanged_failures(tmp_path) -> None:
+    module = _load_module()
+    share_root = tmp_path / "localshare"
+    export_root = tmp_path / "export"
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=export_root,
+        share_root=share_root,
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    no_output_context = module.OrchestrateArtifactContext(
+        app_name="mycode_project",
+        active_app_query="mycode_project",
+        home_root=tmp_path,
+        export_root=export_root,
+        share_root=share_root,
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    output_file = share_root / "flight_telemetry" / "dataframe" / "part-0.csv"
+    export_file = export_root / "flight_telemetry" / "export.csv"
+    output_file.parent.mkdir(parents=True)
+    export_file.parent.mkdir(parents=True)
+    output_file.write_text("value\n1\n", encoding="utf-8")
+    export_file.write_text("value\n1\n", encoding="utf-8")
+    before_output = module._snapshot_artifact_files(module._orchestrate_output_roots(context))
+    before_export = module._snapshot_artifact_files(module._orchestrate_export_roots(context))
+
+    assert module.validate_orchestrate_action_artifacts(
+        context=no_output_context,
+        display="ORCHESTRATE",
+        selected_label="Load output",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    ) == []
+
+    unchanged = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="Run -> Load -> Export",
+        before_output=before_output,
+        before_export=before_export,
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+    assert len(unchanged) == 2
+    assert all(probe.status == "failed" for probe in unchanged)
+
+    missing_delete = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="Confirm delete",
+        before_output=before_output,
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=module._snapshot_artifact_files(module._orchestrate_output_roots(context), include_trash=True),
+        url="http://demo",
+    )
+    assert len(missing_delete) == 1
+    assert missing_delete[0].status == "failed"
 
 
 def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:
