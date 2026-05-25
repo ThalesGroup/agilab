@@ -52,6 +52,7 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-decision-evidence``
 - ``agi-page-timeseries-forecast``
 - ``agi-page-inference-report``
+- ``agi-page-live-artifacts``
 - ``agi-page-geospatial-map``
 - ``agi-page-geospatial-3d``
 - ``agi-page-network-map``
@@ -95,18 +96,17 @@ recommended use cases, see :doc:`public-app-catalog`.
 - ``agi-app-flight-telemetry``
 - ``agi-app-global-dag``
 - ``agi-app-weather-forecast``
-- ``agi-app-sklearn-pipeline``
 - ``agi-app-pytorch-playground``
 - ``agi-app-tescia-diagnostic``
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
-Ten app payload packages are promoted to PyPI in the current release plan:
+Nine app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
 ``agi-app-global-dag``, ``agi-app-weather-forecast``,
-``agi-app-sklearn-pipeline``, ``agi-app-pytorch-playground``,
-``agi-app-tescia-diagnostic``, and ``agi-app-uav-relay-queue``. The
+``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic``, and
+``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
 artifacts and kept in the GitHub Release distribution archive until it is
 explicitly promoted. The payload is staged during package build, with local
@@ -320,6 +320,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-inference-report``
+   * - ``agi-page-live-artifacts``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-live-artifacts``
    * - ``agi-page-geospatial-map``
      - ``ThalesGroup``
      - ``agilab``
@@ -420,11 +425,6 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-weather-forecast``
-   * - ``agi-app-sklearn-pipeline``
-     - ``ThalesGroup``
-     - ``agilab``
-     - ``pypi-publish.yaml``
-     - ``pypi-agi-app-sklearn-pipeline``
    * - ``agi-app-pytorch-playground``
      - ``ThalesGroup``
      - ``agilab``
@@ -496,6 +496,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-page-decision-evidence``
 - ``pypi-agi-page-timeseries-forecast``
 - ``pypi-agi-page-inference-report``
+- ``pypi-agi-page-live-artifacts``
 - ``pypi-agi-page-geospatial-map``
 - ``pypi-agi-page-geospatial-3d``
 - ``pypi-agi-page-network-map``
@@ -513,7 +514,6 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-app-flight-telemetry``
 - ``pypi-agi-app-global-dag``
 - ``pypi-agi-app-weather-forecast``
-- ``pypi-agi-app-sklearn-pipeline``
 - ``pypi-agi-app-pytorch-playground``
 - ``pypi-agi-app-tescia-diagnostic``
 - ``pypi-agi-app-uav-queue-project``

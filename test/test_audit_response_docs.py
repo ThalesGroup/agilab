@@ -208,11 +208,12 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
     assert "first-proof" not in local_pypi_proof
     assert "If startup fails, run a progressive fallback" in readme
     assert "| `examples` extra |" in readme
+    assert "| `proof` extra |" in readme
     assert "| `agents` extra |" in readme
     assert "| `dev` extra |" in readme
 
 
-def test_proof_capsule_direction_is_explicit_without_fake_cli_claims() -> None:
+def test_proof_capsule_direction_is_explicit_about_signed_capsule_boundary() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     pypi_readme = Path("README.pypi.md").read_text(encoding="utf-8")
     docs_page = (DOCS_SOURCE / "proof-capsule.rst").read_text(encoding="utf-8")
@@ -233,10 +234,12 @@ def test_proof_capsule_direction_is_explicit_without_fake_cli_claims() -> None:
     assert "pip-audit" in combined
     assert "wheel hashes" in combined
     assert "The first public proof-pack layer now adds" in readme
-    assert "A signed `.agipack` archive" in readme
+    assert "`agilab sign proof.agipack" in readme
+    assert "trust-policy verification" in combined
+    assert "External Sigstore/SLSA attestation binding" in combined
     assert "remain roadmap work" in readme
-    assert "directory of plain JSON evidence, not yet a signed ``.agipack`` archive" in docs_page
-    assert "operate on `run_manifest.json` and write plain JSON" in roadmap
+    assert "detached Ed25519 signatures" in docs_page
+    assert "External proof-capsule attestation" in roadmap
 
 
 def test_quick_start_documents_public_install_tiers() -> None:
@@ -249,6 +252,7 @@ def test_quick_start_documents_public_install_tiers() -> None:
     assert "``agilab[agents]`` for the packaged agent workflow client dependencies" in quick_start
     assert "``agilab[examples]`` for notebook/demo helper dependencies" in quick_start
     assert "``agilab[pages]`` for analysis\npage bundles without the full UI profile" in quick_start
+    assert "``agilab[proof]`` for detached proof-capsule signatures" in quick_start
     assert "``agilab[dev]`` for contributor-only test/build tooling" in quick_start
     assert 'tool install --upgrade "agilab[ui]"\n    agilab' in ui_route
     assert "agilab first-proof --json --max-seconds 60" not in ui_route

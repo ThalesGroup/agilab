@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -26,9 +27,11 @@ from agilab import run_manifest
 
 PROOF_PACK_SCHEMA = "agilab.proof_pack.v1"
 PROOF_CAPSULE_SCHEMA = "agilab.proof_capsule.v1"
+PROOF_CAPSULE_SIGNATURE_SCHEMA = "agilab.proof_capsule_signature.v1"
 VERIFY_SCHEMA = "agilab.evidence_verification.v1"
 CAPSULE_VERIFY_SCHEMA = "agilab.proof_capsule_verification.v1"
 POLICY_SCHEMA = "agilab.policy_report.v1"
+TRUST_POLICY_SCHEMA = "agilab.proof_capsule_trust_policy.v1"
 METADATA_STORE_SCHEMA = "agilab.metadata_store.v1"
 CARD_SCHEMA = "agilab.evidence_card.v1"
 OPENLINEAGE_EVENT_SCHEMA = "agilab.openlineage_export.v1"
@@ -37,6 +40,7 @@ DEFAULT_POLICY_ID = "agilab.default_adoption_gate.v1"
 
 PROOF_CAPSULE_EXTENSION = ".agipack"
 PROOF_CAPSULE_MANIFEST_FILENAME = "agipack-manifest.json"
+PROOF_CAPSULE_SIGNATURE_SUFFIX = ".sig.json"
 PROOF_PACK_FILENAME = "agilab_proof_pack.json"
 RUN_MANIFEST_SNAPSHOT_FILENAME = "run_manifest.snapshot.json"
 VERIFY_REPORT_FILENAME = "verification-report.json"
@@ -84,6 +88,13 @@ class ProofCapsuleWriteResult:
     proof_pack: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ProofCapsuleSignatureResult:
+    capsule_path: Path
+    signature_path: Path
+    signature: dict[str, Any]
+
+
 def default_manifest_path() -> Path:
     for candidate in DEFAULT_MANIFEST_CANDIDATES:
         expanded = candidate.expanduser()
@@ -111,6 +122,10 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def default_signature_path(capsule_path: Path) -> Path:
+    return capsule_path.with_suffix(capsule_path.suffix + PROOF_CAPSULE_SIGNATURE_SUFFIX)
 
 
 def load_manifest(path: Path) -> run_manifest.RunManifest:
@@ -719,7 +734,72 @@ def write_proof_capsule(
     )
 
 
-def verify_proof_capsule(capsule_path: Path) -> dict[str, Any]:
+def sign_proof_capsule(
+    capsule_path: Path,
+    private_key_path: Path,
+    *,
+    signature_path: Path | None = None,
+    signer: str = "",
+    issuer: str = "",
+    generate_key: bool = False,
+    force_key: bool = False,
+) -> ProofCapsuleSignatureResult:
+    capsule_path = capsule_path.expanduser()
+    private_key_path = private_key_path.expanduser()
+    signature_path = (signature_path or default_signature_path(capsule_path)).expanduser()
+
+    capsule_report = verify_proof_capsule(capsule_path)
+    if capsule_report["status"] != "pass":
+        raise ValueError("Cannot sign a proof capsule that does not verify.")
+
+    if generate_key and (force_key or not private_key_path.exists()):
+        _generate_ed25519_private_key(private_key_path, force=force_key)
+
+    private_key = _load_ed25519_private_key(private_key_path)
+    public_key_pem = _ed25519_public_key_pem(private_key.public_key())
+    capsule_sha256 = sha256_file(capsule_path)
+    capsule_size = capsule_path.stat().st_size
+    signature_bytes = private_key.sign(_signature_message(capsule_sha256))
+    signature_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": PROOF_CAPSULE_SIGNATURE_SCHEMA,
+        "created_at": run_manifest.utc_now(),
+        "signature_type": "detached",
+        "subject": {
+            "media_type": "application/vnd.agilab.proof-capsule+zip",
+            "path": str(capsule_path),
+            "sha256": capsule_sha256,
+            "size_bytes": capsule_size,
+        },
+        "signer": signer,
+        "issuer": issuer,
+        "key": {
+            "algorithm": "ed25519",
+            "public_key_pem": public_key_pem.decode("ascii"),
+            "public_key_sha256": hashlib.sha256(public_key_pem).hexdigest(),
+        },
+        "signature": {
+            "algorithm": "ed25519",
+            "message": _signature_message(capsule_sha256).decode("ascii"),
+            "encoding": "base64",
+            "value": base64.b64encode(signature_bytes).decode("ascii"),
+        },
+    }
+    _write_json(signature_path, payload)
+    return ProofCapsuleSignatureResult(
+        capsule_path=capsule_path,
+        signature_path=signature_path,
+        signature=payload,
+    )
+
+
+def verify_proof_capsule(
+    capsule_path: Path,
+    *,
+    signature_path: Path | None = None,
+    trust_policy_path: Path | None = None,
+    require_signature: bool = False,
+) -> dict[str, Any]:
     capsule_path = capsule_path.expanduser()
     checks: list[dict[str, Any]] = []
     manifest: run_manifest.RunManifest | None = None
@@ -957,6 +1037,15 @@ def verify_proof_capsule(capsule_path: Path) -> dict[str, Any]:
                     snapshot_sha256=snapshot_sha256,
                 )
             )
+
+            if signature_path is not None or trust_policy_path is not None or require_signature:
+                checks.extend(
+                    _proof_capsule_signature_checks(
+                        capsule_path,
+                        signature_path,
+                        trust_policy_path=trust_policy_path,
+                    )
+                )
     except zipfile.BadZipFile as exc:
         checks.append(
             _check(
@@ -985,6 +1074,10 @@ def verify_proof_capsule(capsule_path: Path) -> dict[str, Any]:
             "status": manifest.status,
             "created_at": manifest.created_at,
         }
+    if signature_path is not None:
+        report["signature_path"] = str(signature_path.expanduser())
+    if trust_policy_path is not None:
+        report["trust_policy_path"] = str(trust_policy_path.expanduser())
     return report
 
 
@@ -1053,14 +1146,37 @@ def run_replay(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.command == "sign":
+        result = sign_proof_capsule(
+            Path(args.capsule).expanduser(),
+            Path(args.key).expanduser(),
+            signature_path=Path(args.signature).expanduser() if args.signature else None,
+            signer=args.signer,
+            issuer=args.issuer,
+            generate_key=args.generate_key,
+            force_key=args.force_key,
+        )
+        payload = result.signature | {
+            "status": "pass",
+            "capsule_path": str(result.capsule_path),
+            "signature_path": str(result.signature_path),
+        }
+        return _emit_report(payload, json_output=args.json, strict=False)
+
     input_path = Path(args.manifest).expanduser() if args.manifest else default_manifest_path()
 
     if args.command == "verify":
-        report = (
-            verify_proof_capsule(input_path)
-            if _is_proof_capsule(input_path)
-            else verify_manifest(input_path, check_artifacts=not args.no_artifacts)
-        )
+        if _is_proof_capsule(input_path):
+            report = verify_proof_capsule(
+                input_path,
+                signature_path=Path(args.signature).expanduser() if args.signature else None,
+                trust_policy_path=Path(args.trust_policy).expanduser() if args.trust_policy else None,
+                require_signature=args.require_signature,
+            )
+        else:
+            if args.signature or args.trust_policy or args.require_signature:
+                raise SystemExit("Signature verification requires a .agipack input.")
+            report = verify_manifest(input_path, check_artifacts=not args.no_artifacts)
         return _emit_report(report, json_output=args.json, strict=args.strict)
 
     if args.command == "prove":
@@ -1164,8 +1280,21 @@ def _build_parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify", help="Verify a run manifest.")
     _add_manifest_argument(verify)
     verify.add_argument("--no-artifacts", action="store_true", help="Skip artifact existence checks.")
+    verify.add_argument("--signature", help="Detached .agipack signature JSON.")
+    verify.add_argument("--trust-policy", help="JSON/TOML trust policy for a detached .agipack signature.")
+    verify.add_argument("--require-signature", action="store_true", help="Fail when a .agipack has no detached signature.")
     verify.add_argument("--strict", action="store_true", help="Exit non-zero when verification fails.")
     verify.add_argument("--json", action="store_true", help="Print JSON output.")
+
+    sign = subparsers.add_parser("sign", help="Sign a .agipack proof capsule with Ed25519.")
+    sign.add_argument("capsule", help="Path to a .agipack proof capsule.")
+    sign.add_argument("--key", required=True, help="Ed25519 private key PEM path.")
+    sign.add_argument("--signature", help="Output detached signature JSON path.")
+    sign.add_argument("--signer", default="", help="Signer identity recorded in the signature metadata.")
+    sign.add_argument("--issuer", default="", help="Issuer or trust domain recorded in the signature metadata.")
+    sign.add_argument("--generate-key", action="store_true", help="Create the private key if it is missing.")
+    sign.add_argument("--force-key", action="store_true", help="Overwrite the private key when --generate-key is used.")
+    sign.add_argument("--json", action="store_true", help="Print JSON output.")
 
     replay = subparsers.add_parser("replay", help="Print or execute a recorded replay command.")
     _add_manifest_argument(replay)
@@ -1231,7 +1360,7 @@ def _human_summary(report: Mapping[str, Any]) -> str:
     schema = str(report.get("schema", report.get("@context", "agilab.evidence")))
     status = str(report.get("status", "ok"))
     lines = [f"{schema}: {status}"]
-    for key in ("manifest_path", "proof_pack_path", "output_dir"):
+    for key in ("manifest_path", "capsule_path", "signature_path", "proof_pack_path", "output_dir"):
         if report.get(key):
             lines.append(f"{key}: {report[key]}")
     if isinstance(report.get("checks"), list):
@@ -1374,6 +1503,381 @@ def _read_archive_json(archive: zipfile.ZipFile, name: str) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         raise ValueError(f"{name} must contain a JSON object")
     return dict(payload)
+
+
+def _signature_message(capsule_sha256: str) -> bytes:
+    return f"{PROOF_CAPSULE_SIGNATURE_SCHEMA}\nsha256:{capsule_sha256}\n".encode("ascii")
+
+
+def _load_ed25519_private_key(path: Path):
+    Ed25519PrivateKey, _Ed25519PublicKey, serialization = _cryptography_ed25519()
+    try:
+        private_key = serialization.load_pem_private_key(
+            path.expanduser().read_bytes(),
+            password=None,
+        )
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Missing signing key: {path}. Use --generate-key to create a local Ed25519 key."
+        ) from None
+    if not isinstance(private_key, Ed25519PrivateKey):
+        raise ValueError("Signing key must be an Ed25519 PEM private key.")
+    return private_key
+
+
+def _load_ed25519_public_key_pem(public_key_pem: str):
+    _Ed25519PrivateKey, Ed25519PublicKey, serialization = _cryptography_ed25519()
+    public_key = serialization.load_pem_public_key(public_key_pem.encode("ascii"))
+    if not isinstance(public_key, Ed25519PublicKey):
+        raise ValueError("Signature public key must be an Ed25519 PEM public key.")
+    return public_key
+
+
+def _ed25519_public_key_pem(public_key: object) -> bytes:
+    _Ed25519PrivateKey, _Ed25519PublicKey, serialization = _cryptography_ed25519()
+    return public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def _generate_ed25519_private_key(path: Path, *, force: bool = False) -> Path:
+    Ed25519PrivateKey, _Ed25519PublicKey, serialization = _cryptography_ed25519()
+    path = path.expanduser()
+    if path.exists() and not force:
+        raise FileExistsError(f"Signing key already exists: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    private_key = Ed25519PrivateKey.generate()
+    path.write_bytes(
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return path
+
+
+def _cryptography_ed25519():
+    try:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+            Ed25519PrivateKey,
+            Ed25519PublicKey,
+        )
+    except ModuleNotFoundError as exc:  # pragma: no cover - depends on environment.
+        raise RuntimeError(
+            "Proof capsule signing requires the optional cryptography dependency. "
+            "Install it with `python -m pip install 'agilab[proof]'` or "
+            "`python -m pip install cryptography`."
+        ) from exc
+    return Ed25519PrivateKey, Ed25519PublicKey, serialization
+
+
+def load_trust_policy(policy_path: Path | None) -> dict[str, Any]:
+    if policy_path is None:
+        return {}
+    policy_path = policy_path.expanduser()
+    text = policy_path.read_text(encoding="utf-8")
+    if policy_path.suffix.lower() == ".json":
+        payload = json.loads(text)
+    elif policy_path.suffix.lower() in {".toml", ".tml"}:
+        if tomllib is None:
+            raise RuntimeError("TOML trust policies require Python 3.11 or newer.")
+        payload = tomllib.loads(text)
+    else:
+        raise ValueError("Trust policy file must be JSON or TOML.")
+    if not isinstance(payload, Mapping):
+        raise ValueError("Trust policy file must contain an object.")
+    return dict(payload)
+
+
+def _proof_capsule_signature_checks(
+    capsule_path: Path,
+    signature_path: Path | None,
+    *,
+    trust_policy_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    capsule_path = capsule_path.expanduser()
+    capsule_sha256 = sha256_file(capsule_path) if capsule_path.is_file() else ""
+    capsule_size = capsule_path.stat().st_size if capsule_path.is_file() else -1
+    signature_payload: dict[str, Any] = {}
+
+    if signature_path is None:
+        checks.append(
+            _check(
+                "capsule_signature_present",
+                False,
+                "Detached proof capsule signature is required but was not provided.",
+            )
+        )
+        return checks
+
+    signature_path = signature_path.expanduser()
+    if not signature_path.is_file():
+        checks.append(
+            _check(
+                "capsule_signature_present",
+                False,
+                f"Missing detached proof capsule signature: {signature_path}",
+            )
+        )
+        return checks
+
+    checks.append(_check("capsule_signature_present", True, "Detached proof capsule signature exists."))
+    try:
+        signature_payload = json.loads(signature_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        checks.append(
+            _check(
+                "capsule_signature_schema_supported",
+                False,
+                f"Signature file is invalid JSON: {exc}",
+            )
+        )
+        return checks
+    if not isinstance(signature_payload, Mapping):
+        checks.append(
+            _check(
+                "capsule_signature_schema_supported",
+                False,
+                "Signature file must contain a JSON object.",
+            )
+        )
+        return checks
+
+    schema_ok = signature_payload.get("schema") == PROOF_CAPSULE_SIGNATURE_SCHEMA
+    checks.append(
+        _check(
+            "capsule_signature_schema_supported",
+            schema_ok,
+            "Signature schema is supported." if schema_ok else "Signature schema is unsupported.",
+            schema=signature_payload.get("schema"),
+        )
+    )
+    if not schema_ok:
+        return checks
+
+    subject = dict(signature_payload.get("subject", {}))
+    subject_size = _safe_int(subject.get("size_bytes"), default=-2)
+    subject_matches = (
+        subject.get("sha256") == capsule_sha256
+        and subject_size == capsule_size
+    )
+    checks.append(
+        _check(
+            "capsule_signature_subject_matches",
+            subject_matches,
+            "Signature subject matches the proof capsule."
+            if subject_matches
+            else "Signature subject does not match the proof capsule.",
+            expected_sha256=subject.get("sha256"),
+            actual_sha256=capsule_sha256,
+            expected_size_bytes=subject.get("size_bytes"),
+            actual_size_bytes=capsule_size,
+        )
+    )
+
+    key_payload = dict(signature_payload.get("key", {}))
+    signature_info = dict(signature_payload.get("signature", {}))
+    public_key_pem = str(key_payload.get("public_key_pem", ""))
+    public_key_sha256 = str(key_payload.get("public_key_sha256", ""))
+    signature_value = str(signature_info.get("value", ""))
+    public_key_bytes = _ascii_bytes(public_key_pem)
+    calculated_public_key_sha256 = (
+        hashlib.sha256(public_key_bytes).hexdigest()
+        if public_key_bytes
+        else ""
+    )
+    key_ok = (
+        key_payload.get("algorithm") == "ed25519"
+        and bool(public_key_bytes)
+        and public_key_sha256 == calculated_public_key_sha256
+        and signature_info.get("algorithm") == "ed25519"
+        and signature_info.get("encoding") == "base64"
+        and signature_value
+    )
+    checks.append(
+        _check(
+            "capsule_signature_key_supported",
+            key_ok,
+            "Signature uses a supported Ed25519 key."
+            if key_ok
+            else "Signature key metadata is missing or unsupported.",
+            public_key_sha256=public_key_sha256,
+        )
+    )
+    if key_ok:
+        try:
+            public_key = _load_ed25519_public_key_pem(public_key_pem)
+            public_key.verify(
+                base64.b64decode(signature_value.encode("ascii"), validate=True),
+                _signature_message(capsule_sha256),
+            )
+            cryptographic_ok = True
+            crypto_error = ""
+        except Exception as exc:
+            cryptographic_ok = False
+            crypto_error = str(exc)
+        checks.append(
+            _check(
+                "capsule_signature_cryptographic_valid",
+                cryptographic_ok,
+                "Detached signature validates against the proof capsule digest."
+                if cryptographic_ok
+                else "Detached signature does not validate against the proof capsule digest.",
+                error=crypto_error,
+            )
+        )
+
+    if trust_policy_path is not None:
+        checks.extend(
+            _trust_policy_checks(
+                trust_policy_path,
+                signature_payload,
+                capsule_sha256=capsule_sha256,
+                public_key_sha256=public_key_sha256,
+            )
+        )
+    return checks
+
+
+def _trust_policy_checks(
+    trust_policy_path: Path,
+    signature_payload: Mapping[str, Any],
+    *,
+    capsule_sha256: str,
+    public_key_sha256: str,
+) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    try:
+        policy = load_trust_policy(trust_policy_path)
+    except Exception as exc:
+        return [
+            _check(
+                "capsule_trust_policy_loaded",
+                False,
+                f"Trust policy could not be loaded: {exc}",
+            )
+        ]
+    schema = str(policy.get("schema", TRUST_POLICY_SCHEMA))
+    schema_ok = schema == TRUST_POLICY_SCHEMA
+    checks.append(
+        _check(
+            "capsule_trust_policy_loaded",
+            schema_ok,
+            "Trust policy loaded." if schema_ok else "Trust policy schema is unsupported.",
+            schema=schema,
+        )
+    )
+    if not schema_ok:
+        return checks
+
+    signer = str(signature_payload.get("signer", ""))
+    issuer = str(signature_payload.get("issuer", ""))
+    allowed_keys = _policy_values(
+        policy,
+        "allowed_public_key_sha256",
+        "allowed_public_keys_sha256",
+        "trusted_public_key_sha256",
+        "trusted_public_keys_sha256",
+    )
+    allowed_signers = _policy_values(policy, "allowed_signers", "trusted_signers")
+    allowed_issuers = _policy_values(policy, "allowed_issuers", "trusted_issuers")
+    expected_subjects = _policy_values(policy, "subject_sha256", "expected_subject_sha256")
+    has_anchor = bool(allowed_keys or allowed_signers or allowed_issuers or expected_subjects)
+    checks.append(
+        _check(
+            "capsule_trust_policy_has_anchor",
+            has_anchor,
+            "Trust policy declares at least one trust anchor."
+            if has_anchor
+            else "Trust policy must declare at least one allowed key, signer, issuer, or subject hash.",
+        )
+    )
+    if allowed_keys:
+        checks.append(
+            _check(
+                "capsule_trust_policy_allows_public_key",
+                public_key_sha256 in allowed_keys,
+                "Trust policy allows the signature public key."
+                if public_key_sha256 in allowed_keys
+                else "Trust policy does not allow the signature public key.",
+                public_key_sha256=public_key_sha256,
+                allowed_public_key_sha256=allowed_keys,
+            )
+        )
+    if allowed_signers:
+        checks.append(
+            _check(
+                "capsule_trust_policy_allows_signer",
+                signer in allowed_signers,
+                "Trust policy allows the signer."
+                if signer in allowed_signers
+                else "Trust policy does not allow the signer.",
+                signer=signer,
+                allowed_signers=allowed_signers,
+            )
+        )
+    if allowed_issuers:
+        checks.append(
+            _check(
+                "capsule_trust_policy_allows_issuer",
+                issuer in allowed_issuers,
+                "Trust policy allows the issuer."
+                if issuer in allowed_issuers
+                else "Trust policy does not allow the issuer.",
+                issuer=issuer,
+                allowed_issuers=allowed_issuers,
+            )
+        )
+    if expected_subjects:
+        checks.append(
+            _check(
+                "capsule_trust_policy_allows_subject",
+                capsule_sha256 in expected_subjects,
+                "Trust policy allows the proof capsule subject hash."
+                if capsule_sha256 in expected_subjects
+                else "Trust policy does not allow the proof capsule subject hash.",
+                capsule_sha256=capsule_sha256,
+                expected_subject_sha256=expected_subjects,
+            )
+        )
+    return checks
+
+
+def _policy_values(policy: Mapping[str, Any], *keys: str) -> list[str]:
+    values: list[str] = []
+    for key in keys:
+        raw = policy.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, str):
+            values.append(raw)
+        elif isinstance(raw, Sequence) and not isinstance(raw, (bytes, bytearray)):
+            values.extend(str(item) for item in raw)
+        else:
+            values.append(str(raw))
+    return values
+
+
+def _safe_int(value: object, *, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _ascii_bytes(value: str) -> bytes:
+    try:
+        return value.encode("ascii")
+    except UnicodeEncodeError:
+        return b""
 
 
 def _replay_available(manifest: run_manifest.RunManifest) -> bool:
