@@ -294,10 +294,13 @@ AGILAB already ships many of those pieces separately through first-proof
 manifests, notebook export, release proof, supply-chain scans, robot artifacts,
 and adoption reports. The first public proof-pack layer now adds
 `agilab prove`, `agilab verify`, `agilab replay`, `agilab export-lineage`,
-`agilab policy-check`, `agilab cards`, and `agilab metadata-store` for
-`run_manifest.json` evidence. A signed `.agipack` archive, native lineage or
-observability transport, durable ML metadata, rich app-authored cards, and
-enterprise governance integrations remain roadmap work. See the
+`agilab export-traces`, `agilab policy-check`, `agilab cards`, and
+`agilab metadata-store` for `run_manifest.json` evidence, plus an unsigned,
+hash-verifiable `.agipack` archive for portable handoff with
+`agilab prove --export proof.agipack`. Detached signing/attestation for
+`.agipack`, native lineage or observability transport, durable ML metadata,
+rich app-authored cards, and enterprise governance integrations remain roadmap
+work. See the
 [proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
 contract for the intended boundary.
 
