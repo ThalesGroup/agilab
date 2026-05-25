@@ -68,7 +68,8 @@ agi-core
     that shared contract.
   - ``execution_polars_project`` emits comparable benchmark reduce artefacts;
     the user-facing ``flight_telemetry_project`` emits trajectory-summary
-    reduce artefacts; ``weather_forecast_project`` emits forecast-metrics
+    reduce artefacts and records worker-only Cython evidence for its haversine
+    speed kernel; ``weather_forecast_project`` emits forecast-metrics
     reduce artefacts; and ``uav_queue_project`` plus
     ``uav_relay_queue_project`` emit the same
     ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.

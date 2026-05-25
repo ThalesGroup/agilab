@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import pickle
+import time
 from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
@@ -19,6 +20,8 @@ from agi_node.agi_dispatcher.base_worker import BaseWorker
 
 
 logger = logging.getLogger(__name__)
+CALIBRATION_CACHE_TTL_SECONDS_ENV = "AGILAB_CALIBRATION_CACHE_TTL_SECONDS"
+DEFAULT_CALIBRATION_CACHE_TTL_SECONDS = 300.0
 
 
 def _is_cython_installed(env: AgiEnv) -> bool:
@@ -58,6 +61,68 @@ def _node_count(workers: Mapping[str, int] | None) -> int:
         return 1
     hosts = {_worker_host(worker) for worker in workers if _worker_host(worker)}
     return max(len(hosts), 1)
+
+
+def _calibration_cache_ttl(env: Any) -> float:
+    raw = os.environ.get(CALIBRATION_CACHE_TTL_SECONDS_ENV)
+    if raw is None:
+        envars = getattr(env, "envars", None)
+        if isinstance(envars, Mapping):
+            raw = envars.get(CALIBRATION_CACHE_TTL_SECONDS_ENV)
+    if raw is None:
+        return DEFAULT_CALIBRATION_CACHE_TTL_SECONDS
+    try:
+        return max(float(raw), 0.0)
+    except (TypeError, ValueError):
+        return DEFAULT_CALIBRATION_CACHE_TTL_SECONDS
+
+
+def _calibration_signature(agi_cls: Any) -> dict[str, Any]:
+    env = getattr(agi_cls, "env", None)
+    return {
+        "workers": sorted((getattr(agi_cls, "_workers", {}) or {}).items()),
+        "dask_workers": sorted(str(worker) for worker in (getattr(agi_cls, "_dask_workers", []) or [])),
+        "share": str(getattr(env, "share", "") or ""),
+        "local_share": str(getattr(env, "localshare", "") or getattr(env, "local_share", "") or ""),
+        "cluster_share": str(getattr(env, "clustershare", "") or getattr(env, "cluster_share", "") or ""),
+        "capacity_predictor_id": id(getattr(agi_cls, "_capacity_predictor", None)),
+    }
+
+
+def _restore_calibration_cache(agi_cls: Any, *, now: float) -> bool:
+    ttl_seconds = _calibration_cache_ttl(getattr(agi_cls, "env", None))
+    if ttl_seconds <= 0:
+        return False
+    cache = getattr(agi_cls, "_calibration_cache", None)
+    if not isinstance(cache, dict):
+        return False
+    if cache.get("signature") != _calibration_signature(agi_cls):
+        return False
+    try:
+        measured_at = float(cache.get("measured_at"))
+    except (TypeError, ValueError):
+        return False
+    if now - measured_at > ttl_seconds:
+        return False
+    workers_info = cache.get("workers_info")
+    capacity = cache.get("capacity")
+    if not isinstance(workers_info, dict) or not isinstance(capacity, dict):
+        return False
+    agi_cls.workers_info = deepcopy(workers_info)
+    agi_cls._capacity = deepcopy(capacity)
+    return True
+
+
+def _store_calibration_cache(agi_cls: Any, *, now: float) -> None:
+    ttl_seconds = _calibration_cache_ttl(getattr(agi_cls, "env", None))
+    if ttl_seconds <= 0:
+        return
+    agi_cls._calibration_cache = {
+        "signature": _calibration_signature(agi_cls),
+        "measured_at": now,
+        "workers_info": deepcopy(getattr(agi_cls, "workers_info", {})),
+        "capacity": deepcopy(getattr(agi_cls, "_capacity", {})),
+    }
 
 
 def _best_single_node_host(agi_cls: Any, workers: Mapping[str, int]) -> str:
@@ -395,6 +460,11 @@ async def benchmark_dask_modes(
 
 
 async def calibration(agi_cls: Any, log: Any = logger) -> None:
+    now = time.time()
+    if _restore_calibration_cache(agi_cls, now=now):
+        log.info("Reusing cached worker capacity calibration.")
+        return
+
     res_workers_info = agi_cls._dask_client.gather(
         [
             agi_cls._dask_client.run(
@@ -454,6 +524,7 @@ async def calibration(agi_cls: Any, log: Any = logger) -> None:
     agi_cls._capacity = dict(
         sorted(workers_capacity.items(), key=lambda item: item[1], reverse=True)
     )
+    _store_calibration_cache(agi_cls, now=now)
 
 
 def train_capacity(agi_cls: Any, train_home: Path, log: Any = logger) -> None:

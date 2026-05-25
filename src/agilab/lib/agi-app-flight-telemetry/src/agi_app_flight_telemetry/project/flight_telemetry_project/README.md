@@ -14,6 +14,9 @@ The project focuses on a simple but useful workflow:
 - validating the `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS` flow in one
   packaged public app
 - showing how a raw data source becomes a reusable dataset for visual exploration
+- demonstrating worker-only Cython acceleration on a real app: dataframe I/O,
+  analysis pages, and reducer artifacts stay in Python while the per-row
+  haversine distance kernel can run as a typed compiled worker hot loop
 
 ## What is not implemented in the public version
 
@@ -37,6 +40,8 @@ Workers also emit a `reduce_summary_worker_<id>.json` `ReduceArtifact` beside
 the dataframe outputs. That summary records the reducer name, row count,
 aircraft/source-file counts, written output files, and trajectory distance/time-span
 fields so Release Decision can surface the flight run as first-class evidence.
+It also records the speed-kernel runtime, the `float64-contiguous` dtype
+contract, and a distance checksum so Cython runs remain auditable.
 
 ## Typical flow
 

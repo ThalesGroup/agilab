@@ -21,10 +21,70 @@ _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _TOP_LEVEL_UI_MODULE_SUFFIX = "_args_form.py"
 _TOP_LEVEL_UI_BYTECODE_SUFFIX = "_args_form."
+_SYNC_POLL_DELAYS_SECONDS = (0.2, 0.5, 1.0, 3.0)
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
     return sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+
+
+def _sync_poll_delay(attempt: int) -> float:
+    if attempt < 0:
+        attempt = 0
+    if attempt >= len(_SYNC_POLL_DELAYS_SECONDS):
+        return _SYNC_POLL_DELAYS_SECONDS[-1]
+    return _SYNC_POLL_DELAYS_SECONDS[attempt]
+
+
+def _local_dask_worker_command(uv_cmd: str, wenv_abs: Path, scheduler: str, pid_file: str) -> list[str]:
+    if os.name == "nt":
+        dask_exe = wenv_abs / ".venv" / "Scripts" / "dask.exe"
+    else:
+        dask_exe = wenv_abs / ".venv" / "bin" / "dask"
+    if dask_exe.exists():
+        return [
+            str(dask_exe),
+            "worker",
+            f"tcp://{scheduler}",
+            "--no-nanny",
+            "--pid-file",
+            str(wenv_abs / pid_file),
+        ]
+    return [
+        *shlex.split(str(uv_cmd), posix=os.name != "nt"),
+        "--project",
+        str(wenv_abs),
+        "run",
+        "--no-sync",
+        "dask",
+        "worker",
+        f"tcp://{scheduler}",
+        "--no-nanny",
+        "--pid-file",
+        str(wenv_abs / pid_file),
+    ]
+
+
+def _record_phase_timing(agi_cls: Any, phase: str, seconds: float) -> None:
+    timings = getattr(agi_cls, "_phase_timings", None)
+    if not isinstance(timings, list):
+        timings = []
+        setattr(agi_cls, "_phase_timings", timings)
+    timings.append({"phase": phase, "seconds": round(float(seconds), 6)})
+
+
+async def _run_timed_phase(
+    agi_cls: Any,
+    phase: str,
+    awaitable_factory: Callable[[], Any],
+    *,
+    time_fn: Callable[[], float] = time.time,
+) -> Any:
+    started_at = time_fn()
+    try:
+        return await awaitable_factory()
+    finally:
+        _record_phase_timing(agi_cls, phase, time_fn() - started_at)
 
 
 def _is_top_level_ui_artifact(name: str) -> bool:
@@ -294,19 +354,12 @@ async def start(
                 pid_file = f"dask_worker_{i}_{j}.pid"
                 if is_local:
                     wenv_abs = env.wenv_abs
-                    local_cmd = [
-                        *shlex.split(str(env.uv), posix=os.name != "nt"),
-                        "--project",
-                        str(wenv_abs),
-                        "run",
-                        "--no-sync",
-                        "dask",
-                        "worker",
-                        f"tcp://{agi_cls._scheduler}",
-                        "--no-nanny",
-                        "--pid-file",
-                        str(wenv_abs / pid_file),
-                    ]
+                    local_cmd = _local_dask_worker_command(
+                        str(env.uv),
+                        wenv_abs,
+                        agi_cls._scheduler,
+                        pid_file,
+                    )
                     process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
                     agi_cls._exec_bg(local_cmd, str(wenv_abs), env=process_env)
                 else:
@@ -350,6 +403,7 @@ async def sync(
         return
     start_time = time_fn()
     expected_workers = sum(agi_cls._workers.values())
+    poll_attempt = 0
 
     while True:
         try:
@@ -357,7 +411,8 @@ async def sync(
             workers_info = info.get("workers")
             if workers_info is None:
                 log.info("Scheduler info 'workers' not ready yet.")
-                await sleep_fn(3)
+                await sleep_fn(_sync_poll_delay(poll_attempt))
+                poll_attempt += 1
                 if time_fn() - start_time > timeout:
                     log.error("Timeout waiting for scheduler workers info.")
                     raise TimeoutError("Timed out waiting for scheduler workers info")
@@ -377,11 +432,13 @@ async def sync(
             if time_fn() - start_time > timeout:
                 log.error("Timeout waiting for all workers. {remaining} workers missing.")
                 raise TimeoutError("Timed out waiting for all workers to attach")
-            await sleep_fn(3)
+            await sleep_fn(_sync_poll_delay(poll_attempt))
+            poll_attempt += 1
 
         except _SYNC_RETRY_EXCEPTIONS as exc:
             log.info(f"Exception in _sync: {exc}")
-            await sleep_fn(1)
+            await sleep_fn(_sync_poll_delay(poll_attempt))
+            poll_attempt += 1
             if time_fn() - start_time > timeout:
                 raise TimeoutError(f"Timeout waiting for all workers due to exception: {exc}")
 
@@ -530,22 +587,53 @@ async def main(
 ) -> Any:
     cond_clean = True
     agi_cls._jobs = background_job_manager_factory()
+    agi_cls._phase_timings = []
 
     if (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) == agi_cls._SIMULATE_MODE:
         res = await agi_cls._run()
     elif agi_cls._mode >= agi_cls._INSTALL_MODE:
         started_at = time_fn()
         agi_cls._clean_dirs_local()
-        await agi_cls._prepare_local_env()
+        await _run_timed_phase(
+            agi_cls,
+            "prepare-local-env",
+            lambda: agi_cls._prepare_local_env(),
+            time_fn=time_fn,
+        )
         if agi_cls._mode & agi_cls.DASK_MODE:
-            await agi_cls._prepare_cluster_env(scheduler)
-        await agi_cls._deploy_application(scheduler)
+            await _run_timed_phase(
+                agi_cls,
+                "prepare-cluster-env",
+                lambda: agi_cls._prepare_cluster_env(scheduler),
+                time_fn=time_fn,
+            )
+        await _run_timed_phase(
+            agi_cls,
+            "deploy-application",
+            lambda: agi_cls._deploy_application(scheduler),
+            time_fn=time_fn,
+        )
         res = time_fn() - started_at
     elif agi_cls._mode & agi_cls.DASK_MODE:
-        await agi_cls._start(scheduler)
-        res = await agi_cls._distribute()
+        await _run_timed_phase(
+            agi_cls,
+            "start-dask",
+            lambda: agi_cls._start(scheduler),
+            time_fn=time_fn,
+        )
+        res = await _run_timed_phase(
+            agi_cls,
+            "distribute",
+            lambda: agi_cls._distribute(),
+            time_fn=time_fn,
+        )
         agi_cls._update_capacity()
-        await agi_cls._stop()
+        await _run_timed_phase(
+            agi_cls,
+            "stop-dask",
+            lambda: agi_cls._stop(),
+            time_fn=time_fn,
+        )
     else:
         res = await agi_cls._run()
 

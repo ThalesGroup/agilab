@@ -30,6 +30,7 @@ def _reset_agi_capacity_state():
         "workers_info",
         "_run_time",
         "_capacity",
+        "_calibration_cache",
         "env",
         "target_path",
         "_target",
@@ -51,6 +52,7 @@ def _reset_agi_capacity_state():
         AGI.workers_info = {}
         AGI._run_time = []
         AGI._capacity = {}
+        AGI._calibration_cache = {}
         AGI.env = None
         AGI.target_path = None
         AGI._target = None
@@ -607,6 +609,70 @@ async def test_calibration_computes_normalized_capacity():
 
     assert AGI.workers_info["127.0.0.1:8787"]["label"] == 4.0
     assert AGI._capacity["127.0.0.1:8787"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_reuses_fresh_topology_cache(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.run_calls = 0
+
+        def run(self, *_args, **_kwargs):
+            self.run_calls += 1
+            return {
+                "tcp://127.0.0.1:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    monkeypatch.setattr(capacity_support.time, "time", lambda: 100.0)
+    AGI.env = SimpleNamespace(envars={"AGILAB_CALIBRATION_CACHE_TTL_SECONDS": "300"})
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _data: [4.0])
+
+    await capacity_support.calibration(AGI)
+    AGI._capacity = {}
+    AGI.workers_info = {}
+    await capacity_support.calibration(AGI)
+
+    assert AGI._dask_client.run_calls == 1
+    assert AGI._capacity == {"127.0.0.1:8787": 1.0}
+    assert AGI.workers_info["127.0.0.1:8787"]["label"] == 4.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_cache_can_be_disabled(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.run_calls = 0
+
+        def run(self, *_args, **_kwargs):
+            self.run_calls += 1
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    monkeypatch.setattr(capacity_support.time, "time", lambda: 100.0)
+    AGI.env = SimpleNamespace(envars={"AGILAB_CALIBRATION_CACHE_TTL_SECONDS": "0"})
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _data: [1.0])
+
+    await capacity_support.calibration(AGI)
+    await capacity_support.calibration(AGI)
+
+    assert AGI._dask_client.run_calls == 2
 
 
 @pytest.mark.asyncio

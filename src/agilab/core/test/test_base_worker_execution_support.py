@@ -778,6 +778,7 @@ def test_resolve_worker_info_path_normalizes_share_path_and_skips_existing_dir()
 def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
     removed_paths: list[str] = []
     written_payloads: list[str] = []
+    sleep_calls: list[float] = []
     time_values = iter([1.0, 3.0])
 
     class _FakeStream:
@@ -795,7 +796,7 @@ def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
         worker="127.0.0.1:8787",
         time_module=SimpleNamespace(
             time=lambda: next(time_values),
-            sleep=lambda *_args, **_kwargs: None,
+            sleep=lambda delay: sleep_calls.append(delay),
         ),
         os_module=SimpleNamespace(
             path=SimpleNamespace(join=base_worker_mod.os.path.join),
@@ -811,6 +812,41 @@ def test_measure_worker_write_speed_writes_probe_file_and_removes_it():
     # same helper to stay portable.
     assert removed_paths == [os.path.join("/tmp/share", "127.0.0.1_8787")]
     assert write_speed == [4.0]
+    assert sleep_calls == []
+
+
+def test_measure_worker_write_speed_can_request_settle_sleep():
+    sleep_calls: list[float] = []
+    time_values = iter([1.0, 2.0])
+
+    class _FakeStream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def write(self, _payload):
+            return None
+
+    write_speed = execution_support._measure_worker_write_speed(
+        path="/tmp/share",
+        worker="worker",
+        time_module=SimpleNamespace(
+            time=lambda: next(time_values),
+            sleep=lambda delay: sleep_calls.append(delay),
+        ),
+        os_module=SimpleNamespace(
+            path=SimpleNamespace(join=base_worker_mod.os.path.join),
+            remove=lambda _path: None,
+        ),
+        open_fn=lambda *_args, **_kwargs: _FakeStream(),
+        size=4,
+        settle_seconds=0.25,
+    )
+
+    assert write_speed == [4.0]
+    assert sleep_calls == [0.25]
 
 
 def test_baseworker_build_verbose_non_managed_path_updates_sys_path(monkeypatch, tmp_path):

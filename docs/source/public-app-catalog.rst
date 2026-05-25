@@ -27,7 +27,8 @@ Status legend:
      - ``agi-app-flight-telemetry``
      - PyPI app package
      - First proof and compact end-to-end data ingestion with map/network
-       analysis.
+       analysis; also the real-world worker-only Cython example for a
+       haversine speed kernel with reducer evidence.
    * - ``weather_forecast_project``
      - ``agi-app-weather-forecast``
      - PyPI app package
