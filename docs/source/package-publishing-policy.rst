@@ -52,6 +52,7 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-decision-evidence``
 - ``agi-page-timeseries-forecast``
 - ``agi-page-inference-report``
+- ``agi-page-live-artifacts``
 - ``agi-page-geospatial-map``
 - ``agi-page-geospatial-3d``
 - ``agi-page-network-map``
@@ -319,6 +320,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-inference-report``
+   * - ``agi-page-live-artifacts``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-live-artifacts``
    * - ``agi-page-geospatial-map``
      - ``ThalesGroup``
      - ``agilab``
@@ -490,6 +496,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-page-decision-evidence``
 - ``pypi-agi-page-timeseries-forecast``
 - ``pypi-agi-page-inference-report``
+- ``pypi-agi-page-live-artifacts``
 - ``pypi-agi-page-geospatial-map``
 - ``pypi-agi-page-geospatial-3d``
 - ``pypi-agi-page-network-map``

@@ -40,6 +40,7 @@ PUBLIC_PAGE_MODULES = (
     "view_data_io_decision",
     "view_forecast_analysis",
     "view_inference_analysis",
+    "view_live_artifacts",
     "view_maps",
     "view_maps_3d",
     "view_maps_network",

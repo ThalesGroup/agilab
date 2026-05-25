@@ -152,6 +152,47 @@ def test_widget_robot_context_artifact_labels_are_filesystem_safe() -> None:
     assert module._context_artifact_label("") == "context"
 
 
+def test_any_visible_locator_tolerates_locator_exceptions() -> None:
+    module = _load_module()
+
+    class BrokenCountLocator:
+        @staticmethod
+        def count():
+            raise RuntimeError("detached")
+
+    class Candidate:
+        def __init__(self, visible: bool, broken: bool = False):
+            self.visible = visible
+            self.broken = broken
+
+        def is_visible(self, *, timeout):
+            assert timeout == 25.0
+            if self.broken:
+                raise RuntimeError("stale element")
+            return self.visible
+
+    class Locator:
+        def __init__(self, candidates):
+            self.candidates = candidates
+
+        def count(self):
+            return len(self.candidates)
+
+        def nth(self, index):
+            return self.candidates[index]
+
+    assert module._any_visible_locator(BrokenCountLocator()) is False
+    assert module._any_visible_locator(
+        Locator([Candidate(False, broken=True), Candidate(True), Candidate(False)]),
+        timeout_ms=25.0,
+    ) is True
+    assert module._any_visible_locator(
+        Locator([Candidate(False), Candidate(False), Candidate(True)]),
+        timeout_ms=25.0,
+        limit=2,
+    ) is False
+
+
 def test_robot_context_records_optional_playwright_artifacts(tmp_path) -> None:
     module = _load_module()
     captured: dict[str, object] = {}

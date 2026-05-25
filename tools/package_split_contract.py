@@ -55,6 +55,7 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-page-decision-evidence", "src/agilab/apps-pages/view_data_io_decision"),
     ("agi-page-timeseries-forecast", "src/agilab/apps-pages/view_forecast_analysis"),
     ("agi-page-inference-report", "src/agilab/apps-pages/view_inference_analysis"),
+    ("agi-page-live-artifacts", "src/agilab/apps-pages/view_live_artifacts"),
     ("agi-page-geospatial-map", "src/agilab/apps-pages/view_maps"),
     ("agi-page-geospatial-3d", "src/agilab/apps-pages/view_maps_3d"),
     ("agi-page-network-map", "src/agilab/apps-pages/view_maps_network"),
