@@ -23,7 +23,7 @@ from .ui_state_support import (
 )
 
 try:  # pragma: no cover - standard-library availability differs by Python version
-    from importlib import metadata as _importlib_metadata  # type: ignore
+    from importlib import metadata as _importlib_metadata
 except ImportError:  # pragma: no cover
     _importlib_metadata = None  # type: ignore
 

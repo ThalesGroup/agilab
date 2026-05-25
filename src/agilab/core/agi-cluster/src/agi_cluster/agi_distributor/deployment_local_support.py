@@ -31,7 +31,7 @@ from agi_env import AgiEnv
 logger = logging.getLogger(__name__)
 FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
-PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
+PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)  # ty: ignore[possibly-missing-submodule]
 PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
@@ -1378,13 +1378,13 @@ def _write_manager_sync_overlay(
     project_name = project.get("name")
 
     tool = doc.get("tool")
-    if tool is None or not isinstance(tool, tomlkit.items.Table):
+    if tool is None or not isinstance(tool, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
         tool = tomlkit.table()
     uv = tool.get("uv")
-    if uv is None or not isinstance(uv, tomlkit.items.Table):
+    if uv is None or not isinstance(uv, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
         uv = tomlkit.table()
     sources = uv.get("sources")
-    if sources is None or not isinstance(sources, tomlkit.items.Table):
+    if sources is None or not isinstance(sources, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
         sources = tomlkit.table()
 
     if isinstance(project_name, str):
@@ -1486,7 +1486,7 @@ def _update_pyproject_dependencies(
     if deps is None:
         deps = tomlkit.array()
     else:
-        if not isinstance(deps, tomlkit.items.Array):
+        if not isinstance(deps, tomlkit.items.Array):  # ty: ignore[possibly-missing-submodule]
             arr = tomlkit.array()
             for item in deps:
                 arr.append(item)

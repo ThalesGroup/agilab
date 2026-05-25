@@ -374,7 +374,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
 
         merged_args = cls._apply_managed_pc_path_overrides(merged_args, env=env)
 
-        return cls(env, args=merged_args)
+        return cls(env, args=merged_args)  # ty: ignore[too-many-positional-arguments, unknown-argument]
 
     def to_toml(
         self,
@@ -426,7 +426,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
         logger.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
                         )
         with BaseWorker._service_lock:
-            is_active = BaseWorker._service_active.get(self._worker_id)
+            is_active = BaseWorker._service_active.get(self._worker_id)  # ty: ignore[invalid-argument-type]
         if is_active:
             try:
                 BaseWorker.break_loop()
@@ -499,7 +499,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 json_module=json,
                 os_module=os,
                 time_module=time,
-            )
+            )  # ty: ignore[invalid-assignment]
 
         start_time = time.time()
         logger.info(
@@ -802,7 +802,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             if fallback_base is None:
                 fallback_base = Path.home()
             fallback_target = env.target if env else Path(normalized_output).name
-            fallback = fallback_base / fallback_target
+            fallback = fallback_base / fallback_target  # ty: ignore[unsupported-operator]
             try:
                 fallback = _ensure_output_dir(fallback / target_subdir)
                 normalized_output = normalize_path(fallback)
@@ -971,13 +971,13 @@ class BaseWorker(ArtifactContract, abc.ABC):
 
     @staticmethod
     def _new(
-            env: AgiEnv=None,
-            app: str=None,
+            env: AgiEnv=None,  # ty: ignore[invalid-parameter-default]
+            app: str=None,  # ty: ignore[invalid-parameter-default]
             mode: int=0,
             verbose: int=0,
             worker_id: int=0,
             worker: str="localhost",
-            args: dict=None,
+            args: dict=None,  # ty: ignore[invalid-parameter-default]
     ):
         """new worker instance
         Args:
@@ -1024,7 +1024,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
         """
         return execution_support.collect_worker_info(
             share_path=BaseWorker._share_path,
-            worker=BaseWorker._worker,
+            worker=BaseWorker._worker,  # ty: ignore[invalid-argument-type]
             normalize_path_fn=normalize_path,
             logger_obj=logger,
             psutil_module=psutil,

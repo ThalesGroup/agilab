@@ -18,7 +18,7 @@ from collections.abc import Mapping
 try:
     from .bootstrap_source_paths import bootstrap_core_source_paths
 except ImportError:  # pragma: no cover - script execution fallback
-    from bootstrap_source_paths import bootstrap_core_source_paths
+    from bootstrap_source_paths import bootstrap_core_source_paths  # ty: ignore[unresolved-import]
 
 bootstrap_core_source_paths(source_file=__file__)
 
@@ -170,7 +170,7 @@ def find_sys_prefix(base_dir: str) -> str:
     base = Path(base_dir).expanduser()
     python_dirs = sorted(base.glob("Python???"))
     if python_dirs:
-        AgiEnv.logger.info(f"Found Python directory: {python_dirs[0]}")
+        AgiEnv.logger.info(f"Found Python directory: {python_dirs[0]}")  # ty: ignore[unresolved-attribute]
         return str(python_dirs[0])
     return sys.prefix
 
@@ -195,38 +195,38 @@ def create_symlink_for_module(env, pck: str) -> list[Path]:
     try:
         dest = dest.absolute()
     except FileNotFoundError:
-        AgiEnv.logger.error(f"Source path does not exist: {src_abs}")
+        AgiEnv.logger.error(f"Source path does not exist: {src_abs}")  # ty: ignore[unresolved-attribute]
         raise FileNotFoundError(f"Source path does not exist: {src_abs}")
 
     if not dest.parent.exists():
-        AgiEnv.logger.info(f"Creating directory: {dest.parent}")
+        AgiEnv.logger.info(f"Creating directory: {dest.parent}")  # ty: ignore[unresolved-attribute]
         logger.info(f"mkdir {dest.parent}")
         dest.parent.mkdir(parents=True, exist_ok=True)
 
     if not dest.exists():
-        AgiEnv.logger.info(f"Linking {src_abs} -> {dest}")
+        AgiEnv.logger.info(f"Linking {src_abs} -> {dest}")  # ty: ignore[unresolved-attribute]
         if AgiEnv._is_managed_pc:
             try:
                 AgiEnv.create_junction_windows(src_abs, dest)
             except OSError as link_err:
-                AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
+                AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")  # ty: ignore[unresolved-attribute]
                 raise
         else:
             try:
                 AgiEnv.create_symlink(src_abs, dest)
                 created_links.append(dest)
-                AgiEnv.logger.info(f"Symlink created: {dest} -> {src_abs}")
+                AgiEnv.logger.info(f"Symlink created: {dest} -> {src_abs}")  # ty: ignore[unresolved-attribute]
             except OSError as symlink_err:
-                AgiEnv.logger.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")
+                AgiEnv.logger.warning(f"Symlink creation failed: {symlink_err}. Trying hard link instead.")  # ty: ignore[unresolved-attribute]
                 try:
                     os.link(src_abs, dest)
                     created_links.append(dest)
-                    AgiEnv.logger.info(f"Hard link created: {dest} -> {src_abs}")
+                    AgiEnv.logger.info(f"Hard link created: {dest} -> {src_abs}")  # ty: ignore[unresolved-attribute]
                 except OSError as link_err:
-                    AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")
+                    AgiEnv.logger.error(f"Failed to create link from {src_abs} to {dest}: {link_err}")  # ty: ignore[unresolved-attribute]
                     raise
     else:
-        AgiEnv.logger.debug(f"Link already exists for {dest}")
+        AgiEnv.logger.debug(f"Link already exists for {dest}")  # ty: ignore[unresolved-attribute]
 
     return created_links
 
@@ -258,7 +258,7 @@ def cleanup_links(links: list[Path]) -> None:
     for link in links:
         try:
             if link.is_symlink() or link.exists():
-                AgiEnv.logger.info(f"Removing link or file: {link}")
+                AgiEnv.logger.info(f"Removing link or file: {link}")  # ty: ignore[unresolved-attribute]
                 if link.is_dir() and not link.is_symlink():
                     shutil.rmtree(link)
                 else:
@@ -278,7 +278,7 @@ def cleanup_links(links: list[Path]) -> None:
                     continue
                 break
         except OSError as e:
-            AgiEnv.logger.warning(f"Failed to remove {link}: {e}")
+            AgiEnv.logger.warning(f"Failed to remove {link}: {e}")  # ty: ignore[unresolved-attribute]
 
 # Also scrub any hardcoded -L flags that point to nowhere
 def _keep_lflag(arg: str) -> bool:
@@ -499,7 +499,7 @@ def _postprocess_bdist_egg_output(
     if cleanup_links_fn is None:
         cleanup_links_fn = cleanup_links
     if os_system_fn is None:
-        os_system_fn = os.system
+        os_system_fn = os.system  # ty: ignore[deprecated]
     if zip_cls is None:
         zip_cls = ZipFile
     if log is None:
@@ -803,7 +803,7 @@ def _prepare_setup_artifacts(
     if cmd == "build_ext":
         ext_modules = configure_build_ext_modules_fn(
             active_app=active_app,
-            build_dir=build_dir,
+            build_dir=build_dir,  # ty: ignore[invalid-argument-type]
             remaining_args=remaining_args,
             worker_module=worker_module,
             pyvers_worker=env.pyvers_worker,

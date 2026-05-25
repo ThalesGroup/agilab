@@ -39,7 +39,7 @@ def _load_keyring_module(keyring_module: Any = None) -> Any:
     if keyring_module is not None:
         return keyring_module
     try:
-        import keyring  # type: ignore
+        import keyring
     except ImportError:
         return None
     return keyring

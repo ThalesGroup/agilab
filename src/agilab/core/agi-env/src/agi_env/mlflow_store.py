@@ -17,7 +17,7 @@ from importlib.util import find_spec
 import os
 from pathlib import Path
 try:
-    from pathlib import UnsupportedOperation  # Python 3.13+
+    from pathlib import UnsupportedOperation  # Python 3.13+  # ty: ignore[unresolved-import]
 except ImportError:  # pragma: no cover - older Pythons
     UnsupportedOperation = NotImplementedError  # type: ignore[assignment]
 import shutil

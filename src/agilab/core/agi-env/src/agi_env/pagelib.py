@@ -836,7 +836,7 @@ def save_csv(df, path: Path, sep=",") -> bool:
         path (Path): The file path to save the CSV.
         sep (str): The separator to use in the CSV file.
     """
-    path, error_message = resolve_export_target(path)
+    path, error_message = resolve_export_target(path)  # ty: ignore[invalid-assignment]
     if error_message:
         st.error(error_message)
         return False
@@ -1051,7 +1051,7 @@ def sidebar_views():
         find_files_fn=find_files,
         resolve_default_selection_fn=resolve_default_selection,
         build_sidebar_dataframe_selection_fn=build_sidebar_dataframe_selection,
-        on_lab_change_fn=on_lab_change,
+        on_lab_change_fn=on_lab_change,  # ty: ignore[unresolved-reference]
         on_df_change_fn=on_df_change,
         path_cls=Path,
     )

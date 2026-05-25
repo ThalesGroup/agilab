@@ -220,7 +220,7 @@ def kill(exclude_pids=None):
 
 def unzip(wenv=None):
     try:
-        root = Path(wenv)
+        root = Path(wenv)  # ty: ignore[invalid-argument-type]
         root_src = root / 'src'
         logger.info(f"Ensuring src directory exists at {root_src}")
         root_src.mkdir(parents=True, exist_ok=True)

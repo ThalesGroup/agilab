@@ -253,7 +253,7 @@ def resolve_active_app_selection(
                 projects=[
                     SimpleNamespace(name=project.name, project_root=project, provider=project.name)
                     for project in installed_app_projects
-                ],
+                ],  # ty: ignore[invalid-argument-type]
             )
             if installed_app is not None:
                 active_app = installed_app

@@ -84,7 +84,7 @@ class RunRequest:
     def to_dispatch_kwargs(self) -> dict[str, Any]:
         payload = self.to_app_kwargs()
         if self.stages:
-            payload[RUN_STAGES_KEY] = [stage.to_payload() for stage in self.stages]
+            payload[RUN_STAGES_KEY] = [stage.to_payload() for stage in self.stages]  # ty: ignore[unresolved-attribute]
         return payload
 
     def to_target_kwargs(self) -> dict[str, Any]:

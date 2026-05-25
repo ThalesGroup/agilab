@@ -221,7 +221,7 @@ class AGI:
         # At the top of __init__:
         if hasattr(AGI, "_instantiated") and AGI._instantiated:
             raise RuntimeError("AGI class is a singleton. Only one instance allowed per process.")
-        AGI._instantiated = True
+        AGI._instantiated = True  # ty: ignore[unresolved-attribute]
 
     @staticmethod
     async def run(
@@ -595,8 +595,8 @@ class AGI:
             ip: str,
             local_path: Path,
             remote_path: Path,
-            user: str = None,
-            password: str = None
+            user: str = None,  # ty: ignore[invalid-parameter-default]
+            password: str = None  # ty: ignore[invalid-parameter-default]
     ):
         await transport_support.send_file(
             env,
@@ -609,7 +609,7 @@ class AGI:
         )
 
     @staticmethod
-    async def send_files(env: AgiEnv, ip: str, files: list[Path], remote_dir: Path, user: str = None):
+    async def send_files(env: AgiEnv, ip: str, files: list[Path], remote_dir: Path, user: str = None):  # ty: ignore[invalid-parameter-default]
         await transport_support.send_files(
             AGI,
             env,
@@ -643,7 +643,7 @@ class AGI:
             run_path_fn=runpy.run_path,
             sys_module=sys,
             path_cls=Path,
-            detect_export_cmd_fn=AGI._detect_export_cmd,
+            detect_export_cmd_fn=AGI._detect_export_cmd,  # ty: ignore[invalid-argument-type]
             log=logger,
         )
 
@@ -760,7 +760,7 @@ class AGI:
             wenv_rel,
             options_worker,
             agi_version_missing_on_pypi_fn=runtime_misc_support.agi_version_missing_on_pypi,
-            worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
+            worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,  # ty: ignore[invalid-argument-type]
             write_staged_uv_sources_pth_fn=uv_source_support.write_staged_uv_sources_pth,
             runtime_file=__file__,
             run_fn=AgiEnv.run,
@@ -790,7 +790,7 @@ class AGI:
     async def _uninstall_modules() -> None:
         await deployment_prepare_support.uninstall_modules(
             AGI,
-            AGI.env,
+            AGI.env,  # ty: ignore[invalid-argument-type]
             run_fn=AgiEnv.run,
             log=logger,
         )

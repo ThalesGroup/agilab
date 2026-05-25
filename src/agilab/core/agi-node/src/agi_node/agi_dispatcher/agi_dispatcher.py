@@ -47,7 +47,7 @@ class WorkDispatcher:
 
     def __init__(self, args=None):
         """Store ``args`` for later use when evaluating distribution plans."""
-        WorkDispatcher.args = args
+        WorkDispatcher.args = args  # ty: ignore[invalid-assignment]
 
     @staticmethod
     def _split_dispatch_args(args):
@@ -214,7 +214,7 @@ class WorkDispatcher:
     nchunk2: int,
     weights: List[Any],
     capacities: Optional[List[Any]] = None,
-    workers: Dict = None,
+    workers: Dict = None,  # ty: ignore[invalid-parameter-default]
     verbose: int = 0,
     threshold: int = 12,
 ) -> List[List[List[Any]]]:
@@ -236,15 +236,15 @@ class WorkDispatcher:
         """
         if not workers:
             workers = workers_default
-        capacities = WorkDispatcher._normalize_worker_capacities(capacities, workers)
+        capacities = WorkDispatcher._normalize_worker_capacities(capacities, workers)  # ty: ignore[invalid-assignment]
 
         if len(weights) > 1:
             if nchunk2 < threshold:
                 logging.info(f"optimal - workers capacities {capacities} - {nchunk2} works to be done")
-                chunks = WorkDispatcher._make_chunks_optimal(weights, capacities)
+                chunks = WorkDispatcher._make_chunks_optimal(weights, capacities)  # ty: ignore[invalid-argument-type]
             else:
                 logging.info(f"fastest - workers capacities {capacities} - {nchunk2} works to be done")
-                chunks = WorkDispatcher._make_chunks_fastest(weights, capacities)
+                chunks = WorkDispatcher._make_chunks_fastest(weights, capacities)  # ty: ignore[invalid-argument-type]
 
             return chunks
 
@@ -305,11 +305,11 @@ class WorkDispatcher:
             racine = True
 
         if not subsets:  # finished when all subsets are partitioned
-            return [chunks, max(chunks_sizes)]
+            return [chunks, max(chunks_sizes)]  # ty: ignore[invalid-argument-type]
 
         # Optimisation: We check if the weighted difference between the biggest and the smalest chunk
         # is more than the weighted sum of the remaining subsets
-        if max(chunks_sizes) > min(
+        if max(chunks_sizes) > min(  # ty: ignore[invalid-argument-type]
                 np.array(chunks_sizes + sum([i[1] for i in subsets])) / chkweights
         ):
             # If yes, we won't make the biggest chunk bigger by filling the smallest chunk
@@ -320,15 +320,15 @@ class WorkDispatcher:
             chunks_sizes[smallest_chunk_index] += (
                     sum([i[1] for i in subsets]) / chkweights[smallest_chunk_index]
             )
-            return [chunks, max(chunks_sizes)]
+            return [chunks, max(chunks_sizes)]  # ty: ignore[invalid-argument-type]
 
         chunks_choices = []
         chunks_choices_max_size = np.array([])
         inserted_chunk_sizes = []
         for i in range(nchk):
             # We add the next subset to the ith chunk if we haven't already tried a similar chunk
-            if (chunks_sizes[i], chkweights[i]) not in inserted_chunk_sizes:
-                inserted_chunk_sizes.append((chunks_sizes[i], chkweights[i]))
+            if (chunks_sizes[i], chkweights[i]) not in inserted_chunk_sizes:  # ty: ignore[not-subscriptable]
+                inserted_chunk_sizes.append((chunks_sizes[i], chkweights[i]))  # ty: ignore[not-subscriptable]
                 subsets2 = deepcopy(subsets)[1:]
                 chunk_pool = deepcopy(chunks)
                 chunk_pool[i].append(subsets[0])

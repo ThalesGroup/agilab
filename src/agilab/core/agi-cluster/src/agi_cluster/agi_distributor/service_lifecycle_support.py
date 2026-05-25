@@ -89,7 +89,7 @@ def _submit_service_worker_inits(
             client.submit(
                 BaseWorker._new,
                 env=0 if getattr(env, "debug", False) else None,
-                app=env.target_worker,
+                app=env.target_worker,  # ty: ignore[unresolved-attribute]
                 mode=agi_cls._mode,
                 verbose=agi_cls.verbose,
                 worker_id=worker_id,
@@ -141,7 +141,7 @@ async def service_recover(
 
     try:
         agi_cls.env = env
-        agi_cls.target_path = env.manager_path
+        agi_cls.target_path = env.manager_path  # ty: ignore[unresolved-attribute]
         agi_cls._target = env.target
         agi_cls._mode = int(state.get("mode", agi_cls.DASK_MODE))
         agi_cls._mode_auto = False

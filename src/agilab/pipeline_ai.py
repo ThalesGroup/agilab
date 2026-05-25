@@ -5,6 +5,8 @@ import importlib.metadata as importlib_metadata
 import importlib.util
 import logging
 import os
+import urllib.error
+import urllib.request
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
