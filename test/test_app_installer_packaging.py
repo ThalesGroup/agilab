@@ -10,6 +10,7 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 
@@ -41,6 +42,7 @@ EXAMPLE_APPS = {
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
 EXAMPLE_PREVIEWS = {
+    "excel_workbook_proof": ("preview_excel_workbook_proof.py",),
     "inter_project_dag": ("preview_inter_project_dag.py",),
     "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py",),
     "notebook_to_dask": (
@@ -697,6 +699,35 @@ def test_packaged_preview_example_scripts_are_compile_safe() -> None:
         py_compile.compile(str(script), doraise=True)
 
 
+def test_excel_workbook_proof_preview_writes_workbook_refresh_and_evidence(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "excel_workbook_proof" / "preview_excel_workbook_proof.py"
+    spec = importlib.util.spec_from_file_location("excel_workbook_proof_preview_test", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    preview = module.build_preview(output_dir=tmp_path)
+
+    proof_workbook = tmp_path / "sales_proof_workbook.xlsx"
+    evidence_path = tmp_path / "agilab_evidence.json"
+    assert proof_workbook.is_file()
+    assert (tmp_path / "input_sales_workbook.xlsx").is_file()
+    assert (tmp_path / "power_query_refresh" / "sales_input.csv").is_file()
+    assert (tmp_path / "power_query_refresh" / "sales_summary.csv").is_file()
+    assert evidence_path.is_file()
+    with ZipFile(proof_workbook) as archive:
+        names = set(archive.namelist())
+        assert "xl/workbook.xml" in names
+        assert "xl/worksheets/sheet3.xml" in names
+        workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
+    assert "AGILAB Evidence" in workbook_xml
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["schema"] == module.SCHEMA
+    assert evidence["artifacts"]["proof_workbook"]["sha256"] == preview["artifacts"]["proof_workbook"]["sha256"]
+    assert evidence["office_add_in_required"] is False
+
+
 def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
     scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
 
@@ -785,6 +816,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "README.md" in package_data
     assert "*/README.md" in package_data
     assert "*/AGI_*.py" in package_data
+    assert "excel_workbook_proof/*.py" in package_data
     assert "inter_project_dag/*.py" in package_data
     assert "mlflow_auto_tracking/*.py" in package_data
     assert "notebook_to_dask/*.py" in package_data

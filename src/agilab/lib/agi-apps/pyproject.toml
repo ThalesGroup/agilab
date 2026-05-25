@@ -131,6 +131,7 @@ packages = [
     "README.md",
     "*/README.md",
     "*/AGI_*.py",
+    "excel_workbook_proof/*.py",
     "inter_project_dag/*.py",
     "mlflow_auto_tracking/*.py",
     "notebook_to_dask/*.py",
