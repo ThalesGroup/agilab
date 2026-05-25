@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import sys
 import time
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 
 from agi_node.reduction import ReduceArtifact
@@ -26,7 +28,14 @@ from execution_pandas.reduction import (
     partial_from_result_frame,
     reduce_artifact_path,
 )
-from execution_pandas_worker.execution_pandas_worker import ExecutionPandasWorker
+from execution_pandas_worker.execution_pandas_worker import (
+    ExecutionPandasWorker,
+    _tail_checksum_from_arrays,
+)
+
+
+def _load_toml(path: Path) -> dict:
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -45,6 +54,22 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
         AGI_LOCAL_SHARE=str(share_root),
         target="execution_pandas_project",
     )
+
+
+def test_execution_pandas_declares_cython_worker_reference_contract() -> None:
+    settings = _load_toml(APP_ROOT / "src" / "app_settings.toml")
+    worker_manifest = _load_toml(
+        APP_ROOT / "src" / "execution_pandas_worker" / "pyproject.toml"
+    )
+
+    build_requires = {
+        str(requirement).split(">", 1)[0].split("=", 1)[0].lower()
+        for requirement in worker_manifest["build-system"]["requires"]
+    }
+
+    assert settings["args"]["kernel_mode"] == "typed_numeric"
+    assert settings["cluster"]["cython"] is True
+    assert {"setuptools", "cython"} <= build_requires
 
 
 def test_execution_pandas_generates_dataset_and_distribution(tmp_path: Path) -> None:
@@ -101,6 +126,35 @@ def test_execution_pandas_worker_processes_a_file(tmp_path: Path) -> None:
     assert set(result["kernel_mode"]) == {"typed_numeric"}
     assert set(result["kernel_runtime"]) == {"python"}
     assert set(result["dtype_contract"]) == {"float64-contiguous"}
+
+
+def test_execution_pandas_vectorized_tail_checksum_matches_scalar_reference() -> None:
+    x_values = np.asarray([1.5, 2.0, 3.5, 5.0, 8.0], dtype=np.float64)
+    y_values = np.asarray([0.2, 0.4, 0.6, 0.8, 1.0], dtype=np.float64)
+    signal_values = np.asarray([0.1, -0.2, 0.3, -0.4, 0.5], dtype=np.float64)
+    weight_values = np.asarray([1.0, 1.1, 1.2, 1.3, 1.4], dtype=np.float64)
+    pass_count = 3
+    sample_stride = 2
+
+    expected = 0.0
+    for idx in range(0, len(x_values), sample_stride):
+        value = float(x_values[idx]) + float(y_values[idx]) * 0.01
+        signal = float(signal_values[idx])
+        weight = float(weight_values[idx])
+        for _ in range(pass_count * 8):
+            value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
+        expected += value
+
+    actual = _tail_checksum_from_arrays(
+        x_values,
+        y_values,
+        signal_values,
+        weight_values,
+        pass_count=pass_count,
+        sample_stride=sample_stride,
+    )
+
+    assert actual == expected
 
 
 def test_execution_pandas_typed_kernel_matches_dataframe_scores(tmp_path: Path) -> None:

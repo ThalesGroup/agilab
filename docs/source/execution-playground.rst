@@ -129,15 +129,21 @@ Raw benchmark artifacts are versioned under:
 Typed Cython kernel proof
 -------------------------
 
-``execution_pandas_project`` now includes a second workload shape for the hot
-numeric section: ``kernel_mode = "typed_numeric"``. This is the default for the
-app. It converts the scoring columns to contiguous ``float64`` arrays and runs
-the repeated score/checksum loop through a Cython-compatible typed function.
+``execution_pandas_project`` is the reference worker app for an explicit
+Cython/C-speedup path. It uses ``kernel_mode = "typed_numeric"`` by default,
+enables Cython in its app settings, converts the scoring columns to contiguous
+``float64`` arrays, and runs the repeated score/checksum loop through a
+Cython-compatible typed function.
 
 That distinction matters: wrapping Pandas calls in Cython is not a useful proof
 of Cython acceleration, because Pandas is already executing compiled kernels.
 The typed kernel keeps the surrounding app realistic while giving Cython a
 numeric loop where fixed dtypes can remove Python object dispatch.
+
+The worker manifest declares Cython as a build requirement, so this app is the
+recommended starting point when you need to show how a normal AGILAB worker can
+carry a compiled hot path without moving the surrounding dataframe I/O and
+artifact contract out of Python.
 
 The kernel-only evidence helper compiles the actual worker source in a temporary
 Cython extension, then compares the same ``_typed_numeric_score_kernel`` through

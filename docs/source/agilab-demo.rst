@@ -44,8 +44,10 @@ Use :doc:`advanced-proof-pack` when the first proof is complete and you want to
 show the deeper built-in assets without making the newcomer route longer:
 
 - ``mission_decision_project`` for a deterministic mission-decision workflow.
-- ``execution_pandas_project`` and ``execution_polars_project`` for
-  execution-model benchmarking, including the Cython typed-kernel proof.
+- ``execution_pandas_project`` for the Cython worker speedup demo: a typed
+  contiguous ``float64`` hot loop with Python/Cython runtime evidence.
+- ``execution_polars_project`` for the comparable threaded dataframe-worker
+  benchmark.
 - ``uav_relay_queue_project`` for queue analysis, topology, trajectories, and
   ``view_maps_network``.
 - ``service_mode`` and data connector reports for operator and integration

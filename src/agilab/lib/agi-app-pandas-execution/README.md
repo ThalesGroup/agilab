@@ -6,13 +6,15 @@
 
 `agi-app-pandas-execution` publishes the `execution_pandas_project` AGILAB app
 as a self-contained PyPI payload. It is a small execution benchmark for the
-Pandas worker path.
+Pandas worker path with an explicit Cython/C-speedup kernel.
 
 ## Purpose
 
 Use this package to validate AGILAB manager/worker distribution with a
 deterministic tabular workload. It generates CSV partitions, processes them with
 Pandas, and writes reducer evidence that can be compared across run modes.
+The default `typed_numeric` kernel exposes a contiguous `float64` hot loop so
+Cython mode has real scalar work to compile instead of wrapping Pandas calls.
 
 ## Installed Project
 
@@ -34,7 +36,8 @@ package in isolation.
 ## Run In AGILAB
 
 Select `execution_pandas_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Keep the default local settings for a first proof, then increase
+`EXECUTE`. Keep the default local settings for a first proof, or disable Cython
+when you specifically want to compare the pure Python worker path. Increase
 partitions or worker count when you want a stronger distribution check.
 
 ## Expected Inputs

@@ -25,9 +25,14 @@ What belongs here
        inject an event, re-plan, and export a decision bundle.
      - Select the built-in app, run ``ORCHESTRATE``, then open
        ``view_data_io_decision``.
-   * - ``execution_pandas_project`` / ``execution_polars_project``
-     - Execution-model benchmarking: AGILAB pool/Dask/Cython choices are
-       measured separately from dataframe-library choice.
+   * - ``execution_pandas_project``
+     - Cython worker speedup demo: a Pandas worker keeps dataframe I/O and
+       reducer evidence in Python while the hot scoring loop runs as a typed
+       contiguous ``float64`` kernel.
+     - Use :doc:`execution-playground`.
+   * - ``execution_polars_project``
+     - Execution-model benchmarking for the comparable threaded dataframe
+       worker path.
      - Use :doc:`execution-playground`.
    * - ``uav_queue_project`` / ``uav_relay_queue_project``
      - Network-style experiment analysis: queue buildup, packet drops, routing
@@ -81,8 +86,10 @@ Run these in this order when you need a compact but convincing evaluation pass:
    story because it shows an input-to-decision workflow, not only a data
    transform.
 2. **Execution credibility**: :doc:`execution-playground`. This is the best
-   technical story because it separates Pandas, Polars, pool, Dask, and Cython
-   effects. The Cython proof is kernel-scoped and records its dtype contract.
+   technical story because ``execution_pandas_project`` provides the Cython
+   worker speedup demo, while the paired Polars app separates dataframe-library,
+   pool, Dask, and Cython effects. The Cython proof is kernel-scoped and records
+   its dtype contract.
 3. **Network analysis**: ``uav_relay_queue_project``. This is the best visual
    story because the same run can feed queue analysis and generic network maps.
 4. **Tracking memory**: ``mlflow_auto_tracking`` preview. This is the best

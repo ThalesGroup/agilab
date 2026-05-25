@@ -10,5 +10,5 @@ agi-env = { path = "../../../../../core/agi-env", editable = true }
 agi-node = { path = "../../../../../core/agi-node", editable = true }
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "cython"]
 build-backend = "setuptools.build_meta"

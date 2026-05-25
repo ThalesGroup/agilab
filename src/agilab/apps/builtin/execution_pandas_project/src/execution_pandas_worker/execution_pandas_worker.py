@@ -91,6 +91,28 @@ def _as_contiguous_float64(series: pd.Series) -> np.ndarray:
     return np.ascontiguousarray(series.to_numpy(dtype=np.float64, copy=False))
 
 
+def _tail_checksum_from_arrays(
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    signal_values: np.ndarray,
+    weight_values: np.ndarray,
+    *,
+    pass_count: int,
+    sample_stride: int = 64,
+) -> float:
+    loop_passes = max(pass_count, 1) * 8
+    if sample_stride <= 0 or len(x_values) == 0:
+        return 0.0
+    x_sample = x_values[::sample_stride]
+    y_sample = y_values[::sample_stride]
+    signal_sample = signal_values[::sample_stride]
+    weight_sample = weight_values[::sample_stride]
+    values = x_sample + y_sample * 0.01
+    for _ in range(loop_passes):
+        values = np.abs((values * 1.0000007) + signal_sample * 0.17 - weight_sample * 0.03)
+    return float(values.sum())
+
+
 class ExecutionPandasWorker(PandasWorker):
     """Execute the benchmark workload through the PandasWorker path."""
 
@@ -132,21 +154,13 @@ class ExecutionPandasWorker(PandasWorker):
     def _python_tail_checksum(self, df: pd.DataFrame) -> float:
         """Add a small GIL-bound scalar tail so execution modes separate more clearly."""
         args = self._current_args()
-        loop_passes = max(int(getattr(args, "compute_passes", 1)), 1) * 8
-        sample_stride = 64
-        checksum = 0.0
-        x_values = df["x"].to_list()
-        y_values = df["y"].to_list()
-        signal_values = df["signal"].to_list()
-        weight_values = df["weight"].to_list()
-        for idx in range(0, len(x_values), sample_stride):
-            value = float(x_values[idx]) + float(y_values[idx]) * 0.01
-            signal = float(signal_values[idx])
-            weight = float(weight_values[idx])
-            for _ in range(loop_passes):
-                value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
-            checksum += value
-        return checksum
+        return _tail_checksum_from_arrays(
+            _as_contiguous_float64(df["x"]),
+            _as_contiguous_float64(df["y"]),
+            _as_contiguous_float64(df["signal"]),
+            _as_contiguous_float64(df["weight"]),
+            pass_count=max(int(getattr(args, "compute_passes", 1)), 1),
+        )
 
     def _prepare_dataframe_scores(self, df: pd.DataFrame, passes: int) -> float:
         for idx in range(passes):
@@ -159,13 +173,38 @@ class ExecutionPandasWorker(PandasWorker):
         return self._python_tail_checksum(df)
 
     def _prepare_typed_numeric_scores(self, df: pd.DataFrame, passes: int) -> float:
+        x_values = _as_contiguous_float64(df["x"])
+        y_values = _as_contiguous_float64(df["y"])
+        signal_values = _as_contiguous_float64(df["signal"])
+        weight_values = _as_contiguous_float64(df["weight"])
         score_0 = np.empty(len(df), dtype=np.float64)
         score_last = np.empty(len(df), dtype=np.float64)
+        if not cython.compiled:
+            score_0[:] = np.abs(
+                (x_values * 1.3) - (y_values * 0.35) + (signal_values * weight_values)
+            )
+            last_idx = passes - 1
+            score_last[:] = np.abs(
+                (x_values * (last_idx + 1.3))
+                - (y_values * (0.35 + last_idx * 0.05))
+                + (signal_values * weight_values)
+            )
+            checksum = _tail_checksum_from_arrays(
+                x_values,
+                y_values,
+                signal_values,
+                weight_values,
+                pass_count=passes,
+            )
+            df["score_0"] = score_0
+            df[f"score_{passes - 1}"] = score_last
+            return float(checksum)
+
         checksum = _typed_numeric_score_kernel(
-            _as_contiguous_float64(df["x"]),
-            _as_contiguous_float64(df["y"]),
-            _as_contiguous_float64(df["signal"]),
-            _as_contiguous_float64(df["weight"]),
+            x_values,
+            y_values,
+            signal_values,
+            weight_values,
             score_0,
             score_last,
             passes,

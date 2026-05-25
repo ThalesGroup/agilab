@@ -45,7 +45,8 @@ What each route is for
   the hosted ``weather_forecast_project`` analysis route.
 - **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
   when you want the deeper packaged proof routes: ``mission_decision_project``,
-  ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
+  the ``execution_pandas_project`` Cython worker speedup demo,
+  ``execution_polars_project``, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
   ``resilience_failure_injection`` previews, ``train_then_serve`` previews,
@@ -107,6 +108,27 @@ The static scenario contract is available as JSON:
   packaged local pages and ``agi-pages`` analysis views.
   The same route is available in the UI by following ``PROJECT`` ->
   ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_telemetry_project``.
+
+**Cython worker speedup demo**
+  Use :doc:`execution-playground` when the demo objective is performance
+  engineering rather than a domain story. Select ``execution_pandas_project``,
+  keep the default ``typed_numeric`` kernel and Cython setting, run
+  ``INSTALL`` then ``EXECUTE``, and inspect the reducer evidence for
+  ``kernel_mode``, ``kernel_runtime``, and ``dtype_contract``.
+  The versioned local kernel proof records ``0.620s`` Python vs ``0.002s``
+  Cython on 100,000 rows x 32 passes, with matching checksums and a ``306x``
+  hot-loop speedup.
+
+  For a short command-line proof of the compiled hot loop, run:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
+
+  Stop when the Python and Cython checksums match and the report shows the
+  Cython runtime separately. This is a kernel-scoped speedup demo; full AGILAB
+  runs still include CSV reads, dataframe grouping, result writes, worker
+  startup, and optional Dask/process orchestration.
 
 **Distributed worker route**
   Use the same public app, then switch ORCHESTRATE from the local path to the
