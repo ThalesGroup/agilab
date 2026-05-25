@@ -11,6 +11,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import socket
 import time
 from typing import Any, Mapping, Sequence
 
@@ -22,6 +23,7 @@ META_FILENAME = "agent_trace_meta.json"
 EVENTS_FILENAME = "agent_events.ndjson"
 TOOL_OUTPUT_DIRNAME = "tool-output"
 LOCK_TIMEOUT_SECONDS = 5.0
+LOCK_STALE_SECONDS = 30.0
 VALID_EVENT_TYPES = frozenset(
     {
         "session_start",
@@ -136,6 +138,57 @@ def _last_event_sequence(path: Path) -> int:
     return 0
 
 
+def _lock_owner_alive(payload: Mapping[str, Any]) -> bool | None:
+    if str(payload.get("host") or "") != socket.gethostname():
+        return None
+    try:
+        pid = int(payload.get("pid") or 0)
+    except (TypeError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return None
+    return True
+
+
+def _read_lock_payload(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _lock_is_stale(path: Path, *, now: float | None = None) -> bool:
+    payload = _read_lock_payload(path)
+    if _lock_owner_alive(payload) is True:
+        return False
+    try:
+        age_seconds = (time.time() if now is None else now) - path.stat().st_mtime
+    except OSError:
+        return False
+    return age_seconds >= LOCK_STALE_SECONDS
+
+
+def _clear_stale_lock(path: Path) -> bool:
+    if not _lock_is_stale(path):
+        return False
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 @contextmanager
 def _event_file_lock(path: Path):
     lock_path = path.with_name(path.name + ".lock")
@@ -144,7 +197,15 @@ def _event_file_lock(path: Path):
     while fd is None:
         try:
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            payload = {
+                "host": socket.gethostname(),
+                "pid": os.getpid(),
+                "created_at": utc_now(),
+            }
+            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
         except FileExistsError:
+            if _clear_stale_lock(lock_path):
+                continue
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for agent trace lock: {lock_path}")
             time.sleep(0.01)
