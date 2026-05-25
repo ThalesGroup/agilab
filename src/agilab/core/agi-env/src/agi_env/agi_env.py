@@ -47,7 +47,6 @@ import tomlkit
 from typing import Tuple
 import logging
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
 import py7zr
 import urllib.request
 import uuid

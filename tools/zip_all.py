@@ -31,7 +31,7 @@ import os
 import posixpath
 import zipfile
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.gitignore import GitIgnoreSpec
 import argparse
 from pathlib import Path
 from functools import lru_cache
@@ -44,9 +44,9 @@ def read_gitignore_cached(gitignore_path):
     try:
         with open(gitignore_path, "r") as f:
             patterns = f.read().splitlines()
-        return PathSpec.from_lines(GitWildMatchPattern, patterns)
+        return GitIgnoreSpec.from_lines(patterns)
     except FileNotFoundError:
-        return PathSpec.from_lines(GitWildMatchPattern, [])
+        return GitIgnoreSpec.from_lines([])
 
 def _normalize_relpath(relpath: str) -> str:
     return relpath.replace(os.sep, "/")
@@ -287,7 +287,7 @@ if __name__ == "__main__":
     else:
         if verbose:
             print(f"No top-level .gitignore found at {top_gitignore}. No files will be filtered at this level.")
-        top_spec = PathSpec.from_lines(GitWildMatchPattern, [])
+        top_spec = GitIgnoreSpec.from_lines([])
 
     follow_names = FOLLOW_SYMLINK_NAMES_DEFAULT if follow_app_links else None
 

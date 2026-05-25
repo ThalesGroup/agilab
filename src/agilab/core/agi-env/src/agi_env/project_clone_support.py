@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.gitignore import GitIgnoreSpec
 
 from .app_provider_registry import aliased_app_runtime_target
 
@@ -251,7 +251,7 @@ def clone_project(
             continue
         ignore_patterns.extend(line for line in lines if line.strip())
 
-    spec = PathSpec.from_lines(GitWildMatchPattern, ignore_patterns)
+    spec = GitIgnoreSpec.from_lines(ignore_patterns)
 
     try:
         if not dest_root.exists():

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.gitignore import GitIgnoreSpec
 
 
 def replace_text_content(txt: str, rename_map: dict) -> str:
@@ -24,7 +24,7 @@ def load_gitignore_spec(gitignore_path: Path) -> PathSpec:
     """Load a gitignore file into a ``PathSpec``."""
 
     lines = gitignore_path.read_text(encoding="utf-8").splitlines()
-    return PathSpec.from_lines(GitWildMatchPattern, lines)
+    return GitIgnoreSpec.from_lines(lines)
 
 
 def is_relative_to(path: Path, other: Path) -> bool:
