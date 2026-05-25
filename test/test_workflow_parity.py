@@ -568,6 +568,50 @@ def test_agi_gui_coverage_chunk_wrapper_writes_manifest(tmp_path) -> None:
     assert manifest["coverage_db_paths"] == [db_fragment.as_posix()]
 
 
+def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    recovered_chunk = "pipeline"
+    combined_commands: list[list[str]] = []
+
+    for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
+        db_fragment = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
+        db_fragment.write_text("coverage-db\n", encoding="utf-8")
+        (test_results / f"junit-agi-gui-{chunk}.xml").write_text("<testsuite/>\n", encoding="utf-8")
+        if chunk == recovered_chunk:
+            continue
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": f"test-results/coverage-agi-gui-{chunk}.db",
+                    "junit_path": f"test-results/junit-agi-gui-{chunk}.xml",
+                    "coverage_db_paths": [f"test-results/coverage-agi-gui-{chunk}.db.fragment"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_run(cmd, check=False):
+        combined_commands.append(list(cmd))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, "subprocess", SimpleNamespace(run=fake_run))
+
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 0
+
+    assert combined_commands
+    assert "test-results/coverage-agi-gui-pipeline.db.fragment" in combined_commands[0]
+
+
 def test_badges_profile_accepts_component_filter() -> None:
     module = _load_module()
 
