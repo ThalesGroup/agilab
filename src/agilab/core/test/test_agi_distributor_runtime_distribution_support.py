@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
@@ -30,6 +31,7 @@ def _reset_agi_runtime_distribution_state():
         "_work_plan",
         "_work_plan_metadata",
         "_capacity",
+        "_phase_timings",
         "_dask_log_level",
         "_rapids_enabled",
         "_workers_data_path",
@@ -53,6 +55,7 @@ def _reset_agi_runtime_distribution_state():
         AGI._work_plan = None
         AGI._work_plan_metadata = None
         AGI._capacity = None
+        AGI._phase_timings = []
         AGI._dask_log_level = "critical"
         AGI._rapids_enabled = False
         AGI._workers_data_path = None
@@ -113,6 +116,23 @@ def test_sanitize_worker_upload_artifacts_removes_top_level_ui_modules(tmp_path)
     assert "__pycache__/app_args_form.cpython-313.pyc" not in names
     assert "demo_worker/app_args_form.py" in names
     assert top_level == "demo_worker\n"
+
+
+def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tmp_path):
+    wenv_abs = tmp_path / "wenv"
+    dask_exe = wenv_abs / ".venv" / ("Scripts/dask.exe" if os.name == "nt" else "bin/dask")
+    dask_exe.parent.mkdir(parents=True, exist_ok=True)
+    dask_exe.write_text("", encoding="utf-8")
+
+    command = runtime_distribution_support._local_dask_worker_command(
+        "uv",
+        wenv_abs,
+        "127.0.0.1:8786",
+        "worker.pid",
+    )
+
+    assert command[:3] == [str(dask_exe), "worker", "tcp://127.0.0.1:8786"]
+    assert "--no-sync" not in command
 
 
 @pytest.mark.asyncio
@@ -1305,8 +1325,10 @@ async def test_sync_waits_until_expected_workers():
     AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
     fake_client = _FakeClient()
     AGI._dask_client = fake_client
+    sleep_delays: list[float] = []
 
-    async def _fake_sleep(_delay):
+    async def _fake_sleep(delay):
+        sleep_delays.append(delay)
         return None
 
     await runtime_distribution_support.sync(
@@ -1316,6 +1338,7 @@ async def test_sync_waits_until_expected_workers():
         sleep_fn=_fake_sleep,
     )
     assert fake_client.calls >= 3
+    assert sleep_delays == [0.2, 0.5]
 
 
 @pytest.mark.asyncio
@@ -1457,7 +1480,7 @@ async def test_main_branches_simulate_install_dask_and_local(monkeypatch):
     )
     assert result == "run-result"
 
-    times = iter([10.0, 14.5])
+    times = iter([10.0, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 14.5])
     AGI._mode = AGI._INSTALL_MODE | AGI.DASK_MODE
     result = await runtime_distribution_support.main(
         AGI,
@@ -1466,6 +1489,11 @@ async def test_main_branches_simulate_install_dask_and_local(monkeypatch):
         time_fn=lambda: next(times),
     )
     assert result == 4.5
+    assert [entry["phase"] for entry in AGI._phase_timings] == [
+        "prepare-local-env",
+        "prepare-cluster-env",
+        "deploy-application",
+    ]
 
     AGI._mode = AGI.DASK_MODE
     result = await runtime_distribution_support.main(
