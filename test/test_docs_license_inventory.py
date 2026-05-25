@@ -27,6 +27,22 @@ def test_license_inventory_specs_follow_package_split_contract() -> None:
     assert spec_names == [package.name for package in module.PACKAGE_CONTRACTS]
 
 
+def test_license_inventory_filters_retired_local_packages() -> None:
+    module = _load_module()
+
+    rows = module._merge_packages(
+        [
+            {"name": "agi-env", "version": "2026.5.23", "license": ""},
+            {"name": "agi-app-retired-demo", "version": "2026.5.1", "license": ""},
+            {"name": "agilab-old-addon", "version": "2026.5.1", "license": ""},
+            {"name": "numpy", "version": "2.3.5", "license": "BSD"},
+        ]
+    )
+
+    assert [row["name"] for row in rows] == ["agi-env", "numpy"]
+    assert rows[0]["license"] == module.LOCAL_PACKAGE_LICENSE
+
+
 def test_license_docs_cover_public_package_split() -> None:
     module = _load_module()
     index = (DOCS_SOURCE / "license.rst").read_text(encoding="utf-8")
