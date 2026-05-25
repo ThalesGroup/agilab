@@ -7,8 +7,8 @@ readme = "README.md"
 dependencies = [
     "agi-env>=2026.05.13.post3,<2027.0",
     "agi-node>=2026.05.13.post3,<2027.0",
-    "polars",
-    "pydantic",
+    "polars>=1.35,<2",
+    "pydantic>=2.11,<3",
 ]
 
 [[project.authors]]

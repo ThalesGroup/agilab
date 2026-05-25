@@ -16,16 +16,16 @@ dependencies = [
     "agi-env>=2026.05.12.post3,<2027.0",
     "agi-gui>=2026.05.12.post3,<2027.0",
     "agi-node>=2026.05.12.post3,<2027.0",
-    "ipython",
-    "networkx",
-    "plotly",
-    "matplotlib",
-    "sqlalchemy>=2.0.43",
+    "ipython>=9.0,<10",
+    "networkx>=3.6.1,<4",
+    "plotly>=6.3.0,<7",
+    "matplotlib>=3.10.0,<4",
+    "sqlalchemy>=2.0.43,<3",
 ]
 
 [project.optional-dependencies]
 fast = [
-    "numba>=0.62.1; python_version < '3.14'",
+    "numba>=0.62.1,<0.66; python_version < '3.14'",
 ]
 
 [project.entry-points."agilab.pages"]

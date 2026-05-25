@@ -17,9 +17,9 @@ dependencies = [
     "agi-env>=2026.05.12.post3,<2027.0",
     "agi-node>=2026.05.12.post3,<2027.0",
     "agi-gui>=2026.05.12.post3,<2027.0",
-    "pandas>=2.3.0",
-    "plotly>=6.3.0",
-    "tensorboard",
+    "pandas>=2.3.0,<4",
+    "plotly>=6.3.0,<7",
+    "tensorboard>=2.20,<3",
 ]
 
 [project.entry-points."agilab.pages"]

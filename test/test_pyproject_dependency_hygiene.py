@@ -40,6 +40,29 @@ def _dependencies(path: Path) -> list[Requirement]:
     return [Requirement(dependency) for dependency in data.get("project", {}).get("dependencies", [])]
 
 
+def _runtime_dependencies(path: Path) -> list[Requirement]:
+    data = _load_pyproject(path)
+    project = data.get("project", {})
+    dependencies = list(project.get("dependencies", []))
+    for optional_dependencies in project.get("optional-dependencies", {}).values():
+        dependencies.extend(optional_dependencies)
+    return [Requirement(dependency) for dependency in dependencies]
+
+
+def _payload_dependency_pyprojects() -> list[Path]:
+    pyprojects = [
+        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps-pages/templates").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"),
+        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/src/*_worker/pyproject.toml"),
+    ]
+    return sorted({pyproject for pyproject in pyprojects if "build" not in pyproject.parts})
+
+
 def _optional_dependency_names(path: Path, extra: str) -> set[str]:
     data = _load_pyproject(path)
     dependencies = data.get("project", {}).get("optional-dependencies", {}).get(extra, [])
@@ -528,14 +551,8 @@ def test_app_templates_keep_dependency_lists_app_local() -> None:
 
 
 def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> None:
-    app_pyprojects = [
-        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
-        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
-        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
-    ]
-    allowed_exact_pins = {
-        "src/agilab/apps-pages/view_autoencoder_latentspace/pyproject.toml": {"tensorflow"},
-    }
+    app_pyprojects = _payload_dependency_pyprojects()
+    allowed_exact_pins: dict[str, set[str]] = {}
     internal_packages = {name.lower() for name in PACKAGE_NAMES}
 
     violations: list[str] = []
@@ -551,6 +568,22 @@ def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> 
                 continue
             if any(spec.operator == "==" for spec in requirement.specifier):
                 violations.append(f"{relative_path}: {dependency}")
+
+    assert violations == []
+
+
+def test_app_page_payload_dependencies_have_bounded_runtime_windows() -> None:
+    violations: list[str] = []
+
+    for pyproject in _payload_dependency_pyprojects():
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        for requirement in _runtime_dependencies(pyproject):
+            if _is_internal_requirement(requirement):
+                continue
+            if not _has_version_floor(requirement):
+                violations.append(f"{relative_path}: {requirement} missing lower bound")
+            if not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} missing upper bound")
 
     assert violations == []
 
