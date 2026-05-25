@@ -55,6 +55,7 @@ references, and example projects.
    Capabilities <features>
    Data connectors <data-connectors>
    AGILAB for Excel users <excel-users>
+   AGILAB for Voila users <voila-users>
    Proof capsule <proof-capsule>
    Public web demo <agilab-demo>
    Advanced proof pack <advanced-proof-pack>
@@ -97,6 +98,7 @@ references, and example projects.
    :caption: Operations
 
    Cluster setup <cluster>
+   Kubernetes Job preview <kubernetes-job>
    Distributed workers <distributed-workers>
    SSH keys for workers <key-generation>
    Service mode <service-mode>

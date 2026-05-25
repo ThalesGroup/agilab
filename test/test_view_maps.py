@@ -177,6 +177,7 @@ class _FakeStreamlit:
             "warning": [],
             "error": [],
             "caption": [],
+            "text_input": [],
             "write": [],
             "code": [],
             "dataframe": [],
@@ -222,6 +223,11 @@ class _FakeStreamlit:
 
     def caption(self, message, *args, **kwargs):
         self.calls["caption"].append(message)
+
+    def text_input(self, label, *args, key=None, **kwargs):
+        default = self.session_state.get(key, "")
+        self.calls["text_input"].append(label)
+        return self._widget_value("text_input", label, key=key, default=default)
 
     def write(self, *args, **kwargs):
         self.calls["write"].append(" ".join(str(arg) for arg in args))

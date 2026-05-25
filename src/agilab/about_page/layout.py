@@ -183,7 +183,7 @@ def quick_logo(resources_path: Path) -> None:
                 width: 100%;
                 box-sizing: border-box;
                 margin: 0.55rem 0 1.05rem;
-                padding: clamp(1.15rem, 2.6vw, 2rem);
+                padding: clamp(1rem, 2.2vw, 1.7rem);
                 border: 1px solid var(--agilab-line);
                 border-radius: 26px;
                 color: var(--agilab-ink);
@@ -240,7 +240,7 @@ def quick_logo(resources_path: Path) -> None:
                 display: block;
               }}
               .agilab-hero__eyebrow {{
-                margin: 1.4rem 0 0.55rem;
+                margin: 1rem 0 0.45rem;
                 color: #ffd28a;
                 font-size: 0.8rem;
                 font-weight: 800;
@@ -250,19 +250,19 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero__body {{
                 display: grid;
                 grid-template-columns: minmax(260px, 0.86fr) minmax(420px, 1.14fr);
-                gap: clamp(1.1rem, 3vw, 2.2rem);
+                gap: clamp(0.95rem, 2.4vw, 1.8rem);
                 align-items: center;
               }}
               .agilab-hero h1 {{
                 margin: 0;
                 max-width: 760px;
-                font-size: 3.45rem;
+                font-size: 3.08rem;
                 line-height: 1.02;
                 letter-spacing: 0;
               }}
               .agilab-hero__subcopy {{
                 max-width: 660px;
-                margin: 0.9rem 0 0;
+                margin: 0.72rem 0 0;
                 color: rgba(247, 242, 232, 0.78);
                 font-size: 1rem;
                 line-height: 1.48;
@@ -271,7 +271,7 @@ def quick_logo(resources_path: Path) -> None:
                 display: flex;
                 flex-wrap: wrap;
                 gap: 0.55rem;
-                margin-top: 1.25rem;
+                margin-top: 0.95rem;
               }}
               .agilab-hero__chip {{
                 border: 1px solid rgba(255,255,255,0.18);
@@ -284,8 +284,8 @@ def quick_logo(resources_path: Path) -> None:
               }}
               .agilab-hero__visual {{
                 position: relative;
-                min-height: 260px;
-                padding: 0.85rem;
+                min-height: 220px;
+                padding: 0.72rem;
                 border: 1px solid rgba(255,255,255,0.18);
                 border-radius: 22px;
                 background:
@@ -327,7 +327,7 @@ def quick_logo(resources_path: Path) -> None:
                   grid-template-columns: 1fr;
                 }}
                 .agilab-hero h1 {{
-                  font-size: 3rem;
+                  font-size: 2.72rem;
                 }}
                 .agilab-hero__visual {{
                   min-height: unset;

@@ -69,6 +69,7 @@ Start with the route that matches the proof you want to show:
 | Stay notebook-first | [agi-core notebook demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html) | Small `AgiEnv` / `AGI.run(...)` runtime path before the web UI. |
 | Migrate a notebook into an app | [Weather notebook migration](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | Notebook stages, `lab_stages.toml`, artifacts, and reusable analysis views. |
 | Keep Excel as the front end | [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html) | Workbook inputs plus CSV and JSON evidence without an Office add-in. |
+| Keep a notebook dashboard | [Voila notebook proof](https://thalesgroup.github.io/agilab/voila-users.html) | Hide-code notebook dashboard path plus widget-to-args and app-view evidence. |
 | Prove database access locally | [SQLite connector proof](https://thalesgroup.github.io/agilab/data-connectors.html#sqlite-database-proof) | Local schema, parameterized SQL query, result CSV, and JSON evidence hashes. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
@@ -88,6 +89,11 @@ repository so other engineers can find it.
 For spreadsheet-first users, the packaged `excel_workbook_proof` preview keeps
 Excel as the familiar interface and writes a proof workbook, Power Query-friendly
 CSV files, and JSON hash evidence without requiring an Office add-in.
+
+For notebook-dashboard users, the packaged `voila_notebook_proof` preview keeps
+the notebook dashboard flow and writes a hide-code manifest, widget-to-args
+hints, an app-view plan, and JSON evidence without requiring Voila in the base
+install.
 
 ## Featured Performance Demo
 

@@ -21,7 +21,7 @@ Audit notes:
 | annotated-types | 0.7.0 | MIT LICENSE |
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | humanize | 4.15.0 | MIT |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -29,8 +29,8 @@ Audit notes:
 | pandas | 2.3.3 | BSD LICENSE |
 | parso | 0.8.7 | MIT LICENSE |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.0 | MIT LICENSE |
+| polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |

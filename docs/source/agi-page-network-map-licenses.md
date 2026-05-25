@@ -27,20 +27,20 @@ Audit notes:
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | blinker | 1.9.0 | MIT LICENSE |
 | brotli | 1.2.0 | MIT |
-| cachetools | 7.1.2 | MIT |
-| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.1.4 | MIT |
+| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | 3.4.7 | MIT |
-| click | 8.4.0 | BSD-3-CLAUSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
 | contourpy | 1.3.3 | BSD LICENSE |
 | cycler | 0.12.1 | BSD LICENSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | decorator | 5.3.1 | BSD-2-CLAUSE |
 | executing | 2.2.1 | MIT LICENSE |
 | fonttools | 4.63.0 | MIT |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
 | humanize | 4.15.0 | MIT |
-| idna | 3.15 | BSD-3-CLAUSE |
+| idna | 3.16 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | ipython | 9.13.0 | BSD-3-CLAUSE |
 | ipython-pygments-lexers | 1.1.1 | BSD LICENSE |
@@ -63,10 +63,10 @@ Audit notes:
 | pexpect | 4.9.0 | ISC LICENSE _ISCL_ |
 | pillow | 12.2.0 | MIT-CMU |
 | plotly | 6.7.0 | MIT LICENSE |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.0 | MIT LICENSE |
+| polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
-| protobuf | 7.34.1 | 3-CLAUSE BSD LICENSE |
+| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
 | pure-eval | 0.2.3 | MIT LICENSE |

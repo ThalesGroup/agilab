@@ -111,7 +111,8 @@ def test_data_connector_live_ui_recorder_and_fallback_helpers() -> None:
 
     assert payload["run_status"] == "ready_for_live_ui"
     assert payload["summary"]["operator_opt_in_required_for_health"] is False
-    assert module.REPO_ROOT.name == "agilab"
+    assert (module.REPO_ROOT / "pyproject.toml").is_file()
+    assert (module.REPO_ROOT / "src" / "agilab").is_dir()
 
     warning_recorder = core_module.StreamlitCallRecorder()
     core_module.render_connector_live_ui(

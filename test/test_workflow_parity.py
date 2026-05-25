@@ -110,6 +110,15 @@ def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
         )
 
 
+def test_expand_repo_globs_preserves_unmatched_patterns() -> None:
+    module = _load_module()
+
+    expanded = module._expand_repo_globs(["test/test_workflow_parity.py", "missing-ui-robot-*.py"])
+
+    assert "test/test_workflow_parity.py" in expanded
+    assert "missing-ui-robot-*.py" in expanded
+
+
 def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     module = _load_module()
     args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
@@ -865,6 +874,23 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
     ]
 
 
+def test_installer_profile_contract_check_allows_missing_worker_copy() -> None:
+    module = _load_module()
+
+    commands = module._installer_profile(
+        "src/agilab/apps/builtin/pytorch_playground_project",
+        worker_copy=None,
+    )
+
+    contract = commands[-1]
+    assert contract.label == "installer contract check"
+    assert contract.argv[-2:] == [
+        "--app-path",
+        "src/agilab/apps/builtin/pytorch_playground_project",
+    ]
+    assert "--worker-copy" not in contract.argv
+
+
 def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
@@ -1270,6 +1296,30 @@ def test_result_cache_helpers_cover_git_and_signature_failures(tmp_path, monkeyp
 
     assert signature["state"] == "file"
     assert signature["sha256_error"] == "OSError"
+
+
+def test_result_cache_input_paths_deduplicate_and_sign_directory_or_large_file(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "RESULT_CACHE_INPUT_GLOBS", ("same.txt", "same.txt", "payload"))
+    monkeypatch.setattr(module, "RESULT_CACHE_HASH_LIMIT_BYTES", 4)
+    (tmp_path / "same.txt").write_text("same", encoding="utf-8")
+    (tmp_path / "payload").write_text("too large", encoding="utf-8")
+    (tmp_path / "artifact-dir").mkdir()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+
+    input_paths = module._result_cache_input_paths(
+        ["same.txt", "artifact-dir", cache_path.as_posix()],
+        cache_path,
+    )
+    signatures = module._result_cache_fingerprints(["artifact-dir"], cache_path)
+    signatures_by_path = {signature["path"]: signature for signature in signatures}
+
+    assert input_paths == ["same.txt", "payload", "artifact-dir"]
+    assert signatures_by_path["payload"]["state"] == "file"
+    assert "sha256" not in signatures_by_path["payload"]
+    assert signatures_by_path["artifact-dir"]["state"] == "directory"
+    assert "sha256" not in signatures_by_path["artifact-dir"]
 
 
 def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:

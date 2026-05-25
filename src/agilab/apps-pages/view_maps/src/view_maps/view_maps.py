@@ -15,6 +15,7 @@ import argparse
 from pathlib import Path
 import re
 import sys
+from urllib.parse import urlencode
 
 import pandas as pd
 from pandas.api.types import is_integer_dtype, is_numeric_dtype
@@ -78,6 +79,25 @@ from agi_env import AgiEnv
 from agi_gui.pagelib import find_files, load_df, update_datadir
 
 var = ["discrete", "continuous", "lat", "long"]
+
+
+def _analysis_return_url(app: str) -> str:
+    return f"/ANALYSIS?{urlencode({'active_app': app})}"
+
+
+def _render_app_page_context(app: str, active_app: Path) -> None:
+    columns = st.columns(2)
+    with columns[0]:
+        st.caption(f"Project: `{app}`")
+    with columns[1]:
+        link_button = getattr(st, "link_button", None)
+        url = _analysis_return_url(app)
+        if callable(link_button):
+            link_button("Back to ANALYSIS", url, type="secondary", width="content")
+        else:
+            st.caption(f"Back to ANALYSIS: {url}")
+    with st.expander("Runtime context", expanded=False):
+        st.code(str(active_app), language="text")
 var_default = [0, None]
 DATASET_EXTENSIONS = (".csv", ".parquet", ".json")
 FILE_TYPE_OPTIONS = ("csv", "parquet", "json", "all")
@@ -315,13 +335,14 @@ def page(env):
     datadir_widget_key = _vm_key("input_datadir")
     if st.session_state.get(datadir_widget_key) != st.session_state["datadir"]:
         st.session_state[datadir_widget_key] = st.session_state["datadir"]
-    # Data directory input
-    st.sidebar.text_input(
-        "Data Directory",
-        key=datadir_widget_key,
-        on_change=update_datadir,
-        args=("datadir", datadir_widget_key),
-    )
+    with st.sidebar.expander("Data source", expanded=False):
+        st.caption(f"Current data root: `{datadir.name or datadir}`")
+        st.text_input(
+            "Data directory path",
+            key=datadir_widget_key,
+            on_change=update_datadir,
+            args=("datadir", datadir_widget_key),
+        )
 
     if not datadir.exists() or not datadir.is_dir():
         st.sidebar.error("Directory not found.")
@@ -902,9 +923,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        st.caption(f"Project: `{app}`")
-        with st.expander("Runtime context", expanded=False):
-            st.code(str(active_app), language="text")
+        _render_app_page_context(app, active_app)
         env = AgiEnv(
             apps_path=active_app.parent,
             app=app,
