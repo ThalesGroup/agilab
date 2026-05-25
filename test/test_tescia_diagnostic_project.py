@@ -871,6 +871,7 @@ def test_tescia_app_surface_runtime_loader_and_filter_edges(monkeypatch, tmp_pat
     class FakeAgiEnv:
         def __init__(self, **kwargs) -> None:
             self.kwargs = kwargs
+            self.app_settings_file = tmp_path / "settings.toml"
 
     created_env = FakeAgiEnv(apps_path=tmp_path, app="tescia_diagnostic_project", verbose=0)
     monkeypatch.setitem(sys.modules, "agi_env", SimpleNamespace(AgiEnv=lambda **_kwargs: created_env))
@@ -1221,11 +1222,30 @@ def test_tescia_reduce_contract_rejects_missing_or_empty_payloads(monkeypatch, t
         reduce_artifact_path,
         write_reduce_artifact,
     )
+    from agi_node.reduction import ReducePartial
 
     with pytest.raises(ValueError, match="missing columns"):
         partial_from_diagnostic_summary({"case_id": "only"}, partial_id="bad")
-    with pytest.raises(ValueError, match="produced no cases"):
+    with pytest.raises(ValueError, match="requires at least one partial"):
         TESCIA_DIAGNOSTIC_REDUCE_CONTRACT.build_artifact([])
+    with pytest.raises(ValueError, match="produced no cases"):
+        TESCIA_DIAGNOSTIC_REDUCE_CONTRACT.build_artifact(
+            [
+                ReducePartial(
+                    partial_id="empty",
+                    payload={
+                        "case_count": 0,
+                        "actionable_count": 0,
+                        "needs_more_evidence_count": 0,
+                        "evidence_quality_sum": 0.0,
+                        "regression_coverage_sum": 0.0,
+                        "student_score_sum": 0.0,
+                        "case_ids": [],
+                        "selected_fix_ids": [],
+                    },
+                )
+            ]
+        )
     assert reduce_artifact_path(tmp_path, "abc").name == "reduce_summary_worker_abc.json"
 
     summary = {
@@ -1531,7 +1551,7 @@ def test_tescia_worker_helper_and_empty_paths(monkeypatch, tmp_path) -> None:
     worker.env = _FakeEnv(tmp_path)
     worker._worker_id = 0
     worker.start()
-    assert worker._current_args().data_in == tmp_path / "in"
+    assert Path(worker._current_args().data_in) == tmp_path / "in"
     worker.pool_init({"args": {"minimum_evidence_confidence": 0.1}})
     assert worker._current_args().minimum_evidence_confidence == 0.1
     assert worker.work_init() is None
