@@ -90,6 +90,10 @@ dev = [
     path = "../../apps-pages/view_inference_analysis"
     editable = true
 
+[tool.uv.sources.agi-page-live-artifacts]
+    path = "../../apps-pages/view_live_artifacts"
+    editable = true
+
 [tool.uv.sources.agi-page-geospatial-map]
     path = "../../apps-pages/view_maps"
     editable = true

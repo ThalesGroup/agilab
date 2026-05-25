@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
 import types
@@ -136,3 +137,56 @@ def test_first_launch_robot_rejects_non_positive_timeouts() -> None:
             assert exc.code == 2
         else:  # pragma: no cover - assertion guard
             raise AssertionError(f"expected parser error for {option}")
+
+
+def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsys) -> None:
+    class Widget:
+        def __init__(self, value: str = "", label: str = ""):
+            self.value = value
+            self.label = label
+
+    class FakeApp:
+        exception: list[object] = []
+        markdown = [
+            Widget(
+                "AGILAB logo AI/ML reproducibility workbench "
+                "DEMO / ORCHESTRATE / ANALYSIS"
+            )
+        ]
+        caption: list[object] = []
+        button = [Widget(label="First proof")]
+        session_state = {"env": object()}
+
+        def run(self, *, timeout):
+            assert timeout == 1.0
+            return self
+
+    class FakeAppTest:
+        @staticmethod
+        def from_file(_path, *, default_timeout):
+            assert default_timeout == 1.0
+            return FakeApp()
+
+    streamlit = types.ModuleType("streamlit")
+    testing = types.ModuleType("streamlit.testing")
+    v1 = types.ModuleType("streamlit.testing.v1")
+    v1.AppTest = FakeAppTest
+    monkeypatch.setitem(sys.modules, "streamlit", streamlit)
+    monkeypatch.setitem(sys.modules, "streamlit.testing", testing)
+    monkeypatch.setitem(sys.modules, "streamlit.testing.v1", v1)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(MODULE_PATH), "--json", "--timeout", "1", "--target-seconds", "999"],
+    )
+
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected entrypoint to raise SystemExit")
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "pass"
+    assert payload["summary"]["check_count"] == 7

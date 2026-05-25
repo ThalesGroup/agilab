@@ -1,0 +1,39 @@
+[project]
+name = "agi-page-live-artifacts"
+version = "2026.05.23"
+description = "AGILAB page bundle for live artifact and evidence monitoring."
+readme = { text = "AGILAB page bundle for live artifact and evidence monitoring.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+    "evidence",
+]
+dependencies = [
+    "agi-pages>=2026.05.23,<2027.0",
+    "agi-env>=2026.05.12.post3,<2027.0",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
+]
+
+[project.entry-points."agilab.pages"]
+view_live_artifacts = "view_live_artifacts:bundle_root"
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_live_artifacts"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[tool.uv.sources]
+agi-pages = { path = "../../lib/agi-pages", editable = true }
+agi-gui = { path = "../../lib/agi-gui", editable = true }
+agi-env = { path = "../../core/agi-env", editable = true }
+agi-node = { path = "../../core/agi-node", editable = true }

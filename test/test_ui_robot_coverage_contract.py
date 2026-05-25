@@ -54,16 +54,13 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "view_relay_resilience",
         "view_maps_network",
     ]
-    assert payload["coverage"]["public_demo_contract"]["proof_scenarios"] == [
-        "flight-local-first-proof",
-        "weather-forecast-hosted-proof",
-        "mlflow-tracking-proof",
-        "distributed-worker-health-proof",
-        "notebook-migration-proof",
-        "resilience-failure-injection-proof",
-        "train-then-serve-proof",
-        "service-mode-preview-proof",
-    ]
+    public_proof_scenarios = module._load_module(
+        "public_proof_scenarios_current_contract_test",
+        module.PUBLIC_PROOF_SCENARIOS_PATH,
+    )
+    proof_scenario_ids = payload["coverage"]["public_demo_contract"]["proof_scenarios"]
+    assert proof_scenario_ids == [str(scenario["id"]) for scenario in public_proof_scenarios.SCENARIOS]
+    assert set(module.REQUIRED_DEMO_PROOF_SCENARIOS).issubset(proof_scenario_ids)
     assert payload["coverage"]["hf_first_proof_apps"] == [
         "flight_telemetry_project",
         "weather_forecast_project",

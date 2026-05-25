@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v1"
 DISABLE_BUILD_CACHE_ENV = "AGILAB_DISABLE_WORKER_BUILD_CACHE"
 BUILD_CACHE_HASH_LIMIT = 8 * 1024 * 1024
+GIT_FINGERPRINT_TIMEOUT_SECONDS = 2.0
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
@@ -140,7 +142,87 @@ def _optional_file_fingerprint(value: Any) -> dict[str, Any] | None:
         return None
 
 
+def _git_directory_fingerprint(root: Path) -> list[dict[str, Any]] | None:
+    """Return a cheap git tree fingerprint when ``root`` is clean and tracked."""
+
+    if not root.exists():
+        return []
+    try:
+        resolved = root.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+    try:
+        top_result = subprocess.run(
+            ["git", "-C", str(resolved), "rev-parse", "--show-toplevel"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_FINGERPRINT_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return None
+
+    try:
+        git_root = Path(top_result.stdout.strip()).resolve(strict=False)
+        relative = resolved.relative_to(git_root).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+    try:
+        status_result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(git_root),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                relative,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_FINGERPRINT_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return None
+
+    if status_result.stdout.strip():
+        return None
+
+    tree_spec = f"HEAD:{relative}"
+    try:
+        tree_result = subprocess.run(
+            ["git", "-C", str(git_root), "rev-parse", tree_spec],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_FINGERPRINT_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return None
+
+    tree_hash = tree_result.stdout.strip()
+    if not tree_hash:
+        return None
+    return [
+        {
+            "strategy": "git-tree",
+            "path": resolved.as_posix(),
+            "git_root": git_root.as_posix(),
+            "rel": relative,
+            "tree": tree_hash,
+        }
+    ]
+
+
 def _directory_fingerprint(root: Path) -> list[dict[str, Any]]:
+    git_fingerprint = _git_directory_fingerprint(root)
+    if git_fingerprint is not None:
+        return git_fingerprint
+
     if not root.exists():
         return []
     ignored_parts = {".venv", "__pycache__", ".pytest_cache", "build", "dist"}

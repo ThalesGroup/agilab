@@ -59,6 +59,10 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Generic allocations comparison page for `allocations_steps.{json,jsonl,ndjson,csv,parquet}` exports. It can aggregate metrics such as mean `delivered_bandwidth` across multiple folders and plot them side by side.
 
+- view_live_artifacts
+  - uv run streamlit run src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+  - Generic live monitor for exported evidence, manifests, logs, JSON/CSV/text files, and images. Uses Streamlit fragment refresh to update the artifact panel without executing the app.
+
 - view_app_ui
   - uv run streamlit run src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
   - Generic bridge for app-owned Streamlit UIs declared in `[pages.view_app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.

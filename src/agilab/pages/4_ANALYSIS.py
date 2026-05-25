@@ -166,6 +166,11 @@ _ANALYSIS_VIEW_PROFILES = {
         "Inspect routed demand, latency, bearer mix, and delivered traffic.",
         "Use after inference or network simulation exports allocations.",
     ),
+    "view_live_artifacts": (
+        "Live artifacts",
+        "Watch manifests, logs, exported evidence, and lightweight files while a run is producing output.",
+        "Use for long-running local or distributed runs that write incremental artifacts.",
+    ),
     "view_release_decision": (
         "Release decision",
         "Aggregate run evidence into pass/fail release support.",
