@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 
@@ -90,6 +93,64 @@ def test_streamlit_server_output_tail_is_available_while_process_runs() -> None:
         assert "server boot failed detail" in server.output_tail()
 
 
+def test_streamlit_server_exit_kills_process_after_timeout() -> None:
+    module = _load_module()
+    server = module.StreamlitServer(["fake"], env={}, url="http://demo")
+
+    class _Process:
+        terminated = False
+        killed = False
+        waits = 0
+
+        @staticmethod
+        def poll():
+            return None
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self, *, timeout):
+            self.waits += 1
+            if self.waits == 1:
+                raise subprocess.TimeoutExpired("fake", timeout)
+            return 0
+
+    class _Output:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    process = _Process()
+    output = _Output()
+    server.process = process
+    server._output_file = output
+
+    server.__exit__(None, None, None)
+
+    assert process.terminated is True
+    assert process.killed is True
+    assert output.closed is True
+
+
+def test_streamlit_server_output_tail_handles_missing_and_unreadable_files(tmp_path: Path) -> None:
+    module = _load_module()
+    server = module.StreamlitServer(["fake"], env={}, url="http://demo")
+
+    assert server.output_tail() == ""
+
+    server._output_path = tmp_path / "missing.log"
+    assert server.output_tail() == ""
+
+    unreadable_dir = tmp_path / "not-a-file"
+    unreadable_dir.mkdir()
+    server._output_path = unreadable_dir
+    assert server.output_tail() == ""
+
+
 def test_build_url_preserves_existing_query_and_encodes_current_page() -> None:
     module = _load_module()
 
@@ -127,6 +188,20 @@ def test_resolve_local_active_app_accepts_builtin_project_shorthand() -> None:
     resolved = module.resolve_local_active_app("uav_relay_queue", str(module.DEFAULT_APPS_PATH))
 
     assert Path(resolved).name == "uav_relay_queue_project"
+
+
+def test_resolve_local_active_app_accepts_apps_root_paths_and_unknown_names(tmp_path: Path) -> None:
+    module = _load_module()
+    apps_root = tmp_path / "apps"
+    direct_project = apps_root / "direct_project"
+    shorthand_project = apps_root / "shorthand_project"
+    direct_project.mkdir(parents=True)
+    shorthand_project.mkdir()
+
+    assert module.resolve_local_active_app(str(direct_project), str(apps_root)) == direct_project.resolve()
+    assert module.resolve_local_active_app("direct_project", str(apps_root)) == direct_project.resolve()
+    assert module.resolve_local_active_app("shorthand", str(apps_root)) == shorthand_project.resolve()
+    assert module.resolve_local_active_app("missing_project", str(apps_root)) == "missing_project"
 
 
 def test_resolve_analysis_view_path_switches_between_local_and_remote() -> None:
@@ -581,6 +656,99 @@ def test_response_helpers_handle_header_variants_and_text_payloads() -> None:
     assert module._read_response_text(_StringResponse()) == "already decoded"
 
 
+def test_response_content_type_ignores_broken_headers_get() -> None:
+    module = _load_module()
+
+    class _BrokenHeaders:
+        @staticmethod
+        def get(_name: str, _default: str = "") -> str:
+            raise RuntimeError("headers unavailable")
+
+    response = type("R", (), {"headers": _BrokenHeaders()})()
+
+    assert module._response_content_type(response) == ""
+
+
+def test_load_playwright_reports_missing_dependency_and_accepts_fake_module(monkeypatch) -> None:
+    module = _load_module()
+
+    original_import = builtins.__import__
+
+    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "playwright.sync_api":
+            raise ModuleNotFoundError("No module named 'playwright'")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+    try:
+        module._load_playwright()
+    except RuntimeError as exc:
+        assert "Playwright is not installed" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for missing playwright")
+
+    monkeypatch.setattr(builtins, "__import__", original_import)
+    playwright_module = types.ModuleType("playwright")
+    sync_api = types.ModuleType("playwright.sync_api")
+
+    class FakeError(Exception):
+        pass
+
+    class FakeTimeoutError(Exception):
+        pass
+
+    def fake_sync_playwright():
+        return "fake"
+
+    sync_api.Error = FakeError
+    sync_api.TimeoutError = FakeTimeoutError
+    sync_api.sync_playwright = fake_sync_playwright
+    playwright_module.sync_api = sync_api
+    monkeypatch.setitem(sys.modules, "playwright", playwright_module)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", sync_api)
+
+    assert module._load_playwright() == (FakeError, FakeTimeoutError, fake_sync_playwright)
+
+
+def test_screenshot_manifest_helper_fallback_and_missing_file(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    original_import = builtins.__import__
+
+    def block_screenshot_manifest(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agilab.screenshot_manifest":
+            raise ModuleNotFoundError("blocked screenshot manifest")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", block_screenshot_manifest)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    try:
+        module._load_screenshot_manifest_helpers()
+    except RuntimeError as exc:
+        assert "fallback file is missing" in str(exc)
+    else:
+        raise AssertionError("expected missing fallback RuntimeError")
+
+    manifest_file = tmp_path / "src" / "agilab" / "screenshot_manifest.py"
+    manifest_file.parent.mkdir(parents=True)
+    manifest_file.write_text(
+        "def build_page_shots_manifest(*args, **kwargs):\n"
+        "    return {'manifest': True}\n"
+        "def screenshot_manifest_path(root):\n"
+        "    return root / 'manifest.json'\n"
+        "def write_screenshot_manifest(manifest, path):\n"
+        "    path.write_text(str(manifest), encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    build_manifest, manifest_path, write_manifest = module._load_screenshot_manifest_helpers()
+
+    assert build_manifest() == {"manifest": True}
+    assert manifest_path(tmp_path) == tmp_path / "manifest.json"
+    write_manifest({"ok": True}, tmp_path / "manifest.json")
+    assert (tmp_path / "manifest.json").read_text(encoding="utf-8") == "{'ok': True}"
+
+
 def test_screenshot_manifest_failure_does_not_hide_screenshot(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
 
@@ -659,6 +827,34 @@ def test_assert_page_healthy_reports_rejected_and_missing_text(tmp_path: Path) -
     assert "screenshot=" in rejected.detail
     assert missing.success is False
     assert "missing expected text: ANALYSIS | Choose pages" in missing.detail
+
+
+def test_assert_page_healthy_reports_selector_exception_with_screenshot(tmp_path: Path) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/"
+
+        @staticmethod
+        def wait_for_selector(*_args, **_kwargs) -> None:
+            raise RuntimeError("app never hydrated")
+
+        @staticmethod
+        def screenshot(*, path: str, full_page: bool) -> None:
+            assert full_page is True
+            Path(path).write_bytes(b"png")
+
+    step = module.assert_page_healthy(
+        _Page(),
+        label="landing broken",
+        expect_any=("First proof",),
+        timeout_ms=0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert step.success is False
+    assert "health assertion failed: app never hydrated" in step.detail
+    assert "screenshot=" in step.detail
 
 
 def test_main_remote_json_uses_patched_browser_robot(capsys, monkeypatch) -> None:
@@ -891,6 +1087,24 @@ def test_run_browser_robot_covers_full_happy_path_with_analysis_view(monkeypatch
     assert page.visited[-1].endswith("active_app=flight&current_page=%2Fapp%2Fview_maps.py")
 
 
+def test_run_browser_robot_skips_analysis_sidecar_when_not_requested(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    _install_fake_playwright(monkeypatch, module, page)
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps[-1].label == "analysis page"
+    assert all(step.success for step in steps)
+    assert not any("current_page=" in url for url in page.visited)
+
+
 def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
@@ -971,6 +1185,38 @@ def test_run_browser_robot_reports_outer_playwright_failure(monkeypatch) -> None
     assert steps == [module.RobotStep("browser robot", False, 0.0, "playwright failed: browser crashed", "http://demo")]
 
 
+def test_run_browser_robot_returns_after_page_health_failures(monkeypatch) -> None:
+    module = _load_module()
+
+    for failing_label, expected_last in [
+        ("landing page", "landing page"),
+        ("orchestrate page", "orchestrate page"),
+        ("analysis page", "analysis page"),
+        ("view_maps analysis view", "view_maps analysis view"),
+    ]:
+        page = _FakeBrowserPage()
+        _install_fake_playwright(monkeypatch, module, page)
+
+        def fake_assert_page_healthy(_page, *, label, **_kwargs):
+            success = label != failing_label
+            return module.RobotStep(label, success, 0.01, "ok" if success else "synthetic failure", _page.url)
+
+        monkeypatch.setattr(module, "assert_page_healthy", fake_assert_page_healthy)
+
+        steps = module.run_browser_robot(
+            base_url="http://demo",
+            active_app_query="flight",
+            browser_name="chromium",
+            headless=True,
+            timeout=1.0,
+            analysis_view="view_maps",
+            analysis_view_path="/app/view_maps.py",
+        )
+
+        assert steps[-1].label == expected_last
+        assert steps[-1].success is False
+
+
 def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
@@ -1002,6 +1248,40 @@ def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
     ]
     assert all(step.success for step in steps)
     assert page.launch_headless is False
+
+
+def test_run_frontend_smoke_uses_urlopen_adapter_for_static_assets(monkeypatch) -> None:
+    module = _load_module()
+    opened: list[str] = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        @staticmethod
+        def read() -> bytes:
+            return b"<html>No scripts</html>"
+
+    def fake_urlopen(url: str, *, timeout: float):
+        opened.append(f"{url}|timeout={timeout}")
+        return _Response()
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+
+    steps = module.run_frontend_smoke(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.5,
+    )
+
+    assert steps[0].success is False
+    assert "no JavaScript frontend assets" in steps[0].detail
+    assert opened == ["http://demo/?active_app=flight|timeout=1.5"]
 
 
 def test_run_frontend_smoke_returns_static_asset_failure_without_browser(monkeypatch) -> None:
@@ -1162,6 +1442,35 @@ def test_main_local_json_runs_full_robot_after_healthy_server(capsys, monkeypatc
     assert [step["label"] for step in payload["steps"]] == ["streamlit health", "analysis page"]
     assert calls[0]["analysis_view"] == "view_maps"
     assert calls[0]["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
+
+
+def test_main_local_json_keeps_only_health_step_when_failed_server_still_running(capsys, monkeypatch) -> None:
+    module = _load_module()
+    _patch_local_server(monkeypatch, module, health_success=False)
+    monkeypatch.setattr(module.StreamlitServer.process, "poll", lambda: None)
+
+    code = module.main(["--json", "--port", "8765", "--timeout", "1"])
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == ["streamlit health"]
+
+
+def test_main_remote_non_json_renders_human_summary(capsys, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "run_browser_robot",
+        lambda **_kwargs: [module.RobotStep("landing page", True, 0.25, "page healthy", "http://demo/")],
+    )
+
+    code = module.main(["--url", "http://demo"])
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "AGILAB web UI robot" in output
+    assert "verdict: PASS" in output
+    assert "- landing page: OK in 0.25s - page healthy" in output
 
 
 def test_render_human_non_json_output_includes_route_and_step_details(capsys) -> None:
