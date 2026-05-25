@@ -230,6 +230,8 @@ def main(argv: list[str] | None = None) -> int:
         ["replay"],
         ["export-lineage"],
         ["export_lineage"],
+        ["export-traces"],
+        ["export_traces"],
         ["policy-check"],
         ["policy_check"],
         ["cards"],
