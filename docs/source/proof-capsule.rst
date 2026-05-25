@@ -6,9 +6,10 @@ bundle that lets another operator verify what ran, where it ran, which
 artifacts were produced, and how the work can be replayed or handed off.
 
 AGILAB now ships a first proof-pack layer around ``run_manifest.json``. It can
-write either a directory of plain JSON evidence or an unsigned, hash-verifiable
-``.agipack`` archive for portable handoff. Detached signatures and external
-attestation binding remain separate roadmap layers.
+write either a directory of plain JSON evidence or a hash-verifiable
+``.agipack`` archive for portable handoff. The optional ``proof`` extra adds
+detached Ed25519 signatures and local trust-policy verification. External
+Sigstore/SLSA attestation binding remains a separate roadmap layer.
 
 Why this matters
 ----------------
@@ -85,6 +86,8 @@ The shipped first layer operates on a run manifest:
    agilab prove ~/log/execute/flight_telemetry/run_manifest.json --export proof.agipack
    agilab verify ~/log/execute/flight_telemetry/run_manifest.json --strict
    agilab verify proof.agipack --strict
+   agilab sign proof.agipack --key signer.pem --generate-key --signature proof.agipack.sig.json
+   agilab verify proof.agipack --signature proof.agipack.sig.json --trust-policy policy.toml --strict
    agilab replay ~/log/execute/flight_telemetry/run_manifest.json
    agilab replay proof.agipack
    agilab export-lineage ~/log/execute/flight_telemetry/run_manifest.json --format all --output-dir proof-pack
@@ -107,13 +110,31 @@ The proof pack includes:
 The ``.agipack`` archive contains the same proof-pack files plus
 ``agipack-manifest.json`` with per-entry SHA-256 hashes and sizes.
 ``agilab verify proof.agipack`` checks the ZIP inventory, the recorded hashes,
-the run-manifest snapshot, and the proof-pack manifest. Replay is safe by
-default: ``agilab replay`` prints the recorded command from either
+the run-manifest snapshot, and the proof-pack manifest. ``agilab sign`` writes
+a detached JSON signature containing the capsule SHA-256, signer/issuer
+metadata, the Ed25519 public key, and the signature. ``agilab verify`` can then
+validate that signature and enforce a JSON/TOML trust policy with allowed
+public-key hashes, signers, issuers, or expected capsule hashes. Replay is safe
+by default: ``agilab replay`` prints the recorded command from either
 ``run_manifest.json`` or ``proof.agipack`` and requires ``--execute`` before
 launching it.
 
-Until a signed archive verifier exists, keep using the existing first-proof and
-adoption commands as the entry evidence:
+Minimal trust policy example:
+
+.. code-block:: toml
+
+   schema = "agilab.proof_capsule_trust_policy.v1"
+   allowed_public_key_sha256 = ["<public-key-sha256-from-signature>"]
+   allowed_signers = ["AGILAB QA"]
+   allowed_issuers = ["local"]
+
+If ``cryptography`` is not installed, install the proof profile before signing:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies tool install --upgrade "agilab[proof]"
+
+Keep using the existing first-proof and adoption commands as the entry evidence:
 
 .. code-block:: bash
 
@@ -126,8 +147,8 @@ Roadmap boundary
 
 The following items remain planned work, not shipped capability:
 
-* signed ``.agipack`` archives with detached signatures, Sigstore/SLSA
-  references, and external attestation verification
+* external Sigstore/SLSA references and third-party attestation verification for
+  signed ``.agipack`` archives
 * transport to an external OpenLineage backend
 * native OpenTelemetry SDK/OTLP spans across UI, worker build, distributed
   execution, notebook export, MLflow handoff, and agent runs
