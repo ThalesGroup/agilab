@@ -874,6 +874,15 @@ def test_configured_apps_pages_for_app_reads_app_settings() -> None:
     ]
 
 
+def test_apps_page_entrypoint_and_configured_pages_handle_missing_settings(tmp_path) -> None:
+    module = _load_module()
+    app = tmp_path / "demo_project"
+    app.mkdir()
+
+    assert module._apps_page_entrypoint(app) is None
+    assert module.configured_apps_pages_for_app(app) == []
+
+
 def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     module = _load_module()
 
@@ -1601,6 +1610,55 @@ def test_current_home_preflight_short_circuits_and_worker_probe_errors(tmp_path,
     )
 
 
+def test_config_and_artifact_path_helpers_cover_edge_cases(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+
+    assert module._parse_config_bool(1) is True
+    assert module._parse_config_bool(0) is False
+    assert module._parse_config_bool("maybe") is None
+    assert module._strip_config_value('"quoted"') == "quoted"
+    assert module._strip_config_value("plain") == "plain"
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("# A='1'\nBROKEN\nB=\"two\"\n=ignored\n", encoding="utf-8")
+    assert module._load_dotenv_map(dotenv) == {"A": "1", "B": "two"}
+    assert module._load_dotenv_map(tmp_path / "missing.env") == {}
+
+    empty_settings = tmp_path / "empty.toml"
+    empty_settings.write_text("", encoding="utf-8")
+    assert module._read_cluster_enabled_setting(empty_settings) is None
+    bad_settings = tmp_path / "bad.toml"
+    bad_settings.write_text("[cluster\n", encoding="utf-8")
+    assert module._read_cluster_enabled_setting(bad_settings) is None
+
+    missing_source = tmp_path / "missing_project"
+    assert module._source_app_settings_path(missing_source) is None
+    source_dir = tmp_path / "project" / "src"
+    source_dir.mkdir(parents=True)
+    source_settings = source_dir / "app_settings.toml"
+    source_settings.write_text("[args]\ndata_out='out'\n", encoding="utf-8")
+    assert module._source_app_settings_path(source_dir) == source_settings
+
+    assert module._artifact_path_from_configured_value("", roots=[tmp_path]) == []
+    assert module._artifact_path_from_configured_value("/tmp/data", roots=[tmp_path]) == [Path("/tmp/data")]
+    assert module._artifact_path_from_configured_value("data", roots=[tmp_path / "a", tmp_path / "b"]) == [
+        tmp_path / "a" / "data",
+        tmp_path / "b" / "data",
+    ]
+    assert module._unique_paths([tmp_path / "a", tmp_path / "a"]) == [tmp_path / "a"]
+    assert module._is_orchestrate_preview_file(tmp_path / "data.csv") is True
+    assert module._is_orchestrate_preview_file(tmp_path / "run_manifest.json") is False
+    assert module._is_orchestrate_preview_file(tmp_path / "._metadata.csv") is False
+    assert module._rgb_brightness("not-rgb") is None
+
+    writable = tmp_path / "writable"
+    writable.mkdir()
+    assert module._is_writable_directory(writable) is True
+    assert module._is_writable_directory(tmp_path / "missing") is False
+    monkeypatch.setattr(module.os, "listdir", lambda _path: (_ for _ in ()).throw(OSError("denied")))
+    assert module._is_writable_directory(writable) is False
+
+
 def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
     module = _load_module()
     texts = iter(["Initializing environment...", "Ready"])
@@ -1924,6 +1982,43 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
     assert [choice.default for choice in controls[2].choices] == [True, False]
 
 
+def test_widget_choice_labels_descriptions_and_static_control_edges() -> None:
+    module = _load_module()
+
+    assert module._choice_label({"label": "Mode", "value": "Fast"}, 0) == "Mode: Fast"
+    assert module._choice_label({"label": "Mode", "value": "Mode"}, 0) == "Mode"
+    assert module._choice_label({"value": "Fast"}, 0) == "Fast"
+    assert module._choice_label({}, 2) == "option 3"
+    assert module._choice_description(
+        module.WidgetChoice("flag", "checkbox", "Use cache", "on", {}, checked=True)
+    ) == "Use cache=on"
+    assert module._choice_description(
+        module.WidgetChoice("mode", "selectbox", "Mode", "fast", {}, checked=True)
+    ) == "Mode=fast"
+    assert module._choice_description(
+        module.WidgetChoice("action", "radio", "Backend", "", {}, checked=True)
+    ) == "Backend=radio"
+    assert module._combination_description(
+        [module.WidgetChoice("flag", "checkbox", "Use cache", "off", {}, checked=False)]
+    ) == "Use cache=off"
+    assert module._binary_widget_control({"kind": "button", "label": "Run"}) is None
+    assert module._binary_widget_control({"kind": "toggle", "label": "Disabled", "disabled": True}) is None
+    assert module._radio_group_key({"kind": "radio", "label": "Backend", "scope": "sidebar"}) == (
+        "sidebar",
+        "label",
+        "backend",
+    )
+    controls = module.collect_static_widget_combination_controls(
+        [
+            {"kind": "radio", "label": "Solo", "value": "only"},
+            {"kind": "radio", "label": "Group", "value": "a"},
+            {"kind": "radio", "label": "Group", "value": "b"},
+        ]
+    )
+    assert len(controls) == 1
+    assert [choice.default for choice in controls[0].choices] == [True, False]
+
+
 def test_project_switching_selectbox_is_excluded_from_combination_controls() -> None:
     module = _load_module()
 
@@ -2034,6 +2129,14 @@ def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() ->
     assert truncated.total_count == 6
     assert len(truncated.combinations) == 4
     assert truncated.truncated is True
+
+    try:
+        module.build_widget_combination_plan((), max_combinations=0)
+    except ValueError as exc:
+        assert "max_combinations" in str(exc)
+    else:
+        raise AssertionError("max_combinations=0 should fail")
+    assert module.build_widget_combination_plan((), max_combinations=1).total_count == 0
 
 
 def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> None:
@@ -4724,6 +4827,37 @@ def test_resolve_apps_pages_rejects_configured_mode() -> None:
         assert "configured" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_load_web_robot_reports_unloadable_spec_and_loader_file_errors(monkeypatch) -> None:
+    import importlib.machinery
+
+    module = _load_module()
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda _name, _path: None)
+    try:
+        module._load_web_robot()
+    except RuntimeError as exc:
+        assert "Could not load" in str(exc)
+    else:
+        raise AssertionError("missing spec should fail")
+
+    class _Loader:
+        @staticmethod
+        def create_module(_spec):
+            return None
+
+        @staticmethod
+        def exec_module(_module):
+            raise FileNotFoundError("missing")
+
+    spec = importlib.machinery.ModuleSpec("fake_web_robot", _Loader())
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda _name, _path: spec)
+    try:
+        module._load_web_robot()
+    except RuntimeError as exc:
+        assert "Could not load" in str(exc)
+    else:
+        raise AssertionError("loader FileNotFoundError should fail")
 
 
 def test_resolve_apps_resolves_project_name_within_app_root(tmp_path) -> None:
