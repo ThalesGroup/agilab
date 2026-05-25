@@ -86,6 +86,7 @@ Start with the public browser preview or the demo chooser:
 
 - [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
@@ -96,6 +97,16 @@ Start with the public browser preview or the demo chooser:
   synthetic datasets, hidden-layer activation maps, network diagnostics, and
   the **Loss landscape** view. It is a reproducible app project, not a generic
   app-agnostic analysis page, and loss landscape is part of that project.
+
+## Featured Performance Demo
+
+- [Execution Pandas Project](src/agilab/apps/builtin/execution_pandas_project)
+  is the Cython worker speedup demo. It keeps Pandas I/O and reducer evidence
+  in Python, then isolates the hot scoring loop as a typed contiguous
+  `float64` kernel so AGILAB can compare Python and Cython execution honestly.
+  The versioned local kernel proof reports `0.620s` Python vs `0.002s` Cython
+  on 100,000 rows x 32 passes, a checksum-matched `306x` speedup. That is a
+  focused hot-loop result, not an end-to-end runtime promise.
 
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
@@ -116,8 +127,8 @@ For a zero-install browser preview, open the public
 lightweight `flight_telemetry_project` path by default and exposes the
 `weather_forecast_project` notebook-migration demo with forecast analysis views.
 Advanced scenarios such as `mission_decision_project`,
-`execution_pandas_project`, `execution_polars_project`, and
-`uav_relay_queue_project` are collected in the
+the `execution_pandas_project` Cython worker speedup demo,
+`execution_polars_project`, and `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
 For the full project/package/status matrix, see the
 [Public App Catalog](https://thalesgroup.github.io/agilab/public-app-catalog.html).

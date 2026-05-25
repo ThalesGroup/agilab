@@ -1,14 +1,14 @@
 # Execution Pandas Project
 
-`execution_pandas_project` is a built-in AGILAB execution playground for the
-`PandasWorker` path.
+`execution_pandas_project` is the built-in AGILAB reference app for a
+`PandasWorker` with an explicit Cython/C-speedup path.
 
 The app generates a deterministic CSV workload, distributes file batches across
 available workers, runs a pandas aggregation workload, and writes result files
 plus a reduce artifact that AGILAB analysis pages can inspect. Its default
-`typed_numeric` kernel converts hot columns to contiguous `float64` arrays so
-Cython mode has a real typed loop to accelerate instead of only wrapping Pandas
-calls.
+`typed_numeric` kernel converts hot columns to contiguous `float64` arrays.
+The app enables Cython mode by default so AGILAB can compile a real typed loop
+instead of only wrapping Pandas calls.
 
 ## What It Shows
 
@@ -16,6 +16,7 @@ calls.
 - worker distribution over multiple CSV partitions
 - pandas-based compute and aggregation through the AGILAB worker contract
 - a Cython-favorable typed numeric kernel with explicit dtype metadata
+- a worker build manifest that declares Cython as a build requirement
 - output parity artifacts for comparing execution modes and worker behavior
 
 ## Typical Flow

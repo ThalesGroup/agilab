@@ -62,11 +62,15 @@ agi-core
   - AGILab now exposes a shared ``agi_node`` reduce contract with explicit
     partial inputs, reducer merge semantics, and a standard reduce artefact
     schema.
-  - ``execution_pandas_project`` and ``execution_polars_project`` emit named
-    benchmark reduce artefacts through that shared contract; the user-facing
-    ``flight_telemetry_project`` emits trajectory-summary reduce artefacts;
-    ``weather_forecast_project`` emits forecast-metrics reduce artefacts; and
-    ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
+  - ``execution_pandas_project`` is the Cython worker speedup demo: it emits
+    named benchmark reduce artefacts and records ``typed_numeric`` kernel mode,
+    Python/Cython runtime, and the ``float64-contiguous`` dtype contract through
+    that shared contract.
+  - ``execution_polars_project`` emits comparable benchmark reduce artefacts;
+    the user-facing ``flight_telemetry_project`` emits trajectory-summary
+    reduce artefacts; ``weather_forecast_project`` emits forecast-metrics
+    reduce artefacts; and ``uav_queue_project`` plus
+    ``uav_relay_queue_project`` emit the same
     ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.
   - The Release Decision evidence view discovers those artefacts, validates
     their schema, and displays reducer name, partial count, artifact path,
