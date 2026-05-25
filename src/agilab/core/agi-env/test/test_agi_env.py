@@ -10,6 +10,7 @@ from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from pathspec.gitignore import GitIgnoreSpec
 from pathlib import Path
 from unittest import mock
 
@@ -2771,7 +2772,7 @@ def test_clone_directory_covers_symlink_readlink_fallback_and_existing_destinati
     existing_link.write_text("occupied\n", encoding="utf-8")
 
     env = object.__new__(AgiEnv)
-    spec = agi_env_module.PathSpec.from_lines(agi_env_module.GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
 
     original_readlink = os.readlink
     original_symlink = os.symlink

@@ -63,7 +63,7 @@ from agi_gui.pagelib import (
 )
 from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.gitignore import GitIgnoreSpec
 from code_editor import code_editor
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import resolve_installed_app_project
@@ -1206,7 +1206,7 @@ def read_gitignore(gitignore_path):
     except FileNotFoundError:
         patterns = []
 
-    return PathSpec.from_lines(GitWildMatchPattern, patterns)
+    return GitIgnoreSpec.from_lines(patterns)
 # -------------------- Project Cleaner -------------------- #
 
 

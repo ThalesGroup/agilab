@@ -36,7 +36,7 @@ def _parsed_python_files() -> list[tuple[Path, ast.AST]]:
     return parsed
 
 
-def test_runtime_source_does_not_import_deprecated_astor_or_distutils() -> None:
+def test_runtime_source_does_not_import_deprecated_apis() -> None:
     violations: list[str] = []
     for path, tree in _parsed_python_files():
         for node in ast.walk(tree):
@@ -49,6 +49,12 @@ def test_runtime_source_does_not_import_deprecated_astor_or_distutils() -> None:
                 root_name = (node.module or "").split(".", 1)[0]
                 if root_name in {"astor", "distutils"}:
                     violations.append(f"{path.relative_to(REPO_ROOT)} imports from {node.module}")
+                if node.module == "pathspec.patterns":
+                    for alias in node.names:
+                        if alias.name == "GitWildMatchPattern":
+                            violations.append(
+                                f"{path.relative_to(REPO_ROOT)} imports deprecated pathspec.patterns.GitWildMatchPattern"
+                            )
 
     assert violations == []
 

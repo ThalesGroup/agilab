@@ -3,8 +3,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.gitignore import GitIgnoreSpec
 
 from agi_env.content_renamer_support import ContentRenamer
 import agi_env.project_clone_support as project_clone_support
@@ -369,7 +368,7 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     source_root.mkdir()
     dest_root = tmp_path / "dest"
     rename_map = {"flight": "demo", "flight_telemetry_project": "demo_project"}
-    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
 
     link_target = source_root / "target.txt"
     link_target.write_text("flight", encoding="utf-8")
@@ -427,7 +426,7 @@ def test_clone_directory_rewrites_valid_python_with_stdlib_ast_unparse(tmp_path:
     source_root.mkdir()
     dest_root = tmp_path / "dest"
     rename_map = {"flight": "demo", "Flight": "Demo"}
-    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
     (source_root / "flight.py").write_text(
         "class Flight:\n"
         "    def run(self):\n"
@@ -459,7 +458,7 @@ def test_clone_directory_keeps_explicit_venv_symlink_when_gitignored(tmp_path: P
     dest_root = tmp_path / "dest"
     (source_root / ".venv").mkdir()
     (source_root / "ignored.txt").write_text("ignored", encoding="utf-8")
-    spec = PathSpec.from_lines(GitWildMatchPattern, [".venv/", "ignored.txt"])
+    spec = GitIgnoreSpec.from_lines([".venv/", "ignored.txt"])
 
     clone_directory(
         source_root,
@@ -481,7 +480,7 @@ def test_clone_directory_uses_windows_junction_when_venv_symlink_is_denied(tmp_p
     source_root.mkdir()
     dest_root = tmp_path / "dest"
     (source_root / ".venv").mkdir()
-    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
     calls: list[list[str]] = []
 
     monkeypatch.setattr(project_clone_support.os, "name", "nt", raising=False)
@@ -520,7 +519,7 @@ def test_clone_directory_skips_venv_when_windows_linking_is_unavailable(tmp_path
     source_root.mkdir()
     dest_root = tmp_path / "dest"
     (source_root / ".venv").mkdir()
-    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
 
     monkeypatch.setattr(project_clone_support.os, "name", "nt", raising=False)
     monkeypatch.setattr(
@@ -556,7 +555,7 @@ def test_clone_directory_skips_entries_that_are_neither_files_nor_directories(tm
     odd_entry.write_text("payload", encoding="utf-8")
     dest_root = tmp_path / "dest"
     dest_root.mkdir()
-    spec = PathSpec.from_lines(GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
 
     original_is_file = Path.is_file
     original_is_dir = Path.is_dir
