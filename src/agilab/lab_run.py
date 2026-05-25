@@ -233,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     if raw_argv[:1] in (
         ["prove"],
         ["verify"],
+        ["sign"],
         ["replay"],
         ["export-lineage"],
         ["export_lineage"],
