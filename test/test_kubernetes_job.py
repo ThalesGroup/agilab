@@ -21,7 +21,7 @@ def test_kubernetes_job_manifest_includes_runner_contract_and_artifact_pvc() -> 
     manifest = kubernetes_job.build_kubernetes_job_manifest(
         kubernetes_job.KubernetesJobConfig(
             app="flight_telemetry_project",
-            image="ghcr.io/thalesgroup/agilab:2026.05.23",
+            image="ghcr.io/thalesgroup/agilab:2026.05.25",
             namespace="agilab",
             command=("python", "-m", "agilab.lab_run", "first-proof", "--json"),
             env=(("OPENAI_MODEL", "gpt-4.1-mini"),),
@@ -47,7 +47,7 @@ def test_kubernetes_job_manifest_includes_runner_contract_and_artifact_pvc() -> 
         }
     ]
     container = pod_spec["containers"][0]
-    assert container["image"] == "ghcr.io/thalesgroup/agilab:2026.05.23"
+    assert container["image"] == "ghcr.io/thalesgroup/agilab:2026.05.25"
     assert container["command"] == ["python"]
     assert container["args"] == ["-m", "agilab.lab_run", "first-proof", "--json"]
     assert container["volumeMounts"] == [{"name": "agilab-artifacts", "mountPath": "/agilab/export"}]

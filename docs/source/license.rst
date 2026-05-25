@@ -59,6 +59,7 @@ UI and page packages
    agi-page-decision-evidence <agi-page-decision-evidence-licenses>
    agi-page-timeseries-forecast <agi-page-timeseries-forecast-licenses>
    agi-page-inference-report <agi-page-inference-report-licenses>
+   agi-page-live-artifacts <agi-page-live-artifacts-licenses>
    agi-page-geospatial-map <agi-page-geospatial-map-licenses>
    agi-page-geospatial-3d <agi-page-geospatial-3d-licenses>
    agi-page-network-map <agi-page-network-map-licenses>
@@ -83,7 +84,6 @@ App packages
    agi-app-flight-telemetry <agi-app-flight-telemetry-licenses>
    agi-app-global-dag <agi-app-global-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
-   agi-app-sklearn-pipeline <agi-app-sklearn-pipeline-licenses>
    agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
    agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
    agi-app-uav-queue-project <agi-app-uav-queue-project-licenses>

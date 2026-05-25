@@ -2472,6 +2472,8 @@ def _project_metric_tokens(project_root: Path) -> tuple[str, ...]:
     tokens = {project_root.name}
     if project_root.name.endswith("_project"):
         tokens.add(project_root.name.removesuffix("_project"))
+    if project_root.name == "flight_telemetry_project":
+        tokens.add("flight")
     src_root = project_root / "src"
     if src_root.exists():
         for child in sorted(src_root.iterdir()):

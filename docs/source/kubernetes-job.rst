@@ -40,7 +40,7 @@ The default command is the packaged first proof:
 
    agilab kubernetes-job \
      --app flight_telemetry_project \
-     --image ghcr.io/thalesgroup/agilab:2026.05.23 \
+     --image ghcr.io/thalesgroup/agilab:2026.05.25 \
      --namespace agilab \
      --pvc agilab-artifacts \
      --output /tmp/agilab-flight-first-proof-job.yaml
@@ -61,7 +61,7 @@ Pass the container command after ``--``:
 
    agilab kubernetes-job \
      --app flight_telemetry_project \
-     --image ghcr.io/thalesgroup/agilab:2026.05.23 \
+     --image ghcr.io/thalesgroup/agilab:2026.05.25 \
      --env OPENAI_MODEL=gpt-4.1-mini \
      --output /tmp/agilab-job.yaml \
      -- \
