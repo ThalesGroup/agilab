@@ -62,9 +62,14 @@ Start with the public browser preview or the demo chooser:
 
 - [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html)
 - [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Local quick start](https://thalesgroup.github.io/agilab/quick-start.html)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
+
+For spreadsheet-first users, the packaged `excel_workbook_proof` preview keeps
+Excel as the familiar interface and writes a proof workbook, Power Query-friendly
+CSV files, and JSON hash evidence without requiring an Office add-in.
 
 ## Featured Performance Demo
 

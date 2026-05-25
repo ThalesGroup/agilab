@@ -252,6 +252,20 @@ Current shipped baseline:
   explicitly passes `--execute`
 - policy-as-code starts with a small JSON/TOML gate over the manifest checks
   instead of a full external policy engine
+- Excel-shaped proof preview from packaged examples: a workbook, refresh-friendly
+  CSV folder, and JSON hash evidence, intentionally before any Office add-in or
+  arbitrary workbook import claim
+
+Spreadsheet adoption bridge:
+
+- keep the shipped preview dependency-light and file-based until there is user
+  pull for deeper Excel integration
+- add a focused `agilab excel-proof --workbook <file> --sheet <name> --out <file>`
+  command only after the preview validates the user story
+- write an `AGILAB Evidence` worksheet, refreshable CSV/parquet outputs, and a
+  JSON evidence bundle for workbook runs
+- keep Office add-ins, macro execution, tenant deployment, and formula-preserving
+  arbitrary workbook import as later product-expansion work, not current claims
 
 Evidence Core roadmap:
 

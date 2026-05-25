@@ -22,7 +22,14 @@ The distribution name is `agi-app-uav-queue-project`; the AGILAB project name is
 `AgiEnv(app="uav_queue_project")` resolves the project without a monorepo
 checkout.
 
-## Install From A Release Artifact
+## Install
+
+```bash
+pip install agi-app-uav-queue-project
+```
+
+This is the stable package install shape once this distribution is promoted to
+PyPI. For the current release artifact path, install the wheel directly:
 
 ```bash
 pip install /path/to/agi_app_uav_queue_project-<version>-py3-none-any.whl

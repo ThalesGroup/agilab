@@ -54,6 +54,7 @@ references, and example projects.
    Product overview <introduction>
    Capabilities <features>
    Data connectors <data-connectors>
+   AGILAB for Excel users <excel-users>
    Proof capsule <proof-capsule>
    Public web demo <agilab-demo>
    Advanced proof pack <advanced-proof-pack>

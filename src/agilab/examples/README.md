@@ -18,13 +18,14 @@ the command shape stable.
 | 3 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
 | 4 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
 | 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
-| 6 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
-| 7 | `global_dag_project` | `flight_telemetry_project` -> `weather_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 8 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
-| 9 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
-| 10 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
-| 11 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
-| 12 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
+| 6 | `excel_workbook_proof` | spreadsheet bridge preview | Read-only Excel-shaped proof: workbook, Power Query-friendly CSVs, and evidence hashes. |
+| 7 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
+| 8 | `global_dag_project` | `flight_telemetry_project` -> `weather_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 9 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
+| 10 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 11 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
+| 12 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
+| 13 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
 
 ## Execution Map
 
@@ -34,7 +35,7 @@ app execution from read-only contract previews.
 | Class | Examples | What actually runs | Primary output |
 |---|---|---|---|
 | Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
-| Source/package read-only previews | `notebook_to_dask`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve` | Deterministic Python preview scripts. They write JSON evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON under `~/log/execute/<example>/` or the `--output` path. |
+| Source/package read-only previews | `notebook_to_dask`, `excel_workbook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, or workbook artifacts under `~/log/execute/<example>/` or the configured output path. |
 | Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
 
 Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
@@ -76,6 +77,9 @@ From an installed package, locate one with
 - `tools/notebook_import_preflight.py` gives the same notebook import path a
   generic cleanup report plus artifact, pipeline-view, and app view-plan
   sidecars before you turn a notebook into a project.
+- `excel_workbook_proof/preview_excel_workbook_proof.py` shows the low-friction
+  spreadsheet bridge: result workbook, Power Query-friendly CSV folder, and
+  JSON evidence hashes without an Office add-in.
 - `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
   notebooks, exported artifacts, migrated `lab_stages.toml`, and conceptual
   pipeline view in the packaged examples tree.
@@ -137,5 +141,8 @@ workers for an already-working app. Use `mlflow_auto_tracking` when you want
 to show tracking as optional memory around AGILAB execution, not a competing
 experiment system. Use `resilience_failure_injection` when you want to explain
 fixed versus adaptive behavior on the same degraded scenario before training or
-serving a policy. Use `train_then_serve` when you want to explain what must be
-frozen after training before a policy becomes service-ready.
+serving a policy. Use `excel_workbook_proof` when the stakeholder lives in
+Excel and needs to see workbook output plus refreshable CSV and evidence before
+they care about notebooks, DAGs, or clusters. Use `train_then_serve` when you
+want to explain what must be frozen after training before a policy becomes
+service-ready.
