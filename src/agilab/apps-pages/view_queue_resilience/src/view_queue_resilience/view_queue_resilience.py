@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import argparse
 import importlib.util
 import json
 import sys
@@ -13,19 +12,17 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from agi_pages.runtime import (
+    artifact_root as _page_artifact_root,
+    discover_files as _page_discover_files,
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    resolve_active_app_path,
+    safe_metric,
+)
 
 
 def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+    _page_ensure_repo_on_path(__file__)
 
 
 _ensure_repo_on_path()
@@ -53,25 +50,15 @@ PAGE_LOGO, PAGE_TITLE = _load_page_meta()
 
 
 def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
-    args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
+    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _default_artifact_root(env: AgiEnv) -> Path:
-    return Path(env.AGILAB_EXPORT_ABS) / env.target / "queue_analysis"
+    return _page_artifact_root(env, "queue_analysis")
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
-    try:
-        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return []
+    return _page_discover_files(base, pattern)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -84,10 +71,7 @@ def _peer_csv(path: Path, suffix: str) -> Path:
 
 
 def _safe_metric(value: Any) -> str:
-    try:
-        return f"{float(value):.3f}"
-    except (TypeError, ValueError, OverflowError):
-        return "n/a"
+    return safe_metric(value)
 
 
 st.set_page_config(layout="wide")

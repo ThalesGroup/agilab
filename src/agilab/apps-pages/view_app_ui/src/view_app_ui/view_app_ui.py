@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import argparse
 import importlib.util
 from pathlib import Path
 import sys
@@ -13,6 +12,10 @@ from types import ModuleType
 from typing import Any
 
 import streamlit as st
+from agi_pages.runtime import (
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    resolve_active_app_path,
+)
 
 
 PAGE_KEY = "view_app_ui"
@@ -26,29 +29,14 @@ def _safe_page_config() -> None:
 
 
 def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+    _page_ensure_repo_on_path(__file__)
 
 
 _ensure_repo_on_path()
 
 
 def _resolve_active_app(argv: list[str] | None = None) -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
-    args, _ = parser.parse_known_args(argv)
-    active_app_path = Path(args.active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        raise FileNotFoundError(f"Provided --active-app path not found: {active_app_path}")
-    return active_app_path
+    return resolve_active_app_path(argv)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

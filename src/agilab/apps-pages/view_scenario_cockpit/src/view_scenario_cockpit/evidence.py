@@ -6,14 +6,18 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import hashlib
 import json
-import math
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from agi_pages.runtime import (
+    discover_files,
+    relative_label,
+    safe_float,
+)
 
 
 EVIDENCE_SCHEMA = "agilab.scenario_evidence_bundle.v1"
@@ -30,13 +34,6 @@ PIPELINE_ARTIFACTS = (
 )
 
 
-def discover_files(base: Path, pattern: str) -> list[Path]:
-    try:
-        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return []
-
-
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -44,13 +41,6 @@ def load_json(path: Path) -> dict[str, Any]:
 def peer_file(path: Path, suffix: str) -> Path:
     stem = path.name.removesuffix("_summary_metrics.json")
     return path.with_name(f"{stem}_{suffix}.csv")
-
-
-def relative_label(path: Path, artifact_root: Path) -> str:
-    try:
-        return str(path.relative_to(artifact_root))
-    except (RuntimeError, TypeError, ValueError):
-        return path.name
 
 
 def scenario_row(summary_path: Path, artifact_root: Path) -> dict[str, Any]:
@@ -121,16 +111,6 @@ def build_comparison_frame(
         "summary_path",
     ]
     return comparison_df[[column for column in ordered_columns if column in comparison_df.columns]]
-
-
-def safe_float(value: Any) -> float | None:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if math.isnan(numeric) or math.isinf(numeric):
-        return None
-    return numeric
 
 
 def json_safe(value: Any) -> Any:

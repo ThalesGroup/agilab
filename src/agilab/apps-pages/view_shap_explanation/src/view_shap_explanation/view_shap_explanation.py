@@ -4,14 +4,20 @@
 
 from __future__ import annotations
 
-import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
+from agi_pages.runtime import (
+    artifact_root as _page_artifact_root,
+    discover_files as _page_discover_files,
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    load_json_object,
+    resolve_active_app_path,
+    safe_float,
+)
 
 
 FEATURE_ALIASES = ("feature", "feature_name", "column", "name")
@@ -28,16 +34,7 @@ WIDE_EXCLUDE_COLUMNS = {
 
 
 def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+    _page_ensure_repo_on_path(__file__)
 
 
 _ensure_repo_on_path()
@@ -47,32 +44,19 @@ from agi_gui.pagelib import render_logo
 
 
 def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
-    args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
+    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _default_artifact_root(env: AgiEnv) -> Path:
-    return Path(env.AGILAB_EXPORT_ABS) / env.target / "shap_explanation"
+    return _page_artifact_root(env, "shap_explanation")
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
-    try:
-        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return []
+    return _page_discover_files(base, pattern)
 
 
 def _safe_float(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
+    return safe_float(value)
 
 
 def _first_existing_column(df: pd.DataFrame, aliases: tuple[str, ...]) -> str | None:
@@ -91,13 +75,7 @@ def _load_table(path: Path) -> pd.DataFrame:
 
 
 def _load_json(path: Path | None) -> dict[str, Any]:
-    if path is None:
-        return {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    return load_json_object(path)
 
 
 def _coerce_shap_frame(df: pd.DataFrame) -> pd.DataFrame:
