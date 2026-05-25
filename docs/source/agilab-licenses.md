@@ -7,7 +7,7 @@ Resolver: `licensecheck 2025.1.0`.
 Source manifests:
 - `pyproject.toml`
 
-Extras included: `agents`, `ai`, `dev`, `examples`, `local-llm`, `mlflow`, `offline`, `pages`, `ui`, `viz`.
+Extras included: `agents`, `ai`, `dev`, `examples`, `local-llm`, `mlflow`, `offline`, `pages`, `proof`, `ui`, `viz`.
 
 Audit notes:
 - This page lists Python dependency metadata resolved for documentation review.
@@ -18,23 +18,22 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | accelerate | 0.34.2 | APACHE SOFTWARE LICENSE |
-| agi-app-flight-telemetry | 2026.5.23 | BSD-3-Clause |
-| agi-app-global-dag | 2026.5.23 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.23 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-global-dag | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.17.post2 | BSD-3-Clause |
 | agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
-| agi-app-sklearn-pipeline | UNKNOWN | BSD-3-Clause |
 | agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
-| agi-apps | 2026.5.23 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.17.post2 | BSD-3-Clause |
+| agi-apps | 2026.5.17.post2 | BSD-3-Clause |
 | agi-cluster | 2026.5.23 | BSD-3-Clause |
 | agi-core | 2026.5.23 | BSD-3-Clause |
 | agi-env | 2026.5.23 | BSD-3-Clause |
-| agi-gui | 2026.5.23 | BSD-3-Clause |
+| agi-gui | 2026.5.17.post2 | BSD-3-Clause |
 | agi-node | 2026.5.23 | BSD-3-Clause |
-| agi-pages | 2026.5.23 | BSD-3-Clause |
+| agi-pages | 2026.5.17.post2 | BSD-3-Clause |
 | aiohappyeyeballs | 2.6.2 | PYTHON SOFTWARE FOUNDATION LICENSE |
 | aiohttp | 3.13.5 | APACHE-2.0;; MIT |
 | aiosignal | 1.4.0 | APACHE SOFTWARE LICENSE |
@@ -220,7 +219,7 @@ Audit notes:
 | pip-audit | 2.10.0 | APACHE SOFTWARE LICENSE |
 | pip-requirements-parser | 32.0.1 | MIT |
 | platformdirs | 4.9.6 | MIT LICENSE |
-| plotly | 6.7.0 | MIT LICENSE |
+| plotly | 6.7.0 | MIT |
 | pluggy | 1.6.0 | MIT LICENSE |
 | polars | 1.41.0 | MIT LICENSE |
 | polars-runtime-32 | 1.41.0 | MIT LICENSE |
@@ -228,7 +227,7 @@ Audit notes:
 | prometheus-client | 0.25.0 | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
 | propcache | 0.5.2 | APACHE SOFTWARE LICENSE |
-| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
+| protobuf | 6.33.6 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
 | pure-eval | 0.2.3 | MIT LICENSE |

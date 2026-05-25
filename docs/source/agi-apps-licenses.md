@@ -17,16 +17,15 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-app-flight-telemetry | 2026.5.23 | BSD-3-Clause |
-| agi-app-global-dag | 2026.5.23 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.23 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-global-dag | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.17.post2 | BSD-3-Clause |
 | agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
-| agi-app-sklearn-pipeline | UNKNOWN | BSD-3-Clause |
 | agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.17.post2 | BSD-3-Clause |
 | agi-cluster | 2026.5.23 | BSD-3-Clause |
 | agi-core | 2026.5.23 | BSD-3-Clause |
 | agi-env | 2026.5.23 | BSD-3-Clause |
