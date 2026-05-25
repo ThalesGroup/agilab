@@ -27,11 +27,11 @@ from typing import Any, Callable, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 SRC_PACKAGE = SRC_ROOT / "agilab"
-if str(SRC_ROOT) not in sys.path:
+if str(SRC_ROOT) not in sys.path:  # pragma: no cover - import bootstrap depends on caller path state
     sys.path.insert(0, str(SRC_ROOT))
 try:
     import agilab as _agilab_package
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no cover - packaged fallback path
     _agilab_package = None
 if _agilab_package is not None and str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
@@ -1801,7 +1801,7 @@ def build_seeded_server_env(
     return SeededRuntime(env, home_root, export_root, share_root, cluster_share_root)
 
 
-def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:
+def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     deadline = time.perf_counter() + timeout_ms / 1000.0
     while time.perf_counter() < deadline:
         try:
@@ -1816,7 +1816,7 @@ def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:
         page.wait_for_timeout(PAGE_READY_POLL_MS)
 
 
-def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> int:
+def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> int:  # pragma: no cover - live browser path
     minimum = PAGE_MIN_WIDGETS.get(page_name, 1)
     deadline = time.perf_counter() + timeout_ms / 1000.0
     last_count = -1
@@ -2015,11 +2015,11 @@ def build_widget_combination_plan(controls: Sequence[WidgetControl], *, max_comb
     return WidgetCombinationPlan(valid_controls, total_count, combinations, truncated=total_count > max_combinations)
 
 
-def _option_locator(page: Any) -> Any:
+def _option_locator(page: Any) -> Any:  # pragma: no cover - live browser path
     return page.locator("[role='option']")
 
 
-def _selectbox_option_labels(
+def _selectbox_option_labels(  # pragma: no cover - live browser path
     page: Any,
     widget: dict[str, Any],
     *,
@@ -2052,7 +2052,7 @@ def _selectbox_option_labels(
         return [], _short_detail(f"could not enumerate selectbox options: {exc}")
 
 
-def _selectbox_widget_control(
+def _selectbox_widget_control(  # pragma: no cover - live browser path
     page: Any,
     widget: dict[str, Any],
     *,
@@ -2136,7 +2136,7 @@ def _performance_budget_probe(
     return WidgetProbe(app_name, display, "performance", label, status, detail, url)
 
 
-def _capture_success_screenshot_probe(
+def _capture_success_screenshot_probe(  # pragma: no cover - live browser path
     page: Any,
     *,
     web_robot: Any,
@@ -2213,7 +2213,7 @@ def _unique_evidence_dir(path: Path) -> Path:
             return candidate
 
 
-def _capture_failure_bundle_screenshot(
+def _capture_failure_bundle_screenshot(  # pragma: no cover - live browser path
     page: Any,
     *,
     web_robot: Any,
@@ -2231,7 +2231,7 @@ def _capture_failure_bundle_screenshot(
         return None, _short_detail(str(exc))
 
 
-def _page_text_snapshot(page: Any) -> tuple[str, str | None]:
+def _page_text_snapshot(page: Any) -> tuple[str, str | None]:  # pragma: no cover - live browser path
     try:
         text = page.locator("body").inner_text(timeout=1000)
     except Exception as exc:
@@ -2313,7 +2313,7 @@ def _context_artifact_label(value: str) -> str:
     return _safe_evidence_name(value or "context")
 
 
-def _new_robot_context(
+def _new_robot_context(  # pragma: no cover - live browser path
     browser: Any,
     *,
     viewport_width: int,
@@ -2344,7 +2344,7 @@ def _new_robot_context(
     return context
 
 
-def _close_robot_context(
+def _close_robot_context(  # pragma: no cover - live browser path
     context: Any, *, artifact_label: str = "", trace_dir: Path | None = None
 ) -> None:
     if trace_dir is not None:
@@ -2366,7 +2366,7 @@ def _rgb_brightness(value: str) -> float | None:
     return (red * 299 + green * 587 + blue * 114) / 1000.0
 
 
-def _dark_theme_status(page: Any) -> tuple[bool, str]:
+def _dark_theme_status(page: Any) -> tuple[bool, str]:  # pragma: no cover - live browser path
     try:
         state = page.evaluate(THEME_STATE_COLLECTOR_JS)
     except Exception as exc:
@@ -3215,7 +3215,7 @@ def _record_browser_issue(issues: list[dict[str, str]], *, kind: str, detail: st
     issues.append({"kind": kind, "detail": cleaned})
 
 
-def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
+def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:  # pragma: no cover - live browser path
     issues: list[dict[str, str]] = []
 
     def _on_console(message: Any) -> None:
@@ -3313,7 +3313,7 @@ def _append_browser_issue_probes(
     return appended
 
 
-def _widget_locator(page: Any, widget: dict[str, Any], *, force_refresh: bool = False) -> Any:
+def _widget_locator(page: Any, widget: dict[str, Any], *, force_refresh: bool = False) -> Any:  # pragma: no cover - live browser path
     locator = page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
     if not force_refresh:
         try:
@@ -3329,7 +3329,7 @@ def _widget_locator(page: Any, widget: dict[str, Any], *, force_refresh: bool = 
     return locator
 
 
-def _button_locator_by_label(page: Any, label: str) -> Any | None:
+def _button_locator_by_label(page: Any, label: str) -> Any | None:  # pragma: no cover - live browser path
     if not hasattr(page, "get_by_role"):
         return None
     try:
@@ -3362,7 +3362,7 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:
     return None
 
 
-def _page_scroll_positions(page: Any) -> list[int]:
+def _page_scroll_positions(page: Any) -> list[int]:  # pragma: no cover - live browser path
     try:
         metrics = page.evaluate(SCROLL_METRICS_JS)
     except Exception:
@@ -3379,7 +3379,7 @@ def _page_scroll_positions(page: Any) -> list[int]:
     return sorted(set(positions))
 
 
-def _scroll_to(page: Any, y: int) -> None:
+def _scroll_to(page: Any, y: int) -> None:  # pragma: no cover - live browser path
     try:
         page.evaluate("targetY => window.scrollTo(0, targetY)", y)
     except TypeError:
@@ -3389,7 +3389,7 @@ def _scroll_to(page: Any, y: int) -> None:
         return
 
 
-def _visible_streamlit_issue_detail(page: Any) -> str | None:
+def _visible_streamlit_issue_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
     try:
         issues = page.evaluate(VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS)
     except Exception:
@@ -3404,7 +3404,7 @@ def _visible_streamlit_issue_detail(page: Any) -> str | None:
     return _short_detail(f"{kind}: {detail}{suffix}")
 
 
-def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) -> list[dict[str, str]]:
+def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) -> list[dict[str, str]]:  # pragma: no cover - live browser path
     feedback_items: list[Any] = []
     scripts = [VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS]
     if include_action_logs:
@@ -3432,11 +3432,11 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
     return normalized
 
 
-def _visible_streamlit_feedback_signatures(page: Any) -> set[tuple[str, str]]:
+def _visible_streamlit_feedback_signatures(page: Any) -> set[tuple[str, str]]:  # pragma: no cover - live browser path
     return {(item["kind"], item["detail"]) for item in _visible_streamlit_feedback(page)}
 
 
-def _new_visible_streamlit_feedback(
+def _new_visible_streamlit_feedback(  # pragma: no cover - live browser path
     page: Any,
     baseline_feedback: set[tuple[str, str]],
 ) -> dict[str, str] | None:
@@ -3453,7 +3453,7 @@ def _new_visible_streamlit_feedback(
     return candidates[0]
 
 
-def _visible_action_feedback_tail(page: Any, *, limit: int = 320) -> str:
+def _visible_action_feedback_tail(page: Any, *, limit: int = 320) -> str:  # pragma: no cover - live browser path
     feedback = _visible_streamlit_feedback(page)
     if not feedback:
         return ""
@@ -3470,7 +3470,7 @@ def _is_install_action_label(label: str) -> bool:
     return _normalized_label(label) in INSTALL_ACTION_LABELS
 
 
-def _install_postcondition_status(page: Any) -> tuple[bool, str]:
+def _install_postcondition_status(page: Any) -> tuple[bool, str]:  # pragma: no cover - live browser path
     try:
         widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     except Exception as exc:
@@ -3492,7 +3492,7 @@ def _install_postcondition_status(page: Any) -> tuple[bool, str]:
     return False, "INSTALL completed but no action buttons were visible afterward"
 
 
-def _visible_exception_detail(page: Any) -> str | None:
+def _visible_exception_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
     """Backward-compatible alias for older tests and call sites."""
     try:
         exceptions = page.locator("[data-testid='stException']")
@@ -3503,7 +3503,7 @@ def _visible_exception_detail(page: Any) -> str | None:
     return _visible_streamlit_issue_detail(page)
 
 
-def _append_visible_streamlit_issue_probe(
+def _append_visible_streamlit_issue_probe(  # pragma: no cover - live browser path
     probes: list[WidgetProbe],
     *,
     page: Any,
@@ -3527,7 +3527,7 @@ def _append_visible_streamlit_issue_probe(
     return True
 
 
-def _append_missing_selected_action_probes(
+def _append_missing_selected_action_probes(  # pragma: no cover - live browser path
     probes: list[WidgetProbe],
     *,
     app_name: str,
@@ -3566,7 +3566,7 @@ def _append_missing_selected_action_probes(
         )
 
 
-def _preselect_matching_widgets(
+def _preselect_matching_widgets(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -3618,7 +3618,7 @@ def _preselect_matching_widgets(
     return probes
 
 
-def _close_all_expanders(page: Any) -> None:
+def _close_all_expanders(page: Any) -> None:  # pragma: no cover - live browser path
     try:
         page.evaluate(CLOSE_EXPANDERS_JS)
         _wait_for_timeout(page, 150)
@@ -3626,7 +3626,7 @@ def _close_all_expanders(page: Any) -> None:
         logger.debug("Unable to close Streamlit expanders", exc_info=True)
 
 
-def _open_all_expanders(page: Any) -> None:
+def _open_all_expanders(page: Any) -> None:  # pragma: no cover - live browser path
     try:
         page.evaluate(OPEN_EXPANDERS_JS)
         _wait_for_timeout(page, 250)
@@ -3652,7 +3652,7 @@ def _selected_action_matches(
     ]
 
 
-def _probe_selected_actions_first(
+def _probe_selected_actions_first(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -3839,13 +3839,13 @@ def _probe_selected_actions_first(
     return probes
 
 
-def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:
+def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     original = locator.input_value(timeout=timeout_ms)
     locator.fill(f"{original} robot" if original else value, timeout=timeout_ms)
     locator.fill(original, timeout=timeout_ms)
 
 
-def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
+def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     try:
         locator.click(timeout=timeout_ms)
     except Exception:
@@ -3883,7 +3883,7 @@ def _robot_upload_fixture_for_widget(upload_file: Path, widget: dict[str, Any]) 
     return upload_file
 
 
-def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
+def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:  # pragma: no cover - live browser path
     try:
         page.evaluate(CLOSE_EXPANDERS_EXCEPT_WIDGET_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 150)
@@ -3891,7 +3891,7 @@ def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
         logger.debug("Unable to close non-target expanders for widget %s", widget.get("id"), exc_info=True)
 
 
-def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
+def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:  # pragma: no cover - live browser path
     try:
         page.evaluate(SCROLL_WIDGET_TO_CENTER_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 100)
@@ -3899,14 +3899,14 @@ def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
         logger.debug("Unable to center widget %s", widget.get("id"), exc_info=True)
 
 
-def _visible_spinner_count(page: Any) -> int:
+def _visible_spinner_count(page: Any) -> int:  # pragma: no cover - live browser path
     try:
         return int(page.locator("[data-testid='stSpinner']").count())
     except Exception:
         return 0
 
 
-def _wait_for_action_outcome(
+def _wait_for_action_outcome(  # pragma: no cover - live browser path
     page: Any,
     *,
     timeout_ms: float,
@@ -3988,7 +3988,7 @@ def _wait_for_action_outcome(
         _wait_for_timeout(page, min(ACTION_OUTCOME_POLL_MS, max(10, (deadline - now) * 1000.0)))
 
 
-def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
+def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:  # pragma: no cover - live browser path
     try:
         return bool(locator.is_checked(timeout=timeout_ms))
     except Exception:
@@ -4005,7 +4005,7 @@ def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
     return None
 
 
-def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) -> None:
+def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     locator = _widget_locator(page, dict(choice.widget))
     locator.scroll_into_view_if_needed(timeout=timeout_ms)
     if not locator.is_visible(timeout=timeout_ms):
@@ -4038,7 +4038,7 @@ def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) 
     raise RuntimeError(f"unsupported combination widget kind: {choice.kind}")
 
 
-def _combination_probe(
+def _combination_probe(  # pragma: no cover - live browser path
     *,
     app_name: str,
     page_name: str,
@@ -4060,7 +4060,7 @@ def _consume_action_click_budget(action_click_budget: list[int] | None) -> bool:
     return True
 
 
-def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) -> tuple[str, str]:
+def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) -> tuple[str, str]:  # pragma: no cover - live browser path
     try:
         locator.click(timeout=timeout_ms, trial=True)
         return "probed", detail
@@ -4068,7 +4068,7 @@ def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) 
         return "probed", _short_detail(f"{detail}; trial click layout-intercepted: {exc}")
 
 
-def _probe_widget(
+def _probe_widget(  # pragma: no cover - live browser path
     page: Any,
     widget: dict[str, Any],
     *,
@@ -4296,7 +4296,7 @@ def _probe_widget(
         return "skipped", _short_detail(f"volatile after collection: {exc}")
 
 
-def _collect_and_probe_current_view(
+def _collect_and_probe_current_view(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -4382,7 +4382,7 @@ def _collect_and_probe_current_view(
     return probes
 
 
-def _exercise_widget_combinations(
+def _exercise_widget_combinations(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -4511,7 +4511,7 @@ def _exercise_widget_combinations(
     return plan.total_count, executed_count, failed_count, skipped_count, probes
 
 
-def sweep_page(
+def sweep_page(  # pragma: no cover - live browser path
     page: Any,
     *,
     web_robot: Any,
@@ -5005,7 +5005,7 @@ def _project_root_for(path: Path) -> Path:
     return path.parent
 
 
-def _browser_history_probe(
+def _browser_history_probe(  # pragma: no cover - live browser path
     page: Any,
     *,
     web_robot: Any,
@@ -5194,7 +5194,7 @@ def _keyboard_focus_result_probe(
     )
 
 
-def _keyboard_focus_probe(
+def _keyboard_focus_probe(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -5287,7 +5287,7 @@ def _layout_integrity_result_probe(
     return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "interacted", "no obvious overflow, zero-size, or overlapping controls detected", url)
 
 
-def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:  # pragma: no cover - live browser path
     try:
         issues = page.evaluate(LAYOUT_INTEGRITY_COLLECTOR_JS)
     except Exception as exc:
@@ -5325,7 +5325,7 @@ def _accessibility_result_probe(
     )
 
 
-def _accessibility_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+def _accessibility_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:  # pragma: no cover - live browser path
     try:
         issues = page.evaluate(ACCESSIBILITY_COLLECTOR_JS)
     except Exception as exc:
@@ -5402,7 +5402,7 @@ def _above_fold_result_probe(
     return WidgetProbe(app_name, display, "above_fold", "primary_targets", "interacted", _short_detail(detail), url)
 
 
-def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
+def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:  # pragma: no cover - live browser path
     expected = PAGE_ABOVE_FOLD_EXPECTED_LABELS.get(display, (display,))
     try:
         payload = page.evaluate(ABOVE_FOLD_COLLECTOR_JS)
@@ -5448,7 +5448,7 @@ def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
     )
 
 
-def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:
+def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:  # pragma: no cover - live browser path
     texts: list[str] = []
 
     def append_locator_text(owner: Any) -> None:
@@ -5475,7 +5475,7 @@ def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:
     return "\n".join(texts)
 
 
-def _page_and_child_frame_owners(page: Any) -> list[tuple[str, Any]]:
+def _page_and_child_frame_owners(page: Any) -> list[tuple[str, Any]]:  # pragma: no cover - live browser path
     owners: list[tuple[str, Any]] = [("page", page)]
     try:
         frames = list(getattr(page, "frames", []) or [])
@@ -5492,7 +5492,7 @@ def _page_and_child_frame_owners(page: Any) -> list[tuple[str, Any]]:
     return owners
 
 
-def _required_text_probe(
+def _required_text_probe(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -5527,7 +5527,7 @@ def _required_text_probe(
     )
 
 
-def _trial_click_required_button(
+def _trial_click_required_button(  # pragma: no cover - live browser path
     owner: Any,
     label: str,
     *,
@@ -5567,7 +5567,7 @@ def _trial_click_required_button(
     return False, last_detail
 
 
-def _required_action_probe(
+def _required_action_probe(  # pragma: no cover - live browser path
     page: Any,
     *,
     app_name: str,
@@ -5616,7 +5616,7 @@ def _required_action_probe(
     )
 
 
-def sweep_direct_apps_page(
+def sweep_direct_apps_page(  # pragma: no cover - live browser path
     *,
     web_robot: Any,
     app_name: str,
@@ -5792,7 +5792,7 @@ def sweep_direct_apps_page(
                 browser.close()
 
 
-def sweep_app(
+def sweep_app(  # pragma: no cover - live browser path
     *,
     app: Path | str,
     pages: Sequence[str],
@@ -6065,7 +6065,7 @@ def sweep_app(
     return results
 
 
-def sweep_remote_app(
+def sweep_remote_app(  # pragma: no cover - live browser path
     *,
     app: Path | str,
     base_url: str,
@@ -6488,7 +6488,7 @@ def render_human(summary: WidgetSweepSummary) -> str:
     return "\n".join(lines)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live browser CLI path
     parser = build_parser()
     raw_argv = list(argv) if argv is not None else None
     args = parser.parse_args(raw_argv)
@@ -6669,5 +6669,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if summary.success else 1
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

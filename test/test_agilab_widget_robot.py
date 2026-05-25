@@ -36,12 +36,13 @@ def test_resolve_apps_accepts_all_names_and_paths(tmp_path) -> None:
     custom.mkdir()
 
     all_apps = module.resolve_apps("all")
-    selected = module.resolve_apps(f"flight_telemetry_project,uav_relay_queue,{custom}")
+    selected = module.resolve_apps(f"flight_telemetry_project,uav_relay_queue,{custom},unknown_project")
 
     assert len(all_apps) >= 2
     assert any(Path(app).name == "flight_telemetry_project" for app in selected)
     assert any(Path(app).name == "uav_relay_queue_project" for app in selected)
     assert custom.resolve() in selected
+    assert "unknown_project" in selected
 
 
 def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
@@ -370,6 +371,74 @@ def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> 
     assert manifest["status"] == "failed"
     assert manifest["failures"][0]["detail"] == "broken callback"
     assert manifest["command"] == ["agilab_widget_robot.py", "--json"]
+
+
+def test_write_failure_bundle_records_progress_tail_and_page_diagnostics(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    progress_log = tmp_path / "progress.ndjson"
+    progress_log.write_text('{"event":"one"}\n{"event":"two"}\n', encoding="utf-8")
+
+    class _Page:
+        url = "http://demo/current"
+
+    monkeypatch.setattr(module, "_capture_failure_bundle_screenshot", lambda *_args, **_kwargs: ("failure.png", None))
+    monkeypatch.setattr(module, "_page_text_snapshot", lambda _page: ("visible page text", None))
+    monkeypatch.setattr(module, "_visible_streamlit_issue_detail", lambda _page: "streamlit exploded")
+
+    bundle = module._write_failure_bundle(
+        root=tmp_path,
+        page=_Page(),
+        web_robot=None,
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        status="failed",
+        target_url="http://demo/project",
+        failures=[],
+        skips=[],
+        progress_log=progress_log,
+        command_argv=["robot"],
+    )
+
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["url"] == "http://demo/current"
+    assert manifest["screenshot"] == "failure.png"
+    assert manifest["page_text"] == "page.txt"
+    assert manifest["progress_tail"] == "progress-tail.ndjson"
+    assert manifest["visible_issue"] == "streamlit exploded"
+    assert (bundle / "page.txt").read_text(encoding="utf-8") == "visible page text"
+
+
+def test_write_failure_bundle_records_page_diagnostic_collection_errors(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/current"
+
+    monkeypatch.setattr(module, "_capture_failure_bundle_screenshot", lambda *_args, **_kwargs: (None, "screenshot failed"))
+    monkeypatch.setattr(module, "_page_text_snapshot", lambda _page: ("", "text failed"))
+
+    def _raise_visible_issue(_page):
+        raise RuntimeError("collector failed")
+
+    monkeypatch.setattr(module, "_visible_streamlit_issue_detail", _raise_visible_issue)
+
+    bundle = module._write_failure_bundle(
+        root=tmp_path,
+        page=_Page(),
+        web_robot=None,
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        status="failed",
+        target_url="http://demo/project",
+        failures=[],
+        skips=[],
+        command_argv=["robot"],
+    )
+
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["screenshot_error"] == "screenshot failed"
+    assert manifest["page_text_error"] == "text failed"
+    assert "visible issue collection failed" in manifest["visible_issue"]
 
 
 def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
@@ -1455,6 +1524,83 @@ def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_p
     assert str(share) in detail
 
 
+def test_current_home_preflight_short_circuits_and_worker_probe_errors(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    worker_root = fake_home / "wenv" / "flight_telemetry_worker"
+    worker_root.mkdir(parents=True)
+
+    assert (
+        module.current_home_action_preflight_blocker(
+            app_name="flight_telemetry_project",
+            active_app_query="flight_telemetry_project",
+            page_name="PROJECT",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            runtime_isolation="current-home",
+            server_env={},
+            home_root=fake_home,
+        )
+        is None
+    )
+    assert (
+        module.current_home_action_preflight_blocker(
+            app_name="flight_telemetry_project",
+            active_app_query="flight_telemetry_project",
+            page_name="ORCHESTRATE",
+            action_button_policy="trial",
+            click_action_labels=["Run -> Load -> Export"],
+            runtime_isolation="current-home",
+            server_env={},
+            home_root=fake_home,
+        )
+        is None
+    )
+    assert (
+        module.current_home_action_preflight_blocker(
+            app_name="flight_telemetry_project",
+            active_app_query="flight_telemetry_project",
+            page_name="ORCHESTRATE",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            runtime_isolation="isolated",
+            server_env={},
+            home_root=fake_home,
+        )
+        is None
+    )
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("uv")),
+    )
+    assert "uv` was not found" in module._current_home_worker_import_issue(
+        app_name="flight_telemetry_project",
+        home_root=fake_home,
+    )
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(module.subprocess.TimeoutExpired(["uv"], 3)),
+    )
+    assert "timed out" in module._current_home_worker_import_issue(
+        app_name="flight_telemetry_project",
+        home_root=fake_home,
+    )
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda argv, **_kwargs: module.subprocess.CompletedProcess(argv, 9, stdout="", stderr=""),
+    )
+    assert "exit code 9" in module._current_home_worker_import_issue(
+        app_name="flight_telemetry_project",
+        home_root=fake_home,
+    )
+
+
 def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
     module = _load_module()
     texts = iter(["Initializing environment...", "Ready"])
@@ -1604,6 +1750,86 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     assert reported == [passed, failed]
     assert resumed[module.page_result_key("flight_telemetry_project", "PROJECT")] == passed
     assert module.page_result_key("flight_telemetry_project", "WORKFLOW") not in resumed
+
+
+def test_progress_reporter_stderr_and_resume_edge_cases(tmp_path, capsys) -> None:
+    module = _load_module()
+    progress = module.ProgressReporter(None, stderr=True)
+    progress.emit("page_start", app="flight", page="PROJECT")
+    progress.emit("page_done", app="flight", page="PROJECT", status="passed", duration_seconds=1.25)
+    progress.emit("page_resume", app="flight", page="PROJECT", status="passed")
+    progress.emit("run_start", app_count=2, page_count=3)
+    progress.emit("run_done", status="passed", duration_seconds=4.5)
+    stderr = capsys.readouterr().err
+
+    assert "start flight/PROJECT" in stderr
+    assert "done flight/PROJECT status=passed duration=1.25s" in stderr
+    assert "resume flight/PROJECT status=passed" in stderr
+    assert "run start apps=2 pages=3" in stderr
+    assert "run done status=passed duration=4.50s" in stderr
+
+    missing_log = tmp_path / "missing.ndjson"
+    assert module.load_completed_page_results(missing_log) == {}
+
+    progress_log = tmp_path / "progress.ndjson"
+    progress_log.write_text(
+        "\n".join(
+            [
+                "",
+                "{not-json",
+                json.dumps({"event": "heartbeat"}),
+                json.dumps({"event": "page_done", "result": "not-a-dict"}),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert module.load_completed_page_results(progress_log) == {}
+
+    assert module._resume_page_if_available(
+        app_name="flight",
+        page_name="PROJECT",
+        resume_page_results=None,
+        progress=None,
+        on_page_result=None,
+    ) is None
+    assert module._resume_page_if_available(
+        app_name="flight",
+        page_name="PROJECT",
+        resume_page_results={},
+        progress=None,
+        on_page_result=None,
+    ) is None
+    assert module._resume_page_if_available(
+        app_name="flight",
+        page_name="PROJECT",
+        resume_page_results={"other::PROJECT": module.PageSweep("other", "PROJECT", True, 0, 0, 0, 0, 0, 0, "", [], [])},
+        progress=None,
+        on_page_result=None,
+    ) is None
+
+
+def test_streamlit_health_failure_detail_handles_running_process() -> None:
+    module = _load_module()
+
+    class _Process:
+        def poll(self):
+            return None
+
+    class _Server:
+        process = _Process()
+
+        @staticmethod
+        def output_tail():
+            return "tail"
+
+    detail = module._streamlit_health_failure_detail(
+        type("Health", (), {"detail": ""})(),
+        _Server(),
+        base_url="http://localhost:8501",
+    )
+
+    assert "process still running" in detail
+    assert "output tail: tail" in detail
 
 
 def test_write_summary_json_includes_page_status(tmp_path) -> None:
