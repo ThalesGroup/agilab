@@ -65,6 +65,10 @@ Start with the public browser preview or the demo chooser:
 - [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Local quick start](https://thalesgroup.github.io/agilab/quick-start.html)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
+- [50-star promotion kit](https://github.com/ThalesGroup/agilab/blob/main/PROMOTE.md)
+
+If AGILAB helps you make AI/ML experiments reproducible, please star the
+repository so other engineers can find it.
 
 ## Featured Performance Demo
 
