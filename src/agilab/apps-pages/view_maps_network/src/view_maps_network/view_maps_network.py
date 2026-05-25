@@ -941,7 +941,7 @@ def _topology_link_layers(
     return layers
 
 
-st.markdown("<h1 style='text-align: center;'>🌐 Network Topology</h1>", unsafe_allow_html=True)
+st.subheader("Network topology")
 
 def _svg_data_url(svg: str) -> str:
     return "data:image/svg+xml;charset=utf-8," + quote(svg.strip())
@@ -4336,7 +4336,7 @@ def page():
     current_positions["color"] = color_series.apply(hex_to_rgba)
     trajectory_positions_std = display_df_std[display_df_std["time_col"] <= selected_time].copy()
 
-    # Quick dual-screen links
+    # Optional split-screen links
     base_params: dict[str, str] = {}
     for k, v in st.query_params.items():
         if isinstance(v, list):
@@ -4346,17 +4346,17 @@ def page():
             base_params[k] = str(v)
     map_href = "?" + urlencode({**base_params, "view": "map"})
     graph_href = "?" + urlencode({**base_params, "view": "graph"})
-    st.markdown(
-        f"""
-        <div style="padding:8px 0;">
-          <strong>Dual-screen:</strong>
-          <a href="{map_href}" target="_blank">Open map view</a> |
-          <a href="{graph_href}" target="_blank">Open graph view</a>
-          <span style="font-size: 12px; color: #666;">(open each in a separate window and place on different monitors)</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.expander("Open split-screen view", expanded=False):
+        st.caption("Open each route in a separate browser window when comparing map and graph views.")
+        st.markdown(
+            f"""
+            <div style="padding:4px 0;">
+              <a href="{map_href}" target="_blank">Open map view</a> |
+              <a href="{graph_href}" target="_blank">Open graph view</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Layout containers based on toggles (side-by-side columns)
     map_container = graph_container = None

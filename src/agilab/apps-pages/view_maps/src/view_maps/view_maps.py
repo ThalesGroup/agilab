@@ -902,7 +902,9 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        st.info(f"active_app: {active_app}")
+        st.caption(f"Project: `{app}`")
+        with st.expander("Runtime context", expanded=False):
+            st.code(str(active_app), language="text")
         env = AgiEnv(
             apps_path=active_app.parent,
             app=app,

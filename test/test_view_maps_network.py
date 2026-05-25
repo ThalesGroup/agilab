@@ -249,6 +249,16 @@ def test_view_maps_network_warns_when_no_dataset_exists(
     assert any("No files found" in warning.value for warning in at.warning)
 
 
+def test_view_maps_network_keeps_secondary_navigation_collapsed() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+
+    assert "st.subheader(\"Network topology\")" in source
+    assert "<h1 style='text-align: center;'>" not in source
+    assert "Network Topology</h1>" not in source
+    assert 'with st.expander("Open split-screen view", expanded=False):' in source
+    assert "Dual-screen:" not in source
+
+
 def test_view_maps_network_resolves_relative_edges_file_from_share_root(
     monkeypatch, tmp_path: Path
 ) -> None:

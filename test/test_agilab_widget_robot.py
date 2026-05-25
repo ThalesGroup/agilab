@@ -62,8 +62,9 @@ def test_settings_page_has_stable_robot_expectations() -> None:
         "Runtime diagnostics",
         "Environment variables",
     )
+    assert module.PAGE_EXPECTED_TEXT[""] == ("Turn experiments", "First proof: built-in demo")
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
-    assert module.PAGE_MIN_WIDGETS[""] == 2
+    assert module.PAGE_MIN_WIDGETS[""] == 1
 
 
 def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:

@@ -4211,11 +4211,8 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     wizard = _event_index(
         fake_st.events,
         "markdown",
-        "**First proof: choose one path**",
+        "**First proof: built-in demo**",
     )
-    proof_column = _event_index(fake_st.events, "enter_column", "0")
-    separator_column = _event_index(fake_st.events, "enter_column", "1")
-    notebook_column = _event_index(fake_st.events, "enter_column", "2")
     install_button = _event_index(fake_st.events, "link_button", "1. INSTALL demo")
     install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `INSTALL`")
     run_button = _event_index(fake_st.events, "link_button", "2. EXECUTE demo")
@@ -4230,18 +4227,19 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         index
         for index in range(open_analysis + 1, len(fake_st.events))
         if fake_st.events[index][0] == "caption"
-        and "`view_maps`: [Open]" in fake_st.events[index][1]
+        and "Opens ANALYSIS on `view_maps`" in fake_st.events[index][1]
     )
-    separator = next(
-        index
-        for index, (kind, body) in enumerate(fake_st.events)
-        if kind == "markdown" and body == "or"
-    )
+    notebook_option = _event_index(fake_st.events, "expander", "Notebook-first option:False")
     notebook_start = _event_index(fake_st.events, "link_button", "Create from built-in notebook")
     notebook_hint = _event_index(
         fake_st.events,
         "caption",
         "No file to find or upload: AGILAB opens PROJECT",
+    )
+    notebook_full_proof = _event_index(
+        fake_st.events,
+        "expander",
+        "Notebook to validated app: full proof:False",
     )
     proof_details = _event_index(
         fake_st.events,
@@ -4252,6 +4250,8 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
+        "Notebook-first option:False",
+        "Notebook to validated app: full proof:False",
         "If it fails / proof details:False",
     ]
     assert not any(
@@ -4261,32 +4261,19 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     pre_details = fake_st.events[:proof_details]
     pre_detail_markdown = [body for kind, body in pre_details if kind == "markdown"]
-    assert pre_detail_markdown[:3] == [
-        "**First proof: choose one path**",
-        "or",
-        "**Notebook to validated app: full proof**",
-    ]
-    assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[3]
-    assert "Download pipeline notebook" in pre_detail_markdown[3]
-    assert "lab_stages.ipynb" in pre_detail_markdown[3]
-    expected_spec, expected_width = about_agilab._about_onboarding._first_proof_action_columns_layout(
-        about_agilab._about_onboarding._first_proof_wizard_steps({}),
-    )
-    assert ("columns", "3") in pre_details
-    assert ("columns_spec", ",".join(str(item) for item in expected_spec)) in pre_details
-    assert ("columns_width", str(expected_width)) in pre_details
-    assert expected_width != 420
+    assert pre_detail_markdown[0] == "**First proof: built-in demo**"
+    assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[1]
+    assert "Download pipeline notebook" in pre_detail_markdown[1]
+    assert "lab_stages.ipynb" in pre_detail_markdown[1]
+    assert not [body for kind, body in pre_details if kind == "columns"]
     caption_bodies = [body for kind, body in pre_details if kind == "caption"]
     assert len(caption_bodies) == 11
     assert caption_bodies[0] == (
-        "Recommended: run the built-in demo. Notebook import is optional: use AGILAB's included "
-        "notebook with no file to find."
+        "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence."
     )
     assert caption_bodies[1] == "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`."
     assert caption_bodies[2] == "Runs ORCHESTRATE `EXECUTE` for the same demo."
-    assert caption_bodies[3].startswith("`view_maps`: [Open](/ANALYSIS?")
-    assert "active_app=flight_telemetry_project" in caption_bodies[3]
-    assert "current_page=" in caption_bodies[3]
+    assert caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
     assert caption_bodies[4] == "Notebook import: included sample"
     assert caption_bodies[5] == (
         "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
@@ -4318,9 +4305,9 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     assert ("button", "1. Select demo") not in fake_st.events
     assert ("link_button", "1. Select demo") not in fake_st.events
-    assert wizard < proof_column < install_button < install_hint < run_button < run_hint < open_analysis
-    assert open_analysis < analysis_hint < separator_column < separator < notebook_column
-    assert notebook_column < notebook_start < notebook_hint < proof_details
+    assert wizard < install_button < install_hint < run_button < run_hint < open_analysis
+    assert open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
+    assert notebook_hint < notebook_full_proof < proof_details
     assert proof_details < progress < validated_path
 
 
