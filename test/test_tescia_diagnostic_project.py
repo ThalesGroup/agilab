@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import importlib.util
 import runpy
@@ -440,10 +441,38 @@ def test_tescia_generator_post_json_rejects_endpoint_failures(monkeypatch) -> No
         generator._post_json("http://127.0.0.1:1", {"x": 1}, 0.01)
 
 
+def test_tescia_generator_post_json_rejects_bad_endpoint_payloads(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import DiagnosticCaseGenerationError
+    from tescia_diagnostic import generator
+
+    class FakeResponse:
+        def __init__(self, body: str) -> None:
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc_info) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.body.encode("utf-8")
+
+    monkeypatch.setattr(generator, "urlopen", lambda *_args, **_kwargs: FakeResponse("not json"))
+    with pytest.raises(DiagnosticCaseGenerationError, match="returned invalid JSON"):
+        generator._post_json("http://local.invalid", {"x": 1}, 1.0)
+
+    monkeypatch.setattr(generator, "urlopen", lambda *_args, **_kwargs: FakeResponse("[1, 2]"))
+    with pytest.raises(DiagnosticCaseGenerationError, match="returned a non-object response"):
+        generator._post_json("http://local.invalid", {"x": 1}, 1.0)
+
+
 def test_tescia_app_args_reject_invalid_generation_config(monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
-    from tescia_diagnostic import TesciaDiagnosticArgs
+    from tescia_diagnostic import TesciaDiagnosticArgs, ensure_defaults, merge_args
 
     with pytest.raises(ValueError, match="files must select JSON"):
         TesciaDiagnosticArgs(files="*.txt")
@@ -455,6 +484,9 @@ def test_tescia_app_args_reject_invalid_generation_config(monkeypatch) -> None:
         TesciaDiagnosticArgs(case_source="standalone_ai", ai_model="")
     with pytest.raises(ValueError, match="ai_topic is required"):
         TesciaDiagnosticArgs(case_source="standalone_ai", ai_topic="")
+    args = TesciaDiagnosticArgs()
+    assert ensure_defaults(args) is args
+    assert merge_args(args, {"nfile": 2}).nfile == 2
 
 
 def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
@@ -519,6 +551,107 @@ def test_tescia_rejects_student_answer_unknown_ids(monkeypatch) -> None:
         validate_case_payload(payload)
 
 
+def test_tescia_case_payload_rejects_invalid_schema_edges(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import validate_case_payload
+
+    def sample_payload() -> dict:
+        return json.loads(SAMPLE_CASES.read_text(encoding="utf-8"))
+
+    def expect_error(mutator, match: str) -> None:
+        payload = sample_payload()
+        mutator(payload)
+        with pytest.raises(ValueError, match=match):
+            validate_case_payload(payload, expected_case_count=1 if match == "expected 1" else None)
+
+    expect_error(lambda payload: payload.update(schema="bad"), "Diagnostic cases must declare schema")
+    expect_error(lambda payload: payload.update(cases=[]), "non-empty cases list")
+    expect_error(lambda payload: payload["cases"].pop(), "expected 1")
+    expect_error(lambda payload: payload["cases"].__setitem__(0, "bad"), "Case #1 must be an object")
+    expect_error(lambda payload: payload["cases"][0].pop("symptom"), "is missing fields")
+    expect_error(lambda payload: payload["cases"][0].update(evidence="bad"), "at least two evidence")
+    expect_error(lambda payload: payload["cases"][0].update(candidate_fixes=[]), "at least two candidate")
+    expect_error(lambda payload: payload["cases"][0].update(regression_tests=[]), "at least two regression")
+    expect_error(lambda payload: payload["cases"][0].update(curriculum_ids=[""]), "curriculum_ids")
+    expect_error(lambda payload: payload["cases"][0].update(topic_tags=[1]), "topic_tags")
+    expect_error(lambda payload: payload["cases"][0].update(class_id=""), "class_id")
+    expect_error(lambda payload: payload["cases"][0].update(anonymize_student="yes"), "anonymize_student")
+    expect_error(lambda payload: payload["cases"][0].update(difficulty="expert"), "difficulty")
+    expect_error(lambda payload: payload["cases"][0].update(estimated_minutes=0), "estimated_minutes")
+    expect_error(lambda payload: payload["cases"][0]["evidence"].__setitem__(0, "bad"), "invalid evidence")
+    expect_error(lambda payload: payload["cases"][0]["evidence"][0].update(confidence="bad"), "must be numeric")
+    expect_error(lambda payload: payload["cases"][0]["candidate_fixes"].__setitem__(0, "bad"), "invalid candidate fix")
+    expect_error(lambda payload: payload["cases"][0].update(student_answer="bad"), "student_answer")
+    expect_error(lambda payload: payload["cases"][0]["student_answer"].update(diagnosis=""), "student_answer.diagnosis")
+    expect_error(lambda payload: payload["cases"][0]["student_answer"].update(evidence_ids="bad"), "student_answer.evidence_ids")
+    expect_error(lambda payload: payload["cases"][0]["student_answer"].update(selected_fix_id="missing"), "selected_fix_id")
+    expect_error(lambda payload: payload["cases"][0]["student_answer"].update(regression_test_ids=["missing"]), "regression test ids")
+
+
+def test_tescia_diagnostic_scores_unsubmitted_and_partial_answers(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import (
+        classroom_metadata,
+        diagnose_case,
+        evaluate_student_answer,
+        evidence_quality,
+        rank_candidate_fixes,
+        regression_coverage,
+        summarize_report,
+    )
+
+    case = dict(_load_cases()[0])
+    case.pop("student_answer", None)
+    report = diagnose_case(case, minimum_evidence_confidence=0.99, minimum_regression_coverage=0.99)
+    assert report["status"] == "needs_more_evidence"
+    assert report["self_evaluation"]["status"] == "not_submitted"
+    assert "Submit a student_answer" in report["self_evaluation"]["feedback"][0]
+
+    no_rows_case = {
+        "root_cause": "",
+        "evidence": [],
+        "candidate_fixes": [],
+        "regression_tests": [],
+        "student_answer": {"root_cause": "wrong", "evidence_ids": [], "selected_fix_id": "", "regression_test_ids": []},
+    }
+    assert evidence_quality(no_rows_case) == 0.0
+    assert regression_coverage(no_rows_case) == 0.0
+    assert rank_candidate_fixes(no_rows_case, evidence_score=0.0, regression_score=0.0) == []
+    partial = evaluate_student_answer(no_rows_case, ranked_fixes=[], evidence_score=0.0, regression_score=0.0)
+    assert partial["score_band"] == "needs_work"
+    assert "Root cause explanation" in partial["feedback"][0]
+
+    metadata = classroom_metadata(
+        {
+            "case_id": "exercise",
+            "class_id": "class",
+            "session_id": "session",
+            "student_id": "Alice Smith",
+            "display_name": "Alice",
+            "anonymize_student": False,
+        }
+    )
+    assert metadata["student_ref"] == "Alice_Smith"
+    assert metadata["student_id"] == "Alice Smith"
+    assert metadata["display_name"] == "Alice"
+
+    summary = summarize_report(
+        {
+            "case_id": "x",
+            "catalog": "bad",
+            "self_evaluation": "bad",
+            "classroom": "bad",
+            "selected_fix": "bad",
+            "weak_assumptions": "bad",
+            "regression_plan": "bad",
+        }
+    )
+    assert summary["selected_fix_id"] == ""
+    assert summary["feedback_count"] == 0
+
+
 def test_tescia_math_program_2026_curriculum_contract_is_complete(monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -568,6 +701,59 @@ def test_tescia_math_program_2026_rejects_unknown_curriculum_id(monkeypatch) -> 
 
     with pytest.raises(ValueError, match="unknown 2026 math curriculum ids"):
         build_math_program_2026_coverage_report(cases, load_math_program_2026())
+
+
+def test_tescia_math_program_2026_rejects_invalid_curriculum_contracts(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic.curriculum import (
+        CURRICULUM_SCHEMA,
+        case_curriculum_ids,
+        curriculum_id_counts,
+        load_math_program_2026,
+        required_min_cases_per_id,
+        validate_math_program_2026,
+    )
+
+    valid = {
+        "schema": CURRICULUM_SCHEMA,
+        "sources": [{"id": "official"}],
+        "required_min_cases_per_id": 2,
+        "required_program_ids": [
+            {
+                "id": "prog",
+                "source_id": "official",
+                "track": "track",
+                "level": "level",
+                "domain": "domain",
+                "effective_school_year": "2026",
+            }
+        ],
+    }
+
+    def expect_error(mutator, match: str) -> None:
+        payload = json.loads(json.dumps(valid))
+        mutator(payload)
+        with pytest.raises(ValueError, match=match):
+            validate_math_program_2026(payload)
+
+    expect_error(lambda payload: payload.update(schema="bad"), "must declare schema")
+    expect_error(lambda payload: payload.update(sources=[]), "non-empty sources")
+    expect_error(lambda payload: payload.update(required_program_ids=[]), "required_program_ids")
+    expect_error(lambda payload: payload["required_program_ids"].__setitem__(0, "bad"), "must be an object")
+    expect_error(lambda payload: payload["required_program_ids"][0].update(id=""), "must have an id")
+    expect_error(lambda payload: payload["required_program_ids"].append(dict(payload["required_program_ids"][0])), "Duplicate")
+    expect_error(lambda payload: payload["required_program_ids"][0].update(source_id="unknown"), "unknown source_id")
+    expect_error(lambda payload: payload["required_program_ids"][0].update(domain=""), "missing domain")
+
+    assert required_min_cases_per_id({"required_min_cases_per_id": "bad"}) == 1
+    assert case_curriculum_ids({"curriculum_ids": "prog"}) == []
+    assert curriculum_id_counts([{"curriculum_ids": ["prog", "prog"]}]) == {"prog": 1}
+
+    invalid_file = tmp_path / "math_program.json"
+    invalid_file.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="must contain a JSON object"):
+        load_math_program_2026(invalid_file)
 
 
 def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) -> None:
@@ -628,6 +814,113 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
             root_cause="The answer must justify the function behavior.",
             selected_fix_id="complete_function_reasoning",
         )
+    with pytest.raises(ValueError, match="case_id is required"):
+        module.build_teacher_draft(
+            case_id="",
+            title="Teacher case",
+            curriculum_ids=["seconde_gt_fonctions"],
+            prompt="Solve and justify.",
+            root_cause="The answer must justify the function behavior.",
+            selected_fix_id="complete_function_reasoning",
+        )
+
+
+def test_tescia_app_surface_cache_and_artifact_edge_paths(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+
+    assert module._file_mtime_ns(None) == 0
+    assert module._file_mtime_ns(tmp_path / "missing.json") == 0
+    assert module.latest_classroom_report_path([tmp_path / "empty"]) is None
+    assert module._resolve_active_app_path(tmp_path / "missing_app") is None
+    assert module._resolve_active_app_path(tmp_path) == tmp_path.resolve()
+    assert module.classroom_progress_rows({"progress_rows": "bad"}) == []
+    assert module.classroom_heatmap_rows({"heatmap_rows": "bad"}) == []
+
+    bad_payload = tmp_path / "bad_classroom_report.json"
+    bad_payload.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        module.cached_load_classroom_run_report(str(bad_payload), module._file_mtime_ns(bad_payload))
+
+    bad_payload.write_text(json.dumps({"schema": "bad"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="Unexpected classroom run report schema"):
+        module.cached_load_classroom_run_report(str(bad_payload), module._file_mtime_ns(bad_payload))
+
+    env = _FakeEnv(tmp_path)
+    active_app = tmp_path / "tescia_diagnostic_project"
+    active_app.mkdir()
+    paths = module.classroom_artifact_dirs(
+        active_app,
+        env=env,
+        args_model=SimpleNamespace(data_out=Path("tescia_diagnostic/reports")),
+    )
+    assert env.AGILAB_EXPORT_ABS / env.target / "tescia_diagnostic" / "classroom" in paths
+    assert env.share_root_path() / "tescia_diagnostic" / "reports" / "classroom" in paths
+    report, source = module.classroom_display_report(cases=None, active_app=None, env=env, args_model=SimpleNamespace(data_out=tmp_path / "missing"))
+    assert source["source"] == "sample"
+    assert report["submission_count"] == 4
+
+
+def test_tescia_app_surface_runtime_loader_and_filter_edges(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+
+    fake_env = _FakeEnv(tmp_path)
+    fake_env.app_settings_file = str(tmp_path / "settings.toml")
+
+    class FakeAgiEnv:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    created_env = FakeAgiEnv(apps_path=tmp_path, app="tescia_diagnostic_project", verbose=0)
+    monkeypatch.setitem(sys.modules, "agi_env", SimpleNamespace(AgiEnv=lambda **_kwargs: created_env))
+
+    import tescia_diagnostic.app_args as app_args
+
+    args = app_args.TesciaDiagnosticArgs(data_out=Path("custom_reports"))
+    monkeypatch.setattr(app_args, "load_args", lambda _path: args)
+    monkeypatch.setattr(app_args, "ensure_defaults", lambda loaded_args, **_kwargs: loaded_args)
+    env, loaded_args = module._load_runtime_env_and_args(tmp_path / "tescia_diagnostic_project")
+    assert env is created_env
+    assert loaded_args is args
+
+    cases = module.load_cases()
+    assert module.filter_cases(cases, difficulty="advanced-only") == []
+    assert module.filter_cases(cases, learner_level="missing-level") == []
+    assert module.filter_cases(cases, curriculum_id="missing_id") == []
+    answer = module.build_student_answer(
+        diagnosis="diagnosis",
+        root_cause="root",
+        evidence_ids=["a", "b"],
+        selected_fix_id="fix",
+        regression_test_ids=["r"],
+        confidence=0.4,
+    )
+    assert answer["evidence_ids"] == ["a", "b"]
+
+
+def test_tescia_app_surface_cache_decorator_fallbacks(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    original_import = builtins.__import__
+
+    def blocked_import(name, *args, **kwargs):
+        if name == "streamlit":
+            raise ImportError("streamlit hidden")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+    module = _load_app_surface_module()
+    assert module.cached_load_cases(str(SAMPLE_CASES), module._file_mtime_ns(SAMPLE_CASES))[0]["case_id"]
+
+    class BrokenCacheStreamlit:
+        def cache_data(self, *_args, **_kwargs):
+            raise RuntimeError("cache unavailable")
+
+    monkeypatch.setattr(builtins, "__import__", original_import)
+    monkeypatch.setitem(sys.modules, "streamlit", BrokenCacheStreamlit())
+    module = _load_app_surface_module()
+    assert module.cached_load_cases(str(SAMPLE_CASES), module._file_mtime_ns(SAMPLE_CASES))[0]["case_id"]
 
 
 def test_tescia_app_surface_configure_mode_delegates_to_args_form(monkeypatch) -> None:
@@ -649,18 +942,53 @@ def test_tescia_app_surface_configure_mode_delegates_to_args_form(monkeypatch) -
 
 def test_tescia_app_surface_render_covers_classroom_tabs(monkeypatch, tmp_path) -> None:
     fake_env = _FakeEnv(tmp_path)
-    fake_streamlit = _FakeStreamlit(fake_env)
+    class InteractiveStreamlit(_FakeStreamlit):
+        def __init__(self, env: _FakeEnv) -> None:
+            super().__init__(env)
+            self.button_labels_to_click = {"Evaluate answer"}
+
+        def button(self, label, *_args, **_kwargs) -> bool:
+            self.buttons.append(label)
+            return label in self.button_labels_to_click
+
+        def set_page_config(self, *_args, **_kwargs) -> None:
+            return None
+
+    fake_streamlit = InteractiveStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
 
-    module.render(mode="analysis")
+    module.render(mode="full")
 
     assert ("Submissions", 4) in fake_streamlit.metrics
+    assert any(label == "Student score" for label, _value in fake_streamlit.metrics)
+    assert "Download correction sheet" in fake_streamlit.downloads
     assert "Download teacher summary" in fake_streamlit.downloads
     assert "Download classroom batch JSON" in fake_streamlit.downloads
     assert "Refresh classroom artifacts" in fake_streamlit.buttons
     assert len(fake_streamlit.dataframes) >= 4
+
+
+def test_tescia_app_surface_live_refresh_branch(monkeypatch, tmp_path) -> None:
+    fake_env = _FakeEnv(tmp_path)
+
+    class RefreshingStreamlit(_FakeStreamlit):
+        def checkbox(self, *_args, **kwargs) -> bool:
+            return True
+
+        def number_input(self, *_args, **kwargs):
+            return 2
+
+    fake_streamlit = RefreshingStreamlit(fake_env)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    module.render(mode="analysis")
+
+    assert fake_streamlit.rerun_called is True
 
 
 def test_tescia_printable_correction_sheet_export(monkeypatch, tmp_path) -> None:
@@ -678,6 +1006,28 @@ def test_tescia_printable_correction_sheet_export(monkeypatch, tmp_path) -> None
     output_path = write_correction_sheet(report, tmp_path)
     assert output_path.name == "math_2026_cycle4_5e_coverage_correction.md"
     assert "Student score" in output_path.read_text(encoding="utf-8")
+
+
+def test_tescia_printable_exports_handle_missing_optional_sections(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic.exports import diagnostic_report_to_markdown, write_correction_index, write_correction_sheet
+
+    report = {
+        "case_id": "messy case/id",
+        "catalog": "bad",
+        "self_evaluation": "bad",
+        "selected_fix": "bad",
+        "weak_assumptions": "bad",
+        "regression_plan": "bad",
+    }
+    markdown = diagnostic_report_to_markdown(report)
+    assert markdown.startswith("# messy case/id")
+    assert "No feedback." in markdown
+    assert "No weak assumptions recorded." in markdown
+    assert "No regression plan recorded." in markdown
+    assert write_correction_sheet(report, tmp_path).name == "messy_case_id_correction.md"
+    assert write_correction_index([], tmp_path).read_text(encoding="utf-8").startswith("# TeSciA Correction Sheets")
 
 
 def test_tescia_classroom_batch_scores_and_exports_teacher_artifacts(monkeypatch, tmp_path) -> None:
@@ -724,6 +1074,80 @@ def test_tescia_classroom_batch_scores_and_exports_teacher_artifacts(monkeypatch
     assert "student_score" in paths["progress"].read_text(encoding="utf-8")
     assert "pipeline_dag_stale_preview" in paths["heatmap"].read_text(encoding="utf-8")
     assert "classroom_curriculum.csv" == paths["curriculum"].name
+
+
+def test_tescia_classroom_rejects_invalid_batches_and_supports_named_students(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import diagnose_case
+    from tescia_diagnostic.classroom import (
+        CLASSROOM_SCHEMA,
+        build_classroom_run_report,
+        classroom_report_to_markdown,
+        expand_classroom_submissions,
+        load_case_bank,
+        load_classroom_payload,
+        validate_classroom_payload,
+        write_classroom_artifacts,
+    )
+
+    def classroom_payload() -> dict:
+        return json.loads(SAMPLE_CLASSROOM.read_text(encoding="utf-8"))
+
+    def expect_error(mutator, match: str) -> None:
+        payload = classroom_payload()
+        mutator(payload)
+        with pytest.raises(ValueError, match=match):
+            validate_classroom_payload(payload)
+
+    expect_error(lambda payload: payload.update(schema="bad"), "must declare schema")
+    expect_error(lambda payload: payload["classroom"].update(class_id=""), "classroom.class_id")
+    expect_error(lambda payload: payload["classroom"].update(session_id=""), "classroom.session_id")
+    expect_error(lambda payload: payload.update(submissions=[]), "non-empty submissions")
+    expect_error(lambda payload: payload["submissions"].__setitem__(0, "bad"), "must be an object")
+    expect_error(lambda payload: payload["submissions"][0].update(student_id=""), "student_id")
+    expect_error(lambda payload: payload["submissions"][0].update(case_id=""), "case_id")
+    expect_error(lambda payload: payload["submissions"][0].update(answer="bad"), "answer as an object")
+    expect_error(
+        lambda payload: payload["submissions"].append(dict(payload["submissions"][0])),
+        "Duplicate classroom submission_id",
+    )
+
+    payload = classroom_payload()
+    payload["schema"] = CLASSROOM_SCHEMA
+    payload["classroom"]["anonymize_student"] = "false"
+    payload["submissions"] = [payload["submissions"][0]]
+    payload["submissions"][0]["student_id"] = "Alice Smith"
+    payload["submissions"][0]["display_name"] = "Alice"
+    payload["submissions"][0]["submission_id"] = "Alice case"
+    payload["submissions"][0]["anonymize_student"] = "no"
+    expanded = expand_classroom_submissions(payload, case_bank=load_case_bank())
+    assert expanded[0]["student_ref"] == "Alice_Smith"
+    assert expanded[0]["student_id"] == "Alice Smith"
+    assert expanded[0]["display_name"] == "Alice"
+    report = diagnose_case(expanded[0])
+    paths = write_classroom_artifacts(report, tmp_path)
+    assert paths["report"].is_file()
+
+    embedded = classroom_payload()
+    embedded["case_bank"] = json.loads(SAMPLE_CASES.read_text(encoding="utf-8"))
+    assert len(expand_classroom_submissions(embedded)) == 4
+    embedded["submissions"][0]["case_id"] = "missing"
+    with pytest.raises(ValueError, match="unknown case_id"):
+        expand_classroom_submissions(embedded)
+
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="case bank must be a JSON object"):
+        load_case_bank(bad_file)
+    with pytest.raises(ValueError, match="classroom submissions must be a JSON object"):
+        load_classroom_payload(bad_file)
+
+    empty_report = build_classroom_run_report([])
+    assert empty_report["submission_count"] == 0
+    empty_markdown = classroom_report_to_markdown(empty_report)
+    assert "No submitted answers." in empty_markdown
+    assert "No exercise evidence yet." in empty_markdown
 
 
 def test_tescia_reduce_contract_merges_case_summaries(monkeypatch) -> None:
@@ -788,6 +1212,39 @@ def test_tescia_reduce_contract_counts_duplicate_case_runs(monkeypatch) -> None:
     assert artifact.payload["student_score_mean"] == 70.0
 
 
+def test_tescia_reduce_contract_rejects_missing_or_empty_payloads(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import (
+        TESCIA_DIAGNOSTIC_REDUCE_CONTRACT,
+        partial_from_diagnostic_summary,
+        reduce_artifact_path,
+        write_reduce_artifact,
+    )
+
+    with pytest.raises(ValueError, match="missing columns"):
+        partial_from_diagnostic_summary({"case_id": "only"}, partial_id="bad")
+    with pytest.raises(ValueError, match="produced no cases"):
+        TESCIA_DIAGNOSTIC_REDUCE_CONTRACT.build_artifact([])
+    assert reduce_artifact_path(tmp_path, "abc").name == "reduce_summary_worker_abc.json"
+
+    summary = {
+        "case_id": "needs_more",
+        "status": "needs_more_evidence",
+        "root_cause": "root",
+        "selected_fix_id": "",
+        "evidence_quality": 0.1,
+        "regression_coverage": 0.2,
+        "student_score": 30.0,
+        "weak_assumption_count": 1,
+        "regression_step_count": 1,
+    }
+    path = write_reduce_artifact([summary], tmp_path, worker_id=7)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["payload"]["needs_more_evidence_count"] == 1
+    assert payload["payload"]["selected_fix_ids"] == []
+
+
 def test_tescia_manager_seeds_sample_and_builds_distribution(monkeypatch, tmp_path) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -802,6 +1259,80 @@ def test_tescia_manager_seeds_sample_and_builds_distribution(monkeypatch, tmp_pa
     assert work_plan == [[[str(seeded)]]]
     assert metadata[0][0]["diagnostic_file"] == "tescia_diagnostic_cases.json"
     assert (label_key, size_key, size_unit) == ("diagnostic_file", "size_kb", "KB")
+
+
+def test_tescia_manager_handles_config_and_dataset_edge_paths(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import (
+        DiagnosticCaseGenerationError,
+        TesciaDiagnostic,
+        TesciaDiagnosticArgs,
+        dump_args,
+        load_args,
+    )
+
+    env = _FakeEnv(tmp_path)
+    with pytest.raises(ValueError, match="Invalid TeSciA diagnostic arguments"):
+        TesciaDiagnostic(env, files="*.txt")
+
+    app = TesciaDiagnostic(env, reset_target=True)
+    old_file = Path(app.data_out) / "old.txt"
+    old_file.write_text("old", encoding="utf-8")
+    app = TesciaDiagnostic(env, reset_target=True)
+    assert not old_file.exists()
+
+    settings = tmp_path / "settings.toml"
+    app.to_toml(settings)
+    loaded = TesciaDiagnostic.from_toml(env, settings)
+    assert loaded.as_dict()["case_source"] == "bundled"
+    dump_args(TesciaDiagnosticArgs(nfile=3), settings)
+    assert load_args(settings).nfile == 3
+
+    missing_env = _FakeEnv(tmp_path / "missing")
+    monkeypatch.setattr(TesciaDiagnostic, "_sample_dataset_source", lambda self: tmp_path / "missing_cases.json")
+    with pytest.raises(FileNotFoundError, match="Bundled TeSciA diagnostic cases missing"):
+        TesciaDiagnostic(missing_env)
+
+    missing_classroom_env = _FakeEnv(tmp_path / "missing_classroom")
+    monkeypatch.setattr(
+        TesciaDiagnostic,
+        "_classroom_dataset_source",
+        lambda self: tmp_path / "missing_classroom.json",
+    )
+    with pytest.raises(FileNotFoundError, match="Bundled TeSciA classroom submissions missing"):
+        TesciaDiagnostic(missing_classroom_env, case_source="bundled_classroom")
+
+    def failing_generate(*_args, **_kwargs):
+        raise DiagnosticCaseGenerationError("offline")
+
+    generated_env = _FakeEnv(tmp_path / "generated")
+    with pytest.raises(RuntimeError, match="Standalone AI case generation failed"):
+        TesciaDiagnostic(generated_env, case_source="standalone_ai", _generate_case_file_fn=failing_generate)
+
+
+def test_tescia_manager_distribution_multiple_files_and_empty_pattern(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import TesciaDiagnostic
+
+    env = _FakeEnv(tmp_path)
+    data_in = env.share_root_path() / "custom_cases"
+    data_in.mkdir(parents=True)
+    for index in range(2):
+        payload = _generated_cases_payload(case_id=f"generated_{index}")
+        (data_in / f"case_{index}.json").write_text(json.dumps(payload), encoding="utf-8")
+    app = TesciaDiagnostic(env, data_in=Path("custom_cases"), nfile=2)
+
+    work_plan, metadata, *_ = app.build_distribution({"127.0.0.1": 2})
+    assert len(work_plan) >= 1
+    assert sum(len(batch[0]) for batch in work_plan) == 2
+    assert metadata[0][0]["size_kb"] >= 1
+
+    for path in data_in.glob("*.json"):
+        path.unlink()
+    with pytest.raises(FileNotFoundError, match="No diagnostic case file found"):
+        app.build_distribution({"127.0.0.1": 1})
 
 
 def test_tescia_manager_can_seed_generated_cases_from_injected_ai_engine(monkeypatch, tmp_path) -> None:
@@ -979,6 +1510,52 @@ def test_tescia_worker_accepts_classroom_submission_batches(monkeypatch, tmp_pat
     export_root = env.AGILAB_EXPORT_ABS / env.target / "tescia_diagnostic" / "classroom"
     assert (export_root / "classroom_needs_attention.csv").is_file()
     assert (export_root / "classroom_teacher_summary.md").is_file()
+
+
+def test_tescia_worker_helper_and_empty_paths(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    import pandas as pd
+    from tescia_diagnostic_worker.tescia_diagnostic_worker import TesciaDiagnosticWorker, _artifact_dir, _sanitize_slug
+
+    env_without_export = SimpleNamespace(
+        target="target",
+        resolve_share_path=lambda value: tmp_path / "share" / value,
+    )
+    assert _artifact_dir(env_without_export, "leaf") == tmp_path / "share" / "target" / "leaf"
+    assert _artifact_dir(SimpleNamespace(target=""), "leaf").parts[-2:] == ("export", "leaf")
+    assert _sanitize_slug("  ") == "tescia_case"
+
+    worker = TesciaDiagnosticWorker()
+    worker.args = {"data_in": tmp_path / "in", "data_out": tmp_path / "out", "reset_target": False}
+    worker.env = _FakeEnv(tmp_path)
+    worker._worker_id = 0
+    worker.start()
+    assert worker._current_args().data_in == tmp_path / "in"
+    worker.pool_init({"args": {"minimum_evidence_confidence": 0.1}})
+    assert worker._current_args().minimum_evidence_confidence == 0.1
+    assert worker.work_init() is None
+    assert worker.work_done(None) is None
+    assert worker.work_done(pd.DataFrame()) is None
+
+
+def test_tescia_worker_rejects_invalid_json_and_classroom_batches(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic_worker import TesciaDiagnosticWorker
+
+    worker = TesciaDiagnosticWorker()
+    non_object = tmp_path / "non_object.json"
+    non_object.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="must contain a JSON object"):
+        worker._load_cases(non_object)
+
+    classroom = _load_classroom_payload()
+    classroom["submissions"][0]["case_id"] = "missing_case"
+    bad_classroom = tmp_path / "bad_classroom.json"
+    bad_classroom.write_text(json.dumps(classroom), encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid TeSciA classroom submission file"):
+        worker._load_cases(bad_classroom)
 
 
 def test_tescia_app_surface_prefers_latest_classroom_run_artifact(monkeypatch, tmp_path) -> None:

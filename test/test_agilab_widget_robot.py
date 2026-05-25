@@ -3336,6 +3336,8 @@ def test_safe_action_click_classifier_allows_navigation_and_denies_risky_actions
     assert module.safe_action_click_reason({"kind": "download_button", "label": "Download CSV"})
     assert module.safe_action_click_reason({"kind": "button", "label": "RUN pipeline"}) is None
     assert module.safe_action_click_reason({"kind": "form_submit_button", "label": "Create project"}) is None
+    assert module.safe_action_click_reason({"kind": "button", "label": "Overwrite"}) is None
+    assert module.safe_action_click_reason({"kind": "button", "label": "Rebuild Universal Offline knowledge base"}) is None
 
 
 def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_path) -> None:

@@ -88,6 +88,8 @@ RISKY_ACTION_LABEL_TOKENS = {
     "install",
     "kill",
     "launch",
+    "overwrite",
+    "rebuild",
     "remove",
     "rename",
     "reset",

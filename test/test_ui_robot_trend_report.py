@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
+
+import pytest
 
 
 MODULE_PATH = Path("tools/ui_robot_trend_report.py").resolve()
@@ -104,6 +107,7 @@ def test_ui_robot_trend_report_tracks_parse_errors_skips_and_bad_durations(tmp_p
             [
                 "",
                 "{not-json",
+                json.dumps(["not-a-dict"]),
                 json.dumps({"event": "heartbeat", "status": "ignored"}),
                 json.dumps(
                     {
@@ -145,6 +149,101 @@ def test_ui_robot_trend_report_tracks_parse_errors_skips_and_bad_durations(tmp_p
     assert workflow["failure_samples"] == ["failed"]
 
 
+def test_ui_robot_trend_report_fallback_failure_details_and_sample_limit(tmp_path) -> None:
+    module = _load_module()
+    log = tmp_path / "robot.ndjson"
+    records = [
+        {
+            "event": "page_done",
+            "app": "flight",
+            "page": "ANALYSIS",
+            "status": "failed",
+            "success": False,
+            "duration_seconds": 1.0,
+            "result": {"status": "inner-status", "failures": ["not-a-dict"]},
+        },
+        {
+            "event": "page_done",
+            "app": "flight",
+            "page": "ANALYSIS",
+            "status": "failed",
+            "success": False,
+            "duration_seconds": 1.0,
+            "result": {"status": "fallback-status", "failures": []},
+        },
+    ]
+    records.extend(
+        {
+            "event": "page_done",
+            "app": "flight",
+            "page": "ANALYSIS",
+            "status": "failed",
+            "success": False,
+            "duration_seconds": 1.0,
+        }
+        for _ in range(5)
+    )
+    _write_records(log, records)
+
+    report = module.build_report(progress_logs=[log], slow_page_seconds=120.0)
+    analysis = report["pages"][0]
+
+    assert analysis["failed"] == 7
+    assert analysis["failure_samples"] == [
+        "inner-status",
+        "fallback-status",
+        "failed",
+        "failed",
+        "failed",
+    ]
+
+
+def test_ui_robot_trend_report_strictly_fails_on_parse_errors(tmp_path, capsys) -> None:
+    module = _load_module()
+    log = tmp_path / "robot.ndjson"
+    log.write_text("{not-json\n", encoding="utf-8")
+
+    exit_code = module.main(["--progress-log", str(log), "--glob", "no-match/**/*.ndjson"])
+
+    assert exit_code == 1
+    assert "verdict: FAIL" in capsys.readouterr().out
+
+
+def test_ui_robot_trend_report_uses_result_status_fallback(tmp_path) -> None:
+    module = _load_module()
+    log = tmp_path / "robot.ndjson"
+    _write_records(
+        log,
+        [
+            {
+                "event": "page_done",
+                "app": "flight",
+                "page": "WORKFLOW",
+                "status": "",
+                "success": False,
+                "duration_seconds": 0.5,
+                "result": {"status": "timed_out", "failures": []},
+            },
+            {
+                "event": "page_done",
+                "app": "flight",
+                "page": "ANALYSIS",
+                "status": "failed",
+                "success": False,
+                "duration_seconds": 0.2,
+                "result": {"failures": [{"kind": "", "label": "", "detail": ""}]},
+            },
+        ],
+    )
+
+    report = module.build_report(progress_logs=[log], slow_page_seconds=120.0)
+
+    workflow = next(page for page in report["pages"] if page["page"] == "WORKFLOW")
+    analysis = next(page for page in report["pages"] if page["page"] == "ANALYSIS")
+    assert workflow["failure_samples"] == ["timed_out"]
+    assert analysis["failure_samples"] == [":"]
+
+
 def test_ui_robot_trend_report_discovers_progress_logs_once(tmp_path, monkeypatch) -> None:
     module = _load_module()
     log = tmp_path / "test-results" / "a.ndjson"
@@ -176,7 +275,44 @@ def test_ui_robot_trend_report_strict_cli_fails_on_failed_pages(tmp_path, capsys
     exit_code = module.main(["--progress-log", str(log), "--glob", "no-match/**/*.ndjson", "--strict"])
 
     assert exit_code == 1
-    assert "verdict: PASS" in capsys.readouterr().out
+
+
+def test_ui_robot_trend_report_cli_fails_on_parse_errors(tmp_path) -> None:
+    module = _load_module()
+    log = tmp_path / "robot.ndjson"
+    log.write_text("{not-json\n", encoding="utf-8")
+
+    assert module.main(["--progress-log", str(log), "--glob", "no-match/**/*.ndjson"]) == 1
+
+
+def test_ui_robot_trend_report_script_entrypoint(tmp_path, monkeypatch, capsys) -> None:
+    log = tmp_path / "robot.ndjson"
+    _write_records(
+        log,
+        [
+            {
+                "event": "page_done",
+                "app": "flight",
+                "page": "PROJECT",
+                "status": "passed",
+                "success": True,
+                "duration_seconds": 1.0,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(MODULE_PATH), "--progress-log", str(log), "--glob", "no-match/**/*.ndjson"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+    assert exc.value.code == 0
+    rendered = capsys.readouterr().out
+    assert "AGILAB UI robot trend report" in rendered
+    assert "verdict: PASS" in rendered
 
 
 def test_ui_robot_trend_report_strict_budget_fails_on_runtime_budget(tmp_path) -> None:

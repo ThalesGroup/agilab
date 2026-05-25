@@ -105,9 +105,11 @@ def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
     module = _load_module()
 
     default_scenarios = module.resolve_scenarios(["all"])
+    duplicate_selection = module.resolve_scenarios(["isolated-core-pages", "isolated-core-pages"])
     history = module.resolve_scenarios(["isolated-browser-history"])[0]
 
     assert "isolated-browser-history" not in [scenario.name for scenario in default_scenarios]
+    assert [scenario.name for scenario in duplicate_selection] == ["isolated-core-pages"]
     assert history.name == "isolated-browser-history"
     assert history.pages == "PROJECT"
     assert history.apps_pages == "none"
@@ -310,6 +312,29 @@ def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "hf-first-proof-install")
     assert summary_path == tmp_path / "hf-first-proof-install.json"
     assert progress_path == tmp_path / "hf-first-proof-install.ndjson"
+
+
+def test_build_robot_command_passes_url_active_app_and_remote_root(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["hf-first-proof-install"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        timeout_seconds=90.0,
+        widget_timeout_seconds=3.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        url="https://example.invalid/agilab",
+        active_app="flight_telemetry_project",
+        remote_app_root="/opt/agilab/apps",
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--url") + 1] == "https://example.invalid/agilab"
+    assert argv[argv.index("--active-app") + 1] == "flight_telemetry_project"
+    assert argv[argv.index("--remote-app-root") + 1] == "/opt/agilab/apps"
 
 
 def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
@@ -707,6 +732,51 @@ def test_write_matrix_failure_bundle_records_scenario_evidence(tmp_path) -> None
     assert (bundle / "progress-tail.ndjson").read_text(encoding="utf-8").endswith('{"event": "page_done"}\n')
 
 
+def test_write_matrix_failure_bundle_skips_when_unconfigured_or_successful(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.RobotScenario(
+        name="demo",
+        description="demo",
+        pages="HOME",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot", "--json"],
+        returncode=0,
+        duration_seconds=1.0,
+        summary_path=tmp_path / "summary.json",
+        progress_path=tmp_path / "progress.ndjson",
+        summary={"success": True, "failed_count": 0},
+        output="",
+    )
+    without_bundle_dir = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        failure_bundle_dir=None,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+    with_bundle_dir = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=None,
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    assert module._write_matrix_failure_bundle(result, options=without_bundle_dir) is None
+    assert module._write_matrix_failure_bundle(result, options=with_bundle_dir) is None
+
+
 def test_write_matrix_failure_bundle_records_artifact_retry_evidence(tmp_path) -> None:
     module = _load_module()
     progress_path = tmp_path / "progress.ndjson"
@@ -767,6 +837,62 @@ def test_write_matrix_failure_bundle_records_artifact_retry_evidence(tmp_path) -
     assert retry_payload["command"] == ["robot", "--trace-dir", "traces/demo"]
     assert (bundle / "retry-summary.json").is_file()
     assert (bundle / "retry-progress-tail.ndjson").is_file()
+
+
+def test_write_matrix_failure_bundle_handles_missing_optional_tails(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.RobotScenario(
+        name="demo",
+        description="demo",
+        pages="HOME",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+    )
+    retry = module.FailureArtifactRetry(
+        argv=["robot", "--trace-dir", "traces/demo"],
+        returncode=1,
+        duration_seconds=2.0,
+        summary_path=tmp_path / "retry-summary.json",
+        progress_path=tmp_path / "missing-retry-progress.ndjson",
+        summary={"success": False, "failed_count": 1},
+        output="",
+        trace_dir=None,
+        har_dir=None,
+        video_dir=None,
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot", "--json"],
+        returncode=1,
+        duration_seconds=3.0,
+        summary_path=tmp_path / "summary.json",
+        progress_path=tmp_path / "missing-progress.ndjson",
+        summary={"success": False, "failed_count": 1},
+        output="",
+        artifact_retry=retry,
+    )
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        failure_bundle_dir=tmp_path / "failure-bundles",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+    screenshot = tmp_path / "screenshots" / "demo" / "page.png"
+    screenshot.parent.mkdir(parents=True)
+    screenshot.write_bytes(b"png")
+
+    bundle = module._write_matrix_failure_bundle(result, options=options)
+
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["screenshots"] == [str(screenshot)]
+    assert not (bundle / "progress-tail.ndjson").exists()
+    assert not (bundle / "retry-output-tail.txt").exists()
+    assert not (bundle / "retry-progress-tail.ndjson").exists()
 
 
 def test_build_robot_command_covers_entry_shell_and_configured_app_pages(tmp_path) -> None:
@@ -946,6 +1072,343 @@ def test_streaming_runner_keeps_child_output_on_stderr(capsys) -> None:
     assert "child-progress" in captured.err
     assert "[ui-robot-matrix] start:" in captured.err
     assert "[ui-robot-matrix] exit=0:" in captured.err
+
+
+def test_load_summary_falls_back_to_stdout_json_and_default_failure(tmp_path) -> None:
+    module = _load_module()
+
+    parsed = module._load_summary(tmp_path / "missing.json", '{"success": true, "page_count": 1}')
+    failed = module._load_summary(tmp_path / "missing.json", "not-json")
+
+    assert parsed["success"] is True
+    assert parsed["page_count"] == 1
+    assert failed == {
+        "success": False,
+        "failed_count": 1,
+        "skipped_count": 0,
+        "page_count": 0,
+        "widget_count": 0,
+        "interacted_count": 0,
+        "probed_count": 0,
+        "error": "robot did not emit a JSON summary",
+    }
+
+
+def test_failure_bundle_text_helpers_cover_missing_oversize_and_read_errors(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    log = tmp_path / "progress.ndjson"
+    log.write_text("one\ntwo\nthree\n", encoding="utf-8")
+
+    assert module._tail_text_file(None) == ""
+    assert module._tail_text_file(tmp_path / "missing.ndjson") == ""
+    assert module._tail_text_file(log, lines=2) == "two\nthree\n"
+    assert module._limited_text("x" * (module.FAILURE_BUNDLE_TEXT_LIMIT + 2)).endswith("...[tail truncated]\n")
+
+    original_read_text = Path.read_text
+
+    def _raising_read_text(self, *args, **kwargs):
+        if self == log:
+            raise OSError("boom")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raising_read_text)
+
+    assert module._tail_text_file(log) == ""
+
+
+def test_path_signature_and_git_helpers_cover_error_branches(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    file_path = tmp_path / "payload.txt"
+    file_path.write_text("payload", encoding="utf-8")
+    missing_path = tmp_path / "missing.txt"
+
+    assert module._repo_relative_or_absolute(tmp_path).startswith(str(tmp_path))
+    assert module._file_signature(tmp_path)["state"] == "directory"
+    assert module._file_signature(missing_path)["state"] == "missing"
+    monkeypatch.setattr(module, "_file_sha256", lambda _path: (_ for _ in ()).throw(OSError("hash failed")))
+    signature = module._file_signature(file_path)
+    assert signature["state"] == "file"
+    assert signature["sha256_error"] == "OSError"
+
+    def _failing_git(argv, **_kwargs):
+        return subprocess.CompletedProcess(argv, 2, stdout="", stderr="fatal")
+
+    monkeypatch.setattr(module.subprocess, "run", _failing_git)
+
+    assert module._git_head() == ""
+    assert module._git_text(["git", "status"]).startswith("git-error:2:fatal")
+    assert module._git_output_sha256(["git", "diff"]) == "git-error:2"
+
+
+def test_status_paths_handles_short_renamed_and_duplicate_entries() -> None:
+    module = _load_module()
+
+    paths = module._status_paths('?? "new file.py"\nR  old.py -> renamed.py\n M renamed.py\nX\n')
+
+    assert paths == ["new file.py", "renamed.py"]
+
+
+def test_result_cache_load_write_prune_and_support_guards(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    cache_path = tmp_path / "cache.json"
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text("{not-json", encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text(json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+    cache_path.write_text(json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}), encoding="utf-8")
+    assert module._load_result_cache(cache_path) == module._empty_result_cache()
+
+    invalid_state = {"schema": module.RESULT_CACHE_SCHEMA, "entries": []}
+    module._write_result_cache(cache_path, invalid_state)
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["entries"] == []
+
+    monkeypatch.setattr(module, "RESULT_CACHE_MAX_ENTRIES", 2)
+    entries = {
+        "old": {"stored_at": 1.0},
+        "new": {"stored_at": 3.0},
+        "middle": {"stored_at": 2.0},
+        "bad": "not-a-dict",
+    }
+    module._prune_result_cache(entries)
+    assert set(entries) == {"new", "middle"}
+
+    assert module._scenario_cache_supported(scenario, options) is True
+    assert module._scenario_cache_supported(scenario, module.replace(options, result_cache_path=None)) is False
+    assert module._scenario_cache_supported(scenario, module.replace(options, url="https://example.invalid")) is False
+    assert module._scenario_cache_supported(scenario, module.replace(options, headful=True)) is False
+    assert module._scenario_cache_supported(scenario, module.replace(options, trace_dir=tmp_path / "traces")) is False
+    assert module._scenario_cache_supported(
+        module.replace(scenario, success_screenshot=True),
+        options,
+    ) is False
+
+
+def test_scenario_result_cache_rejects_bad_payloads_and_writes_synthetic_progress(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=tmp_path / "cache.json",
+    )
+
+    assert module._scenario_result_from_cache("not-a-dict", scenario, options=options) is None
+    assert module._scenario_result_from_cache({"scenario": "other", "returncode": 0}, scenario, options=options) is None
+    assert module._scenario_result_from_cache({"scenario": scenario.name, "returncode": 1}, scenario, options=options) is None
+    assert (
+        module._scenario_result_from_cache(
+            {"scenario": scenario.name, "returncode": 0, "summary": {"success": False}},
+            scenario,
+            options=options,
+        )
+        is None
+    )
+
+    cached = module._scenario_result_from_cache(
+        {
+            "scenario": scenario.name,
+            "returncode": 0,
+            "summary": {"success": True, "page_count": 1},
+            "stored_at": 1.5,
+            "progress_log": " ",
+        },
+        scenario,
+        options=options,
+    )
+
+    assert cached is not None
+    assert cached.cached is True
+    assert json.loads(cached.progress_path.read_text(encoding="utf-8"))["event"] == "cached_result"
+
+
+def test_cacheable_progress_log_and_store_cache_cover_rejections(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    missing = tmp_path / "missing.ndjson"
+    empty = tmp_path / "empty.ndjson"
+    filled = tmp_path / "filled.ndjson"
+    empty.write_text(" \n", encoding="utf-8")
+    filled.write_text('{"event":"page_done"}\n', encoding="utf-8")
+    monkeypatch.setattr(module, "RESULT_CACHE_PROGRESS_LOG_LIMIT_BYTES", 1)
+
+    assert module._cacheable_progress_log(missing) is None
+    assert module._cacheable_progress_log(filled) is None
+
+    monkeypatch.setattr(module, "RESULT_CACHE_PROGRESS_LOG_LIMIT_BYTES", 100)
+    assert module._cacheable_progress_log(empty) is None
+
+    original_read_text = Path.read_text
+
+    def _raising_read_text(self, *args, **kwargs):
+        if self == filled:
+            raise OSError("boom")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raising_read_text)
+    assert module._cacheable_progress_log(filled) is None
+    monkeypatch.setattr(Path, "read_text", original_read_text)
+
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot"],
+        returncode=0,
+        duration_seconds=0.1,
+        summary_path=tmp_path / "summary.json",
+        progress_path=filled,
+        summary={"success": True},
+        output="",
+    )
+    cache_state = {"schema": module.RESULT_CACHE_SCHEMA, "entries": []}
+
+    assert module._store_scenario_result_cache(cache_state, "key", result) is True
+    assert isinstance(cache_state["entries"], dict)
+    assert cache_state["entries"]["key"]["progress_log"] == '{"event":"page_done"}\n'
+
+
+def test_streaming_default_paths_for_scenario_and_failure_retry(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "results",
+        screenshot_dir=None,
+        failure_bundle_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+    calls: list[list[str]] = []
+
+    def _fake_streaming(argv):
+        calls.append(list(argv))
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "page_count": 1,
+                    "widget_count": 1,
+                    "interacted_count": 1,
+                    "probed_count": 0,
+                    "skipped_count": 0,
+                    "failed_count": 0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        progress_path.write_text('{"event":"page_done"}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    monkeypatch.setattr(module, "_run_robot_command_streaming", _fake_streaming)
+
+    result = module.run_scenario(scenario, options=options)
+    retry = module.run_failure_artifact_retry(scenario, options=options)
+    retry_options = module._failure_artifact_retry_options(options)
+
+    assert result.returncode == 0
+    assert retry.returncode == 0
+    assert len(calls) == 2
+    assert retry_options.screenshot_dir == options.output_dir / "failure-artifacts" / "screenshots"
+    assert retry_options.trace_dir == options.output_dir / "failure-artifacts" / "traces"
+    assert retry_options.har_dir == options.output_dir / "failure-artifacts" / "har"
+    assert retry_options.video_dir == options.output_dir / "failure-artifacts" / "video"
+
+
+def test_run_matrix_ignores_malformed_cache_entries_and_failure_sample_limits(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text(json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}), encoding="utf-8")
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: {"fingerprint": "stable"})
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=cache_path,
+    )
+
+    def _runner(argv, **_kwargs):
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps({"success": True, "page_count": 1}), encoding="utf-8")
+        progress_path.write_text('{"event":"page_done"}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    result = module.run_matrix([scenario], options=options, runner=_runner, keep_going=True)[0]
+
+    assert result.cached is False
+
+    pages = ["not-a-dict", {"failures": ["not-a-dict"]}]
+    pages.extend(
+        {
+            "app": f"app-{index}",
+            "page": "ORCHESTRATE",
+            "failures": [{"kind": "error", "label": str(index), "detail": "broken"}],
+        }
+        for index in range(25)
+    )
+    result_with_failures = module.replace(result, returncode=1, summary={"success": False, "pages": pages})
+    samples = module._failure_samples([result_with_failures], limit=3)
+
+    assert [sample["label"] for sample in samples] == ["0", "1", "2"]
+
+
+def test_run_matrix_ignores_non_mapping_cache_entries_state(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    monkeypatch.setattr(module, "_load_result_cache", lambda _path: {"schema": module.RESULT_CACHE_SCHEMA, "entries": []})
+    monkeypatch.setattr(module, "_result_cache_run_fingerprint", lambda: {"fingerprint": "stable"})
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "out",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        result_cache_path=tmp_path / "cache.json",
+    )
+
+    def _runner(argv, **_kwargs):
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps({"success": True, "page_count": 1}), encoding="utf-8")
+        progress_path.write_text('{"event":"page_done"}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(argv, 0, stdout="")
+
+    results = module.run_matrix([scenario], options=options, runner=_runner, keep_going=True)
+
+    assert results[0].cached is False
 
 
 def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
