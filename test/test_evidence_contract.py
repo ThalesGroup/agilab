@@ -5,6 +5,7 @@ import json
 import sys
 import types
 from pathlib import Path
+import zipfile
 
 import pytest
 
@@ -229,6 +230,55 @@ def test_proof_pack_writes_all_interop_files_and_metadata_store(tmp_path: Path) 
     assert store["entries"][0]["run_id"] == "run-demo"
 
 
+def test_proof_capsule_archive_verifies_replays_and_detects_tampering(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    manifest_path = _write_run_manifest(tmp_path)
+    capsule_path = tmp_path / "run.agipack"
+
+    result = module.write_proof_capsule(manifest_path, capsule_path)
+
+    assert result.capsule_path == capsule_path
+    assert result.capsule_manifest["schema"] == module.PROOF_CAPSULE_SCHEMA
+    assert result.capsule_manifest["signed"] is False
+    assert {entry["path"] for entry in result.capsule_manifest["entries"]} >= {
+        module.PROOF_PACK_FILENAME,
+        module.RUN_MANIFEST_SNAPSHOT_FILENAME,
+    }
+
+    verify_report = module.verify_proof_capsule(capsule_path)
+    assert verify_report["schema"] == module.CAPSULE_VERIFY_SCHEMA
+    assert verify_report["status"] == "pass"
+    assert verify_report["manifest"]["run_id"] == "run-demo"
+
+    assert module.main(["verify", str(capsule_path), "--json", "--strict"]) == 0
+    cli_verify = json.loads(capsys.readouterr().out)
+    assert cli_verify["capsule_path"] == str(capsule_path)
+
+    assert module.main(["replay", str(capsule_path), "--json"]) == 0
+    replay_report = json.loads(capsys.readouterr().out)
+    assert replay_report["safe_default"] == "print-only"
+    assert replay_report["source_capsule"] == str(capsule_path)
+
+    cli_capsule = tmp_path / "cli.agipack"
+    assert module.main(["prove", str(manifest_path), "--export", str(cli_capsule), "--json"]) == 0
+    prove_report = json.loads(capsys.readouterr().out)
+    assert prove_report["schema"] == module.PROOF_CAPSULE_SCHEMA
+    assert prove_report["capsule_path"] == str(cli_capsule)
+
+    tampered_path = tmp_path / "tampered.agipack"
+    with zipfile.ZipFile(capsule_path) as source, zipfile.ZipFile(tampered_path, "w") as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == module.RUN_MANIFEST_SNAPSHOT_FILENAME:
+                data = data + b"\n"
+            target.writestr(info, data)
+
+    tampered_report = module.verify_proof_capsule(tampered_path)
+    checks = {check["id"]: check for check in tampered_report["checks"]}
+    assert tampered_report["status"] == "fail"
+    assert checks["capsule_entry_hashes_match"]["status"] == "fail"
+
+
 def test_policy_check_custom_policy_and_failed_manifest(tmp_path: Path) -> None:
     module = _load_module()
     manifest_path = _write_run_manifest(tmp_path, status="fail")
@@ -436,6 +486,18 @@ def test_cli_commands_cover_proof_pack_replay_policy_cards_and_metadata_store(tm
     ]) == 0
     single_export = json.loads(capsys.readouterr().out)
     assert single_export["paths"]["otel"] == str(otel_path)
+
+    traces_path = tmp_path / "traces.json"
+    assert module.main([
+        "export-traces",
+        str(manifest_path),
+        "--output",
+        str(traces_path),
+        "--json",
+    ]) == 0
+    trace_export = json.loads(capsys.readouterr().out)
+    assert trace_export["formats"] == ["otel"]
+    assert trace_export["paths"]["otel"] == str(traces_path)
 
     all_exports = tmp_path / "all-exports"
     assert module.main([

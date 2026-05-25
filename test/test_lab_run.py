@@ -265,6 +265,11 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
     assert rc == 45
     assert captured == [["export-lineage", "run_manifest.json", "--format", "openlineage"]]
 
+    rc = lab_run.main(["export_traces", "run_manifest.json", "--output", "otel.json"])
+
+    assert rc == 45
+    assert captured[-1] == ["export-traces", "run_manifest.json", "--output", "otel.json"]
+
 
 def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
