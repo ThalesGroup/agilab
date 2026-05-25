@@ -250,8 +250,12 @@ to execute a local coding-agent command and write a redacted
 session, command/tool, permission, compaction, rewind, and completion evidence.
 Command arguments are redacted by default and represented by an argv hash; pass
 `--include-command-args` only when the prompt/arguments are safe to store.
-Output artifact files are redacted by default; pass `--include-raw-output`
-only for safe local diagnostics. Add
+Output artifact files redact obvious secret assignments, supported secret refs,
+and common standalone API-token patterns by default; pass `--include-raw-output`
+only for safe local diagnostics. Destructive executable names and obvious
+destructive shell, Python, Git, Docker, Kubernetes, or package-manager command
+content are operator-gated, but this permission layer is an evidence guard, not
+a process sandbox. Add
 `--protocol-adapter mcp` or `--capability app-as-tool` as metadata-only labels
 when experimenting with agent protocol bridges; the base package records those
 labels and lifecycle events without depending on the protocol stacks. Use

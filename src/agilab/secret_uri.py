@@ -26,6 +26,17 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 )
 _SECRET_URI_TEXT_RE = re.compile(r"\b(?:env|secret|vault)://[^\s,;]+")
 _SECRET_KEY_RE = re.compile(r"(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH)", re.IGNORECASE)
+_COMMON_SECRET_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    r"sk-(?:proj-)?[A-Za-z0-9_-]{16,}"
+    r"|sk-ant-[A-Za-z0-9_-]{16,}"
+    r"|github_pat_[A-Za-z0-9_]{16,}"
+    r"|gh[pousr]_[A-Za-z0-9_]{16,}"
+    r"|hf_[A-Za-z0-9]{16,}"
+    r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
+_BEARER_TOKEN_RE = re.compile(r"\b(Bearer\s+)([A-Za-z0-9._~+/=-]{20,})", re.IGNORECASE)
 
 
 class SecretUriError(ValueError):
@@ -172,10 +183,12 @@ def resolve_secret_uri(
 
 
 def redact_text(text: object) -> str:
-    """Redact obvious secret assignments and supported secret URI occurrences."""
+    """Redact obvious secret assignments, secret refs, and common API tokens."""
     value = str(text)
     value = _SECRET_ASSIGNMENT_RE.sub(lambda match: f"{match.group(1)}=<redacted>", value)
-    return _SECRET_URI_TEXT_RE.sub("<secret-ref>", value)
+    value = _SECRET_URI_TEXT_RE.sub("<secret-ref>", value)
+    value = _BEARER_TOKEN_RE.sub(lambda match: f"{match.group(1)}<redacted>", value)
+    return _COMMON_SECRET_TOKEN_RE.sub("<redacted>", value)
 
 
 def redact_mapping(values: Mapping[str, Any]) -> dict[str, Any]:

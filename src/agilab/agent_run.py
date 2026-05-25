@@ -30,6 +30,33 @@ STDERR_FILENAME = "stderr.txt"
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 SECRET_NAME_RE = re.compile(r"(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH)", re.IGNORECASE)
 SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+SHELL_EXECUTABLES = frozenset({"bash", "cmd", "fish", "powershell", "powershell.exe", "pwsh", "sh", "zsh"})
+PYTHON_EXECUTABLE_RE = re.compile(r"^python(?:\d+(?:\.\d+)?)?(?:\.exe)?$", re.IGNORECASE)
+DESTRUCTIVE_SHELL_RE = re.compile(
+    r"(?i)(?:^|[\s;&|()])(?:"
+    r"rm(?:\s|$)"
+    r"|del(?:\s|$)"
+    r"|erase(?:\s|$)"
+    r"|rmdir(?:\s|$)"
+    r"|remove-item(?:\s|$)"
+    r"|pkill(?:\s|$)"
+    r"|killall(?:\s|$)"
+    r"|git\s+(?:reset\s+--hard|clean(?:\s|$)|branch\s+-D|push\s+--force(?:-with-lease)?)"
+    r"|docker\s+(?:rm|rmi|system\s+prune|volume\s+rm)(?:\s|$)"
+    r"|kubectl\s+delete(?:\s|$)"
+    r"|pip\s+uninstall(?:\s|$)"
+    r"|uv\s+pip\s+uninstall(?:\s|$)"
+    r"|npm\s+uninstall(?:\s|$)"
+    r")"
+)
+DESTRUCTIVE_PYTHON_RE = re.compile(
+    r"(?i)(?:"
+    r"\bshutil\.rmtree\b"
+    r"|\bos\.(?:remove|unlink|rmdir)\b"
+    r"|\bPath\([^)]*\)\.(?:unlink|rmdir)\b"
+    r"|\bsubprocess\.(?:run|call|Popen)\s*\([^)]*(?:rm|git\s+reset|git\s+clean|kubectl\s+delete)"
+    r")"
+)
 
 
 @dataclass(frozen=True)
@@ -386,12 +413,86 @@ def _command_permission_action(config: AgentRunConfig) -> str:
     return " ".join(("run", "agent", command_name))
 
 
+def _is_destructive_git_args(args: Sequence[str]) -> bool:
+    if not args:
+        return False
+    subcommand = args[0].lower()
+    if subcommand == "reset" and "--hard" in args:
+        return True
+    if subcommand == "clean":
+        return True
+    if subcommand == "branch" and any(arg in {"-D", "--delete", "--force"} for arg in args[1:]):
+        return True
+    if subcommand == "push" and any(arg.startswith("--force") for arg in args[1:]):
+        return True
+    return subcommand in {"rm", "gc"} and any(arg in {"--prune=now", "--force"} for arg in args[1:])
+
+
+def _is_destructive_docker_args(args: Sequence[str]) -> bool:
+    if not args:
+        return False
+    if args[0].lower() in {"rm", "rmi"}:
+        return True
+    if len(args) >= 2 and args[0].lower() == "system" and args[1].lower() == "prune":
+        return True
+    return len(args) >= 2 and args[0].lower() == "volume" and args[1].lower() == "rm"
+
+
+def _is_destructive_uv_args(args: Sequence[str]) -> bool:
+    lowered = [arg.lower() for arg in args]
+    return ("pip" in lowered and "uninstall" in lowered) or lowered[:2] == ["cache", "clean"]
+
+
+def _inline_python_snippets(args: Sequence[str]) -> list[str]:
+    snippets: list[str] = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "-c" and index + 1 < len(args):
+            snippets.append(args[index + 1])
+            index += 2
+            continue
+        if arg.startswith("-c") and len(arg) > 2:
+            snippets.append(arg[2:])
+        index += 1
+    return snippets
+
+
+def _command_content_requires_operator(command: Sequence[str]) -> bool:
+    if not command:
+        return False
+    executable = Path(command[0]).name.lower()
+    args = tuple(str(arg) for arg in command[1:])
+    if executable == "git":
+        return _is_destructive_git_args(args)
+    if executable == "docker":
+        return _is_destructive_docker_args(args)
+    if executable == "kubectl":
+        return bool(args and args[0].lower() == "delete")
+    if executable in {"pip", "pip3"}:
+        return bool(args and args[0].lower() == "uninstall")
+    if executable == "uv":
+        return _is_destructive_uv_args(args)
+    if executable == "npm":
+        return bool(args and args[0].lower() == "uninstall")
+    if executable in SHELL_EXECUTABLES:
+        return bool(DESTRUCTIVE_SHELL_RE.search(" ".join(args)))
+    if PYTHON_EXECUTABLE_RE.fullmatch(executable):
+        return any(
+            DESTRUCTIVE_PYTHON_RE.search(snippet) or DESTRUCTIVE_SHELL_RE.search(snippet)
+            for snippet in _inline_python_snippets(args)
+        )
+    return False
+
+
 def _permission_payload(config: AgentRunConfig) -> dict[str, object]:
+    command_requires_operator = _command_content_requires_operator(config.command)
     decision = evaluate_tool_permission(
         _command_permission_action(config),
         {"argv_sha256": _argv_hash(config.command), "cwd": str(config.cwd)},
         level=config.permission_level,
         confirmation=config.confirmation or None,
+        metadata={"permission_tier": "operator"} if command_requires_operator else None,
     )
     payload: dict[str, object] = {
         "action": decision.action,
@@ -400,6 +501,9 @@ def _permission_payload(config: AgentRunConfig) -> dict[str, object]:
         "level": decision.level,
         "reason": decision.reason,
     }
+    if command_requires_operator:
+        payload["command_policy"] = "operator-gated"
+        payload["command_policy_reason"] = "destructive command content detected"
     if decision.confirmation_token:
         payload["confirmation_token"] = decision.confirmation_token
     return payload

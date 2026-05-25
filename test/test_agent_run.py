@@ -368,6 +368,52 @@ def test_agent_run_denies_execution_below_permission_level(tmp_path: Path, capsy
     assert "standard action exceeds safe permission level" in (tmp_path / "stderr.txt").read_text(encoding="utf-8")
 
 
+def test_agent_run_operator_gates_destructive_command_content(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(
+        [
+            "--agent",
+            "codex",
+            "--run-id",
+            "agent-destructive-shell",
+            "--output-dir",
+            str(tmp_path),
+            "--permission-level",
+            "standard",
+            "--json",
+            "--",
+            "bash",
+            "-c",
+            "rm -rf /tmp/agilab-agent-run-test",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    stderr = (tmp_path / "stderr.txt").read_text(encoding="utf-8")
+
+    assert exit_code == 126
+    assert payload["status"] == "denied"
+    assert payload["permission"]["allowed"] is False
+    assert payload["permission"]["tier"] == "operator"
+    assert payload["permission"]["level"] == "standard"
+    assert payload["permission"]["command_policy"] == "operator-gated"
+    assert payload["permission"]["confirmation_token"]
+    assert "operator action exceeds standard permission level" in stderr
+    assert "confirmation_token=" in stderr
+    assert (tmp_path / "stdout.txt").read_text(encoding="utf-8") == ""
+
+    git_config = module.create_agent_run_config(
+        ["git", "reset", "--hard"],
+        cwd=ROOT,
+        output_dir=tmp_path / "git-reset",
+        permission_level="standard",
+    )
+    planned = module.build_planned_manifest(git_config)
+    assert planned["permission"]["tier"] == "operator"
+    assert planned["permission"]["command_policy"] == "operator-gated"
+
+
 def test_agent_run_redacts_output_artifacts_by_default(tmp_path: Path, capsys) -> None:
     module = _load_module()
 
@@ -385,7 +431,7 @@ def test_agent_run_redacts_output_artifacts_by_default(tmp_path: Path, capsys) -
             "--",
             sys.executable,
             "-c",
-            "print('OPENAI_API_KEY=sk-secret')",
+            "print('OPENAI_API_KEY=sk-secret'); print('Bearer sk-proj-abcdefghijklmnopqrstuvwxyz1234567890')",
         ]
     )
 
@@ -395,8 +441,10 @@ def test_agent_run_redacts_output_artifacts_by_default(tmp_path: Path, capsys) -
 
     assert exit_code == 0
     assert payload["status"] == "pass"
-    assert stdout.strip() == "OPENAI_API_KEY=<redacted>"
+    assert "OPENAI_API_KEY=<redacted>" in stdout
+    assert "Bearer <redacted>" in stdout
     assert "sk-secret" not in stdout
+    assert "sk-proj-" not in stdout
     assert "sk-secret" not in raw_manifest
 
 

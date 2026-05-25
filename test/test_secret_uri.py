@@ -153,20 +153,28 @@ def test_vault_uri_without_fragment_keeps_non_secret_display_metadata() -> None:
 
 def test_redaction_helpers_remove_secret_values_and_secret_refs() -> None:
     module = _load_module()
+    standalone = "Bearer sk-proj-abcdefghijklmnopqrstuvwxyz1234567890 and hf_abcdefghijklmnopqrstuvwxyz"
     payload = {
         "OPENAI_API_KEY": "sk-real-secret",
         "safe": "value",
         "nested": {"token_ref": "env://OPENAI_API_KEY"},
-        "items": ["TOKEN=abc123", {"password": "abc123"}],
+        "items": ["TOKEN=abc123", standalone, {"password": "abc123"}],
     }
 
     redacted = module.redact_mapping(payload)
-    text = module.redact_text("OPENAI_API_KEY=sk-real-secret via env://OPENAI_API_KEY")
+    text = module.redact_text(
+        "OPENAI_API_KEY=sk-real-secret via env://OPENAI_API_KEY "
+        "and token: sk-proj-abcdefghijklmnopqrstuvwxyz1234567890 "
+        "plus Bearer github_pat_abcdefghijklmnopqrstuvwxyz1234567890"
+    )
 
     assert redacted["OPENAI_API_KEY"] == "<redacted>"
     assert redacted["safe"] == "value"
     assert redacted["nested"]["token_ref"] == "<redacted>"
     assert redacted["items"][0] == "TOKEN=<redacted>"
-    assert redacted["items"][1]["password"] == "<redacted>"
+    assert redacted["items"][1] == "Bearer <redacted> and <redacted>"
+    assert redacted["items"][2]["password"] == "<redacted>"
     assert "sk-real-secret" not in text
+    assert "sk-proj-" not in text
+    assert "github_pat_" not in text
     assert "env://OPENAI_API_KEY" not in text

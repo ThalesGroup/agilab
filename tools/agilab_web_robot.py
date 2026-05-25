@@ -632,13 +632,11 @@ def assert_page_healthy(
                 break
             page.wait_for_timeout(250)
 
-        if expect_any:
-            screenshot = _screenshot(page, screenshot_dir, label)
-            detail = "missing expected text: " + " | ".join(expect_any)
-            if screenshot:
-                detail += f"; screenshot={screenshot}"
-            return RobotStep(label, False, time.perf_counter() - start, detail, page.url)
-        return RobotStep(label, True, time.perf_counter() - start, "page healthy", page.url)
+        screenshot = _screenshot(page, screenshot_dir, label)
+        detail = "missing expected text: " + " | ".join(expect_any)
+        if screenshot:
+            detail += f"; screenshot={screenshot}"
+        return RobotStep(label, False, time.perf_counter() - start, detail, page.url)
     except Exception as exc:
         screenshot = _screenshot(page, screenshot_dir, label)
         detail = f"health assertion failed: {exc}"
