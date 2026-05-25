@@ -105,6 +105,10 @@ Main Content Area
       directories pointed to ``${AGILAB_VENVS_ABS}`` and
       ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
       and a ``Back to Analysis`` control keeps navigation lightweight.
+      Current page bundles use the visible label ``Back to ANALYSIS`` so the
+      return target matches the main navigation. Generic map pages keep the
+      selected project visible in the header while full runtime and filesystem
+      paths stay in collapsed context expanders.
 
       Each selected notebook appears as a compact sidebar link. Opening it from
       ANALYSIS starts a project-rooted JupyterLab sidecar and embeds the

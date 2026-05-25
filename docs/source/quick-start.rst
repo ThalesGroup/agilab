@@ -184,6 +184,10 @@ machine-readable proof record.
    - click ``3. OPEN ANALYSIS`` after evidence exists to open the built-in
      analysis route
 
+   These three proof actions are shown as a compact row on the landing page.
+   They open the target page in a new browser tab so the first-proof guide
+   remains available while ORCHESTRATE or ANALYSIS loads.
+
    If you want to start from a notebook, use the same wizard's
    ``Create from built-in notebook`` button for AGILAB's packaged sample; there
    is no notebook file to locate or upload. The wizard opens ``PROJECT`` ->
@@ -327,11 +331,12 @@ page bundles without the full UI profile, ``agilab[ai]`` for AI assistant
 features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
 ``agilab[agents]`` for the packaged agent workflow client dependencies,
 ``agilab[examples]`` for notebook/demo helper dependencies, ``agilab[mlflow]``
-for tracking, ``agilab[local-llm]`` for local model helpers,
-``agilab[viz]`` for optional Plotly/matplotlib visualizations, and
+for tracking, ``agilab[proof]`` for detached proof-capsule signatures,
+``agilab[local-llm]`` for local model helpers, ``agilab[viz]`` for optional
+Plotly/matplotlib visualizations, and
 ``agilab[dev]`` for contributor-only test/build tooling::
 
-    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,local-llm]"
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,proof,local-llm]"
 
 **agi-core demo**:
 

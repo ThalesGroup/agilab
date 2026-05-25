@@ -20,7 +20,7 @@ the command shape stable.
 | 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
 | 6 | `excel_workbook_proof` | spreadsheet bridge preview | Read-only Excel-shaped proof: workbook, Power Query-friendly CSVs, and evidence hashes. |
 | 7 | `voila_notebook_proof` | notebook dashboard bridge preview | Read-only notebook-dashboard proof: Voila-shaped notebook, widget-to-args hints, app-view plan, and evidence hashes. |
-| 8 | `sklearn_pipeline_proof` | scikit-learn proof preview | Read-only ML proof: deterministic dataset, fitted pipeline, predictions, model artifact, metrics, and hash manifest. |
+| 8 | `sklearn_pipeline` | `sklearn_pipeline_project` | Classic ML app proof: deterministic dataset, fitted pipeline, predictions, model artifact, metrics, and hash manifest. |
 | 9 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
 | 10 | `global_dag_project` | `flight_telemetry_project` -> `weather_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
 | 11 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
@@ -37,8 +37,8 @@ app execution from read-only contract previews.
 
 | Class | Examples | What actually runs | Primary output |
 |---|---|---|---|
-| Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
-| Source/package read-only previews | `notebook_to_dask`, `excel_workbook_proof`, `voila_notebook_proof`, `sklearn_pipeline_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, notebook, dashboard-plan, serialized model, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
+| Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `sklearn_pipeline`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
+| Source/package read-only previews | `notebook_to_dask`, `excel_workbook_proof`, `voila_notebook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, notebook, dashboard-plan, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
 | Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
 
 Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
@@ -90,9 +90,9 @@ From an installed package, locate one with
 - `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
   notebooks, exported artifacts, migrated `lab_stages.toml`, and conceptual
   pipeline view in the packaged examples tree.
-- `sklearn_pipeline_proof/preview_sklearn_pipeline_proof.py` shows the
-  lightweight ML proof pattern: deterministic scikit-learn dataset, fitted
-  pipeline, model artifact, predictions, metrics, report, and hash manifest.
+- `sklearn_pipeline/AGI_run_sklearn_pipeline.py` runs the classic ML app proof:
+  deterministic scikit-learn dataset, fitted pipeline, model artifact,
+  predictions, metrics, report, and hash manifest.
 - `service_mode/preview_service_mode.py` reads a `mycode_project` built-in
   service template and explains persistent-worker operations without starting a
   service.
@@ -151,9 +151,9 @@ understand how project-level app runs can be connected by explicit artifact
 contracts, and use `inter_project_dag` only when you need the standalone
 compatibility preview path. Use
 `notebook_to_dask` when you want to evaluate a notebook migration before
-creating an app or running Dask. Use `sklearn_pipeline_proof` when you want a
-minimal ML training proof that writes predictions, metrics, a serialized model,
-and artifact hashes without any cluster or tracking backend. Use `service_mode`
+creating an app or running Dask. Use `sklearn_pipeline` when you want a minimal
+classic ML app proof that writes predictions, metrics, a serialized model, and
+artifact hashes without any tracking backend. Use `service_mode`
 before enabling persistent workers for an already-working app. Use
 `mlflow_auto_tracking` when you want to show tracking as optional memory around
 AGILAB execution, not a competing experiment system. Use

@@ -34,6 +34,12 @@ Status legend:
      - PyPI app package
      - Notebook-to-app migration using a small weather forecast dataset,
        forecast metrics, and promotion evidence.
+   * - ``sklearn_pipeline_project``
+     - ``agi-app-sklearn-pipeline``
+     - PyPI app package
+     - Minimal classic ML app proof using scikit-learn: deterministic dataset,
+       fitted pipeline, serialized model, predictions, metrics, and artifact
+       hashes.
    * - ``mission_decision_project``
      - ``agi-app-mission-decision``
      - PyPI app package
@@ -93,6 +99,8 @@ Recommended first choices
   AGILAB can install, execute, write evidence, and open analysis.
 - Use ``weather_forecast_project`` when the question is notebook migration and
   reusable forecast artifacts.
+- Use ``sklearn_pipeline_project`` when the question is classic ML
+  reproducibility with a familiar scikit-learn pipeline.
 - Use ``pytorch_playground_project`` when you want a more visual AI/ML demo
   with training evidence.
 - Use ``uav_relay_queue_project`` or ``uav_queue_project`` only after the first

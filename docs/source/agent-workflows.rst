@@ -12,7 +12,7 @@ What "repo-ready" means
 -----------------------
 
 The repository already ships the configuration, wrappers, and conventions
-needed to work with these agent paths against the same repo contract:
+needed to work with these executable agent paths against the same repo contract:
 
 - Codex
 - Claude
@@ -22,6 +22,9 @@ needed to work with these agent paths against the same repo contract:
 That does not mean the four tools behave identically. It means the repo now
 contains a prepared entry path for each of them instead of relying on ad hoc
 local setup.
+
+Continue can consume the same public catalog through ``AGENT_SKILLS.md`` and
+``llms.txt``, but AGILAB does not ship a Continue wrapper or project config yet.
 
 Shared repo contract
 --------------------
@@ -48,13 +51,17 @@ Then follow the repo rules in:
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
 
+Skill catalog and security checks are local-first. Use ``./dev skills`` or the
+``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated
+GitHub Actions workflow for this agent-skill scan.
+
 Agent run evidence
 ------------------
 
 Use ``agilab agent-run`` when a coding-agent action should leave AGILAB
 evidence instead of only a tool-specific log::
 
-   agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review
+   agilab agent-run --agent codex --permission-level standard --label "Review current diff" --tag review --metadata branch=main -- codex review
 
 The command writes a redacted ``agilab.agent_run.v1`` manifest, local
 ``stdout.txt`` / ``stderr.txt`` artifacts, and an append-only
@@ -62,9 +69,11 @@ The command writes a redacted ``agilab.agent_run.v1`` manifest, local
 ``~/log/agents/<agent>/<run-id>/``. Environment override values passed with
 ``--env KEY=VALUE`` are redacted from the manifest. Command arguments are
 redacted by default and represented by an argv hash; pass
-``--include-command-args`` only when the prompt/arguments are safe to store. The
-stdout/stderr files stay local artifacts so tool output is not embedded in
-public JSON by default.
+``--include-command-args`` only when the prompt/arguments are safe to store.
+The stdout/stderr files stay local artifacts so tool output is not embedded in
+public JSON by default. Those output artifacts redact obvious secret
+assignments, supported secret refs, and common standalone API-token patterns by
+default. Pass ``--include-raw-output`` only for safe local diagnostics.
 
 Use ``--tag`` and ``--metadata KEY=VALUE`` for structured, non-secret context
 that other tools can query later. Read previous run evidence from the CLI::
@@ -98,12 +107,19 @@ The base package records protocol bridges as evidence labels only. Add
 with agent protocol bridges without adding protocol-stack dependencies to the
 base runtime.
 
-The tool safety helpers expose the same control points for future agent tools:
+The tool safety helpers expose the same control points for agent commands and
+future agent tools:
 
-- permission tiers: ``readonly``, ``safe``, ``standard``, and ``operator``
+- permission tiers: ``readonly``, ``safe``, ``standard``, and ``operator``;
+  actual command execution is a ``standard`` action, while destructive
+  executable names and obvious destructive shell, Python, Git, Docker,
+  Kubernetes, or package-manager command content are operator-gated
 - deterministic confirmation tokens for operator-gated/destructive actions
 - before/after hooks that can approve, deny, redact, audit, or replace a tool
   result before it is written back into evidence
+
+The permission layer is an evidence and operator-confirmation guard. It is not a
+process sandbox; use OS/container isolation for untrusted commands.
 
 Agent configuration is layered from ``~/.agilab/agents/agents.json`` and then
 ``.agilab/agents.json`` files from the project root to the current working

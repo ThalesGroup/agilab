@@ -33,6 +33,11 @@ Sidebar
 
 Main Content Area
 -----------------
+- ``Project runtime`` is the compact readiness header at the top of the page.
+  It shows the runtime module, manager/worker environment status, run count,
+  data-share size, and last project change without filling the page with long
+  absolute paths. Use the collapsed ``Runtime details`` expander when you need
+  the full project, environment, or data-share path for support or copy/paste.
 - ``System settings`` groups the cluster configuration. Toggle support for
   ``pool``, ``cython`` and ``rapids``, enable the Dask scheduler and provide IP
   definitions for workers. The calculated mode hint clarifies how the chosen

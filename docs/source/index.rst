@@ -98,6 +98,7 @@ references, and example projects.
    :caption: Operations
 
    Cluster setup <cluster>
+   Kubernetes Job preview <kubernetes-job>
    Distributed workers <distributed-workers>
    SSH keys for workers <key-generation>
    Service mode <service-mode>

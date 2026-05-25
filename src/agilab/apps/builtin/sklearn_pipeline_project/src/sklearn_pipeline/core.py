@@ -1,11 +1,12 @@
+"""Evidence helpers for the built-in scikit-learn pipeline app."""
+
 from __future__ import annotations
 
-import argparse
 import csv
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from joblib import dump
 from sklearn.datasets import make_classification
@@ -16,8 +17,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-SCHEMA = "agilab.example.sklearn_pipeline_proof.v1"
-DEFAULT_OUTPUT_DIR = Path.home() / "log" / "execute" / "sklearn_pipeline_proof"
+SCHEMA = "agilab.app.sklearn_pipeline.v1"
 
 
 def _sha256(path: Path) -> str:
@@ -37,18 +37,20 @@ def _artifact(path: Path, *, role: str, output_dir: Path) -> dict[str, Any]:
     }
 
 
-def build_preview(
+def build_sklearn_pipeline_artifacts(
     *,
-    output_dir: Path = DEFAULT_OUTPUT_DIR,
+    output_dir: Path,
     seed: int = 2026,
     sample_count: int = 240,
     test_size: float = 0.25,
     regularization_c: float = 1.0,
 ) -> dict[str, Any]:
+    """Train a deterministic sklearn pipeline and write an audit bundle."""
+
     output_dir = output_dir.expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    X, y = make_classification(
+    features, target = make_classification(
         n_samples=sample_count,
         n_features=8,
         n_informative=5,
@@ -58,12 +60,12 @@ def build_preview(
         flip_y=0.03,
         random_state=seed,
     )
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
+    features_train, features_test, target_train, target_test = train_test_split(
+        features,
+        target,
         test_size=test_size,
         random_state=seed,
-        stratify=y,
+        stratify=target,
     )
     pipeline = Pipeline(
         steps=[
@@ -79,25 +81,27 @@ def build_preview(
             ),
         ]
     )
-    pipeline.fit(X_train, y_train)
-    predictions = pipeline.predict(X_test)
-    probabilities = pipeline.predict_proba(X_test)[:, 1]
+    pipeline.fit(features_train, target_train)
+    predictions = pipeline.predict(features_test)
+    probabilities = pipeline.predict_proba(features_test)[:, 1]
 
     metrics = {
-        "accuracy": round(float(accuracy_score(y_test, predictions)), 6),
-        "f1": round(float(f1_score(y_test, predictions)), 6),
-        "test_rows": int(len(y_test)),
-        "train_rows": int(len(y_train)),
+        "accuracy": round(float(accuracy_score(target_test, predictions)), 6),
+        "f1": round(float(f1_score(target_test, predictions)), 6),
+        "test_rows": int(len(target_test)),
+        "train_rows": int(len(target_train)),
     }
-    matrix = confusion_matrix(y_test, predictions).tolist()
-    report = classification_report(y_test, predictions, output_dict=True, zero_division=0)
+    matrix = confusion_matrix(target_test, predictions).tolist()
+    report = classification_report(target_test, predictions, output_dict=True, zero_division=0)
 
     predictions_path = output_dir / "predictions.csv"
     with predictions_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream)
         writer.writerow(["row_id", "target", "prediction", "positive_probability"])
-        for row_id, (target, prediction, probability) in enumerate(zip(y_test, predictions, probabilities)):
-            writer.writerow([row_id, int(target), int(prediction), f"{float(probability):.8f}"])
+        for row_id, (actual, predicted, probability) in enumerate(
+            zip(target_test, predictions, probabilities)
+        ):
+            writer.writerow([row_id, int(actual), int(predicted), f"{float(probability):.8f}"])
 
     metrics_path = output_dir / "metrics.json"
     metrics_payload = {
@@ -117,7 +121,7 @@ def build_preview(
     report_path.write_text(
         "\n".join(
             [
-                "# Scikit-Learn Pipeline Proof",
+                "# Scikit-Learn Pipeline Evidence",
                 "",
                 f"- seed: `{seed}`",
                 f"- train rows: `{metrics['train_rows']}`",
@@ -125,7 +129,7 @@ def build_preview(
                 f"- accuracy: `{metrics['accuracy']}`",
                 f"- f1: `{metrics['f1']}`",
                 "",
-                "This preview keeps the model, predictions, metrics, and manifest together so the run can be audited later.",
+                "The model, predictions, metrics, and manifest are persisted together for audit and replay.",
                 "",
             ]
         ),
@@ -141,9 +145,9 @@ def build_preview(
     manifest_path = output_dir / "run_manifest.json"
     manifest = {
         "schema": SCHEMA,
-        "example": "sklearn_pipeline_proof",
+        "app": "sklearn_pipeline_project",
         "deterministic": True,
-        "runtime": "local preview",
+        "runtime": "agi worker",
         "inputs": {
             "dataset": "sklearn.datasets.make_classification",
             "seed": seed,
@@ -158,46 +162,15 @@ def build_preview(
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     artifacts["manifest"] = _artifact(manifest_path, role="artifact hash manifest", output_dir=output_dir)
 
-    preview_path = output_dir / "sklearn_pipeline_preview.json"
-    preview = {
+    summary_path = output_dir / "sklearn_pipeline_summary.json"
+    summary = {
         "schema": SCHEMA,
         "output_dir": str(output_dir),
         "metrics": metrics,
+        "promotion_hint": manifest["promotion_hint"],
         "artifacts": artifacts,
         "manifest": str(manifest_path),
     }
-    preview_path.write_text(json.dumps(preview, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    preview["artifacts"]["preview"] = _artifact(preview_path, role="preview summary", output_dir=output_dir)
-    return preview
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a deterministic scikit-learn AGILAB proof preview.")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--seed", type=int, default=2026)
-    parser.add_argument("--sample-count", type=int, default=240)
-    parser.add_argument("--test-size", type=float, default=0.25)
-    parser.add_argument("--regularization-c", type=float, default=1.0)
-    return parser
-
-
-def main(argv: Sequence[str] | None = None) -> None:
-    args = _build_parser().parse_args(argv)
-    if args.sample_count < 40:
-        raise SystemExit("--sample-count must be at least 40")
-    if not 0.1 <= args.test_size <= 0.5:
-        raise SystemExit("--test-size must be between 0.1 and 0.5")
-    if args.regularization_c <= 0:
-        raise SystemExit("--regularization-c must be positive")
-    preview = build_preview(
-        output_dir=args.output_dir,
-        seed=args.seed,
-        sample_count=args.sample_count,
-        test_size=args.test_size,
-        regularization_c=args.regularization_c,
-    )
-    print(json.dumps(preview, indent=2, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary["artifacts"]["summary"] = _artifact(summary_path, role="worker summary", output_dir=output_dir)
+    return summary
