@@ -33,3 +33,11 @@ workers_data_path = ""
 allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
+
+[pages]
+restrict_to_view_module = true
+view_module = []
+
+[app_surface]
+title = "TeSciA"
+entrypoint = "tescia_diagnostic/app_surface.py"

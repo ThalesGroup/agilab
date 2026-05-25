@@ -3,6 +3,17 @@
   "cases": [
     {
       "case_id": "cluster_share_sshfs",
+      "title": "Diagnose a remote cluster-share failure",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "cluster",
+        "sshfs",
+        "evidence",
+        "regression-plan"
+      ],
+      "estimated_minutes": 25,
+      "learner_level": "AI engineering student",
+      "student_prompt": "A worker can SSH to the scheduler but AGILAB post-install still fails. Identify the weak assumption, the evidence-backed root cause, the best fix, and the regression checks.",
       "symptom": "Remote workers can SSH to the scheduler but fail during post-install because the configured cluster share is not writable on the worker.",
       "proposed_diagnosis": "The worker cannot reach the scheduler over SSH.",
       "root_cause": "The original diagnosis confuses SSH reachability with shared-storage availability; the worker needs the scheduler-side AGI_CLUSTER_SHARE mounted through SSHFS at the worker data path.",
@@ -67,10 +78,36 @@
           "automated": false,
           "discriminator": true
         }
-      ]
+      ],
+      "student_answer": {
+        "diagnosis": "The initial diagnosis stops too early at SSH reachability.",
+        "root_cause": "The original diagnosis confuses SSH reachability with shared-storage availability; the worker needs the scheduler-side AGI_CLUSTER_SHARE mounted through SSHFS at the worker data path.",
+        "evidence_ids": [
+          "post_install_share_error",
+          "worker_path_os_mismatch"
+        ],
+        "selected_fix_id": "mount_scheduler_share_with_sshfs",
+        "regression_test_ids": [
+          "share_check_only",
+          "post_install_remote_worker",
+          "stale_mount_recovery"
+        ],
+        "confidence": 0.88
+      }
     },
     {
       "case_id": "pipeline_dag_stale_preview",
+      "title": "Explain a stale WORKFLOW DAG preview",
+      "difficulty": "intro",
+      "topic_tags": [
+        "workflow",
+        "dag",
+        "state",
+        "regression-plan"
+      ],
+      "estimated_minutes": 20,
+      "learner_level": "AI engineering student",
+      "student_prompt": "A DAG preview shows old completed stages after lab_stages.toml changed. Explain why the Graphviz diagnosis is weak and choose a regression-backed fix.",
       "symptom": "The WORKFLOW DAG preview shows completed project stages after lab_stages.toml has been edited.",
       "proposed_diagnosis": "The DAG renderer is caching Graphviz output.",
       "root_cause": "The runner-state preview did not compare the project-step digest or latest run-log timestamp before reusing previous execution evidence.",
@@ -128,7 +165,898 @@
           "automated": true,
           "discriminator": true
         }
-      ]
+      ],
+      "student_answer": {
+        "diagnosis": "The stale view is not primarily a Graphviz rendering cache issue.",
+        "root_cause": "The preview reuses previous execution evidence without comparing the project-step digest or checking whether lab_stages.toml is newer than the latest run log.",
+        "evidence_ids": [
+          "state_digest_mismatch",
+          "log_older_than_steps"
+        ],
+        "selected_fix_id": "sync_preview_from_run_evidence",
+        "regression_test_ids": [
+          "completed_log_sync",
+          "failed_log_sync",
+          "stale_after_steps_edit"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "math_2026_cycle4_5e_coverage",
+      "title": "Audit a 5e diagnostic exercise against the 2026 cycle 4 program",
+      "difficulty": "intro",
+      "topic_tags": [
+        "math-2026",
+        "cycle-4",
+        "5e",
+        "coverage"
+      ],
+      "curriculum_ids": [
+        "cycle4_5e_nombres_calcul_algebre",
+        "cycle4_5e_espace_geometrie",
+        "cycle4_5e_donnees_probabilites",
+        "cycle4_5e_proportionnalite_fonctions",
+        "cycle4_5e_pensee_informatique"
+      ],
+      "estimated_minutes": 30,
+      "learner_level": "5e student",
+      "student_prompt": "Check whether a 5e self-evaluation sheet covers the top-level 2026 cycle 4 mathematics domains.",
+      "symptom": "A 5e diagnostic sheet mixes calculations and geometry but does not mention data handling, proportionality, functions, or computational thinking.",
+      "proposed_diagnosis": "The sheet is complete because it includes arithmetic and a geometric construction.",
+      "root_cause": "The diagnosis is incomplete because the 2026 5e rollout requires coverage across numbers and algebra, space and geometry, data and probability, proportionality and functions, and computational thinking.",
+      "plain_repro": "Compare the exercise metadata curriculum_ids with the 2026 cycle 4 required_program_ids for level 5e.",
+      "weak_assumptions": [
+        "Arithmetic and geometry are enough to represent the 5e program.",
+        "A self-evaluation sheet can ignore data, proportionality, functions, and computational thinking."
+      ],
+      "evidence": [
+        {
+          "id": "cycle4_required_ids",
+          "description": "The coverage contract lists five required top-level 5e curriculum ids.",
+          "confidence": 0.94,
+          "relevance": 0.96
+        },
+        {
+          "id": "sheet_missing_domains",
+          "description": "The checked sheet lacks curriculum ids for data, proportionality, functions, and computational thinking.",
+          "confidence": 0.9,
+          "relevance": 0.93
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_cycle4_full_domain_set",
+          "summary": "Tag or add exercises so all five 5e top-level curriculum ids are covered.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.22,
+          "reversibility": 0.86
+        },
+        {
+          "id": "rename_sheet_complete",
+          "summary": "Keep the sheet unchanged and rename it as complete.",
+          "expected_impact": 0.2,
+          "blast_radius": 0.62,
+          "reversibility": 0.7
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "cycle4_ids_complete",
+          "description": "Assert every 2026 5e required curriculum id meets the minimum exercise count.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "unknown_cycle4_ids_rejected",
+          "description": "Reject cases that reference unknown curriculum ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The sheet is not complete just because it includes arithmetic and geometry.",
+        "root_cause": "The 2026 5e rollout requires coverage across numbers and algebra, space and geometry, data and probability, proportionality and functions, and computational thinking.",
+        "evidence_ids": [
+          "cycle4_required_ids",
+          "sheet_missing_domains"
+        ],
+        "selected_fix_id": "add_cycle4_full_domain_set",
+        "regression_test_ids": [
+          "cycle4_ids_complete",
+          "unknown_cycle4_ids_rejected"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "case_id": "math_2026_seconde_gt_coverage",
+      "title": "Audit a seconde GT sheet against the 2026 program",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "seconde",
+        "lycee-gt",
+        "coverage"
+      ],
+      "curriculum_ids": [
+        "seconde_gt_logique_ensembles",
+        "seconde_gt_algorithmique_programmation",
+        "seconde_gt_automatismes",
+        "seconde_gt_nombres_calculs_algebre",
+        "seconde_gt_geometrie",
+        "seconde_gt_fonctions",
+        "seconde_gt_statistiques_probabilites"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "seconde student",
+      "student_prompt": "Check whether a seconde GT exercise bundle covers the 2026 top-level domains.",
+      "symptom": "A seconde bundle contains algebra and functions but no explicit logic, algorithmic, geometry, automatisms, or statistics/probability coverage.",
+      "proposed_diagnosis": "The bundle covers seconde because algebra and functions dominate the year.",
+      "root_cause": "The diagnosis is incomplete because the 2026 seconde GT program also requires logic and sets, algorithmic programming, automatisms, geometry, and statistics and probabilities.",
+      "plain_repro": "Run the TeSciA math_program_2026 coverage report and inspect missing seconde_gt curriculum ids.",
+      "weak_assumptions": [
+        "Algebra and functions alone are representative enough.",
+        "Algorithmic and statistics domains are optional extension topics."
+      ],
+      "evidence": [
+        {
+          "id": "seconde_required_ids",
+          "description": "The coverage contract lists seven seconde GT top-level curriculum ids.",
+          "confidence": 0.93,
+          "relevance": 0.96
+        },
+        {
+          "id": "seconde_bundle_missing_ids",
+          "description": "The bundle metadata does not include logic, algorithmic, geometry, automatisms, or statistics/probability ids.",
+          "confidence": 0.88,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_seconde_full_domain_set",
+          "summary": "Add or tag exercises for all seven seconde GT top-level curriculum ids.",
+          "expected_impact": 0.91,
+          "blast_radius": 0.26,
+          "reversibility": 0.84
+        },
+        {
+          "id": "keep_algebra_function_focus",
+          "summary": "Keep the bundle focused only on algebra and functions.",
+          "expected_impact": 0.36,
+          "blast_radius": 0.5,
+          "reversibility": 0.72
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "seconde_ids_complete",
+          "description": "Assert every 2026 seconde GT curriculum id is covered.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "seconde_report_lists_no_missing",
+          "description": "Assert the generated coverage report has no missing seconde_gt ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The bundle is incomplete if it only checks algebra and functions.",
+        "root_cause": "The 2026 seconde GT program also requires logic and sets, algorithmic programming, automatisms, geometry, and statistics and probabilities.",
+        "evidence_ids": [
+          "seconde_required_ids",
+          "seconde_bundle_missing_ids"
+        ],
+        "selected_fix_id": "add_seconde_full_domain_set",
+        "regression_test_ids": [
+          "seconde_ids_complete",
+          "seconde_report_lists_no_missing"
+        ],
+        "confidence": 0.87
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_es_coverage",
+      "title": "Audit premiere general mathematics integrated in scientific education",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "enseignement-scientifique",
+        "coverage"
+      ],
+      "curriculum_ids": [
+        "premiere_generale_es_automatismes",
+        "premiere_generale_es_information_chiffree",
+        "premiere_generale_es_phenomenes_aleatoires",
+        "premiere_generale_es_phenomenes_evolution"
+      ],
+      "estimated_minutes": 25,
+      "learner_level": "premiere generale student",
+      "student_prompt": "Check whether a premiere general self-evaluation bundle covers the mathematics integrated in scientific education.",
+      "symptom": "A premiere general bundle checks percentages but omits random phenomena and evolution models.",
+      "proposed_diagnosis": "The bundle is complete because it covers numerical information.",
+      "root_cause": "The diagnosis is incomplete because the 2026 integrated mathematics path also requires automatisms, random phenomena, and evolution phenomena modeled by functions.",
+      "plain_repro": "Filter required_program_ids where track is lycee_generale_enseignement_scientifique and compare them with case curriculum_ids.",
+      "weak_assumptions": [
+        "Information chiffree is the only required integrated mathematics theme.",
+        "Random phenomena and evolution models are covered elsewhere automatically."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_es_required_ids",
+          "description": "The coverage contract lists four top-level integrated mathematics ids for premiere generale.",
+          "confidence": 0.9,
+          "relevance": 0.95
+        },
+        {
+          "id": "premiere_es_missing_ids",
+          "description": "The bundle omits random phenomena and evolution-function modeling ids.",
+          "confidence": 0.86,
+          "relevance": 0.9
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_premiere_es_full_domain_set",
+          "summary": "Add exercises for automatisms, numerical information, random phenomena, and evolution models.",
+          "expected_impact": 0.88,
+          "blast_radius": 0.24,
+          "reversibility": 0.82
+        },
+        {
+          "id": "keep_information_chiffree_only",
+          "summary": "Keep only numerical information exercises.",
+          "expected_impact": 0.33,
+          "blast_radius": 0.52,
+          "reversibility": 0.75
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_es_ids_complete",
+          "description": "Assert every integrated premiere general required curriculum id is covered.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_es_report_has_sources",
+          "description": "Assert the coverage report records the official source URL for the track.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The bundle cannot stop at numerical information.",
+        "root_cause": "The 2026 integrated mathematics path also requires automatisms, random phenomena, and evolution phenomena modeled by functions.",
+        "evidence_ids": [
+          "premiere_es_required_ids",
+          "premiere_es_missing_ids"
+        ],
+        "selected_fix_id": "add_premiere_es_full_domain_set",
+        "regression_test_ids": [
+          "premiere_es_ids_complete",
+          "premiere_es_report_has_sources"
+        ],
+        "confidence": 0.86
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_specialite_coverage",
+      "title": "Audit premiere generale specialite mathematics coverage",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "specialite",
+        "coverage"
+      ],
+      "curriculum_ids": [
+        "premiere_generale_specialite_logique_algorithmique",
+        "premiere_generale_specialite_automatismes",
+        "premiere_generale_specialite_algebre",
+        "premiere_generale_specialite_analyse",
+        "premiere_generale_specialite_geometrie",
+        "premiere_generale_specialite_probabilites_statistiques",
+        "premiere_generale_specialite_experimentations"
+      ],
+      "estimated_minutes": 40,
+      "learner_level": "premiere specialite mathematics student",
+      "student_prompt": "Check whether a premiere specialite self-evaluation catalog covers the 2026 top-level domains.",
+      "symptom": "A premiere specialite catalog has strong analysis exercises but lacks algebra, geometry, probability/statistics, experimentation, and algorithmic coverage.",
+      "proposed_diagnosis": "The catalog is complete because analysis is the central domain.",
+      "root_cause": "The diagnosis is incomplete because the 2026 premiere specialite program requires logic and algorithmic work, automatisms, algebra, analysis, geometry, probabilities and statistics, and experimentations.",
+      "plain_repro": "Compare premiere_generale_specialite required_program_ids against the catalog curriculum_ids.",
+      "weak_assumptions": [
+        "Analysis coverage can stand in for every specialite domain.",
+        "Experimentations and algorithmic work do not need explicit self-evaluation items."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_specialite_required_ids",
+          "description": "The coverage contract lists seven premiere specialite top-level curriculum ids.",
+          "confidence": 0.92,
+          "relevance": 0.96
+        },
+        {
+          "id": "premiere_specialite_catalog_gaps",
+          "description": "The catalog lacks explicit tags for several non-analysis domains.",
+          "confidence": 0.87,
+          "relevance": 0.91
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_premiere_specialite_full_domain_set",
+          "summary": "Add or tag exercises for all seven premiere specialite top-level domains.",
+          "expected_impact": 0.93,
+          "blast_radius": 0.3,
+          "reversibility": 0.82
+        },
+        {
+          "id": "keep_analysis_only_catalog",
+          "summary": "Keep only the analysis-heavy catalog and document the rest as future work.",
+          "expected_impact": 0.38,
+          "blast_radius": 0.46,
+          "reversibility": 0.78
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_specialite_ids_complete",
+          "description": "Assert every premiere specialite required curriculum id is covered.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_specialite_unknown_ids_rejected",
+          "description": "Reject unknown premiere specialite curriculum ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Analysis coverage alone does not make the specialite catalog complete.",
+        "root_cause": "The 2026 premiere specialite program requires logic and algorithmic work, automatisms, algebra, analysis, geometry, probabilities and statistics, and experimentations.",
+        "evidence_ids": [
+          "premiere_specialite_required_ids",
+          "premiere_specialite_catalog_gaps"
+        ],
+        "selected_fix_id": "add_premiere_specialite_full_domain_set",
+        "regression_test_ids": [
+          "premiere_specialite_ids_complete",
+          "premiere_specialite_unknown_ids_rejected"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_technologique_coverage",
+      "title": "Audit premiere technologique mathematics coverage",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "technologique",
+        "coverage"
+      ],
+      "curriculum_ids": [
+        "premiere_technologique_logique_algorithmique",
+        "premiere_technologique_geometrie",
+        "premiere_technologique_automatismes",
+        "premiere_technologique_analyse",
+        "premiere_technologique_statistiques_probabilites"
+      ],
+      "estimated_minutes": 30,
+      "learner_level": "premiere technologique student",
+      "student_prompt": "Check whether a premiere technologique self-evaluation catalog covers the 2026 top-level domains.",
+      "symptom": "A premiere technologique catalog emphasizes applied functions but has no explicit statistics/probability, geometry, logic, algorithmic, or automatisms coverage.",
+      "proposed_diagnosis": "The catalog is complete because applied functions cover the technological needs.",
+      "root_cause": "The diagnosis is incomplete because the 2026 premiere technologique program requires logic and algorithmic work, geometric activities, automatisms, analysis, and statistics and probabilities.",
+      "plain_repro": "Compare premiere_technologique required_program_ids against the catalog curriculum_ids.",
+      "weak_assumptions": [
+        "Applied functions are enough for the technological pathway.",
+        "Statistics, geometry, and algorithmic work can remain implicit."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_technologique_required_ids",
+          "description": "The coverage contract lists five premiere technologique top-level curriculum ids.",
+          "confidence": 0.9,
+          "relevance": 0.95
+        },
+        {
+          "id": "premiere_technologique_catalog_gaps",
+          "description": "The catalog lacks explicit ids for several required domains.",
+          "confidence": 0.87,
+          "relevance": 0.91
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_premiere_technologique_full_domain_set",
+          "summary": "Add or tag exercises for all five premiere technologique top-level domains.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.27,
+          "reversibility": 0.83
+        },
+        {
+          "id": "keep_functions_only_catalog",
+          "summary": "Keep only applied-function exercises.",
+          "expected_impact": 0.35,
+          "blast_radius": 0.5,
+          "reversibility": 0.78
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_technologique_ids_complete",
+          "description": "Assert every premiere technologique required curriculum id is covered.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_technologique_report_lists_no_missing",
+          "description": "Assert the generated coverage report has no missing premiere technologique ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Applied functions alone are not enough for the premiere technologique catalog.",
+        "root_cause": "The 2026 premiere technologique program requires logic and algorithmic work, geometric activities, automatisms, analysis, and statistics and probabilities.",
+        "evidence_ids": [
+          "premiere_technologique_required_ids",
+          "premiere_technologique_catalog_gaps"
+        ],
+        "selected_fix_id": "add_premiere_technologique_full_domain_set",
+        "regression_test_ids": [
+          "premiere_technologique_ids_complete",
+          "premiere_technologique_report_lists_no_missing"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "case_id": "math_2026_cycle4_5e_practice_round",
+      "title": "Second-pass 5e coverage practice",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "cycle-4",
+        "5e",
+        "practice"
+      ],
+      "curriculum_ids": [
+        "cycle4_5e_nombres_calcul_algebre",
+        "cycle4_5e_espace_geometrie",
+        "cycle4_5e_donnees_probabilites",
+        "cycle4_5e_proportionnalite_fonctions",
+        "cycle4_5e_pensee_informatique"
+      ],
+      "estimated_minutes": 30,
+      "learner_level": "5e student",
+      "student_prompt": "Audit a second 5e practice round and verify that every 2026 top-level domain remains visible.",
+      "symptom": "A second 5e practice round has been added but its metadata may duplicate only one domain.",
+      "proposed_diagnosis": "A second round is useful even if it repeats only the first arithmetic skill.",
+      "root_cause": "The second practice round must reinforce every 2026 5e top-level domain so the catalog has more than one exercise per curriculum id.",
+      "plain_repro": "Check curriculum_id_counts for every cycle4_5e id.",
+      "weak_assumptions": [
+        "One exercise per curriculum id is enough for self-evaluation quality.",
+        "A second round can be counted even when it covers only arithmetic."
+      ],
+      "evidence": [
+        {
+          "id": "min_count_contract",
+          "description": "The coverage contract requires at least two cases per curriculum id.",
+          "confidence": 0.92,
+          "relevance": 0.96
+        },
+        {
+          "id": "cycle4_second_round_ids",
+          "description": "The second 5e practice round declares all five cycle 4 ids.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "keep_full_second_round",
+          "summary": "Keep the second round mapped to all five 5e domains.",
+          "expected_impact": 0.88,
+          "blast_radius": 0.2,
+          "reversibility": 0.86
+        },
+        {
+          "id": "single_topic_second_round",
+          "summary": "Keep the second round mapped only to arithmetic.",
+          "expected_impact": 0.34,
+          "blast_radius": 0.55,
+          "reversibility": 0.75
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "cycle4_min_counts",
+          "description": "Assert all 5e curriculum ids have at least two cases.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "cycle4_no_undercovered_ids",
+          "description": "Assert undercovered_curriculum_ids excludes cycle4 ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The second 5e round must not repeat only arithmetic.",
+        "root_cause": "The second practice round must reinforce every 2026 5e top-level domain so the catalog has more than one exercise per curriculum id.",
+        "evidence_ids": [
+          "min_count_contract",
+          "cycle4_second_round_ids"
+        ],
+        "selected_fix_id": "keep_full_second_round",
+        "regression_test_ids": [
+          "cycle4_min_counts",
+          "cycle4_no_undercovered_ids"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "case_id": "math_2026_seconde_gt_practice_round",
+      "title": "Second-pass seconde GT coverage practice",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "seconde",
+        "lycee-gt",
+        "practice"
+      ],
+      "curriculum_ids": [
+        "seconde_gt_logique_ensembles",
+        "seconde_gt_algorithmique_programmation",
+        "seconde_gt_automatismes",
+        "seconde_gt_nombres_calculs_algebre",
+        "seconde_gt_geometrie",
+        "seconde_gt_fonctions",
+        "seconde_gt_statistiques_probabilites"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "seconde student",
+      "student_prompt": "Audit a second seconde GT exercise round and verify coverage-count quality.",
+      "symptom": "The seconde catalog has one complete audit case, but quality checks require a second practice round.",
+      "proposed_diagnosis": "The first complete seconde case is enough.",
+      "root_cause": "The 2026 seconde GT catalog needs a second case covering logic and sets, algorithmic programming, automatisms, numbers and algebra, geometry, functions, and statistics and probabilities.",
+      "plain_repro": "Check curriculum_id_counts for every seconde_gt id.",
+      "weak_assumptions": [
+        "Completeness and quality thresholds are the same.",
+        "A single diagnostic case is enough practice for each seconde domain."
+      ],
+      "evidence": [
+        {
+          "id": "seconde_min_count_contract",
+          "description": "The contract requires at least two cases per seconde curriculum id.",
+          "confidence": 0.92,
+          "relevance": 0.96
+        },
+        {
+          "id": "seconde_second_round_ids",
+          "description": "The second seconde round declares all seven seconde ids.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "keep_seconde_full_second_round",
+          "summary": "Keep the second seconde round mapped to every required id.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.22,
+          "reversibility": 0.84
+        },
+        {
+          "id": "single_seconde_round_only",
+          "summary": "Keep only the first seconde audit case.",
+          "expected_impact": 0.32,
+          "blast_radius": 0.48,
+          "reversibility": 0.76
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "seconde_min_counts",
+          "description": "Assert all seconde curriculum ids have at least two cases.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "seconde_no_undercovered_ids",
+          "description": "Assert undercovered_curriculum_ids excludes seconde ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "A single complete seconde case is not enough for the quality threshold.",
+        "root_cause": "The 2026 seconde GT catalog needs a second case covering logic and sets, algorithmic programming, automatisms, numbers and algebra, geometry, functions, and statistics and probabilities.",
+        "evidence_ids": [
+          "seconde_min_count_contract",
+          "seconde_second_round_ids"
+        ],
+        "selected_fix_id": "keep_seconde_full_second_round",
+        "regression_test_ids": [
+          "seconde_min_counts",
+          "seconde_no_undercovered_ids"
+        ],
+        "confidence": 0.89
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_es_practice_round",
+      "title": "Second-pass premiere ES integrated mathematics practice",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "enseignement-scientifique",
+        "practice"
+      ],
+      "curriculum_ids": [
+        "premiere_generale_es_automatismes",
+        "premiere_generale_es_information_chiffree",
+        "premiere_generale_es_phenomenes_aleatoires",
+        "premiere_generale_es_phenomenes_evolution"
+      ],
+      "estimated_minutes": 25,
+      "learner_level": "premiere generale student",
+      "student_prompt": "Audit a second integrated mathematics round for premiere generale.",
+      "symptom": "The integrated mathematics path has one complete case but not enough repeated practice.",
+      "proposed_diagnosis": "Integrated mathematics can rely on one diagnostic case.",
+      "root_cause": "The integrated mathematics path needs a second case covering automatisms, numerical information, random phenomena, and evolution models.",
+      "plain_repro": "Check curriculum_id_counts for every premiere_generale_es id.",
+      "weak_assumptions": [
+        "One integrated case is sufficient for repeated self-evaluation.",
+        "Evolution and random phenomena do not need second-pass checks."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_es_min_count_contract",
+          "description": "The contract requires at least two cases per integrated mathematics id.",
+          "confidence": 0.9,
+          "relevance": 0.95
+        },
+        {
+          "id": "premiere_es_second_round_ids",
+          "description": "The second integrated mathematics round declares all four ids.",
+          "confidence": 0.88,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "keep_premiere_es_full_second_round",
+          "summary": "Keep a second integrated mathematics round covering all required ids.",
+          "expected_impact": 0.88,
+          "blast_radius": 0.22,
+          "reversibility": 0.84
+        },
+        {
+          "id": "single_premiere_es_round_only",
+          "summary": "Keep only one integrated mathematics round.",
+          "expected_impact": 0.31,
+          "blast_radius": 0.48,
+          "reversibility": 0.76
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_es_min_counts",
+          "description": "Assert all integrated mathematics ids have at least two cases.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_es_no_undercovered_ids",
+          "description": "Assert undercovered_curriculum_ids excludes integrated mathematics ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The integrated path needs repeated practice, not one complete case only.",
+        "root_cause": "The integrated mathematics path needs a second case covering automatisms, numerical information, random phenomena, and evolution models.",
+        "evidence_ids": [
+          "premiere_es_min_count_contract",
+          "premiere_es_second_round_ids"
+        ],
+        "selected_fix_id": "keep_premiere_es_full_second_round",
+        "regression_test_ids": [
+          "premiere_es_min_counts",
+          "premiere_es_no_undercovered_ids"
+        ],
+        "confidence": 0.87
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_specialite_practice_round",
+      "title": "Second-pass premiere specialite mathematics practice",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "specialite",
+        "practice"
+      ],
+      "curriculum_ids": [
+        "premiere_generale_specialite_logique_algorithmique",
+        "premiere_generale_specialite_automatismes",
+        "premiere_generale_specialite_algebre",
+        "premiere_generale_specialite_analyse",
+        "premiere_generale_specialite_geometrie",
+        "premiere_generale_specialite_probabilites_statistiques",
+        "premiere_generale_specialite_experimentations"
+      ],
+      "estimated_minutes": 40,
+      "learner_level": "premiere specialite mathematics student",
+      "student_prompt": "Audit a second premiere specialite exercise round for repeated domain coverage.",
+      "symptom": "The premiere specialite catalog has one broad case but no second-pass practice across all domains.",
+      "proposed_diagnosis": "A single broad specialite case is enough because it is advanced.",
+      "root_cause": "The premiere specialite catalog needs a second case covering logic and algorithmic work, automatisms, algebra, analysis, geometry, probabilities and statistics, and experimentations.",
+      "plain_repro": "Check curriculum_id_counts for every premiere_generale_specialite id.",
+      "weak_assumptions": [
+        "Advanced students do not need repeated domain practice.",
+        "Experimentations and algorithmic work can be represented by one broad case."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_specialite_min_count_contract",
+          "description": "The contract requires at least two cases per specialite id.",
+          "confidence": 0.92,
+          "relevance": 0.96
+        },
+        {
+          "id": "premiere_specialite_second_round_ids",
+          "description": "The second specialite round declares all seven ids.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "keep_premiere_specialite_full_second_round",
+          "summary": "Keep a second specialite round covering all required ids.",
+          "expected_impact": 0.92,
+          "blast_radius": 0.26,
+          "reversibility": 0.82
+        },
+        {
+          "id": "single_premiere_specialite_round_only",
+          "summary": "Keep only one specialite coverage case.",
+          "expected_impact": 0.34,
+          "blast_radius": 0.5,
+          "reversibility": 0.76
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_specialite_min_counts",
+          "description": "Assert all premiere specialite ids have at least two cases.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_specialite_no_undercovered_ids",
+          "description": "Assert undercovered_curriculum_ids excludes specialite ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The specialite catalog needs second-pass practice across all domains.",
+        "root_cause": "The premiere specialite catalog needs a second case covering logic and algorithmic work, automatisms, algebra, analysis, geometry, probabilities and statistics, and experimentations.",
+        "evidence_ids": [
+          "premiere_specialite_min_count_contract",
+          "premiere_specialite_second_round_ids"
+        ],
+        "selected_fix_id": "keep_premiere_specialite_full_second_round",
+        "regression_test_ids": [
+          "premiere_specialite_min_counts",
+          "premiere_specialite_no_undercovered_ids"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "math_2026_premiere_technologique_practice_round",
+      "title": "Second-pass premiere technologique mathematics practice",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "math-2026",
+        "premiere",
+        "technologique",
+        "practice"
+      ],
+      "curriculum_ids": [
+        "premiere_technologique_logique_algorithmique",
+        "premiere_technologique_geometrie",
+        "premiere_technologique_automatismes",
+        "premiere_technologique_analyse",
+        "premiere_technologique_statistiques_probabilites"
+      ],
+      "estimated_minutes": 30,
+      "learner_level": "premiere technologique student",
+      "student_prompt": "Audit a second premiere technologique exercise round for repeated coverage.",
+      "symptom": "The premiere technologique catalog has one broad coverage case but no second round.",
+      "proposed_diagnosis": "A second round is unnecessary if the first case covers every domain.",
+      "root_cause": "The premiere technologique catalog needs a second case covering logic and algorithmic work, geometric activities, automatisms, analysis, and statistics and probabilities.",
+      "plain_repro": "Check curriculum_id_counts for every premiere_technologique id.",
+      "weak_assumptions": [
+        "One broad technological case is enough for every student.",
+        "Statistics and algorithmic work do not need repeated self-evaluation."
+      ],
+      "evidence": [
+        {
+          "id": "premiere_technologique_min_count_contract",
+          "description": "The contract requires at least two cases per technological id.",
+          "confidence": 0.9,
+          "relevance": 0.95
+        },
+        {
+          "id": "premiere_technologique_second_round_ids",
+          "description": "The second technological round declares all five ids.",
+          "confidence": 0.88,
+          "relevance": 0.92
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "keep_premiere_technologique_full_second_round",
+          "summary": "Keep a second technological round covering all required ids.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.25,
+          "reversibility": 0.83
+        },
+        {
+          "id": "single_premiere_technologique_round_only",
+          "summary": "Keep only one technological coverage case.",
+          "expected_impact": 0.33,
+          "blast_radius": 0.48,
+          "reversibility": 0.76
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "premiere_technologique_min_counts",
+          "description": "Assert all premiere technologique ids have at least two cases.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "premiere_technologique_no_undercovered_ids",
+          "description": "Assert undercovered_curriculum_ids excludes technological ids.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The technological catalog still needs a second practice round.",
+        "root_cause": "The premiere technologique catalog needs a second case covering logic and algorithmic work, geometric activities, automatisms, analysis, and statistics and probabilities.",
+        "evidence_ids": [
+          "premiere_technologique_min_count_contract",
+          "premiere_technologique_second_round_ids"
+        ],
+        "selected_fix_id": "keep_premiere_technologique_full_second_round",
+        "regression_test_ids": [
+          "premiere_technologique_min_counts",
+          "premiere_technologique_no_undercovered_ids"
+        ],
+        "confidence": 0.88
+      }
     }
   ]
 }

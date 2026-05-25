@@ -1,0 +1,277 @@
+{
+  "schema": "agilab.tescia_diagnostic.math_program_coverage.v1",
+  "coverage_scope": "france_math_program_2026_rollout_top_level_domains",
+  "coverage_granularity": "top_level_domain_with_minimum_exercise_count",
+  "required_min_cases_per_id": 2,
+  "last_reviewed": "2026-05-25",
+  "sources": [
+    {
+      "id": "eduscol_math_2026",
+      "title": "Eduscol - Mathematiques",
+      "url": "https://eduscol.education.gouv.fr/4509/mathematiques",
+      "notes": "Lycee rollout: seconde/premiere in 2026-2027, terminale in 2027-2028. Cycle 4 rollout: 5e in 2026-2027, 4e in 2027-2028, 3e in 2028-2029."
+    },
+    {
+      "id": "bo_cycle4_2026",
+      "title": "BO no 10 du 5 mars 2026 - Programme de mathematiques pour le cycle 4",
+      "url": "https://www.education.gouv.fr/sites/default/files/document/Bulletin%20officiel%20n%C2%B0%2010%20du%205%20mars%202026-480719.pdf",
+      "notes": "Cycle 4 mathematics program; only 5e is required for the 2026-2027 rollout."
+    },
+    {
+      "id": "eduscol_gt_2026",
+      "title": "Eduscol - Programmes et ressources en mathematiques voie GT",
+      "url": "https://eduscol.education.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+      "notes": "Lists the new seconde and premiere programs published at BO on 2026-04-02."
+    },
+    {
+      "id": "bo_seconde_2026",
+      "title": "Programme de mathematiques de seconde generale et technologique",
+      "url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20seconde%20g%C3%A9n%C3%A9rale%20et%20technologique-515402.pdf",
+      "notes": "Top-level domains are taken from the programme summary and organisation section."
+    },
+    {
+      "id": "bo_premiere_es_2026",
+      "title": "Programme de mathematiques integre a l'enseignement scientifique en premiere generale",
+      "url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20de%20math%C3%A9matiques%20int%C3%A9gr%C3%A9%20%C3%A0%20l%26%23039%3Benseignement%20scientifique%20en%20classe%20de%20premi%C3%A8re%20g%C3%A9n%C3%A9rale-515405.pdf",
+      "notes": "Applies to premiere generale students who did not choose the mathematics specialty."
+    },
+    {
+      "id": "bo_premiere_specialite_2026",
+      "title": "Programme de specialite de mathematiques de premiere generale",
+      "url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20sp%C3%A9cialit%C3%A9%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20premi%C3%A8re%20de%20la%20voie%20g%C3%A9n%C3%A9rale-515408.pdf",
+      "notes": "Top-level domains are taken from the programme summary."
+    },
+    {
+      "id": "bo_premiere_technologique_2026",
+      "title": "Programme de mathematiques de premiere technologique",
+      "url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%E2%80%99enseignement%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20premi%C3%A8re%20de%20la%20voie%20technologique-515411.pdf",
+      "notes": "Top-level domains are taken from the programme summary."
+    }
+  ],
+  "required_program_ids": [
+    {
+      "id": "cycle4_5e_nombres_calcul_algebre",
+      "track": "college",
+      "level": "5e",
+      "domain": "Nombres, calcul et algebre",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_cycle4_2026"
+    },
+    {
+      "id": "cycle4_5e_espace_geometrie",
+      "track": "college",
+      "level": "5e",
+      "domain": "Espace et geometrie",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_cycle4_2026"
+    },
+    {
+      "id": "cycle4_5e_donnees_probabilites",
+      "track": "college",
+      "level": "5e",
+      "domain": "Organisation et gestion de donnees et probabilites",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_cycle4_2026"
+    },
+    {
+      "id": "cycle4_5e_proportionnalite_fonctions",
+      "track": "college",
+      "level": "5e",
+      "domain": "Proportionnalite, fonctions",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_cycle4_2026"
+    },
+    {
+      "id": "cycle4_5e_pensee_informatique",
+      "track": "college",
+      "level": "5e",
+      "domain": "La pensee informatique",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_cycle4_2026"
+    },
+    {
+      "id": "seconde_gt_logique_ensembles",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Vocabulaire ensembliste et logique",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_algorithmique_programmation",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Algorithmique et programmation",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_automatismes",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Automatismes",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_nombres_calculs_algebre",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Nombres et calculs, algebre",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_geometrie",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Geometrie",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_fonctions",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Fonctions",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "seconde_gt_statistiques_probabilites",
+      "track": "lycee_gt",
+      "level": "seconde",
+      "domain": "Statistiques et probabilites",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_seconde_2026"
+    },
+    {
+      "id": "premiere_generale_es_automatismes",
+      "track": "lycee_generale_enseignement_scientifique",
+      "level": "premiere",
+      "domain": "Automatismes",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_es_2026"
+    },
+    {
+      "id": "premiere_generale_es_information_chiffree",
+      "track": "lycee_generale_enseignement_scientifique",
+      "level": "premiere",
+      "domain": "Analyse de l'information chiffree",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_es_2026"
+    },
+    {
+      "id": "premiere_generale_es_phenomenes_aleatoires",
+      "track": "lycee_generale_enseignement_scientifique",
+      "level": "premiere",
+      "domain": "Phenomenes aleatoires",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_es_2026"
+    },
+    {
+      "id": "premiere_generale_es_phenomenes_evolution",
+      "track": "lycee_generale_enseignement_scientifique",
+      "level": "premiere",
+      "domain": "Phenomenes d'evolution, modelisation par des fonctions",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_es_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_logique_algorithmique",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Vocabulaire ensembliste, logique, algorithmique et programmation",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_automatismes",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Automatismes",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_algebre",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Algebre",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_analyse",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Analyse",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_geometrie",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Geometrie",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_probabilites_statistiques",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Probabilites et statistiques",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_generale_specialite_experimentations",
+      "track": "lycee_generale_specialite",
+      "level": "premiere",
+      "domain": "Experimentations",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_specialite_2026"
+    },
+    {
+      "id": "premiere_technologique_logique_algorithmique",
+      "track": "lycee_technologique",
+      "level": "premiere",
+      "domain": "Vocabulaire ensembliste, logique, algorithmique et programmation",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_technologique_2026"
+    },
+    {
+      "id": "premiere_technologique_geometrie",
+      "track": "lycee_technologique",
+      "level": "premiere",
+      "domain": "Activites geometriques",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_technologique_2026"
+    },
+    {
+      "id": "premiere_technologique_automatismes",
+      "track": "lycee_technologique",
+      "level": "premiere",
+      "domain": "Automatismes",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_technologique_2026"
+    },
+    {
+      "id": "premiere_technologique_analyse",
+      "track": "lycee_technologique",
+      "level": "premiere",
+      "domain": "Analyse",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_technologique_2026"
+    },
+    {
+      "id": "premiere_technologique_statistiques_probabilites",
+      "track": "lycee_technologique",
+      "level": "premiere",
+      "domain": "Statistiques et probabilites",
+      "effective_school_year": "2026-2027",
+      "source_id": "bo_premiere_technologique_2026"
+    }
+  ]
+}

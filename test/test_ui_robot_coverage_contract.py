@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 MODULE_PATH = Path("tools/ui_robot_coverage_contract.py").resolve()
 
@@ -97,6 +99,21 @@ def test_ui_robot_coverage_contract_json_cli(capsys) -> None:
     assert payload["success"] is True
     assert payload["schema"] == module.SCHEMA
     assert payload["coverage"]["hf_robot_scenarios"]
+
+
+def test_ui_robot_coverage_contract_load_module_rejects_missing_spec(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda _name, _path: None)
+
+    with pytest.raises(RuntimeError, match="Could not load"):
+        module._load_module("missing", Path("missing.py"))
+
+
+def test_ui_robot_coverage_contract_argv_value_handles_missing_values() -> None:
+    module = _load_module()
+
+    assert module._argv_value([], "--apps") == ""
+    assert module._argv_value(["--apps"], "--apps") == ""
 
 
 def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> None:
@@ -191,4 +208,167 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     assert "hf-first-proof-app-pages-visual-smoke is missing from the robot matrix" in details
     assert "hf-first-proof-install is missing from the robot matrix" in details
     assert "isolated-pytorch-playground-analysis is missing from the robot matrix" in details
+    assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
+
+
+def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypatch) -> None:
+    module = _load_module()
+    widget_robot = SimpleNamespace(
+        page_label=lambda page: str(page),
+        resolve_pages=lambda pages: [],
+        parse_csv=lambda value: [],
+        _normalized_label=lambda value: str(value).strip().lower(),
+        public_builtin_apps=lambda: [],
+        configured_apps_pages_for_app=lambda _app: [],
+    )
+    matrix = SimpleNamespace(DEFAULT_SCENARIOS={}, ALL_SCENARIOS={}, OPT_IN_SCENARIOS={})
+    hf_smoke = SimpleNamespace(
+        profile_builtin_app_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_APPS),
+        profile_page_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_PAGES),
+    )
+    workflow_parity = SimpleNamespace(_profile_commands=lambda _args: {})
+
+    def fake_load_module(_name, path):
+        if path == module.WIDGET_ROBOT_PATH:
+            return widget_robot
+        if path == module.MATRIX_PATH:
+            return matrix
+        if path == module.HF_SMOKE_PATH:
+            return hf_smoke
+        if path == module.WORKFLOW_PARITY_PATH:
+            return workflow_parity
+        raise AssertionError(f"unexpected module path: {path}")
+
+    monkeypatch.setattr(module, "_load_module", fake_load_module)
+
+    payload = module.evaluate_contract()
+
+    assert payload["success"] is False
+    assert {"kind": "built_in_apps", "detail": "no public built-in apps were discovered"} in payload["issues"]
+
+
+def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch, capsys) -> None:
+    module = _load_module()
+    app = SimpleNamespace(name="demo_project")
+    route = SimpleNamespace(name="view_demo")
+    broken_hf_visual = SimpleNamespace(
+        name="hf-first-proof-visual-smoke",
+        pages="HOME,PROJECT,UNKNOWN",
+        apps="",
+        apps_pages="none",
+        click_action_labels="",
+        required_text="",
+        required_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
+    broken_hf_app_pages = SimpleNamespace(
+        name="hf-first-proof-app-pages-visual-smoke",
+        pages="",
+        apps="",
+        apps_pages="view_maps",
+        click_action_labels="",
+        required_text="",
+        required_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
+    broken_hf_install = SimpleNamespace(
+        name="hf-first-proof-install",
+        pages="ORCHESTRATE",
+        apps="",
+        apps_pages="none",
+        click_action_labels="",
+        required_text="",
+        required_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
+    broken_pytorch = SimpleNamespace(
+        name="isolated-pytorch-playground-analysis",
+        pages="HOME",
+        apps="other_project",
+        apps_pages="none",
+        click_action_labels="",
+        required_text="PyTorch Playground",
+        required_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
+    widget_robot = SimpleNamespace(
+        page_label=lambda page: str(page),
+        resolve_pages=lambda pages: [page.strip() for page in str(pages).split(",") if page.strip()],
+        parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
+        _normalized_label=lambda value: str(value).strip().lower(),
+        public_builtin_apps=lambda: [app],
+        configured_apps_pages_for_app=lambda _app: [route],
+    )
+    matrix = SimpleNamespace(
+        DEFAULT_SCENARIOS={},
+        ALL_SCENARIOS={
+            scenario.name: scenario
+            for scenario in (broken_hf_visual, broken_hf_app_pages, broken_hf_install, broken_pytorch)
+        },
+        OPT_IN_SCENARIOS={"isolated-pytorch-playground-analysis": broken_pytorch},
+    )
+    hf_smoke = SimpleNamespace(
+        profile_builtin_app_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_APPS),
+        profile_page_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_PAGES),
+    )
+    workflow_parity = SimpleNamespace(
+        _profile_commands=lambda _args: {
+            "hf-visual-smoke-robot": [
+                SimpleNamespace(
+                    argv=["--scenario", "hf-first-proof-visual-smoke", "--apps", "flight_telemetry_project"]
+                )
+            ],
+            "hf-install-robot": [
+                SimpleNamespace(argv=["--scenario", "hf-first-proof-install", "--apps", "flight_telemetry_project"])
+            ],
+            "ui-robot-matrix": [SimpleNamespace(argv=["--scenario", "other"])],
+        }
+    )
+
+    def fake_load_module(_name, path):
+        if path == module.WIDGET_ROBOT_PATH:
+            return widget_robot
+        if path == module.MATRIX_PATH:
+            return matrix
+        if path == module.HF_SMOKE_PATH:
+            return hf_smoke
+        if path == module.WORKFLOW_PARITY_PATH:
+            return workflow_parity
+        raise AssertionError(f"unexpected module path: {path}")
+
+    monkeypatch.setattr(module, "_load_module", fake_load_module)
+
+    payload = module.evaluate_contract()
+    rendered = module.render_human(payload)
+    monkeypatch.setattr(module, "evaluate_contract", lambda: payload)
+    exit_code = module.main([])
+
+    details = [issue["detail"] for issue in payload["issues"]]
+    assert exit_code == 1
+    assert "verdict: FAIL" in capsys.readouterr().out
+    assert "- core_page:" in rendered
+    assert any("apps declare configured apps-pages" in detail for detail in details)
+    assert "default robot matrix has no scenarios for --apps all" in details
+    assert "'INSTALL' is not covered by a selected-action scenario" in details
+    assert "hf-first-proof-install is missing required actions: install" in details
+    assert (
+        "hf-first-proof-app-pages-visual-smoke is missing required apps-pages: "
+        "view_forecast_analysis, view_release_decision"
+    ) in details
+    assert "isolated-pytorch-playground-analysis does not cover ANALYSIS" in details
+    assert "isolated-pytorch-playground-analysis does not target pytorch_playground_project" in details
+    assert (
+        "isolated-pytorch-playground-analysis is missing required text probes: "
+        "Refresh evidence, Settings, Synced RUN snippet"
+    ) in details
+    assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
+    assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details

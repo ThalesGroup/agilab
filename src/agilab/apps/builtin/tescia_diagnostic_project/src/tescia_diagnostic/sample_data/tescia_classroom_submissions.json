@@ -1,0 +1,89 @@
+{
+  "schema": "agilab.tescia_diagnostic.classroom.v1",
+  "classroom": {
+    "class_id": "math_2026_demo_class",
+    "session_id": "live_session_001",
+    "anonymize_student": true
+  },
+  "submissions": [
+    {
+      "submission_id": "live_001_cluster_share_sshfs",
+      "student_id": "student-001",
+      "case_id": "cluster_share_sshfs",
+      "submitted_at": "2026-09-15T09:02:00Z",
+      "answer": {
+        "diagnosis": "The initial diagnosis stops too early at SSH reachability.",
+        "root_cause": "The original diagnosis confuses SSH reachability with shared-storage availability; the worker needs the scheduler-side AGI_CLUSTER_SHARE mounted through SSHFS at the worker data path.",
+        "evidence_ids": [
+          "post_install_share_error",
+          "worker_path_os_mismatch"
+        ],
+        "selected_fix_id": "mount_scheduler_share_with_sshfs",
+        "regression_test_ids": [
+          "share_check_only",
+          "post_install_remote_worker",
+          "stale_mount_recovery"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "submission_id": "live_002_pipeline_dag_stale_preview",
+      "student_id": "student-002",
+      "case_id": "pipeline_dag_stale_preview",
+      "submitted_at": "2026-09-15T09:03:00Z",
+      "answer": {
+        "diagnosis": "The preview issue is probably only a visual refresh problem.",
+        "root_cause": "The page needs a rerender.",
+        "evidence_ids": [
+          "log_older_than_steps"
+        ],
+        "selected_fix_id": "clear_state_on_every_render",
+        "regression_test_ids": [
+          "stale_after_steps_edit"
+        ],
+        "confidence": 0.64
+      }
+    },
+    {
+      "submission_id": "live_003_math_2026_cycle4",
+      "student_id": "student-003",
+      "case_id": "math_2026_cycle4_5e_coverage",
+      "submitted_at": "2026-09-15T09:04:00Z",
+      "answer": {
+        "diagnosis": "The sheet is not complete just because it includes arithmetic and geometry.",
+        "root_cause": "The 2026 5e rollout requires coverage across numbers and algebra, space and geometry, data and probability, proportionality and functions, and computational thinking.",
+        "evidence_ids": [
+          "cycle4_required_ids",
+          "sheet_missing_domains"
+        ],
+        "selected_fix_id": "add_cycle4_full_domain_set",
+        "regression_test_ids": [
+          "cycle4_ids_complete",
+          "unknown_cycle4_ids_rejected"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "submission_id": "live_004_math_2026_seconde",
+      "student_id": "student-004",
+      "case_id": "math_2026_seconde_gt_coverage",
+      "submitted_at": "2026-09-15T09:05:00Z",
+      "answer": {
+        "diagnosis": "The bundle is incomplete if it only checks algebra and functions.",
+        "root_cause": "The 2026 seconde GT program also requires logic and sets, algorithmic programming, automatisms, geometry, and statistics and probabilities.",
+        "evidence_ids": [
+          "seconde_required_ids",
+          "seconde_bundle_missing_ids"
+        ],
+        "selected_fix_id": "add_seconde_full_domain_set",
+        "regression_test_ids": [
+          "seconde_ids_complete",
+          "seconde_report_lists_no_missing"
+        ],
+        "confidence": 0.87
+      }
+    }
+  ]
+}

@@ -7,12 +7,24 @@
 `agi-app-tescia-diagnostic` packages the `tescia_diagnostic_project`
 AGILAB app. It is a diagnostic-method example that turns weak assumptions,
 evidence, candidate fixes, and regression plans into structured artifacts.
+It can also be used as a student self-evaluation exercise: cases expose
+student-facing metadata and optional submitted answers that are graded with a
+deterministic rubric.
+For classroom use, a submission batch can reference exercise ids and expand
+into independent scoring rows for local or cluster execution.
 
 ## Purpose
 
 Use this package to test a TeSciA-style engineering diagnostic workflow. The
 default path scores bundled cases deterministically; optional local AI engines
 can draft new cases, but validated scoring remains explicit and reproducible.
+When a case contains `student_answer`, the exported `student_score` reflects the
+learner response while `case_quality_score` keeps the reference exercise score.
+Bundled cases also carry a 2026 French mathematics-program coverage matrix at
+top-level domain granularity for the 2026-2027 rollout, with at least two
+exercises required per declared curriculum id.
+Classroom batches export anonymized teacher artifacts: progress, heatmap,
+needs-attention, curriculum-level CSV files, and a printable teacher summary.
 
 ## Installed Project
 
@@ -37,19 +49,38 @@ a locally built wheel.
 
 Select `tescia_diagnostic_project`, open `ORCHESTRATE`, then run `INSTALL` and
 `EXECUTE` with bundled cases. Inspect the exported reports under `ANALYSIS` or
-the project output directory.
+the project output directory. The argument form includes the student-answer JSON
+contract used for self-evaluation.
+For a classroom batch, select `Bundled classroom sample` in ORCHESTRATE, or
+place a `agilab.tescia_diagnostic.classroom.v1` JSON file in the input
+directory and set the file glob to that payload.
 
 ## Expected Inputs
 
-The default input is a bundled JSON case file. Optional local-AI generation
-requires a configured local endpoint and fails closed if the generated JSON does
-not match the expected schema.
+The default input is a bundled JSON case file with exercise metadata. Optional
+local-AI generation requires a configured local endpoint and fails closed if the
+generated JSON does not match the expected schema. Student submissions can be
+added through a `student_answer` object in the case JSON. Mathematics cases can
+also include `curriculum_ids`; unknown ids are rejected by the coverage helper.
+Classroom submission files contain `classroom` metadata plus a `submissions`
+list of `student_id`, `case_id`, and answer objects. Student ids are anonymized
+by default in teacher artifacts.
 
 ## Expected Outputs
 
 The app writes diagnostic reports, summary CSV files, reducer summaries, and a
 `student_score` field that records whether the diagnosis, better fix, and
-regression plan are supported by evidence.
+regression plan are supported by evidence. With a submitted answer, the report
+also exports a score band and targeted feedback for missing evidence, fix, or
+regression-test selections.
+The worker also writes printable correction sheets and
+`math_program_2026_coverage.json` so a catalog can prove whether every declared
+2026 top-level mathematics curriculum id meets the minimum exercise count.
+For classroom batches it also writes `classroom/classroom_run_report.json`,
+`classroom_teacher_summary.md`, `classroom_progress.csv`,
+`classroom_heatmap.csv`, and `classroom_needs_attention.csv`. The ANALYSIS
+classroom tab reads the latest run artifact when present, falls back to the
+bundled preview otherwise, and includes manual plus optional live refresh.
 
 ## Change One Thing
 
@@ -57,8 +88,19 @@ Add one diagnostic case with a deliberately weak proposed fix and two candidate
 regression tests. The app should keep the stronger fix only when the evidence
 and tests support it.
 
+For mathematics-program coverage, add or remove a `curriculum_ids` entry and
+run the focused TeSciA tests. Missing required ids, undercovered ids, and
+invented ids fail the coverage contract.
+
+For classroom mode, add a second submission for the same exercise with a
+different `student_id`; the exported heatmap should add a new row without
+changing the exercise definition.
+
 ## Scope
 
 This is a repeatable diagnostic example. It does not execute remediation
 commands, replace incident management, or silently trust model-generated
 content.
+
+The mathematics-program coverage is a domain-level audit contract, not a full
+official exercise bank.
