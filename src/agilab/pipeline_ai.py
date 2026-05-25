@@ -772,6 +772,51 @@ def _call_selected_provider(
     return chat_online(question, prompt, envars, **kwargs)
 
 
+def _selected_provider_id(envars: Dict[str, str]) -> str:
+    provider = (
+        st.session_state.get("lab_llm_provider")
+        or envars.get("LAB_LLM_PROVIDER")
+        or os.getenv("LAB_LLM_PROVIDER")
+        or "openai"
+    )
+    return str(provider)
+
+
+def _provider_requires_openai_sdk(provider: str) -> bool:
+    return provider in {"openai", OPENAI_COMPAT_PROVIDER}
+
+
+def _openai_sdk_missing_detail(provider: str) -> str | None:
+    if not _provider_requires_openai_sdk(provider):
+        return None
+    if importlib.util.find_spec("openai") is not None:
+        return None
+    provider_label = "OpenAI-compatible" if provider == OPENAI_COMPAT_PROVIDER else "OpenAI"
+    return (
+        f"{provider_label} generation is unavailable because the optional AI dependency is not installed. "
+        "Install `agilab[ai]` or switch the Assistant engine to a local/offline provider."
+    )
+
+
+def _generation_failure_response(
+    df_file: Path,
+    question: str,
+    detail: str,
+    *,
+    mode: str,
+) -> List[Any]:
+    if mode == GENERATION_MODE_SAFE_ACTIONS:
+        return [
+            df_file,
+            question,
+            "",
+            "",
+            detail,
+            stage_generation_extra_fields(None, mode=mode),
+        ]
+    return [df_file, question, "", "", detail]
+
+
 def _dataframe_for_generated_actions(df_file: Path, load_df_cached: Any = None) -> pd.DataFrame | None:
     df: Any = st.session_state.get("loaded_df")
     if isinstance(df, pd.DataFrame):
@@ -810,15 +855,24 @@ def ask_gpt(
         else GENERATION_MODE_PYTHON_SNIPPET
     )
 
+    provider = _selected_provider_id(envars)
+    missing_sdk_detail = _openai_sdk_missing_detail(provider)
+    if missing_sdk_detail:
+        return _generation_failure_response(df_file, question, missing_sdk_detail, mode=mode)
+
     if mode == GENERATION_MODE_SAFE_ACTIONS:
         df = _dataframe_for_generated_actions(df_file, load_df_cached=load_df_cached)
         contract_question = build_generated_actions_prompt(question, df)
-        result, model_label = _call_selected_provider(
-            contract_question,
-            prompt,
-            envars,
-            system_instructions=GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS,
-        )
+        try:
+            result, model_label = _call_selected_provider(
+                contract_question,
+                prompt,
+                envars,
+                system_instructions=GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS,
+            )
+        except JumpToMain as exc:
+            detail = f"Safe action generation failed: {exc}"
+            return _generation_failure_response(df_file, question, detail, mode=mode)
         model_label = str(model_label or "")
         if not result:
             return [
@@ -862,7 +916,11 @@ def ask_gpt(
         envars=envars,
         df_file=df_file,
     )
-    result, model_label = _call_selected_provider(model_question, prompt, envars)
+    try:
+        result, model_label = _call_selected_provider(model_question, prompt, envars)
+    except JumpToMain as exc:
+        detail = f"Code generation failed: {exc}"
+        return _generation_failure_response(df_file, original_question, detail, mode=mode)
 
     model_label = str(model_label or "")
     if not result:

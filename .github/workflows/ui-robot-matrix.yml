@@ -113,7 +113,7 @@ jobs:
             exit 2
           fi
           set +e
-          uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
+          uv --preview-features extra-build-dependencies run --extra ai --with playwright python tools/agilab_widget_robot_matrix.py \
             "${scenario_args[@]}" \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \

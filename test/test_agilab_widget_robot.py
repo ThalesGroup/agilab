@@ -2276,6 +2276,17 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     assert module.page_result_key("flight_telemetry_project", "WORKFLOW") not in resumed
 
 
+def test_progress_reporter_recreates_parent_directory_on_emit(tmp_path) -> None:
+    module = _load_module()
+    progress_log = tmp_path / "progress" / "robot.ndjson"
+    progress = module.ProgressReporter(progress_log, stderr=False)
+    progress_log.parent.rmdir()
+
+    progress.emit("page_start", app="flight_telemetry_project", page="ORCHESTRATE")
+
+    assert progress_log.is_file()
+
+
 def test_progress_reporter_stderr_and_resume_edge_cases(tmp_path, capsys) -> None:
     module = _load_module()
     progress = module.ProgressReporter(None, stderr=True)

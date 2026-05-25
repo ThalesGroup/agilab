@@ -323,6 +323,11 @@ def classroom_heatmap_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows] if isinstance(rows, list) else []
 
 
+def classroom_intervention_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = report.get("intervention_rows")
+    return [dict(row) for row in rows] if isinstance(rows, list) else []
+
+
 def classroom_submission_template(cases: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
     case_bank = [dict(case) for case in cases] if cases is not None else load_cases()
     submissions = load_classroom_preview_payload()
@@ -655,6 +660,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
         m4.metric("Needs attention", classroom_report["needs_attention_count"])
         st.dataframe(classroom_progress_rows(classroom_report), use_container_width=True, hide_index=True)
         st.dataframe(classroom_heatmap_rows(classroom_report), use_container_width=True, hide_index=True)
+        st.dataframe(classroom_intervention_rows(classroom_report), use_container_width=True, hide_index=True)
         st.download_button(
             "Download teacher summary",
             classroom_report_to_markdown(classroom_report),

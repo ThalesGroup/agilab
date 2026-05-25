@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import sys
 from types import SimpleNamespace
 import tomllib
 
@@ -98,6 +99,25 @@ def _seed_settings_for_form(form_path: Path, tmp_path: Path) -> Path:
     return settings_file
 
 
+def _clear_form_package_modules(form_path: Path) -> None:
+    form_source = str(form_path.parent.resolve())
+    sys.path[:] = [
+        item
+        for item in sys.path
+        if str(Path(item or ".").resolve()) != form_source
+    ]
+    sys.path.insert(0, form_source)
+    package_names = [
+        path.name
+        for path in sorted(form_path.parent.iterdir(), key=lambda item: item.name)
+        if path.is_dir() and (path / "__init__.py").is_file()
+    ]
+    for package_name in package_names:
+        for module_name in list(sys.modules):
+            if module_name == package_name or module_name.startswith(f"{package_name}."):
+                sys.modules.pop(module_name, None)
+
+
 def test_all_app_args_form_files_are_non_empty() -> None:
     empty_forms = [str(path) for path in _app_args_forms() if not path.read_text(encoding="utf-8").strip()]
     assert empty_forms == []
@@ -147,6 +167,7 @@ def test_builtin_app_args_form_renders_without_streamlit_exception(
         target=app_name,
     )
 
+    _clear_form_package_modules(form_path)
     at = AppTest.from_file(str(form_path), default_timeout=30)
     at.session_state["env"] = env
     at.session_state["_env"] = env
