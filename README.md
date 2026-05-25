@@ -43,8 +43,9 @@ AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
 It turns notebooks and scripts into executable, portable, evidence-backed apps
 while preserving a notebook export path.
 That export is an `agi-core` runtime handoff: you can continue to run the saved
-project and stage contract with only the stable core runtime, without depending
-on the AGILAB UI or distributed worker layer.
+project and stage contract with only the stable, production-grade core
+technology, without depending on the AGILAB UI or distributed worker layer.
+The stable core runtime remains the smallest supported handoff surface.
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface. Those apps can run locally or on distributed
 workers, and the workflow stays portable: export it back to an `agi-core`
@@ -457,7 +458,7 @@ They cover project setup, environment management, execution, and result analysis
 The evidence and limits are maintained in the
 [compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html).
-The strategic evidence criteria are tracked in the
+The strategic evidence criteria and strategic score movement rule are tracked in the
 [strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
 ## Read Next
