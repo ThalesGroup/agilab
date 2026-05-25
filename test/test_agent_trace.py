@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -106,6 +107,25 @@ def test_agent_trace_store_reuses_existing_meta_and_auto_initializes(tmp_path: P
 
     assert lazy_event.sequence == 1
     assert lazy_store.meta_path.exists()
+
+
+def test_agent_trace_store_clears_stale_append_lock(tmp_path: Path) -> None:
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="agent-run", agent="codex")
+    store.initialize()
+    lock_path = store.events_path.with_name(store.events_path.name + ".lock")
+    lock_path.write_text('{"host": "stale", "pid": -1}', encoding="utf-8")
+    old_timestamp = 1.0
+    lock_path.touch()
+    lock_path.chmod(0o600)
+
+    os.utime(lock_path, (old_timestamp, old_timestamp))
+
+    event = store.append("session_start", message="after stale lock")
+
+    assert event.sequence == 1
+    assert not lock_path.exists()
+    assert module.load_trace_events(tmp_path)[0].message == "after stale lock"
 
 
 def test_agent_trace_rejects_unknown_events_and_validates_sequence(tmp_path: Path) -> None:
