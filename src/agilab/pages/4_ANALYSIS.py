@@ -2045,8 +2045,8 @@ def _render_analysis_workspace_overview(
             st.info("No output files detected yet.")
 
 
-def _render_analysis_surface_guide() -> None:
-    with st.container(border=True):
+def _render_analysis_surface_guide(*, expanded: bool = False) -> None:
+    with st.expander("How to choose pages and notebooks", expanded=expanded):
         st.markdown("### Choose the analysis surface")
         st.caption(
             "AGI pages and notebooks can both inspect the same project outputs, "
@@ -2622,6 +2622,7 @@ async def main():
                 widget_selection.insert(0, default_view_name)
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
+    selected_views = list(widget_selection)
 
     notebook_lookup = discover_project_notebooks(active_app_path)
     notebook_names = list(notebook_lookup.keys())
@@ -2650,7 +2651,6 @@ async def main():
         selected_notebook_count=len(selected_notebooks),
         available_notebook_count=len(notebook_names),
     )
-    _render_analysis_surface_guide()
 
     with st.expander("Choose analysis views", expanded=False):
         st.caption("Select which views appear in the sidebar launcher for this project.")
@@ -2670,6 +2670,10 @@ async def main():
                 key=notebook_selection_key,
                 help="Selected notebooks are persisted in the active project's app settings.",
             )
+
+    _render_analysis_surface_guide(
+        expanded=not selected_views and not selected_notebooks,
+    )
 
     pages_cfg_for_selection = dict(pages_cfg)
     selected_view_set = set(selected_views)

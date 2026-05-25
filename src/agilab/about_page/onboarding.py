@@ -248,10 +248,7 @@ def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
         {
             "id": "analysis",
             "button": "3. OPEN ANALYSIS",
-            "hint": (
-                "`view_maps`: "
-                f"[Open]({_first_proof_analysis_view_maps_url()})."
-            ),
+            "hint": "Opens ANALYSIS on `view_maps` for the generated evidence.",
         },
     ]
 
@@ -604,10 +601,10 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**First proof: choose one path**")
+    st.markdown("**First proof: built-in demo**")
     st.caption(
-        "Recommended: run the built-in demo. Notebook import is optional: use AGILAB's included "
-        "notebook with no file to find."
+        "Recommended path: run the built-in flight telemetry demo, then inspect the generated "
+        "evidence."
     )
     proof_actions = [
         {
@@ -618,26 +615,17 @@ def _render_first_proof_wizard_actions(
         }
         for step in _first_proof_wizard_steps(state)
     ]
-    columns_spec, columns_width = _first_proof_action_columns_layout(proof_actions)
-    proof_column, separator_column, notebook_column = st.columns(
-        columns_spec,
-        gap="small",
-        vertical_alignment="top",
-        width=columns_width,
-    )
-    with proof_column:
-        for action in proof_actions:
-            _first_proof_link_button(
-                action["button"],
-                _first_proof_action_url(action["id"]),
-                key=f"first_proof:wizard:{action['id']}",
-                button_type=action["type"],
-                disabled=not state["project_available"],
-            )
-            st.caption(action["hint"])
-    with separator_column:
-        st.markdown("or")
-    with notebook_column:
+    for action in proof_actions:
+        _first_proof_link_button(
+            action["button"],
+            _first_proof_action_url(action["id"]),
+            key=f"first_proof:wizard:{action['id']}",
+            button_type=action["type"],
+            disabled=not state["project_available"],
+        )
+        st.caption(action["hint"])
+
+    with st.expander("Notebook-first option", expanded=False):
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         _first_proof_link_button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
@@ -649,14 +637,14 @@ def _render_first_proof_wizard_actions(
         st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
 
-    st.markdown("**Notebook to validated app: full proof**")
-    st.caption(
-        "Use this lane when the starting asset is a notebook and the target is "
-        "a reusable app with a no-lock-in handoff."
-    )
-    st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
-    st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
-    st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
+    with st.expander("Notebook to validated app: full proof", expanded=False):
+        st.caption(
+            "Use this lane when the starting asset is a notebook and the target is "
+            "a reusable app with a no-lock-in handoff."
+        )
+        st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
+        st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
+        st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
 
 
 def _render_first_proof_next_action(

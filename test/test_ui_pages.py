@@ -1318,6 +1318,12 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "code-centric" in markdown_text
     assert "snippet/notebook contract" in markdown_text
     assert "ANALYSIS Jupyter sidecar" in markdown_text
+    expander_labels = [str(item.label) for item in at.expander]
+    assert "Choose analysis views" in expander_labels
+    assert "How to choose pages and notebooks" in expander_labels
+    assert expander_labels.index("Choose analysis views") < expander_labels.index(
+        "How to choose pages and notebooks"
+    )
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text

@@ -213,16 +213,16 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {
-    "": ("AGILAB", "Start here"),
+    "": ("Turn experiments", "First proof: built-in demo"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
     "SETTINGS": ("SETTINGS", "Settings", "Runtime diagnostics", "Environment variables"),
     "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
     "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
-PAGE_MIN_WIDGETS = {"": 2, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
-    "HOME": ("AGILAB", "Start here"),
+    "HOME": ("Turn experiments", "First proof: built-in demo"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
     "SETTINGS": ("SETTINGS", "Runtime diagnostics", "Environment variables"),
     "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
