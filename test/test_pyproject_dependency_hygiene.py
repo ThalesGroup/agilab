@@ -55,6 +55,15 @@ def _has_version_floor(requirement: Requirement) -> bool:
     return any(spec.operator in {">=", "~=", "=="} for spec in requirement.specifier)
 
 
+def _has_upper_bound(requirement: Requirement) -> bool:
+    return any(spec.operator in {"<", "<="} for spec in requirement.specifier)
+
+
+def _is_internal_requirement(requirement: Requirement) -> bool:
+    name = requirement.name.lower().replace("_", "-")
+    return name == "agilab" or name.startswith("agi-")
+
+
 def _requires_python_floor(requires_python: str) -> tuple[int, int] | None:
     floor: tuple[int, int] | None = None
     for specifier in SpecifierSet(requires_python):
@@ -153,6 +162,8 @@ def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
             continue
         if not _has_version_floor(requirement):
             violations.append(f"{requirement}: missing lower bound or compatible version floor")
+        if not _has_upper_bound(requirement):
+            violations.append(f"{requirement}: missing upper bound")
 
     assert violations == []
 
@@ -275,6 +286,8 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
             requirement = Requirement(dependency)
             if not _has_version_floor(requirement):
                 violations.append(f"{extra_name}: {requirement}")
+            if not _is_internal_requirement(requirement) and not _has_upper_bound(requirement):
+                violations.append(f"{extra_name}: {requirement} missing upper bound")
 
     assert violations == []
 
@@ -558,5 +571,53 @@ def test_shared_core_third_party_dependencies_avoid_exact_runtime_pins() -> None
                 continue
             if any(spec.operator == "==" for spec in requirement.specifier):
                 violations.append(f"{relative_path}: {requirement}")
+
+    assert violations == []
+
+
+def test_shared_core_third_party_dependencies_have_bounded_runtime_windows() -> None:
+    pyprojects = [
+        REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml",
+    ]
+
+    violations: list[str] = []
+    for pyproject in pyprojects:
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        for requirement in _dependencies(pyproject):
+            if _is_internal_requirement(requirement):
+                continue
+            if not _has_version_floor(requirement):
+                violations.append(f"{relative_path}: {requirement} missing lower bound")
+            if not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} missing upper bound")
+
+    assert violations == []
+
+
+def test_stale_or_component_ui_dependencies_are_bounded() -> None:
+    checked = {
+        "src/agilab/lib/agi-gui/pyproject.toml": {"streamlit_code_editor", "watchdog"},
+        "src/agilab/apps-pages/view_barycentric/pyproject.toml": {"barviz", "scikit-learn", "sqlalchemy"},
+        "src/agilab/apps-pages/view_autoencoder_latentspace/pyproject.toml": {
+            "barviz",
+            "keras",
+            "scikit-learn",
+            "sqlalchemy",
+        },
+    }
+
+    violations: list[str] = []
+    for relative_path, requirement_names in checked.items():
+        requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / relative_path)}
+        missing = requirement_names - set(requirements)
+        if missing:
+            violations.append(f"{relative_path}: missing expected dependencies {sorted(missing)}")
+            continue
+        for requirement_name in sorted(requirement_names):
+            requirement = requirements[requirement_name]
+            if not _has_version_floor(requirement) or not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} must have lower and upper bounds")
 
     assert violations == []
