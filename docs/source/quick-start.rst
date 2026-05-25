@@ -327,11 +327,12 @@ page bundles without the full UI profile, ``agilab[ai]`` for AI assistant
 features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
 ``agilab[agents]`` for the packaged agent workflow client dependencies,
 ``agilab[examples]`` for notebook/demo helper dependencies, ``agilab[mlflow]``
-for tracking, ``agilab[local-llm]`` for local model helpers,
-``agilab[viz]`` for optional Plotly/matplotlib visualizations, and
+for tracking, ``agilab[proof]`` for detached proof-capsule signatures,
+``agilab[local-llm]`` for local model helpers, ``agilab[viz]`` for optional
+Plotly/matplotlib visualizations, and
 ``agilab[dev]`` for contributor-only test/build tooling::
 
-    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,local-llm]"
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,proof,local-llm]"
 
 **agi-core demo**:
 
