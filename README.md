@@ -82,16 +82,26 @@ stage order, runtime hints, and review context remain usable through the stable,
 core runtime if the AGILAB UI or distributed runtime is no
 longer the right interface for that work.
 
-Start with the public browser preview or the demo chooser:
+## Demo Routes
 
-- [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
-- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
-- [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html)
-- [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
-- [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview)
-- [Local quick start](#quick-start)
-- [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
-- [50-star promotion kit](PROMOTE.md)
+Start with the route that matches the proof you want to show:
+
+| Goal | Demo route | What it proves |
+|---|---|---|
+| Try AGILAB in the browser | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | Hosted `PROJECT` -> `ORCHESTRATE` -> `WORKFLOW` -> `ANALYSIS` path. |
+| Choose by objective | [Demo chooser](https://thalesgroup.github.io/agilab/demos.html) | Public router for notebook, UI, proof-pack, and performance demos. |
+| Stay notebook-first | [agi-core notebook demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html) | Small `AgiEnv` / `AGI.run(...)` runtime path before the web UI. |
+| Migrate a notebook into an app | [Weather notebook migration](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | Notebook stages, `lab_stages.toml`, artifacts, and reusable analysis views. |
+| Keep Excel as the front end | [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html) | Workbook inputs plus CSV and JSON evidence without an Office add-in. |
+| Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
+| Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
+| Explore an opt-in app | [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with loss-landscape analysis. |
+| Go deeper after first proof | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decision, execution playground, UAV queue, service, MLflow, and release-proof routes. |
+
+Use the [local quick start](#quick-start) when you want to run the product
+locally, the [demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
+when preparing screenshots or video, and the [50-star promotion kit](PROMOTE.md)
+when sharing the project publicly.
 
 If AGILAB helps you make AI/ML experiments reproducible, please star the
 repository so other engineers can find it.
