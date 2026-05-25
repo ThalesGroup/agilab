@@ -3,6 +3,10 @@ name: pypi-pending-trusted-publisher
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Runner label for this workflow. Use ubuntu-latest or self-hosted."
+        required: false
+        default: "ubuntu-latest"
       project_name:
         description: "PyPI project name to be created by the next trusted publish."
         required: true
@@ -28,7 +32,7 @@ permissions:
 
 jobs:
   register:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,7 +64,7 @@ jobs:
             --environment "${{ inputs.pypi_environment }}" \
             --github-confirm-login-repository "$GITHUB_REPOSITORY" \
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
-            --github-confirm-login-timeout 180 \
+            --github-confirm-login-timeout 900 \
             --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}" \
             --json \
             --github-step-summary "$GITHUB_STEP_SUMMARY"

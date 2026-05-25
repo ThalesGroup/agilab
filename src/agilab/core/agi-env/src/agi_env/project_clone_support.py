@@ -15,7 +15,7 @@ from pathspec.gitignore import GitIgnoreSpec
 from .app_provider_registry import aliased_app_runtime_target
 
 try:
-    from pathlib import UnsupportedOperation
+    from pathlib import UnsupportedOperation  # ty: ignore[unresolved-import]
 except ImportError:
     from io import UnsupportedOperation
 

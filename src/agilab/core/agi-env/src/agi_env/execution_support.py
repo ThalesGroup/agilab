@@ -195,7 +195,7 @@ async def run(
     verbose: int = 0,
     logger: Any = None,
     build_env_fn: Callable[[Path | str | None], dict[str, str]] | None = None,
-) -> str | int:
+) -> str | int:  # ty: ignore[invalid-return-type]
     """Run a shell command and stream output in real time."""
 
     if verbose > 0:
@@ -296,7 +296,7 @@ async def run_bg(
     if env_override:
         process_env.update(env_override)
 
-    cmd = inject_uv_preview_flag(cmd)
+    cmd = inject_uv_preview_flag(cmd)  # ty: ignore[invalid-assignment]
     result: list[str] = []
 
     proc = await _spawn_process(
@@ -324,7 +324,7 @@ async def run_bg(
 
     if returncode != 0:
         _raise_nonzero_process_result(
-            returncode=returncode,
+            returncode=returncode,  # ty: ignore[invalid-argument-type]
             cmd=cmd,
             logger=logger,
             simple_message=True,
@@ -364,7 +364,7 @@ async def run_async(
     proc = None
     try:
         proc = await _spawn_process(
-            cmd=cmd,
+            cmd=cmd,  # ty: ignore[invalid-argument-type]
             cwd=cwd,
             process_env=process_env,
             shell_executable=shell_executable,
@@ -388,11 +388,11 @@ async def run_async(
             command_context=f"Error during: {cmd}",
         )
 
-    rc = proc.returncode
+    rc = proc.returncode  # ty: ignore[unresolved-attribute]
     if rc != 0:
         _raise_nonzero_process_result(
-            returncode=rc,
-            cmd=cmd,
+            returncode=rc,  # ty: ignore[invalid-argument-type]
+            cmd=cmd,  # ty: ignore[invalid-argument-type]
             logger=logger,
             result=result,
         )

@@ -183,7 +183,7 @@ def _optional_agi_pages_bundles_root() -> Path | None:
     if importlib.util.find_spec("agi_pages") is None:
         return None
     try:
-        import agi_pages  # type: ignore
+        import agi_pages
     except (ImportError, AttributeError, TypeError, OSError):
         return None
     bundles_root = getattr(agi_pages, "bundles_root", None)
@@ -209,7 +209,7 @@ def _resolve_worker_hook(filename: str) -> Path | None:
     return resolve_worker_hook(filename, module_file=__file__)
 
 
-_resolve_worker_hook.cache_clear = resolve_worker_hook.cache_clear  # type: ignore[attr-defined]
+_resolve_worker_hook.cache_clear = resolve_worker_hook.cache_clear  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str) -> tuple[Path, bool]:
@@ -377,7 +377,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.resources_path = home_abs / self._agi_resources.name
         env_path = self.resources_path / ".env"
         self.benchmark = self.resources_path / "benchmark.json"
-        self.envars = _load_dotenv_values(env_path, verbose=verbose)
+        self.envars = _load_dotenv_values(env_path, verbose=verbose)  # ty: ignore[invalid-argument-type]
         logger.debug(f"env path: {env_path}")
         envars = self.envars
         repo_agilab_dir = Path(__file__).resolve().parents[4]
@@ -593,21 +593,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.user = "agi"
             return
 
-        if self.worker_path.exists():
+        if self.worker_path.exists():  # ty: ignore[unresolved-attribute]
             self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
-                self.worker_path, self.target_worker_class
+                self.worker_path, self.target_worker_class  # ty: ignore[unresolved-attribute]
             )
         else:
             self.base_worker_cls, self._base_worker_module = (None, None)
             # In packaged end‑user environments, worker sources may be absent by design.
             # Proceed without exiting; the installer will materialize required files under wenv.
             if (not self.is_source_env) and (not self.is_worker_env):
-                AgiEnv.logger.debug(
-                    f"Missing {self.target_worker_class} definition; expected {self.worker_path} (packaged end-user env)"
+                AgiEnv.logger.debug(  # ty: ignore[unresolved-attribute]
+                    f"Missing {self.target_worker_class} definition; expected {self.worker_path} (packaged end-user env)"  # ty: ignore[unresolved-attribute]
                 )
             else:
-                AgiEnv.logger.info(
-                    f"Missing {self.target_worker_class} definition; expected {self.worker_path}"
+                AgiEnv.logger.info(  # ty: ignore[unresolved-attribute]
+                    f"Missing {self.target_worker_class} definition; expected {self.worker_path}"  # ty: ignore[unresolved-attribute]
                 )
 
         envars = self.envars
@@ -619,9 +619,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
         self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
 
-        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path)
+        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path)  # ty: ignore[invalid-argument-type]
         if not self.projects:
-            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")
+            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")  # ty: ignore[unresolved-attribute]
 
         self.setup_app = self.active_app / "build.py"
         self.setup_app_module = "agi_node.agi_dispatcher.build"
@@ -665,14 +665,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 try:
                     self.unzip_data(Path(dataset_archive), self.app_data_rel, force_extract=True)
                 except (OSError, RuntimeError, ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
-                    AgiEnv.logger.warning(
+                    AgiEnv.logger.warning(  # ty: ignore[unresolved-attribute]
                         "Failed to extract packaged dataset %s: %s",
                         dataset_archive,
                         exc,
                     )
 
-        _ensure_dir(self.app_src)
-        app_src_str = str(self.app_src)
+        _ensure_dir(self.app_src)  # ty: ignore[unresolved-attribute]
+        app_src_str = str(self.app_src)  # ty: ignore[unresolved-attribute]
         if app_src_str not in sys.path:
             sys.path.append(app_src_str)
 
@@ -716,9 +716,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             node_pck=self.node_pck,
             core_pck=self.core_pck,
             cluster_pck=self.cluster_pck,
-            dist_abs=self.dist_abs,
-            app_src=self.app_src,
-            wenv_abs=self.wenv_abs,
+            dist_abs=self.dist_abs,  # ty: ignore[unresolved-attribute]
+            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
+            wenv_abs=self.wenv_abs,  # ty: ignore[unresolved-attribute]
             agilab_pck=self.agilab_pck,
             dedupe_paths_fn=self._dedupe_paths,
         )
@@ -792,7 +792,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def set_env_var(key: str, value: str):
         """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file."""
         AgiEnv._ensure_defaults()
-        AgiEnv.envars[key] = value
+        AgiEnv.envars[key] = value  # ty: ignore[invalid-assignment]
         os.environ[key] = str(value)
         AgiEnv._update_env_file({key: value})
 
@@ -845,7 +845,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 cls.resources_path = Path(".agilab").resolve()
         if getattr(cls, "envars", None) is None or not isinstance(cls.envars, dict):
             try:
-                env_path = cls.resources_path / ".env"
+                env_path = cls.resources_path / ".env"  # ty: ignore[unsupported-operator]
                 cls.envars = _load_dotenv_values(env_path, verbose=False)
             except (OSError, RuntimeError, TypeError, ValueError):
                 cls.envars = {}
@@ -887,14 +887,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _update_env_file(updates: dict):
         AgiEnv._ensure_defaults()
-        env_file = AgiEnv.resources_path / ".env"
+        env_file = AgiEnv.resources_path / ".env"  # ty: ignore[unsupported-operator]
         write_env_updates(env_file, updates)
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""
 
         src_env_path = resources_src / ".env"
-        dest_env_file = self.resources_path / ".env"
+        dest_env_file = self.resources_path / ".env"  # ty: ignore[unsupported-operator]
         if not dest_env_file.exists():
             _ensure_dir(dest_env_file.parent)
             shutil.copy(src_env_path, dest_env_file)
@@ -902,7 +902,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             for file in files:
                 src_file = Path(root) / file
                 relative_path = src_file.relative_to(resources_src)
-                dest_file = self.resources_path / relative_path
+                dest_file = self.resources_path / relative_path  # ty: ignore[unsupported-operator]
                 _ensure_dir(dest_file.parent)
                 if not dest_file.exists():
                     shutil.copy(src_file, dest_file)
@@ -917,18 +917,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not self.is_source_env:
             for extra in extras:
                 src_extra = self.st_resources / extra
-                dest_extra = self.resources_path / extra
+                dest_extra = self.resources_path / extra  # ty: ignore[unsupported-operator]
                 if src_extra.exists() and not dest_extra.exists():
                     _ensure_dir(dest_extra.parent)
                     shutil.copy(src_extra, dest_extra)
         else:
             for extra in extras:
-                dest_extra = self.resources_path / extra
+                dest_extra = self.resources_path / extra  # ty: ignore[unsupported-operator]
                 try:
                     if dest_extra.exists():
                         dest_extra.unlink()
                 except OSError:
-                    AgiEnv.logger.warning(f"Could not remove legacy resource {dest_extra}")
+                    AgiEnv.logger.warning(f"Could not remove legacy resource {dest_extra}")  # ty: ignore[unresolved-attribute]
 
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""
@@ -936,7 +936,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if self.apps_repository_root is None:
             self.apps_repository_root = self._get_apps_repository_root()
 
-        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path, self.apps_repository_root)
+        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path, self.apps_repository_root)  # ty: ignore[invalid-argument-type]
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
                 self.app = self.apps_path / project
@@ -963,11 +963,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 if project_path.is_symlink() and not project_path.exists():
                     try:
                         project_path.unlink()
-                        AgiEnv.logger.info(
+                        AgiEnv.logger.info(  # ty: ignore[unresolved-attribute]
                             f"Removed dangling project symlink: {project_path}"
                         )
                     except OSError as exc:
-                        AgiEnv.logger.warning(
+                        AgiEnv.logger.warning(  # ty: ignore[unresolved-attribute]
                             f"Failed to remove dangling project symlink {project_path}: {exc}"
                         )
                     continue
@@ -1019,7 +1019,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if not link_root:
             return False
 
-        candidate = link_root / self.app
+        candidate = link_root / self.app  # ty: ignore[unsupported-operator]
         if not candidate.exists():
             return False
 
@@ -1032,7 +1032,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if not AgiEnv.create_symlink(candidate, dest):
             return False
-        AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
+        AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)  # ty: ignore[unresolved-attribute]
         return True
 
     @staticmethod
@@ -1050,7 +1050,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return app_settings_source_roots(
             target_app=app_name or self.app,
             current_app=self.app,
-            app_src=self.app_src,
+            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
             active_app=self.active_app,
             apps_path=self.apps_path,
             builtin_apps_path=self.builtin_apps_path,
@@ -1064,7 +1064,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return find_versioned_app_settings_file(
             target_app=app_name or self.app,
             current_app=self.app,
-            app_src=self.app_src,
+            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
             active_app=self.active_app,
             apps_path=self.apps_path,
             builtin_apps_path=self.builtin_apps_path,
@@ -1086,7 +1086,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """
         return resolve_workspace_app_settings_file(
             target_app=app_name or self.app or self.target,
-            resources_path=self.resources_path,
+            resources_path=self.resources_path,  # ty: ignore[invalid-argument-type]
             ensure_exists=ensure_exists,
             find_source_file=self.find_source_app_settings_file,
         )
@@ -1101,7 +1101,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def mode2str(self, mode):
         """Encode a bitmask ``mode`` into readable ``pcdr`` flag form."""
-        return mode_to_str(mode, hw_rapids_capable=self.hw_rapids_capable)
+        return mode_to_str(mode, hw_rapids_capable=self.hw_rapids_capable)  # ty: ignore[invalid-argument-type]
 
     @staticmethod
     def mode2int(mode):
@@ -1139,7 +1139,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.AGILAB_LOG_ABS = log_connector.path
         runenv_base = self.AGILAB_LOG_ABS / "execute"
         _ensure_dir(runenv_base)
-        self.runenv = runenv_base / self.target
+        self.runenv = runenv_base / self.target  # ty: ignore[unsupported-operator]
         _ensure_dir(self.runenv)
         export_connector = resolve_connector_root(
             self,
@@ -1184,7 +1184,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         self.AGILAB_PAGES_ABS = pages_root
         if not self.AGILAB_PAGES_ABS.exists():
-            AgiEnv.logger.info(f"AGILAB_PAGES_ABS missing: {self.AGILAB_PAGES_ABS}")
+            AgiEnv.logger.info(f"AGILAB_PAGES_ABS missing: {self.AGILAB_PAGES_ABS}")  # ty: ignore[unresolved-attribute]
         self.copilot_file = self.agilab_pck / "agi_codex.py"
 
 
@@ -1228,11 +1228,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
 
     def _init_apps(self):
-        app_settings_source_file = self.find_source_app_settings_file() or (self.app_src / "app_settings.toml")
+        app_settings_source_file = self.find_source_app_settings_file() or (self.app_src / "app_settings.toml")  # ty: ignore[unresolved-attribute]
         self.app_settings_source_file = app_settings_source_file
         self.app_settings_file = self.resolve_user_app_settings_file()
 
-        app_args_form = self.app_src / "app_args_form.py"
+        app_args_form = self.app_src / "app_args_form.py"  # ty: ignore[unresolved-attribute]
         app_args_form.touch(exist_ok=True)
         self.app_args_form = app_args_form
 
@@ -1240,11 +1240,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         dest = self.resources_path
         src = self.agilab_pck / "resources"
         if src.exists():
-            dest.mkdir(parents=True, exist_ok=True)
+            dest.mkdir(parents=True, exist_ok=True)  # ty: ignore[unresolved-attribute]
             for file in src.iterdir():
                 if not file.is_file():
                     continue
-                dest_file = dest / file.name
+                dest_file = dest / file.name  # ty: ignore[unsupported-operator]
                 if dest_file.exists():
                     continue
                 shutil.copy(file, dest_file)
@@ -1308,7 +1308,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             build_env_fn=AgiEnv._build_env,
         )
 
-    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):
+    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):  # ty: ignore[invalid-parameter-default]
         """Asynchronous version of run_agi for use within an async context."""
         return await run_agi_snippet(
             code=code,
@@ -1448,7 +1448,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             bool: True if admin, False otherwise.
         """
         try:
-            return ctypes.windll.shell32.IsUserAnAdmin()
+            return ctypes.windll.shell32.IsUserAnAdmin()  # ty: ignore[unresolved-attribute]
         except (AttributeError, OSError, RuntimeError):
             return False
 
@@ -1484,7 +1484,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             dest (Path): Destination symlink path.
         """
         # Define necessary Windows API functions and constants
-        CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW
+        CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW  # ty: ignore[unresolved-attribute]
         CreateSymbolicLink.restype = wintypes.BOOL
         CreateSymbolicLink.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
 
@@ -1507,7 +1507,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             if logger:
                 logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
         else:
-            error_code = ctypes.GetLastError()
+            error_code = ctypes.GetLastError()  # ty: ignore[unresolved-attribute]
             logger = AgiEnv.logger
             if logger:
                 logger.info(
@@ -1523,7 +1523,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         clone_app_project(
             target_project,
             dest_project,
-            apps_path=self.apps_path,
+            apps_path=self.apps_path,  # ty: ignore[invalid-argument-type]
             home_abs=self.home_abs,
             projects=self.projects,
             logger=AgiEnv.logger,
@@ -1567,7 +1567,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def unzip_data(
         self,
         archive_path: Path,
-        extract_to: Path | str = None,
+        extract_to: Path | str = None,  # ty: ignore[invalid-parameter-default]
         *,
         force_extract: bool = False,
     ):
@@ -1584,22 +1584,22 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             ensure_dir_fn=_ensure_dir,
             sevenzip_file_cls=py7zr.SevenZipFile,
             rmtree_fn=shutil.rmtree,
-            environ=os.environ,
+            environ=os.environ,  # ty: ignore[invalid-argument-type]
         )
 
 
     @staticmethod
     def check_internet():
-        AgiEnv.logger.info("Checking internet connectivity...")
+        AgiEnv.logger.info("Checking internet connectivity...")  # ty: ignore[unresolved-attribute]
         try:
             # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass  # Success if no exception
         except OSError:
-            AgiEnv.logger.error("No internet connection detected. Aborting.")
+            AgiEnv.logger.error("No internet connection detected. Aborting.")  # ty: ignore[unresolved-attribute]
             return False
-        AgiEnv.logger.info("Internet connection is OK.")
+        AgiEnv.logger.info("Internet connection is OK.")  # ty: ignore[unresolved-attribute]
         return True
 
 

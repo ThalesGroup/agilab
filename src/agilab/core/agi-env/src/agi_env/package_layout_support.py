@@ -37,7 +37,7 @@ def resolve_agilab_package_context(
 
     agilab_spec = find_spec_fn("agilab")
     if agilab_spec and getattr(agilab_spec, "origin", None):
-        package_dir = path_cls(agilab_spec.origin).resolve().parent
+        package_dir = path_cls(agilab_spec.origin).resolve().parent  # ty: ignore[invalid-argument-type]
     else:
         package_dir = repo_agilab_dir
     package_dir = package_dir.resolve()
@@ -92,7 +92,7 @@ def resolve_package_layout(
         cli_spec = find_spec_fn("agi_cluster.agi_distributor.cli")
     except ModuleNotFoundError:
         cli_spec = None
-    cli = path_cls(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else cluster_pck / "agi_distributor/cli.py"
+    cli = path_cls(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else cluster_pck / "agi_distributor/cli.py"  # ty: ignore[invalid-argument-type]
 
     return PackageLayout(
         agilab_pck=installed_package_dir,

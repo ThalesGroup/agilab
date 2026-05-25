@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
 try:
-    from pathlib import UnsupportedOperation
+    from pathlib import UnsupportedOperation  # ty: ignore[unresolved-import]
 except ImportError:
     from io import UnsupportedOperation
 

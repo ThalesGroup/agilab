@@ -119,6 +119,19 @@ def test_expand_repo_globs_preserves_unmatched_patterns() -> None:
     assert "missing-ui-robot-*.py" in expanded
 
 
+def test_ty_typing_profile_omits_missing_optional_stubs(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    command = module._shared_core_ty_typing_profile()[0]
+
+    assert command.label == "shared-core strict ty typing"
+    assert "--error-on-warning" in command.argv
+    assert "--warn" not in command.argv
+    assert "stubs" not in _option_values(command.argv, "--extra-search-path")
+    assert "stubs" not in command.argv
+
+
 def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     module = _load_module()
     args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
@@ -141,6 +154,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     docs = docs_commands[2]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
+    descriptions = module._profile_descriptions()
+    assert "temporary strict mypy release guard" in descriptions["shared-core-typing"]
+    assert "forward shared-core strict ty" in descriptions["ty-typing"]
     dependency_policy = profiles["dependency-policy"][0]
     release_proof = profiles["release-proof"][0]
     security_adoption = profiles["security-adoption"][0]

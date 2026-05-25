@@ -36,7 +36,7 @@ def get_functions_and_attributes(
 
     for node in ast.walk(tree):
         for child in ast.iter_child_nodes(node):
-            child.parent = node  # type: ignore[attr-defined]
+            child.parent = node  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     function_names: list[str] = []
     attribute_names: list[str] = []

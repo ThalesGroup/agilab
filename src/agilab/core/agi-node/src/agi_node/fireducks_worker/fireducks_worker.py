@@ -23,10 +23,10 @@ from typing import Any
 import pandas as pd
 
 try:  # pragma: no cover - optional dependency
-    import fireducks  # noqa: F401
+    import fireducks  # noqa: F401  # ty: ignore[unresolved-import]
     _HAS_FIREDUCKS = True
 except ImportError:  # pragma: no cover - optional dependency
-    fireducks = None  # type: ignore
+    fireducks = None
     _HAS_FIREDUCKS = False
 
 from agi_node.agi_dispatcher import BaseWorker
@@ -79,7 +79,7 @@ class FireducksWorker(BaseWorker):
     def work_pool(self, x: Any = None) -> pd.DataFrame:
         """Execute a single task and return a pandas DataFrame."""
         logger.info("fireducks.work_pool")
-        result = self._actual_work_pool(x)
+        result = self._actual_work_pool(x)  # ty: ignore[unresolved-attribute]
         df = self._ensure_pandas(result)
         return df if df is not None else pd.DataFrame()
 
@@ -88,14 +88,14 @@ class FireducksWorker(BaseWorker):
         df_pd = self._ensure_pandas(df)
         if df_pd is None:
             df_pd = pd.DataFrame()
-        PandasWorker.work_done(self, df_pd)
+        PandasWorker.work_done(self, df_pd)  # ty: ignore[invalid-argument-type]
 
     # Reuse PandasWorker orchestration so FireducksWorker mirrors BaseWorker direct subclasses.
     def works(self, workers_plan: Any, workers_plan_metadata: Any) -> float:  # type: ignore[override]
-        return PandasWorker.works(self, workers_plan, workers_plan_metadata)
+        return PandasWorker.works(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]
 
     def _exec_multi_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
-        PandasWorker._exec_multi_process(self, workers_plan, workers_plan_metadata)
+        PandasWorker._exec_multi_process(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]
 
     def _exec_mono_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
-        PandasWorker._exec_mono_process(self, workers_plan, workers_plan_metadata)
+        PandasWorker._exec_mono_process(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]

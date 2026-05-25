@@ -56,7 +56,7 @@ class PandasWorker(BaseWorker):
         args (dict): Configuration arguments for the worker.
     """
 
-    def work_pool(self, x: any = None) -> pd.DataFrame:
+    def work_pool(self, x: any = None) -> pd.DataFrame:  # ty: ignore[invalid-type-form]
         """
         Processes a single task.
 
@@ -70,9 +70,9 @@ class PandasWorker(BaseWorker):
 
         # Call the actual work_pool method, which should return a pandas DataFrame.
         # Ensure that the original _actual_work_pool method is refactored accordingly.
-        return self._actual_work_pool(x)
+        return self._actual_work_pool(x)  # ty: ignore[unresolved-attribute]
 
-    def work_done(self, df: pd.DataFrame = None) -> None:
+    def work_done(self, df: pd.DataFrame = None) -> None:  # ty: ignore[invalid-parameter-default]
         """
         Handles the post-processing of the DataFrame after `work_pool` execution.
 
@@ -98,7 +98,7 @@ class PandasWorker(BaseWorker):
         else:
             raise ValueError("Unsupported output format")
 
-    def works(self, workers_plan: any, workers_plan_metadata: any) -> float:
+    def works(self, workers_plan: any, workers_plan_metadata: any) -> float:  # ty: ignore[invalid-type-form]
         """
         Executes worker tasks based on the distribution tree.
 
@@ -110,7 +110,7 @@ class PandasWorker(BaseWorker):
             float: Execution time in seconds.
         """
         if workers_plan:
-            if self._mode & 4:
+            if self._mode & 4:  # ty: ignore[unsupported-operator]
                 self._exec_multi_process(workers_plan, workers_plan_metadata)
             else:
                 self._exec_mono_process(workers_plan, workers_plan_metadata)
@@ -121,7 +121,7 @@ class PandasWorker(BaseWorker):
             BaseWorker._t0 = time.time()
         return time.time() - BaseWorker._t0
 
-    def _exec_multi_process(self, workers_plan: any, workers_plan_metadata: any) -> None:
+    def _exec_multi_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
         Executes tasks in multiprocessing mode.
 
@@ -133,7 +133,7 @@ class PandasWorker(BaseWorker):
         if isinstance(workers_plan, list):
             for i in workers_plan[self._worker_id]:
                 works += i
-            ncore = max(min(len(works), int(os.cpu_count())), 1)
+            ncore = max(min(len(works), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
         else:
             ncore = 1
 
@@ -142,11 +142,11 @@ class PandasWorker(BaseWorker):
             f" - work_pool x {len(works)}",
         )
 
-        self.work_init()
+        self.work_init()  # ty: ignore[unresolved-attribute]
         for work_id, work in enumerate(workers_plan[self._worker_id]):
             list_df = []
             df = pd.DataFrame()
-            ncore = max(min(len(work), int(os.cpu_count())), 1)
+            ncore = max(min(len(work), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
 
             if os.name == "nt":
                 process_factory_type = "spawn"
@@ -159,8 +159,8 @@ class PandasWorker(BaseWorker):
             with ProcessPoolExecutor(
                 # mp_context=mp_ctx,
                 max_workers=ncore,
-                initializer=self.pool_init,
-                initargs=(self.pool_vars,),
+                initializer=self.pool_init,  # ty: ignore[unresolved-attribute]
+                initargs=(self.pool_vars,),  # ty: ignore[unresolved-attribute]
             ) as exec:
                 dfs = exec.map(self.work_pool, work)
 
@@ -178,7 +178,7 @@ class PandasWorker(BaseWorker):
 
             self.work_done(df if not df.empty else pd.DataFrame())
 
-    def _exec_mono_process(self, workers_plan: any, workers_plan_metadata: any) -> None:
+    def _exec_mono_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
         Executes tasks in single-threaded mode.
 
@@ -186,7 +186,7 @@ class PandasWorker(BaseWorker):
             workers_plan (any): Distribution tree structure.
             workers_plan_metadata (any): Additional information about the workers.
         """
-        self.work_init()
+        self.work_init()  # ty: ignore[unresolved-attribute]
         for work_id, work in enumerate(workers_plan[self._worker_id]):
             list_df = []
             df = pd.DataFrame()

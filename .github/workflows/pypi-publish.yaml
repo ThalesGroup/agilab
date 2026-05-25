@@ -76,6 +76,7 @@ jobs:
             --profile ui-frontend-smoke \
             --profile agi-core-combined \
             --profile shared-core-typing \
+            --profile ty-typing \
             --profile dependency-policy \
             --profile release-proof
 
