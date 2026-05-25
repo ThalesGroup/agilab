@@ -45,6 +45,9 @@ _REQUIRED_PAYLOAD_KEYS = (
     "output_formats",
     "time_start",
     "time_end",
+    "speed_kernel_runtimes",
+    "speed_dtype_contracts",
+    "speed_kernel_checksum_m",
 )
 
 
@@ -69,10 +72,13 @@ def _merge_flight_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
     aircraft: set[str] = set()
     output_files: set[str] = set()
     output_formats: set[str] = set()
+    speed_kernel_runtimes: set[str] = set()
+    speed_dtype_contracts: set[str] = set()
     row_count = 0
     speed_count = 0
     speed_sum_m = 0.0
     max_speed_m = 0.0
+    speed_kernel_checksum_m = 0.0
     time_start = ""
     time_end = ""
 
@@ -86,6 +92,9 @@ def _merge_flight_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
         aircraft.update(str(item) for item in payload["aircraft"])
         output_files.update(str(item) for item in payload["output_files"])
         output_formats.update(str(item) for item in payload["output_formats"])
+        speed_kernel_runtimes.update(str(item) for item in payload["speed_kernel_runtimes"])
+        speed_dtype_contracts.update(str(item) for item in payload["speed_dtype_contracts"])
+        speed_kernel_checksum_m += float(payload["speed_kernel_checksum_m"])
         candidate_start = str(payload["time_start"])
         candidate_end = str(payload["time_end"])
         if candidate_start and (not time_start or candidate_start < time_start):
@@ -107,6 +116,9 @@ def _merge_flight_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
         "speed_sum_m": round(speed_sum_m, 3),
         "mean_speed_m": round(speed_sum_m / speed_count, 3) if speed_count else 0.0,
         "max_speed_m": round(max_speed_m, 3),
+        "speed_kernel_runtimes": _sorted_strings(speed_kernel_runtimes),
+        "speed_dtype_contracts": _sorted_strings(speed_dtype_contracts),
+        "speed_kernel_checksum_m": round(speed_kernel_checksum_m, 6),
         "time_start": time_start,
         "time_end": time_end,
     }
@@ -160,6 +172,21 @@ def partial_from_flight_frame(
     speed_values = df["speed"].drop_nulls()
     speed_count = len(speed_values)
     output_file_names = sorted({Path(str(path)).name for path in output_files if str(path)})
+    speed_kernel_runtimes = (
+        _sorted_unique_strings(df["speed_kernel_runtime"])
+        if "speed_kernel_runtime" in df.columns
+        else []
+    )
+    speed_dtype_contracts = (
+        _sorted_unique_strings(df["speed_dtype_contract"])
+        if "speed_dtype_contract" in df.columns
+        else []
+    )
+    speed_kernel_checksums = (
+        df["speed_kernel_checksum_m"].drop_nulls()
+        if "speed_kernel_checksum_m" in df.columns
+        else pl.Series("speed_kernel_checksum_m", [])
+    )
     payload = {
         "flight_run_count": 1,
         "row_count": int(df.height),
@@ -173,6 +200,11 @@ def partial_from_flight_frame(
         "speed_count": speed_count,
         "speed_sum_m": float(speed_values.sum()) if speed_count else 0.0,
         "max_speed_m": float(speed_values.max()) if speed_count else 0.0,
+        "speed_kernel_runtimes": speed_kernel_runtimes,
+        "speed_dtype_contracts": speed_dtype_contracts,
+        "speed_kernel_checksum_m": (
+            float(speed_kernel_checksums.max()) if len(speed_kernel_checksums) else 0.0
+        ),
         "time_start": _timestamp(df["date"].min()),
         "time_end": _timestamp(df["date"].max()),
     }

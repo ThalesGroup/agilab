@@ -176,7 +176,9 @@ def test_copy_cython_worker_lib_prefers_latest_output(tmp_path):
 
 def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_threading: bool = False):
     app_path = tmp_path / "app"
-    app_path.mkdir(parents=True, exist_ok=True)
+    app_src = app_path / "src" / "demo_worker"
+    app_src.mkdir(parents=True, exist_ok=True)
+    (app_src / "demo_worker.py").write_text("VALUE = 1\n", encoding="utf-8")
     wenv_abs = tmp_path / "wenv"
     (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
     worker_pyproject = tmp_path / "worker_pyproject.toml"
@@ -205,6 +207,7 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
         is_source_env=False,
         verbose=0,
         pyvers_worker="3.13",
+        target_worker="demo_worker",
     )
 
 
@@ -241,6 +244,86 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     assert any("pip install agi-env agi-node" in cmd for cmd, _ in commands)
     assert any("bdist_egg" in cmd for cmd, _ in commands)
     assert str(egg_path) in uploads
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_reuses_cached_worker_artifacts(tmp_path):
+    env = _build_env(tmp_path)
+    egg_path = env.wenv_abs / "dist" / "demo.egg"
+    egg_path.write_text("egg", encoding="utf-8")
+    uploads: list[str] = []
+    commands: list[tuple[str, str]] = []
+
+    class _Client:
+        def upload_file(self, path):
+            uploads.append(path)
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = env
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._dask_client = _Client()
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+    first_command_count = len(commands)
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+
+    assert first_command_count > 0
+    assert len(commands) == first_command_count
+    assert uploads == [str(egg_path), str(egg_path)]
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_cache_invalidates_when_source_changes(tmp_path):
+    env = _build_env(tmp_path)
+    egg_path = env.wenv_abs / "dist" / "demo.egg"
+    egg_path.write_text("egg", encoding="utf-8")
+    commands: list[tuple[str, str]] = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = env
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._dask_client = None
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+    first_command_count = len(commands)
+    (env.active_app / "src" / "demo_worker" / "demo_worker.py").write_text("VALUE = 2\n", encoding="utf-8")
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+
+    assert len(commands) > first_command_count
 
 
 @pytest.mark.asyncio

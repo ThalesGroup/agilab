@@ -13,6 +13,8 @@ import traceback
 from datetime import datetime as dt
 from pathlib import Path
 
+import cython
+import numpy as np
 from agi_env import normalize_path
 from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
@@ -25,6 +27,14 @@ logger = AgiLogger.get_logger(__name__)
 import polars as pl
 
 _EARTH_RADIUS_M = 6_371_000.0
+SPEED_DTYPE_CONTRACT = "float64-contiguous"
+SPEED_KERNEL_COLUMN = "speed_kernel_runtime"
+SPEED_DTYPE_COLUMN = "speed_dtype_contract"
+SPEED_KERNEL_CHECKSUM_COLUMN = "speed_kernel_checksum_m"
+
+
+def _kernel_runtime_label() -> str:
+    return "cython" if cython.compiled else "python"
 
 
 def _haversine_distance_m(row) -> float:
@@ -45,6 +55,85 @@ def _haversine_distance_m(row) -> float:
         + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2.0) ** 2
     )
     return 2.0 * _EARTH_RADIUS_M * math.asin(math.sqrt(min(1.0, a)))
+
+
+def _as_contiguous_float64(series: pl.Series) -> np.ndarray:
+    return np.ascontiguousarray(
+        series.cast(pl.Float64, strict=False).fill_null(float("nan")).to_numpy(),
+        dtype=np.float64,
+    )
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def _haversine_distance_kernel(
+    prev_lat_values: cython.double[::1],
+    prev_long_values: cython.double[::1],
+    lat_values: cython.double[::1],
+    long_values: cython.double[::1],
+    distance_out: cython.double[::1],
+) -> cython.double:
+    """Fill distance output through a Cython-friendly typed numeric loop."""
+    n_rows: cython.Py_ssize_t = lat_values.shape[0]
+    row_idx: cython.Py_ssize_t
+    lat1: cython.double = 0.0
+    lon1: cython.double = 0.0
+    lat2: cython.double = 0.0
+    lon2: cython.double = 0.0
+    dlat: cython.double = 0.0
+    dlon: cython.double = 0.0
+    a_value: cython.double = 0.0
+    distance: cython.double = 0.0
+    checksum: cython.double = 0.0
+
+    for row_idx in range(n_rows):
+        lat1 = prev_lat_values[row_idx]
+        lon1 = prev_long_values[row_idx]
+        lat2 = lat_values[row_idx]
+        lon2 = long_values[row_idx]
+
+        if lat1 != lat1 or lon1 != lon1 or lat2 != lat2 or lon2 != lon2:
+            distance = 0.0
+        else:
+            lat1 = math.radians(lat1)
+            lon1 = math.radians(lon1)
+            lat2 = math.radians(lat2)
+            lon2 = math.radians(lon2)
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a_value = (
+                math.sin(dlat / 2.0) ** 2
+                + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2.0) ** 2
+            )
+            if a_value > 1.0:
+                a_value = 1.0
+            distance = 2.0 * _EARTH_RADIUS_M * math.asin(math.sqrt(a_value))
+
+        distance_out[row_idx] = distance
+        checksum += distance
+
+    return checksum
+
+
+def _haversine_distance_series(df: pl.DataFrame) -> tuple[pl.Series, str, str, float]:
+    prev_lat_values = _as_contiguous_float64(df["prev_lat"])
+    prev_long_values = _as_contiguous_float64(df["prev_long"])
+    lat_values = _as_contiguous_float64(df["lat"])
+    long_values = _as_contiguous_float64(df["long"])
+    distance_values = np.empty(len(df), dtype=np.float64)
+    checksum = _haversine_distance_kernel(
+        prev_lat_values,
+        prev_long_values,
+        lat_values,
+        long_values,
+        distance_values,
+    )
+    return (
+        pl.Series(distance_values),
+        _kernel_runtime_label(),
+        SPEED_DTYPE_CONTRACT,
+        float(checksum),
+    )
 
 
 class FlightTelemetryWorker(PolarsWorker):
@@ -76,14 +165,13 @@ class FlightTelemetryWorker(PolarsWorker):
         and add it under the legacy ``speed`` column name used by this demo.
         Assumes that the previous coordinate columns are already present.
         """
+        speed_values, kernel_runtime, dtype_contract, checksum = _haversine_distance_series(df)
         df = df.with_columns(
             [
-                pl.struct(["prev_lat", "prev_long", "lat", "long"])
-                .map_elements(
-                    _haversine_distance_m,
-                    return_dtype=pl.Float64,
-                )
-                .alias(new_column_name),
+                speed_values.alias(new_column_name),
+                pl.lit(kernel_runtime).alias(SPEED_KERNEL_COLUMN),
+                pl.lit(dtype_contract).alias(SPEED_DTYPE_COLUMN),
+                pl.lit(round(checksum, 6)).alias(SPEED_KERNEL_CHECKSUM_COLUMN),
             ]
         )
         return df

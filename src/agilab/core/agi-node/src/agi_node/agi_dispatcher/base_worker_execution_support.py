@@ -387,6 +387,7 @@ def _measure_worker_write_speed(
     os_module: Any,
     open_fn: Callable[..., Any] = open,
     size: int = 10 * 1024 * 1024,
+    settle_seconds: float = 0.0,
 ) -> list[float]:
     file_path = os_module.path.join(path, str(worker).replace(":", "_"))
     start = time_module.time()
@@ -394,7 +395,8 @@ def _measure_worker_write_speed(
         stream.write("\x00" * size)
 
     elapsed = time_module.time() - start
-    time_module.sleep(1)
+    if settle_seconds > 0:
+        time_module.sleep(settle_seconds)
     os_module.remove(file_path)
     return [size / elapsed]
 

@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import shutil
@@ -9,6 +11,9 @@ from agi_env.share_runtime_support import python_supports_free_threading
 
 
 logger = logging.getLogger(__name__)
+BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v1"
+DISABLE_BUILD_CACHE_ENV = "AGILAB_DISABLE_WORKER_BUILD_CACHE"
+BUILD_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
@@ -77,6 +82,178 @@ def _project_uv(env: Any) -> str:
         return str(env.uv)
     cmd_prefix = str(env.envars.get("127.0.0.1_CMD_PREFIX", "")).strip()
     return " ".join(part for part in (cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
+
+
+def _env_truthy(envars: Any, key: str) -> bool:
+    try:
+        raw = envars.get(key)
+    except (AttributeError, RuntimeError, TypeError):
+        raw = None
+    if raw is None:
+        raw = os.environ.get(key)
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        try:
+            return int(raw) == 1
+        except (TypeError, ValueError):
+            return False
+    return str(raw).strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def _build_cache_enabled(env: Any) -> bool:
+    return not _env_truthy(getattr(env, "envars", {}), DISABLE_BUILD_CACHE_ENV)
+
+
+def _file_fingerprint(path: Path) -> dict[str, Any] | None:
+    try:
+        stat_result = path.stat()
+    except FileNotFoundError:
+        return None
+    if not path.is_file():
+        return None
+    payload: dict[str, Any] = {
+        "path": str(path.resolve(strict=False)),
+        "size": stat_result.st_size,
+        "mtime_ns": stat_result.st_mtime_ns,
+    }
+    if stat_result.st_size <= BUILD_CACHE_HASH_LIMIT:
+        digest = hashlib.sha256()
+        try:
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            payload["sha256"] = digest.hexdigest()
+        except OSError:
+            pass
+    return payload
+
+
+def _optional_file_fingerprint(value: Any) -> dict[str, Any] | None:
+    if not value:
+        return None
+    try:
+        return _file_fingerprint(Path(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _directory_fingerprint(root: Path) -> list[dict[str, Any]]:
+    if not root.exists():
+        return []
+    ignored_parts = {".venv", "__pycache__", ".pytest_cache", "build", "dist"}
+    fingerprints: list[dict[str, Any]] = []
+    for candidate in sorted(root.rglob("*"), key=lambda path: path.as_posix()):
+        if not candidate.is_file():
+            continue
+        if any(part in ignored_parts for part in candidate.relative_to(root).parts):
+            continue
+        file_fp = _file_fingerprint(candidate)
+        if file_fp is None:
+            continue
+        file_fp["rel"] = candidate.relative_to(root).as_posix()
+        fingerprints.append(file_fp)
+    return fingerprints
+
+
+def _build_cache_path(wenv_abs: Path) -> Path:
+    return wenv_abs / "dist" / ".agilab-worker-build-cache.json"
+
+
+def _load_build_cache(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_build_cache(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _worker_build_cache_payload(
+    *,
+    env: Any,
+    packages: str,
+    worker_group: str | None,
+    is_cy: bool,
+    module_cmd: str,
+    core_install_commands: list[str],
+) -> dict[str, Any]:
+    app_path = Path(env.active_app)
+    worker_pyproject_src = _worker_pyproject_source(env)
+    return {
+        "schema": BUILD_CACHE_SCHEMA,
+        "base_worker_cls": str(getattr(env, "base_worker_cls", "")),
+        "worker_group": worker_group,
+        "packages": packages,
+        "is_cython": bool(is_cy),
+        "pyvers_worker": str(getattr(env, "pyvers_worker", "")),
+        "module_cmd": module_cmd,
+        "core_install_commands": core_install_commands,
+        "active_app": str(app_path.resolve(strict=False)),
+        "app_src": _directory_fingerprint(app_path / "src"),
+        "worker_pyproject": _file_fingerprint(worker_pyproject_src),
+        "manager_pyproject": _optional_file_fingerprint(getattr(env, "manager_pyproject", None)),
+        "uvproject": _optional_file_fingerprint(getattr(env, "uvproject", None)),
+    }
+
+
+def _worker_build_outputs_exist(wenv_abs: Path, *, is_cy: bool) -> bool:
+    if not _sorted_glob_matches(wenv_abs / "dist", "*.egg"):
+        return False
+    if is_cy and _latest_glob_match(wenv_abs / "dist", "*_cy.*") is None:
+        return False
+    return True
+
+
+def _worker_build_cache_hit(
+    *,
+    env: Any,
+    packages: str,
+    worker_group: str | None,
+    is_cy: bool,
+    module_cmd: str,
+    core_install_commands: list[str],
+) -> bool:
+    if not _build_cache_enabled(env):
+        return False
+    payload = _worker_build_cache_payload(
+        env=env,
+        packages=packages,
+        worker_group=worker_group,
+        is_cy=is_cy,
+        module_cmd=module_cmd,
+        core_install_commands=core_install_commands,
+    )
+    cached = _load_build_cache(_build_cache_path(env.wenv_abs))
+    return cached == payload and _worker_build_outputs_exist(env.wenv_abs, is_cy=is_cy)
+
+
+def _record_worker_build_cache(
+    *,
+    env: Any,
+    packages: str,
+    worker_group: str | None,
+    is_cy: bool,
+    module_cmd: str,
+    core_install_commands: list[str],
+) -> None:
+    if not _build_cache_enabled(env) or not _worker_build_outputs_exist(env.wenv_abs, is_cy=is_cy):
+        return
+    payload = _worker_build_cache_payload(
+        env=env,
+        packages=packages,
+        worker_group=worker_group,
+        is_cy=is_cy,
+        module_cmd=module_cmd,
+        core_install_commands=core_install_commands,
+    )
+    _write_build_cache(_build_cache_path(env.wenv_abs), payload)
 
 
 def _worker_pyproject_source(env: Any) -> Path:
@@ -217,6 +394,7 @@ async def build_lib_local(
     module_cmd = _build_module_command(env)
     app_path_arg = f"\"{app_path}\""
     wenv_arg = f"\"{wenv_abs}\""
+    core_install_commands = _core_install_commands(env=env, uv=uv, app_path_arg=app_path_arg)
 
     _stage_worker_build_project(
         agi_cls,
@@ -226,7 +404,31 @@ async def build_lib_local(
         validate_worker_uv_sources_fn=validate_worker_uv_sources_fn,
     )
 
-    for cmd in _core_install_commands(env=env, uv=uv, app_path_arg=app_path_arg):
+    cache_hit = _worker_build_cache_hit(
+        env=env,
+        packages=packages,
+        worker_group=worker_group,
+        is_cy=bool(is_cy),
+        module_cmd=module_cmd,
+        core_install_commands=core_install_commands,
+    )
+    if cache_hit:
+        log.info(
+            "Worker build cache hit for %s; reusing existing build artifacts.",
+            getattr(env, "target_worker", "worker"),
+        )
+        _upload_built_eggs(agi_cls._dask_client, wenv_abs / "dist")
+        if is_cy:
+            _copy_cython_worker_lib(
+                wenv_abs=wenv_abs,
+                pyvers_worker=env.pyvers_worker,
+                build_output="",
+                failure_message="cached build_ext output is missing",
+                log=log,
+            )
+        return
+
+    for cmd in core_install_commands:
         await run_fn(cmd, app_path)
 
     cmd = _bdist_egg_command(
@@ -257,6 +459,15 @@ async def build_lib_local(
             failure_message=cmd,
             log=log,
         )
+
+    _record_worker_build_cache(
+        env=env,
+        packages=packages,
+        worker_group=worker_group,
+        is_cy=bool(is_cy),
+        module_cmd=module_cmd,
+        core_install_commands=core_install_commands,
+    )
 
 
 async def build_lib_remote(agi_cls: Any, *, log: Any = logger) -> None:

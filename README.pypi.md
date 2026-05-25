@@ -76,6 +76,11 @@ The versioned local kernel proof reports `0.620s` Python vs `0.002s` Cython
 on 100,000 rows x 32 passes, a checksum-matched `306x` speedup. That is a
 focused hot-loop result, not an end-to-end runtime promise.
 
+`flight_telemetry_project` is the real-world worker-only Cython example: the
+Polars ingestion and artifact contract stay in Python, while the per-row
+haversine distance kernel reports `speed_kernel_runtime`,
+`speed_dtype_contract`, and checksum evidence in the reducer summary.
+
 ## Quick Start
 
 [![AGILAB Space](https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge)](https://huggingface.co/spaces/jpmorard/agilab)
