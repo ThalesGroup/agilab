@@ -120,16 +120,21 @@ The worker also writes printable correction sheets under
 When the input is a classroom batch, the worker also writes:
 
 - `classroom/classroom_run_report.json`
+- `classroom/classroom_teacher_summary.md`
 - `classroom/classroom_progress.csv`
 - `classroom/classroom_heatmap.csv`
 - `classroom/classroom_needs_attention.csv`
 - `classroom/classroom_curriculum.csv`
-- `classroom/classroom_teacher_summary.md`
+
+During live or distributed runs, workers can also publish partial progress under
+`classroom/partials/` as `classroom_partial_worker_<id>_<source>.json` and
+`classroom_partial_worker_<id>_<source>_progress.csv`.
 
 The `Classroom live` ANALYSIS tab reads the latest exported classroom run when
-one exists. If no run artifact is present, it falls back to the bundled sample
-preview, exposes a manual refresh control plus optional live refresh, and can
-download the printable teacher summary.
+one exists, merges partial worker artifacts while a run is still progressing,
+and otherwise falls back to the bundled sample preview. It exposes a manual
+refresh control plus optional live refresh and can download the printable
+teacher summary.
 
 ## Change One Thing
 
@@ -141,10 +146,12 @@ For a student exercise, change only the `student_answer` fields and rerun. The
 feedback should identify missing evidence ids, an incorrect selected fix, or
 missing discriminator regression tests without calling an LLM.
 
-For a classroom run, either select `Bundled classroom sample`, or put a
-classroom submission file in the input directory and set the file glob to that
-JSON file. With cluster execution enabled, each submission remains an
-independent deterministic scoring unit.
+For a classroom run, either select `Bundled classroom sample`, upload/drop a
+classroom JSON batch into `tescia_diagnostic/submissions`, or point the input
+directory and file glob at your own classroom file. Inbox files are scored
+before the bundled sample when `Read submission inbox` is enabled. With cluster
+execution enabled, each submission remains an independent deterministic scoring
+unit.
 
 For a 2026 mathematics-program coverage check, change a case `curriculum_ids`
 entry and rerun the tests. Unknown ids fail immediately, and missing required
