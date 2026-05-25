@@ -279,6 +279,17 @@ def test_fetch_artifact_metadata_prefers_aggregate_artifact(monkeypatch, tmp_pat
     }
 
 
+def test_ui_robot_artifact_priority_handles_legacy_and_unrelated_names() -> None:
+    module = _load_module()
+
+    assert module._ui_robot_artifact_priority("ui-robot-matrix-aggregate-1") == 0
+    assert module._ui_robot_artifact_priority("ui-robot-matrix-core-1") == 1
+    assert module._ui_robot_artifact_priority("ui-robot-matrix") == 2
+    assert module._ui_robot_artifact_priority("ui-robot-matrix-1") == 2
+    assert module._ui_robot_artifact_priority("ui-robot-matrix-layout-1") == 3
+    assert module._ui_robot_artifact_priority("other-artifact") == 4
+
+
 def test_fetch_artifact_metadata_falls_back_to_core_shard_artifact(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
@@ -379,6 +390,44 @@ def test_command_wrappers_report_errors_and_download_recreates_destination(monke
     assert destination.is_dir()
     assert not (destination / "stale.txt").exists()
     assert commands[0][:4] == ["gh", "run", "download", "123"]
+
+
+def test_run_command_accepts_successful_process(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    calls: list[list[str]] = []
+
+    def _fake_run(argv, **_kwargs):
+        calls.append(list(argv))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    module._run_command(["gh", "version"], repo_root=tmp_path)
+
+    assert calls == [["gh", "version"]]
+
+
+def test_download_artifact_creates_missing_destination(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    commands: list[list[str]] = []
+
+    def _fake_run_command(args, *, repo_root):
+        commands.append(list(args))
+
+    monkeypatch.setattr(module, "_run_command", _fake_run_command)
+    destination = tmp_path / "missing" / "artifact"
+
+    result = module.download_artifact(
+        "123",
+        repo="ThalesGroup/agilab",
+        artifact_name="ui-robot-matrix-core-1",
+        destination=destination,
+        repo_root=tmp_path,
+    )
+
+    assert result == destination
+    assert destination.is_dir()
+    assert commands[0][-1] == str(destination)
 
 
 def test_load_artifact_payloads_and_build_evidence_contract(tmp_path: Path) -> None:

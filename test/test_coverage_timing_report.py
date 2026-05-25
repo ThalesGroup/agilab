@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
+
+import pytest
 
 
 MODULE_PATH = Path("tools/coverage_timing_report.py").resolve()
@@ -173,3 +176,39 @@ def test_unknown_chunks_sort_after_known_chunks_when_tied() -> None:
 
     assert sorted([unknown, known], key=module._chunk_sort_key) == [known, unknown]
     assert module._chunk_from_path(Path("plain-results.xml")) == "unknown"
+
+
+def test_empty_chunk_markers_fall_back_to_unknown() -> None:
+    module = _load_module()
+
+    assert module._chunk_from_path(Path("junit-agi-gui-.xml")) == "unknown"
+    assert module._chunk_from_path(Path("coverage-gui-junit-") / "results.xml") == "unknown"
+
+
+def test_render_markdown_handles_positive_report_without_slowest_chunk() -> None:
+    module = _load_module()
+    report = module.TimingReport(
+        sources=("synthetic.xml",),
+        chunks=(),
+        files=(),
+        slow_tests=(),
+        total_tests=1,
+        total_seconds=0.0,
+        slowest_chunk=None,
+        imbalance_ratio=0.0,
+    )
+
+    markdown = module.render_markdown(report)
+
+    assert "Slowest chunk" not in markdown
+    assert "## Chunks" in markdown
+
+
+def test_script_entrypoint_writes_empty_report(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", [str(MODULE_PATH), "missing-junit-*.xml"])
+
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+    assert exc.value.code == 0
+    assert "No AGI-GUI JUnit timing files were found." in capsys.readouterr().out

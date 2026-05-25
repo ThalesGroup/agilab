@@ -88,5 +88,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return int(payload.get("returncode", 0))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

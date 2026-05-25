@@ -39,6 +39,12 @@ match this schema:
   "cases": [
     {{
       "case_id": "short_snake_case_id",
+      "title": "student-facing exercise title",
+      "difficulty": "intro|intermediate|advanced",
+      "topic_tags": ["topic", "diagnostic-skill"],
+      "estimated_minutes": 20,
+      "learner_level": "engineering student",
+      "student_prompt": "prompt shown to the student before they answer",
       "symptom": "operator-visible failure symptom",
       "proposed_diagnosis": "diagnosis to challenge",
       "root_cause": "evidence-backed root cause",
@@ -86,6 +92,8 @@ Constraints:
   values between 0.0 and 1.0.
 - Each case must include at least two evidence items, two candidate fixes, and
   two regression tests.
+- Do not include student_answer unless the caller asks for an answer key sample;
+  TeSciA accepts student_answer later when a learner submits their response.
 - Prefer concrete AGILAB diagnostics over generic software advice.
 """
 

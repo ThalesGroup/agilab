@@ -70,7 +70,10 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert actions_by_label["Run -> Load -> Export"]["disposition"] == "selected-click"
     assert actions_by_label["Delete"]["disposition"] == "trial-only"
     assert actions_by_label["Export"]["disposition"] == "trial-only"
+    assert actions_by_label["Overwrite"]["disposition"] == "ignored"
+    assert actions_by_label["Rebuild Universal Offline knowledge base"]["disposition"] == "ignored"
     assert actions_by_label["Train / refresh"]["disposition"] == "trial-only"
+    assert payload["summary"]["unused_disposition_count"] == 0
 
 
 def test_ui_robot_action_contract_load_module_rejects_missing_spec(monkeypatch) -> None:
@@ -108,6 +111,27 @@ button(DYNAMIC_LABEL)
         ("Delete cache", "button"),
         ("Reset project", "button"),
     ]
+
+
+def test_ui_robot_action_contract_selected_scenarios_ignore_blank_labels() -> None:
+    module = _load_module()
+    widget_robot = SimpleNamespace(
+        _normalized_label=lambda label: " ".join(str(label).casefold().split()),
+        parse_csv=lambda raw: [part.strip() for part in str(raw).split(",")],
+    )
+    matrix = SimpleNamespace(
+        ALL_SCENARIOS={
+            "selected": SimpleNamespace(
+                name="selected",
+                action_button_policy="click-selected",
+                click_action_labels=" , Reset project",
+            )
+        }
+    )
+
+    selected = module._selected_action_scenarios(widget_robot, matrix)
+
+    assert selected == {"reset project": ["selected"]}
 
 
 def test_ui_robot_action_contract_rejects_unclassified_high_risk_action(tmp_path: Path) -> None:

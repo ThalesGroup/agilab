@@ -66,6 +66,25 @@ def test_child_path_signatures_tolerates_unreadable_root() -> None:
     ) == ()
 
 
+def test_child_path_signatures_ignores_unavailable_signatures(tmp_path: Path, monkeypatch) -> None:
+    template = tmp_path / "demo_app_template"
+    template.mkdir()
+    (template / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    def fake_signature(path: Path, *, label: str | None = None):
+        if label == "." or path == template:
+            return None
+        return (label or path.name, path.is_dir(), 1, 2)
+
+    monkeypatch.setattr(ui_performance, "path_stat_signature", fake_signature)
+
+    assert ui_performance.child_path_signatures(
+        tmp_path,
+        child_suffix="_app_template",
+        extra_relative_paths=("pyproject.toml",),
+    ) == (("demo_app_template/pyproject.toml", False, 1, 2),)
+
+
 def test_record_ui_timing_span_clamps_and_limits_session_rows() -> None:
     session_state: dict[str, object] = {}
 

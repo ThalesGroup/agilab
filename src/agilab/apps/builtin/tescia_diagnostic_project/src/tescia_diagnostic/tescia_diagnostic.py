@@ -71,9 +71,21 @@ class TesciaDiagnostic(BaseWorker):
     def _sample_dataset_source(self) -> Path:
         return Path(__file__).resolve().parent / "sample_data" / "tescia_diagnostic_cases.json"
 
+    def _classroom_dataset_source(self) -> Path:
+        return Path(__file__).resolve().parent / "sample_data" / "tescia_classroom_submissions.json"
+
     def _ensure_dataset(self, data_in: Path) -> None:
         if self.args.case_source == "standalone_ai":
             self._ensure_generated_dataset(data_in)
+            return
+        if self.args.case_source == "bundled_classroom":
+            sample = self._classroom_dataset_source()
+            if not sample.is_file():
+                raise FileNotFoundError(f"Bundled TeSciA classroom submissions missing: {sample}")
+            destination = data_in / sample.name
+            if not destination.is_file():
+                shutil.copy2(sample, destination)
+                logger.info("Seeded TeSciA classroom submissions at %s", destination)
             return
 
         existing = sorted(data_in.glob(self.args.files))
@@ -137,6 +149,8 @@ class TesciaDiagnostic(BaseWorker):
         file_pattern = (
             self.args.generated_cases_filename
             if self.args.case_source == "standalone_ai"
+            else self._classroom_dataset_source().name
+            if self.args.case_source == "bundled_classroom"
             else self.args.files
         )
         files = sorted(self.args.data_in.glob(file_pattern))
