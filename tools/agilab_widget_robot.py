@@ -1873,8 +1873,6 @@ def safe_action_click_reason(widget: dict[str, Any]) -> str | None:
         return None
     if _action_label_has_safe_prefix(label):
         return "label matches guarded safe navigation/action prefix"
-    if _normalized_label(label).startswith("view_"):
-        return "label matches configured analysis view launcher"
     return None
 
 
@@ -2207,7 +2205,7 @@ def _tail_text_file(path: Path | None, *, lines: int = FAILURE_BUNDLE_TAIL_LINES
 def _unique_evidence_dir(path: Path) -> Path:
     if not path.exists():
         return path
-    for index in itertools.count(2):
+    for index in itertools.count(2):  # pragma: no branch - exits by returning the first free candidate.
         candidate = path.with_name(f"{path.name}-{index}")
         if not candidate.exists():
             return candidate

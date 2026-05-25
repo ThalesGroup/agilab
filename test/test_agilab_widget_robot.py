@@ -456,6 +456,9 @@ def test_evidence_text_and_upload_fixture_helpers(tmp_path, monkeypatch) -> None
     assert json_fixture.read_text(encoding="utf-8") == "{}\n"
     assert csv_fixture.read_text(encoding="utf-8").startswith("value")
     assert raw_fixture == upload
+    assert module._robot_upload_fixture_for_widget(upload, {"label": "Notebook upload"}) == notebook
+    assert module._robot_upload_fixture_for_widget(upload, {"label": "JSON payload"}) == json_fixture
+    assert module._robot_upload_fixture_for_widget(upload, {"label": "CSV file"}) == csv_fixture
 
     assert module._limited_text("a\r\nb", limit=10) == "a\nb"
     assert module._limited_text("x" * 12, limit=4) == "xxxx\n...[truncated]\n"
@@ -478,11 +481,21 @@ def test_evidence_text_and_upload_fixture_helpers(tmp_path, monkeypatch) -> None
     assert module._unique_evidence_dir(base) == base
     base.mkdir()
     assert module._unique_evidence_dir(base) == tmp_path / "bundle-2"
+    (tmp_path / "bundle-2").mkdir()
+    assert module._unique_evidence_dir(base) == tmp_path / "bundle-3"
 
 
 def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
     module = _load_module()
 
+    direct_failure = module._keyboard_focus_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        focusable_count=5,
+        visited_labels=[],
+        failure="keyboard probe crashed",
+    )
     probe = module._keyboard_focus_result_probe(
         app_name="flight_telemetry_project",
         display="PROJECT",
@@ -491,6 +504,8 @@ def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
         visited_labels=["INSTALL", "INSTALL", "INSTALL"],
     )
 
+    assert direct_failure.status == "failed"
+    assert "keyboard probe crashed" in direct_failure.detail
     assert probe.status == "failed"
     assert probe.kind == "keyboard_focus"
     assert "expected at least" in probe.detail
@@ -933,6 +948,8 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight_telemetry", "/tmp/flight_telemetry_project")
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=uav_relay_queue_project", "uav_relay_queue")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
+    assert module.app_target_name("flight_telemetry_worker") == "flight_telemetry"
+    assert module.app_target_name("plain_app") == "plain_app"
 
 
 def test_normalized_label_treats_ascii_and_unicode_arrows_as_equal() -> None:
@@ -956,6 +973,18 @@ def test_remote_apps_page_path_uses_remote_checkout_root() -> None:
     route = next(route for route in module.public_apps_pages() if route.name == "view_maps")
 
     assert module.remote_apps_page_path(route, remote_app_root="/app").startswith("/app/src/agilab/apps-pages/view_maps/")
+
+
+def test_project_root_for_finds_nearest_pyproject(tmp_path) -> None:
+    module = _load_module()
+    project_root = tmp_path / "project"
+    nested_file = project_root / "src" / "pkg" / "module.py"
+    nested_file.parent.mkdir(parents=True)
+    nested_file.write_text("VALUE = 1\n", encoding="utf-8")
+    (project_root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+    assert module._project_root_for(nested_file) == project_root
+    assert module._project_root_for(tmp_path / "loose.py") == tmp_path
 
 
 def test_seed_public_demo_artifacts_creates_queue_analysis_bundle(tmp_path) -> None:
@@ -997,6 +1026,42 @@ def test_seed_public_demo_artifacts_creates_forecast_evidence(tmp_path) -> None:
     assert sorted(path.name for path in forecast_root.iterdir()) == ["baseline", "candidate"]
     assert (forecast_root / "baseline" / "forecast_metrics.json").is_file()
     assert (forecast_root / "candidate" / "forecast_predictions.csv").is_file()
+
+
+def test_seed_public_demo_artifacts_skips_unknown_targets(tmp_path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    share_root = tmp_path / "share"
+
+    module.seed_public_demo_artifacts(
+        "mycode_project",
+        export_root=export_root,
+        share_root=share_root,
+    )
+
+    assert not export_root.exists()
+    assert not share_root.exists()
+
+
+def test_seed_public_demo_artifacts_tolerates_placeholder_public_target(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    share_root = tmp_path / "share"
+    monkeypatch.setattr(
+        module,
+        "PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS",
+        {*module.PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS, "placeholder"},
+    )
+
+    module.seed_public_demo_artifacts(
+        "placeholder_project",
+        export_root=export_root,
+        share_root=share_root,
+    )
+
+    assert export_root.is_dir()
+    assert share_root.is_dir()
+    assert list(export_root.iterdir()) == []
 
 
 def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None:
@@ -1067,6 +1132,28 @@ def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> No
     assert context.export_root == fake_home / "exports"
     assert context.share_root == fake_home / "local"
     assert context.cluster_share_root == fake_home / "cluster"
+
+
+def test_artifact_context_args_loader_ignores_bad_or_non_mapping_settings(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[args\n", encoding="utf-8")
+    source_app = tmp_path / "source_app"
+    source_settings = source_app / "src" / "app_settings.toml"
+    source_settings.parent.mkdir(parents=True)
+    source_settings.write_text("args = ['not', 'a', 'table']\n", encoding="utf-8")
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query=source_app,
+        home_root=fake_home,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    assert module._load_app_settings_args_for_artifact_context(context) == {}
 
 
 def test_build_workflow_artifact_context_uses_agilab_env_file(tmp_path) -> None:
@@ -1208,6 +1295,13 @@ def test_workflow_artifact_helpers_cover_query_paths_and_bad_contracts(tmp_path)
         export_root=tmp_path / "export",
     )
 
+    absolute_index = tmp_path / "absolute" / "lab_stages.toml"
+    queried_absolute = module._workflow_export_stage_contract_paths(
+        context,
+        url=f"http://demo/WORKFLOW?index_page={absolute_index}",
+    )
+    assert queried_absolute[0] == absolute_index
+
     queried = module._workflow_export_stage_contract_paths(
         context,
         url="http://demo/WORKFLOW?index_page=custom/lab_stages.toml",
@@ -1222,6 +1316,17 @@ def test_workflow_artifact_helpers_cover_query_paths_and_bad_contracts(tmp_path)
     run_log.parent.mkdir(parents=True)
     run_log.write_text("run", encoding="utf-8")
     assert run_log in module._snapshot_workflow_run_logs(context).files
+
+    file_root_context = module.WorkflowArtifactContext(
+        app_name="meteo_forecast_project",
+        active_app_query="meteo_forecast_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+    file_root = tmp_path / "log" / "execute" / "meteo_forecast"
+    file_root.parent.mkdir(parents=True, exist_ok=True)
+    file_root.write_text("single log root", encoding="utf-8")
+    assert file_root in module._snapshot_workflow_run_logs(file_root_context).files
 
     unreadable = tmp_path / "bad-stage.toml"
     unreadable.write_text("[broken\n", encoding="utf-8")
@@ -1304,6 +1409,13 @@ def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -
     assert len(probes) == 1
     assert probes[0].status == "failed"
     assert "without creating or modifying a run log" in probes[0].detail
+    assert module.validate_workflow_action_artifacts(
+        context=context,
+        display="WORKFLOW",
+        selected_label="Preview workflow",
+        before_logs=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    ) == []
 
 
 def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -> None:
@@ -1358,6 +1470,62 @@ def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_
     assert "no loadable output artifact" in probes[0].detail
 
 
+def test_orchestrate_artifact_validation_verifies_output_side_effect(tmp_path) -> None:
+    module = _load_module()
+    share_root = tmp_path / "localshare"
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=share_root,
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    output_file = share_root / "flight_telemetry" / "dataframe" / "part-0.csv"
+    output_file.parent.mkdir(parents=True)
+    output_file.write_text("value\n1\n", encoding="utf-8")
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="Load output",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "output artifact side effect verified" in probes[0].detail
+
+
+def test_orchestrate_artifact_validation_fails_when_export_has_no_file(tmp_path) -> None:
+    module = _load_module()
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="EXPORT dataframe",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "export artifact was not found" in probes[0].detail
+
+
 def test_artifact_snapshot_helpers_skip_invalid_empty_and_trash_paths(tmp_path, monkeypatch) -> None:
     module = _load_module()
     root = tmp_path / "artifacts"
@@ -1375,10 +1543,12 @@ def test_artifact_snapshot_helpers_skip_invalid_empty_and_trash_paths(tmp_path, 
     snapshot = module._snapshot_artifact_files([root])
     with_trash = module._snapshot_artifact_files([root], include_trash=True)
     specific = module._snapshot_specific_files([root, empty, visible], require_non_empty=True)
+    root_file_snapshot = module._snapshot_artifact_files([visible])
 
     assert set(snapshot.files) == {visible}
     assert set(with_trash.files) == {visible, trash}
     assert set(specific.files) == {visible}
+    assert set(root_file_snapshot.files) == {visible}
     assert module._snapshot_artifact_files([tmp_path / "missing"]).files == {}
 
     original_stat = Path.stat
@@ -1389,7 +1559,45 @@ def test_artifact_snapshot_helpers_skip_invalid_empty_and_trash_paths(tmp_path, 
         return original_stat(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "stat", _raising_stat)
-    assert module._snapshot_artifact_files([visible]).files == {}
+    assert module._snapshot_artifact_files([root]).files == {}
+
+    monkeypatch.undo()
+    original_is_file = Path.is_file
+
+    def _raising_is_file(self):
+        if self == root:
+            raise OSError("is_file failed")
+        return original_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", _raising_is_file)
+    assert module._snapshot_artifact_files([root]).files == {}
+
+
+def test_specific_artifact_snapshot_handles_bad_and_resolved_paths(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    real_file = tmp_path / "real.csv"
+    real_file.write_text("value\n1\n", encoding="utf-8")
+    link = tmp_path / "link.csv"
+    link.symlink_to(real_file)
+
+    class _BadPath:
+        def expanduser(self):
+            raise ValueError("bad path")
+
+    snapshot = module._snapshot_specific_files([_BadPath(), link], require_non_empty=True)
+
+    assert real_file in snapshot.files
+    assert link in snapshot.files
+
+    original_resolve = Path.resolve
+
+    def _raising_resolve(self, *args, **kwargs):
+        if self == real_file:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _raising_resolve)
+    assert set(module._snapshot_specific_files([real_file]).files) == {real_file}
 
 
 def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> None:
@@ -1704,11 +1912,54 @@ def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_p
     assert str(share) in detail
 
 
+def test_current_home_action_preflight_allows_ready_cluster_and_worker(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    cluster_share = fake_home / "clustershare"
+    local_share = fake_home / "localshare"
+    cluster_share.mkdir(parents=True)
+    local_share.mkdir(parents=True)
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text(
+        f"AGI_CLUSTER_SHARE={cluster_share}\nAGI_LOCAL_SHARE={local_share}\n",
+        encoding="utf-8",
+    )
+    worker_root = fake_home / "wenv" / "flight_telemetry_worker"
+    worker_root.mkdir(parents=True)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda argv, **_kwargs: module.subprocess.CompletedProcess(argv, 0, stdout="import-ok", stderr=""),
+    )
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={},
+        home_root=fake_home,
+    )
+
+    assert detail is None
+
+
 def test_current_home_preflight_short_circuits_and_worker_probe_errors(tmp_path, monkeypatch) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
     worker_root = fake_home / "wenv" / "flight_telemetry_worker"
     worker_root.mkdir(parents=True)
+
+    missing_home = tmp_path / "missing-home"
+    assert "installed worker project is missing" in module._current_home_worker_import_issue(
+        app_name="flight_telemetry_project",
+        home_root=missing_home,
+    )
 
     assert (
         module.current_home_action_preflight_blocker(
@@ -1780,12 +2031,23 @@ def test_current_home_preflight_short_circuits_and_worker_probe_errors(tmp_path,
         home_root=fake_home,
     )
 
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda argv, **_kwargs: module.subprocess.CompletedProcess(argv, 0, stdout="import-ok", stderr=""),
+    )
+    assert module._current_home_worker_import_issue(
+        app_name="flight_telemetry_project",
+        home_root=fake_home,
+    ) is None
+
 
 def test_config_and_artifact_path_helpers_cover_edge_cases(tmp_path, monkeypatch) -> None:
     module = _load_module()
 
     assert module._parse_config_bool(1) is True
     assert module._parse_config_bool(0) is False
+    assert module._parse_config_bool("yes") is True
     assert module._parse_config_bool("maybe") is None
     assert module._strip_config_value('"quoted"') == "quoted"
     assert module._strip_config_value("plain") == "plain"
@@ -1798,17 +2060,50 @@ def test_config_and_artifact_path_helpers_cover_edge_cases(tmp_path, monkeypatch
     empty_settings = tmp_path / "empty.toml"
     empty_settings.write_text("", encoding="utf-8")
     assert module._read_cluster_enabled_setting(empty_settings) is None
+    no_cluster_key = tmp_path / "no-cluster-key.toml"
+    no_cluster_key.write_text("[cluster]\nname='local'\n", encoding="utf-8")
+    assert module._read_cluster_enabled_setting(no_cluster_key) is None
     bad_settings = tmp_path / "bad.toml"
     bad_settings.write_text("[cluster\n", encoding="utf-8")
     assert module._read_cluster_enabled_setting(bad_settings) is None
 
     missing_source = tmp_path / "missing_project"
     assert module._source_app_settings_path(missing_source) is None
+    existing_source_without_settings = tmp_path / "existing_project"
+    existing_source_without_settings.mkdir()
+    assert module._source_app_settings_path(existing_source_without_settings) is None
     source_dir = tmp_path / "project" / "src"
     source_dir.mkdir(parents=True)
     source_settings = source_dir / "app_settings.toml"
     source_settings.write_text("[args]\ndata_out='out'\n", encoding="utf-8")
     assert module._source_app_settings_path(source_dir) == source_settings
+    project_root = tmp_path / "project_root"
+    project_settings = project_root / "src" / "app_settings.toml"
+    project_settings.parent.mkdir(parents=True)
+    project_settings.write_text("[args]\ndata_out='from-root'\n", encoding="utf-8")
+    assert module._source_app_settings_path(project_root) == project_settings
+
+    class _BadString:
+        def __str__(self):
+            raise TypeError("bad path")
+
+    assert module._source_app_settings_path(_BadString()) is None
+
+    current_home = tmp_path / "current-home"
+    assert module._current_home_cluster_enabled(
+        app_name="flight_telemetry_project",
+        active_app_query=existing_source_without_settings,
+        home_root=current_home,
+        server_env={"AGI_CLUSTER_ENABLED": "on"},
+        env_values={},
+    ) is True
+    assert module._current_home_cluster_enabled(
+        app_name="flight_telemetry_project",
+        active_app_query=existing_source_without_settings,
+        home_root=current_home,
+        server_env={"AGI_CLUSTER_ENABLED": "off"},
+        env_values={"AGI_CLUSTER_ENABLED": "yes"},
+    ) is True
 
     assert module._artifact_path_from_configured_value("", roots=[tmp_path]) == []
     assert module._artifact_path_from_configured_value("/tmp/data", roots=[tmp_path]) == [Path("/tmp/data")]
@@ -1989,6 +2284,7 @@ def test_progress_reporter_stderr_and_resume_edge_cases(tmp_path, capsys) -> Non
     progress.emit("page_resume", app="flight", page="PROJECT", status="passed")
     progress.emit("run_start", app_count=2, page_count=3)
     progress.emit("run_done", status="passed", duration_seconds=4.5)
+    progress.emit("heartbeat")
     stderr = capsys.readouterr().err
 
     assert "start flight/PROJECT" in stderr
@@ -2035,6 +2331,30 @@ def test_progress_reporter_stderr_and_resume_edge_cases(tmp_path, capsys) -> Non
         progress=None,
         on_page_result=None,
     ) is None
+
+    passed = module.PageSweep("flight", "PROJECT", True, 0, 0, 0, 0, 0, 0, "", [], [])
+    assert module._resume_page_if_available(
+        app_name="flight",
+        page_name="PROJECT",
+        resume_page_results={module.page_result_key("flight", "PROJECT"): passed},
+        progress=None,
+        on_page_result=None,
+    ) == passed
+
+    emitted: list[dict[str, object]] = []
+
+    class _Progress:
+        def emit(self, event, **payload):
+            emitted.append({"event": event, **payload})
+
+    assert module._resume_page_if_available(
+        app_name="flight",
+        page_name="PROJECT",
+        resume_page_results={module.page_result_key("flight", "PROJECT"): passed},
+        progress=_Progress(),
+        on_page_result=None,
+    ) == passed
+    assert emitted == [{"event": "page_resume", "app": "flight", "page": "PROJECT", "status": "passed"}]
 
 
 def test_streamlit_health_failure_detail_handles_running_process() -> None:
@@ -2119,6 +2439,14 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
             "testid": "stToggle",
             "path": "input:nth-of-type(2)",
             "scope": "sidebar",
+        },
+        {
+            "id": "disabled",
+            "kind": "checkbox",
+            "label": "Disabled",
+            "checked": False,
+            "disabled": True,
+            "scope": "main",
         },
         {
             "id": "local-radio",
@@ -2225,6 +2553,7 @@ def test_project_switching_selectbox_is_excluded_from_combination_controls() -> 
 
     assert [control.label for control in controls] == ["Enable cluster"]
     assert probes == []
+    assert module.is_project_switching_widget(widgets[0]) is True
 
 
 def test_dynamic_selectboxes_are_excluded_from_exhaustive_combinations() -> None:
@@ -2323,6 +2652,17 @@ def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> Non
     assert args.max_action_clicks_per_page > 0
 
 
+def test_action_click_budget_helper_handles_none_empty_and_decrement() -> None:
+    module = _load_module()
+
+    budget = [1]
+    assert module._consume_action_click_budget(None) is True
+    assert module._consume_action_click_budget([]) is False
+    assert module._consume_action_click_budget([0]) is False
+    assert module._consume_action_click_budget(budget) is True
+    assert budget == [0]
+
+
 def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     module = _load_module()
     main_widget = {
@@ -2339,6 +2679,8 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert module.widget_scope(sidebar_widget) == "sidebar"
     assert module._widget_fingerprint(main_widget) != module._widget_fingerprint(sidebar_widget)
     assert module._same_widget(main_widget, sidebar_widget) is False
+    assert module._same_widget(main_widget, {**main_widget, "label": "Run now"}) is True
+    assert module._same_widget({**main_widget, "label": ""}, {**main_widget, "label": ""}) is True
     assert "[data-testid='stSidebar']" in module.WIDGET_COLLECTOR_JS
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
     assert 'removeAttribute("data-agilab-widget-id")' in module.WIDGET_COLLECTOR_JS
@@ -2402,8 +2744,26 @@ def test_selected_action_matching_can_require_enabled_button() -> None:
         {"kind": "button", "label": "Load output", "disabled": False},
     ]
 
+    assert module._selected_action_matches(widgets, "") == []
     assert len(module._selected_action_matches(widgets, "EXPORT dataframe")) == 1
     assert module._selected_action_matches(widgets, "EXPORT dataframe", require_enabled=True) == []
+
+
+def test_callable_or_value_handles_success_and_exceptions() -> None:
+    module = _load_module()
+
+    class _Value:
+        @staticmethod
+        def ok():
+            return "ready"
+
+        @staticmethod
+        def bad():
+            raise RuntimeError("boom")
+
+    assert module._callable_or_value(_Value(), "ok", "fallback") == "ready"
+    assert module._callable_or_value(_Value(), "bad", "fallback") == "fallback"
+    assert module._callable_or_value(_Value(), "missing", "fallback") == "fallback"
 
 
 def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None:
@@ -2507,6 +2867,17 @@ def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
     assert probes[0].kind == "browser_error"
     assert probes[0].label == "console.error"
     assert "AGI execution failed" in probes[0].detail
+
+    ignored_only: list[module.WidgetProbe] = []
+    assert module._append_browser_issue_probes(
+        ignored_only,
+        app_name="flight_telemetry_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        browser_issues=[{"kind": "console.warning", "detail": "Just a UI note"}],
+        start_index=0,
+    ) is False
+    assert ignored_only == []
 
 
 def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
@@ -3464,6 +3835,22 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
 def test_performance_budget_probe_fails_when_budget_is_exceeded() -> None:
     module = _load_module()
 
+    unbudgeted = module._performance_budget_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        label="first_render",
+        seconds=0.5,
+        budget_seconds=0.0,
+        url="http://demo",
+    )
+    within_budget = module._performance_budget_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        label="widgets_ready",
+        seconds=0.5,
+        budget_seconds=1.0,
+        url="http://demo",
+    )
     probe = module._performance_budget_probe(
         app_name="flight_telemetry_project",
         display="PROJECT",
@@ -3473,6 +3860,10 @@ def test_performance_budget_probe_fails_when_budget_is_exceeded() -> None:
         url="http://demo",
     )
 
+    assert unbudgeted.status == "probed"
+    assert "budget<=" not in unbudgeted.detail
+    assert within_budget.status == "probed"
+    assert "budget<=1.00s" in within_budget.detail
     assert probe.kind == "performance"
     assert probe.status == "failed"
     assert "exceeded" in probe.detail
@@ -3754,21 +4145,24 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
     assert progress_log and progress_log[0]["event"] == "page_start"
 def test_render_human_reports_sidebar_widget_counts() -> None:
     module = _load_module()
+    failure = module.WidgetProbe("flight_telemetry_project", "PROJECT", "button", "Run", "failed", "boom", "http://demo")
+    skip = module.WidgetProbe("flight_telemetry_project", "PROJECT", "file_uploader", "Upload", "skipped", "read-only", "http://demo")
     page = module.PageSweep(
         app="flight_telemetry_project",
         page="PROJECT",
-        success=True,
+        success=False,
         duration_seconds=1.0,
         widget_count=3,
         main_widget_count=2,
         sidebar_widget_count=1,
         interacted_count=3,
         probed_count=0,
-        skipped_count=0,
-        failed_count=0,
+        skipped_count=1,
+        failed_count=1,
         url="http://demo",
-        failures=[],
-        skips=[],
+        failures=[failure],
+        skips=[skip],
+        status="failed",
         combination_space_count=2,
         combination_count=2,
     )
@@ -3778,8 +4172,10 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
 
     assert "widgets=3 main=2 sidebar=1" in report
     assert "combinations: space=2 executed=2" in report
-    assert "flight_telemetry_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
+    assert "flight_telemetry_project/PROJECT: FAIL status=failed widgets=3 main=2 sidebar=1" in report
     assert "combinations=2/2" in report
+    assert "failure: button 'Run' - boom" in report
+    assert "skipped: file_uploader 'Upload' - read-only" in report
 
 
 def test_action_buttons_are_probed_by_default(tmp_path) -> None:
@@ -3838,6 +4234,7 @@ def test_safe_action_click_classifier_allows_navigation_and_denies_risky_actions
     assert module.safe_action_click_reason({"kind": "form_submit_button", "label": "Create project"}) is None
     assert module.safe_action_click_reason({"kind": "button", "label": "Overwrite"}) is None
     assert module.safe_action_click_reason({"kind": "button", "label": "Rebuild Universal Offline knowledge base"}) is None
+    assert module.safe_action_click_reason({"kind": "button", "label": "Telemetry"}) is None
 
 
 def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_path) -> None:
