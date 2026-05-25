@@ -13,7 +13,12 @@ from typing import Any
 import pandas as pd
 
 from agi_node.pandas_worker import PandasWorker
-from tescia_diagnostic.classroom import CLASSROOM_SCHEMA, expand_classroom_submissions, write_classroom_artifacts
+from tescia_diagnostic.classroom import (
+    CLASSROOM_SCHEMA,
+    expand_classroom_submissions,
+    write_classroom_artifacts,
+    write_classroom_partial_artifacts,
+)
 from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
 from tescia_diagnostic.diagnostic import diagnose_case, summarize_report, validate_case_payload
 from tescia_diagnostic.exports import write_correction_index, write_correction_sheet
@@ -117,6 +122,7 @@ class TesciaDiagnosticWorker(PandasWorker):
     def work_pool(self, file_path):
         args = self._current_args()
         rows: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
         for case in self._load_cases(file_path):
             report = diagnose_case(
                 case,
@@ -128,11 +134,26 @@ class TesciaDiagnosticWorker(PandasWorker):
                 worker_id=int(getattr(self, "_worker_id", 0)),
                 source_file=str(file_path),
             )
+            reports.append(report)
             row = {
                 **summary,
                 "report_json": json.dumps(report, sort_keys=True),
             }
             rows.append(row)
+        if any(str(report.get("classroom", {}).get("student_ref", "")).strip() for report in reports):
+            worker_id = int(getattr(self, "_worker_id", 0))
+            write_classroom_partial_artifacts(
+                reports,
+                Path(self.data_out) / "classroom",
+                worker_id=worker_id,
+                source_file=file_path,
+            )
+            write_classroom_partial_artifacts(
+                reports,
+                self.artifact_dir / "classroom",
+                worker_id=worker_id,
+                source_file=file_path,
+            )
         return pd.DataFrame(rows)
 
     def _write_artifact_bundle(self, root: Path, df: pd.DataFrame) -> None:
