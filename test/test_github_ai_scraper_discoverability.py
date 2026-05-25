@@ -45,26 +45,26 @@ SCRAPER_KEYWORDS = (
     "mlflow",
 )
 PUBLIC_GITHUB_TOPICS = (
-    "agentic-ai",
-    "ai",
-    "ai-agents",
-    "ai-engineering",
-    "codex",
-    "cython",
-    "dask",
-    "data-science",
-    "distributed-computing",
-    "experiment-tracking",
-    "free-threaded-python",
-    "jupyter-notebook",
-    "machine-learning",
-    "mlflow",
-    "mlops",
     "python",
-    "reproducibility",
+    "data-science",
+    "machine-learning",
+    "ai",
     "reproducible-research",
-    "streamlit",
+    "cython",
+    "distributed-computing",
+    "jupyter-notebook",
+    "dask",
+    "reproducibility",
+    "rust",
+    "ai-agents",
+    "mlops",
+    "mlflow",
+    "experiment-tracking",
     "workflow-orchestration",
+    "streamlit",
+    "ai-engineering",
+    "agentic-ai",
+    "free-threaded-python",
 )
 
 
@@ -114,6 +114,8 @@ def test_agilab_metadata_stays_discoverable_by_github_ai_scraper_contract() -> N
     urls = project["urls"]
 
     assert _github_ai_scraper_query() == "stars:>10 topic:ai-engineering"
+    assert tuple(str(keyword).lower() for keyword in project["keywords"]) == PUBLIC_GITHUB_TOPICS
+    assert len(PUBLIC_GITHUB_TOPICS) == 20
     assert {"ai", "ai-engineering", "machine-learning", "mlops", "ai-agents"} <= keywords
     assert {"reproducibility", "reproducible-research", "jupyter-notebook", "mlflow"} <= keywords
     assert urls["Repository"] == AGILAB_URL
