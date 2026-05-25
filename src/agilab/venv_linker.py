@@ -14,8 +14,6 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-import sys
-import sysconfig
 import tomllib
 from typing import Any
 

@@ -78,7 +78,6 @@ except ModuleNotFoundError:
     if page_dir_str not in sys.path:
         sys.path.insert(0, page_dir_str)
     from settings_support import (
-        coerce_str_list as _coerce_str_list,
         first_nonempty_setting as _get_first_nonempty_setting,
         get_view_maps_page_settings as _page_settings_from_app_settings,
         setting_list as _get_setting_list,

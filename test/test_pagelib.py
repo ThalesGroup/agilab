@@ -4,7 +4,6 @@ import subprocess
 import os
 from pathlib import Path
 import sqlite3
-import sys
 from types import SimpleNamespace
 
 import pytest

@@ -96,17 +96,18 @@ recommended use cases, see :doc:`public-app-catalog`.
 - ``agi-app-flight-telemetry``
 - ``agi-app-global-dag``
 - ``agi-app-weather-forecast``
+- ``agi-app-sklearn-pipeline``
 - ``agi-app-pytorch-playground``
 - ``agi-app-tescia-diagnostic``
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
-Nine app payload packages are promoted to PyPI in the current release plan:
+Ten app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
 ``agi-app-global-dag``, ``agi-app-weather-forecast``,
-``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic``, and
-``agi-app-uav-relay-queue``. The
+``agi-app-sklearn-pipeline``, ``agi-app-pytorch-playground``,
+``agi-app-tescia-diagnostic``, and ``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
 artifacts and kept in the GitHub Release distribution archive until it is
 explicitly promoted. The payload is staged during package build, with local
@@ -425,6 +426,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-weather-forecast``
+   * - ``agi-app-sklearn-pipeline``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-app-sklearn-pipeline``
    * - ``agi-app-pytorch-playground``
      - ``ThalesGroup``
      - ``agilab``
@@ -514,6 +520,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-app-flight-telemetry``
 - ``pypi-agi-app-global-dag``
 - ``pypi-agi-app-weather-forecast``
+- ``pypi-agi-app-sklearn-pipeline``
 - ``pypi-agi-app-pytorch-playground``
 - ``pypi-agi-app-tescia-diagnostic``
 - ``pypi-agi-app-uav-queue-project``

@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import impact_validate
 

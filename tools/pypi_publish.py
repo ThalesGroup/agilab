@@ -69,10 +69,8 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
     from tools.package_split_contract import (
         APP_PACKAGE_NAMES,
-        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
         EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
-        LIBRARY_PACKAGE_CONTRACTS,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -83,11 +81,11 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.py
 def _ensure_pkgs():
     need = []
     try:
-        import tomlkit  # type: ignore
+        import tomlkit  # type: ignore  # noqa: F401
     except Exception:
         need.append("tomlkit")
     try:
-        import packaging  # type: ignore
+        import packaging  # type: ignore  # noqa: F401
     except Exception:
         need.append("packaging")
     if need:

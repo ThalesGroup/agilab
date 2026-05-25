@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import getpass
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-import pytest
 
 import agi_env.worker_runtime_support as worker_runtime_support
 from agi_env.worker_runtime_support import configure_worker_runtime

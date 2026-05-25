@@ -16,7 +16,6 @@ for src in [data_src, worker_root / "fireducks_worker", worker_root / "agi_dispa
         sys.path.insert(0, path)
 
 from agi_node.fireducks_worker import FireducksWorker
-from agi_node.agi_dispatcher import BaseWorker
 import agi_node.pandas_worker.pandas_worker as pandas_module
 
 

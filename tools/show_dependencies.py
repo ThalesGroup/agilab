@@ -1,6 +1,5 @@
 # _show_dependencies.py
 import json
-import sys
 import argparse
 import urllib.request
 from urllib.error import HTTPError, URLError

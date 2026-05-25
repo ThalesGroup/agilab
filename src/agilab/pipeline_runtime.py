@@ -8,7 +8,6 @@ import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, List, Optional, Pattern, Sequence, Type
 
 from agi_env import AgiEnv
