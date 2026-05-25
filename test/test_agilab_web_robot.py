@@ -790,7 +790,14 @@ class _FakeFileChooserContext:
 
 
 class _FakeBrowserPage:
-    def __init__(self, *, chooser_error: Exception | None = None, url_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        chooser_error: Exception | None = None,
+        goto_error: Exception | None = None,
+        selector_error: Exception | None = None,
+        url_error: Exception | None = None,
+    ) -> None:
         self.url = "about:blank"
         self.body_text = ""
         self.launch_headless: bool | None = None
@@ -798,9 +805,13 @@ class _FakeBrowserPage:
         self.selected_files: list[str] = []
         self.visited: list[str] = []
         self.chooser_error = chooser_error
+        self.goto_error = goto_error
+        self.selector_error = selector_error
         self.url_error = url_error
 
     def goto(self, url: str, *, wait_until: str, timeout: float) -> None:
+        if self.goto_error is not None:
+            raise self.goto_error
         assert wait_until == "domcontentloaded"
         self.url = url
         self.visited.append(url)
@@ -814,6 +825,11 @@ class _FakeBrowserPage:
             self.body_text = "First proof Upload"
 
     def wait_for_selector(self, selector: str, *, timeout: float) -> None:
+        if (
+            self.selector_error is not None
+            and selector == "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']"
+        ):
+            raise self.selector_error
         assert selector in {
             "[data-testid='stApp']",
             "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']",
@@ -896,6 +912,65 @@ def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path:
     assert "screenshot=" in steps[-1].detail
 
 
+def test_run_browser_robot_reports_upload_button_failure(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.chooser_error = PlaywrightError("chooser blocked")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert steps[-1].label == "about upload button"
+    assert steps[-1].success is False
+    assert "could not open file chooser" in steps[-1].detail
+    assert "screenshot=" in steps[-1].detail
+
+
+def test_run_browser_robot_reports_project_uploader_failure(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.selector_error = PlaywrightError("uploader missing")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert steps[-1].label == "project notebook uploader"
+    assert steps[-1].success is False
+    assert "PROJECT notebook uploader not visible" in steps[-1].detail
+    assert "screenshot=" in steps[-1].detail
+
+
+def test_run_browser_robot_reports_outer_playwright_failure(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.goto_error = PlaywrightError("browser crashed")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="webkit",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps == [module.RobotStep("browser robot", False, 0.0, "playwright failed: browser crashed", "http://demo")]
+
+
 def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
@@ -929,15 +1004,68 @@ def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
     assert page.launch_headless is False
 
 
-def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeypatch) -> None:
+def test_run_frontend_smoke_returns_static_asset_failure_without_browser(monkeypatch) -> None:
     module = _load_module()
+    static_step = module.RobotStep("frontend static assets", False, 0.01, "bad MIME", "http://demo/")
+    monkeypatch.setattr(module, "assert_frontend_static_assets", lambda *_args, **_kwargs: static_step)
+    monkeypatch.setattr(
+        module,
+        "_load_playwright",
+        lambda: (_ for _ in ()).throw(AssertionError("browser should not load")),
+    )
 
+    steps = module.run_frontend_smoke(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps == [static_step]
+
+
+def test_run_frontend_smoke_reports_playwright_failure(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.goto_error = PlaywrightError("hydration crashed")
+    monkeypatch.setattr(
+        module,
+        "assert_frontend_static_assets",
+        lambda landing_url, *, opener: module.RobotStep(
+            "frontend static assets",
+            True,
+            0.01,
+            "ok",
+            landing_url,
+        ),
+    )
+
+    steps = module.run_frontend_smoke(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps[-1] == module.RobotStep(
+        "frontend browser hydration",
+        False,
+        0.0,
+        "playwright failed: hydration crashed",
+        "http://demo/?active_app=flight",
+    )
+
+
+def _patch_local_server(monkeypatch, module, *, health_success: bool) -> None:
     class _Process:
         returncode = 9
 
         @staticmethod
-        def poll() -> int:
-            return 9
+        def poll() -> int | None:
+            return None if health_success else 9
 
     class _Server:
         process = _Process()
@@ -962,8 +1090,20 @@ def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeyp
     monkeypatch.setattr(
         module,
         "wait_for_streamlit_health",
-        lambda *_args, **_kwargs: module.RobotStep("streamlit health", False, 0.2, "not ready", "http://demo"),
+        lambda *_args, **_kwargs: module.RobotStep(
+            "streamlit health",
+            health_success,
+            0.2,
+            "HTTP 200" if health_success else "not ready",
+            "http://demo",
+        ),
     )
+
+
+def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeypatch) -> None:
+    module = _load_module()
+
+    _patch_local_server(monkeypatch, module, health_success=False)
 
     code = module.main(["--json", "--port", "8765", "--timeout", "1"])
 
@@ -971,6 +1111,57 @@ def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeyp
     payload = json.loads(capsys.readouterr().out)
     assert [step["label"] for step in payload["steps"]] == ["streamlit health", "streamlit process"]
     assert "process exited with 9" in payload["steps"][1]["detail"]
+
+
+def test_main_local_json_runs_frontend_smoke_after_healthy_server(capsys, monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    _patch_local_server(monkeypatch, module, health_success=True)
+    calls: list[dict] = []
+
+    def fake_frontend_smoke(**kwargs):
+        calls.append(kwargs)
+        return [module.RobotStep("frontend landing hydration", True, 0.3, "ok", kwargs["base_url"])]
+
+    monkeypatch.setattr(module, "run_frontend_smoke", fake_frontend_smoke)
+
+    code = module.main(
+        [
+            "--json",
+            "--frontend-smoke-only",
+            "--port",
+            "8765",
+            "--timeout",
+            "1",
+            "--screenshot-dir",
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "frontend landing hydration"]
+    assert calls[0]["base_url"] == "http://127.0.0.1:8765"
+    assert calls[0]["screenshot_dir"] == tmp_path.resolve()
+
+
+def test_main_local_json_runs_full_robot_after_healthy_server(capsys, monkeypatch) -> None:
+    module = _load_module()
+    _patch_local_server(monkeypatch, module, health_success=True)
+    calls: list[dict] = []
+
+    def fake_browser_robot(**kwargs):
+        calls.append(kwargs)
+        return [module.RobotStep("analysis page", True, 0.4, "ok", kwargs["base_url"])]
+
+    monkeypatch.setattr(module, "run_browser_robot", fake_browser_robot)
+
+    code = module.main(["--json", "--port", "8765", "--timeout", "1", "--analysis-view", "view_maps"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "analysis page"]
+    assert calls[0]["analysis_view"] == "view_maps"
+    assert calls[0]["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
 
 
 def test_render_human_non_json_output_includes_route_and_step_details(capsys) -> None:
