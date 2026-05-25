@@ -265,6 +265,98 @@ def test_proof_capsule_archive_verifies_replays_and_detects_tampering(tmp_path: 
     assert prove_report["schema"] == module.PROOF_CAPSULE_SCHEMA
     assert prove_report["capsule_path"] == str(cli_capsule)
 
+    unsigned_required = module.verify_proof_capsule(capsule_path, require_signature=True)
+    unsigned_required_checks = {check["id"]: check for check in unsigned_required["checks"]}
+    assert unsigned_required["status"] == "fail"
+    assert unsigned_required_checks["capsule_signature_present"]["status"] == "fail"
+
+    key_path = tmp_path / "signer.pem"
+    signature_path = tmp_path / "run.agipack.sig.json"
+    signature_result = module.sign_proof_capsule(
+        capsule_path,
+        key_path,
+        signature_path=signature_path,
+        signer="AGILAB QA",
+        issuer="local",
+        generate_key=True,
+    )
+    assert signature_result.signature["schema"] == module.PROOF_CAPSULE_SIGNATURE_SCHEMA
+    assert signature_result.signature["subject"]["sha256"] == module.sha256_file(capsule_path)
+    assert key_path.is_file()
+
+    trust_policy = tmp_path / "trust-policy.toml"
+    trust_policy.write_text(
+        f"""
+schema = "{module.TRUST_POLICY_SCHEMA}"
+allowed_public_key_sha256 = ["{signature_result.signature["key"]["public_key_sha256"]}"]
+allowed_signers = ["AGILAB QA"]
+allowed_issuers = ["local"]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    signed_verify = module.verify_proof_capsule(
+        capsule_path,
+        signature_path=signature_path,
+        trust_policy_path=trust_policy,
+        require_signature=True,
+    )
+    signed_checks = {check["id"]: check for check in signed_verify["checks"]}
+    assert signed_verify["status"] == "pass"
+    assert signed_checks["capsule_signature_cryptographic_valid"]["status"] == "pass"
+    assert signed_checks["capsule_trust_policy_allows_public_key"]["status"] == "pass"
+
+    cli_signature = tmp_path / "cli.agipack.sig.json"
+    assert module.main([
+        "sign",
+        str(cli_capsule),
+        "--key",
+        str(key_path),
+        "--signature",
+        str(cli_signature),
+        "--signer",
+        "AGILAB QA",
+        "--issuer",
+        "local",
+        "--json",
+    ]) == 0
+    sign_report = json.loads(capsys.readouterr().out)
+    assert sign_report["status"] == "pass"
+    assert sign_report["signature_path"] == str(cli_signature)
+
+    assert module.main([
+        "verify",
+        str(capsule_path),
+        "--signature",
+        str(signature_path),
+        "--trust-policy",
+        str(trust_policy),
+        "--require-signature",
+        "--json",
+        "--strict",
+    ]) == 0
+    cli_signed_verify = json.loads(capsys.readouterr().out)
+    assert cli_signed_verify["signature_path"] == str(signature_path)
+
+    bad_trust_policy = tmp_path / "bad-trust-policy.toml"
+    bad_trust_policy.write_text(
+        f"""
+schema = "{module.TRUST_POLICY_SCHEMA}"
+allowed_public_key_sha256 = ["not-{signature_result.signature["key"]["public_key_sha256"]}"]
+allowed_signers = ["Other"]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    bad_signed_verify = module.verify_proof_capsule(
+        capsule_path,
+        signature_path=signature_path,
+        trust_policy_path=bad_trust_policy,
+        require_signature=True,
+    )
+    bad_checks = {check["id"]: check for check in bad_signed_verify["checks"]}
+    assert bad_signed_verify["status"] == "fail"
+    assert bad_checks["capsule_trust_policy_allows_public_key"]["status"] == "fail"
+    assert bad_checks["capsule_trust_policy_allows_signer"]["status"] == "fail"
+
     tampered_path = tmp_path / "tampered.agipack"
     with zipfile.ZipFile(capsule_path) as source, zipfile.ZipFile(tampered_path, "w") as target:
         for info in source.infolist():
@@ -277,6 +369,16 @@ def test_proof_capsule_archive_verifies_replays_and_detects_tampering(tmp_path: 
     checks = {check["id"]: check for check in tampered_report["checks"]}
     assert tampered_report["status"] == "fail"
     assert checks["capsule_entry_hashes_match"]["status"] == "fail"
+
+    tampered_signed_report = module.verify_proof_capsule(
+        tampered_path,
+        signature_path=signature_path,
+        trust_policy_path=trust_policy,
+        require_signature=True,
+    )
+    tampered_signed_checks = {check["id"]: check for check in tampered_signed_report["checks"]}
+    assert tampered_signed_report["status"] == "fail"
+    assert tampered_signed_checks["capsule_signature_subject_matches"]["status"] == "fail"
 
 
 def test_policy_check_custom_policy_and_failed_manifest(tmp_path: Path) -> None:

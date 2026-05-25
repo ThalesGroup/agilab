@@ -270,6 +270,11 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
     assert rc == 45
     assert captured[-1] == ["export-traces", "run_manifest.json", "--output", "otel.json"]
 
+    rc = lab_run.main(["sign", "proof.agipack", "--key", "signer.pem"])
+
+    assert rc == 45
+    assert captured[-1] == ["sign", "proof.agipack", "--key", "signer.pem"]
+
 
 def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
