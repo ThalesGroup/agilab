@@ -125,3 +125,24 @@ def test_kubernetes_job_cli_reports_bad_environment_assignment() -> None:
         kubernetes_job.main(["--app", "demo", "--image", "agilab:local", "--env", "bad"])
 
     assert exc_info.value.code == 2
+
+
+def test_kubernetes_job_module_entrypoint_reads_process_argv(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "python -m agilab.kubernetes_job",
+            "--app",
+            "demo_project",
+            "--image",
+            "agilab:local",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert kubernetes_job.main() == 0
+
+    manifest = json.loads(capsys.readouterr().out)
+    assert manifest["metadata"]["name"] == "agilab-demo-project"

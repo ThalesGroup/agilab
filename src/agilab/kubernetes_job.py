@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 from typing import Any, Mapping, Sequence
 
 
@@ -286,7 +287,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    raw_argv = list(argv or [])
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv[:1] == ["manifest"]:
         raw_argv = raw_argv[1:]
     parser = _build_parser()
