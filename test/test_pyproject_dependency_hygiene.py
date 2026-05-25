@@ -461,6 +461,35 @@ def test_agi_gui_uses_native_streamlit_dialogs_and_declares_only_used_ui_runtime
     assert deps.isdisjoint({"gitpython", "streamlit-modal", "streamlit_extras"})
 
 
+def test_app_pages_importing_agi_env_declare_runtime_pair() -> None:
+    violations: list[str] = []
+
+    for pyproject in sorted((REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml")):
+        source_dir = pyproject.parent / "src"
+        if not source_dir.exists():
+            continue
+        imports_agi_env = any(
+            "from agi_env" in path.read_text(encoding="utf-8", errors="ignore")
+            or "import agi_env" in path.read_text(encoding="utf-8", errors="ignore")
+            for path in sorted(source_dir.rglob("*.py"))
+        )
+        if not imports_agi_env:
+            continue
+
+        dependencies = _dependency_names(pyproject)
+        sources = set(_load_pyproject(pyproject).get("tool", {}).get("uv", {}).get("sources", {}))
+        missing_dependencies = {"agi-env", "agi-node"} - dependencies
+        missing_sources = {"agi-env", "agi-node"} - sources
+        if missing_dependencies or missing_sources:
+            relative = pyproject.relative_to(REPO_ROOT).as_posix()
+            violations.append(
+                f"{relative}: missing dependencies={sorted(missing_dependencies)} "
+                f"sources={sorted(missing_sources)}"
+            )
+
+    assert violations == []
+
+
 def test_app_templates_keep_dependency_lists_app_local() -> None:
     templates = discover_app_templates(REPO_ROOT / "src/agilab/apps/templates").templates
     assert templates

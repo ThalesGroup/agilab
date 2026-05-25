@@ -145,8 +145,8 @@ def _render_self_evaluation_contract() -> None:
         )
         st.caption(
             "RUN exports `classroom/classroom_run_report.json`, teacher summary, "
-            "progress/heatmap/needs-attention/curriculum CSVs, and partial worker "
-            "progress under `classroom/partials/` for live dashboards."
+            "progress/heatmap/needs-attention/student/curriculum/intervention CSVs, "
+            "and partial worker progress under `classroom/partials/` for live dashboards."
         )
 
 
