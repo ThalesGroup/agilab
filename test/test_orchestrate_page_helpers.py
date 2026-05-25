@@ -104,7 +104,9 @@ def _load_orchestrate_page_helpers_module():
         return _ORCHESTRATE_PAGE_HELPERS_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_tests", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_helpers_tests", module_path
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -112,7 +114,9 @@ def _load_orchestrate_page_helpers_module():
     return module
 
 
-def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, names_to_fail: set[str]):
+def _load_orchestrate_page_helpers_module_with_import_failures(
+    monkeypatch, names_to_fail: set[str]
+):
     src_root = Path(__file__).resolve().parents[1] / "src"
     package_root = src_root / "agilab"
     src_root_str = str(src_root)
@@ -153,7 +157,9 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
     monkeypatch.setattr(importlib, "import_module", _fake_import_module)
 
     module_path = Path("src/agilab/orchestrate_page_helpers.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_helpers_fallback_tests", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_helpers_fallback_tests", module_path
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -166,7 +172,9 @@ def _load_orchestrate_module():
         return _ORCHESTRATE_MODULE
     _prime_current_agilab_package()
     module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_tests", module_path
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -189,7 +197,9 @@ def _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     monkeypatch.setitem(sys.modules, "agilab", pkg)
 
     module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
-    spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_importerror_tests", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_page_importerror_tests", module_path
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -197,6 +207,20 @@ def _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root: Path):
 
 
 orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
+
+
+def test_orchestrate_readiness_cards_use_compact_path_captions(tmp_path):
+    module = _load_orchestrate_module()
+
+    project_root = tmp_path / "apps" / "demo_project"
+    manager_venv = project_root / ".venv"
+
+    assert module._compact_path_caption(manager_venv) == ".venv in demo_project"
+    assert (
+        module._compact_data_share_caption(f"3 files in {tmp_path / 'export' / 'demo'}")
+        == "3 files"
+    )
+    assert module._compact_path_caption("short status") == "short status"
 
 
 def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
@@ -266,8 +290,20 @@ def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
     monkeypatch.setattr(module, "_safe_eval_impl", _fake_safe_eval)
 
     errors: list[str] = []
-    assert module.parse_and_validate_scheduler("127.0.0.1:9000", is_valid_ip=lambda ip: ip == "127.0.0.1", on_error=errors.append) == "scheduler"
-    assert module.parse_and_validate_workers("127.0.0.1:2", is_valid_ip=lambda ip: ip == "127.0.0.1", on_error=errors.append, default_workers={"a": 1}) == {"127.0.0.1": 2}
+    assert (
+        module.parse_and_validate_scheduler(
+            "127.0.0.1:9000",
+            is_valid_ip=lambda ip: ip == "127.0.0.1",
+            on_error=errors.append,
+        )
+        == "scheduler"
+    )
+    assert module.parse_and_validate_workers(
+        "127.0.0.1:2",
+        is_valid_ip=lambda ip: ip == "127.0.0.1",
+        on_error=errors.append,
+        default_workers={"a": 1},
+    ) == {"127.0.0.1": 2}
     assert module.safe_eval("1 + 1", int, "bad", on_error=errors.append) == 7
 
     assert captured["scheduler"] == ("127.0.0.1:9000", True)
@@ -300,25 +336,58 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
         "_append_log_lines_impl",
         lambda *args, **kwargs: captured.setdefault("append_log_lines", (args, kwargs)),
     )
-    monkeypatch.setattr(module, "_log_indicates_install_failure_impl", lambda lines: lines == ["failed"])
-    monkeypatch.setattr(module, "_clear_cached_distribution_impl", lambda load_distribution_fn: load_distribution_fn())
-    monkeypatch.setattr(module, "_clear_mount_table_cache_impl", lambda mount_table: mount_table.cache_clear())
+    monkeypatch.setattr(
+        module, "_log_indicates_install_failure_impl", lambda lines: lines == ["failed"]
+    )
+    monkeypatch.setattr(
+        module,
+        "_clear_cached_distribution_impl",
+        lambda load_distribution_fn: load_distribution_fn(),
+    )
+    monkeypatch.setattr(
+        module,
+        "_clear_mount_table_cache_impl",
+        lambda mount_table: mount_table.cache_clear(),
+    )
     monkeypatch.setattr(
         module,
         "_resolve_share_candidate_impl",
-        lambda path_value, home_abs, *, path_type=Path: path_type(home_abs) / str(path_value),
+        lambda path_value, home_abs, *, path_type=Path: path_type(home_abs)
+        / str(path_value),
     )
     monkeypatch.setattr(
         module,
         "_display_log_impl",
         lambda *args, **kwargs: captured.setdefault("display_log", (args, kwargs)),
     )
-    monkeypatch.setattr(module, "_toggle_select_all_impl", lambda session_state: session_state.__setitem__("all", True))
-    monkeypatch.setattr(module, "_update_select_all_impl", lambda session_state: session_state.__setitem__("updated", True))
-    monkeypatch.setattr(module, "_capture_dataframe_preview_state_impl", lambda session_state: {"preview": dict(session_state)})
-    monkeypatch.setattr(module, "_restore_dataframe_preview_state_impl", lambda session_state, payload: session_state.update(payload))
-    monkeypatch.setattr(module, "_is_app_installed_impl", lambda env: getattr(env, "ready", False))
-    monkeypatch.setattr(module, "_app_install_status_impl", lambda env: {"ready": getattr(env, "ready", False)})
+    monkeypatch.setattr(
+        module,
+        "_toggle_select_all_impl",
+        lambda session_state: session_state.__setitem__("all", True),
+    )
+    monkeypatch.setattr(
+        module,
+        "_update_select_all_impl",
+        lambda session_state: session_state.__setitem__("updated", True),
+    )
+    monkeypatch.setattr(
+        module,
+        "_capture_dataframe_preview_state_impl",
+        lambda session_state: {"preview": dict(session_state)},
+    )
+    monkeypatch.setattr(
+        module,
+        "_restore_dataframe_preview_state_impl",
+        lambda session_state, payload: session_state.update(payload),
+    )
+    monkeypatch.setattr(
+        module, "_is_app_installed_impl", lambda env: getattr(env, "ready", False)
+    )
+    monkeypatch.setattr(
+        module,
+        "_app_install_status_impl",
+        lambda env: {"ready": getattr(env, "ready", False)},
+    )
 
     session_state = {"x": 1}
     module.init_session_state(session_state, {"answer": 42})
@@ -352,21 +421,34 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
     assert module.log_indicates_install_failure(["failed"]) is True
 
     query_params: dict[str, object] = {}
-    module.set_active_app_query_param(query_params, "demo_project", streamlit_api_exception=StreamlitAPIException)
+    module.set_active_app_query_param(
+        query_params, "demo_project", streamlit_api_exception=StreamlitAPIException
+    )
     assert query_params["active_app"] == "demo_project"
 
     calls = {"distribution": 0, "mount": 0}
-    module.clear_cached_distribution(lambda: calls.__setitem__("distribution", calls["distribution"] + 1))
-    module.clear_mount_table_cache(SimpleNamespace(cache_clear=lambda: calls.__setitem__("mount", calls["mount"] + 1)))
+    module.clear_cached_distribution(
+        lambda: calls.__setitem__("distribution", calls["distribution"] + 1)
+    )
+    module.clear_mount_table_cache(
+        SimpleNamespace(
+            cache_clear=lambda: calls.__setitem__("mount", calls["mount"] + 1)
+        )
+    )
     assert calls == {"distribution": 1, "mount": 1}
 
-    assert module.resolve_share_candidate("clustershare", "/home/agi") == Path("/home/agi/clustershare")
+    assert module.resolve_share_candidate("clustershare", "/home/agi") == Path(
+        "/home/agi/clustershare"
+    )
     assert module.configured_cluster_share_matches(
         Path("/home/agi/clustershare"),
         cluster_share_path="clustershare",
         home_abs="/home/agi",
     )
-    assert module.benchmark_display_date(tmp_path / "missing", "already-set") == "already-set"
+    assert (
+        module.benchmark_display_date(tmp_path / "missing", "already-set")
+        == "already-set"
+    )
 
     module.display_log(
         "stdout",
@@ -392,7 +474,9 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
     assert "display_log" in captured
 
 
-def test_page_helpers_looks_like_shared_path_delegates_project_root(monkeypatch, tmp_path):
+def test_page_helpers_looks_like_shared_path_delegates_project_root(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_page_helpers_module()
     captured = {}
 
@@ -413,6 +497,7 @@ def test_page_helpers_import_fallback_raises_when_local_specs_are_missing():
     original_spec = importlib.util.spec_from_file_location
 
     with pytest.MonkeyPatch.context() as mp:
+
         def _page_support_missing(name, location, *args, **kwargs):
             if name == "agilab_orchestrate_page_support_fallback":
                 return None
@@ -420,9 +505,12 @@ def test_page_helpers_import_fallback_raises_when_local_specs_are_missing():
 
         mp.setattr(importlib.util, "spec_from_file_location", _page_support_missing)
         with pytest.raises(ModuleNotFoundError, match="orchestrate_page_support"):
-            _load_orchestrate_page_helpers_module_with_import_failures(mp, {"agilab.orchestrate_page_support"})
+            _load_orchestrate_page_helpers_module_with_import_failures(
+                mp, {"agilab.orchestrate_page_support"}
+            )
 
     with pytest.MonkeyPatch.context() as mp:
+
         def _support_missing(name, location, *args, **kwargs):
             if name == "agilab_orchestrate_support_fallback":
                 return None
@@ -430,7 +518,9 @@ def test_page_helpers_import_fallback_raises_when_local_specs_are_missing():
 
         mp.setattr(importlib.util, "spec_from_file_location", _support_missing)
         with pytest.raises(ModuleNotFoundError, match="orchestrate_support"):
-            _load_orchestrate_page_helpers_module_with_import_failures(mp, {"agilab.orchestrate_support"})
+            _load_orchestrate_page_helpers_module_with_import_failures(
+                mp, {"agilab.orchestrate_support"}
+            )
 
 
 def test_orchestrate_page_support_snippet_and_mode_helpers():
@@ -480,17 +570,28 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         {"dataset": "flight/source", "limit": 5, "enabled": True}
     )
     assert payload == 'dataset="flight/source", limit=5, enabled=True'
-    assert orchestrate_page_support.optional_string_expr(True, "tcp://127.0.0.1:8786") == '"tcp://127.0.0.1:8786"'
+    assert (
+        orchestrate_page_support.optional_string_expr(True, "tcp://127.0.0.1:8786")
+        == '"tcp://127.0.0.1:8786"'
+    )
     assert orchestrate_page_support.optional_string_expr(False, "ignored") == "None"
-    assert orchestrate_page_support.optional_python_expr(True, {"127.0.0.1": 1}) == "{'127.0.0.1': 1}"
-    assert orchestrate_page_support.optional_python_expr(False, {"127.0.0.1": 1}) == "None"
+    assert (
+        orchestrate_page_support.optional_python_expr(True, {"127.0.0.1": 1})
+        == "{'127.0.0.1': 1}"
+    )
+    assert (
+        orchestrate_page_support.optional_python_expr(False, {"127.0.0.1": 1}) == "None"
+    )
 
     run_mode = orchestrate_page_support.compute_run_mode(
         {"pool": True, "cython": True, "rapids": True},
         cluster_enabled=True,
     )
     assert run_mode == 15
-    assert orchestrate_page_support.describe_run_mode(run_mode, False) == "Run mode 15: rapids and dask and pool and cython"
+    assert (
+        orchestrate_page_support.describe_run_mode(run_mode, False)
+        == "Run mode 15: rapids and dask and pool and cython"
+    )
     assert (
         orchestrate_page_support.describe_run_mode([0, 7, 15], True)
         == "Run mode benchmark (selected modes: 0, 7, 15)"
@@ -510,7 +611,10 @@ def test_orchestrate_notebook_document_exports_current_recipe():
 
     document = module._orchestrate_notebook_document(env, snippets)
 
-    assert module._orchestrate_snippet_state_key(env, "run") == "orchestrate:notebook_snippet:demo_project:run"
+    assert (
+        module._orchestrate_snippet_state_key(env, "run")
+        == "orchestrate:notebook_snippet:demo_project:run"
+    )
     assert document["nbformat"] == 4
     assert document["nbformat_minor"] == 5
     assert document["metadata"]["agilab"]["schema"] == "agilab.orchestrate_notebook.v1"
@@ -525,7 +629,10 @@ def test_orchestrate_notebook_document_exports_current_recipe():
         for cell in document["cells"]
     )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
-    assert ["".join(cell["source"]) for cell in code_cells] == ["print('install')\n", "print('run')\n"]
+    assert ["".join(cell["source"]) for cell in code_cells] == [
+        "print('install')\n",
+        "print('run')\n",
+    ]
 
 
 def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
@@ -564,10 +671,14 @@ def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
 
     assert fake_st.expanders == [("Notebook", False)]
     assert fake_st.downloads == []
-    assert fake_st.infos == ["No orchestration snippets are available yet. Configure INSTALL or RUN first."]
+    assert fake_st.infos == [
+        "No orchestration snippets are available yet. Configure INSTALL or RUN first."
+    ]
 
 
-def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exists(monkeypatch, tmp_path):
+def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exists(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     fake_st = _NotebookExpanderStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
@@ -628,11 +739,13 @@ def test_orchestrate_page_support_distribution_plan_helpers():
     assert new_metadata == [[], [("A", 2), ("B", 3)]]
     assert new_plan == [[], [["a.csv"], ["b.csv"]]]
 
-    unchanged_metadata, unchanged_plan = orchestrate_page_support.reassign_distribution_plan(
-        workers=workers,
-        work_plan_metadata=work_plan_metadata,
-        work_plan=work_plan,
-        selections={},
+    unchanged_metadata, unchanged_plan = (
+        orchestrate_page_support.reassign_distribution_plan(
+            workers=workers,
+            work_plan_metadata=work_plan_metadata,
+            work_plan=work_plan,
+            selections={},
+        )
     )
     assert unchanged_metadata == [[("A", 2)], [("B", 3)]]
     assert unchanged_plan == [[["a.csv"]], [["b.csv"]]]
@@ -754,15 +867,32 @@ def test_apply_distribution_plan_action_reports_unserializable_payload(tmp_path)
 def test_orchestrate_page_support_log_filters_and_display_helpers():
     assert orchestrate_page_support.strip_ansi("\x1b[31merror\x1b[0m") == "error"
     assert orchestrate_page_support.is_dask_shutdown_noise("Stream is closed")
-    assert orchestrate_page_support.is_dask_shutdown_noise('File "/usr/local/lib/python3.11/site-packages/distributed/comm.py", line 1')
-    assert orchestrate_page_support.is_dask_shutdown_noise("Traceback (most recent call last):")
+    assert orchestrate_page_support.is_dask_shutdown_noise(
+        'File "/usr/local/lib/python3.11/site-packages/distributed/comm.py", line 1'
+    )
+    assert orchestrate_page_support.is_dask_shutdown_noise(
+        "Traceback (most recent call last):"
+    )
 
-    text = "\n".join(["normal message", "StreamClosedError", "another line", "stream is closed"])
-    assert orchestrate_page_support.filter_noise_lines(text) == "normal message\nanother line"
+    text = "\n".join(
+        ["normal message", "StreamClosedError", "another line", "stream is closed"]
+    )
+    assert (
+        orchestrate_page_support.filter_noise_lines(text)
+        == "normal message\nanother line"
+    )
 
     block = "\n".join(f"line {i}" for i in range(1, 6))
-    assert orchestrate_page_support.format_log_block(block, newest_first=True, max_lines=3) == "line 5\nline 4\nline 3"
-    assert orchestrate_page_support.format_log_block(block, newest_first=False, max_lines=3) == "line 3\nline 4\nline 5"
+    assert (
+        orchestrate_page_support.format_log_block(block, newest_first=True, max_lines=3)
+        == "line 5\nline 4\nline 3"
+    )
+    assert (
+        orchestrate_page_support.format_log_block(
+            block, newest_first=False, max_lines=3
+        )
+        == "line 3\nline 4\nline 5"
+    )
 
     log = "\n".join(
         [
@@ -771,8 +901,12 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
             "final",
         ]
     )
-    assert orchestrate_page_support.filter_warning_messages(log) == "normal warning\nfinal"
-    assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
+    assert (
+        orchestrate_page_support.filter_warning_messages(log) == "normal warning\nfinal"
+    )
+    assert not orchestrate_page_support.log_indicates_install_failure(
+        ["all good", "installation complete"]
+    )
     assert not orchestrate_page_support.log_indicates_install_failure(
         [
             "Remote command stderr: error: Permission denied (os error 13)",
@@ -790,7 +924,9 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
             "Process finished",
         ]
     )
-    assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["TRACEBACK", "Command failed with exit code 1"]
+    )
     assert orchestrate_page_support.log_indicates_install_failure(
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
@@ -799,7 +935,15 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     state = {"active": False}
     orchestrate_page_support.append_log_lines(
         buffer,
-        "\n".join(["normal", "Traceback (most recent call last):", "stream is closed", "", "next"]),
+        "\n".join(
+            [
+                "normal",
+                "Traceback (most recent call last):",
+                "stream is closed",
+                "",
+                "next",
+            ]
+        ),
         cluster_verbose=1,
         traceback_state=state,
     )
@@ -916,7 +1060,9 @@ def test_orchestrate_page_support_dataframe_state_helpers():
     select_state["check_all"] = True
     orchestrate_page_support.toggle_select_all(select_state)
     assert select_state["selected_cols"] == ["a", "b", "c"]
-    select_state.update({"export_col_0": True, "export_col_1": True, "export_col_2": False})
+    select_state.update(
+        {"export_col_0": True, "export_col_1": True, "export_col_2": False}
+    )
     orchestrate_page_support.update_select_all(select_state)
     assert select_state["check_all"] is False
     assert select_state["selected_cols"] == ["a", "b"]
@@ -924,11 +1070,17 @@ def test_orchestrate_page_support_dataframe_state_helpers():
 
 def test_orchestrate_page_support_additional_edge_branches(tmp_path):
     assert orchestrate_page_support.is_dask_shutdown_noise("") is False
-    assert orchestrate_page_support.is_dask_shutdown_noise(
-        "The above exception was the direct cause of the following exception:"
-    ) is True
+    assert (
+        orchestrate_page_support.is_dask_shutdown_noise(
+            "The above exception was the direct cause of the following exception:"
+        )
+        is True
+    )
     assert orchestrate_page_support.is_dask_shutdown_noise("Traceback") is True
-    assert orchestrate_page_support.format_log_block("", newest_first=False, max_lines=3) == ""
+    assert (
+        orchestrate_page_support.format_log_block("", newest_first=False, max_lines=3)
+        == ""
+    )
     assert orchestrate_page_support.describe_run_mode(-1, False) == "Run mode unknown"
     snippet = orchestrate_page_support.build_distribution_snippet(
         env=SimpleNamespace(apps_path="/tmp/apps", app="demo_project"),
@@ -944,7 +1096,9 @@ def test_orchestrate_page_support_additional_edge_branches(tmp_path):
         work_plan_metadata=[[("A", 1)], [("B", 2)]],
         work_plan=[[["a.csv"]], [["b.csv"]]],
         selections={
-            orchestrate_page_support.workplan_selection_key("B", 1, 0): "missing-worker",
+            orchestrate_page_support.workplan_selection_key(
+                "B", 1, 0
+            ): "missing-worker",
         },
     )
     assert metadata == [[("A", 1)]]
@@ -1025,11 +1179,15 @@ def test_orchestrate_page_support_additional_edge_branches(tmp_path):
     orchestrate_page_support.clear_mount_table_cache(object())
     stamped = tmp_path / "benchmark.txt"
     stamped.write_text("x", encoding="utf-8")
-    assert orchestrate_page_support.benchmark_display_date(stamped, "preset") == "preset"
+    assert (
+        orchestrate_page_support.benchmark_display_date(stamped, "preset") == "preset"
+    )
     auto_date = orchestrate_page_support.benchmark_display_date(stamped, "")
     assert auto_date
     assert auto_date.count(":") == 2
-    assert orchestrate_page_support.benchmark_display_date(tmp_path / "missing", "") == ""
+    assert (
+        orchestrate_page_support.benchmark_display_date(tmp_path / "missing", "") == ""
+    )
     assert orchestrate_page_support.log_indicates_install_failure([]) is False
 
     restored = {
@@ -1092,7 +1250,12 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
         if os.name == "nt":
             site_packages = venv / "Lib" / "site-packages"
         else:
-            site_packages = venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+            site_packages = (
+                venv
+                / "lib"
+                / f"python{sys.version_info.major}.{sys.version_info.minor}"
+                / "site-packages"
+            )
         site_packages.mkdir(parents=True, exist_ok=True)
         for module_name in modules:
             package_dir = site_packages / module_name
@@ -1101,7 +1264,9 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
             if module_name == "agi_cluster":
                 distributor_dir = package_dir / "agi_distributor"
                 distributor_dir.mkdir(parents=True, exist_ok=True)
-                (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
+                (distributor_dir / "__init__.py").write_text(
+                    "class StageRequest: ...\n", encoding="utf-8"
+                )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -1144,7 +1309,10 @@ def test_install_status_warning_skips_first_launch_missing_manager(tmp_path: Pat
     assert module._install_status_warning_message(install_status) is None
     label, caption = module._runtime_status_label(install_status)
     assert label == "Needs INSTALL"
-    assert caption == "Manager environment has not been created yet. Run INSTALL before RUN."
+    assert (
+        caption
+        == "Manager environment has not been created yet. Run INSTALL before RUN."
+    )
 
 
 def test_install_status_warning_reports_existing_stale_environment():
@@ -1193,7 +1361,9 @@ def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
         def __setitem__(self, key, value):
             raise StreamlitAPIException("no runtime")
 
-    monkeypatch.setattr(module, "st", SimpleNamespace(query_params=_BrokenQueryParams()))
+    monkeypatch.setattr(
+        module, "st", SimpleNamespace(query_params=_BrokenQueryParams())
+    )
 
     module._set_active_app_query_param("demo_project")
 
@@ -1233,7 +1403,9 @@ def test_first_proof_orchestrate_query_seed_queues_run_and_cleans_url():
 def test_clear_cached_distribution_calls_clear_when_available():
     module = _load_orchestrate_module()
     called = {"count": 0}
-    module.load_distribution.clear = lambda: called.__setitem__("count", called["count"] + 1)
+    module.load_distribution.clear = lambda: called.__setitem__(
+        "count", called["count"] + 1
+    )
 
     module._clear_cached_distribution()
 
@@ -1241,7 +1413,9 @@ def test_clear_cached_distribution_calls_clear_when_available():
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_reports_success_and_uses_controller_runtime(tmp_path: Path):
+async def test_check_distribution_action_reports_success_and_uses_controller_runtime(
+    tmp_path: Path,
+):
     module = _load_orchestrate_module()
     controller_root = tmp_path / "controller"
     project_path = tmp_path / "project"
@@ -1275,7 +1449,9 @@ async def test_check_distribution_action_reports_success_and_uses_controller_run
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_accepts_stderr_when_process_succeeds(tmp_path: Path):
+async def test_check_distribution_action_accepts_stderr_when_process_succeeds(
+    tmp_path: Path,
+):
     module = _load_orchestrate_module()
     project_path = tmp_path / "project"
     captured: dict[str, object] = {}
@@ -1313,7 +1489,9 @@ async def test_check_distribution_action_accepts_stderr_when_process_succeeds(tm
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_prefers_controller_runtime_when_available(tmp_path: Path):
+async def test_check_distribution_action_prefers_controller_runtime_when_available(
+    tmp_path: Path,
+):
     module = _load_orchestrate_module()
     controller_root = tmp_path / "controller"
     project_path = tmp_path / "project"
@@ -1354,7 +1532,7 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
             "WARNING: Cache entry deserialization failed, entry ignored",
             "flight_telemetry_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
             "flight_telemetry_project.runtime_distribution_support.run_local debug=False",
-            "flight_telemetry_project.execution_support.run_async Executing in /Users/agi/wenv/flight_telemetry_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_telemetry_worker --python 3.13.13 python -c \"from pathlib import Path",
+            'flight_telemetry_project.execution_support.run_async Executing in /Users/agi/wenv/flight_telemetry_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_telemetry_worker --python 3.13.13 python -c "from pathlib import Path',
             "from agi_env import AgiEnv",
             "from agi_node.agi_dispatcher import  BaseWorker",
             "import asyncio",
@@ -1364,7 +1542,7 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
             "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight_telemetry/dataset', 'data_out': 'flight_telemetry/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
             "  print(res)",
             "if __name__ == '__main__':",
-            "  asyncio.run(main())\"",
+            '  asyncio.run(main())"',
         ]
     )
 
@@ -1388,7 +1566,11 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
     assert result.status == "success"
     assert result.title == "Distribution built successfully."
     assert result.data["stderr"] == stderr_log
-    assert result.data["dist_log"] == ("building distribution", *stderr_log.splitlines(), "None")
+    assert result.data["dist_log"] == (
+        "building distribution",
+        *stderr_log.splitlines(),
+        "None",
+    )
 
 
 @pytest.mark.asyncio
@@ -1496,7 +1678,10 @@ async def test_install_worker_action_allows_benign_returned_stderr(tmp_path: Pat
     assert result.status == "success"
     assert result.title == "Cluster installation completed."
     assert result.detail is None
-    assert result.data["stderr"] == "warning: package manager wrote a non-fatal warning to stderr"
+    assert (
+        result.data["stderr"]
+        == "warning: package manager wrote a non-fatal warning to stderr"
+    )
     assert result.data["install_log"] == (
         "warning: package manager wrote a non-fatal warning to stderr",
         "✅ Install complete.",
@@ -1565,14 +1750,22 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_install_worker_action_allows_recovered_local_uv_self_update_failure(tmp_path: Path):
+async def test_install_worker_action_allows_recovered_local_uv_self_update_failure(
+    tmp_path: Path,
+):
     module = _load_orchestrate_module()
     local_log: list[str] = []
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
-        log_callback("error: Self-update is only available for uv binaries installed via the standalone installation scripts.")
-        log_callback("app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update")
-        log_callback("app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2")
+        log_callback(
+            "error: Self-update is only available for uv binaries installed via the standalone installation scripts."
+        )
+        log_callback(
+            "app.execution_support._raise_nonzero_process_result Command failed with exit code 2: uv --quiet self update"
+        )
+        log_callback(
+            "app.deployment_prepare_support.prepare_local_env Failed to update uv (skipping self update): Command failed with exit code 2"
+        )
         return "None\nProcess finished", ""
 
     env = SimpleNamespace(run_agi=_run_agi)
@@ -1619,12 +1812,16 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_install_worker_action_classifies_corrupted_dataset_archive(tmp_path: Path):
+async def test_install_worker_action_classifies_corrupted_dataset_archive(
+    tmp_path: Path,
+):
     module = _load_orchestrate_module()
     local_log: list[str] = []
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
-        log_callback("agilab.data_archive_support.unzip_data Failed to extract '/tmp/dataset.7z': not a 7z file")
+        log_callback(
+            "agilab.data_archive_support.unzip_data Failed to extract '/tmp/dataset.7z': not a 7z file"
+        )
         log_callback("py7zr.exceptions.Bad7zFile: not a 7z file")
         return "", ""
 
@@ -1676,7 +1873,13 @@ async def test_install_worker_action_reports_run_exception(tmp_path: Path):
 def test_clear_mount_table_cache_calls_cache_clear_when_available(monkeypatch):
     module = _load_orchestrate_module()
     called = {"count": 0}
-    monkeypatch.setattr(module, "_mount_table", SimpleNamespace(cache_clear=lambda: called.__setitem__("count", called["count"] + 1)))
+    monkeypatch.setattr(
+        module,
+        "_mount_table",
+        SimpleNamespace(
+            cache_clear=lambda: called.__setitem__("count", called["count"] + 1)
+        ),
+    )
 
     module._clear_mount_table_cache()
 
@@ -1687,7 +1890,6 @@ def test_resolve_share_candidate_falls_back_when_resolve_fails(monkeypatch):
     module = _load_orchestrate_module()
 
     class _BrokenPath(PosixPath):
-
         def resolve(self, strict=False):
             raise OSError("broken link")
 
@@ -1726,7 +1928,10 @@ def test_app_args_env_uses_cluster_share_instead_of_stale_local_share(tmp_path):
     assert args_env.share_root_path() == cluster_share
     assert args_env.agi_share_path == cluster_share
     assert args_env.agi_share_path_abs == cluster_share
-    assert args_env.resolve_share_path("flight_telemetry/dataset") == cluster_share / "flight_telemetry/dataset"
+    assert (
+        args_env.resolve_share_path("flight_telemetry/dataset")
+        == cluster_share / "flight_telemetry/dataset"
+    )
     assert args_env.envars["AGI_CLUSTER_SHARE"] == str(cluster_share)
 
 
@@ -1755,7 +1960,9 @@ def test_cluster_args_share_warning_accepts_configured_cluster_share(tmp_path):
     assert warning is None
 
 
-def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_source(monkeypatch, tmp_path):
+def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_source(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
     monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
@@ -1783,7 +1990,9 @@ def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_
     assert warning is None
 
 
-def test_cluster_args_share_warning_accepts_local_cluster_on_local_filesystem(monkeypatch, tmp_path):
+def test_cluster_args_share_warning_accepts_local_cluster_on_local_filesystem(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
     monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
@@ -1811,7 +2020,9 @@ def test_cluster_args_share_warning_accepts_local_cluster_on_local_filesystem(mo
     assert warning is None
 
 
-def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(monkeypatch, tmp_path):
+def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
     monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
@@ -1843,7 +2054,9 @@ def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(m
     assert warning is None
 
 
-def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_share(monkeypatch, tmp_path):
+def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_share(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
     monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
@@ -1870,7 +2083,9 @@ def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_s
     assert "worker-side SSHFS/shared mount target" in warning
 
 
-def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch, tmp_path):
+def test_cluster_args_share_warning_reports_stale_local_workers_path(
+    monkeypatch, tmp_path
+):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
     local_share = tmp_path / "localshare" / "agi"
@@ -1913,13 +2128,19 @@ def test_execution_mode_options_hide_serve_when_app_disables_service_mode(monkey
     module = _load_orchestrate_module()
 
     monkeypatch.setattr(module, "supports_service_mode", lambda _env: False)
-    assert module._execution_mode_options(SimpleNamespace(app="pytorch_playground_project")) == ("Run now",)
+    assert module._execution_mode_options(
+        SimpleNamespace(app="pytorch_playground_project")
+    ) == ("Run now",)
 
     monkeypatch.setattr(module, "supports_service_mode", lambda _env: True)
-    assert module._execution_mode_options(SimpleNamespace(app="flight_telemetry_project")) == ("Run now", "Serve")
+    assert module._execution_mode_options(
+        SimpleNamespace(app="flight_telemetry_project")
+    ) == ("Run now", "Serve")
 
 
-def test_benchmark_display_date_returns_empty_string_when_stat_fails(tmp_path: Path, monkeypatch):
+def test_benchmark_display_date_returns_empty_string_when_stat_fails(
+    tmp_path: Path, monkeypatch
+):
     module = _load_orchestrate_module()
     benchmark = tmp_path / "benchmark.json"
     benchmark.write_text("{}", encoding="utf-8")
@@ -1934,12 +2155,14 @@ def test_benchmark_display_date_returns_empty_string_when_stat_fails(tmp_path: P
     assert date_value == ""
 
 
-def test_benchmark_display_date_imports_os_when_not_provided(tmp_path: Path, monkeypatch):
+def test_benchmark_display_date_imports_os_when_not_provided(
+    tmp_path: Path, monkeypatch
+):
     module = _load_orchestrate_page_helpers_module()
     benchmark = tmp_path / "benchmark.json"
     benchmark.write_text("{}", encoding="utf-8")
     monkeypatch.setattr("os.path.getmtime", lambda _path: 0)
 
-    assert module.benchmark_display_date(benchmark, "") == module.datetime.fromtimestamp(0).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    assert module.benchmark_display_date(
+        benchmark, ""
+    ) == module.datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S")
