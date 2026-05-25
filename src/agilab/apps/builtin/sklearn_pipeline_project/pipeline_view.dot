@@ -1,0 +1,11 @@
+digraph sklearn_pipeline_project {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+
+  generate_dataset [label="Generate dataset"];
+  train_pipeline [label="Train sklearn pipeline"];
+  write_evidence [label="Write evidence bundle"];
+
+  generate_dataset -> train_pipeline;
+  train_pipeline -> write_evidence;
+}

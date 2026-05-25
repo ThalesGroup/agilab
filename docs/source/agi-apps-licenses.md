@@ -23,6 +23,7 @@ Audit notes:
 | agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
 | agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
 | agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | UNKNOWN | BSD-3-Clause |
 | agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
 | agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
 | agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
@@ -35,10 +36,10 @@ Audit notes:
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | cffi | 2.0.0 | MIT |
-| click | 8.4.0 | BSD-3-CLAUSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | dask | 2026.3.0 | BSD-3-CLAUSE |
 | distributed | 2026.3.0 | BSD-3-CLAUSE |
 | fsspec | 2026.2.0 | BSD-3-CLAUSE |
@@ -56,8 +57,8 @@ Audit notes:
 | parso | 0.8.7 | MIT LICENSE |
 | partd | 1.4.2 | BSD |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.0 | MIT LICENSE |
+| polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |

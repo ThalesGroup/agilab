@@ -48,6 +48,12 @@ What belongs here
      - Optional experiment memory: AGILAB writes local evidence first, then logs
        params, metrics, and artifacts through MLflow when the backend is present.
      - Run ``src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py``.
+   * - ``sqlite_connector_proof`` packaged preview
+     - Local database evidence: create a deterministic SQLite database, run a
+       parameterized read-only SQL query, export CSV, and record schema, query,
+       result, and artifact hashes.
+     - Run ``src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py`` and see
+       :doc:`data-connectors`.
    * - ``resilience_failure_injection`` packaged preview
      - Resilience comparison: inject one relay degradation event, then compare
        fixed, replanned, search-based, and active-policy responses on the same
@@ -95,16 +101,19 @@ Run these in this order when you need a compact but convincing evaluation pass:
 4. **Tracking memory**: ``mlflow_auto_tracking`` preview. This is the best
    MLOps story because AGILAB keeps execution evidence local and uses MLflow as
    the optional system of record instead of competing with it.
-5. **Resilience comparison**: ``resilience_failure_injection`` preview. This is
+5. **Database evidence**: ``sqlite_connector_proof`` preview. This is the best
+   data-access story because it proves schema, query, CSV result, and artifact
+   hashes locally before any Postgres, warehouse, or cloud SQL opt-in.
+6. **Resilience comparison**: ``resilience_failure_injection`` preview. This is
    the best strategy-comparison story because fixed, ILP-style, GA-style, and
    PPO-style responses are scored against one injected event.
-6. **Service handoff**: ``train_then_serve`` preview. This is the best
+7. **Service handoff**: ``train_then_serve`` preview. This is the best
    prototype-to-operations story because the model artifact, IO contract,
    prediction sample, and health gate are explicit before a service is started.
-7. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
+8. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
    is the best operations story because it shows persistent workers and health
    thresholds without hiding lifecycle actions.
-8. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
+9. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
    because it ties demo claims back to release, CI, package, and docs evidence.
 
 How to demo it

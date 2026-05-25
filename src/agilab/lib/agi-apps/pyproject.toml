@@ -31,7 +31,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-core==2026.05.23", "agi-app-mission-decision==2026.05.23", "agi-app-pandas-execution==2026.05.23", "agi-app-polars-execution==2026.05.23", "agi-app-flight-telemetry==2026.05.23", "agi-app-global-dag==2026.05.23", "agi-app-weather-forecast==2026.05.23", "agi-app-pytorch-playground==2026.05.23; python_version >= '3.12'", "agi-app-tescia-diagnostic==2026.05.23; python_version >= '3.13'", "agi-app-uav-relay-queue==2026.05.23; python_version >= '3.13'"]
+dependencies = ["agi-core==2026.05.23", "agi-app-mission-decision==2026.05.23", "agi-app-pandas-execution==2026.05.23", "agi-app-polars-execution==2026.05.23", "agi-app-flight-telemetry==2026.05.23", "agi-app-global-dag==2026.05.23", "agi-app-weather-forecast==2026.05.23", "agi-app-sklearn-pipeline==2026.05.23", "agi-app-pytorch-playground==2026.05.23; python_version >= '3.12'", "agi-app-tescia-diagnostic==2026.05.23; python_version >= '3.13'", "agi-app-uav-relay-queue==2026.05.23; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -87,6 +87,10 @@ dev = [
 
 [tool.uv.sources.agi-app-weather-forecast]
     path = "../agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-sklearn-pipeline]
+    path = "../agi-app-sklearn-pipeline"
     editable = true
 
 [tool.uv.sources.agi-app-pytorch-playground]
@@ -150,7 +154,6 @@ packages = [
     "notebook_migrations/*/notebooks/*.ipynb",
     "resilience_failure_injection/*.py",
     "service_mode/*.py",
-    "sklearn_pipeline_proof/*.py",
     "train_then_serve/*.py",
 ]
 

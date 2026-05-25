@@ -14,6 +14,7 @@ from .app_args import (
     to_playground_config,
 )
 from .pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
+from .reduction import PYTORCH_PLAYGROUND_REDUCE_CONTRACT
 
 __all__ = [
     "ArgsModel",
@@ -22,6 +23,7 @@ __all__ = [
     "PytorchPlaygroundApp",
     "PytorchPlaygroundArgs",
     "PytorchPlaygroundArgsTD",
+    "PYTORCH_PLAYGROUND_REDUCE_CONTRACT",
     "dump_args",
     "ensure_defaults",
     "load_args",

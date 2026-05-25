@@ -78,6 +78,31 @@ The ``s3`` provider also accepts the aliases ``aws_s3``, ``amazon_s3``, and
 environment needs for live probes; those packages are not required for the
 default public contract-validation evidence.
 
+SQLite Database Proof
+---------------------
+
+Use the packaged SQLite preview when you need a concrete database demo that
+works on every local machine without a server, Docker, network access, or
+secrets:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py --output-dir /tmp/agilab-sqlite-proof
+
+The preview writes:
+
+.. code-block:: text
+
+   /tmp/agilab-sqlite-proof/sqlite_connector_proof.db
+   /tmp/agilab-sqlite-proof/promotion_candidates.csv
+   /tmp/agilab-sqlite-proof/database_evidence.json
+
+Read ``database_evidence.json`` first. It records a ``sql`` connector with the
+``sqlite`` driver, ``query_mode = "read_only"``, a schema hash, a parameterized
+query hash, row count, result hash, and artifact hashes. This proves the AGILAB
+database boundary before replacing the local URI with Postgres, a warehouse, or
+another operator-managed SQL source.
+
 Account-Free Cloud Emulator Validation
 --------------------------------------
 

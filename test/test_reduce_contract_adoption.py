@@ -45,6 +45,8 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "flight_telemetry_project",
         "meteo_forecast_project",
         "mission_decision_project",
+        "pytorch_playground_project",
+        "sklearn_pipeline_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
@@ -123,3 +125,79 @@ def test_template_only_builtin_apps_are_explicitly_exempted() -> None:
     assert "template-only" in normalized_docs
     assert "no concrete merge output" in normalized_docs
     assert "reduce_summary_worker_<id>.json" in mycode_docs
+
+
+def test_sklearn_pipeline_reduce_contract_merges_model_summaries(monkeypatch) -> None:
+    app_src = BUILTIN_APPS_ROOT / "sklearn_pipeline_project" / "src"
+    monkeypatch.syspath_prepend(str(app_src))
+    from sklearn_pipeline.reduction import build_reduce_artifact, partial_from_sklearn_summary
+
+    first = {
+        "metrics": {"train_rows": 90, "test_rows": 30, "accuracy": 0.8, "f1": 0.75},
+        "promotion_hint": "review",
+        "artifacts": {"model": {"path": "model.joblib"}},
+    }
+    second = {
+        "metrics": {"train_rows": 120, "test_rows": 40, "accuracy": 0.9, "f1": 0.85},
+        "promotion_hint": "candidate",
+        "artifacts": {"model": {"path": "model.joblib"}, "metrics": {"path": "metrics.json"}},
+    }
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_sklearn_summary(first, partial_id="first"),
+            partial_from_sklearn_summary(second, partial_id="second"),
+        )
+    )
+
+    assert artifact.payload["run_count"] == 2
+    assert artifact.payload["train_rows"] == 210
+    assert artifact.payload["test_rows"] == 70
+    assert artifact.payload["accuracy_mean"] == 0.85
+    assert artifact.payload["f1_mean"] == 0.8
+    assert artifact.payload["promotion_candidate_count"] == 1
+    assert artifact.payload["artifact_paths"] == ["metrics.json", "model.joblib"]
+
+
+def test_pytorch_playground_reduce_contract_merges_training_summaries(monkeypatch) -> None:
+    app_src = BUILTIN_APPS_ROOT / "pytorch_playground_project" / "src"
+    monkeypatch.syspath_prepend(str(app_src))
+    from pytorch_playground.reduction import build_reduce_artifact, partial_from_playground_summary
+
+    first = {
+        "backend": "torch",
+        "samples": 320,
+        "features": 5,
+        "hidden_layers": [12, 12],
+        "train_accuracy": 0.86,
+        "validation_accuracy": 0.81,
+        "validation_loss": 0.43,
+        "loss_landscape_points": 441,
+    }
+    second = {
+        "backend": "torch",
+        "samples": 200,
+        "features": 4,
+        "hidden_layers": [16],
+        "train_accuracy": 0.9,
+        "validation_accuracy": 0.85,
+        "validation_loss": 0.37,
+        "loss_landscape_points": 225,
+    }
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_playground_summary(first, partial_id="first"),
+            partial_from_playground_summary(second, partial_id="second"),
+        )
+    )
+
+    assert artifact.payload["run_count"] == 2
+    assert artifact.payload["sample_count"] == 520
+    assert artifact.payload["feature_count"] == 5
+    assert artifact.payload["train_accuracy_mean"] == 0.88
+    assert artifact.payload["validation_accuracy_mean"] == 0.83
+    assert artifact.payload["validation_loss_mean"] == 0.4
+    assert artifact.payload["loss_landscape_point_count"] == 666
+    assert artifact.payload["backends"] == ["torch"]
+    assert artifact.payload["hidden_layers"] == ["12", "16"]

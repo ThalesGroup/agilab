@@ -32,6 +32,15 @@ The normal workflow is:
 
 See :doc:`distributed-workers` for the practical guide.
 
+Kubernetes scope
+----------------
+
+AGILAB's cluster runtime is currently centered on local execution and
+Dask-backed distributed workers. Kubernetes support starts as a smaller,
+explicit preview: generate a Kubernetes ``Job`` manifest for one AGILAB command
+and let an existing cluster run it. See :doc:`kubernetes-job` for the supported
+contract and current non-goals.
+
 Repeatable cluster proof
 ------------------------
 

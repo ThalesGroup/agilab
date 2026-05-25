@@ -145,6 +145,16 @@ agilab
     ``pyproject.toml`` or embedded ``.venv`` so the Analysis launcher spins it up
     inside an isolated interpreter.
 
+- **PyTorch Lightning evidence bridge:**
+
+  - Use ``agilab.lightning_evidence.AgilabLightningEvidenceCallback`` inside an
+    existing Lightning ``Trainer`` to write ``lightning_evidence.json``,
+    ``metrics.jsonl``, and ``checkpoint_manifest.json`` without making Lightning
+    a base AGILAB dependency.
+  - Use ``agilab.lightning_evidence.verify_lightning_evidence()`` to check the
+    emitted files and checkpoint hashes before accepting or replaying a training
+    run.
+
 Engineering prototyping evidence
 --------------------------------
 
@@ -318,9 +328,10 @@ current public evaluation snapshot.
   ``repository_knowledge_static_index`` mode against
   ``agilab.repository_knowledge_index.v1``; it indexes code, tools, root tests,
   official docs, root runbooks, and package manifests, emits
-  deterministic file, line, size, kind, and suffix statistics, excludes
-  generated artifacts, and keeps the generated wiki as an exploration aid
-  rather than the source of truth
+  deterministic file, line, size, kind, and suffix statistics, plus ratio,
+  top-category, and largest-file summaries, excludes generated artifacts, and
+  keeps the generated wiki as an exploration aid rather than the source of
+  truth
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
