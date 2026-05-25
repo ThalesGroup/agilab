@@ -51,9 +51,11 @@ class TesciaDiagnostic(BaseWorker):
         self._generate_case_file_fn = _generate_case_file_fn
         self.args.data_in = env.resolve_share_path(self.args.data_in)
         self.args.data_out = env.resolve_share_path(self.args.data_out)
+        self.args.submission_inbox = env.resolve_share_path(self.args.submission_inbox)
         self.data_out = self.args.data_out
 
         self.args.data_in.mkdir(parents=True, exist_ok=True)
+        self.args.submission_inbox.mkdir(parents=True, exist_ok=True)
         self._ensure_dataset(self.args.data_in)
 
         if self.args.reset_target and self.data_out.exists():
@@ -153,7 +155,19 @@ class TesciaDiagnostic(BaseWorker):
             if self.args.case_source == "bundled_classroom"
             else self.args.files
         )
-        files = sorted(self.args.data_in.glob(file_pattern))
+        inbox_files = (
+            sorted(self.args.submission_inbox.glob("*.json"))
+            if self.args.include_submission_inbox
+            else []
+        )
+        seeded_files = sorted(self.args.data_in.glob(file_pattern))
+        files = []
+        seen: set[Path] = set()
+        for path in [*inbox_files, *seeded_files]:
+            resolved = path.resolve()
+            if resolved not in seen:
+                files.append(path)
+                seen.add(resolved)
         if self.args.nfile > 0:
             files = files[: self.args.nfile]
         if not files:

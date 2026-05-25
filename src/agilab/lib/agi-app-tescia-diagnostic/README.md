@@ -76,11 +76,21 @@ regression-test selections.
 The worker also writes printable correction sheets and
 `math_program_2026_coverage.json` so a catalog can prove whether every declared
 2026 top-level mathematics curriculum id meets the minimum exercise count.
-For classroom batches it also writes `classroom/classroom_run_report.json`,
-`classroom_teacher_summary.md`, `classroom_progress.csv`,
-`classroom_heatmap.csv`, and `classroom_needs_attention.csv`. The ANALYSIS
-classroom tab reads the latest run artifact when present, falls back to the
-bundled preview otherwise, and includes manual plus optional live refresh.
+For classroom batches it also writes:
+
+- `classroom/classroom_run_report.json`
+- `classroom/classroom_teacher_summary.md`
+- `classroom/classroom_progress.csv`
+- `classroom/classroom_heatmap.csv`
+- `classroom/classroom_needs_attention.csv`
+- `classroom/classroom_curriculum.csv`
+
+During live or distributed runs, workers can also publish partial progress under
+`classroom/partials/` as `classroom_partial_worker_<id>_<source>.json` and
+`classroom_partial_worker_<id>_<source>_progress.csv`. The ANALYSIS classroom tab
+reads the latest completed run artifact when present, merges partial worker
+artifacts while a run is still progressing, falls back to the bundled preview
+otherwise, and includes manual plus optional live refresh.
 
 ## Change One Thing
 
@@ -92,9 +102,11 @@ For mathematics-program coverage, add or remove a `curriculum_ids` entry and
 run the focused TeSciA tests. Missing required ids, undercovered ids, and
 invented ids fail the coverage contract.
 
-For classroom mode, add a second submission for the same exercise with a
-different `student_id`; the exported heatmap should add a new row without
-changing the exercise definition.
+For classroom mode, upload/drop a classroom JSON batch into
+`tescia_diagnostic/submissions`, or add a second submission for the same
+exercise with a different `student_id`; the exported heatmap should add a new
+row without changing the exercise definition. Inbox files are scored before the
+bundled sample when `Read submission inbox` is enabled.
 
 ## Scope
 

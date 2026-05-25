@@ -19,6 +19,8 @@ class TesciaDiagnosticArgs(BaseModel):
 
     data_in: Path = Field(default_factory=lambda: Path("tescia_diagnostic/cases"))
     data_out: Path = Field(default_factory=lambda: Path("tescia_diagnostic/reports"))
+    submission_inbox: Path = Field(default_factory=lambda: Path("tescia_diagnostic/submissions"))
+    include_submission_inbox: bool = True
     files: str = "*.json"
     nfile: int = Field(default=1, ge=1, le=50)
     minimum_evidence_confidence: float = Field(default=0.65, ge=0.0, le=1.0)
@@ -64,6 +66,8 @@ class TesciaDiagnosticArgs(BaseModel):
 class TesciaDiagnosticArgsTD(TypedDict, total=False):
     data_in: str
     data_out: str
+    submission_inbox: str
+    include_submission_inbox: bool
     files: str
     nfile: int
     minimum_evidence_confidence: float

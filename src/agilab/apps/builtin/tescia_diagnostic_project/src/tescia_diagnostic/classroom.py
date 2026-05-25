@@ -14,6 +14,7 @@ from .diagnostic import classroom_metadata, diagnose_case, validate_case_payload
 
 
 CLASSROOM_SCHEMA = "agilab.tescia_diagnostic.classroom.v1"
+CLASSROOM_RUN_REPORT_SCHEMA = "agilab.tescia_diagnostic.classroom_run_report.v1"
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:
@@ -267,16 +268,33 @@ def _aggregate_rows(rows: Sequence[dict[str, Any]], *, key: str) -> list[dict[st
     return result
 
 
-def build_classroom_run_report(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Build a teacher-facing aggregate from scored diagnostic reports."""
+def _normalize_progress_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "class_id": _as_string(row.get("class_id")),
+        "session_id": _as_string(row.get("session_id")),
+        "student_ref": _as_string(row.get("student_ref")),
+        "exercise_id": _as_string(row.get("exercise_id")),
+        "submission_id": _as_string(row.get("submission_id")),
+        "submitted_at": _as_string(row.get("submitted_at")),
+        "title": _as_string(row.get("title")),
+        "difficulty": _as_string(row.get("difficulty")),
+        "curriculum_ids": _as_string(row.get("curriculum_ids")),
+        "student_score": float(row.get("student_score", 0.0) or 0.0),
+        "score_band": _as_string(row.get("score_band")),
+        "feedback_count": int(row.get("feedback_count", 0) or 0),
+        "needs_attention": _as_bool(row.get("needs_attention")),
+        "root_cause_score": float(row.get("root_cause_score", 0.0) or 0.0),
+        "evidence_selection_score": float(row.get("evidence_selection_score", 0.0) or 0.0),
+        "fix_selection_score": float(row.get("fix_selection_score", 0.0) or 0.0),
+        "regression_selection_score": float(row.get("regression_selection_score", 0.0) or 0.0),
+    }
 
-    classroom_reports = [
-        report
-        for report in reports
-        if _as_string(_report_classroom(report).get("student_ref"))
-    ]
+
+def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Build a teacher-facing aggregate from classroom progress rows."""
+
     rows = sorted(
-        (classroom_progress_row(report) for report in classroom_reports),
+        (_normalize_progress_row(row) for row in rows if _as_string(row.get("student_ref"))),
         key=lambda row: (row["class_id"], row["session_id"], row["student_ref"], row["exercise_id"]),
     )
     score_values = [float(row["student_score"]) for row in rows]
@@ -295,7 +313,7 @@ def build_classroom_run_report(reports: Sequence[Mapping[str, Any]]) -> dict[str
     class_ids = sorted({str(row["class_id"]) for row in rows if row["class_id"]})
     session_ids = sorted({str(row["session_id"]) for row in rows if row["session_id"]})
     return {
-        "schema": "agilab.tescia_diagnostic.classroom_run_report.v1",
+        "schema": CLASSROOM_RUN_REPORT_SCHEMA,
         "class_ids": class_ids,
         "session_ids": session_ids,
         "submission_count": len(rows),
@@ -314,6 +332,35 @@ def build_classroom_run_report(reports: Sequence[Mapping[str, Any]]) -> dict[str
             "recommended_worker_count": min(max(len(unique_students), 1), max(len(rows), 1), 32),
         },
     }
+
+
+def build_classroom_run_report(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Build a teacher-facing aggregate from scored diagnostic reports."""
+
+    return build_classroom_run_report_from_rows(
+        classroom_progress_row(report)
+        for report in reports
+        if _as_string(_report_classroom(report).get("student_ref"))
+    )
+
+
+def merge_classroom_run_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Merge final or partial classroom run reports into one teacher aggregate."""
+
+    rows_by_submission: dict[str, dict[str, Any]] = {}
+    for report in reports:
+        if report.get("schema") != CLASSROOM_RUN_REPORT_SCHEMA:
+            continue
+        for row in _as_list(report.get("progress_rows")):
+            if not isinstance(row, Mapping):
+                continue
+            normalized = _normalize_progress_row(row)
+            row_key = normalized["submission_id"] or (
+                f"{normalized['class_id']}:{normalized['session_id']}:"
+                f"{normalized['student_ref']}:{normalized['exercise_id']}"
+            )
+            rows_by_submission[row_key] = normalized
+    return build_classroom_run_report_from_rows(list(rows_by_submission.values()))
 
 
 def score_classroom_submissions(
@@ -344,7 +391,7 @@ def write_classroom_artifacts(
 ) -> dict[str, Path]:
     """Write teacher-facing classroom JSON/CSV artifacts."""
 
-    if isinstance(reports_or_report, Mapping) and reports_or_report.get("schema") == "agilab.tescia_diagnostic.classroom_run_report.v1":
+    if isinstance(reports_or_report, Mapping) and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA:
         report = dict(reports_or_report)
     elif isinstance(reports_or_report, Mapping):
         report = build_classroom_run_report([reports_or_report])
@@ -367,6 +414,39 @@ def write_classroom_artifacts(
     _write_csv(paths["heatmap"], report["heatmap_rows"])
     _write_csv(paths["needs_attention"], report["needs_attention_rows"])
     _write_csv(paths["curriculum"], report["curriculum_rows"])
+    return paths
+
+
+def write_classroom_partial_artifacts(
+    reports_or_report: Sequence[Mapping[str, Any]] | Mapping[str, Any],
+    output_dir: str | Path,
+    *,
+    worker_id: int = 0,
+    source_file: str | Path = "",
+) -> dict[str, Path]:
+    """Write a partial classroom report while a distributed run is still progressing."""
+
+    if isinstance(reports_or_report, Mapping) and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA:
+        report = dict(reports_or_report)
+    elif isinstance(reports_or_report, Mapping):
+        report = build_classroom_run_report([reports_or_report])
+    else:
+        report = build_classroom_run_report(reports_or_report)
+    source_label = _safe_slug(Path(str(source_file)).stem if source_file else "batch")
+    report["partial"] = {
+        "worker_id": int(worker_id),
+        "source_file": str(source_file),
+        "source_label": source_label,
+    }
+    root = Path(output_dir) / "partials"
+    root.mkdir(parents=True, exist_ok=True)
+    stem = f"classroom_partial_worker_{int(worker_id)}_{source_label}"
+    paths = {
+        "report": root / f"{stem}.json",
+        "progress": root / f"{stem}_progress.csv",
+    }
+    paths["report"].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_csv(paths["progress"], report["progress_rows"])
     return paths
 
 
@@ -455,8 +535,10 @@ def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
 
 __all__ = [
     "CLASSROOM_SCHEMA",
+    "CLASSROOM_RUN_REPORT_SCHEMA",
     "anonymized_student_ref",
     "build_classroom_run_report",
+    "build_classroom_run_report_from_rows",
     "classroom_report_to_markdown",
     "classroom_metadata",
     "classroom_progress_row",
@@ -465,7 +547,9 @@ __all__ = [
     "expand_classroom_submissions",
     "load_case_bank",
     "load_classroom_payload",
+    "merge_classroom_run_reports",
     "score_classroom_submissions",
     "validate_classroom_payload",
     "write_classroom_artifacts",
+    "write_classroom_partial_artifacts",
 ]

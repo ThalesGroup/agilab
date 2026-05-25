@@ -1,6 +1,8 @@
 [args]
 data_in = "tescia_diagnostic/cases"
 data_out = "tescia_diagnostic/reports"
+submission_inbox = "tescia_diagnostic/submissions"
+include_submission_inbox = true
 files = "*.json"
 nfile = 1
 minimum_evidence_confidence = 0.65

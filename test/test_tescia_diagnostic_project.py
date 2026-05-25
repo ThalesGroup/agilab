@@ -123,6 +123,9 @@ class _FakeStreamlit:
         self.downloads.append(label)
         return False
 
+    def file_uploader(self, *_args, **_kwargs):
+        return []
+
     def text_input(self, *_args, **kwargs):
         return kwargs.get("value", "")
 
@@ -182,6 +185,7 @@ def test_tescia_args_form_renders_scoring_model_as_latex(monkeypatch, tmp_path) 
     runpy.run_path(str(APP_SRC / "app_args_form.py"), run_name="__main__")
 
     assert ("Scoring model", False) in fake_streamlit.expanders
+    assert ("Classroom intake", False) in fake_streamlit.expanders
     assert ("Student self-evaluation contract", False) in fake_streamlit.expanders
     assert ("2026 mathematics coverage", False) in fake_streamlit.expanders
     assert ("Classroom batch mode", False) in fake_streamlit.expanders
@@ -495,6 +499,8 @@ def test_tescia_app_args_reject_invalid_generation_config(monkeypatch) -> None:
     args = TesciaDiagnosticArgs()
     assert ensure_defaults(args) is args
     assert merge_args(args, {"nfile": 2}).nfile == 2
+    assert args.submission_inbox == Path("tescia_diagnostic/submissions")
+    assert args.include_submission_inbox is True
 
 
 def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
@@ -1208,12 +1214,15 @@ def test_tescia_classroom_batch_scores_and_exports_teacher_artifacts(monkeypatch
 
     from tescia_diagnostic import (
         build_classroom_run_report,
+        build_classroom_run_report_from_rows,
         classroom_report_to_markdown,
         expand_classroom_submissions,
         load_case_bank,
+        merge_classroom_run_reports,
         score_classroom_submissions,
         validate_classroom_payload,
         write_classroom_artifacts,
+        write_classroom_partial_artifacts,
     )
     from tescia_diagnostic import diagnose_case
 
@@ -1247,6 +1256,19 @@ def test_tescia_classroom_batch_scores_and_exports_teacher_artifacts(monkeypatch
     assert "student_score" in paths["progress"].read_text(encoding="utf-8")
     assert "pipeline_dag_stale_preview" in paths["heatmap"].read_text(encoding="utf-8")
     assert "classroom_curriculum.csv" == paths["curriculum"].name
+    from_rows = build_classroom_run_report_from_rows(classroom_report["progress_rows"])
+    assert from_rows["submission_count"] == 4
+    partial_paths = write_classroom_partial_artifacts(
+        rebuilt,
+        tmp_path / "live_classroom",
+        worker_id=7,
+        source_file="classroom_submissions.json",
+    )
+    partial_report = json.loads(partial_paths["report"].read_text(encoding="utf-8"))
+    assert partial_report["partial"]["worker_id"] == 7
+    assert partial_paths["progress"].name == "classroom_partial_worker_7_classroom_submissions_progress.csv"
+    merged = merge_classroom_run_reports([partial_report, {"schema": "bad"}])
+    assert merged["submission_count"] == 4
 
 
 def test_tescia_classroom_rejects_invalid_batches_and_supports_named_students(monkeypatch, tmp_path) -> None:
@@ -1450,10 +1472,19 @@ def test_tescia_manager_seeds_sample_and_builds_distribution(monkeypatch, tmp_pa
 
     seeded = env.share_root_path() / "tescia_diagnostic" / "cases" / "tescia_diagnostic_cases.json"
     assert seeded.is_file()
+    assert (env.share_root_path() / "tescia_diagnostic" / "submissions").is_dir()
     work_plan, metadata, label_key, size_key, size_unit = app.build_distribution({"127.0.0.1": 1})
     assert work_plan == [[[str(seeded)]]]
     assert metadata[0][0]["diagnostic_file"] == "tescia_diagnostic_cases.json"
     assert (label_key, size_key, size_unit) == ("diagnostic_file", "size_kb", "KB")
+
+    inbox_file = Path(app.args.submission_inbox) / "teacher_batch.json"
+    inbox_file.write_text(SAMPLE_CLASSROOM.read_text(encoding="utf-8"), encoding="utf-8")
+    work_plan, metadata, *_ = app.build_distribution({"127.0.0.1": 1})
+    assert work_plan == [[[str(inbox_file)]]]
+    assert metadata[0][0]["diagnostic_file"] == "teacher_batch.json"
+    app.args.include_submission_inbox = False
+    assert app.build_distribution({"127.0.0.1": 1})[0] == [[[str(seeded)]]]
 
 
 def test_tescia_manager_handles_config_and_dataset_edge_paths(monkeypatch, tmp_path) -> None:
@@ -1722,6 +1753,12 @@ def test_tescia_worker_accepts_classroom_submission_batches(monkeypatch, tmp_pat
     assert len(df) == 4
     assert set(df["exercise_id"]) >= {"cluster_share_sshfs", "pipeline_dag_stale_preview"}
     assert all(str(value).startswith("student_") for value in df["student_ref"])
+    partial_root = Path(worker.data_out) / "classroom" / "partials"
+    partial_report_path = partial_root / "classroom_partial_worker_0_classroom_submissions.json"
+    assert partial_report_path.is_file()
+    partial_report = json.loads(partial_report_path.read_text(encoding="utf-8"))
+    assert partial_report["submission_count"] == 4
+    assert partial_report["partial"]["source_label"] == "classroom_submissions"
 
     worker.work_done(df)
 
@@ -1834,6 +1871,45 @@ def test_tescia_app_surface_prefers_latest_classroom_run_artifact(monkeypatch, t
     assert report["submission_count"] == 9
     loaded = module.cached_load_classroom_run_report(str(new_path), module._file_mtime_ns(new_path))
     assert loaded["submission_count"] == 9
+
+
+def test_tescia_app_surface_handles_classroom_inbox_and_partial_reports(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+
+    env = _FakeEnv(tmp_path)
+    args_model = SimpleNamespace(
+        data_out=tmp_path / "reports",
+        submission_inbox=Path("tescia_diagnostic/submissions"),
+    )
+    inbox_dir = module.classroom_submission_inbox_dir(env=env, args_model=args_model)
+    assert inbox_dir == env.share_root_path() / "tescia_diagnostic" / "submissions"
+
+    upload = SimpleNamespace(
+        name="Period A submissions.json",
+        getvalue=lambda: SAMPLE_CLASSROOM.read_bytes(),
+    )
+    saved = module.save_classroom_uploads([upload], inbox_dir)
+    assert saved == [inbox_dir / "Period_A_submissions.json"]
+    saved_payload = json.loads(saved[0].read_text(encoding="utf-8"))
+    assert saved_payload["schema"] == "agilab.tescia_diagnostic.classroom.v1"
+
+    partial_root = tmp_path / "reports" / "classroom" / "partials"
+    partial_root.mkdir(parents=True)
+    partial_report = module.classroom_preview_report(module.load_cases())
+    partial_report["partial"] = {"worker_id": 1, "source_file": "batch.json"}
+    partial_path = partial_root / "classroom_partial_worker_1_batch.json"
+    partial_path.write_text(json.dumps(partial_report), encoding="utf-8")
+
+    report, source = module.classroom_display_report(
+        module.load_cases(),
+        env=env,
+        args_model=args_model,
+    )
+    assert source["source"] == "partial"
+    assert source["partial_count"] == 1
+    assert source["path"] == str(partial_path)
+    assert report["submission_count"] == 4
 
 
 def test_tescia_app_surface_resolves_active_app_from_argv(monkeypatch, tmp_path) -> None:

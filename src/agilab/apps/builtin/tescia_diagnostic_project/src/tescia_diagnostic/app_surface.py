@@ -16,11 +16,14 @@ if str(_APP_SRC) not in sys.path:
 
 from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
 from tescia_diagnostic.classroom import (
+    CLASSROOM_RUN_REPORT_SCHEMA,
     classroom_report_to_markdown,
     default_classroom_payload_path,
     expand_classroom_submissions,
     load_classroom_payload,
+    merge_classroom_run_reports,
     score_classroom_submissions,
+    validate_classroom_payload,
 )
 from tescia_diagnostic.diagnostic import diagnose_case, validate_case_payload
 from tescia_diagnostic.exports import diagnostic_report_to_markdown
@@ -111,6 +114,15 @@ def _load_runtime_env_and_args(active_app_path: Path):
     return env, args_model
 
 
+def _runtime_context(active_app_path: Path | None) -> tuple[Any | None, Any | None]:
+    if active_app_path is None:
+        return None, None
+    try:
+        return _load_runtime_env_and_args(active_app_path)
+    except Exception:
+        return None, None
+
+
 def _append_unique_path(paths: list[Path], path: Path) -> None:
     try:
         resolved = path.expanduser().resolve()
@@ -172,15 +184,29 @@ def latest_classroom_report_path(paths: Sequence[Path]) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime_ns)
 
 
-@_cache_data
-def cached_load_classroom_run_report(path: str, mtime_ns: int) -> dict[str, Any]:
-    _ = mtime_ns
+def latest_classroom_partial_report_paths(paths: Sequence[Path]) -> list[Path]:
+    candidates: list[Path] = []
+    for path in paths:
+        partial_root = path / "partials"
+        if not partial_root.is_dir():
+            continue
+        candidates.extend(sorted(partial_root.glob("classroom_partial_worker_*.json")))
+    return sorted(candidates, key=lambda path: (path.stat().st_mtime_ns, str(path)))
+
+
+def _load_classroom_run_report_payload(path: str | Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError(f"Classroom run report must be a JSON object: {path}")
-    if payload.get("schema") != "agilab.tescia_diagnostic.classroom_run_report.v1":
+    if payload.get("schema") != CLASSROOM_RUN_REPORT_SCHEMA:
         raise ValueError(f"Unexpected classroom run report schema: {path}")
     return dict(payload)
+
+
+@_cache_data
+def cached_load_classroom_run_report(path: str, mtime_ns: int) -> dict[str, Any]:
+    _ = mtime_ns
+    return _load_classroom_run_report_payload(path)
 
 
 def classroom_display_report(
@@ -190,19 +216,101 @@ def classroom_display_report(
     env: Any | None = None,
     args_model: Any | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    report_path = latest_classroom_report_path(
-        classroom_artifact_dirs(active_app, env=env, args_model=args_model)
-    )
+    artifact_dirs = classroom_artifact_dirs(active_app, env=env, args_model=args_model)
+    report_path = latest_classroom_report_path(artifact_dirs)
     if report_path is not None:
         return (
             cached_load_classroom_run_report(str(report_path), _file_mtime_ns(report_path)),
             {"source": "last_run", "path": str(report_path)},
+        )
+    partial_paths = latest_classroom_partial_report_paths(artifact_dirs)
+    if partial_paths:
+        partial_reports: list[dict[str, Any]] = []
+        seen_partials: set[tuple[str, str]] = set()
+        for path in partial_paths:
+            partial_report = _load_classroom_run_report_payload(path)
+            partial_meta = partial_report.get("partial")
+            if isinstance(partial_meta, Mapping):
+                partial_key = (
+                    str(partial_meta.get("worker_id", "")),
+                    str(partial_meta.get("source_file", "")),
+                )
+            else:
+                partial_key = (str(path), "")
+            if partial_key in seen_partials:
+                continue
+            seen_partials.add(partial_key)
+            partial_reports.append(partial_report)
+        return (
+            merge_classroom_run_reports(partial_reports),
+            {
+                "source": "partial",
+                "path": str(partial_paths[-1]),
+                "partial_count": len(partial_reports),
+            },
         )
     if cases is None:
         report = cached_classroom_preview_report(str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path()))
     else:
         report = classroom_preview_report(cases)
     return report, {"source": "sample", "path": str(bundled_classroom_payload_path())}
+
+
+def classroom_submission_inbox_dir(
+    active_app: Path | None = None,
+    *,
+    env: Any | None = None,
+    args_model: Any | None = None,
+) -> Path | None:
+    active_app_path = _resolve_active_app_path(active_app)
+    runtime_env = env
+    runtime_args = args_model
+    if active_app_path is not None and (runtime_env is None or runtime_args is None):
+        runtime_env, runtime_args = _runtime_context(active_app_path)
+    if runtime_env is None or runtime_args is None:
+        return None
+    inbox = Path(str(getattr(runtime_args, "submission_inbox", "tescia_diagnostic/submissions")))
+    if inbox.is_absolute():
+        return inbox
+    resolve_share_path = getattr(runtime_env, "resolve_share_path", None)
+    if callable(resolve_share_path):
+        return Path(resolve_share_path(inbox))
+    return Path(inbox).expanduser().resolve()
+
+
+def _upload_bytes(upload: Any) -> bytes:
+    getvalue = getattr(upload, "getvalue", None)
+    if callable(getvalue):
+        data = getvalue()
+    else:
+        read = getattr(upload, "read", None)
+        data = read() if callable(read) else b""
+    if isinstance(data, str):
+        return data.encode("utf-8")
+    return bytes(data or b"")
+
+
+def _safe_upload_stem(name: str) -> str:
+    raw_stem = Path(name or "classroom_submissions").stem
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in raw_stem.strip())
+    cleaned = "_".join(part for part in cleaned.split("_") if part)
+    return cleaned or "classroom_submissions"
+
+
+def save_classroom_uploads(uploaded_files: Sequence[Any], inbox_dir: Path) -> list[Path]:
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[Path] = []
+    for upload in uploaded_files:
+        raw = _upload_bytes(upload)
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, Mapping):
+            raise ValueError("Classroom upload must be a JSON object.")
+        validated = validate_classroom_payload(payload)
+        name = str(getattr(upload, "name", "") or "classroom_submissions.json")
+        destination = inbox_dir / f"{_safe_upload_stem(name)}.json"
+        destination.write_text(json.dumps(validated, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        saved.append(destination)
+    return saved
 
 
 def classroom_progress_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -418,11 +526,22 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
     st.title("TeSciA")
 
     active_app_path = _resolve_active_app_path(active_app)
+    runtime_env, runtime_args = _runtime_context(active_app_path)
     cases = cached_load_cases(str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path()))
     coverage = build_math_program_2026_coverage_report(cases)
     filters = available_filters(cases)
 
-    classroom_report, classroom_source = classroom_display_report(cases, active_app=active_app_path)
+    classroom_report, classroom_source = classroom_display_report(
+        cases,
+        active_app=active_app_path,
+        env=runtime_env,
+        args_model=runtime_args,
+    )
+    classroom_inbox_dir = classroom_submission_inbox_dir(
+        active_app_path,
+        env=runtime_env,
+        args_model=runtime_args,
+    )
 
     catalog_tab, answer_tab, classroom_tab, authoring_tab, coverage_tab = st.tabs(
         ["Catalog", "Self-evaluation", "Classroom live", "Teacher authoring", "Coverage"]
@@ -497,8 +616,36 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 key="tescia_classroom_refresh_seconds",
                 disabled=not live_refresh,
             )
+        with st.expander("Submission inbox", expanded=False):
+            if classroom_inbox_dir is None:
+                st.caption("Open TeSciA from an active project to enable classroom JSON intake.")
+            else:
+                st.caption(f"RUN reads uploaded classroom batches from `{classroom_inbox_dir}`.")
+                uploads = st.file_uploader(
+                    "Add classroom batch JSON",
+                    type=["json"],
+                    accept_multiple_files=True,
+                    key="tescia_classroom_uploads",
+                )
+                if st.button("Save classroom uploads", key="tescia_save_classroom_uploads", use_container_width=True):
+                    try:
+                        saved_paths = save_classroom_uploads(list(uploads or []), classroom_inbox_dir)
+                    except Exception as exc:
+                        st.error(f"Unable to save classroom upload: {exc}")
+                    else:
+                        if saved_paths:
+                            st.success(f"Saved {len(saved_paths)} classroom batch file(s). Run AGILAB to score them.")
+                        else:
+                            st.info("Select at least one classroom JSON file before saving.")
+
         if classroom_source["source"] == "last_run":
             st.caption(f"Showing latest classroom run artifact: `{classroom_source['path']}`")
+        elif classroom_source["source"] == "partial":
+            st.caption(
+                "Showing partial classroom progress from "
+                f"{classroom_source.get('partial_count', 0)} worker artifact(s); "
+                f"latest `{classroom_source['path']}`."
+            )
         else:
             st.caption("No classroom run artifact found yet; showing the bundled classroom sample preview.")
         m1, m2, m3, m4 = st.columns(4)

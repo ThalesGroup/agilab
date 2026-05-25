@@ -144,8 +144,9 @@ def _render_self_evaluation_contract() -> None:
             language="json",
         )
         st.caption(
-            "RUN exports `classroom/classroom_run_report.json`, progress CSV, heatmap CSV, "
-            "and needs-attention CSV for a teacher dashboard."
+            "RUN exports `classroom/classroom_run_report.json`, teacher summary, "
+            "progress/heatmap/needs-attention/curriculum CSVs, and partial worker "
+            "progress under `classroom/partials/` for live dashboards."
         )
 
 
@@ -163,6 +164,14 @@ st.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
 
 st.session_state.setdefault(_k("data_in"), str(current_payload.get("data_in", "") or ""))
 st.session_state.setdefault(_k("data_out"), str(current_payload.get("data_out", "") or ""))
+st.session_state.setdefault(
+    _k("submission_inbox"),
+    str(current_payload.get("submission_inbox", "tescia_diagnostic/submissions") or ""),
+)
+st.session_state.setdefault(
+    _k("include_submission_inbox"),
+    bool(current_payload.get("include_submission_inbox", True)),
+)
 st.session_state.setdefault(_k("files"), str(current_payload.get("files", "*.json") or "*.json"))
 st.session_state.setdefault(_k("nfile"), int(current_payload.get("nfile", 1) or 1))
 st.session_state.setdefault(
@@ -230,6 +239,17 @@ with c6:
 with c7:
     st.checkbox("Reset output", key=_k("reset_target"))
 
+with st.expander("Classroom intake", expanded=False):
+    st.caption(
+        "For live classroom use, drop or upload classroom JSON batches into the submission inbox. "
+        "RUN scores inbox files before the bundled sample when intake is enabled."
+    )
+    i1, i2 = st.columns([2.5, 1.0])
+    with i1:
+        st.text_input("Submission inbox", key=_k("submission_inbox"))
+    with i2:
+        st.checkbox("Read submission inbox", key=_k("include_submission_inbox"))
+
 _render_scoring_model()
 _render_self_evaluation_contract()
 
@@ -285,6 +305,7 @@ if st.session_state.get(_k("case_source")) == "standalone_ai":
 candidate: dict[str, Any] = {
     "files": (st.session_state.get(_k("files")) or "*.json").strip() or "*.json",
     "nfile": st.session_state.get(_k("nfile"), 1),
+    "include_submission_inbox": bool(st.session_state.get(_k("include_submission_inbox"), True)),
     "minimum_evidence_confidence": st.session_state.get(_k("minimum_evidence_confidence"), 0.65),
     "minimum_regression_coverage": st.session_state.get(_k("minimum_regression_coverage"), 0.6),
     "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
@@ -305,10 +326,13 @@ candidate: dict[str, Any] = {
 
 data_in_raw = (st.session_state.get(_k("data_in")) or "").strip()
 data_out_raw = (st.session_state.get(_k("data_out")) or "").strip()
+submission_inbox_raw = (st.session_state.get(_k("submission_inbox")) or "").strip()
 if data_in_raw:
     candidate["data_in"] = data_in_raw
 if data_out_raw:
     candidate["data_out"] = data_out_raw
+if submission_inbox_raw:
+    candidate["submission_inbox"] = submission_inbox_raw
 
 try:
     validated = TesciaDiagnosticArgs(**candidate)
@@ -335,9 +359,13 @@ else:
 
     resolved_data_in = env.resolve_share_path(validated.data_in)
     resolved_data_out = env.resolve_share_path(validated.data_out)
+    resolved_submission_inbox = env.resolve_share_path(validated.submission_inbox)
     if not any(resolved_data_in.glob(validated.files)):
         if validated.case_source == "standalone_ai":
             st.info("No generated diagnostic JSON exists yet. The standalone AI engine will create it on first run.")
         else:
             st.info("No diagnostic JSON exists yet. The bundled sample will be seeded on first run.")
-    st.caption(f"Resolved input: `{resolved_data_in}`  •  reports: `{resolved_data_out}`")
+    st.caption(
+        f"Resolved input: `{resolved_data_in}`  •  reports: `{resolved_data_out}`  •  "
+        f"submission inbox: `{resolved_submission_inbox}`"
+    )
