@@ -144,6 +144,30 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
+        "id": "sqlite-connector-proof",
+        "label": "SQLite database proof",
+        "route": "deterministic local SQL connector preview",
+        "target_seconds": FIRST_PROOF_TARGET_SECONDS,
+        "commands": [
+            "uv --preview-features extra-build-dependencies run python src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py --output-dir /tmp/agilab-sqlite-proof",
+        ],
+        "evidence_files": [
+            "src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py",
+            "src/agilab/examples/sqlite_connector_proof/README.md",
+            "docs/source/data-connectors.rst",
+        ],
+        "expected_artifacts": [
+            "sqlite_connector_proof.db",
+            "promotion_candidates.csv",
+            "database_evidence.json",
+        ],
+        "scope": "Local SQL proof with deterministic schema, parameterized read-only query, result CSV, and evidence hashes before any remote database opt-in.",
+        "limits": [
+            "Does not prove external Postgres, warehouse, cloud IAM, or network reachability",
+            "Does not store or materialize database credentials",
+        ],
+    },
+    {
         "id": "resilience-failure-injection-proof",
         "label": "Resilience failure-injection proof",
         "route": "deterministic resilience strategy comparison preview",

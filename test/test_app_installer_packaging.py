@@ -6,6 +6,7 @@ import importlib.util
 import json
 import py_compile
 import runpy
+import sqlite3
 import subprocess
 import sys
 import tomllib
@@ -57,6 +58,7 @@ EXAMPLE_PREVIEWS = {
         "preview_resilience_failure_injection.py",
     ),
     "service_mode": ("preview_service_mode.py",),
+    "sqlite_connector_proof": ("preview_sqlite_connector_proof.py",),
     "train_then_serve": ("preview_train_then_serve.py",),
 }
 DEPRECATED_EXAMPLE_DIR_NAMES = {
@@ -730,6 +732,48 @@ def test_excel_workbook_proof_preview_writes_workbook_refresh_and_evidence(tmp_p
     assert evidence["office_add_in_required"] is False
 
 
+def test_sqlite_connector_proof_preview_writes_database_csv_and_evidence(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "sqlite_connector_proof" / "preview_sqlite_connector_proof.py"
+    spec = importlib.util.spec_from_file_location("sqlite_connector_proof_preview_test", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    preview = module.build_preview(output_dir=tmp_path, min_accuracy=0.91)
+
+    database_path = tmp_path / "sqlite_connector_proof.db"
+    csv_path = tmp_path / "promotion_candidates.csv"
+    evidence_path = tmp_path / "database_evidence.json"
+    assert database_path.is_file()
+    assert csv_path.is_file()
+    assert evidence_path.is_file()
+
+    with sqlite3.connect(database_path) as connection:
+        run_count = connection.execute("SELECT COUNT(*) FROM experiment_runs").fetchone()[0]
+        gate_count = connection.execute("SELECT COUNT(*) FROM quality_gates").fetchone()[0]
+    assert run_count == 4
+    assert gate_count == 4
+
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert csv_text.splitlines()[0] == "run_id,app,dataset,accuracy,latency_ms,gate"
+    assert "run-004,pytorch_playground_project,circles,0.947,64.8,promotion_gate" in csv_text
+    assert "run-003" not in csv_text
+
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["schema"] == module.SCHEMA
+    assert evidence["connector"]["kind"] == "sql"
+    assert evidence["connector"]["driver"] == "sqlite"
+    assert evidence["connector"]["query_mode"] == "read_only"
+    assert evidence["connector"]["network_required"] is False
+    assert evidence["connector"]["secrets_required"] is False
+    assert evidence["query"]["parameterized"] is True
+    assert evidence["query"]["parameters"] == {"min_accuracy": 0.91}
+    assert evidence["result"]["row_count"] == 3
+    assert evidence["database"]["schema_sha256"] == preview["database"]["schema_sha256"]
+    assert evidence["artifacts"]["database"]["sha256"] == preview["artifacts"]["database"]["sha256"]
+
+
 def test_native_rust_worker_preview_writes_pyo3_project_and_evidence(tmp_path: Path) -> None:
     script = EXAMPLES_ROOT / "native_rust_worker" / "preview_native_rust_worker.py"
     spec = importlib.util.spec_from_file_location("native_rust_worker_preview_test", script)
@@ -904,6 +948,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "notebook_migrations/*/notebooks/*.ipynb" in package_data
     assert "resilience_failure_injection/*.py" in package_data
     assert "service_mode/*.py" in package_data
+    assert "sqlite_connector_proof/*.py" in package_data
     assert "train_then_serve/*.py" in package_data
 
 
