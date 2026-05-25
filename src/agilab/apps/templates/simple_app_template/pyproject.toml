@@ -9,8 +9,8 @@ authors = [
 ]
 
 dependencies = [
-    "agi-env",
-    "pydantic",
+    "agi-env>=2026.05.23,<2027.0",
+    "pydantic>=2.11,<3",
     "streamlit>=1.56,<1.57",
 ]
 

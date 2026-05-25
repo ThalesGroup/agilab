@@ -12,6 +12,7 @@ import polars as pl
 import pytest
 from agi_node import MutableNamespace
 from agi_node.reduction import ReduceArtifact
+from packaging.requirements import Requirement
 
 
 def _import_flight_modules(monkeypatch):
@@ -39,8 +40,9 @@ def test_flight_telemetry_project_declares_polars_runtime_compat():
         / "pyproject.toml"
     )
     project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+    requirements = {Requirement(dependency).name: Requirement(dependency) for dependency in project["dependencies"]}
 
-    assert "polars[rtcompat]" in project["dependencies"]
+    assert requirements["polars"].extras == {"rtcompat"}
     assert "geopy" not in project["dependencies"]
 
 

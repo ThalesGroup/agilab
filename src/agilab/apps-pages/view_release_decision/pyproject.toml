@@ -16,7 +16,7 @@ dependencies = [
     "agi-env>=2026.05.12.post3,<2027.0",
     "agi-gui>=2026.05.12.post3,<2027.0",
     "agi-node>=2026.05.12.post3,<2027.0",
-    "pandas>=2.3.0",
+    "pandas>=2.3.0,<4",
 ]
 
 [project.entry-points."agilab.pages"]
