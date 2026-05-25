@@ -17,7 +17,7 @@
   <a href="https://github.com/ThalesGroup/agilab/pulse"><img src="https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg" alt="Commit activity" /></a>
   <a href="AGENT_SKILLS.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" alt="Skills" /></a>
   <a href="https://agentskills.io/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg" alt="Standard: Agent Skills" /></a>
-  <a href="tools/agent_workflows.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg" alt="Works with Codex Claude Continue Aider and OpenCode" /></a>
+  <a href="tools/agent_workflows.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg" alt="Works with Codex Claude Aider and OpenCode" /></a>
   <a href="tools/agent_workflows.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg" alt="Agent API: CLI Python" /></a>
   <a href="docs/source/environment.rst"><img src="https://img.shields.io/badge/Language-python%20free--threaded%20%26%20cythonized-5B6CFF" alt="Language Python free-threaded and Cythonized" /></a>
   <a href="https://github.com/ThalesGroup/agilab/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome" /></a>
@@ -242,14 +242,16 @@ what they need:
 | `dev` extra | Contributor test/build/audit tooling only. | Validating a source checkout or release candidate; avoid it for runtime installs. |
 
 Agent workflows can now produce AGILAB evidence directly. Use
-`agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review`
+`agilab agent-run --agent codex --permission-level standard --label "Review current diff" --tag review --metadata branch=main -- codex review`
 to execute a local coding-agent command and write a redacted
 `agilab.agent_run.v1` manifest plus local stdout/stderr artifacts under
 `~/log/agents/`. Each run also writes an append-only
 `agilab.agent_trace.v1` stream in `agent_events.ndjson`, with typed events for
 session, command/tool, permission, compaction, rewind, and completion evidence.
 Command arguments are redacted by default and represented by an argv hash; pass
-`--include-command-args` only when the prompt/arguments are safe to store. Add
+`--include-command-args` only when the prompt/arguments are safe to store.
+Output artifact files are redacted by default; pass `--include-raw-output`
+only for safe local diagnostics. Add
 `--protocol-adapter mcp` or `--capability app-as-tool` as metadata-only labels
 when experimenting with agent protocol bridges; the base package records those
 labels and lifecycle events without depending on the protocol stacks. Use

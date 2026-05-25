@@ -18,7 +18,7 @@ from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
 from agilab.agent_config import load_agent_config, resolve_agent_provider
-from agilab.agent_tool_safety import normalize_permission_level
+from agilab.agent_tool_safety import evaluate_tool_permission, normalize_permission_level
 from agilab.agent_trace import AgentTraceStore, trace_artifact_payload
 from agilab.secret_uri import redact_text
 
@@ -55,7 +55,9 @@ class AgentRunConfig:
     provider: str = ""
     model: str = ""
     permission_level: str = "safe"
+    confirmation: str = ""
     trace_enabled: bool = True
+    redact_output: bool = True
     provider_capability: dict[str, object] = field(default_factory=dict)
     config_paths: tuple[str, ...] = ()
 
@@ -290,7 +292,9 @@ def create_agent_run_config(
     provider: str | None = None,
     model: str | None = None,
     permission_level: str | None = None,
+    confirmation: str | None = None,
     trace_enabled: bool | None = None,
+    redact_output: bool = True,
 ) -> AgentRunConfig:
     """Build a validated agent-run config with CLI-compatible defaults.
 
@@ -352,7 +356,9 @@ def create_agent_run_config(
         provider=provider_name,
         model=model_name,
         permission_level=normalize_permission_level(permission_level or agent_config.permission_level),
+        confirmation=str(confirmation or ""),
         trace_enabled=agent_config.trace_enabled if trace_enabled is None else bool(trace_enabled),
+        redact_output=bool(redact_output),
         provider_capability=provider_capability,
         config_paths=tuple(str(path) for path in agent_config.config_paths),
     )
@@ -375,10 +381,35 @@ def _artifact_paths(output_dir: Path) -> dict[str, Path]:
     }
 
 
+def _command_permission_action(config: AgentRunConfig) -> str:
+    command_name = Path(config.command[0]).name if config.command else "command"
+    return " ".join(("run", "agent", command_name))
+
+
+def _permission_payload(config: AgentRunConfig) -> dict[str, object]:
+    decision = evaluate_tool_permission(
+        _command_permission_action(config),
+        {"argv_sha256": _argv_hash(config.command), "cwd": str(config.cwd)},
+        level=config.permission_level,
+        confirmation=config.confirmation or None,
+    )
+    payload: dict[str, object] = {
+        "action": decision.action,
+        "allowed": decision.allowed,
+        "tier": decision.tier,
+        "level": decision.level,
+        "reason": decision.reason,
+    }
+    if decision.confirmation_token:
+        payload["confirmation_token"] = decision.confirmation_token
+    return payload
+
+
 def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
     """Build a trace manifest without executing the command."""
     artifacts = _artifact_paths(config.output_dir)
     planned_at = _utc_now()
+    permission = _permission_payload(config)
     return {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -390,6 +421,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
         "command": _command_payload(config),
         "context": _context_payload(config),
         "protocols": _protocol_payload(config),
+        "permission": permission,
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": None,
@@ -411,11 +443,13 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
                 status="planned",
                 protocol_adapters=list(config.protocol_adapters),
                 capabilities=list(config.capabilities),
+                permission=permission,
             )
         ],
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
+            "Command output artifacts are redacted by default; pass --include-raw-output only for safe local diagnostics.",
             "Environment override values are redacted from the manifest.",
             "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
@@ -456,6 +490,7 @@ def run_agent_command(
     env.update(config.env_overrides)
     started_at = _utc_now()
     started = perf_counter()
+    permission = _permission_payload(config)
     events: list[dict[str, object]] = [
         _event_payload(
             1,
@@ -482,6 +517,90 @@ def run_agent_command(
             message=config.label,
             metadata=_command_payload(config),
         )
+        trace_store.append(
+            "permission_request",
+            message="agent command permission check",
+            metadata=permission,
+        )
+        trace_store.append(
+            "permission_resolved",
+            status="pass" if permission["allowed"] else "denied",
+            message=str(permission["reason"]),
+            metadata=permission,
+        )
+
+    if not permission["allowed"]:
+        returncode = 126
+        stdout = ""
+        stderr = str(permission["reason"])
+        if permission.get("confirmation_token"):
+            stderr += f"\nconfirmation_token={permission['confirmation_token']}"
+        duration_seconds = perf_counter() - started
+        finished_at = _utc_now()
+        stdout_path.write_text(stdout, encoding="utf-8")
+        stderr_path.write_text(stderr, encoding="utf-8")
+        events.append(
+            _event_payload(
+                2,
+                "agent.permission.denied",
+                timestamp=finished_at,
+                status="denied",
+                permission=permission,
+            )
+        )
+        events.append(
+            _event_payload(
+                3,
+                "agent.artifacts.written",
+                timestamp=finished_at,
+                status="denied",
+                artifacts=["stdout", "stderr"],
+            )
+        )
+        if config.trace_enabled:
+            trace_store.append(
+                "session_end",
+                status="denied",
+                message="agent run denied by permission policy",
+                metadata={"returncode": returncode},
+            )
+        manifest: dict[str, object] = {
+            "schema_version": 1,
+            "kind": TRACE_KIND,
+            "run_id": config.run_id,
+            "agent": config.agent,
+            "label": config.label,
+            "status": "denied",
+            "returncode": returncode,
+            "command": _command_payload(config),
+            "context": _context_payload(config),
+            "protocols": _protocol_payload(config),
+            "permission": permission,
+            "environment": _environment_payload(config.cwd),
+            "timing": {
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_seconds": duration_seconds,
+                "timeout_seconds": config.timeout_seconds,
+            },
+            "artifacts": {
+                "manifest": str(manifest_path),
+                "stdout": _file_payload(stdout_path),
+                "stderr": _file_payload(stderr_path),
+                "agent_trace": trace_artifact_payload(config.output_dir),
+            },
+            "events": events,
+            "notes": [
+                "Command execution was denied by the configured agent permission policy.",
+                "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
+                "Command output artifacts are redacted by default; pass --include-raw-output only for safe local diagnostics.",
+                "Environment override values are redacted from the manifest.",
+                "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
+            ],
+        }
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return AgentRunResult(manifest=manifest, returncode=returncode)
+
     try:
         proc = runner(
             list(config.command),
@@ -517,8 +636,10 @@ def run_agent_command(
         )
     )
 
-    stdout_path.write_text(stdout, encoding="utf-8")
-    stderr_path.write_text(stderr, encoding="utf-8")
+    output_stdout = redact_text(stdout) if config.redact_output else stdout
+    output_stderr = redact_text(stderr) if config.redact_output else stderr
+    stdout_path.write_text(output_stdout, encoding="utf-8")
+    stderr_path.write_text(output_stderr, encoding="utf-8")
     status = "pass" if returncode == 0 else "timeout" if timed_out else "fail"
     events.append(
         _event_payload(
@@ -557,6 +678,7 @@ def run_agent_command(
         "command": _command_payload(config),
         "context": _context_payload(config),
         "protocols": _protocol_payload(config),
+        "permission": permission,
         "environment": _environment_payload(config.cwd),
         "timing": {
             "started_at": started_at,
@@ -574,6 +696,7 @@ def run_agent_command(
         "notes": [
             "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
             "Command output is stored in local artifact files, not embedded in the manifest.",
+            "Command output artifacts are redacted by default; pass --include-raw-output only for safe local diagnostics.",
             "Environment override values are redacted from the manifest.",
             "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
@@ -601,7 +724,9 @@ def trace_agent_run(
     provider: str | None = None,
     model: str | None = None,
     permission_level: str | None = None,
+    confirmation: str | None = None,
     trace_enabled: bool | None = None,
+    redact_output: bool = True,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     perf_counter: Callable[[], float] = time.perf_counter,
 ) -> AgentRunResult:
@@ -625,7 +750,9 @@ def trace_agent_run(
         provider=provider,
         model=model,
         permission_level=permission_level,
+        confirmation=confirmation,
         trace_enabled=trace_enabled,
+        redact_output=redact_output,
     )
     return run_agent_command(config, runner=runner, perf_counter=perf_counter)
 
@@ -779,7 +906,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--provider", default="", help="Optional agent provider alias or type to stamp in evidence.")
     parser.add_argument("--model", default="", help="Optional agent model id to stamp in evidence.")
-    parser.add_argument("--permission-level", default="", help="Agent permission level: readonly, safe, standard, or operator.")
+    parser.add_argument(
+        "--permission-level",
+        default="",
+        help=(
+            "Agent permission level: readonly, safe, standard, or operator. "
+            "Actual command execution requires standard or higher."
+        ),
+    )
+    parser.add_argument(
+        "--confirmation",
+        default="",
+        help="Explicit confirmation token required when the command is classified as operator-gated.",
+    )
     parser.add_argument("--no-trace", action="store_true", help="Do not write the append-only agent_events.ndjson trace.")
     parser.add_argument("--json", action="store_true", help="Print the trace manifest JSON.")
     parser.add_argument("--print-only", action="store_true", help="Print the planned trace without executing the command.")
@@ -788,6 +927,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--include-command-args",
         action="store_true",
         help="Store full command arguments in the manifest. By default only the executable and an argv hash are kept.",
+    )
+    parser.add_argument(
+        "--include-raw-output",
+        action="store_true",
+        help="Write raw stdout/stderr artifacts. By default output artifacts are redacted.",
     )
     parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to run after --.")
     return parser
@@ -825,7 +969,9 @@ def parse_args(argv: Sequence[str]) -> AgentRunConfig:
             provider=args.provider or None,
             model=args.model or None,
             permission_level=args.permission_level or None,
+            confirmation=args.confirmation or None,
             trace_enabled=False if args.no_trace else None,
+            redact_output=not bool(args.include_raw_output),
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -835,7 +981,7 @@ def _build_list_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="List AGILAB agent-run evidence manifests.")
     parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
     parser.add_argument("--agent", default="", help="Only list runs for this agent.")
-    parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout"], help="Only list runs with this status.")
+    parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout", "denied"], help="Only list runs with this status.")
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to list.")
     parser.add_argument("--json", action="store_true", help="Print summaries as JSON.")
     return parser

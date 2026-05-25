@@ -5,7 +5,8 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
 ## Compatibility
 
 - Standard: Agent Skills style `SKILL.md` folders
-- Works with: Codex, Claude Code, Continue, Aider, OpenCode
+- Works with: Codex, Claude Code, Aider, OpenCode
+- Catalog-compatible: Continue
 - Maintenance: `tools/skill_security_scan.py`, `tools/codex_skills.py`, and `tools/agent_skill_catalog.py`
 
 ## Skills

@@ -157,7 +157,7 @@ def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Pa
             },
             "works-with": {
                 "label": "Works with",
-                "value": "Codex Claude Continue Aider OpenCode",
+                "value": "Codex Claude Aider OpenCode",
                 "badge": badge_dir / "agent-works-with.svg",
                 "color": "#0F766E",
             },
@@ -178,7 +178,7 @@ def test_main_generates_public_agent_badges_by_default(monkeypatch, tmp_path: Pa
     assert "Skills: 2" in skill_badge
     assert "2 skills" not in skill_badge
     assert "Agent Skills" in (badge_dir / "agent-standard.svg").read_text(encoding="utf-8")
-    assert "Codex Claude Continue Aider OpenCode" in (
+    assert "Codex Claude Aider OpenCode" in (
         badge_dir / "agent-works-with.svg"
     ).read_text(encoding="utf-8")
     assert "Agent API: CLI Python" in (

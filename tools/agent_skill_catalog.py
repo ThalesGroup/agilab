@@ -15,7 +15,8 @@ DEFAULT_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
 DEFAULT_MARKDOWN_OUT = REPO_ROOT / "AGENT_SKILLS.md"
 DEFAULT_LLMS_OUT = REPO_ROOT / "llms.txt"
 DEFAULT_LLMS_FULL_OUT = REPO_ROOT / "llms-full.txt"
-WORKS_WITH = ("Codex", "Claude Code", "Continue", "Aider", "OpenCode")
+WORKS_WITH = ("Codex", "Claude Code", "Aider", "OpenCode")
+CATALOG_COMPATIBLE = ("Continue",)
 
 
 def _codex_skills_module():
@@ -77,6 +78,7 @@ def render_markdown(skills: list[object]) -> str:
         "- Skills: " + _skill_count_label(len(skills)),
         "- Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references",
         "- Works with: " + ", ".join(WORKS_WITH),
+        "- Catalog-compatible: " + ", ".join(CATALOG_COMPATIBLE),
         "",
         "## Security And Maintenance Contract",
         "",
@@ -101,6 +103,7 @@ def render_llms(skills: list[object]) -> str:
         "## Agent Skills",
         "",
         "AGILAB exposes repo-managed Agent Skills compatible with Codex and Claude Code.",
+        "Continue can consume this generated catalog, but AGILAB does not ship a Continue wrapper.",
         "Use `.claude/skills/` as the canonical skill source and `.codex/skills/` as the Codex mirror.",
         "",
     ]
@@ -118,6 +121,7 @@ def render_llms_full(skills: list[object]) -> str:
         "",
         "- Standard: Agent Skills style `SKILL.md` folders",
         "- Works with: " + ", ".join(WORKS_WITH),
+        "- Catalog-compatible: " + ", ".join(CATALOG_COMPATIBLE),
         "- Maintenance: `tools/skill_security_scan.py`, `tools/codex_skills.py`, and `tools/agent_skill_catalog.py`",
         "",
         "## Skills",

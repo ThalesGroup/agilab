@@ -79,9 +79,11 @@ def test_agent_run_evidence_command_is_documented() -> None:
 
     for text in (agent_workflows, public_docs, readme):
         assert "agilab agent-run --agent codex" in text
+        assert "--permission-level standard" in text
         assert "agilab.agent_run.v1" in text
         assert "agilab.agent_trace.v1" in text
         assert "~/log/agents/" in text
+        assert "--include-raw-output" in text
     for text in (agent_workflows, readme):
         assert "--protocol-adapter" in text
         assert "--capability" in text
@@ -108,6 +110,8 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
     assert "agilab.resource_snapshot.v1" in agent_workflows
     assert "python tools/skill_security_scan.py --changed-only --fail-on critical" in agent_workflows
+    assert "Changed repo-managed skills are scanned locally" in agent_workflows
+    assert "does not ship a Continue wrapper" in agent_workflows
 
 
 def test_agent_skill_hardening_gaps_are_on_the_public_roadmap() -> None:

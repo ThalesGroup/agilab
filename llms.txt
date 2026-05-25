@@ -5,6 +5,7 @@
 ## Agent Skills
 
 AGILAB exposes repo-managed Agent Skills compatible with Codex and Claude Code.
+Continue can consume this generated catalog, but AGILAB does not ship a Continue wrapper.
 Use `.claude/skills/` as the canonical skill source and `.codex/skills/` as the Codex mirror.
 
 - advanced-svg-system-design: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure. (.claude/skills/advanced-svg-system-design/SKILL.md)

@@ -205,14 +205,16 @@ what they need:
 | `dev` extra | Contributor test/build/audit tooling only. | Validating a source checkout or release candidate; avoid it for runtime installs. |
 
 Agent workflows can now produce AGILAB evidence directly. Use
-`agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review`
+`agilab agent-run --agent codex --permission-level standard --label "Review current diff" --tag review --metadata branch=main -- codex review`
 to execute a local coding-agent command and write a redacted
 `agilab.agent_run.v1` manifest plus local stdout/stderr artifacts under
 `~/log/agents/`. Each run also writes an append-only
 `agilab.agent_trace.v1` stream in `agent_events.ndjson`, with typed events for
 session, command/tool, permission, compaction, rewind, and completion evidence.
 Command arguments are redacted by default and represented by an argv hash; pass
-`--include-command-args` only when the prompt/arguments are safe to store. Add
+`--include-command-args` only when the prompt/arguments are safe to store.
+Output artifact files are redacted by default; pass `--include-raw-output`
+only for safe local diagnostics. Add
 `--protocol-adapter mcp` or `--capability app-as-tool` as metadata-only labels
 when experimenting with agent protocol bridges; the base package records those
 labels and lifecycle events without depending on the protocol stacks. Use

@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
+import time
 from typing import Any, Mapping, Sequence
 
 from agilab.secret_uri import redact_mapping, redact_text
@@ -18,6 +21,7 @@ TRACE_SCHEMA = "agilab.agent_trace.v1"
 META_FILENAME = "agent_trace_meta.json"
 EVENTS_FILENAME = "agent_events.ndjson"
 TOOL_OUTPUT_DIRNAME = "tool-output"
+LOCK_TIMEOUT_SECONDS = 5.0
 VALID_EVENT_TYPES = frozenset(
     {
         "session_start",
@@ -94,6 +98,64 @@ def _event_from_mapping(payload: Mapping[str, Any]) -> AgentTraceEvent:
         message=str(payload.get("message") or ""),
         metadata=dict(metadata) if isinstance(metadata, dict) else {},
     )
+
+
+def _last_nonempty_line(path: Path) -> str:
+    if not path.exists() or path.stat().st_size == 0:
+        return ""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        buffer = bytearray()
+        while position > 0:
+            position -= 1
+            handle.seek(position)
+            char = handle.read(1)
+            if char == b"\n":
+                if buffer:
+                    break
+                continue
+            buffer.extend(char)
+    return bytes(reversed(buffer)).decode("utf-8", "replace").strip()
+
+
+def _last_event_sequence(path: Path) -> int:
+    line = _last_nonempty_line(path)
+    if not line:
+        return 0
+    try:
+        payload = json.loads(line)
+    except ValueError:
+        events = load_trace_events(path)
+        return events[-1].sequence if events else 0
+    if isinstance(payload, dict):
+        try:
+            return int(payload.get("sequence") or 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+@contextmanager
+def _event_file_lock(path: Path):
+    lock_path = path.with_name(path.name + ".lock")
+    deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+    fd: int | None = None
+    while fd is None:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting for agent trace lock: {lock_path}")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        os.close(fd)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def load_trace_events(path: Path | str) -> list[AgentTraceEvent]:
@@ -188,19 +250,20 @@ class AgentTraceStore:
         if not self.meta_path.exists():
             self.initialize()
 
-        sequence = len(load_trace_events(self.events_path)) + 1
-        record = AgentTraceEvent(
-            schema=TRACE_SCHEMA,
-            event=event,
-            run_id=self.run_id,
-            sequence=sequence,
-            created_at=utc_now(),
-            status=status,
-            message=redact_text(message),
-            metadata=redact_mapping(metadata or {}),
-        )
-        with self.events_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+        with _event_file_lock(self.events_path):
+            sequence = _last_event_sequence(self.events_path) + 1
+            record = AgentTraceEvent(
+                schema=TRACE_SCHEMA,
+                event=event,
+                run_id=self.run_id,
+                sequence=sequence,
+                created_at=utc_now(),
+                status=status,
+                message=redact_text(message),
+                metadata=redact_mapping(metadata or {}),
+            )
+            with self.events_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
         return record
 
 
