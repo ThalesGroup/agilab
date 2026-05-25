@@ -55,6 +55,10 @@ def test_demo_page_keeps_generic_demo_routes() -> None:
     demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
 
     assert "Short demo routes" in demos
+    assert "Robot/proof coverage" in demos
+    assert "UI robot" in demos
+    assert "Static/CLI proof" in demos
+    assert "tools/ui_robot_coverage_contract.py --json" in demos
     assert "Local app proof" in demos
     assert "Distributed worker route" in demos
     assert "MLflow tracking route" in demos
