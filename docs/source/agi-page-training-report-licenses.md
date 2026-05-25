@@ -28,16 +28,16 @@ Audit notes:
 | backports-zstd | 1.5.0 | PSF-2.0 |
 | blinker | 1.9.0 | MIT LICENSE |
 | brotli | 1.2.0 | MIT |
-| cachetools | 7.1.2 | MIT |
-| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.1.4 | MIT |
+| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | 3.4.7 | MIT |
-| click | 8.4.0 | BSD-3-CLAUSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
 | grpcio | 1.80.0 | APACHE-2.0 |
 | humanize | 4.15.0 | MIT |
-| idna | 3.15 | BSD-3-CLAUSE |
+| idna | 3.16 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | 3.1.6 | BSD LICENSE |
 | jsonschema | 4.26.0 | MIT |
@@ -53,9 +53,9 @@ Audit notes:
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pillow | 12.2.0 | MIT-CMU |
 | plotly | 6.7.0 | MIT LICENSE |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
-| protobuf | 7.34.1 | 3-CLAUSE BSD LICENSE |
+| polars | 1.41.0 | MIT LICENSE |
+| polars-runtime-32 | 1.41.0 | MIT LICENSE |
+| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
 | pyarrow | 23.0.1 | APACHE-2.0 |
