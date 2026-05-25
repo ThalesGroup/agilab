@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import warnings
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -24,7 +25,9 @@ MODULE_PATH = Path(
 SETTINGS_SUPPORT_PATH = Path(
     "src/agilab/apps-pages/view_maps_network/src/view_maps_network/settings_support.py"
 )
-APP_SETTINGS_PATH = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml")
+APP_SETTINGS_PATH = Path(
+    "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml"
+)
 
 
 def _suppress_page_import_warnings() -> None:
@@ -61,7 +64,9 @@ def _suppress_page_import_warnings() -> None:
 
 
 def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
-    spec = importlib.util.spec_from_file_location("view_maps_network_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "view_maps_network_test_module", MODULE_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     active_app = Path("src/agilab/apps/builtin/flight_telemetry_project").resolve()
@@ -75,7 +80,9 @@ def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
 
 
 def _load_view_maps_network_settings_support():
-    spec = importlib.util.spec_from_file_location("view_maps_network_settings_support_test_module", SETTINGS_SUPPORT_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "view_maps_network_settings_support_test_module", SETTINGS_SUPPORT_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -94,7 +101,9 @@ def _write_heatmap_npz(
     np.savez(
         path,
         heatmap=np.asarray(
-            heatmap if heatmap is not None else np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+            heatmap
+            if heatmap is not None
+            else np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
             dtype=np.float32,
         ),
         x_min=np.asarray(x_min, dtype=np.float32),
@@ -104,7 +113,9 @@ def _write_heatmap_npz(
     )
 
 
-def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_reads_builtin_flight_page_defaults(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_settings_support()
 
     with APP_SETTINGS_PATH.open("rb") as handle:
@@ -146,24 +157,37 @@ def test_view_maps_network_package_entrypoints(monkeypatch) -> None:
     assert graph_module.create_network_graph is not None
 
 
-def test_view_maps_network_normalizes_settings_sources(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_normalizes_settings_sources(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_settings_support()
 
-    assert module.coerce_str_list(" alpha, beta; alpha\n gamma ") == ["alpha", "beta", "gamma"]
-    assert module.first_nonempty_setting(
-        [{"unused": " "}, "ignored", {"primary": " ", "secondary": " chosen "}],
-        "primary",
-        "secondary",
-    ) == "chosen"
+    assert module.coerce_str_list(" alpha, beta; alpha\n gamma ") == [
+        "alpha",
+        "beta",
+        "gamma",
+    ]
+    assert (
+        module.first_nonempty_setting(
+            [{"unused": " "}, "ignored", {"primary": " ", "secondary": " chosen "}],
+            "primary",
+            "secondary",
+        )
+        == "chosen"
+    )
     assert module.setting_list(
         [{"paths": "one, two;one"}, {"paths": ["two", "three"]}, {"paths": None}],
         "paths",
     ) == ["one", "two", "three"]
 
 
-def test_view_maps_network_reads_query_params_and_subdirectories(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_reads_query_params_and_subdirectories(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
-    module.st = SimpleNamespace(query_params={"multi": ["first", "second"], "single": "value"})
+    module.st = SimpleNamespace(
+        query_params={"multi": ["first", "second"], "single": "value"}
+    )
 
     scan_root = tmp_path / "scan_root"
     scan_root.mkdir()
@@ -178,11 +202,15 @@ def test_view_maps_network_reads_query_params_and_subdirectories(monkeypatch, tm
     assert module._list_subdirectories(scan_root) == ["visible_a", "visible_b"]
 
 
-def test_view_maps_network_loads_missing_settings_as_empty(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_loads_missing_settings_as_empty(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     module.st = SimpleNamespace(session_state={})
 
-    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=tmp_path / "missing.toml"))
+    module._ensure_app_settings_loaded(
+        SimpleNamespace(app_settings_file=tmp_path / "missing.toml")
+    )
 
     assert module.st.session_state["app_settings"] == {}
 
@@ -213,7 +241,9 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     assert parsed["view_maps_network"]["df_files"] == ["export.csv", ""]
 
 
-def test_view_maps_network_drops_ambiguous_index_levels(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_drops_ambiguous_index_levels(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     df = pd.DataFrame(
         {
@@ -242,7 +272,9 @@ def test_view_maps_network_warns_when_no_dataset_exists(
         pyproject_name="demo-map-project",
     )
 
-    at = run_page_app_test(str(MODULE_PATH), project_dir, export_root=tmp_path / "export", timeout=60)
+    at = run_page_app_test(
+        str(MODULE_PATH), project_dir, export_root=tmp_path / "export", timeout=60
+    )
 
     assert not at.exception
     assert any("Maps Network Graph" in title.value for title in at.title)
@@ -252,10 +284,13 @@ def test_view_maps_network_warns_when_no_dataset_exists(
 def test_view_maps_network_keeps_secondary_navigation_collapsed() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
 
-    assert "st.subheader(\"Network topology\")" in source
+    assert 'st.subheader("Network topology")' in source
     assert "<h1 style='text-align: center;'>" not in source
     assert "Network Topology</h1>" not in source
+    assert "Back to ANALYSIS" in source
     assert 'with st.expander("Open split-screen view", expanded=False):' in source
+    assert 'with st.sidebar.expander("Resolved data path", expanded=False):' in source
+    assert 'st.sidebar.caption(f"Resolved path:' not in source
     assert "Dual-screen:" not in source
 
 
@@ -280,7 +315,9 @@ def test_view_maps_network_resolves_relative_edges_file_from_share_root(
     assert module.load_edges_file(resolved) == {"satcom_link": [("1", "2")]}
 
 
-def test_view_maps_network_prefers_existing_absolute_edges_file(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_prefers_existing_absolute_edges_file(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     edges_path = tmp_path / "absolute" / "topology.gml"
@@ -298,7 +335,9 @@ def test_view_maps_network_prefers_existing_absolute_edges_file(monkeypatch, tmp
     assert module.load_edges_file(resolved) == {"optical_link": [("A", "B")]}
 
 
-def test_view_maps_network_extracts_semantic_node_id_from_label(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_extracts_semantic_node_id_from_label(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     assert module._semantic_node_id_from_text("uswc_forward_02-S002") == "2002"
@@ -306,15 +345,23 @@ def test_view_maps_network_extracts_semantic_node_id_from_label(monkeypatch, tmp
     assert module._semantic_node_id_from_text("NSS-11") == "11"
 
 
-def test_view_maps_network_unexpected_semantic_label_errors_propagate(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_unexpected_semantic_label_errors_propagate(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
-    monkeypatch.setattr(module, "_strip_export_suffix", lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad strip")))
+    monkeypatch.setattr(
+        module,
+        "_strip_export_suffix",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad strip")),
+    )
 
     with pytest.raises(TypeError, match="bad strip"):
         module._semantic_node_id_from_text("SES-10")
 
 
-def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     traj_path = tmp_path / "uswc_forward_03-S003_2026-03-31_15-30-46.csv"
@@ -337,7 +384,9 @@ def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(monkey
     assert positions.iloc[0]["flight_id"] == "3003"
 
 
-def test_view_maps_network_prefers_semantic_ids_when_normalizing_rows(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_prefers_semantic_ids_when_normalizing_rows(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     row = pd.Series(
@@ -351,7 +400,9 @@ def test_view_maps_network_prefers_semantic_ids_when_normalizing_rows(monkeypatc
     assert module._preferred_node_id_from_row(row) == "2002"
 
 
-def test_view_maps_network_loads_heatmap_points_and_stats(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_loads_heatmap_points_and_stats(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     npz_path = tmp_path / "heatmap.npz"
     _write_heatmap_npz(npz_path)
@@ -370,7 +421,9 @@ def test_view_maps_network_loads_heatmap_points_and_stats(monkeypatch, tmp_path:
     assert grid["step"] == 1.0
     assert grid["heatmap"].shape == (2, 2)
 
-    stats = module._sample_cloud_heatmap_stats(str(npz_path), 0.0, 0.0, neighborhood_radius_cells=1)
+    stats = module._sample_cloud_heatmap_stats(
+        str(npz_path), 0.0, 0.0, neighborhood_radius_cells=1
+    )
     assert stats == {
         "raw_value": 1.0,
         "proxy_value": 4.0,
@@ -409,7 +462,9 @@ def test_view_maps_network_loads_heatmap_points_and_stats(monkeypatch, tmp_path:
     assert accelerated["local_max"].tolist() == [4.0]
 
 
-def test_view_maps_network_decision_samples_and_heatmap_timeline(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_decision_samples_and_heatmap_timeline(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     alloc_df = pd.DataFrame({"time_index": [1, 2], "t_now_s": [10.5, np.nan]})
@@ -437,7 +492,11 @@ def test_view_maps_network_decision_samples_and_heatmap_timeline(monkeypatch, tm
             "local_max": np.full(lat_array.shape, 2.5, dtype=np.float64),
         }
 
-    monkeypatch.setattr(module, "_sample_cloud_heatmap_stats_batch", fake_sample_cloud_heatmap_stats_batch)
+    monkeypatch.setattr(
+        module,
+        "_sample_cloud_heatmap_stats_batch",
+        fake_sample_cloud_heatmap_stats_batch,
+    )
 
     trajectory_df = pd.DataFrame(
         {
@@ -478,7 +537,9 @@ def test_view_maps_network_decision_samples_and_heatmap_timeline(monkeypatch, tm
     ]
 
 
-def test_view_maps_network_downsamples_and_plots_heatmap_timeline(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_downsamples_and_plots_heatmap_timeline(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     numeric_timeline = pd.DataFrame(
@@ -493,7 +554,9 @@ def test_view_maps_network_downsamples_and_plots_heatmap_timeline(monkeypatch, t
             "long": [2.0, 2.1, 2.2, 2.3],
         }
     )
-    downsampled_numeric = module._downsample_heatmap_timeline(numeric_timeline, step_s=2)
+    downsampled_numeric = module._downsample_heatmap_timeline(
+        numeric_timeline, step_s=2
+    )
     assert downsampled_numeric["map_time"].tolist() == [0, 2, 5]
 
     datetime_timeline = numeric_timeline.copy()
@@ -506,7 +569,9 @@ def test_view_maps_network_downsamples_and_plots_heatmap_timeline(monkeypatch, t
             datetime(2024, 1, 1, 0, 0, 3),
         ]
     )
-    downsampled_datetime = module._downsample_heatmap_timeline(datetime_timeline, step_s=2)
+    downsampled_datetime = module._downsample_heatmap_timeline(
+        datetime_timeline, step_s=2
+    )
     assert downsampled_datetime["map_time"].tolist() == [
         pd.Timestamp("2024-01-01 00:00:00"),
         pd.Timestamp("2024-01-01 00:00:00"),
@@ -515,12 +580,17 @@ def test_view_maps_network_downsamples_and_plots_heatmap_timeline(monkeypatch, t
 
     fig = module._plot_selected_nodes_heatmap_timeline(datetime_timeline, "SAT")
     assert len(fig.data) == 2
-    assert fig.layout.title.text == "SAT cloud intensity proxy at planes A and B over trajectory time"
+    assert (
+        fig.layout.title.text
+        == "SAT cloud intensity proxy at planes A and B over trajectory time"
+    )
     assert fig.data[0].name == "A"
     assert fig.data[1].name == "B"
 
 
-def test_view_maps_network_builds_cloud_and_trace_layers(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_builds_cloud_and_trace_layers(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     warnings: list[str] = []
     module.st = SimpleNamespace(
@@ -542,7 +612,9 @@ def test_view_maps_network_builds_cloud_and_trace_layers(monkeypatch, tmp_path: 
             raise FileNotFoundError(path)
         return pd.DataFrame({"long": [1.0], "lat": [2.0], "weight": [3.0]})
 
-    monkeypatch.setattr(module, "_load_cloud_heatmap_points", fake_load_cloud_heatmap_points)
+    monkeypatch.setattr(
+        module, "_load_cloud_heatmap_points", fake_load_cloud_heatmap_points
+    )
 
     heatmap_layers = module._cloud_heatmap_layers()
     assert len(heatmap_layers) == 1
@@ -632,7 +704,9 @@ def test_view_maps_network_builds_topology_layers_and_coerces_slider_values(
     assert module._coerce_slider_value([1, 2, 3], None, prefer_last=True) == 3
 
 
-def test_view_maps_network_resolves_candidates_and_declared_paths(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_resolves_candidates_and_declared_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     base = tmp_path / "share"
@@ -670,8 +744,13 @@ def test_view_maps_network_resolves_candidates_and_declared_paths(monkeypatch, t
     assert any(pattern.endswith("*.parquet") for pattern in globs_list)
     assert any(pattern.endswith("*.csv") for pattern in globs_list)
 
-    matched_files = module._candidate_files_from_globs([str(parquet_path), str(parquet_path), str(csv_path)])
-    assert matched_files == [csv_path, parquet_path] or matched_files == [parquet_path, csv_path]
+    matched_files = module._candidate_files_from_globs(
+        [str(parquet_path), str(parquet_path), str(csv_path)]
+    )
+    assert matched_files == [csv_path, parquet_path] or matched_files == [
+        parquet_path,
+        csv_path,
+    ]
 
     expanded = module._expand_glob_patterns(
         ["  data/*.csv  ", str(csv_path)],
@@ -680,7 +759,9 @@ def test_view_maps_network_resolves_candidates_and_declared_paths(monkeypatch, t
     assert str(traj_root / "demo_trajectory" / "data/*.csv") in expanded
     assert str(csv_path) in expanded
 
-    declared = module._resolve_declared_path("demo_trajectory/pipeline/points.csv", [traj_root, base])
+    declared = module._resolve_declared_path(
+        "demo_trajectory/pipeline/points.csv", [traj_root, base]
+    )
     assert declared == str(csv_path)
 
     cloud_root = tmp_path / "cloud_root"
@@ -691,7 +772,9 @@ def test_view_maps_network_resolves_candidates_and_declared_paths(monkeypatch, t
     assert cloud_candidates == [cloud_path]
 
 
-def test_view_maps_network_normalizes_and_resolves_node_ids(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_normalizes_and_resolves_node_ids(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     series = pd.Series([1, 2.0, " plane_3 ", None, "nan", "<NA>", "uav_4"])
@@ -711,7 +794,9 @@ def test_view_maps_network_normalizes_and_resolves_node_ids(monkeypatch, tmp_pat
     assert module._coerce_list_cell("[1, 2, 3]") == [1, 2, 3]
 
 
-def test_view_maps_network_builds_visible_nodes_and_endpoint_roles(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_builds_visible_nodes_and_endpoint_roles(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     alloc_df = pd.DataFrame(
@@ -726,7 +811,10 @@ def test_view_maps_network_builds_visible_nodes_and_endpoint_roles(monkeypatch, 
 
     roles = module._allocation_endpoint_roles(alloc_df.iloc[[1]])
     assert roles == {"1": "src", "2": "dst"}
-    assert module._allocation_endpoint_roles(alloc_df, focus_pair=(8, 9)) == {"8": "src", "9": "dst"}
+    assert module._allocation_endpoint_roles(alloc_df, focus_pair=(8, 9)) == {
+        "8": "src",
+        "9": "dst",
+    }
 
     assert module._format_node_label("2", roles) == "2 (dst)"
     assert module._format_node_label("  ", roles) == ""
@@ -762,7 +850,9 @@ def test_view_maps_network_builds_map_label_layers(monkeypatch, tmp_path: Path) 
     assert module._build_map_label_layers(pd.DataFrame()) == []
 
 
-def test_view_maps_network_filters_and_expands_allocations(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_filters_and_expands_allocations(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     alloc_df = pd.DataFrame(
@@ -819,11 +909,15 @@ def test_view_maps_network_filters_and_expands_allocations(monkeypatch, tmp_path
     )
     assert routed_pairs == {("1", "2")}
 
-    missing_pairs = module._allocation_routed_edge_pairs({"1", "2"}, allocation_paths=[tmp_path / "missing.parquet"])
+    missing_pairs = module._allocation_routed_edge_pairs(
+        {"1", "2"}, allocation_paths=[tmp_path / "missing.parquet"]
+    )
     assert missing_pairs is None
 
 
-def test_view_maps_network_detects_allocation_files_and_edge_counts(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_detects_allocation_files_and_edge_counts(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     base = tmp_path / "alloc_share"
@@ -907,7 +1001,9 @@ def test_view_maps_network_colormap_loader_paths(monkeypatch, tmp_path: Path) ->
         if name == "matplotlib":
             return SimpleNamespace(colormaps=None)
         if name == "matplotlib.cm":
-            return SimpleNamespace(get_cmap=lambda cmap_name, lut=None: ("cm", cmap_name, lut))
+            return SimpleNamespace(
+                get_cmap=lambda cmap_name, lut=None: ("cm", cmap_name, lut)
+            )
         raise AssertionError(name)
 
     monkeypatch.setattr(module.importlib, "import_module", _cm_import)
@@ -927,12 +1023,18 @@ def test_view_maps_network_colormap_loader_paths(monkeypatch, tmp_path: Path) ->
     assert module._MATPLOTLIB_IMPORT_ERROR is missing
 
 
-def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_parses_edges_and_geomap_layers(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     warnings: list[str] = []
     module.st = SimpleNamespace(
         warning=warnings.append,
-        session_state={"show_terrain": False, "show_cloud_heatmap": False, "show_trajectory_traces": False},
+        session_state={
+            "show_terrain": False,
+            "show_cloud_heatmap": False,
+            "show_trajectory_traces": False,
+        },
     )
 
     current_positions = pd.DataFrame(
@@ -945,7 +1047,15 @@ def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path:
             "color": [[1, 2, 3, 255], [4, 5, 6, 255], [7, 8, 9, 255]],
         }
     )
-    df = pd.DataFrame({"flight_id": ["1"], "satcom_link": ["[(1, 2), (2, 3)]"], "long": [0.0], "lat": [10.0], "alt": [100.0]})
+    df = pd.DataFrame(
+        {
+            "flight_id": ["1"],
+            "satcom_link": ["[(1, 2), (2, 3)]"],
+            "long": [0.0],
+            "lat": [10.0],
+            "alt": [100.0],
+        }
+    )
 
     edges = module.create_edges_geomap(df.copy(), "satcom_link", current_positions)
     assert edges.to_dict("records") == [
@@ -979,11 +1089,19 @@ def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path:
         ],
         ignore_index=True,
     )
-    duplicate_edges = module.create_edges_geomap(df.copy(), "satcom_link", duplicate_positions)
+    duplicate_edges = module.create_edges_geomap(
+        df.copy(), "satcom_link", duplicate_positions
+    )
     assert duplicate_edges.to_dict("records")[0]["target"] == [1.0, 11.0, 200.0]
 
-    assert module.parse_edges(["[(1, 2), (2, 3)]", [(3, 4)]]) == [("1", "2"), ("2", "3"), ("3", "4")]
-    assert module.filter_edges(df, ["satcom_link"], {("1", "2")}) == {"satcom_link": [("1", "2")]}
+    assert module.parse_edges(["[(1, 2), (2, 3)]", [(3, 4)]]) == [
+        ("1", "2"),
+        ("2", "3"),
+        ("3", "4"),
+    ]
+    assert module.filter_edges(df, ["satcom_link"], {("1", "2")}) == {
+        "satcom_link": [("1", "2")]
+    }
 
     layers = module.create_layers_geomap(
         ["satcom_link"],
@@ -993,17 +1111,29 @@ def test_view_maps_network_parses_edges_and_geomap_layers(monkeypatch, tmp_path:
         marker_style="Dots",
         show_node_labels=True,
     )
-    assert [layer.type for layer in layers] == ["LineLayer", "TextLayer", "PointCloudLayer", "TextLayer"]
+    assert [layer.type for layer in layers] == [
+        "LineLayer",
+        "TextLayer",
+        "PointCloudLayer",
+        "TextLayer",
+    ]
     assert warnings == []
 
 
-def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
-    assert module._pick_ci_column(pd.DataFrame([{"SRC": 1, "dst": 2}]), ("source", "src")) == "SRC"
+    assert (
+        module._pick_ci_column(pd.DataFrame([{"SRC": 1, "dst": 2}]), ("source", "src"))
+        == "SRC"
+    )
     assert module._pick_ci_column(pd.DataFrame(), ("source",)) is None
 
-    assert module._parse_allocations_cell("[{'source': 1, 'destination': 2}]") == [{"source": 1, "destination": 2}]
+    assert module._parse_allocations_cell("[{'source': 1, 'destination': 2}]") == [
+        {"source": 1, "destination": 2}
+    ]
     assert module._parse_allocations_cell({"source": 1}) == [{"source": 1}]
     assert module._parse_allocations_cell(None) == []
 
@@ -1014,7 +1144,9 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkey
         {
             "decision": [7],
             "time_s": [1.5],
-            "allocations": ["[{'src': '1', 'dst': '2', 'routed': True, 'path': [(1, 2)]}]"],
+            "allocations": [
+                "[{'src': '1', 'dst': '2', 'routed': True, 'path': [(1, 2)]}]"
+            ],
         }
     )
     normalized = module._normalize_allocations_frame(alloc_frame)
@@ -1031,12 +1163,16 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkey
     ]
 
     jsonl_path = tmp_path / "allocations.jsonl"
-    jsonl_path.write_text('{"source": "1", "destination": "2", "time_index": 4}\n', encoding="utf-8")
+    jsonl_path.write_text(
+        '{"source": "1", "destination": "2", "time_index": 4}\n', encoding="utf-8"
+    )
     loaded = module.load_allocations(jsonl_path)
     assert loaded["time_index"].tolist() == [4]
     assert loaded["source"].tolist() == ["1"]
 
-    nearest = module._nearest_row(pd.DataFrame({"time_s": [1.0, 2.5, 9.0], "value": [1, 2, 3]}), 2.0)
+    nearest = module._nearest_row(
+        pd.DataFrame({"time_s": [1.0, 2.5, 9.0], "value": [1, 2, 3]}), 2.0
+    )
     assert nearest["value"].tolist() == [2]
 
     latest_root = tmp_path / "latest_allocs"
@@ -1050,7 +1186,9 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(monkey
     assert module._find_latest_allocations(latest_root, include=("baseline",)) == newer
 
 
-def test_view_maps_network_loaders_and_bearer_helpers(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_loaders_and_bearer_helpers(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     parquet_path = tmp_path / "edges.parquet"
@@ -1096,10 +1234,38 @@ def test_view_maps_network_selected_node_bearer_timeline_and_allocation_layers(
     )
     timeline = module._selected_node_bearer_timeline(timeline_df, {"1", "2"}, "alloc")
     assert timeline.to_dict("records") == [
-        {"method": "alloc", "node_id": "1", "time_index": 1, "bearer_path": "SAT", "peers": "2", "row_label": "alloc | 1"},
-        {"method": "alloc", "node_id": "1", "time_index": 2, "bearer_path": "OPT", "peers": "3", "row_label": "alloc | 1"},
-        {"method": "alloc", "node_id": "2", "time_index": 1, "bearer_path": "SAT", "peers": "1", "row_label": "alloc | 2"},
-        {"method": "alloc", "node_id": "2", "time_index": 3, "bearer_path": "Not routed", "peers": "3", "row_label": "alloc | 2"},
+        {
+            "method": "alloc",
+            "node_id": "1",
+            "time_index": 1,
+            "bearer_path": "SAT",
+            "peers": "2",
+            "row_label": "alloc | 1",
+        },
+        {
+            "method": "alloc",
+            "node_id": "1",
+            "time_index": 2,
+            "bearer_path": "OPT",
+            "peers": "3",
+            "row_label": "alloc | 1",
+        },
+        {
+            "method": "alloc",
+            "node_id": "2",
+            "time_index": 1,
+            "bearer_path": "SAT",
+            "peers": "1",
+            "row_label": "alloc | 2",
+        },
+        {
+            "method": "alloc",
+            "node_id": "2",
+            "time_index": 3,
+            "bearer_path": "Not routed",
+            "peers": "3",
+            "row_label": "alloc | 2",
+        },
     ]
 
     positions = pd.DataFrame(
@@ -1137,7 +1303,9 @@ def test_view_maps_network_selected_node_bearer_timeline_and_allocation_layers(
     assert {row["demand"] for row in layers[0].data} == {"1→2", "1→3"}
 
 
-def test_view_maps_network_bearer_plot_and_map_layer_wrapper(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_bearer_plot_and_map_layer_wrapper(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     empty_fig = module._plot_selected_node_bearer_timeline(pd.DataFrame())
@@ -1146,8 +1314,22 @@ def test_view_maps_network_bearer_plot_and_map_layer_wrapper(monkeypatch, tmp_pa
 
     timeline_df = pd.DataFrame(
         [
-            {"method": "alloc", "node_id": "1", "time_index": 1, "bearer_path": "SAT", "peers": "2", "row_label": "alloc | 1"},
-            {"method": "alloc", "node_id": "2", "time_index": 1, "bearer_path": "OPT", "peers": "1", "row_label": "alloc | 2"},
+            {
+                "method": "alloc",
+                "node_id": "1",
+                "time_index": 1,
+                "bearer_path": "SAT",
+                "peers": "2",
+                "row_label": "alloc | 1",
+            },
+            {
+                "method": "alloc",
+                "node_id": "2",
+                "time_index": 1,
+                "bearer_path": "OPT",
+                "peers": "1",
+                "row_label": "alloc | 2",
+            },
         ]
     )
     fig = module._plot_selected_node_bearer_timeline(timeline_df)
@@ -1161,9 +1343,13 @@ def test_view_maps_network_bearer_plot_and_map_layer_wrapper(monkeypatch, tmp_pa
         session_state={"show_terrain": False},
     )
     monkeypatch.setattr(module, "_cloud_heatmap_layers", lambda: [])
-    monkeypatch.setattr(module, "_trajectory_trace_layers", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        module, "_trajectory_trace_layers", lambda *_args, **_kwargs: []
+    )
     monkeypatch.setattr(module, "_topology_link_layers", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(module, "_build_map_label_layers", lambda *_args, **_kwargs: ["labels"])
+    monkeypatch.setattr(
+        module, "_build_map_label_layers", lambda *_args, **_kwargs: ["labels"]
+    )
 
     missing_layers = module.create_layers_geomap(
         ["satcom_link"],
@@ -1198,16 +1384,22 @@ def test_view_maps_network_bearer_plot_and_map_layer_wrapper(monkeypatch, tmp_pa
     assert plane_layers[-1] == "labels"
 
 
-def test_view_maps_network_layout_and_tuple_helpers(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_layout_and_tuple_helpers(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     warnings: list[str] = []
     module.st = SimpleNamespace(warning=warnings.append)
 
-    spiral = module.spiral_layout(module.nx.path_graph(["A", "B", "C"]), scale=2.0, center=(1.0, 2.0))
+    spiral = module.spiral_layout(
+        module.nx.path_graph(["A", "B", "C"]), scale=2.0, center=(1.0, 2.0)
+    )
     assert set(spiral) == {"A", "B", "C"}
     assert spiral["A"] == (1.0, 2.0)
 
-    spring_layout = module.get_fixed_layout(pd.DataFrame({"flight_id": ["A", "B", "C"]}), layout="spring")
+    spring_layout = module.get_fixed_layout(
+        pd.DataFrame({"flight_id": ["A", "B", "C"]}), layout="spring"
+    )
     assert set(spring_layout) == {"A", "B", "C"}
     with pytest.raises(ValueError, match="Unsupported layout type"):
         module.get_fixed_layout(pd.DataFrame({"flight_id": ["A"]}), layout="unknown")
@@ -1220,7 +1412,9 @@ def test_view_maps_network_layout_and_tuple_helpers(monkeypatch, tmp_path: Path)
     assert len(warnings) == 2
 
 
-def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_handles_settings_and_active_app_error_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     errors: list[str] = []
 
@@ -1228,7 +1422,11 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypat
         raise RuntimeError("stop")
 
     module.st = SimpleNamespace(error=errors.append, stop=stop_now, session_state={})
-    monkeypatch.setattr(module.sys, "argv", [MODULE_PATH.name, "--active-app", str(tmp_path / "missing_app")])
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        [MODULE_PATH.name, "--active-app", str(tmp_path / "missing_app")],
+    )
 
     with pytest.raises(RuntimeError, match="stop"):
         module._resolve_active_app()
@@ -1238,10 +1436,14 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypat
     invalid_settings = tmp_path / "invalid.toml"
     invalid_settings.write_text("[broken", encoding="utf-8")
     module.st = SimpleNamespace(session_state={})
-    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=invalid_settings))
+    module._ensure_app_settings_loaded(
+        SimpleNamespace(app_settings_file=invalid_settings)
+    )
     assert module.st.session_state["app_settings"] == {}
 
-    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": "bad"}})
+    module.st = SimpleNamespace(
+        session_state={"app_settings": {"view_maps_network": "bad"}}
+    )
     assert module._get_view_maps_settings() == {}
     assert module.st.session_state["app_settings"]["view_maps_network"] == {}
 
@@ -1251,23 +1453,30 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(monkeypat
     assert not persist_path.exists()
 
     warnings: list[str] = []
-    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": {}}})
-    monkeypatch.setattr(module.logger, "warning", lambda message: warnings.append(message))
+    module.st = SimpleNamespace(
+        session_state={"app_settings": {"view_maps_network": {}}}
+    )
+    monkeypatch.setattr(
+        module.logger, "warning", lambda message: warnings.append(message)
+    )
     monkeypatch.setattr(
         module,
         "_dump_toml",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cannot write")),
     )
-    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml"))
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml")
+    )
     assert any("Unable to persist app_settings" in message for message in warnings)
 
 
-def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_unexpected_helper_errors_propagate(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
-        "[view_maps_network]\n"
-        'dataset_base_choice = "AGI_CLUSTER_SHARE"\n',
+        '[view_maps_network]\ndataset_base_choice = "AGI_CLUSTER_SHARE"\n',
         encoding="utf-8",
     )
 
@@ -1278,18 +1487,29 @@ def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_p
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
-        module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
+        module._ensure_app_settings_loaded(
+            SimpleNamespace(app_settings_file=settings_path)
+        )
 
     warnings: list[str] = []
-    module.st = SimpleNamespace(session_state={"app_settings": {"view_maps_network": {}}})
-    monkeypatch.setattr(module.logger, "warning", lambda message: warnings.append(message))
+    module.st = SimpleNamespace(
+        session_state={"app_settings": {"view_maps_network": {}}}
+    )
+    monkeypatch.setattr(
+        module.logger, "warning", lambda message: warnings.append(message)
+    )
     monkeypatch.setattr(
         module,
         "_dump_toml",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
     )
-    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
-    assert any("Unable to persist app_settings" in message and "bad dump" in message for message in warnings)
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "persist.toml")
+    )
+    assert any(
+        "Unable to persist app_settings" in message and "bad dump" in message
+        for message in warnings
+    )
 
     class _BadBase:
         def exists(self) -> bool:
@@ -1299,7 +1519,9 @@ def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_p
         module._list_subdirectories(_BadBase())
 
 
-def test_view_maps_network_heatmap_loader_error_paths(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_heatmap_loader_error_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     with pytest.raises(FileNotFoundError):
@@ -1308,7 +1530,13 @@ def test_view_maps_network_heatmap_loader_error_paths(monkeypatch, tmp_path: Pat
         module._load_cloud_heatmap_grid(str(tmp_path / "missing.npz"))
 
     no_heatmap = tmp_path / "no_heatmap.npz"
-    np.savez(no_heatmap, x_min=np.asarray(0.0), z_min=np.asarray(0.0), step=np.asarray(1.0), center=np.asarray([0.0, 0.0]))
+    np.savez(
+        no_heatmap,
+        x_min=np.asarray(0.0),
+        z_min=np.asarray(0.0),
+        step=np.asarray(1.0),
+        center=np.asarray([0.0, 0.0]),
+    )
     with pytest.raises(ValueError, match="Missing 'heatmap'"):
         module._load_cloud_heatmap_points(str(no_heatmap))
     with pytest.raises(ValueError, match="Missing 'heatmap'"):
@@ -1365,10 +1593,14 @@ def test_view_maps_network_heatmap_loader_error_paths(monkeypatch, tmp_path: Pat
         heatmap=np.asarray([[3.0]], dtype=np.float32),
         center=(module.EARTH_RADIUS_M * 4.0, module.EARTH_RADIUS_M * 4.0),
     )
-    assert module._load_cloud_heatmap_points(str(invalid_coords), stride=1, min_weight=0.0).empty
+    assert module._load_cloud_heatmap_points(
+        str(invalid_coords), stride=1, min_weight=0.0
+    ).empty
 
 
-def test_view_maps_network_heatmap_stats_and_timeline_edge_cases(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_heatmap_stats_and_timeline_edge_cases(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
@@ -1436,7 +1668,9 @@ def test_view_maps_network_heatmap_stats_and_timeline_edge_cases(monkeypatch, tm
     assert "selected planes" in multi_fig.layout.title.text
 
 
-def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     warnings: list[str] = []
     module.st = SimpleNamespace(
@@ -1449,8 +1683,18 @@ def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypa
     )
 
     assert module._cloud_heatmap_layers() == []
-    assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})) == []
-    assert module._topology_link_layers(["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}) == []
+    assert (
+        module._trajectory_trace_layers(
+            pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})
+        )
+        == []
+    )
+    assert (
+        module._topology_link_layers(
+            ["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}
+        )
+        == []
+    )
 
     module.st = SimpleNamespace(
         session_state={
@@ -1464,7 +1708,9 @@ def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypa
         },
         sidebar=SimpleNamespace(warning=warnings.append),
     )
-    monkeypatch.setattr(module, "_load_cloud_heatmap_points", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(
+        module, "_load_cloud_heatmap_points", lambda *args, **kwargs: pd.DataFrame()
+    )
     assert module._cloud_heatmap_layers() == []
 
     long_track = pd.DataFrame(
@@ -1479,14 +1725,23 @@ def test_view_maps_network_layer_helpers_cover_disabled_and_empty_paths(monkeypa
     assert len(trace_layers) == 1
     assert len(trace_layers[0].data[0]["path"]) == 600
 
-    monkeypatch.setattr(module, "create_edges_geomap", lambda *args, **kwargs: pd.DataFrame())
-    assert module._topology_link_layers(["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}) == []
+    monkeypatch.setattr(
+        module, "create_edges_geomap", lambda *args, **kwargs: pd.DataFrame()
+    )
+    assert (
+        module._topology_link_layers(
+            ["satcom_link"], pd.DataFrame(), pd.DataFrame(), {}
+        )
+        == []
+    )
     assert module._svg_data_url("<svg />").startswith("data:image/svg+xml")
     assert module._label_for_link("custom_link") == "CUSTOM"
     assert module._coerce_slider_value(["alpha", "beta"], object()) == "alpha"
 
 
-def test_view_maps_network_declared_path_and_position_fallbacks(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_declared_path_and_position_fallbacks(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     base = tmp_path / "share"
@@ -1494,16 +1749,27 @@ def test_view_maps_network_declared_path_and_position_fallbacks(monkeypatch, tmp
     existing_default = base / "existing_default.txt"
     existing_default.write_text("ok", encoding="utf-8")
 
-    assert module._choose_existing_declared_path("missing.txt", "existing_default.txt", [base]) == str(existing_default)
-    assert module._choose_existing_declared_path("current_only.txt", "", [base]) == str(base / "current_only.txt")
-    assert module._choose_existing_declared_path("", "fallback_only.txt", [base]) == str(base / "fallback_only.txt")
+    assert module._choose_existing_declared_path(
+        "missing.txt", "existing_default.txt", [base]
+    ) == str(existing_default)
+    assert module._choose_existing_declared_path("current_only.txt", "", [base]) == str(
+        base / "current_only.txt"
+    )
+    assert module._choose_existing_declared_path(
+        "", "fallback_only.txt", [base]
+    ) == str(base / "fallback_only.txt")
     assert module._choose_existing_declared_path("", "", [base]) == ""
     assert module._resolve_edges_file_path("", [base]) is None
 
-    semantic_from_source = pd.Series({"source_file": str(tmp_path / "uswc_forward_04-S004.csv")})
+    semantic_from_source = pd.Series(
+        {"source_file": str(tmp_path / "uswc_forward_04-S004.csv")}
+    )
     assert module._preferred_node_id_from_row(semantic_from_source) == "4004"
     assert module._preferred_node_id_from_row(pd.Series({"node_id": 7})) == "7"
-    assert module._preferred_node_id_from_row(pd.Series({}), source_path="plain_name.csv") == ""
+    assert (
+        module._preferred_node_id_from_row(pd.Series({}), source_path="plain_name.csv")
+        == ""
+    )
 
     raw_traj = tmp_path / "plain_name.csv"
     pd.DataFrame(
@@ -1519,23 +1785,35 @@ def test_view_maps_network_declared_path_and_position_fallbacks(monkeypatch, tmp
     assert module.load_positions_at_time("", 0.0).empty
 
 
-def test_view_maps_network_allocation_and_edge_loader_branches(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_allocation_and_edge_loader_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     alloc_dict_path = tmp_path / "alloc_dict.json"
-    alloc_dict_path.write_text('{"source": "1", "destination": "2", "time_index": 5}', encoding="utf-8")
+    alloc_dict_path.write_text(
+        '{"source": "1", "destination": "2", "time_index": 5}', encoding="utf-8"
+    )
     loaded_dict = module.load_allocations(alloc_dict_path)
     assert loaded_dict["time_index"].tolist() == [5]
     assert loaded_dict["source"].tolist() == ["1"]
 
     broken_csv = tmp_path / "broken.csv"
     broken_csv.write_text("source,destination\n1,2\n", encoding="utf-8")
-    monkeypatch.setattr(module.pd, "read_csv", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("csv boom")))
+    monkeypatch.setattr(
+        module.pd,
+        "read_csv",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("csv boom")),
+    )
     assert module.load_allocations(broken_csv).empty
 
     broken_parquet = tmp_path / "broken.parquet"
     broken_parquet.write_text("parquet", encoding="utf-8")
-    monkeypatch.setattr(module.pd, "read_parquet", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("parquet boom")))
+    monkeypatch.setattr(
+        module.pd,
+        "read_parquet",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("parquet boom")),
+    )
     assert module.load_allocations(broken_parquet).empty
 
     bad_json = tmp_path / "bad.json"
@@ -1593,20 +1871,33 @@ def test_view_maps_network_allocation_pair_preview_and_layer_fallback_branches(
         lambda df, *_args, **_kwargs: df,
     )
 
-    assert module._allocation_routed_edge_pairs({"1", "2", "3"}, allocation_paths=[alloc_path]) == {
+    assert module._allocation_routed_edge_pairs(
+        {"1", "2", "3"}, allocation_paths=[alloc_path]
+    ) == {
         ("1", "2"),
         ("2", "3"),
     }
 
-    assert module._preview_edge_count(pd.DataFrame({"edge_col": [None, np.nan, " "]}), "edge_col") == 0
+    assert (
+        module._preview_edge_count(
+            pd.DataFrame({"edge_col": [None, np.nan, " "]}), "edge_col"
+        )
+        == 0
+    )
     monkeypatch.setattr(
         module,
         "convert_to_tuples",
         lambda _value: (_ for _ in ()).throw(ValueError("bad tuples")),
     )
-    assert module._preview_edge_count(pd.DataFrame({"edge_col": ["[(1, 2)]"]}), "edge_col") == 0
+    assert (
+        module._preview_edge_count(pd.DataFrame({"edge_col": ["[(1, 2)]"]}), "edge_col")
+        == 0
+    )
 
-    assert module.build_allocation_layers(pd.DataFrame(), pd.DataFrame({"flight_id": []})) == []
+    assert (
+        module.build_allocation_layers(pd.DataFrame(), pd.DataFrame({"flight_id": []}))
+        == []
+    )
 
     positions = pd.DataFrame(
         {
@@ -1637,7 +1928,9 @@ def test_view_maps_network_allocation_pair_preview_and_layer_fallback_branches(
     duplicate_positions = pd.concat(
         [
             positions,
-            pd.DataFrame({"flight_id": ["2"], "long": [99.0], "lat": [88.0], "alt": [777.0]}),
+            pd.DataFrame(
+                {"flight_id": ["2"], "long": [99.0], "lat": [88.0], "alt": [777.0]}
+            ),
         ],
         ignore_index=True,
     )
@@ -1654,7 +1947,9 @@ def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     assert module._selected_pair_bearer_timeline(pd.DataFrame(), {"1", "2"}, "RL").empty
-    assert module._selected_pair_bearer_timeline(pd.DataFrame({"time_index": [1]}), {"1", "2"}, "RL").empty
+    assert module._selected_pair_bearer_timeline(
+        pd.DataFrame({"time_index": [1]}), {"1", "2"}, "RL"
+    ).empty
 
     pair_df = pd.DataFrame(
         [
@@ -1728,9 +2023,19 @@ def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
     ]
 
     focus_df = pd.DataFrame(
-        [{"time_index": 4, "source": "3", "destination": "4", "delivered_bandwidth": 7.0, "latency": 9.0}]
+        [
+            {
+                "time_index": 4,
+                "source": "3",
+                "destination": "4",
+                "delivered_bandwidth": 7.0,
+                "latency": 9.0,
+            }
+        ]
     )
-    focus_timeline = module._selected_pair_bearer_timeline(focus_df, {"3"}, "custom", focus_pair=(3, 4))
+    focus_timeline = module._selected_pair_bearer_timeline(
+        focus_df, {"3"}, "custom", focus_pair=(3, 4)
+    )
     assert focus_timeline.to_dict("records") == [
         {
             "method": "custom",
@@ -1749,11 +2054,19 @@ def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
     assert empty_fig.layout.height == 240
 
     single_pair_fig = module._plot_selected_pair_bearer_timeline(timeline)
-    assert single_pair_fig.layout.title.text == "Bearer switching for 1 → 2 over decision steps"
+    assert (
+        single_pair_fig.layout.title.text
+        == "Bearer switching for 1 → 2 over decision steps"
+    )
 
-    multi_pair_fig = module._plot_selected_pair_bearer_timeline(pd.concat([timeline, focus_timeline], ignore_index=True))
+    multi_pair_fig = module._plot_selected_pair_bearer_timeline(
+        pd.concat([timeline, focus_timeline], ignore_index=True)
+    )
     assert len(multi_pair_fig.data) == 2
-    assert multi_pair_fig.layout.title.text == "Bearer switching for selected source-destination pairs"
+    assert (
+        multi_pair_fig.layout.title.text
+        == "Bearer switching for selected source-destination pairs"
+    )
     assert multi_pair_fig.layout.legend.title.text == "Method / demand"
     assert multi_pair_fig.data[1].line.color == "#666"
     assert "Routed" in tuple(multi_pair_fig.layout.yaxis.ticktext)
@@ -1798,10 +2111,16 @@ def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
         allowed_edge_pairs={("1", "2")},
     )
     assert any(trace.name == "SAT" for trace in fig.data)
-    assert any(annotation["text"] == "<b>src</b>" for annotation in fig.layout.annotations)
-    assert any(annotation["text"] == "<b>dst</b>" for annotation in fig.layout.annotations)
+    assert any(
+        annotation["text"] == "<b>src</b>" for annotation in fig.layout.annotations
+    )
+    assert any(
+        annotation["text"] == "<b>dst</b>" for annotation in fig.layout.annotations
+    )
 
-    monkeypatch.setattr(module, "normalize_values", lambda _metrics: {"satcom_link": ["bad"]})
+    monkeypatch.setattr(
+        module, "normalize_values", lambda _metrics: {"satcom_link": ["bad"]}
+    )
     fallback_width_fig = module.create_network_graph(
         graph_df,
         pos,
@@ -1814,11 +2133,21 @@ def test_view_maps_network_pair_timeline_plot_and_graph_metric_branches(
     assert fallback_width_fig.data[0].line.width == 5.0
 
 
-def test_view_maps_network_layout_color_and_shift_time_branches(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_layout_color_and_shift_time_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     layout_df = pd.DataFrame({"flight_id": ["A", "B", "C"]})
-    for layout_name in ("bipartite", "circular", "planar", "random", "rescale", "shell", "spiral"):
+    for layout_name in (
+        "bipartite",
+        "circular",
+        "planar",
+        "random",
+        "rescale",
+        "shell",
+        "spiral",
+    ):
         layout = module.get_fixed_layout(layout_df, layout=layout_name)
         assert set(layout) == {"A", "B", "C"}
 
@@ -1857,7 +2186,9 @@ def test_view_maps_network_layout_color_and_shift_time_branches(monkeypatch, tmp
     assert module.st.session_state[module.TIME_VALUE_KEY] == 20
 
 
-def test_view_maps_network_graph_path_and_state_helper_edge_branches(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_graph_path_and_state_helper_edge_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     graph_df = pd.DataFrame(
@@ -1938,8 +2269,12 @@ def test_view_maps_network_path_fallback_and_resolution_exception_branches(
     monkeypatch.setattr(Path, "resolve", _patched_resolve)
     monkeypatch.setattr(Path, "iterdir", _patched_iterdir)
 
-    assert module._candidate_files_from_globs([str(duplicate_file), str(duplicate_file)]) == [duplicate_file]
-    assert module._candidate_cloudmap_paths([cloud_root], ("sat_map.npz",)) == [cloud_file]
+    assert module._candidate_files_from_globs(
+        [str(duplicate_file), str(duplicate_file)]
+    ) == [duplicate_file]
+    assert module._candidate_cloudmap_paths([cloud_root], ("sat_map.npz",)) == [
+        cloud_file
+    ]
 
     alloc_base = tmp_path / "alloc_base"
     alloc_base.mkdir()
@@ -1970,7 +2305,9 @@ def test_view_maps_network_traj_heatmap_and_edge_geomap_fallback_branches(
             "alt": [100.0, 200.0],
         }
     )
-    assert module.create_edges_geomap(pd.DataFrame({"flight_id": ["1"]}), "satcom_link", current_positions).empty
+    assert module.create_edges_geomap(
+        pd.DataFrame({"flight_id": ["1"]}), "satcom_link", current_positions
+    ).empty
 
     geomap_df = pd.DataFrame(
         {
@@ -2046,7 +2383,9 @@ def test_view_maps_network_traj_heatmap_and_edge_geomap_fallback_branches(
     assert module._load_traj_file(str(broken_csv)).empty
 
 
-def test_view_maps_network_allocation_normalization_branches(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_allocation_normalization_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     assert module._coerce_alloc_time_index(pd.DataFrame()).empty
@@ -2054,7 +2393,9 @@ def test_view_maps_network_allocation_normalization_branches(monkeypatch, tmp_pa
     no_step = module._coerce_alloc_time_index(pd.DataFrame({"value": [1, 2]}))
     assert no_step["time_index"].tolist() == [0, 0]
 
-    non_numeric = module._coerce_alloc_time_index(pd.DataFrame({"time_index": ["bad", "still-bad"]}))
+    non_numeric = module._coerce_alloc_time_index(
+        pd.DataFrame({"time_index": ["bad", "still-bad"]})
+    )
     assert non_numeric["time_index"].tolist() == [0, 1]
 
     assert module._normalize_allocations_frame(pd.DataFrame()).empty
@@ -2074,7 +2415,9 @@ def test_view_maps_network_allocation_normalization_branches(monkeypatch, tmp_pa
     assert normalized["t_now_s"].tolist() == [3.5]
 
 
-def test_view_maps_network_misc_state_and_picker_helpers(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_misc_state_and_picker_helpers(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     module.st = SimpleNamespace(
@@ -2122,8 +2465,18 @@ def test_view_maps_network_misc_state_and_picker_helpers(monkeypatch, tmp_path: 
     skipped_layers = module.build_allocation_layers(
         pd.DataFrame(
             [
-                {"source": "1", "destination": "2", "path": "[['1']]", "bearers": "['legacy']"},
-                {"source": "1", "destination": "9", "bandwidth": 1.0, "delivered_bandwidth": 2.0},
+                {
+                    "source": "1",
+                    "destination": "2",
+                    "path": "[['1']]",
+                    "bearers": "['legacy']",
+                },
+                {
+                    "source": "1",
+                    "destination": "9",
+                    "bandwidth": 1.0,
+                    "delivered_bandwidth": 2.0,
+                },
             ]
         ),
         positions,
@@ -2156,7 +2509,9 @@ def test_view_maps_network_settings_and_directory_fallback_branches(
     broken_settings = tmp_path / "broken.toml"
     broken_settings.write_text("{ not = toml", encoding="utf-8")
     module.st = SimpleNamespace(session_state={})
-    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=broken_settings))
+    module._ensure_app_settings_loaded(
+        SimpleNamespace(app_settings_file=broken_settings)
+    )
     assert module.st.session_state["app_settings"] == {}
 
     module.st = SimpleNamespace(
@@ -2252,7 +2607,9 @@ def test_view_maps_network_visual_helper_fallback_branches(
 
     assert module._selected_nodes_heatmap_timeline(None, "heatmap.npz", {"A"}).empty
     assert module._selected_nodes_heatmap_timeline(
-        pd.DataFrame({"id_col": ["A"], "time_col": [0], "lat": [np.nan], "long": [1.0]}),
+        pd.DataFrame(
+            {"id_col": ["A"], "time_col": [0], "lat": [np.nan], "long": [1.0]}
+        ),
         "heatmap.npz",
         {"A"},
     ).empty
@@ -2275,8 +2632,13 @@ def test_view_maps_network_visual_helper_fallback_branches(
     downsampled_text = module._downsample_heatmap_timeline(text_timeline, step_s=2)
     assert downsampled_text["map_time"].tolist() == ["t0"]
 
-    single_plane_fig = module._plot_selected_nodes_heatmap_timeline(text_timeline, "SAT")
-    assert single_plane_fig.layout.title.text == "SAT cloud intensity proxy at plane A over trajectory time"
+    single_plane_fig = module._plot_selected_nodes_heatmap_timeline(
+        text_timeline, "SAT"
+    )
+    assert (
+        single_plane_fig.layout.title.text
+        == "SAT cloud intensity proxy at plane A over trajectory time"
+    )
 
     multi_plane_timeline = pd.concat(
         [
@@ -2286,18 +2648,38 @@ def test_view_maps_network_visual_helper_fallback_branches(
         ],
         ignore_index=True,
     )
-    multi_plane_fig = module._plot_selected_nodes_heatmap_timeline(multi_plane_timeline, "IVDL")
-    assert multi_plane_fig.layout.title.text == "IVDL cloud intensity proxy at selected planes over trajectory time"
+    multi_plane_fig = module._plot_selected_nodes_heatmap_timeline(
+        multi_plane_timeline, "IVDL"
+    )
+    assert (
+        multi_plane_fig.layout.title.text
+        == "IVDL cloud intensity proxy at selected planes over trajectory time"
+    )
 
-    assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})) == []
+    assert (
+        module._trajectory_trace_layers(
+            pd.DataFrame({"id_col": ["A"], "long": [1.0], "lat": [2.0]})
+        )
+        == []
+    )
     module.st.session_state["show_trajectory_traces"] = True
     assert module._trajectory_trace_layers(pd.DataFrame({"id_col": ["A"]})) == []
-    assert module._trajectory_trace_layers(
-        pd.DataFrame({"id_col": ["A"], "time_col": [0], "long": ["bad"], "lat": [2.0]})
-    ) == []
-    assert module._trajectory_trace_layers(
-        pd.DataFrame({"id_col": ["A"], "time_col": [0], "long": [1.0], "lat": [2.0]})
-    ) == []
+    assert (
+        module._trajectory_trace_layers(
+            pd.DataFrame(
+                {"id_col": ["A"], "time_col": [0], "long": ["bad"], "lat": [2.0]}
+            )
+        )
+        == []
+    )
+    assert (
+        module._trajectory_trace_layers(
+            pd.DataFrame(
+                {"id_col": ["A"], "time_col": [0], "long": [1.0], "lat": [2.0]}
+            )
+        )
+        == []
+    )
     traces = module._trajectory_trace_layers(
         pd.DataFrame(
             {
@@ -2345,7 +2727,9 @@ def test_view_maps_network_path_resolution_fallback_branches(
     assert csv_path in matched
     assert data_dir not in matched
 
-    expanded = module._expand_glob_patterns([" ", "data/*.csv", "data/*.csv"], [tmp_path])
+    expanded = module._expand_glob_patterns(
+        [" ", "data/*.csv", "data/*.csv"], [tmp_path]
+    )
     assert expanded == [str(tmp_path / "data/*.csv")]
 
     datetime_calls: list[Any] = []
@@ -2355,14 +2739,20 @@ def test_view_maps_network_path_resolution_fallback_branches(
         raise ValueError("bad datetime")
 
     monkeypatch.setattr(module.pd, "to_datetime", _raise_datetime)
-    assert module._coerce_slider_value([pd.Timestamp("2024-01-01")], "2024-01-02") == pd.Timestamp("2024-01-01")
+    assert module._coerce_slider_value(
+        [pd.Timestamp("2024-01-01")], "2024-01-02"
+    ) == pd.Timestamp("2024-01-01")
     assert len(datetime_calls) >= 1
 
     calls = iter([object(), ""])
-    monkeypatch.setattr(module, "_resolve_declared_path", lambda *_args, **_kwargs: next(calls))
+    monkeypatch.setattr(
+        module, "_resolve_declared_path", lambda *_args, **_kwargs: next(calls)
+    )
     assert module._choose_existing_declared_path("broken", "", [share_root]) == ""
 
-    monkeypatch.setattr(module, "_resolve_declared_path", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        module, "_resolve_declared_path", lambda *_args, **_kwargs: object()
+    )
     assert module._resolve_edges_file_path("broken", [share_root]) is None
 
 
@@ -2380,17 +2770,27 @@ def test_view_maps_network_misc_helper_fallback_branches(
     assert module._candidate_node_ids("") == []
     assert module._coerce_list_cell("(1, 2)") == [1, 2]
     assert module._allocation_visible_node_ids(pd.DataFrame()) == set()
-    assert module._allocation_endpoint_roles(
-        pd.DataFrame({"source": ["1", "2"], "destination": ["3", "4"]}),
-        pd.DataFrame({"other": [1]}),
-    ) == {}
+    assert (
+        module._allocation_endpoint_roles(
+            pd.DataFrame({"source": ["1", "2"], "destination": ["3", "4"]}),
+            pd.DataFrame({"other": [1]}),
+        )
+        == {}
+    )
     assert module._format_node_label("7") == "7"
-    assert module._build_map_label_layers(
-        pd.DataFrame({"flight_id": [" "], "long": [1.0], "lat": [2.0], "alt": [0.0]})
-    ) == []
+    assert (
+        module._build_map_label_layers(
+            pd.DataFrame(
+                {"flight_id": [" "], "long": [1.0], "lat": [2.0], "alt": [0.0]}
+            )
+        )
+        == []
+    )
     assert module._coerce_numeric_float(float("inf")) is None
     assert module._coerce_numeric_int("bad") is None
-    assert module._filter_allocation_rows_for_selected_nodes(pd.DataFrame(), {"1"}).empty
+    assert module._filter_allocation_rows_for_selected_nodes(
+        pd.DataFrame(), {"1"}
+    ).empty
     assert module._filter_allocation_rows_for_selected_nodes(
         pd.DataFrame({"source": ["1"], "destination": ["2"], "time_index": [0]}),
         {"9"},
@@ -2399,15 +2799,25 @@ def test_view_maps_network_misc_helper_fallback_branches(
     alloc_path = tmp_path / "allocations.parquet"
     alloc_path.write_text("stub", encoding="utf-8")
     monkeypatch.setattr(module, "load_allocations", lambda _path: pd.DataFrame())
-    assert module._expanded_node_ids_from_allocations({"1"}, allocation_paths=[alloc_path]) == {"1"}
-    assert module._endpoint_roles_from_allocations({"1"}, allocation_paths=[alloc_path]) == {}
+    assert module._expanded_node_ids_from_allocations(
+        {"1"}, allocation_paths=[alloc_path]
+    ) == {"1"}
+    assert (
+        module._endpoint_roles_from_allocations({"1"}, allocation_paths=[alloc_path])
+        == {}
+    )
 
     monkeypatch.setattr(
         module,
         "load_allocations",
-        lambda _path: pd.DataFrame({"source": ["1"], "destination": ["2"], "time_index": [0]}),
+        lambda _path: pd.DataFrame(
+            {"source": ["1"], "destination": ["2"], "time_index": [0]}
+        ),
     )
-    assert module._allocation_routed_edge_pairs({"9"}, allocation_paths=[alloc_path]) == set()
+    assert (
+        module._allocation_routed_edge_pairs({"9"}, allocation_paths=[alloc_path])
+        == set()
+    )
 
     assert module._candidate_allocation_paths([tmp_path / "missing"]) == []
     assert module._parse_rgb_like(123) is None
@@ -2444,7 +2854,9 @@ def test_view_maps_network_misc_helper_fallback_branches(
 
     filtered_root = tmp_path / "filtered_root"
     filtered_root.mkdir()
-    (filtered_root / "allocations_steps.csv").write_text("source,destination\n1,2\n", encoding="utf-8")
+    (filtered_root / "allocations_steps.csv").write_text(
+        "source,destination\n1,2\n", encoding="utf-8"
+    )
     assert module._find_latest_allocations(filtered_root, include=("baseline",)) is None
 
     bad_edges = tmp_path / "bad_edges.json"
@@ -2452,7 +2864,9 @@ def test_view_maps_network_misc_helper_fallback_branches(
     assert module.load_edges_file(bad_edges) == {}
 
     custom_edges = tmp_path / "custom_edges.jsonl"
-    custom_edges.write_text('{"source": "1", "target": "2", "bearer": "mesh link"}\n', encoding="utf-8")
+    custom_edges.write_text(
+        '{"source": "1", "target": "2", "bearer": "mesh link"}\n', encoding="utf-8"
+    )
     assert module.load_edges_file(custom_edges) == {"mesh_link": [("1", "2")]}
 
     bad_positions = tmp_path / "bad_positions.csv"
@@ -2460,7 +2874,9 @@ def test_view_maps_network_misc_helper_fallback_branches(
     assert module.load_positions_at_time(str(bad_positions), 0.0).empty
 
     no_time_positions = tmp_path / "no_time_positions.csv"
-    no_time_positions.write_text("time_s,latitude,longitude\nbad,1.0,2.0\n", encoding="utf-8")
+    no_time_positions.write_text(
+        "time_s,latitude,longitude\nbad,1.0,2.0\n", encoding="utf-8"
+    )
     assert module.load_positions_at_time(str(no_time_positions), 0.0).empty
 
     broken_csv = tmp_path / "encoding.csv"
@@ -2476,13 +2892,15 @@ def test_view_maps_network_misc_helper_fallback_branches(
     monkeypatch.setattr(module.pd, "read_csv", _broken_read_csv)
     assert module._load_traj_file(str(broken_csv)).empty
 
-    positions = pd.DataFrame({"flight_id": ["1"], "long": [0.0], "lat": [1.0], "alt": [2.0]})
+    positions = pd.DataFrame(
+        {"flight_id": ["1"], "long": [0.0], "lat": [1.0], "alt": [2.0]}
+    )
     alloc_df = pd.DataFrame(
         [
             {
                 "source": "1",
                 "destination": "9",
-                "path": '["(\'1\', \'9\')"]',
+                "path": "[\"('1', '9')\"]",
                 "bearers": "['SAT']",
             }
         ]
@@ -2511,7 +2929,9 @@ def test_view_maps_network_misc_helper_fallback_branches(
     assert len(warnings) >= 2
 
 
-def test_view_maps_network_helper_skip_and_error_branches(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_helper_skip_and_error_branches(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     module.st = SimpleNamespace(
         warning=lambda *_args, **_kwargs: None,
@@ -2591,7 +3011,9 @@ def test_view_maps_network_helper_skip_and_error_branches(monkeypatch, tmp_path:
         def iterrows(self):
             yield 0, _BadRow()
 
-    monkeypatch.setattr(module.pd, "read_json", lambda *_args, **_kwargs: _FakeEdgesFrame())
+    monkeypatch.setattr(
+        module.pd, "read_json", lambda *_args, **_kwargs: _FakeEdgesFrame()
+    )
     assert module.load_edges_file(row_error_path) == {}
 
     bad_positions = tmp_path / "bad_positions.csv"
@@ -2614,10 +3036,14 @@ def test_view_maps_network_helper_skip_and_error_branches(monkeypatch, tmp_path:
         }
     )
     assert module._selected_pair_bearer_timeline(pair_df, {"9", "10"}, "RL").empty
-    assert module._selected_pair_bearer_timeline(pair_df, {"1", "2"}, "RL", focus_pair=(3, 4)).empty
+    assert module._selected_pair_bearer_timeline(
+        pair_df, {"1", "2"}, "RL", focus_pair=(3, 4)
+    ).empty
 
 
-def test_view_maps_network_main_handles_errors_and_propagates_reruns(monkeypatch, tmp_path: Path) -> None:
+def test_view_maps_network_main_handles_errors_and_propagates_reruns(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
     errors: list[str] = []
@@ -2667,7 +3093,12 @@ def test_view_maps_network_helper_covers_remaining_fallback_branches(
             raise TypeError("bad trajectory sort")
         return original_sort_values(self, by=by, *args, **kwargs)
 
-    monkeypatch.setattr(module.pd.DataFrame, "sort_values", _sort_values_with_selected_failures, raising=False)
+    monkeypatch.setattr(
+        module.pd.DataFrame,
+        "sort_values",
+        _sort_values_with_selected_failures,
+        raising=False,
+    )
 
     traj_df = pd.DataFrame(
         [
@@ -2697,13 +3128,18 @@ def test_view_maps_network_helper_covers_remaining_fallback_branches(
 
     empty_alloc_path = tmp_path / "allocations_empty.json"
     empty_alloc_path.write_text("[]", encoding="utf-8")
-    assert module._allocation_routed_edge_pairs(
-        {"1001", "2002"},
-        allocation_paths=[empty_alloc_path],
-    ) == set()
+    assert (
+        module._allocation_routed_edge_pairs(
+            {"1001", "2002"},
+            allocation_paths=[empty_alloc_path],
+        )
+        == set()
+    )
 
     jsonl_alloc_path = tmp_path / "allocations.jsonl"
-    jsonl_alloc_path.write_text('\n{"source": 1001, "destination": 2002, "time_index": 0}\n', encoding="utf-8")
+    jsonl_alloc_path.write_text(
+        '\n{"source": 1001, "destination": 2002, "time_index": 0}\n', encoding="utf-8"
+    )
     alloc_df = module.load_allocations(jsonl_alloc_path)
     assert alloc_df["source"].tolist() == [1001]
 
@@ -2729,7 +3165,9 @@ def test_view_maps_network_helper_covers_remaining_fallback_branches(
             ]
         ),
     )
-    positions = module.load_positions_at_time(f"{empty_positions};{good_positions}", 0.0)
+    positions = module.load_positions_at_time(
+        f"{empty_positions};{good_positions}", 0.0
+    )
     assert positions["flight_id"].tolist() == ["2002"]
 
     assert module._canonical_bearer_state("   ", routed=True) == "Routed"

@@ -12,8 +12,7 @@ from streamlit.testing.v1 import AppTest
 
 
 PAGE_PATH = (
-    "src/agilab/apps-pages/view_maps_network/"
-    "src/view_maps_network/view_maps_network.py"
+    "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
 )
 
 
@@ -36,7 +35,9 @@ def _write_heatmap_npz(
     np.savez(
         path,
         heatmap=np.asarray(
-            heatmap if heatmap is not None else np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
+            heatmap
+            if heatmap is not None
+            else np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
             dtype=np.float32,
         ),
         x_min=np.asarray(x_min, dtype=np.float32),
@@ -46,7 +47,9 @@ def _write_heatmap_npz(
     )
 
 
-def _write_traj_csv(path: Path, *, plane_id: int, plane_label: str, lat: float, lon: float) -> None:
+def _write_traj_csv(
+    path: Path, *, plane_id: int, plane_label: str, lat: float, lon: float
+) -> None:
     pd.DataFrame(
         [
             {
@@ -185,8 +188,12 @@ def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_w
 
     traj_a = traj_dir / "uswc_forward_01-S001_2026-04-01_15-27-49.csv"
     traj_b = traj_dir / "uswc_forward_02-S002_2026-04-01_15-27-48.csv"
-    _write_traj_csv(traj_a, plane_id=0, plane_label="uswc_forward_01-S001", lat=48.0, lon=2.0)
-    _write_traj_csv(traj_b, plane_id=1, plane_label="uswc_forward_02-S002", lat=49.0, lon=3.0)
+    _write_traj_csv(
+        traj_a, plane_id=0, plane_label="uswc_forward_01-S001", lat=48.0, lon=2.0
+    )
+    _write_traj_csv(
+        traj_b, plane_id=1, plane_label="uswc_forward_02-S002", lat=49.0, lon=3.0
+    )
 
     topology_path = topology_dir / "ilp_topology.gml"
     graph = nx.Graph()
@@ -239,16 +246,16 @@ def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_w
         'file_ext_choice = "all"\n'
         'df_select_mode = "Regex (multi)"\n'
         'df_file_regex = "pipeline/.*\\\\.csv$"\n'
-        'df_files = [\n'
+        "df_files = [\n"
         f'  "{traj_a.relative_to(share_root / "flight_trajectory").as_posix()}",\n'
         f'  "{traj_b.relative_to(share_root / "flight_trajectory").as_posix()}",\n'
-        ']\n'
+        "]\n"
         'id_col = "plane_id"\n'
         'time_col = "time_s"\n'
         'edges_file = "network_sim/pipeline/ilp_topology.gml"\n'
-        'show_cloud_heatmap = true\n'
-        'show_topology_links = true\n'
-        'show_trajectory_traces = true\n'
+        "show_cloud_heatmap = true\n"
+        "show_topology_links = true\n"
+        "show_trajectory_traces = true\n"
     )
     project_dir = create_temp_app_project(
         f"{target_name}_project",
@@ -257,7 +264,9 @@ def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_w
         pyproject_name=f"{target_name.replace('_', '-')}-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     for widget in at.text_input:
         if widget.label == "SAT cloud map (.npz)":
             widget.set_value("stale/CloudMapSat.npz")
@@ -274,7 +283,9 @@ def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_w
     captions = [caption.value for caption in at.caption]
 
     assert not any("cloud map unavailable" in message.lower() for message in warnings)
-    assert not any("no allocation exports detected" in message.lower() for message in infos)
+    assert not any(
+        "no allocation exports detected" in message.lower() for message in infos
+    )
     assert text_inputs["SAT cloud map (.npz)"] == str(sat_path)
     assert text_inputs["IVDL cloud map (.npz)"] == str(ivdl_path)
     assert selectboxes["Allocations file picker (routing/policy)"] == str(routing_path)
@@ -282,7 +293,7 @@ def test_view_maps_network_renders_sb3_style_page_state_without_cloud_or_alloc_w
     assert multiselects["Link columns"] == ["ivbl_link"]
     assert any("Edge counts (preview): ivbl_link=1" in caption for caption in captions)
     assert any("2 / 2 flights shown" in caption for caption in captions)
-    assert any(f"Resolved path: {share_root / 'flight_trajectory'}" == caption for caption in captions)
+    assert str(share_root / "flight_trajectory") in captions
 
 
 def test_view_maps_network_page_state_drives_pair_overlay_and_timelines(
@@ -430,16 +441,16 @@ def test_view_maps_network_page_state_drives_pair_overlay_and_timelines(
         f'df_file = "{rel_a}"\n'
         "sat_heatmap_plot_step_s = 60\n"
         'selected_flights_filter = ["stale-id"]\n'
-        'df_files = [\n'
+        "df_files = [\n"
         f'  "{rel_a}",\n'
         f'  "{rel_b}",\n'
-        ']\n'
+        "]\n"
         'id_col = "plane_id"\n'
         'time_col = "time_s"\n'
         'edges_file = "network_sim/pipeline/ilp_topology.gml"\n'
-        'show_cloud_heatmap = true\n'
-        'show_topology_links = true\n'
-        'show_trajectory_traces = true\n'
+        "show_cloud_heatmap = true\n"
+        "show_topology_links = true\n"
+        "show_trajectory_traces = true\n"
     )
     project_dir = create_temp_app_project(
         f"{target_name}_project",
@@ -448,9 +459,13 @@ def test_view_maps_network_page_state_drives_pair_overlay_and_timelines(
         pyproject_name=f"{target_name.replace('_', '-')}-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     at.checkbox(key="show_metrics").set_value(True).run()
-    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001", "2002"]).run()
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(
+        ["1001", "2002"]
+    ).run()
     at.selectbox(key="alloc_demand_pair_focus").set_value((1001, 2002)).run()
     at.select_slider(key="view_maps_network:alloc_time_index").set_value(1).run()
 
@@ -463,10 +478,18 @@ def test_view_maps_network_page_state_drives_pair_overlay_and_timelines(
     assert multiselects["Flights / nodes"] == ["1001", "2002"]
     assert selectboxes["Focus demand (optional)"] == (1001, 2002)
     assert selectboxes["SAT cloud plot step (s)"] == 60
-    assert any("Bearer switch detected at time indices: 1" in message for message in infos)
-    assert any("Routing allocations at this timestep" in caption for caption in captions)
-    assert any("Baseline (ILP) allocations at this timestep" in caption for caption in captions)
-    assert any("RL vs ILP (delta delivered_bandwidth)" in caption for caption in captions)
+    assert any(
+        "Bearer switch detected at time indices: 1" in message for message in infos
+    )
+    assert any(
+        "Routing allocations at this timestep" in caption for caption in captions
+    )
+    assert any(
+        "Baseline (ILP) allocations at this timestep" in caption for caption in captions
+    )
+    assert any(
+        "RL vs ILP (delta delivered_bandwidth)" in caption for caption in captions
+    )
 
 
 def test_view_maps_network_page_handles_static_time_invalid_regex_and_missing_allocations(
@@ -518,7 +541,7 @@ def test_view_maps_network_page_handles_static_time_invalid_regex_and_missing_al
         'id_col = "plane_label"\n'
         'time_col = "time_s"\n'
         'selected_flights_filter = ["1001", "2002"]\n'
-        'jitter_overlap = true\n'
+        "jitter_overlap = true\n"
         'metric_type_select = "missing"\n'
         'allocations_file = "/tmp/missing-routing.parquet"\n'
         'baseline_allocations_file = "/tmp/missing-baseline.json"\n'
@@ -531,7 +554,9 @@ def test_view_maps_network_page_handles_static_time_invalid_regex_and_missing_al
         pyproject_name=f"{target_name.replace('_', '-')}-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
 
     assert not at.exception
     warnings = [warning.value for warning in at.warning]
@@ -544,16 +569,26 @@ def test_view_maps_network_page_handles_static_time_invalid_regex_and_missing_al
 
     assert any("Invalid regex" in message for message in errors)
     assert any("Some selected files failed to load" in message for message in warnings)
-    assert any("No valid timestamps found in 'time_s'" in message for message in warnings)
-    assert any("Dropped 1 rows with missing node IDs." in message for message in warnings)
+    assert any(
+        "No valid timestamps found in 'time_s'" in message for message in warnings
+    )
+    assert any(
+        "Dropped 1 rows with missing node IDs." in message for message in warnings
+    )
     assert any("Allocations file not found" in message for message in infos)
     assert any("Baseline allocations file not found" in message for message in infos)
-    assert any("No allocation rows found for the selected flights/nodes." in message for message in infos)
+    assert any(
+        "No allocation rows found for the selected flights/nodes." in message
+        for message in infos
+    )
     assert any("Loaded allocation files:" in caption for caption in captions)
     assert multiselects["Flights / nodes"] == ["1001", "2002"]
     assert selectboxes["Edge width metric (optional)"] == "(none)"
     assert text_inputs["Custom allocations file path"] == "/tmp/missing-routing.parquet"
-    assert text_inputs["Custom baseline allocations file path"] == "/tmp/missing-baseline.json"
+    assert (
+        text_inputs["Custom baseline allocations file path"]
+        == "/tmp/missing-baseline.json"
+    )
     assert text_inputs["Custom trajectory glob(s)"] == "/tmp/missing-traj/*.csv"
 
 
@@ -607,7 +642,9 @@ def test_view_maps_network_page_graph_only_keeps_sparse_nodes_visible(
         pyproject_name=f"{target_name.replace('_', '-')}-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     at.checkbox(key="show_map").set_value(False).run()
     at.select_slider(key="view_maps_network:selected_time").set_value(0.0).run()
 
@@ -615,9 +652,13 @@ def test_view_maps_network_page_graph_only_keeps_sparse_nodes_visible(
     warnings = [warning.value for warning in at.warning]
     captions = [caption.value for caption in at.caption]
 
-    filtered_warnings = [message for message in warnings if "Logo could not be loaded" not in message]
+    filtered_warnings = [
+        message for message in warnings if "Logo could not be loaded" not in message
+    ]
     assert not filtered_warnings
-    assert any("Edge counts (preview): satcom_link=9" in caption for caption in captions)
+    assert any(
+        "Edge counts (preview): satcom_link=9" in caption for caption in captions
+    )
     assert any("6 / 6 flights shown" in caption for caption in captions)
 
 
@@ -632,8 +673,12 @@ def test_view_maps_network_page_pair_overlay_handles_missing_live_sources(
         target_name="demo_pair_missing_live",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
-    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001", "2002"]).run()
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(
+        ["1001", "2002"]
+    ).run()
     at.selectbox(key="alloc_demand_pair_focus").set_value((1001, 2002)).run()
     at.selectbox(key="traj_glob_choice").set_value("(none)").run()
 
@@ -642,7 +687,9 @@ def test_view_maps_network_page_pair_overlay_handles_missing_live_sources(
     selectboxes = {widget.label: widget.value for widget in at.selectbox}
 
     assert selectboxes["Trajectory data picker (for map overlay)"] == "(none)"
-    assert any("No live overlay: select trajectory data" in message for message in infos)
+    assert any(
+        "No live overlay: select trajectory data" in message for message in infos
+    )
     assert any("No SAT cloud heatmap path configured" in message for message in infos)
 
 
@@ -657,19 +704,30 @@ def test_view_maps_network_page_pair_overlay_handles_mismatch_and_bad_trajectory
         target_name="demo_pair_bad_traj",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
-    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001", "2002"]).run()
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(
+        ["1001", "2002"]
+    ).run()
     at.selectbox(key="alloc_demand_pair_focus").set_value((3003, 4004)).run()
 
     mismatch_infos = [info.value for info in at.info]
-    assert any("Ignoring Focus demand because it does not match" in message for message in mismatch_infos)
+    assert any(
+        "Ignoring Focus demand because it does not match" in message
+        for message in mismatch_infos
+    )
 
     at.selectbox(key="alloc_demand_pair_focus").set_value((1001, 2002)).run()
     at.selectbox(key="traj_glob_choice").set_value("(custom glob…)").run()
-    at.text_input(key="traj_glob_custom").set_value(str(tmp_path / "missing" / "*.csv")).run()
+    at.text_input(key="traj_glob_custom").set_value(
+        str(tmp_path / "missing" / "*.csv")
+    ).run()
 
     missing_glob_infos = [info.value for info in at.info]
-    assert any("trajectory glob matched 0 files" in message for message in missing_glob_infos)
+    assert any(
+        "trajectory glob matched 0 files" in message for message in missing_glob_infos
+    )
 
     bad_positions = tmp_path / "bad_positions.csv"
     pd.DataFrame([{"plane_label": "1001", "latitude": 48.0, "longitude": 2.0}]).to_csv(
@@ -679,7 +737,10 @@ def test_view_maps_network_page_pair_overlay_handles_mismatch_and_bad_trajectory
     at.text_input(key="traj_glob_custom").set_value(str(bad_positions)).run()
 
     bad_traj_infos = [info.value for info in at.info]
-    assert any("No node positions found for this timestep" in message for message in bad_traj_infos)
+    assert any(
+        "No node positions found for this timestep" in message
+        for message in bad_traj_infos
+    )
 
 
 def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
@@ -711,7 +772,9 @@ def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
             },
         ]
     ).to_csv(datadir / "network.csv", index=False)
-    pd.DataFrame([{"PLANE_ID": "9999", "TIME_S": 0}]).to_csv(datadir / ".hidden.csv", index=False)
+    pd.DataFrame([{"PLANE_ID": "9999", "TIME_S": 0}]).to_csv(
+        datadir / ".hidden.csv", index=False
+    )
 
     missing_base = tmp_path / "missing-base"
     app_settings_text = (
@@ -732,15 +795,21 @@ def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
         pyproject_name="demo-stale-agi-page-network-map-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
 
     first_warnings = [warning.value for warning in at.warning]
     assert any("No files found under" in message for message in first_warnings)
     assert _widget_by_label(at.radio, "Base directory").value == "AGILAB_EXPORT"
 
     _widget_by_label(at.radio, "Base directory").set_value("Custom").run()
-    _widget_by_label(at.text_input, "Custom data directory").set_value(str(share_root)).run()
-    _widget_by_label(at.text_input, "Custom relative subdir").set_value("flight_trajectory").run()
+    _widget_by_label(at.text_input, "Custom data directory").set_value(
+        str(share_root)
+    ).run()
+    _widget_by_label(at.text_input, "Custom relative subdir").set_value(
+        "flight_trajectory"
+    ).run()
 
     assert not at.exception
     selectboxes = {widget.label: widget.value for widget in at.selectbox}
@@ -752,11 +821,15 @@ def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
     assert any("2 / 2 flights shown" in caption for caption in captions)
 
     _widget_by_label(at.radio, "DataFrame selection").set_value("Regex (multi)").run()
-    _widget_by_label(at.text_input, "DataFrame filename regex").set_value("nomatch$").run()
+    _widget_by_label(at.text_input, "DataFrame filename regex").set_value(
+        "nomatch$"
+    ).run()
     _widget_by_label(at.multiselect, "DataFrames").set_value([]).run()
 
     assert _widget_by_label(at.radio, "DataFrame selection").value == "Regex (multi)"
-    assert _widget_by_label(at.text_input, "DataFrame filename regex").value == "nomatch$"
+    assert (
+        _widget_by_label(at.text_input, "DataFrame filename regex").value == "nomatch$"
+    )
     assert _widget_by_label(at.multiselect, "DataFrames").value == ["network.csv"]
 
 
@@ -847,7 +920,7 @@ def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
         'file_ext_choice = "csv"\n'
         'df_select_mode = "Regex (multi)"\n'
         'selected_flights_filter = ["1001", "2002"]\n'
-        'show_map = false\n'
+        "show_map = false\n"
     )
     project_dir = create_temp_app_project(
         f"{target_name}_project",
@@ -879,7 +952,10 @@ def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
     assert _widget_by_label(at.multiselect, "DataFrames").value == ["a.csv"]
 
     at.button(key="df_regex_select_all").click().run()
-    assert sorted(_widget_by_label(at.multiselect, "DataFrames").value) == ["a.csv", "b.csv"]
+    assert sorted(_widget_by_label(at.multiselect, "DataFrames").value) == [
+        "a.csv",
+        "b.csv",
+    ]
     selectboxes = {widget.label: widget.value for widget in at.selectbox}
     multiselects = {widget.label: widget.value for widget in at.multiselect}
 
@@ -927,7 +1003,7 @@ def test_view_maps_network_page_recovers_missing_topology_and_resets_link_select
         'time_col = "time_s"\n'
         'edges_file = "missing/topology.gml"\n'
         'link_multiselect = ["bogus_link"]\n'
-        'show_map = false\n'
+        "show_map = false\n"
     )
     project_dir = create_temp_app_project(
         "demo_topology_recovery_project",
@@ -936,10 +1012,16 @@ def test_view_maps_network_page_recovers_missing_topology_and_resets_link_select
         pyproject_name="demo-topology-recovery-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     _widget_by_label(at.radio, "Base directory").set_value("Custom").run()
-    _widget_by_label(at.text_input, "Custom data directory").set_value(str(share_root)).run()
-    _widget_by_label(at.text_input, "Custom relative subdir").set_value("flight_trajectory").run()
+    _widget_by_label(at.text_input, "Custom data directory").set_value(
+        str(share_root)
+    ).run()
+    _widget_by_label(at.text_input, "Custom relative subdir").set_value(
+        "flight_trajectory"
+    ).run()
 
     assert not at.exception
     multiselects = {widget.label: widget.value for widget in at.multiselect}
@@ -999,7 +1081,7 @@ def test_view_maps_network_page_reports_baseline_only_and_invalid_edges(
         'time_col = "time_s"\n'
         f'edges_file = "{bad_edges.as_posix()}"\n'
         f'baseline_allocations_file = "{baseline_path.as_posix()}"\n'
-        'show_map = false\n'
+        "show_map = false\n"
     )
     project_dir = create_temp_app_project(
         f"{target_name}_project",
@@ -1008,17 +1090,31 @@ def test_view_maps_network_page_reports_baseline_only_and_invalid_edges(
         pyproject_name=f"{target_name.replace('_', '-')}-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     _widget_by_label(at.radio, "Base directory").set_value("Custom").run()
-    _widget_by_label(at.text_input, "Custom data directory").set_value(str(share_root)).run()
-    _widget_by_label(at.text_input, "Custom relative subdir").set_value("flight_trajectory").run()
+    _widget_by_label(at.text_input, "Custom data directory").set_value(
+        str(share_root)
+    ).run()
+    _widget_by_label(at.text_input, "Custom relative subdir").set_value(
+        "flight_trajectory"
+    ).run()
 
     assert not at.exception
     infos = [info.value for info in at.info]
     selectboxes = {widget.label: widget.value for widget in at.selectbox}
 
-    assert any("Baseline allocations were detected, but no routing allocations are available yet." in message for message in infos)
-    assert any("Edges file loaded but no valid 'source/target/bearer' rows were detected." in message for message in infos)
+    assert any(
+        "Baseline allocations were detected, but no routing allocations are available yet."
+        in message
+        for message in infos
+    )
+    assert any(
+        "Edges file loaded but no valid 'source/target/bearer' rows were detected."
+        in message
+        for message in infos
+    )
     assert any("No edge-weight metrics detected." in message for message in infos)
     assert selectboxes["Allocations file picker (routing/policy)"] == "(none)"
     assert selectboxes["Baseline allocations file picker"] == str(baseline_path)
@@ -1062,14 +1158,18 @@ def test_view_maps_network_page_reports_dataframe_load_contract_failures(
 
     monkeypatch.setattr("agi_env.pagelib.load_df", _fake_load_df)
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=60)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=60
+    )
 
     assert not at.exception
     warnings = [warning.value for warning in at.warning]
     errors = [error.value for error in at.error]
 
     assert any("Some selected files failed to load" in message for message in warnings)
-    assert any("No selected dataframes could be loaded." in message for message in errors)
+    assert any(
+        "No selected dataframes could be loaded." in message for message in errors
+    )
 
 
 def test_view_maps_network_page_reports_concat_failure(
@@ -1107,9 +1207,15 @@ def test_view_maps_network_page_reports_concat_failure(
         "agi_env.pagelib.load_df",
         lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
     )
-    monkeypatch.setattr(pd, "concat", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("concat boom")))
+    monkeypatch.setattr(
+        pd,
+        "concat",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("concat boom")),
+    )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
 
     assert not at.exception
     errors = [error.value for error in at.error]
@@ -1160,7 +1266,7 @@ def test_view_maps_network_page_detects_datetime_and_metric_payload_columns(
         'df_file = "network.parquet"\n'
         'id_col = "plane_label"\n'
         'time_col = "event_time"\n'
-        'show_map = false\n'
+        "show_map = false\n"
     )
     project_dir = create_temp_app_project(
         "demo_network_metric_detection_project",
@@ -1194,7 +1300,9 @@ def test_view_maps_network_page_detects_datetime_and_metric_payload_columns(
         lambda path, with_index=True, cache_buster=None: metric_df.copy(),
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
     _widget_by_label(at.selectbox, "Timestamp column").set_value("event_time").run()
 
     assert not at.exception
@@ -1214,8 +1322,22 @@ def test_view_maps_network_page_prompts_for_pair_plot_when_only_one_node_is_sele
         create_temp_app_project,
         target_name="demo_pair_single_node",
     )
-    routing_path = tmp_path / "clustershare" / "demo_pair_single_node" / "pipeline" / "trainer_routing" / "allocations_steps.parquet"
-    baseline_path = tmp_path / "clustershare" / "demo_pair_single_node" / "pipeline" / "trainer_ilp_stepper" / "allocations_steps.json"
+    routing_path = (
+        tmp_path
+        / "clustershare"
+        / "demo_pair_single_node"
+        / "pipeline"
+        / "trainer_routing"
+        / "allocations_steps.parquet"
+    )
+    baseline_path = (
+        tmp_path
+        / "clustershare"
+        / "demo_pair_single_node"
+        / "pipeline"
+        / "trainer_ilp_stepper"
+        / "allocations_steps.json"
+    )
     pd.DataFrame(
         [
             {
@@ -1248,8 +1370,12 @@ def test_view_maps_network_page_prompts_for_pair_plot_when_only_one_node_is_sele
         encoding="utf-8",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
-    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(["1001"]).run()
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
+    at.multiselect(key="view_maps_network:selected_flights_filter").set_value(
+        ["1001"]
+    ).run()
 
     assert not at.exception
     captions = [caption.value for caption in at.caption]
@@ -1292,7 +1418,7 @@ def test_view_maps_network_page_handles_string_time_legacy_filter_and_empty_link
         'df_file = "network.csv"\n'
         'id_col = "plane_id"\n'
         'time_col = "time_s"\n'
-        'show_metrics = false\n'
+        "show_metrics = false\n"
     )
     project_dir = create_temp_app_project(
         "demo_network_string_time_project",
@@ -1301,11 +1427,16 @@ def test_view_maps_network_page_handles_string_time_legacy_filter_and_empty_link
         pyproject_name="demo-network-string-time-project",
     )
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(
+        PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30
+    )
 
     assert not at.exception
     warnings = [warning.value for warning in at.warning]
-    assert any("No edges parsed from the selected link columns." in message for message in warnings)
+    assert any(
+        "No edges parsed from the selected link columns." in message
+        for message in warnings
+    )
 
 
 def test_view_maps_network_page_handles_invalid_focus_pair_and_timeindexless_allocations(

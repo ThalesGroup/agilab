@@ -17,7 +17,9 @@ assert SPEC and SPEC.loader
 about_agilab = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(about_agilab)
 
-PAGE_BOOTSTRAP_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "page_bootstrap.py"
+PAGE_BOOTSTRAP_PATH = (
+    Path(__file__).resolve().parents[1] / "src" / "agilab" / "page_bootstrap.py"
+)
 PAGE_BOOTSTRAP_SPEC = importlib.util.spec_from_file_location(
     "agilab_page_bootstrap_helpers",
     PAGE_BOOTSTRAP_PATH,
@@ -28,7 +30,9 @@ PAGE_BOOTSTRAP_SPEC.loader.exec_module(page_bootstrap)
 
 
 class _BrokenTemplatePath:
-    def read_text(self, encoding: str = "utf-8") -> str:  # pragma: no cover - called by test
+    def read_text(
+        self, encoding: str = "utf-8"
+    ) -> str:  # pragma: no cover - called by test
         raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
 
 
@@ -95,7 +99,13 @@ class _FakeColumn:
 
 
 class _FakeStreamlit:
-    def __init__(self, *, button_values=None, file_uploader_values=None, sidebar_button_values=None):
+    def __init__(
+        self,
+        *,
+        button_values=None,
+        file_uploader_values=None,
+        sidebar_button_values=None,
+    ):
         self.events: list[tuple[str, str]] = []
         self.session_state: dict[str, object] = {}
         self.query_params: dict[str, object] = {}
@@ -177,8 +187,9 @@ class _FakeStreamlit:
         return False
 
     def page_link(self, page: object, **kwargs):
-        self.events.append(("page_link", f"{kwargs.get('label', page)}:{page}:{kwargs}"))
-
+        self.events.append(
+            ("page_link", f"{kwargs.get('label', page)}:{page}:{kwargs}")
+        )
 
     def columns(self, spec, **_kwargs):
         count = int(spec) if isinstance(spec, int) else len(spec)
@@ -260,9 +271,7 @@ def _event_index(events: list[tuple[str, str]], kind: str, text: str) -> int:
 
 def _event_body(events: list[tuple[str, str]], kind: str, text: str) -> str:
     return next(
-        body
-        for event_kind, body in events
-        if event_kind == kind and text in body
+        body for event_kind, body in events if event_kind == kind and text in body
     )
 
 
@@ -271,7 +280,9 @@ def test_page_bootstrap_session_env_ready_handles_missing_and_init_flags():
 
     assert page_bootstrap.session_env_ready({}) is False
     assert page_bootstrap.session_env_ready({"env": env}) is True
-    assert page_bootstrap.session_env_ready({"env": env}, init_done_default=False) is False
+    assert (
+        page_bootstrap.session_env_ready({"env": env}, init_done_default=False) is False
+    )
     env.init_done = False
     assert page_bootstrap.session_env_ready({"env": env}) is False
     env.init_done = True
@@ -289,11 +300,21 @@ def test_page_bootstrap_realigns_stale_session_env_to_page_root(tmp_path):
     stale_apps.mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path,
+            app: str = "flight_telemetry_project",
+            verbose: int | None = 1,
+        ):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
-            self.active_app = apps_path / "builtin" / app if apps_path.name == "apps" else apps_path / app
+            self.active_app = (
+                apps_path / "builtin" / app
+                if apps_path.name == "apps"
+                else apps_path / app
+            )
             self.init_done = True
 
     env = FakeEnv(apps_path=stale_apps)
@@ -302,7 +323,10 @@ def test_page_bootstrap_realigns_stale_session_env_to_page_root(tmp_path):
         "apps_path": str(source_apps),
     }
 
-    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(session_state, page_file)
+        is True
+    )
     assert env.apps_path == source_apps
     assert env.active_app == source_project
     assert session_state["apps_path"] == str(source_apps)
@@ -320,7 +344,13 @@ def test_page_bootstrap_realigns_stale_agi_space_recorded_root(tmp_path):
     (stale_apps / "builtin" / "flight_telemetry_project").mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path,
+            app: str = "flight_telemetry_project",
+            verbose: int | None = 1,
+        ):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -333,24 +363,37 @@ def test_page_bootstrap_realigns_stale_agi_space_recorded_root(tmp_path):
         "apps_path": str(stale_apps),
     }
 
-    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(session_state, page_file)
+        is True
+    )
     assert env.apps_path == source_apps
     assert env.active_app == source_project
     assert session_state["apps_path"] == str(source_apps)
 
 
-def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_root(tmp_path):
+def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_root(
+    tmp_path,
+):
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"
     page_file = source_root / "pages" / "2_ORCHESTRATE.py"
     source_project = source_apps / "builtin" / "flight_telemetry_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    stale_project = (
+        tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     page_file.parent.mkdir(parents=True)
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path,
+            app: str = "flight_telemetry_project",
+            verbose: int | None = 1,
+        ):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -364,7 +407,10 @@ def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_
         "apps_path": str(source_apps),
     }
 
-    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(session_state, page_file)
+        is True
+    )
     assert env.apps_path == source_apps
     assert env.active_app == source_project
     assert session_state["apps_path"] == str(source_apps)
@@ -378,13 +424,18 @@ def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
     page_file.parent.mkdir(parents=True)
     source_apps.mkdir(parents=True)
     other_apps.mkdir(parents=True)
-    env = SimpleNamespace(apps_path=other_apps, app="flight_telemetry_project", init_done=True)
+    env = SimpleNamespace(
+        apps_path=other_apps, app="flight_telemetry_project", init_done=True
+    )
     session_state = {
         "env": env,
         "apps_path": str(other_apps),
     }
 
-    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is False
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(session_state, page_file)
+        is False
+    )
     assert env.apps_path == other_apps
 
 
@@ -396,7 +447,9 @@ def test_page_bootstrap_handles_defensive_path_and_lookup_edges(tmp_path):
     assert page_bootstrap._page_apps_path(_BrokenPath()) is None
     assert page_bootstrap._page_apps_path("/") is None
     assert page_bootstrap._find_page_app(apps_path, "") is None
-    assert page_bootstrap._find_page_app(apps_path, "demo") == apps_path / "demo_project"
+    assert (
+        page_bootstrap._find_page_app(apps_path, "demo") == apps_path / "demo_project"
+    )
     assert page_bootstrap._find_page_app(apps_path, "missing") is None
     assert page_bootstrap.realign_session_env_with_page_root({}, __file__) is False
 
@@ -406,7 +459,9 @@ def test_page_bootstrap_realign_uses_active_app_name_and_handles_init_failure(tm
     source_apps = source_root / "apps"
     source_project = source_apps / "builtin" / "flight_telemetry_project"
     page_file = source_root / "pages" / "2_ORCHESTRATE.py"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    stale_project = (
+        tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     page_file.parent.mkdir(parents=True)
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
@@ -422,7 +477,10 @@ def test_page_bootstrap_realign_uses_active_app_name_and_handles_init_failure(tm
     env = ActiveNameEnv(apps_path=tmp_path / "agi-space" / "apps")
     session_state = {"env": env, "apps_path": str(source_apps)}
 
-    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(session_state, page_file)
+        is True
+    )
     assert env.active_app == source_project
 
     class RaisingEnv(ActiveNameEnv):
@@ -434,7 +492,10 @@ def test_page_bootstrap_realign_uses_active_app_name_and_handles_init_failure(tm
     failing_env = RaisingEnv(apps_path=tmp_path / "agi-space" / "apps")
     failing_state = {"env": failing_env, "apps_path": str(source_apps)}
 
-    assert page_bootstrap.realign_session_env_with_page_root(failing_state, page_file) is False
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(failing_state, page_file)
+        is False
+    )
 
 
 def test_page_bootstrap_realign_returns_false_when_no_matching_page_app(tmp_path):
@@ -452,10 +513,13 @@ def test_page_bootstrap_realign_returns_false_when_no_matching_page_app(tmp_path
         init_done=True,
     )
 
-    assert page_bootstrap.realign_session_env_with_page_root(
-        {"env": env, "apps_path": str(source_apps)},
-        page_file,
-    ) is False
+    assert (
+        page_bootstrap.realign_session_env_with_page_root(
+            {"env": env, "apps_path": str(source_apps)},
+            page_file,
+        )
+        is False
+    )
 
 
 def test_import_guard_error_is_rendered_as_code(monkeypatch):
@@ -534,7 +598,9 @@ def test_page_bootstrap_load_about_page_module_uses_injected_loader(tmp_path):
         calls.append((args, kwargs))
         return imported
 
-    result = page_bootstrap.load_about_page_module(current_file, load_module=fake_load_module)
+    result = page_bootstrap.load_about_page_module(
+        current_file, load_module=fake_load_module
+    )
 
     assert result is imported
     assert calls[0][0] == ("agilab.main_page",)
@@ -542,7 +608,9 @@ def test_page_bootstrap_load_about_page_module_uses_injected_loader(tmp_path):
     assert calls[0][1]["fallback_path"] == current_file.parents[1] / "main_page.py"
 
 
-def test_page_bootstrap_load_about_page_module_falls_back_to_file(tmp_path, monkeypatch):
+def test_page_bootstrap_load_about_page_module_falls_back_to_file(
+    tmp_path, monkeypatch
+):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
     about_file = tmp_path / "agilab" / "main_page.py"
     current_file.parent.mkdir(parents=True)
@@ -561,7 +629,9 @@ def test_page_bootstrap_load_about_page_module_falls_back_to_file(tmp_path, monk
 def test_page_bootstrap_load_about_page_module_returns_imported_module(monkeypatch):
     imported = SimpleNamespace(main=lambda: "ok")
 
-    monkeypatch.setattr(page_bootstrap.importlib, "import_module", lambda _name: imported)
+    monkeypatch.setattr(
+        page_bootstrap.importlib, "import_module", lambda _name: imported
+    )
 
     assert page_bootstrap.load_about_page_module(__file__) is imported
 
@@ -586,7 +656,9 @@ def test_page_bootstrap_load_about_page_module_falls_back_when_import_lacks_main
     assert result.main() == "fallback"
 
 
-def test_page_bootstrap_load_about_page_module_reports_missing_fallback_spec(tmp_path, monkeypatch):
+def test_page_bootstrap_load_about_page_module_reports_missing_fallback_spec(
+    tmp_path, monkeypatch
+):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
     current_file.parent.mkdir(parents=True)
 
@@ -595,13 +667,17 @@ def test_page_bootstrap_load_about_page_module_reports_missing_fallback_spec(tmp
         "import_module",
         lambda _name: (_ for _ in ()).throw(ModuleNotFoundError("missing")),
     )
-    monkeypatch.setattr(page_bootstrap.importlib.util, "spec_from_file_location", lambda *_args: None)
+    monkeypatch.setattr(
+        page_bootstrap.importlib.util, "spec_from_file_location", lambda *_args: None
+    )
 
     with pytest.raises(ModuleNotFoundError, match="Unable to load main_page"):
         page_bootstrap.load_about_page_module(current_file)
 
 
-def test_page_bootstrap_load_about_page_module_rejects_fallback_without_main(tmp_path, monkeypatch):
+def test_page_bootstrap_load_about_page_module_rejects_fallback_without_main(
+    tmp_path, monkeypatch
+):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
     about_file = tmp_path / "agilab" / "main_page.py"
     current_file.parent.mkdir(parents=True)
@@ -621,7 +697,9 @@ def test_page_bootstrap_ensure_page_env_returns_ready_env():
     env = SimpleNamespace(init_done=True)
     fake_st = SimpleNamespace(
         session_state={"env": env},
-        rerun=lambda: (_ for _ in ()).throw(AssertionError("rerun should not be called")),
+        rerun=lambda: (_ for _ in ()).throw(
+            AssertionError("rerun should not be called")
+        ),
     )
 
     assert page_bootstrap.ensure_page_env(fake_st, __file__) is env
@@ -649,7 +727,9 @@ def test_page_bootstrap_ensure_page_env_delegates_cold_start(tmp_path):
     assert events == ["main", "rerun"]
 
 
-def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(tmp_path, monkeypatch):
+def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(
+    tmp_path, monkeypatch
+):
     env_file = tmp_path / ".agilab" / ".env"
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", _BrokenTemplatePath())
 
@@ -660,7 +740,9 @@ def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(tmp_path, 
     assert env_file.read_text(encoding="utf-8") == ""
 
 
-def test_env_file_creation_covers_existing_parent_template_and_exists_failure(tmp_path, monkeypatch):
+def test_env_file_creation_covers_existing_parent_template_and_exists_failure(
+    tmp_path, monkeypatch
+):
     class ExistsRaisesPath:
         def exists(self):
             raise OSError("exists boom")
@@ -704,10 +786,15 @@ def test_refresh_env_from_file_updates_env_map_and_apps_path(tmp_path, monkeypat
     assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
     assert env.envars["APPS_PATH"] == str(apps_dir)
     assert env.apps_path == apps_dir.resolve()
-    assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+    assert (
+        about_agilab.st.session_state["env_file_mtime_ns"]
+        == env_file.stat().st_mtime_ns
+    )
 
 
-def test_refresh_env_from_file_keeps_session_apps_path_over_stale_env_path(tmp_path, monkeypatch):
+def test_refresh_env_from_file_keeps_session_apps_path_over_stale_env_path(
+    tmp_path, monkeypatch
+):
     env_file = tmp_path / ".env"
     stale_apps = tmp_path / "agi-space" / "apps"
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
@@ -743,10 +830,15 @@ def test_refresh_env_from_file_keeps_session_apps_path_over_stale_env_path(tmp_p
     assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
     assert env.envars["APPS_PATH"] == str(stale_apps)
     assert env.apps_path == source_apps.resolve()
-    assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+    assert (
+        about_agilab.st.session_state["env_file_mtime_ns"]
+        == env_file.stat().st_mtime_ns
+    )
 
 
-def test_refresh_env_from_file_ignores_commented_template_defaults(tmp_path, monkeypatch):
+def test_refresh_env_from_file_ignores_commented_template_defaults(
+    tmp_path, monkeypatch
+):
     env_file = tmp_path / ".env"
     env_file.write_text(
         "\n".join(
@@ -783,10 +875,15 @@ def test_refresh_env_from_file_ignores_bad_envars_mapping(tmp_path, monkeypatch)
 
     about_agilab._refresh_env_from_file(env)
 
-    assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+    assert (
+        about_agilab.st.session_state["env_file_mtime_ns"]
+        == env_file.stat().st_mtime_ns
+    )
 
 
-def test_refresh_env_from_file_keeps_runtime_cluster_credentials_when_sentinel(tmp_path, monkeypatch):
+def test_refresh_env_from_file_keeps_runtime_cluster_credentials_when_sentinel(
+    tmp_path, monkeypatch
+):
     env_file = tmp_path / ".env"
     env_file.write_text("CLUSTER_CREDENTIALS=__KEYRING__\n", encoding="utf-8")
     monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
@@ -803,7 +900,9 @@ def test_refresh_env_from_file_keeps_runtime_cluster_credentials_when_sentinel(t
     assert env.envars["CLUSTER_CREDENTIALS"] == "runtime:user"
 
 
-def test_refresh_env_from_file_handles_missing_file_and_bad_paths(tmp_path, monkeypatch):
+def test_refresh_env_from_file_handles_missing_file_and_bad_paths(
+    tmp_path, monkeypatch
+):
     missing_env = tmp_path / "missing.env"
     monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", missing_env)
     about_agilab._refresh_env_from_file(SimpleNamespace(envars={}))
@@ -854,20 +953,26 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
     bootstrap = about_agilab._about_bootstrap
 
     args = bootstrap.parse_startup_args(["--apps-path", str(cli_apps)])
-    assert bootstrap.resolve_apps_path(
-        args,
-        env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
-        home_path=tmp_path,
-    ) == cli_apps
+    assert (
+        bootstrap.resolve_apps_path(
+            args,
+            env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+            home_path=tmp_path,
+        )
+        == cli_apps
+    )
 
     args = bootstrap.parse_startup_args([])
-    assert bootstrap.resolve_apps_path(
-        args,
-        env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
-        home_path=tmp_path,
-    ) == env_apps
+    assert (
+        bootstrap.resolve_apps_path(
+            args,
+            env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+            home_path=tmp_path,
+        )
+        == env_apps
+    )
 
 
 def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
@@ -876,9 +981,9 @@ def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
     marker = tmp_path / ".agilab-path"
     marker.write_text(str(install_root / ".venv" / "bin" / "python"), encoding="utf-8")
 
-    assert bootstrap.apps_path_from_agilab_path_file(marker) == (install_root / "apps").resolve(
-        strict=False
-    )
+    assert bootstrap.apps_path_from_agilab_path_file(marker) == (
+        install_root / "apps"
+    ).resolve(strict=False)
 
 
 def test_bootstrap_resolve_apps_path_from_source_agilab_path_file(tmp_path):
@@ -888,15 +993,19 @@ def test_bootstrap_resolve_apps_path_from_source_agilab_path_file(tmp_path):
     marker = tmp_path / ".agilab-path"
     marker.write_text(str(source_root), encoding="utf-8")
 
-    assert bootstrap.apps_path_from_agilab_path_file(marker) == (source_root / "apps").resolve(
-        strict=False
-    )
+    assert bootstrap.apps_path_from_agilab_path_file(marker) == (
+        source_root / "apps"
+    ).resolve(strict=False)
 
 
-def test_bootstrap_apps_path_from_agilab_path_file_reports_resolve_error(tmp_path, monkeypatch):
+def test_bootstrap_apps_path_from_agilab_path_file_reports_resolve_error(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
     marker = tmp_path / ".agilab-path"
-    marker.write_text(str(tmp_path / "agi-space" / ".venv" / "bin" / "python"), encoding="utf-8")
+    marker.write_text(
+        str(tmp_path / "agi-space" / ".venv" / "bin" / "python"), encoding="utf-8"
+    )
 
     class BrokenPath:
         def __init__(self, value):
@@ -917,11 +1026,14 @@ def test_bootstrap_default_agilab_path_file_uses_platform_locations(tmp_path):
     assert bootstrap.default_agilab_path_file(home_path=tmp_path) == (
         tmp_path / ".local/share/agilab/.agilab-path"
     )
-    assert bootstrap.default_agilab_path_file(
-        os_name="nt",
-        environ={"LOCALAPPDATA": str(tmp_path / "localappdata")},
-        home_path=tmp_path,
-    ) == tmp_path / "localappdata" / "agilab/.agilab-path"
+    assert (
+        bootstrap.default_agilab_path_file(
+            os_name="nt",
+            environ={"LOCALAPPDATA": str(tmp_path / "localappdata")},
+            home_path=tmp_path,
+        )
+        == tmp_path / "localappdata" / "agilab/.agilab-path"
+    )
 
 
 def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
@@ -944,8 +1056,16 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     fake_st = SimpleNamespace(warning=warnings.append)
     env = FakeEnv()
 
-    assert bootstrap.normalize_active_app_input(env, "flight_telemetry_project") == project_path.resolve()
-    assert bootstrap.apply_active_app_request(env, "flight_telemetry_project", streamlit=fake_st) is True
+    assert (
+        bootstrap.normalize_active_app_input(env, "flight_telemetry_project")
+        == project_path.resolve()
+    )
+    assert (
+        bootstrap.apply_active_app_request(
+            env, "flight_telemetry_project", streamlit=fake_st
+        )
+        is True
+    )
     assert env.app == "flight_telemetry_project"
     assert warnings == []
 
@@ -961,7 +1081,13 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
     warnings: list[str] = []
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path = old_root, app: str = "flight_telemetry_project", verbose: int | None = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path = old_root,
+            app: str = "flight_telemetry_project",
+            verbose: int | None = 1,
+        ):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -970,12 +1096,17 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
             self.init_done = True
 
         def change_app(self, _path: Path) -> None:
-            raise RuntimeError("same-name path switch must not use name-only change_app")
+            raise RuntimeError(
+                "same-name path switch must not use name-only change_app"
+            )
 
     fake_st = SimpleNamespace(warning=warnings.append)
     env = FakeEnv()
 
-    assert bootstrap.apply_active_app_request(env, str(new_project), streamlit=fake_st) is True
+    assert (
+        bootstrap.apply_active_app_request(env, str(new_project), streamlit=fake_st)
+        is True
+    )
     assert env.app == "flight_telemetry_project"
     assert env.apps_path == new_root
     assert env.active_app == new_project
@@ -987,7 +1118,9 @@ def test_bootstrap_active_app_store_path_prefers_real_active_app(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "src" / "agilab" / "apps"
     active_app = apps_path / "builtin" / "flight_telemetry_project"
-    env = SimpleNamespace(apps_path=apps_path, app="flight_telemetry_project", active_app=active_app)
+    env = SimpleNamespace(
+        apps_path=apps_path, app="flight_telemetry_project", active_app=active_app
+    )
 
     assert bootstrap.active_app_store_path(env) == active_app
 
@@ -1005,10 +1138,15 @@ def test_bootstrap_normalize_active_app_input_finds_builtin_project_name(tmp_pat
         projects={"flight_telemetry_project"},
     )
 
-    assert bootstrap.normalize_active_app_input(env, "flight_telemetry_project") == active_app.resolve()
+    assert (
+        bootstrap.normalize_active_app_input(env, "flight_telemetry_project")
+        == active_app.resolve()
+    )
 
 
-def test_bootstrap_normalize_active_app_input_prefers_builtin_over_source_package_payload(tmp_path):
+def test_bootstrap_normalize_active_app_input_prefers_builtin_over_source_package_payload(
+    tmp_path,
+):
     bootstrap = about_agilab._about_bootstrap
     repo_root = tmp_path / "repo"
     apps_path = repo_root / "src" / "agilab" / "apps"
@@ -1034,21 +1172,34 @@ def test_bootstrap_normalize_active_app_input_prefers_builtin_over_source_packag
         projects={"pytorch_playground_project"},
     )
 
-    assert bootstrap.normalize_active_app_input(env, str(payload_app)) == active_app.resolve()
+    assert (
+        bootstrap.normalize_active_app_input(env, str(payload_app))
+        == active_app.resolve()
+    )
 
 
-def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space(tmp_path):
+def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space(
+    tmp_path,
+):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
     source_builtin = source_apps / "builtin"
     source_project = source_builtin / "flight_telemetry_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    stale_project = (
+        tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
     requested_apps: list[str | None] = []
 
     class FakeAgiEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path,
+            app: str = "flight_telemetry_project",
+            verbose: int = 1,
+        ):
             self.apps_path = apps_path
             self.builtin_apps_path = apps_path / "builtin"
             self.apps_repository_root = None
@@ -1100,7 +1251,9 @@ def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space
     assert fake_st.query_params["active_app"] == "flight_telemetry_project"
 
 
-def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_init(tmp_path, monkeypatch):
+def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_init(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
     source_project = source_apps / "builtin" / "flight_telemetry_project"
@@ -1123,7 +1276,9 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
             cls.persisted[key] = value
 
         def __init__(self, *, apps_path: Path, verbose: int = 1):
-            events.append(("init", f"IS_SOURCE_ENV={self.persisted.get('IS_SOURCE_ENV')}"))
+            events.append(
+                ("init", f"IS_SOURCE_ENV={self.persisted.get('IS_SOURCE_ENV')}")
+            )
             self.apps_path = apps_path
             self.builtin_apps_path = apps_path / "builtin"
             self.apps_repository_root = None
@@ -1145,7 +1300,9 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
         last_app=stale_apps / "builtin" / "flight_telemetry_project",
         environ=fake_environ,
     )
-    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: source_apps)
+    monkeypatch.setattr(
+        bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: source_apps
+    )
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
@@ -1156,7 +1313,8 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
             "IS_WORKER_ENV": "0",
         },
         logger=object(),
-        apply_active_app_request=lambda env, requested: bootstrap.apply_active_app_request(
+        apply_active_app_request=lambda env,
+        requested: bootstrap.apply_active_app_request(
             env,
             requested,
             streamlit=fake_st,
@@ -1174,7 +1332,9 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
     assert fake_environ["APPS_PATH"] == str(source_apps.resolve(strict=False))
     assert fake_environ["IS_SOURCE_ENV"] == "1"
     assert ("init", "IS_SOURCE_ENV=1") in events
-    assert events.index(("set", "IS_SOURCE_ENV=1")) < events.index(("init", "IS_SOURCE_ENV=1"))
+    assert events.index(("set", "IS_SOURCE_ENV=1")) < events.index(
+        ("init", "IS_SOURCE_ENV=1")
+    )
 
 
 def test_bootstrap_normalize_active_app_input_skips_unresolvable_candidate(
@@ -1268,7 +1428,10 @@ def test_bootstrap_persist_env_keeps_saved_cluster_credentials(tmp_path):
         saved_env={bootstrap.CLUSTER_CREDENTIALS_KEY: bootstrap.KEYRING_SENTINEL},
         agi_env_cls=FakeAgiEnv,
         clean_openai_key=lambda value: value,
-        store_cluster_credentials=lambda value, **_kwargs: stored_credentials.append(value) or True,
+        store_cluster_credentials=lambda value, **_kwargs: stored_credentials.append(
+            value
+        )
+        or True,
         environ={},
     )
 
@@ -1301,7 +1464,9 @@ def test_bootstrap_stop_startup_with_error_allows_missing_stop():
     assert events == ["bad startup"]
 
 
-def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypatch, tmp_path):
+def test_bootstrap_page_environment_handles_cluster_share_startup_error(
+    monkeypatch, tmp_path
+):
     bootstrap = about_agilab._about_bootstrap
 
     class FailingAgiEnv:
@@ -1311,7 +1476,9 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypa
                 "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable; env=/tmp/.env"
             )
 
-    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps")
+    monkeypatch.setattr(
+        bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps"
+    )
     ports, _port_calls = _make_bootstrap_ports(FailingAgiEnv)
     fake_st = _FakeStreamlit()
     fake_st.query_params["active_app"] = "flight_telemetry_project"
@@ -1333,7 +1500,9 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypa
     assert result.handled_recovery is True
     assert fake_st.stopped is True
     error_message = _event_body(fake_st.events, "error", "Cluster mode is enabled")
-    assert "Disable cluster mode and reload" in [body for kind, body in fake_st.events if kind == "button"]
+    assert "Disable cluster mode and reload" in [
+        body for kind, body in fake_st.events if kind == "button"
+    ]
     assert "AGI_CLUSTER_SHARE" in error_message
 
 
@@ -1352,6 +1521,7 @@ user = "agi"
 """,
         encoding="utf-8",
     )
+
     class ClickStreamlit(_FakeStreamlit):
         def __init__(self):
             super().__init__()
@@ -1384,7 +1554,9 @@ user = "agi"
     assert fake_st.stopped is False
 
 
-def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_errors(tmp_path, monkeypatch):
+def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_errors(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
 
     with monkeypatch.context() as patch_ctx:
@@ -1395,9 +1567,13 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
     missing_settings = tmp_path / "missing.toml"
     assert bootstrap.disable_cluster_in_app_settings(missing_settings) is False
 
-    disabled_settings = tmp_path / ".agilab/apps/flight_telemetry_project/app_settings.toml"
+    disabled_settings = (
+        tmp_path / ".agilab/apps/flight_telemetry_project/app_settings.toml"
+    )
     disabled_settings.parent.mkdir(parents=True)
-    disabled_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
+    disabled_settings.write_text(
+        "[cluster]\ncluster_enabled = false\n", encoding="utf-8"
+    )
     assert bootstrap.disable_cluster_in_app_settings(disabled_settings) is False
 
     class ClickStreamlit(_FakeStreamlit):
@@ -1418,7 +1594,10 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
         args=bootstrap.parse_startup_args([]),
         ports=ports,
     )
-    assert ("info", f"Cluster mode was already disabled or missing in `{disabled_settings}`.") in fake_st.events
+    assert (
+        "info",
+        f"Cluster mode was already disabled or missing in `{disabled_settings}`.",
+    ) in fake_st.events
     assert ("rerun", "") in fake_st.events
 
     broken_settings = tmp_path / ".agilab/apps/broken_project/app_settings.toml"
@@ -1438,7 +1617,11 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
         args=bootstrap.parse_startup_args([]),
         ports=ports,
     )
-    assert any("Could not disable cluster mode" in body for kind, body in broken_st.events if kind == "error")
+    assert any(
+        "Could not disable cluster mode" in body
+        for kind, body in broken_st.events
+        if kind == "error"
+    )
     assert broken_st.stopped is True
 
 
@@ -1591,7 +1774,9 @@ def test_bootstrap_resolve_apps_path_rejects_empty_or_malformed_marker(tmp_path)
         )
 
 
-def test_bootstrap_source_marker_reports_source_apps_resolve_error(tmp_path, monkeypatch):
+def test_bootstrap_source_marker_reports_source_apps_resolve_error(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
     source_root = tmp_path / "repo" / "src" / "agilab"
     source_root.mkdir(parents=True)
@@ -1672,11 +1857,15 @@ def test_bootstrap_persisted_active_app_ignores_cross_root_absolute_path(tmp_pat
     assert bootstrap.persisted_active_app_request(env, stale_project) is None
 
 
-def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_project(tmp_path):
+def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_project(
+    tmp_path,
+):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
     source_project = source_apps / "builtin" / "flight_telemetry_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    stale_project = (
+        tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
     env = SimpleNamespace(
@@ -1686,7 +1875,10 @@ def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_p
         projects=set(),
     )
 
-    assert bootstrap.persisted_active_app_request(env, stale_project) == "flight_telemetry_project"
+    assert (
+        bootstrap.persisted_active_app_request(env, stale_project)
+        == "flight_telemetry_project"
+    )
 
 
 def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_path):
@@ -1707,7 +1899,10 @@ def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_pa
 
     assert bootstrap.normalize_active_app_input(FakeEnv(), None) is None
     assert bootstrap.normalize_active_app_input(FakeEnv(), object()) is None
-    assert bootstrap.normalize_active_app_input(FakeEnv(), str(project_path)) == project_path.resolve()
+    assert (
+        bootstrap.normalize_active_app_input(FakeEnv(), str(project_path))
+        == project_path.resolve()
+    )
     assert bootstrap.normalize_active_app_input(FakeEnv(), "missing") is None
     assert not bootstrap.apply_active_app_request(
         FakeEnv(),
@@ -1771,15 +1966,24 @@ def test_bootstrap_additional_active_app_and_source_path_edges(tmp_path, monkeyp
             self.verbose = 0
 
     env = FakeEnv()
-    assert bootstrap.normalize_active_app_input(env, "known_project") == project.resolve(strict=False)
-    assert bootstrap.normalize_active_app_input(env, "nested/known_project") == project.resolve(strict=False)
+    assert bootstrap.normalize_active_app_input(
+        env, "known_project"
+    ) == project.resolve(strict=False)
+    assert bootstrap.normalize_active_app_input(
+        env, "nested/known_project"
+    ) == project.resolve(strict=False)
     assert bootstrap._active_app_path_matches(env, project) is False
-    assert bootstrap.active_app_store_path(SimpleNamespace(active_app=object(), apps_path=source_apps, app="fallback")) == (
-        source_apps / "fallback"
-    )
+    assert bootstrap.active_app_store_path(
+        SimpleNamespace(active_app=object(), apps_path=source_apps, app="fallback")
+    ) == (source_apps / "fallback")
     assert bootstrap.persisted_active_app_request(env, "  ") is None
-    assert bootstrap.persisted_active_app_request(env, "known_project") == "known_project"
-    assert bootstrap.persisted_active_app_request(env, "unknown_project") == "unknown_project"
+    assert (
+        bootstrap.persisted_active_app_request(env, "known_project") == "known_project"
+    )
+    assert (
+        bootstrap.persisted_active_app_request(env, "unknown_project")
+        == "unknown_project"
+    )
 
     class BrokenReinitEnv(FakeEnv):
         def __init__(self, *args, **kwargs):
@@ -1788,7 +1992,12 @@ def test_bootstrap_additional_active_app_and_source_path_edges(tmp_path, monkeyp
             super().__init__()
 
     broken_env = BrokenReinitEnv()
-    assert bootstrap.apply_active_app_request(broken_env, str(project), streamlit=SimpleNamespace(warning=warnings.append)) is False
+    assert (
+        bootstrap.apply_active_app_request(
+            broken_env, str(project), streamlit=SimpleNamespace(warning=warnings.append)
+        )
+        is False
+    )
     assert any("cannot reinit" in warning for warning in warnings)
 
 
@@ -1880,29 +2089,53 @@ def test_bootstrap_startup_active_app_name_handles_query_lists_loader_errors_and
         agi_env_cls=object(),
         activate_mlflow=lambda _env: None,
         background_services_enabled=lambda: False,
-        load_last_active_app=lambda: (_ for _ in ()).throw(OSError("last app unavailable")),
+        load_last_active_app=lambda: (_ for _ in ()).throw(
+            OSError("last app unavailable")
+        ),
         store_last_active_app=lambda _path: None,
         environ={},
     )
 
-    assert bootstrap.startup_active_app_name(
-        SimpleNamespace(query_params=BrokenQueryParams()),
-        args,
-        ports,
-    ) is None
+    assert (
+        bootstrap.startup_active_app_name(
+            SimpleNamespace(query_params=BrokenQueryParams()),
+            args,
+            ports,
+        )
+        is None
+    )
 
-    list_query_st = SimpleNamespace(query_params={"active_app": ["/tmp/flight_telemetry_project"]})
-    assert bootstrap.startup_active_app_name(list_query_st, args, ports) == "flight_telemetry_project"
+    list_query_st = SimpleNamespace(
+        query_params={"active_app": ["/tmp/flight_telemetry_project"]}
+    )
+    assert (
+        bootstrap.startup_active_app_name(list_query_st, args, ports)
+        == "flight_telemetry_project"
+    )
 
     worker_args = bootstrap.parse_startup_args(["--active-app", "/tmp/demo_worker"])
-    assert bootstrap.startup_active_app_name(SimpleNamespace(query_params={}), worker_args, ports) == "demo_worker"
+    assert (
+        bootstrap.startup_active_app_name(
+            SimpleNamespace(query_params={}), worker_args, ports
+        )
+        == "demo_worker"
+    )
 
     plain_args = bootstrap.parse_startup_args(["--active-app", "plain"])
-    assert bootstrap.startup_active_app_name(SimpleNamespace(query_params={}), plain_args, ports) is None
-    assert bootstrap.workspace_app_settings_file(Path("/tmp/.agilab/.env"), None) is None
+    assert (
+        bootstrap.startup_active_app_name(
+            SimpleNamespace(query_params={}), plain_args, ports
+        )
+        is None
+    )
+    assert (
+        bootstrap.workspace_app_settings_file(Path("/tmp/.agilab/.env"), None) is None
+    )
 
 
-def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_store_error(tmp_path):
+def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_store_error(
+    tmp_path,
+):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
     env = SimpleNamespace(apps_path=apps_path, app="default")
@@ -1926,7 +2159,9 @@ def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_store_error
     bootstrap.sync_active_app_from_query(
         env,
         streamlit=requested_query_st,
-        store_last_active_app=lambda _path: (_ for _ in ()).throw(RuntimeError("store failed")),
+        store_last_active_app=lambda _path: (_ for _ in ()).throw(
+            RuntimeError("store failed")
+        ),
         apply_request=apply_request,
     )
 
@@ -1936,7 +2171,9 @@ def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_store_error
 def test_bootstrap_remember_active_app_ignores_store_errors(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     env = SimpleNamespace(apps_path=tmp_path, app="demo")
-    bootstrap.remember_active_app(env, lambda _path: (_ for _ in ()).throw(OSError("locked")))
+    bootstrap.remember_active_app(
+        env, lambda _path: (_ for _ in ()).throw(OSError("locked"))
+    )
 
 
 def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
@@ -1983,9 +2220,14 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
         logger=object(),
         apply_active_app_request=apply_request,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
-        refresh_env_from_file=lambda _env: (_ for _ in ()).throw(ValueError("stale env")),
+        refresh_env_from_file=lambda _env: (_ for _ in ()).throw(
+            ValueError("stale env")
+        ),
         clean_openai_key=lambda value: value,
-        store_cluster_credentials=lambda value, **_kwargs: stored_credentials.append(value) or True,
+        store_cluster_credentials=lambda value, **_kwargs: stored_credentials.append(
+            value
+        )
+        or True,
         argv=["--apps-path", str(apps_path)],
         ports=ports,
     )
@@ -2030,7 +2272,9 @@ def test_bootstrap_page_environment_cli_active_app_overrides_last_app(tmp_path):
         return True
 
     fake_st = _FakeStreamlit()
-    ports, port_calls = _make_bootstrap_ports(FakeAgiEnv, services_enabled=False, last_app="remembered")
+    ports, port_calls = _make_bootstrap_ports(
+        FakeAgiEnv, services_enabled=False, last_app="remembered"
+    )
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
@@ -2078,7 +2322,9 @@ def test_bootstrap_page_environment_handles_missing_apps_path(monkeypatch, tmp_p
 
     assert result.handled_recovery is True
     assert fake_st.stopped is True
-    assert fake_st.events == [("error", "Error: Missing mandatory parameter: --apps-path")]
+    assert fake_st.events == [
+        ("error", "Error: Missing mandatory parameter: --apps-path")
+    ]
 
 
 def test_bootstrap_page_environment_handles_resolution_and_data_root_recovery(
@@ -2115,9 +2361,13 @@ def test_bootstrap_page_environment_handles_resolution_and_data_root_recovery(
 
     assert result.handled_recovery is True
     assert fake_st.stopped is True
-    assert any("bad marker" in message for event, message in fake_st.events if event == "error")
+    assert any(
+        "bad marker" in message for event, message in fake_st.events if event == "error"
+    )
 
-    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps")
+    monkeypatch.setattr(
+        bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps"
+    )
     recovered = bootstrap.bootstrap_page_environment(
         streamlit=_FakeStreamlit(),
         env_file_path=tmp_path / ".env",
@@ -2145,7 +2395,9 @@ def test_bootstrap_page_environment_reraises_unrecovered_data_root_error(
         def __init__(self, *_args, **_kwargs):
             raise RuntimeError("bad data root")
 
-    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps")
+    monkeypatch.setattr(
+        bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps"
+    )
     ports, _port_calls = _make_bootstrap_ports(FailingAgiEnv)
 
     with pytest.raises(RuntimeError, match="bad data root"):
@@ -2225,17 +2477,30 @@ def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
 
 
 def test_worker_python_override_key_detection():
-    assert about_agilab._is_worker_python_override_key("127.0.0.1_PYTHON_VERSION") is True
-    assert about_agilab._is_worker_python_override_key("worker-a_PYTHON_VERSION") is True
+    assert (
+        about_agilab._is_worker_python_override_key("127.0.0.1_PYTHON_VERSION") is True
+    )
+    assert (
+        about_agilab._is_worker_python_override_key("worker-a_PYTHON_VERSION") is True
+    )
     assert about_agilab._is_worker_python_override_key("AGI_PYTHON_VERSION") is False
     assert about_agilab._is_worker_python_override_key("127.0.0.1_CMD_PREFIX") is False
     assert about_agilab._worker_python_override_host("AGI_PYTHON_VERSION") == ""
 
 
 def test_env_editor_field_label_for_python_keys():
-    assert about_agilab._env_editor_field_label("AGI_PYTHON_VERSION") == "Default Python version"
-    assert about_agilab._env_editor_field_label("AGI_PYTHON_FREE_THREADED") == "Use free-threaded Python"
-    assert about_agilab._env_editor_field_label("127.0.0.1_PYTHON_VERSION") == "Worker Python version for 127.0.0.1"
+    assert (
+        about_agilab._env_editor_field_label("AGI_PYTHON_VERSION")
+        == "Default Python version"
+    )
+    assert (
+        about_agilab._env_editor_field_label("AGI_PYTHON_FREE_THREADED")
+        == "Use free-threaded Python"
+    )
+    assert (
+        about_agilab._env_editor_field_label("127.0.0.1_PYTHON_VERSION")
+        == "Worker Python version for 127.0.0.1"
+    )
     assert about_agilab._env_editor_field_label("OPENAI_API_KEY") == "OPENAI_API_KEY"
 
 
@@ -2278,11 +2543,17 @@ def test_env_file_helpers_parse_write_preview_and_upsert(tmp_path, monkeypatch):
     assert entries[2]["commented"] is True
     env_editor = about_agilab._about_env_editor
     assert env_editor._env_editor_input_value("OPENAI_API_KEY", "secret") == ""
-    assert env_editor._env_preview_value("OPENAI_API_KEY", "secret") == env_editor.REDACTED_ENV_VALUE
-    assert env_editor._env_preview_value(
-        env_editor.CLUSTER_CREDENTIALS_KEY,
-        env_editor.KEYRING_SENTINEL,
-    ) == "<stored in keyring>"
+    assert (
+        env_editor._env_preview_value("OPENAI_API_KEY", "secret")
+        == env_editor.REDACTED_ENV_VALUE
+    )
+    assert (
+        env_editor._env_preview_value(
+            env_editor.CLUSTER_CREDENTIALS_KEY,
+            env_editor.KEYRING_SENTINEL,
+        )
+        == "<stored in keyring>"
+    )
     assert about_agilab._visible_env_editor_keys([], entries) == [
         "AGI_PYTHON_VERSION",
         "OPENAI_API_KEY",
@@ -2330,11 +2601,19 @@ def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeyp
         def set_env_var(cls, key: str, value: str):
             cls.saved.append((key, value))
 
-    assert about_agilab._handle_data_root_failure(RuntimeError("other failure"), agi_env_cls=FakeAgiEnv) is False
-    assert about_agilab._handle_data_root_failure(
-        RuntimeError("AGI_CLUSTER_SHARE missing"),
-        agi_env_cls=FakeAgiEnv,
-    ) is True
+    assert (
+        about_agilab._handle_data_root_failure(
+            RuntimeError("other failure"), agi_env_cls=FakeAgiEnv
+        )
+        is False
+    )
+    assert (
+        about_agilab._handle_data_root_failure(
+            RuntimeError("AGI_CLUSTER_SHARE missing"),
+            agi_env_cls=FakeAgiEnv,
+        )
+        is True
+    )
     assert ("form", "agi_share_path_override_form") in fake_st.events
 
     class EmptyDefaultAgiEnv(FakeAgiEnv):
@@ -2346,15 +2625,24 @@ def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeyp
 
     fake_st.button_values["Save and retry"] = True
     fake_st.session_state["agi_share_path_override_input"] = ""
-    about_agilab._handle_data_root_failure(RuntimeError("data directory missing"), agi_env_cls=EmptyDefaultAgiEnv)
+    about_agilab._handle_data_root_failure(
+        RuntimeError("data directory missing"), agi_env_cls=EmptyDefaultAgiEnv
+    )
     assert ("warning", "AGI_CLUSTER_SHARE cannot be empty.") in fake_st.events
 
     fake_st.session_state["agi_share_path_override_input"] = "\0bad"
-    about_agilab._handle_data_root_failure(RuntimeError("data directory missing"), agi_env_cls=FakeAgiEnv)
-    assert any(kind == "warning" and "AGI_CLUSTER_SHARE" in body for kind, body in fake_st.events)
+    about_agilab._handle_data_root_failure(
+        RuntimeError("data directory missing"), agi_env_cls=FakeAgiEnv
+    )
+    assert any(
+        kind == "warning" and "AGI_CLUSTER_SHARE" in body
+        for kind, body in fake_st.events
+    )
 
     fake_st.session_state["agi_share_path_override_input"] = "newshare"
-    about_agilab._handle_data_root_failure(RuntimeError("data directory missing"), agi_env_cls=FakeAgiEnv)
+    about_agilab._handle_data_root_failure(
+        RuntimeError("data directory missing"), agi_env_cls=FakeAgiEnv
+    )
     assert FakeAgiEnv.saved[-1] == ("AGI_CLUSTER_SHARE", "newshare")
     assert fake_st.session_state["first_run"] is True
     assert ("rerun", "") in fake_st.events
@@ -2399,29 +2687,44 @@ def test_render_env_editor_saves_updates_and_redacted_preview(tmp_path, monkeypa
         "store_cluster_credentials",
         lambda secret, **_kwargs: secret == "cluster-secret",
     )
-    monkeypatch.setattr(env_editor, "_refresh_share_dir", lambda _env, value: refreshed_shares.append(value))
+    monkeypatch.setattr(
+        env_editor,
+        "_refresh_share_dir",
+        lambda _env, value: refreshed_shares.append(value),
+    )
 
     about_agilab._render_env_editor(env)
 
     written = env_file.read_text(encoding="utf-8")
     assert "AGI_PYTHON_VERSION=3.12" in written
     assert "OPENAI_API_KEY=old-secret" in written
-    assert f"{env_editor.CLUSTER_CREDENTIALS_KEY}={env_editor.KEYRING_SENTINEL}" in written
+    assert (
+        f"{env_editor.CLUSTER_CREDENTIALS_KEY}={env_editor.KEYRING_SENTINEL}" in written
+    )
     assert "EXTRA_VALUE=extra" in written
     assert env.envars["AGI_CLUSTER_SHARE"] == "newshare"
     assert env.CLUSTER_CREDENTIALS == "cluster-secret"
     assert refreshed_shares == ["newshare"]
-    assert fake_st.session_state["env_editor_feedback"] == "Environment variables updated."
+    assert (
+        fake_st.session_state["env_editor_feedback"] == "Environment variables updated."
+    )
     assert ("rerun", "") in fake_st.events
     preview_blocks = [body for kind, body in fake_st.events if kind == "code"]
     assert preview_blocks and "OPENAI_API_KEY=<redacted>" in preview_blocks[-1]
-    assert f"{env_editor.CLUSTER_CREDENTIALS_KEY}=<stored in keyring>" in preview_blocks[-1]
+    assert (
+        f"{env_editor.CLUSTER_CREDENTIALS_KEY}=<stored in keyring>"
+        in preview_blocks[-1]
+    )
 
 
-def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors(tmp_path, monkeypatch):
+def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors(
+    tmp_path, monkeypatch
+):
     env_editor = about_agilab._about_env_editor
     env_file = tmp_path / ".env"
-    env_file.write_text("# AGI_CLUSTER_SHARE=oldshare\nAGI_PYTHON_VERSION=3.11\n", encoding="utf-8")
+    env_file.write_text(
+        "# AGI_CLUSTER_SHARE=oldshare\nAGI_PYTHON_VERSION=3.11\n", encoding="utf-8"
+    )
     template_file = tmp_path / "template.env"
     template_file.write_text(
         "AGI_PYTHON_VERSION=3.13\n"
@@ -2442,7 +2745,9 @@ def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", template_file)
-    monkeypatch.setattr(env_editor, "_refresh_share_dir", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        env_editor, "_refresh_share_dir", lambda *_args, **_kwargs: None
+    )
 
     env = SimpleNamespace(envars={}, CLUSTER_CREDENTIALS="", home_abs=tmp_path)
     about_agilab._render_env_editor(env)
@@ -2471,8 +2776,9 @@ def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors
     about_agilab._render_env_editor(env)
 
     assert stored == ["new-secret"]
-    assert f"{env_editor.CLUSTER_CREDENTIALS_KEY}={env_editor.KEYRING_SENTINEL}" in new_secret_file.read_text(
-        encoding="utf-8"
+    assert (
+        f"{env_editor.CLUSTER_CREDENTIALS_KEY}={env_editor.KEYRING_SENTINEL}"
+        in new_secret_file.read_text(encoding="utf-8")
     )
 
     error_file = tmp_path / "error.env"
@@ -2482,11 +2788,18 @@ def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", error_file)
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", template_file)
-    monkeypatch.setattr(env_editor, "_write_env_file", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("boom")))
+    monkeypatch.setattr(
+        env_editor,
+        "_write_env_file",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("boom")),
+    )
 
     about_agilab._render_env_editor(env)
 
-    assert any(kind == "error" and "Failed to save .env file" in body for kind, body in fake_st.events)
+    assert any(
+        kind == "error" and "Failed to save .env file" in body
+        for kind, body in fake_st.events
+    )
 
 
 def test_render_env_editor_preview_fallbacks_and_read_errors(tmp_path, monkeypatch):
@@ -2500,7 +2813,10 @@ def test_render_env_editor_preview_fallbacks_and_read_errors(tmp_path, monkeypat
 
     about_agilab._render_env_editor(SimpleNamespace(envars={}))
 
-    assert any(kind == "caption" and "Template or current .env file not found" in body for kind, body in fake_st.events)
+    assert any(
+        kind == "caption" and "Template or current .env file not found" in body
+        for kind, body in fake_st.events
+    )
 
     empty_template = tmp_path / "empty-template.env"
     empty_template.write_text("# comment only\n", encoding="utf-8")
@@ -2508,7 +2824,10 @@ def test_render_env_editor_preview_fallbacks_and_read_errors(tmp_path, monkeypat
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", empty_template)
     about_agilab._render_env_editor(SimpleNamespace(envars={}))
-    assert ("caption", "No environment variables found in the current .env.") in fake_st.events
+    assert (
+        "caption",
+        "No environment variables found in the current .env.",
+    ) in fake_st.events
 
     class BrokenTemplate:
         def open(self, *_args, **_kwargs):
@@ -2518,7 +2837,10 @@ def test_render_env_editor_preview_fallbacks_and_read_errors(tmp_path, monkeypat
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", BrokenTemplate())
     about_agilab._render_env_editor(SimpleNamespace(envars={}))
-    assert any(kind == "error" and "Unable to read env files" in body for kind, body in fake_st.events)
+    assert any(
+        kind == "error" and "Unable to read env files" in body
+        for kind, body in fake_st.events
+    )
 
     assert env_editor._env_preview_value("PLAIN", "value") == "value"
 
@@ -2535,8 +2857,14 @@ def test_env_editor_refresh_share_dir_warning_paths(tmp_path, monkeypatch):
     about_agilab._refresh_share_dir(env, "\0bad")
     about_agilab._refresh_share_dir(env, "share")
 
-    assert any(kind == "warning" and "AGI_CLUSTER_SHARE" in body for kind, body in fake_st.events)
-    assert any(kind == "warning" and "data directory is still unreachable" in body for kind, body in fake_st.events)
+    assert any(
+        kind == "warning" and "AGI_CLUSTER_SHARE" in body
+        for kind, body in fake_st.events
+    )
+    assert any(
+        kind == "warning" and "data directory is still unreachable" in body
+        for kind, body in fake_st.events
+    )
 
 
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
@@ -2556,7 +2884,10 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     ]
     assert any("flight_telemetry_project" in detail for _, detail in content["steps"])
     assert any("generated files" in item for item in content["success_criteria"])
-    assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
+    assert any(
+        "cluster, benchmark, and service options off" in detail
+        for _, detail in content["steps"]
+    )
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
@@ -2703,19 +3034,31 @@ def test_about_sidebar_hardware_helpers_parse_cluster_endpoints():
     assert layout._scheduler_host("192.168.20.111:8786") == "192.168.20.111"
     assert layout._scheduler_host("[2001:db8::1]:8786") == "2001:db8::1"
     assert layout._scheduler_host("agi@192.168.20.130") == "agi@192.168.20.130"
-    assert layout._scheduler_display("tcp://scheduler.example:8786", cluster_enabled=True) == "scheduler.example:8786"
-    assert layout._scheduler_display("192.168.20.111", cluster_enabled=True) == "192.168.20.111:8786"
-    assert layout._scheduler_display("agi@192.168.20.130", cluster_enabled=True) == "192.168.20.130:8786"
+    assert (
+        layout._scheduler_display("tcp://scheduler.example:8786", cluster_enabled=True)
+        == "scheduler.example:8786"
+    )
+    assert (
+        layout._scheduler_display("192.168.20.111", cluster_enabled=True)
+        == "192.168.20.111:8786"
+    )
+    assert (
+        layout._scheduler_display("agi@192.168.20.130", cluster_enabled=True)
+        == "192.168.20.130:8786"
+    )
     assert layout._parse_hardware_probe_output("CPU=AMD EPYC\nRAM=128 GB\n") == {
         "CPU": "AMD EPYC",
         "RAM": "128 GB",
         "GPU": "Not detected",
         "NPU": "Not detected",
     }
-    assert layout._lspci_gpu_summary(
-        "65:00.0 VGA compatible controller: NVIDIA Corporation GA102 [GeForce RTX 3080] (rev a1)\n"
-        "65:00.1 Audio device: NVIDIA Corporation GA102 High Definition Audio Controller (rev a1)\n"
-    ) == "RTX 3080"
+    assert (
+        layout._lspci_gpu_summary(
+            "65:00.0 VGA compatible controller: NVIDIA Corporation GA102 [GeForce RTX 3080] (rev a1)\n"
+            "65:00.1 Audio device: NVIDIA Corporation GA102 High Definition Audio Controller (rev a1)\n"
+        )
+        == "RTX 3080"
+    )
     assert "lspci" in layout._remote_hardware_probe_command()
 
 
@@ -2724,19 +3067,31 @@ def test_about_layout_hardware_cluster_helper_edge_branches(tmp_path, monkeypatc
 
     assert layout._format_bytes(9 * 1024**3) == "9.0 GB"
     assert layout._format_bytes(16 * 1024**3) == "16 GB"
-    assert layout._cluster_mode_label({"cluster_enabled": False, "pool": True, "cython": True}) == (
-        "local (pool, cython available)"
+    assert layout._cluster_mode_label(
+        {"cluster_enabled": False, "pool": True, "cython": True}
+    ) == ("local (pool, cython available)")
+    assert layout._cluster_mode_label(
+        {"cluster_enabled": True, "pool": True, "rapids": "yes"}
+    ) == ("enabled (dask, pool, rapids)")
+    assert (
+        layout._env_cluster_share(
+            SimpleNamespace(envars={"AGI_CLUSTER_SHARE": "/mnt/share"})
+        )
+        == "/mnt/share"
     )
-    assert layout._cluster_mode_label({"cluster_enabled": True, "pool": True, "rapids": "yes"}) == (
-        "enabled (dask, pool, rapids)"
-    )
-    assert layout._env_cluster_share(SimpleNamespace(envars={"AGI_CLUSTER_SHARE": "/mnt/share"})) == "/mnt/share"
     assert layout._env_cluster_share(SimpleNamespace()) == ""
     assert layout._scheduler_display("", cluster_enabled=True) == "not configured"
     assert layout._scheduler_display("", cluster_enabled=False) == "local process"
-    assert layout._scheduler_display("[2001:db8::2]:9999", cluster_enabled=True) == "[2001:db8::2]:9999"
-    assert layout._scheduler_display("2001:db8::2", cluster_enabled=False) == "2001:db8::2"
-    monkeypatch.setattr(layout, "_local_node_aliases", lambda: frozenset({"localhost", "worker"}))
+    assert (
+        layout._scheduler_display("[2001:db8::2]:9999", cluster_enabled=True)
+        == "[2001:db8::2]:9999"
+    )
+    assert (
+        layout._scheduler_display("2001:db8::2", cluster_enabled=False) == "2001:db8::2"
+    )
+    monkeypatch.setattr(
+        layout, "_local_node_aliases", lambda: frozenset({"localhost", "worker"})
+    )
     assert layout._is_local_node("agi@worker") is True
     assert layout._is_explicit_local_node("local") is True
     assert layout._ssh_target("worker", "agi") == "agi@worker"
@@ -2744,7 +3099,9 @@ def test_about_layout_hardware_cluster_helper_edge_branches(tmp_path, monkeypatc
 
     assert layout._hardware_summary_from_mapping("bad") is None
     assert layout._hardware_summary_from_mapping({"hardware": "bad"}) is None
-    assert layout._hardware_summary_from_mapping({"hardware": {"cpu": "EPYC", "memory": "1 TB"}}) == {
+    assert layout._hardware_summary_from_mapping(
+        {"hardware": {"cpu": "EPYC", "memory": "1 TB"}}
+    ) == {
         "CPU": "EPYC",
         "RAM": "1 TB",
         "GPU": "Not detected",
@@ -2757,7 +3114,11 @@ def test_about_layout_hardware_cluster_helper_edge_branches(tmp_path, monkeypatc
         "GPU": "unreachable",
         "NPU": "unreachable",
     }
-    monkeypatch.setattr(layout, "_remote_hardware_probe", lambda *_args: "CPU=AMD cores: 8\nRAM=64 GB\nGPU=A100\n")
+    monkeypatch.setattr(
+        layout,
+        "_remote_hardware_probe",
+        lambda *_args: "CPU=AMD cores: 8\nRAM=64 GB\nGPU=A100\n",
+    )
     assert layout._node_hardware_summary("remote", user="agi")["GPU"] == "A100"
     assert layout._parse_cpu_cores("16 vCPUs") == 16
     assert layout._parse_cpu_cores("no count") is None
@@ -2773,29 +3134,57 @@ def test_about_layout_hardware_cluster_helper_edge_branches(tmp_path, monkeypatc
     assert layout._worker_issue_label("sshfs-missing") == "SSHFS missing"
     assert layout._worker_issue_label("uv-missing") == "uv missing"
     assert layout._worker_issue_label("python-missing") == "Python missing"
-    assert layout._format_worker_issue_counts({"unreachable": 1, "SSH auth needed": 2}) == (
-        "2 workers SSH auth needed + 1 worker unreachable"
+    assert layout._format_worker_issue_counts(
+        {"unreachable": 1, "SSH auth needed": 2}
+    ) == ("2 workers SSH auth needed + 1 worker unreachable")
+    assert (
+        layout._append_worker_issue_suffix("unknown", {"unreachable": 2})
+        == "2 workers unreachable"
     )
-    assert layout._append_worker_issue_suffix("unknown", {"unreachable": 2}) == "2 workers unreachable"
-    assert layout._append_worker_issue_suffix("64 GB", {"SSH auth needed": 1}) == "64 GB + 1 worker SSH auth needed"
+    assert (
+        layout._append_worker_issue_suffix("64 GB", {"SSH auth needed": 1})
+        == "64 GB + 1 worker SSH auth needed"
+    )
 
-    assert layout._summary_unreachable(
-        {"CPU": "unreachable", "RAM": "unreachable", "GPU": "unreachable", "NPU": "unreachable"}
-    ) is True
+    assert (
+        layout._summary_unreachable(
+            {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        )
+        is True
+    )
     assert layout._node_identity("agi@Worker:8786") == "worker"
     assert layout._workers_items("") == []
     assert layout._workers_items("worker-a") == [("worker-a", 1)]
-    assert layout._workers_items('{"worker-b": 2, "worker-a": 1}') == [("worker-a", 1), ("worker-b", 2)]
-    assert layout._workers_items(["worker-b", "", "worker-a"]) == [("worker-a", 1), ("worker-b", 1)]
+    assert layout._workers_items('{"worker-b": 2, "worker-a": 1}') == [
+        ("worker-a", 1),
+        ("worker-b", 2),
+    ]
+    assert layout._workers_items(["worker-b", "", "worker-a"]) == [
+        ("worker-a", 1),
+        ("worker-b", 1),
+    ]
 
     assert layout._env_home_path(SimpleNamespace()) is None
-    assert layout._default_lan_discovery_cache_path(tmp_path) == tmp_path / ".agilab" / "lan_nodes.json"
+    assert (
+        layout._default_lan_discovery_cache_path(tmp_path)
+        == tmp_path / ".agilab" / "lan_nodes.json"
+    )
     assert layout._file_content_signature(None) == ("", "")
     assert layout._payload_signature({"x": object()})
     assert layout._active_app_settings_file_path(SimpleNamespace()) is None
     bad_settings = tmp_path / "bad.toml"
     bad_settings.write_text("[bad", encoding="utf-8")
-    assert layout._active_app_settings_from_file(SimpleNamespace(app_settings_file=bad_settings)) == {}
+    assert (
+        layout._active_app_settings_from_file(
+            SimpleNamespace(app_settings_file=bad_settings)
+        )
+        == {}
+    )
 
     cache_path = tmp_path / "lan_nodes.json"
     cache_path.write_text(
@@ -2804,14 +3193,22 @@ def test_about_layout_hardware_cluster_helper_edge_branches(tmp_path, monkeypatc
                 "nodes": [
                     "bad",
                     {"host": "", "status": "ready"},
-                    {"host": "worker-a", "status": "ssh-auth-needed", "errors": ["denied"], "cpu": "EPYC"},
+                    {
+                        "host": "worker-a",
+                        "status": "ssh-auth-needed",
+                        "errors": ["denied"],
+                        "cpu": "EPYC",
+                    },
                 ]
             }
         ),
         encoding="utf-8",
     )
     layout._lan_discovery_hardware_inventory.cache_clear()
-    assert layout._lan_discovery_hardware_inventory(str(cache_path))["worker-a"]["_error"] == "denied"
+    assert (
+        layout._lan_discovery_hardware_inventory(str(cache_path))["worker-a"]["_error"]
+        == "denied"
+    )
 
 
 def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
@@ -2824,10 +3221,14 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
     monkeypatch.setattr(
         importlib_metadata,
         "version",
-        lambda _pkg: (_ for _ in ()).throw(importlib_metadata.PackageNotFoundError("missing")),
+        lambda _pkg: (_ for _ in ()).throw(
+            importlib_metadata.PackageNotFoundError("missing")
+        ),
     )
     layout.render_package_versions()
-    assert any("not installed" in body for kind, body in fake_st.events if kind == "write")
+    assert any(
+        "not installed" in body for kind, body in fake_st.events if kind == "write"
+    )
 
     real_import = builtins.__import__
 
@@ -2838,7 +3239,11 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", _import_without_psutil)
     monkeypatch.setattr(layout.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(layout, "_command_output", lambda command: "9663676416" if command[:2] == ("sysctl", "-n") else "")
+    monkeypatch.setattr(
+        layout,
+        "_command_output",
+        lambda command: "9663676416" if command[:2] == ("sysctl", "-n") else "",
+    )
     assert layout._memory_summary() == "9.0 GB"
 
     monkeypatch.setattr(layout.platform, "system", lambda: "Linux")
@@ -2861,7 +3266,13 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
         def cpu_count(logical=False):
             raise RuntimeError("blocked")
 
-    monkeypatch.setattr(builtins, "__import__", lambda name, *args, **kwargs: BrokenPsutil if name == "psutil" else real_import(name, *args, **kwargs))
+    monkeypatch.setattr(
+        builtins,
+        "__import__",
+        lambda name, *args, **kwargs: BrokenPsutil
+        if name == "psutil"
+        else real_import(name, *args, **kwargs),
+    )
     assert layout._memory_summary() == "Unknown RAM"
     assert layout._physical_cpu_count() is None
 
@@ -2877,7 +3288,9 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
     monkeypatch.setattr(
         layout,
         "_command_output",
-        lambda command: "NVIDIA A100, 108\nNVIDIA L4\n" if command and command[0] == "nvidia-smi" else "",
+        lambda command: "NVIDIA A100, 108\nNVIDIA L4\n"
+        if command and command[0] == "nvidia-smi"
+        else "",
     )
     assert layout._nvidia_gpu_summary() == "2 GPUs: NVIDIA A100 (108 SMs); NVIDIA L4"
     monkeypatch.setattr(layout, "_command_output", lambda _command: "\n")
@@ -2927,20 +3340,42 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
             "workers_data_path": "/mnt/agilab",
         }
     }
-    about_agilab._about_layout.render_execution_context_panel(SimpleNamespace(app="flight_telemetry_project"))
+    about_agilab._about_layout.render_execution_context_panel(
+        SimpleNamespace(app="flight_telemetry_project")
+    )
     about_agilab._about_layout.render_footer()
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
-    assert any("Welcome to AGILAB" in body for kind, body in fake_st.events if kind == "info")
-    assert any("agilab-next" in body for kind, body in fake_st.events if kind == "markdown")
+    assert any(
+        "Welcome to AGILAB" in body for kind, body in fake_st.events if kind == "info"
+    )
+    assert any(
+        "agilab-next" in body for kind, body in fake_st.events if kind == "markdown"
+    )
     assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
-    assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert not any("agilab-execution-context" in body for kind, body in fake_st.events if kind == "markdown")
-    assert not any("Execution environment" in body for kind, body in fake_st.events if kind == "markdown")
-    assert not any("ORCHESTRATE context" in body for kind, body in fake_st.events if kind == "markdown")
-    assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
+    assert not any(
+        "OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption"
+    )
+    assert not any(
+        "agilab-execution-context" in body
+        for kind, body in fake_st.events
+        if kind == "markdown"
+    )
+    assert not any(
+        "Execution environment" in body
+        for kind, body in fake_st.events
+        if kind == "markdown"
+    )
+    assert not any(
+        "ORCHESTRATE context" in body
+        for kind, body in fake_st.events
+        if kind == "markdown"
+    )
+    assert not any(
+        "2020-" in body for kind, body in fake_st.events if kind == "markdown"
+    )
 
 
 def test_about_layout_hardware_and_state_edge_branches(tmp_path, monkeypatch):
@@ -2962,19 +3397,35 @@ gpu = "A100"
 """.strip(),
         encoding="utf-8",
     )
-    assert layout._active_app_settings_from_file(SimpleNamespace(app_settings_file=object())) == {}
-    assert layout._active_app_settings_from_file(SimpleNamespace(app_settings_file=tmp_path / "missing.toml")) == {}
-    assert layout._active_app_settings_from_file(SimpleNamespace(app_settings_file=settings_file))["cluster"][
-        "scheduler"
-    ] == "scheduler"
+    assert (
+        layout._active_app_settings_from_file(
+            SimpleNamespace(app_settings_file=object())
+        )
+        == {}
+    )
+    assert (
+        layout._active_app_settings_from_file(
+            SimpleNamespace(app_settings_file=tmp_path / "missing.toml")
+        )
+        == {}
+    )
+    assert (
+        layout._active_app_settings_from_file(
+            SimpleNamespace(app_settings_file=settings_file)
+        )["cluster"]["scheduler"]
+        == "scheduler"
+    )
     fake_st.session_state["app_settings"] = {"cluster": {"pool": "yes"}}
-    assert layout._active_app_settings(SimpleNamespace(app_settings_file=tmp_path / "missing.toml")) == {
-        "cluster": {"pool": "yes"}
-    }
+    assert layout._active_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "missing.toml")
+    ) == {"cluster": {"pool": "yes"}}
     assert layout._cluster_params_from_settings({"cluster": "bad"}) == {}
     assert layout._format_bool_flag("off") is False
     assert layout._cluster_mode_label({}) == "local"
-    assert layout._env_cluster_share(SimpleNamespace(AGI_CLUSTER_SHARE=" /mnt/share ")) == "/mnt/share"
+    assert (
+        layout._env_cluster_share(SimpleNamespace(AGI_CLUSTER_SHARE=" /mnt/share "))
+        == "/mnt/share"
+    )
 
     monkeypatch.setattr(layout.socket, "gethostname", lambda: "host-a")
     monkeypatch.setattr(layout.socket, "getfqdn", lambda: "host-a.example")
@@ -2982,7 +3433,10 @@ gpu = "A100"
     def fake_getaddrinfo(name, _port):
         if name == "host-a.example":
             raise OSError("dns failed")
-        return [(None, None, None, None, ("192.168.1.10", 0)), (None, None, None, None, ())]
+        return [
+            (None, None, None, None, ("192.168.1.10", 0)),
+            (None, None, None, None, ()),
+        ]
 
     monkeypatch.setattr(layout.socket, "getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
@@ -2999,7 +3453,10 @@ gpu = "A100"
     layout._local_node_aliases.cache_clear()
     aliases = layout._local_node_aliases()
     assert {"host-a", "192.168.1.10", "10.0.0.5", "10.0.0.6"} <= aliases
-    assert layout._scheduler_display("user@[2001:db8::5]", cluster_enabled=True) == "[2001:db8::5]:8786"
+    assert (
+        layout._scheduler_display("user@[2001:db8::5]", cluster_enabled=True)
+        == "[2001:db8::5]:8786"
+    )
     assert layout._scheduler_display(":", cluster_enabled=True) == "not configured"
 
     remote_commands: list[tuple[str, ...]] = []
@@ -3028,8 +3485,15 @@ gpu = "A100"
         }
     )
     assert inventory["worker-a"]["CPU"] == "Worker CPU; cores: 4"
-    assert layout._hardware_summary_has_detected_resources({"CPU": "Unknown CPU", "RAM": "Unknown RAM"}) is False
-    assert layout._hardware_summary_has_detected_resources({"CPU": "Worker CPU"}) is True
+    assert (
+        layout._hardware_summary_has_detected_resources(
+            {"CPU": "Unknown CPU", "RAM": "Unknown RAM"}
+        )
+        is False
+    )
+    assert (
+        layout._hardware_summary_has_detected_resources({"CPU": "Worker CPU"}) is True
+    )
 
     class BadPath:
         def __fspath__(self):
@@ -3039,7 +3503,10 @@ gpu = "A100"
             return "bad-path"
 
     assert layout._env_home_path(SimpleNamespace(home_abs=BadPath())) is None
-    assert layout._default_lan_discovery_cache_path(BadPath()) == layout.Path.home() / ".agilab" / "lan_nodes.json"
+    assert (
+        layout._default_lan_discovery_cache_path(BadPath())
+        == layout.Path.home() / ".agilab" / "lan_nodes.json"
+    )
 
     class BadExpandablePath:
         def expanduser(self):
@@ -3052,7 +3519,12 @@ gpu = "A100"
     cyclic: list[object] = []
     cyclic.append(cyclic)
     assert layout._payload_signature(cyclic)
-    assert layout._active_app_settings_file_path(SimpleNamespace(app_settings_file=BadPath())) is None
+    assert (
+        layout._active_app_settings_file_path(
+            SimpleNamespace(app_settings_file=BadPath())
+        )
+        is None
+    )
 
     monkeypatch.setattr(layout, "st", SimpleNamespace())
     layout._refresh_cluster_probe_caches_if_needed(SimpleNamespace(app="demo"), {})
@@ -3077,7 +3549,10 @@ gpu = "A100"
         encoding="utf-8",
     )
     layout._lan_discovery_hardware_inventory.cache_clear()
-    assert layout._lan_discovery_hardware_inventory(str(cache_path))["worker-a"]["_status"] == "sshfs-missing"
+    assert (
+        layout._lan_discovery_hardware_inventory(str(cache_path))["worker-a"]["_status"]
+        == "sshfs-missing"
+    )
     bad_cache = tmp_path / "bad-lan.json"
     bad_cache.write_text('{"nodes": {}}', encoding="utf-8")
     layout._lan_discovery_hardware_inventory.cache_clear()
@@ -3100,13 +3575,16 @@ gpu = "A100"
             "NPU": "Local NPU",
         },
     )
-    assert layout._cluster_resource_totals(
-        cluster_enabled=True,
-        scheduler="",
-        worker_items=[],
-        user="",
-        ssh_key_path="",
-    )["CPU"] == "not configured"
+    assert (
+        layout._cluster_resource_totals(
+            cluster_enabled=True,
+            scheduler="",
+            worker_items=[],
+            user="",
+            ssh_key_path="",
+        )["CPU"]
+        == "not configured"
+    )
     totals = layout._cluster_resource_totals(
         cluster_enabled=True,
         scheduler="scheduler",
@@ -3114,15 +3592,26 @@ gpu = "A100"
         user="agi",
         ssh_key_path="",
         hardware_inventory={
-            "worker-a": {"CPU": "Worker CPU; cores: 4", "RAM": "32 GB", "GPU": "A100", "NPU": "NPU"},
+            "worker-a": {
+                "CPU": "Worker CPU; cores: 4",
+                "RAM": "32 GB",
+                "GPU": "A100",
+                "NPU": "NPU",
+            },
             "worker-b": {"_status": "reverse-ssh-needed"},
         },
     )
-    assert totals["CPU"] == "4 cores + 1 worker reverse SSH needed + 1 worker unreachable"
+    assert (
+        totals["CPU"] == "4 cores + 1 worker reverse SSH needed + 1 worker unreachable"
+    )
     assert totals["RAM"] == "32 GB + 1 worker reverse SSH needed + 1 worker unreachable"
 
     monkeypatch.setattr(layout, "_command_output", original_command_output)
-    monkeypatch.setattr(layout.subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="bad"))
+    monkeypatch.setattr(
+        layout.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stdout="bad"),
+    )
     layout._command_output.cache_clear()
     assert layout._command_output(("false",)) == ""
 
@@ -3156,13 +3645,16 @@ gpu = "A100"
     )
     assert layout._mac_gpu_summary() == "2 GPUs: Apple M3 (10 cores); External GPU"
     assert layout._nvidia_gpu_summary() == "RTX 6000"
-    assert layout._lspci_gpu_summary("00:00.0 VGA compatible controller: NVIDIA Corporation RTX 5000 (rev a1)") == (
-        "RTX 5000"
-    )
     assert layout._lspci_gpu_summary(
-        "00:00.0 VGA compatible controller: NVIDIA Corporation [RTX 6000]\n"
-        "00:01.0 3D controller: NVIDIA Corporation [L4]"
-    ) == "2 GPUs: RTX 6000; L4"
+        "00:00.0 VGA compatible controller: NVIDIA Corporation RTX 5000 (rev a1)"
+    ) == ("RTX 5000")
+    assert (
+        layout._lspci_gpu_summary(
+            "00:00.0 VGA compatible controller: NVIDIA Corporation [RTX 6000]\n"
+            "00:01.0 3D controller: NVIDIA Corporation [L4]"
+        )
+        == "2 GPUs: RTX 6000; L4"
+    )
     assert layout._npu_summary("Linux", "Apple M3") == "Not detected"
 
 
@@ -3172,7 +3664,9 @@ def test_landing_page_keeps_about_header_before_first_proof_only(tmp_path, monke
     env = SimpleNamespace(app="flight_telemetry_project")
 
     monkeypatch.setattr(about_agilab, "st", fake_st)
-    monkeypatch.setattr(about_agilab, "quick_logo", lambda _path: rendered.append(("logo", "")))
+    monkeypatch.setattr(
+        about_agilab, "quick_logo", lambda _path: rendered.append(("logo", ""))
+    )
     monkeypatch.setattr(
         about_agilab,
         "render_newcomer_first_proof",
@@ -3215,7 +3709,10 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert "Reproducible AI engineering, from project to proof." in about_menu["About"]
     assert "Support: open a GitHub issue" in about_menu["About"]
     assert "Data Science in Engineering" not in about_menu["About"]
-    assert about_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
+    assert (
+        about_menu["Get help"]
+        == "https://thalesgroup.github.io/agilab/agilab-help.html"
+    )
 
 
 def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeypatch):
@@ -3241,9 +3738,15 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
         }
     }
     rendered_versions: list[str] = []
-    monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
+    monkeypatch.setattr(
+        about_agilab, "render_sidebar_version", rendered_versions.append
+    )
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
-    monkeypatch.setattr(about_agilab, "docs_menu_url", lambda _html_file: "https://docs.example/agilab-help.html")
+    monkeypatch.setattr(
+        about_agilab,
+        "docs_menu_url",
+        lambda _html_file: "https://docs.example/agilab-help.html",
+    )
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
     env = SimpleNamespace(
         app="flight_telemetry_project",
@@ -3262,7 +3765,9 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    sidebar_markdowns = [body for kind, body in fake_st.events if kind == "sidebar.markdown"]
+    sidebar_markdowns = [
+        body for kind, body in fake_st.events if kind == "sidebar.markdown"
+    ]
     sidebar_markup = "\n".join(sidebar_markdowns)
     assert "[Settings](/SETTINGS)" in sidebar_markdowns
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
@@ -3272,7 +3777,9 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert "Active project" not in sidebar_markup
     assert "Scheduler" not in sidebar_markup
     assert "Worker 192.168.20.130" not in sidebar_markup
-    assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert not any(
+        "OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption"
+    )
 
 
 def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):
@@ -3284,7 +3791,9 @@ def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):
         lambda _env: fake_st.events.append(("env_editor", "rendered")),
     )
     rendered_versions: list[str] = []
-    monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
+    monkeypatch.setattr(
+        about_agilab, "render_sidebar_version", rendered_versions.append
+    )
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     env = SimpleNamespace(
         app="flight_telemetry_project",
@@ -3304,7 +3813,9 @@ def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):
     assert rendered_versions == ["2026.4.28"]
 
 
-def test_navigation_page_file_runner_executes_guarded_page_main(tmp_path, monkeypatch) -> None:
+def test_navigation_page_file_runner_executes_guarded_page_main(
+    tmp_path, monkeypatch
+) -> None:
     marker = tmp_path / "page-ran.txt"
     page_file = tmp_path / "sample_page.py"
     page_file.write_text(
@@ -3327,7 +3838,9 @@ def test_navigation_page_file_runner_executes_guarded_page_main(tmp_path, monkey
     assert marker.read_text(encoding="utf-8") == "ok"
 
 
-def test_active_app_cluster_information_prefers_active_app_settings_file(tmp_path, monkeypatch):
+def test_active_app_cluster_information_prefers_active_app_settings_file(
+    tmp_path, monkeypatch
+):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab._about_layout, "st", fake_st)
     monkeypatch.setattr(
@@ -3363,7 +3876,9 @@ workers_data_path = "/fresh/share"
 
     lines = dict(
         about_agilab._about_layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_telemetry_project", app_settings_file=settings_file)
+            SimpleNamespace(
+                app="flight_telemetry_project", app_settings_file=settings_file
+            )
         )
     )
 
@@ -3378,7 +3893,9 @@ workers_data_path = "/fresh/share"
     assert not any(label.startswith("Worker ") for label, _value in lines.items())
 
 
-def test_active_app_cluster_information_hides_cluster_share_when_cluster_disabled(monkeypatch):
+def test_active_app_cluster_information_hides_cluster_share_when_cluster_disabled(
+    monkeypatch,
+):
     layout = about_agilab._about_layout
     fake_st = _FakeStreamlit()
     fake_st.session_state["app_settings"] = {
@@ -3454,7 +3971,9 @@ def test_active_app_cluster_information_counts_duplicate_scheduler_once(monkeypa
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
-def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(monkeypatch, tmp_path):
+def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(
+    monkeypatch, tmp_path
+):
     layout = about_agilab._about_layout
     cache_path = tmp_path / ".agilab" / "lan_nodes.json"
     cache_path.parent.mkdir(parents=True)
@@ -3478,7 +3997,9 @@ def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(m
 
     def fake_remote_probe(host: str, _user: str, _ssh_key_path: str) -> str:
         if host != "192.168.20.15":
-            raise AssertionError(f"local scheduler should not be probed over SSH: {host}")
+            raise AssertionError(
+                f"local scheduler should not be probed over SSH: {host}"
+            )
         return "CPU=Intel Core i9; cores: 36\nRAM=251 GB\nGPU=\nNPU=\n"
 
     fake_st = _FakeStreamlit()
@@ -3510,7 +4031,11 @@ def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(m
     monkeypatch.setattr(layout, "_remote_hardware_probe", fake_remote_probe)
     layout._lan_discovery_hardware_inventory.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
+    lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_telemetry_project")
+        )
+    )
 
     assert lines["CPU"] == "52 cores"
     assert lines["RAM"] == "299 GB"
@@ -3518,7 +4043,9 @@ def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(m
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
-def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknown(monkeypatch):
+def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknown(
+    monkeypatch,
+):
     def fake_hardware(host, **_kwargs):
         if about_agilab._about_layout._scheduler_host(host) == "192.168.20.130":
             return {
@@ -3534,7 +4061,9 @@ def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknow
             "NPU": "Apple Neural Engine (16 cores)",
         }
 
-    monkeypatch.setattr(about_agilab._about_layout, "_node_hardware_summary", fake_hardware)
+    monkeypatch.setattr(
+        about_agilab._about_layout, "_node_hardware_summary", fake_hardware
+    )
     fake_st = _FakeStreamlit()
     fake_st.session_state["app_settings"] = {
         "cluster": {
@@ -3558,7 +4087,9 @@ def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknow
     assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker unreachable"
 
 
-def test_active_app_cluster_information_reports_worker_ssh_auth_needed(monkeypatch, tmp_path):
+def test_active_app_cluster_information_reports_worker_ssh_auth_needed(
+    monkeypatch, tmp_path
+):
     layout = about_agilab._about_layout
     cache_path = tmp_path / ".agilab" / "lan_nodes.json"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3607,7 +4138,11 @@ def test_active_app_cluster_information_reports_worker_ssh_auth_needed(monkeypat
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
+    lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_telemetry_project")
+        )
+    )
 
     assert lines["CPU"] == "16 cores + 1 worker SSH auth needed"
     assert lines["RAM"] == "48 GB + 1 worker SSH auth needed"
@@ -3615,7 +4150,9 @@ def test_active_app_cluster_information_reports_worker_ssh_auth_needed(monkeypat
     assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker SSH auth needed"
 
 
-def test_active_app_cluster_information_does_not_overstate_stale_no_ssh_port_cache(monkeypatch, tmp_path):
+def test_active_app_cluster_information_does_not_overstate_stale_no_ssh_port_cache(
+    monkeypatch, tmp_path
+):
     layout = about_agilab._about_layout
     cache_path = tmp_path / ".agilab" / "lan_nodes.json"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3664,7 +4201,11 @@ def test_active_app_cluster_information_does_not_overstate_stale_no_ssh_port_cac
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
+    lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_telemetry_project")
+        )
+    )
 
     assert lines["CPU"] == "16 cores + 1 worker unreachable"
     assert lines["RAM"] == "48 GB + 1 worker unreachable"
@@ -3672,7 +4213,9 @@ def test_active_app_cluster_information_does_not_overstate_stale_no_ssh_port_cac
     assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker unreachable"
 
 
-def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_worker(monkeypatch, tmp_path):
+def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_worker(
+    monkeypatch, tmp_path
+):
     def fake_hardware(host, **_kwargs):
         if about_agilab._about_layout._scheduler_host(host) == "192.168.20.130":
             return {
@@ -3706,7 +4249,9 @@ def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_wor
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(about_agilab._about_layout, "_node_hardware_summary", fake_hardware)
+    monkeypatch.setattr(
+        about_agilab._about_layout, "_node_hardware_summary", fake_hardware
+    )
     original_inventory = about_agilab._about_layout._lan_discovery_hardware_inventory
     monkeypatch.setattr(
         about_agilab._about_layout,
@@ -3736,7 +4281,9 @@ def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_wor
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
-def test_active_app_cluster_information_reads_lan_inventory_from_env_home(monkeypatch, tmp_path):
+def test_active_app_cluster_information_reads_lan_inventory_from_env_home(
+    monkeypatch, tmp_path
+):
     layout = about_agilab._about_layout
     env_home = tmp_path / "agilab-home"
     wrong_home = tmp_path / "process-home"
@@ -3802,7 +4349,9 @@ def test_active_app_cluster_information_reads_lan_inventory_from_env_home(monkey
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
-def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypatch, tmp_path):
+def test_active_app_cluster_information_refreshes_changed_lan_inventory(
+    monkeypatch, tmp_path
+):
     layout = about_agilab._about_layout
     cache_path = tmp_path / ".agilab" / "lan_nodes.json"
 
@@ -3861,7 +4410,11 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    first_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
+    first_lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_telemetry_project")
+        )
+    )
 
     write_lan_cache(
         cpu="AMD EPYC; cores: 64",
@@ -3869,7 +4422,11 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
         gpu="NVIDIA B200 (132 SMs)",
         npu="Not detected",
     )
-    second_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
+    second_lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_telemetry_project")
+        )
+    )
 
     assert first_lines["CPU"] == "48 cores"
     assert first_lines["RAM"] == "176 GB"
@@ -3884,14 +4441,18 @@ def test_render_execution_context_panel_is_legacy_noop(monkeypatch):
     fake_st = _FakeStreamlit(button_values={"Refresh cluster info": True})
     cleared: list[bool] = []
     monkeypatch.setattr(layout, "st", fake_st)
-    monkeypatch.setattr(layout, "_clear_cluster_probe_caches", lambda: cleared.append(True))
+    monkeypatch.setattr(
+        layout, "_clear_cluster_probe_caches", lambda: cleared.append(True)
+    )
     monkeypatch.setattr(
         layout,
         "active_app_cluster_information_lines",
         lambda _env: [("Active project", "flight_telemetry_project")],
     )
 
-    layout.render_execution_context_panel(SimpleNamespace(app="flight_telemetry_project"))
+    layout.render_execution_context_panel(
+        SimpleNamespace(app="flight_telemetry_project")
+    )
 
     assert cleared == []
     assert fake_st.events == []
@@ -3916,7 +4477,10 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "agilab-hero__target-img" in body
     assert "data:image/svg+xml;base64," in body
     assert "Digital twin assisted generalization map" in body
-    assert "bias variance controls, underfit overfit symptoms, and train test diagnosis" in body
+    assert (
+        "bias variance controls, underfit overfit symptoms, and train test diagnosis"
+        in body
+    )
     assert '<g transform="translate(54 111)">' not in body
     assert "<svg viewBox" not in body
     assert "Thales open-source workbench" not in body
@@ -3986,7 +4550,10 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
     assert state["compatibility_status"] == "validated"
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight_telemetry" / "run_manifest.json"
+    assert (
+        state["run_manifest_path"]
+        == tmp_path / "log" / "execute" / "flight_telemetry" / "run_manifest.json"
+    )
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
@@ -4063,8 +4630,12 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
-    (output_dir / "AGI_install_flight_telemetry.py").write_text("# helper", encoding="utf-8")
-    (output_dir / "AGI_run_flight_telemetry.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_install_flight_telemetry.py").write_text(
+        "# helper", encoding="utf-8"
+    )
+    (output_dir / "AGI_run_flight_telemetry.py").write_text(
+        "# helper", encoding="utf-8"
+    )
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
@@ -4080,7 +4651,10 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
     assert state["remediation_status"] == "missing_manifest_with_outputs"
-    assert state["next_step"] == "Generate `run_manifest.json` with the first-proof JSON command."
+    assert (
+        state["next_step"]
+        == "Generate `run_manifest.json` with the first-proof JSON command."
+    )
 
 
 def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
@@ -4229,8 +4803,12 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         if fake_st.events[index][0] == "caption"
         and "Opens ANALYSIS on `view_maps`" in fake_st.events[index][1]
     )
-    notebook_option = _event_index(fake_st.events, "expander", "Notebook-first option:False")
-    notebook_start = _event_index(fake_st.events, "link_button", "Create from built-in notebook")
+    notebook_option = _event_index(
+        fake_st.events, "expander", "Notebook-first option:False"
+    )
+    notebook_start = _event_index(
+        fake_st.events, "link_button", "Create from built-in notebook"
+    )
     notebook_hint = _event_index(
         fake_st.events,
         "caption",
@@ -4265,15 +4843,23 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[1]
     assert "Download pipeline notebook" in pre_detail_markdown[1]
     assert "lab_stages.ipynb" in pre_detail_markdown[1]
-    assert not [body for kind, body in pre_details if kind == "columns"]
+    assert [body for kind, body in pre_details if kind == "columns"] == ["3"]
+    first_action_column = _event_index(fake_st.events, "enter_column", "0")
+    second_action_column = _event_index(fake_st.events, "enter_column", "1")
+    third_action_column = _event_index(fake_st.events, "enter_column", "2")
     caption_bodies = [body for kind, body in pre_details if kind == "caption"]
     assert len(caption_bodies) == 11
     assert caption_bodies[0] == (
         "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence."
     )
-    assert caption_bodies[1] == "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`."
+    assert (
+        caption_bodies[1]
+        == "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`."
+    )
     assert caption_bodies[2] == "Runs ORCHESTRATE `EXECUTE` for the same demo."
-    assert caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
+    assert (
+        caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
+    )
     assert caption_bodies[4] == "Notebook import: included sample"
     assert caption_bodies[5] == (
         "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
@@ -4281,7 +4867,9 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert caption_bodies[6] == (
         "Then click PROJECT `Create`; it builds `flight_telemetry_from_notebook_project`."
     )
-    assert caption_bodies[7] == "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+    assert (
+        caption_bodies[7] == "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+    )
     assert caption_bodies[8] == (
         "Use this lane when the starting asset is a notebook and the target is a reusable app with a no-lock-in handoff."
     )
@@ -4299,14 +4887,16 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert not [body for kind, body in pre_details if kind == "download_button"]
     assert not [body for kind, body in pre_details if kind == "page_link"]
     assert not any(
-        "agilab-proof" in body
-        for kind, body in fake_st.events
-        if kind == "markdown"
+        "agilab-proof" in body for kind, body in fake_st.events if kind == "markdown"
     )
     assert ("button", "1. Select demo") not in fake_st.events
     assert ("link_button", "1. Select demo") not in fake_st.events
-    assert wizard < install_button < install_hint < run_button < run_hint < open_analysis
-    assert open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
+    assert wizard < first_action_column < install_button < install_hint
+    assert install_hint < second_action_column < run_button < run_hint
+    assert run_hint < third_action_column < open_analysis
+    assert (
+        open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
+    )
     assert notebook_hint < notebook_full_proof < proof_details
     assert proof_details < progress < validated_path
 
@@ -4431,7 +5021,10 @@ def test_first_proof_handoff_bundle_tracks_core_evidence_and_commands(tmp_path):
     assert missing_rows[1]["status"] == "Export from WORKFLOW"
     assert "compatibility_report.py" in missing_rows[2]["evidence"]
     assert "agilab security-check --json --strict" in missing_rows[3]["evidence"]
-    assert "keep the passing run manifest" in onboarding._first_proof_handoff_bundle_caption(missing_rows)
+    assert (
+        "keep the passing run manifest"
+        in onboarding._first_proof_handoff_bundle_caption(missing_rows)
+    )
 
     notebook_path = flight_telemetry_project / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
@@ -4444,7 +5037,10 @@ def test_first_proof_handoff_bundle_tracks_core_evidence_and_commands(tmp_path):
     assert ready_rows[1]["status"] == "Ready"
     assert str(notebook_path) in ready_rows[1]["evidence"]
     assert "python tools/compatibility_report.py" in ready_rows[2]["evidence"]
-    assert "core proof files are ready" in onboarding._first_proof_handoff_bundle_caption(ready_rows)
+    assert (
+        "core proof files are ready"
+        in onboarding._first_proof_handoff_bundle_caption(ready_rows)
+    )
     markdown = onboarding._first_proof_handoff_bundle_markdown(ready_rows)
     assert "| Include | Status | Path or command |" in markdown
     assert "Local security check" in markdown
@@ -4565,7 +5161,9 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=lambda _env, _path: pytest.fail("link must not mutate current page"),
+        activate_project=lambda _env, _path: pytest.fail(
+            "link must not mutate current page"
+        ),
         display_landing_page=lambda _path: None,
     )
 
@@ -4602,7 +5200,9 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=lambda _env, _path: pytest.fail("link must not mutate current page"),
+        activate_project=lambda _env, _path: pytest.fail(
+            "link must not mutate current page"
+        ),
         display_landing_page=lambda _path: None,
     )
 
@@ -4687,7 +5287,9 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=lambda _env, _path: pytest.fail("notebook start should not select demo"),
+        activate_project=lambda _env, _path: pytest.fail(
+            "notebook start should not select demo"
+        ),
         display_landing_page=lambda _path: None,
         page_routes={"project": PageRoute()},
     )
@@ -4708,9 +5310,7 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
     }
     assert "sidebar_selection" not in fake_st.session_state
     assert "create_mode" not in fake_st.session_state
-    assert (
-        "_agilab_use_packaged_notebook_import_sample" not in fake_st.session_state
-    )
+    assert "_agilab_use_packaged_notebook_import_sample" not in fake_st.session_state
     assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
@@ -4722,7 +5322,9 @@ def test_first_proof_wizard_does_not_render_direct_notebook_upload(
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
     fake_st = _FakeStreamlit(
-        file_uploader_values={"create_notebook_upload": SimpleNamespace(name="demo.ipynb")}
+        file_uploader_values={
+            "create_notebook_upload": SimpleNamespace(name="demo.ipynb")
+        }
     )
     env = SimpleNamespace(
         apps_path=apps_path,
@@ -4735,7 +5337,9 @@ def test_first_proof_wizard_does_not_render_direct_notebook_upload(
 
     about_agilab._about_onboarding.render_newcomer_first_proof(
         env,
-        activate_project=lambda _env, _path: pytest.fail("notebook upload should not select demo"),
+        activate_project=lambda _env, _path: pytest.fail(
+            "notebook upload should not select demo"
+        ),
         display_landing_page=lambda _path: None,
         page_routes={"project": object()},
     )
@@ -4827,7 +5431,9 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
 
-def test_first_proof_onboarding_wrappers_and_action_edge_branches(tmp_path, monkeypatch):
+def test_first_proof_onboarding_wrappers_and_action_edge_branches(
+    tmp_path, monkeypatch
+):
     onboarding = about_agilab._about_onboarding
     fake_st = _FakeStreamlit(button_values={"Select demo": True})
     monkeypatch.setattr(onboarding, "st", fake_st)
@@ -4836,20 +5442,37 @@ def test_first_proof_onboarding_wrappers_and_action_edge_branches(tmp_path, monk
         "newcomer_first_proof_project_path",
         lambda env: Path(env.apps_path) / "builtin" / onboarding.FIRST_PROOF_PROJECT,
     )
-    monkeypatch.setattr(onboarding._first_proof_wizard_module, "first_proof_output_dir", lambda env: Path(env.log))
-    monkeypatch.setattr(onboarding._first_proof_wizard_module, "list_first_proof_outputs", lambda _path: [Path("a")])
+    monkeypatch.setattr(
+        onboarding._first_proof_wizard_module,
+        "first_proof_output_dir",
+        lambda env: Path(env.log),
+    )
+    monkeypatch.setattr(
+        onboarding._first_proof_wizard_module,
+        "list_first_proof_outputs",
+        lambda _path: [Path("a")],
+    )
 
     env = SimpleNamespace(apps_path=tmp_path / "apps", log=tmp_path / "log", app="")
-    assert onboarding._newcomer_first_proof_project_path(env).name == onboarding.FIRST_PROOF_PROJECT
+    assert (
+        onboarding._newcomer_first_proof_project_path(env).name
+        == onboarding.FIRST_PROOF_PROJECT
+    )
     assert onboarding._first_proof_output_dir(env) == tmp_path / "log"
     assert onboarding._list_first_proof_outputs(tmp_path) == [Path("a")]
     assert onboarding._notebook_to_validated_app_project_path(SimpleNamespace()) is None
-    assert onboarding._first_proof_export_notebook_candidates(SimpleNamespace(), {}) == []
-    assert onboarding._first_proof_notebook_query_params(SimpleNamespace(app=""), {}) == {
+    assert (
+        onboarding._first_proof_export_notebook_candidates(SimpleNamespace(), {}) == []
+    )
+    assert onboarding._first_proof_notebook_query_params(
+        SimpleNamespace(app=""), {}
+    ) == {
         "start": "notebook-import",
         "sample": "agilab-first-proof",
     }
-    assert onboarding._first_proof_notebook_query_params(SimpleNamespace(app="env_app"), {}) == {
+    assert onboarding._first_proof_notebook_query_params(
+        SimpleNamespace(app="env_app"), {}
+    ) == {
         "start": "notebook-import",
         "sample": "agilab-first-proof",
         "active_app": "env_app",
@@ -4870,7 +5493,10 @@ def test_first_proof_onboarding_wrappers_and_action_edge_branches(tmp_path, monk
         },
         activate_project=lambda _env, _path: True,
     )
-    assert fake_st.session_state["first_proof_feedback"] == "`flight_telemetry_project` selected."
+    assert (
+        fake_st.session_state["first_proof_feedback"]
+        == "`flight_telemetry_project` selected."
+    )
     assert ("rerun", "") in fake_st.events
 
 
@@ -4881,7 +5507,9 @@ def test_first_proof_onboarding_diagnostics_cover_manifest_and_remediation_branc
     onboarding = about_agilab._about_onboarding
     fake_st = _FakeStreamlit()
     fake_st.session_state["first_proof_feedback"] = "ready"
-    env = SimpleNamespace(app="flight_telemetry_project", st_resources=tmp_path / "resources")
+    env = SimpleNamespace(
+        app="flight_telemetry_project", st_resources=tmp_path / "resources"
+    )
     visible_outputs = [tmp_path / f"output_{idx}.json" for idx in range(4)]
     state = {
         "active_app_name": "flight_telemetry_project",
@@ -4913,18 +5541,29 @@ def test_first_proof_onboarding_diagnostics_cover_manifest_and_remediation_branc
 
     monkeypatch.setattr(onboarding, "st", fake_st)
     monkeypatch.setattr(onboarding, "_newcomer_first_proof_state", lambda _env: state)
-    onboarding.render_newcomer_first_proof(env, display_landing_page=lambda _path: fake_st.events.append(("landing", str(_path))))
+    onboarding.render_newcomer_first_proof(
+        env,
+        display_landing_page=lambda _path: fake_st.events.append(
+            ("landing", str(_path))
+        ),
+    )
 
     captions = [body for kind, body in fake_st.events if kind == "caption"]
     assert any(body == "ready" for kind, body in fake_st.events if kind == "success")
-    assert any("Generated files found: output_0.json, output_1.json, output_2.json, ..." in body for body in captions)
+    assert any(
+        "Generated files found: output_0.json, output_1.json, output_2.json, ..."
+        in body
+        for body in captions
+    )
     assert any("Run manifest:" in body for body in captions)
     assert any(
         "not production, public exposure, or multi-tenant certification" in body
         for body in captions
     )
     assert any("Manifest validations: schema=failed" in body for body in captions)
-    assert any("Fix manifest" in body for kind, body in fake_st.events if kind == "warning")
+    assert any(
+        "Fix manifest" in body for kind, body in fake_st.events if kind == "warning"
+    )
     markdown_blocks = [body for kind, body in fake_st.events if kind == "markdown"]
     assert "**Handoff bundle**" in markdown_blocks
     assert any("Local security check" in body for body in markdown_blocks)
@@ -4935,8 +5574,14 @@ def test_first_proof_onboarding_diagnostics_cover_manifest_and_remediation_branc
     state["run_manifest_passed"] = True
     state["run_manifest_validation_rows"] = [{"label": "schema", "status": "passed"}]
     onboarding.render_newcomer_first_proof(env)
-    assert any("Fix manifest" in body for kind, body in fake_st.events if kind == "caption")
-    assert not any("Manifest validations:" in body for kind, body in fake_st.events if kind == "caption")
+    assert any(
+        "Fix manifest" in body for kind, body in fake_st.events if kind == "caption"
+    )
+    assert not any(
+        "Manifest validations:" in body
+        for kind, body in fake_st.events
+        if kind == "caption"
+    )
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

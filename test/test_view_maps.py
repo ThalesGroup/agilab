@@ -93,7 +93,9 @@ class _FakeSidebar(_NullContext):
 
     def text_input(self, label, *args, key=None, **kwargs):
         default = self._streamlit.session_state.get(key, "")
-        return self._streamlit._widget_value("sidebar.text_input", label, key=key, default=default)
+        return self._streamlit._widget_value(
+            "sidebar.text_input", label, key=key, default=default
+        )
 
     def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
         default = options[index] if options else None
@@ -160,7 +162,9 @@ class _FakeSidebar(_NullContext):
         self._streamlit.calls["sidebar.warning"].append(message)
 
     def write(self, *args, **kwargs):
-        self._streamlit.calls["sidebar.write"].append(" ".join(str(arg) for arg in args))
+        self._streamlit.calls["sidebar.write"].append(
+            " ".join(str(arg) for arg in args)
+        )
 
     def expander(self, *args, **kwargs):
         return _NullContext()
@@ -243,7 +247,9 @@ class _FakeStreamlit:
 
     def selectbox(self, label, options, *args, key=None, index=0, **kwargs):
         default = options[index] if options else None
-        return self._widget_value("selectbox", label, key=key, default=default, options=options)
+        return self._widget_value(
+            "selectbox", label, key=key, default=default, options=options
+        )
 
     def expander(self, *args, **kwargs):
         return _NullContext()
@@ -272,7 +278,9 @@ def _load_view_maps_module():
     return module
 
 
-def _make_env(tmp_path: Path, datadir: Path, *, app_name: str = "demo_map_project") -> SimpleNamespace:
+def _make_env(
+    tmp_path: Path, datadir: Path, *, app_name: str = "demo_map_project"
+) -> SimpleNamespace:
     settings_file = tmp_path / app_name / "src" / "app_settings.toml"
     settings_file.parent.mkdir(parents=True, exist_ok=True)
     return SimpleNamespace(
@@ -293,7 +301,9 @@ def test_view_maps_renders_minimal_export_dataset(tmp_path, monkeypatch) -> None
     apps_dir.mkdir()
     project_dir = apps_dir / "demo_map_project"
     (project_dir / "src" / "demo_map").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='demo-map-project'\n", encoding="utf-8")
+    (project_dir / "pyproject.toml").write_text(
+        "[project]\nname='demo-map-project'\n", encoding="utf-8"
+    )
     dataset_dir = tmp_path / "export" / "demo_map"
     dataset_dir.mkdir(parents=True)
     (dataset_dir / "export.csv").write_text(
@@ -305,9 +315,9 @@ def test_view_maps_renders_minimal_export_dataset(tmp_path, monkeypatch) -> None
     )
     (project_dir / "src" / "app_settings.toml").write_text(
         "[view_maps]\n"
-        f"datadir = \"{dataset_dir.as_posix()}\"\n"
-        "file_ext_choice = \"all\"\n"
-        "df_select_mode = \"Single file\"\n",
+        f'datadir = "{dataset_dir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n',
         encoding="utf-8",
     )
     (project_dir / "src" / "demo_map" / "__init__.py").write_text("", encoding="utf-8")
@@ -360,7 +370,15 @@ def test_view_maps_repo_path_helpers(monkeypatch, tmp_path) -> None:
     (apps_root / "notes").mkdir()
     expected_app = apps_root / "alpha_project"
     expected_app.mkdir()
-    module_path = src_root / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    module_path = (
+        src_root
+        / "agilab"
+        / "apps-pages"
+        / "view_maps"
+        / "src"
+        / "view_maps"
+        / "view_maps.py"
+    )
     module_path.parent.mkdir(parents=True)
     module_path.write_text("# stub\n", encoding="utf-8")
 
@@ -374,10 +392,22 @@ def test_view_maps_repo_path_helpers(monkeypatch, tmp_path) -> None:
     assert module._default_app() == expected_app
 
 
-def test_view_maps_default_app_returns_none_without_builtin_projects(monkeypatch, tmp_path) -> None:
+def test_view_maps_default_app_returns_none_without_builtin_projects(
+    monkeypatch, tmp_path
+) -> None:
     module = _load_view_maps_module()
 
-    missing_module = tmp_path / "repo" / "src" / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    missing_module = (
+        tmp_path
+        / "repo"
+        / "src"
+        / "agilab"
+        / "apps-pages"
+        / "view_maps"
+        / "src"
+        / "view_maps"
+        / "view_maps.py"
+    )
     missing_module.parent.mkdir(parents=True)
     missing_module.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(missing_module))
@@ -387,7 +417,17 @@ def test_view_maps_default_app_returns_none_without_builtin_projects(monkeypatch
     apps_root.mkdir(parents=True)
     (apps_root / ".hidden_project").mkdir()
     (apps_root / "notes").mkdir()
-    existing_module = tmp_path / "repo2" / "src" / "agilab" / "apps-pages" / "view_maps" / "src" / "view_maps" / "view_maps.py"
+    existing_module = (
+        tmp_path
+        / "repo2"
+        / "src"
+        / "agilab"
+        / "apps-pages"
+        / "view_maps"
+        / "src"
+        / "view_maps"
+        / "view_maps.py"
+    )
     existing_module.parent.mkdir(parents=True, exist_ok=True)
     existing_module.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(existing_module))
@@ -427,10 +467,12 @@ def test_view_maps_persists_view_settings(tmp_path) -> None:
     assert payload["view_maps"]["datadir"] == "/tmp/export"
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps" in written
-    assert "datadir = \"/tmp/export\"" in written
+    assert 'datadir = "/tmp/export"' in written
 
 
-def test_view_maps_continuous_and_discrete_helpers_set_session_state(monkeypatch) -> None:
+def test_view_maps_continuous_and_discrete_helpers_set_session_state(
+    monkeypatch,
+) -> None:
     module = _load_view_maps_module()
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
@@ -477,8 +519,18 @@ def test_view_maps_compute_zoom_from_span(span: float, expected: int) -> None:
 def test_view_maps_compute_viewport_returns_none_for_invalid_coordinates() -> None:
     module = _load_view_maps_module()
 
-    assert module._compute_viewport(pd.DataFrame({"lat": ["a"], "lon": ["b"]}), "lat", "lon") is None
-    assert module._compute_viewport(pd.DataFrame({"lat": [None], "lon": [None]}), "lat", "lon") is None
+    assert (
+        module._compute_viewport(
+            pd.DataFrame({"lat": ["a"], "lon": ["b"]}), "lat", "lon"
+        )
+        is None
+    )
+    assert (
+        module._compute_viewport(
+            pd.DataFrame({"lat": [None], "lon": [None]}), "lat", "lon"
+        )
+        is None
+    )
 
     class _BrokenFrame:
         def __getitem__(self, key):
@@ -499,10 +551,7 @@ def test_view_maps_load_map_defaults_reads_file_and_missing_file(tmp_path) -> No
 
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
-        "[ui.map]\n"
-        "center_lat = 48.85\n"
-        "center_lon = 2.35\n"
-        "default_zoom = 7.0\n",
+        "[ui.map]\ncenter_lat = 48.85\ncenter_lon = 2.35\ndefault_zoom = 7.0\n",
         encoding="utf-8",
     )
     env = SimpleNamespace(app_settings_file=settings_path)
@@ -514,7 +563,9 @@ def test_view_maps_load_map_defaults_reads_file_and_missing_file(tmp_path) -> No
     }
 
 
-def test_view_maps_load_view_maps_settings_handles_missing_and_non_dict_section(tmp_path) -> None:
+def test_view_maps_load_view_maps_settings_handles_missing_and_non_dict_section(
+    tmp_path,
+) -> None:
     module = _load_view_maps_module()
     missing_env = SimpleNamespace(app_settings_file=tmp_path / "missing.toml")
 
@@ -554,12 +605,20 @@ def test_view_maps_persist_view_maps_settings_accepts_non_dict_base(tmp_path) ->
     assert "view_maps" in settings_path.read_text(encoding="utf-8")
 
 
-def test_view_maps_persist_view_maps_settings_tolerates_write_failure(tmp_path, monkeypatch) -> None:
+def test_view_maps_persist_view_maps_settings_tolerates_write_failure(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     env = SimpleNamespace(app_settings_file=tmp_path / "missing" / "app_settings.toml")
-    monkeypatch.setattr(module, "_dump_toml_payload", lambda data, handle: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda data, handle: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
 
-    payload = module._persist_view_maps_settings(env, {"ui": {}}, {"datadir": "/tmp/export"})
+    payload = module._persist_view_maps_settings(
+        env, {"ui": {}}, {"datadir": "/tmp/export"}
+    )
 
     assert payload["view_maps"]["datadir"] == "/tmp/export"
     assert not env.app_settings_file.exists()
@@ -568,7 +627,7 @@ def test_view_maps_persist_view_maps_settings_tolerates_write_failure(tmp_path, 
 def test_view_maps_unexpected_helper_errors_propagate(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_module()
     settings_path = tmp_path / "app_settings.toml"
-    settings_path.write_text("[view_maps]\ndatadir = \"/tmp/export\"\n", encoding="utf-8")
+    settings_path.write_text('[view_maps]\ndatadir = "/tmp/export"\n', encoding="utf-8")
 
     monkeypatch.setattr(
         module._toml,
@@ -576,7 +635,9 @@ def test_view_maps_unexpected_helper_errors_propagate(monkeypatch, tmp_path) -> 
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
-        module._load_view_maps_settings(SimpleNamespace(app_settings_file=settings_path))
+        module._load_view_maps_settings(
+            SimpleNamespace(app_settings_file=settings_path)
+        )
 
     monkeypatch.setattr(
         module,
@@ -618,7 +679,10 @@ def test_view_maps_main_rejects_missing_active_app(tmp_path, monkeypatch) -> Non
             module.main()
 
     assert excinfo.value.code == 1
-    assert any("provided --active-app path not found" in message for message in fake_st.calls["error"])
+    assert any(
+        "provided --active-app path not found" in message
+        for message in fake_st.calls["error"]
+    )
 
 
 def test_view_maps_main_initializes_env_and_invokes_page(tmp_path, monkeypatch) -> None:
@@ -663,6 +727,7 @@ def test_view_maps_main_initializes_env_and_invokes_page(tmp_path, monkeypatch) 
     assert fake_st.session_state["GUI_SAMPLING"] == 3
     assert fake_st.calls["info"] == []
     assert f"Project: `{active_app.name}`" in fake_st.calls["caption"]
+    assert any("Back to ANALYSIS" in caption for caption in fake_st.calls["caption"])
     assert str(active_app) in fake_st.calls["code"]
 
 
@@ -670,11 +735,17 @@ def test_view_maps_bootstrap_keeps_absolute_app_path_out_of_main_status() -> Non
     source = MODULE_PATH.read_text(encoding="utf-8")
 
     assert 'st.info(f"active_app:' not in source
+    assert "_render_app_page_context(app, active_app)" in source
     assert 'st.caption(f"Project: `{app}`")' in source
+    assert "Back to ANALYSIS" in source
     assert 'st.expander("Runtime context", expanded=False)' in source
+    assert 'with st.sidebar.expander("Data source", expanded=False):' in source
+    assert 'st.sidebar.text_input(\n        "Data Directory"' not in source
 
 
-def test_view_maps_page_single_file_mode_renders_overlay_and_caption(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_single_file_mode_renders_overlay_and_caption(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -696,9 +767,9 @@ def test_view_maps_page_single_file_mode_renders_overlay_and_caption(tmp_path, m
         'coltype = "discrete"\n'
         'lat = "lat"\n'
         'long = "long"\n'
-        'show_sat_overlay = false\n'
-        'unique_threshold = 10\n'
-        'range_threshold = 200\n',
+        "show_sat_overlay = false\n"
+        "unique_threshold = 10\n"
+        "range_threshold = 200\n",
         encoding="utf-8",
     )
     env = _make_env(tmp_path, datadir)
@@ -729,11 +800,18 @@ def test_view_maps_page_single_file_mode_renders_overlay_and_caption(tmp_path, m
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "find_files", fake_find_files)
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
-    assert any("Showing all 1 available point" in message for message in fake_st.calls["caption"])
+    assert any(
+        "Showing all 1 available point" in message
+        for message in fake_st.calls["caption"]
+    )
     assert fake_st.calls["plotly_chart"]
     assert fake_st.calls["dataframe"]
     assert fake_st.session_state["df_select_mode"] == "Single file"
@@ -774,9 +852,9 @@ def test_view_maps_page_regex_mode_reports_load_errors_and_uses_continuous_color
         'coltype = "continuous"\n'
         'lat = "lat"\n'
         'long = "long"\n'
-        'show_sat_overlay = true\n'
-        'unique_threshold = 10\n'
-        'range_threshold = 200\n',
+        "show_sat_overlay = true\n"
+        "unique_threshold = 10\n"
+        "range_threshold = 200\n",
         encoding="utf-8",
     )
     env = _make_env(tmp_path, datadir)
@@ -817,13 +895,19 @@ def test_view_maps_page_regex_mode_reports_load_errors_and_uses_continuous_color
 
     module.page(env)
 
-    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert any(
+        "Some selected files failed to load" in message
+        for message in fake_st.calls["sidebar.warning"]
+    )
     assert any("broken dataset" in message for message in fake_st.calls["write"])
     assert fake_st.calls["plotly_chart"]
     assert fake_st.session_state["df_select_mode"] == "Regex (multi)"
     assert fake_st.session_state["coltype"] == "continuous"
     assert fake_st.session_state["df_files_selected"] == ["export.csv", "other.csv"]
-    assert fake_st.session_state["view_maps:df_files_selected"] == ["export.csv", "other.csv"]
+    assert fake_st.session_state["view_maps:df_files_selected"] == [
+        "export.csv",
+        "other.csv",
+    ]
     assert fake_st.session_state["df_file"] == "export.csv"
 
 
@@ -852,9 +936,9 @@ def test_view_maps_page_recovers_legacy_selection_and_reclassifies_integer_range
         'coltype = "continuous"\n'
         'lat = "lat"\n'
         'long = "long"\n'
-        'show_sat_overlay = false\n'
-        'unique_threshold = 2\n'
-        'range_threshold = 10\n',
+        "show_sat_overlay = false\n"
+        "unique_threshold = 2\n"
+        "range_threshold = 10\n",
         encoding="utf-8",
     )
     env = _make_env(tmp_path, datadir)
@@ -889,8 +973,14 @@ def test_view_maps_page_recovers_legacy_selection_and_reclassifies_integer_range
     fake_st.session_state[selection_key] = "not-a-list"
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
@@ -901,7 +991,9 @@ def test_view_maps_page_recovers_legacy_selection_and_reclassifies_integer_range
     assert fake_st.session_state["coltype"] == "continuous"
 
 
-def test_view_maps_page_reports_missing_files_and_many_load_errors(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_reports_missing_files_and_many_load_errors(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -924,22 +1016,40 @@ def test_view_maps_page_reports_missing_files_and_many_load_errors(tmp_path, mon
             ("sidebar.radio", "Dataset selection"): "Regex (multi)",
             ("sidebar.text_input", "DataFrame filename regex"): ".*",
             ("sidebar.button", "Select all matching (55)"): True,
-            ("sidebar.multiselect", "DataFrames"): [path.name for path in missing_files],
+            ("sidebar.multiselect", "DataFrames"): [
+                path.name for path in missing_files
+            ],
         }
     )
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: missing_files if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: (_ for _ in ()).throw(FileNotFoundError(path)))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: missing_files if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: (_ for _ in ()).throw(
+            FileNotFoundError(path)
+        ),
+    )
 
     module.page(env)
 
-    assert any("Some selected files failed to load" in message for message in fake_st.calls["sidebar.warning"])
+    assert any(
+        "Some selected files failed to load" in message
+        for message in fake_st.calls["sidebar.warning"]
+    )
     assert any("... (5 more)" in message for message in fake_st.calls["write"])
-    assert any("No selected dataframes could be loaded." in message for message in fake_st.calls["error"])
+    assert any(
+        "No selected dataframes could be loaded." in message
+        for message in fake_st.calls["error"]
+    )
 
 
-def test_view_maps_page_handles_invalid_concat_and_empty_sampling(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_handles_invalid_concat_and_empty_sampling(
+    tmp_path, monkeypatch
+) -> None:
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
     export_csv = datadir / "export.csv"
@@ -968,8 +1078,16 @@ def test_view_maps_page_handles_invalid_concat_and_empty_sampling(tmp_path, monk
             }
         )
         mp.setattr(module, "st", fake_st_invalid_concat)
-        mp.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-        mp.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+        mp.setattr(
+            module,
+            "find_files",
+            lambda base, ext: [export_csv] if ext == ".csv" else [],
+        )
+        mp.setattr(
+            module,
+            "load_df",
+            lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+        )
         mp.setattr(module.pd, "concat", lambda *args, **kwargs: pd.DataFrame(index=[0]))
 
         module.page(env)
@@ -996,9 +1114,19 @@ def test_view_maps_page_handles_invalid_concat_and_empty_sampling(tmp_path, monk
         fake_st_empty_sample.session_state[line_limit_key] = object()
 
         mp.setattr(module, "st", fake_st_empty_sample)
-        mp.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-        mp.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
-        mp.setattr(module, "downsample_df_deterministic", lambda df, ratio: df.iloc[0:0].copy())
+        mp.setattr(
+            module,
+            "find_files",
+            lambda base, ext: [export_csv] if ext == ".csv" else [],
+        )
+        mp.setattr(
+            module,
+            "load_df",
+            lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+        )
+        mp.setattr(
+            module, "downsample_df_deterministic", lambda df, ratio: df.iloc[0:0].copy()
+        )
 
         module.page(env)
 
@@ -1008,7 +1136,9 @@ def test_view_maps_page_handles_invalid_concat_and_empty_sampling(tmp_path, monk
     )
 
 
-def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     export_root = tmp_path / "export"
     initial_datadir = export_root / "demo_map"
@@ -1059,8 +1189,16 @@ def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(tmp_pa
     fake_st.session_state[line_limit_key] = object()
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [Path(base) / "export.csv"] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module,
+        "find_files",
+        lambda base, ext: [Path(base) / "export.csv"] if ext == ".csv" else [],
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
@@ -1068,7 +1206,9 @@ def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(tmp_pa
     assert str(redirected_datadir) in settings_path.read_text(encoding="utf-8")
 
 
-def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -1109,12 +1249,21 @@ def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(tmp_
     )
 
     monkeypatch.setattr(module, "st", fake_st_warn)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
-    assert any("Please select a valid column for coloring." in message for message in fake_st_warn.calls["warning"])
+    assert any(
+        "Please select a valid column for coloring." in message
+        for message in fake_st_warn.calls["warning"]
+    )
 
     module = _load_view_maps_module()
     env = _make_env(tmp_path, datadir)
@@ -1138,15 +1287,23 @@ def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(tmp_
     )
 
     monkeypatch.setattr(module, "st", fake_st_plain)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
     assert fake_st_plain.calls["plotly_chart"]
 
 
-def test_view_maps_page_covers_continuous_and_plain_color_rendering(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_covers_continuous_and_plain_color_rendering(
+    tmp_path, monkeypatch
+) -> None:
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
     export_csv = datadir / "export.csv"
@@ -1191,8 +1348,14 @@ def test_view_maps_page_covers_continuous_and_plain_color_rendering(tmp_path, mo
         }
     )
     monkeypatch.setattr(module, "st", fake_st_scale)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
     module.page(env)
     assert fake_st_scale.calls["plotly_chart"]
 
@@ -1217,13 +1380,21 @@ def test_view_maps_page_covers_continuous_and_plain_color_rendering(tmp_path, mo
         }
     )
     monkeypatch.setattr(module, "st", fake_st_plain)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
     module.page(env)
     assert fake_st_plain.calls["plotly_chart"]
 
 
-def test_view_maps_page_reports_discovery_errors_as_no_dataset(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_reports_discovery_errors_as_no_dataset(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -1307,7 +1478,11 @@ def test_view_maps_page_reports_invalid_regex_and_falls_back_to_default_selectio
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "find_files", fake_find_files)
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
@@ -1321,8 +1496,7 @@ def test_view_maps_page_warns_for_missing_directory(tmp_path, monkeypatch) -> No
     settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(
-        "[view_maps]\n"
-        f'datadir = "{datadir.as_posix()}"\n',
+        f'[view_maps]\ndatadir = "{datadir.as_posix()}"\n',
         encoding="utf-8",
     )
     env = _make_env(tmp_path, datadir)
@@ -1333,11 +1507,18 @@ def test_view_maps_page_warns_for_missing_directory(tmp_path, monkeypatch) -> No
 
     module.page(env)
 
-    assert any("Directory not found." in message for message in fake_st.calls["sidebar.error"])
-    assert any("A valid data directory is required to proceed." in message for message in fake_st.calls["warning"])
+    assert any(
+        "Directory not found." in message for message in fake_st.calls["sidebar.error"]
+    )
+    assert any(
+        "A valid data directory is required to proceed." in message
+        for message in fake_st.calls["warning"]
+    )
 
 
-def test_view_maps_page_warns_when_no_dataset_is_selected(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_warns_when_no_dataset_is_selected(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -1361,14 +1542,23 @@ def test_view_maps_page_warns_when_no_dataset_is_selected(tmp_path, monkeypatch)
     )
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [datadir / "export.csv"] if ext == ".csv" else [])
+    monkeypatch.setattr(
+        module,
+        "find_files",
+        lambda base, ext: [datadir / "export.csv"] if ext == ".csv" else [],
+    )
 
     module.page(env)
 
-    assert any("Please select at least one dataset to proceed." in message for message in fake_st.calls["warning"])
+    assert any(
+        "Please select at least one dataset to proceed." in message
+        for message in fake_st.calls["warning"]
+    )
 
 
-def test_view_maps_page_reports_invalid_loaded_data_and_concat_failure(tmp_path, monkeypatch) -> None:
+def test_view_maps_page_reports_invalid_loaded_data_and_concat_failure(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_view_maps_module()
     datadir = tmp_path / "export" / "demo_map"
     datadir.mkdir(parents=True)
@@ -1395,12 +1585,21 @@ def test_view_maps_page_reports_invalid_loaded_data_and_concat_failure(tmp_path,
         }
     )
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: "not-a-dataframe")
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: "not-a-dataframe",
+    )
 
     module.page(env)
 
-    assert any("No selected dataframes could be loaded." in message for message in fake_st.calls["error"])
+    assert any(
+        "No selected dataframes could be loaded." in message
+        for message in fake_st.calls["error"]
+    )
 
     fake_st = _FakeStreamlit(
         {
@@ -1410,12 +1609,25 @@ def test_view_maps_page_reports_invalid_loaded_data_and_concat_failure(tmp_path,
         }
     )
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.DataFrame({"lat": [1.0], "long": [2.0]}))
-    monkeypatch.setattr(module.pd, "concat", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("cannot concat")))
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.DataFrame(
+            {"lat": [1.0], "long": [2.0]}
+        ),
+    )
+    monkeypatch.setattr(
+        module.pd,
+        "concat",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("cannot concat")),
+    )
 
     module.page(env)
 
-    assert any("Error concatenating datasets: cannot concat" in message for message in fake_st.calls["error"])
+    assert any(
+        "Error concatenating datasets: cannot concat" in message
+        for message in fake_st.calls["error"]
+    )
 
 
 def test_view_maps_page_warns_without_lat_lon_columns(tmp_path, monkeypatch) -> None:
@@ -1449,9 +1661,18 @@ def test_view_maps_page_warns_without_lat_lon_columns(tmp_path, monkeypatch) -> 
     )
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else [])
-    monkeypatch.setattr(module, "load_df", lambda path, with_index=True, cache_buster=None: pd.read_csv(path))
+    monkeypatch.setattr(
+        module, "find_files", lambda base, ext: [export_csv] if ext == ".csv" else []
+    )
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.read_csv(path),
+    )
 
     module.page(env)
 
-    assert any("Latitude and Longitude columns are required for the map." in message for message in fake_st.calls["warning"])
+    assert any(
+        "Latitude and Longitude columns are required for the map." in message
+        for message in fake_st.calls["warning"]
+    )
