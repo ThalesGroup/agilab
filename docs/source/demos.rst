@@ -46,7 +46,8 @@ What each route is for
 - **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
   when you want the deeper packaged proof routes: ``mission_decision_project``,
   the ``execution_pandas_project`` Cython worker speedup demo,
-  ``execution_polars_project``, UAV queue
+  ``execution_polars_project``, the ``sqlite_connector_proof`` database
+  evidence preview, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
   ``resilience_failure_injection`` previews, ``train_then_serve`` previews,
@@ -108,6 +109,20 @@ The static scenario contract is available as JSON:
   packaged local pages and ``agi-pages`` analysis views.
   The same route is available in the UI by following ``PROJECT`` ->
   ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_telemetry_project``.
+
+**SQLite database proof**
+  Use the packaged ``sqlite_connector_proof`` preview when the demo objective is
+  reproducible database access without a remote database, Docker, or secrets:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py --output-dir /tmp/agilab-sqlite-proof
+
+  Stop when ``sqlite_connector_proof.db``, ``promotion_candidates.csv``, and
+  ``database_evidence.json`` are visible. The evidence records the connector ID,
+  SQLite driver, read-only query mode, schema hash, query hash, row count,
+  result hash, and artifact hashes. This is the public first step before a
+  Postgres, warehouse, or cloud SQL connector.
 
 **Cython worker speedup demo**
   Use :doc:`execution-playground` when the demo objective is performance

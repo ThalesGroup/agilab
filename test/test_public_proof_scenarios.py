@@ -28,7 +28,7 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
 
     assert report["schema"] == "agilab.public_proof_scenarios.v1"
     assert report["status"] == "pass"
-    assert report["summary"]["scenario_count"] == 8
+    assert report["summary"]["scenario_count"] == 9
     assert report["summary"]["first_proof_target_seconds"] == 60.0
     assert report["summary"]["full_install_target_seconds"] == 120.0
     assert report["summary"]["scenario_ids"] == [
@@ -37,6 +37,7 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
         "mlflow-tracking-proof",
         "distributed-worker-health-proof",
         "notebook-migration-proof",
+        "sqlite-connector-proof",
         "resilience-failure-injection-proof",
         "train-then-serve-proof",
         "service-mode-preview-proof",
@@ -60,6 +61,10 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
     assert "preview_notebook_to_dask.py" in " ".join(
         rows["notebook-migration-proof"]["commands"]
     )
+    assert "preview_sqlite_connector_proof.py" in " ".join(
+        rows["sqlite-connector-proof"]["commands"]
+    )
+    assert "database_evidence.json" in rows["sqlite-connector-proof"]["expected_artifacts"]
     assert "preview_resilience_failure_injection.py" in " ".join(
         rows["resilience-failure-injection-proof"]["commands"]
     )
