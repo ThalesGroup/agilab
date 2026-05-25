@@ -156,6 +156,7 @@ def test_agi_pages_chart_data_normalizes_common_input_shapes() -> None:
     from_to_dict_without_orient = agi_pages.normalize_chart_data(DataFrameNoOrientLike())
     from_row_sequences = agi_pages.normalize_chart_data([(1, 2), 3])
     from_uneven_mapping = agi_pages.normalize_chart_data({"left": [1, 2], "right": [3]})
+    from_mixed_mapping = agi_pages.normalize_chart_data({"left": [1], "right": 3})
     from_scalar = agi_pages.normalize_chart_data(7)
 
     assert empty.columns == ()
@@ -169,6 +170,7 @@ def test_agi_pages_chart_data_normalizes_common_input_shapes() -> None:
     assert from_row_sequences.columns == ("col_0", "col_1", "index", "value")
     assert from_row_sequences.records[1] == {"col_0": None, "col_1": None, "index": 1, "value": 3}
     assert from_uneven_mapping.records == ({"left": [1, 2], "right": [3]},)
+    assert from_mixed_mapping.records == ({"left": [1], "right": 3},)
     assert from_scalar.records == ({"value": 7},)
 
 
@@ -222,6 +224,22 @@ def test_agi_pages_attaches_dataset_to_custom_echarts_option() -> None:
 
     assert spec.option["series"][0]["type"] == "bar"
     assert spec.option["dataset"]["source"] == [["x", "y"], ["a", 3]]
+
+
+def test_agi_pages_build_chart_spec_discards_non_object_metadata(monkeypatch) -> None:
+    chart_spec = _load_chart_spec_module()
+    original_normalize = chart_spec.normalize_json_value
+
+    def normalize_with_bad_metadata(value):
+        if value == {"bad": "metadata"}:
+            return ["not", "metadata"]
+        return original_normalize(value)
+
+    monkeypatch.setattr(chart_spec, "normalize_json_value", normalize_with_bad_metadata)
+
+    spec = chart_spec.build_chart_spec([{"x": "a", "y": 3}], metadata={"bad": "metadata"})
+
+    assert spec.metadata == {}
 
 
 def test_agi_pages_keeps_existing_dataset_on_custom_echarts_option() -> None:
