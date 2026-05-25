@@ -8,7 +8,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
 try:
     from release_plan import release_plan

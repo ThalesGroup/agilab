@@ -1,12 +1,10 @@
 import asyncio
 import ast
 import getpass
-import logging
 import os
 import shlex
 import shutil
 import sys
-from io import BytesIO
 from types import SimpleNamespace
 
 import pytest

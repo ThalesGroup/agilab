@@ -8,7 +8,6 @@ import html
 import json
 import os
 import pickle
-import re
 import subprocess
 import sys
 import tempfile
@@ -116,29 +115,22 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution fallba
     import core as _playground_core
     from core import (
         ACTIVATIONS,
-        CONFIG_SCHEMA,
-        CUSTOM_PRESET,
         DATASETS,
         DEFAULT_FEATURES,
         DEFAULT_PRESET,
-        EVIDENCE_SCHEMA,
         FEATURES,
         OPTIMIZERS,
         PLAYGROUND_PRESETS,
-        PRESET_STORIES,
         SHARED_CONFIG_SIGNATURE_STATE_KEY,
         TRAINED_CONFIG_STATE_KEY,
         TRAINED_PRESET_STATE_KEY,
         PlaygroundConfig,
         _build_evidence_manifest,
         _build_evidence_pack,
-        _coerce_feature_names,
         _config_from_payload,
         _config_from_query_params,
-        _config_payload,
         _config_signature,
         _config_state_payload,
-        _decode_share_config,
         _empty_activation_maps,
         _empty_loss_landscape,
         _empty_network_layers,

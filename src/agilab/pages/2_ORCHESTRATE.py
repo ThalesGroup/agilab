@@ -4,15 +4,12 @@ import asyncio
 # Standard Imports (lightweight)
 # ===========================
 import os
-import sys
 import socket
 import runpy
 import ast
 import json
 import html
 import logging
-import subprocess
-from functools import lru_cache
 from pathlib import Path
 import importlib
 from typing import Any, Optional, Sequence
@@ -20,7 +17,6 @@ from datetime import datetime
 
 # Third-Party imports
 import tomllib       # For reading TOML files
-import tomli_w       # For writing TOML files
 import pandas as pd
 # Theme configuration
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
@@ -1081,7 +1077,7 @@ def render_generic_ui() -> None:
     i = len(args_default) + 1
     new_key = c1_add.text_input("Name", placeholder="Name", key=f"args_name{i}")
     new_val = c2_add.text_input("Value", placeholder="Value", key=f"args_value{i}")
-    if c3_add.button("Add argument", type="primary", key=f"args_add_arg_button"):
+    if c3_add.button("Add argument", type="primary", key="args_add_arg_button"):
         if new_val == "":
             new_val = None
         try:

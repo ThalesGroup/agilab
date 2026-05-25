@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import xml.etree.ElementTree as ET
 from pathlib import Path
-import sys, os
+import sys
+import os
 
 def jb_base_dirs():
     home = Path.home()

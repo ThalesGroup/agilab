@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-from build_product_demo_reel import FPS, H, W, background, build as build_variant, load_font
+from build_product_demo_reel import FPS, background, build as build_variant, load_font
 
 
 ROOT = Path(__file__).resolve().parents[1]

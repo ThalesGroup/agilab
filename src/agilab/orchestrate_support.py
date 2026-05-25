@@ -10,8 +10,6 @@ from typing import Any, Callable, Optional
 
 import tomli_w
 from agi_env.app_settings_support import (
-    app_settings_contract_error,
-    ensure_app_settings_metadata,
     prepare_app_settings_for_write,
     sanitize_app_settings_for_toml,
 )

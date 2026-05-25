@@ -8,7 +8,6 @@ Repair a PyCharm project so it can open:
 - Set SDKs if .venv found
 """
 
-import os
 import sys
 import shutil
 import xml.etree.ElementTree as ET
@@ -24,7 +23,7 @@ def debug(msg):
 
 def backup_idea():
     if IDEA.exists():
-        backup = ROOT / f".idea.bak"
+        backup = ROOT / ".idea.bak"
         if backup.exists():
             shutil.rmtree(backup)
         shutil.copytree(IDEA, backup)

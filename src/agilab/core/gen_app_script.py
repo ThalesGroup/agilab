@@ -1,7 +1,6 @@
 import os
 import sys
 import xml.etree.ElementTree as ET
-from tkinter import simpledialog, Tk
 import filecmp
 import tempfile
 

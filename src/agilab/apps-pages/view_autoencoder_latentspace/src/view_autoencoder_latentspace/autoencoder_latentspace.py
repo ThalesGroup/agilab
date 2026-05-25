@@ -447,7 +447,7 @@ def page(env):
     if "project" not in st.session_state:
         st.session_state["project"] = env.target
 
-    if not "projects" in st.session_state:
+    if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
 
     # Load persisted settings

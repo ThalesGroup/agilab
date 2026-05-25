@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from collections import Counter
 import math
-import sys
 from pathlib import Path
 from typing import Any
 

@@ -4,7 +4,6 @@ AGI app setup
 Author: Jean-Pierre Morard
 Tested on Windows, Linux and MacOS
 """
-import getpass
 import sys
 import os
 import shutil
@@ -74,7 +73,7 @@ def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
 
 _inject_shared_site_packages()
 
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 from agi_env import AgiLogger
 import warnings
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)

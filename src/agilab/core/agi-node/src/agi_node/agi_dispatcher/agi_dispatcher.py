@@ -17,33 +17,22 @@
 # Agi Framework call back functions
 ######################################################
 # Internal Libraries:
-import getpass
-import io
 import importlib
 import os
-import shutil
 import sys
 import stat
-import tempfile
-import time
-import subprocess
-import traceback
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from types import SimpleNamespace
 
 # External Libraries:
 import numpy as np
-import psutil
-import humanize
 import datetime
 import logging
 import socket
 from copy import deepcopy
 
-from agi_env import AgiEnv, normalize_path
-from .base_worker import BaseWorker
+from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
 workers_default = {socket.gethostbyname("localhost"): 1}

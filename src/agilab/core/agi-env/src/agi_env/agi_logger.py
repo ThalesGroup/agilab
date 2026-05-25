@@ -3,7 +3,6 @@
 import logging
 import os
 import threading
-from pathlib import Path
 import re
 import sys
 

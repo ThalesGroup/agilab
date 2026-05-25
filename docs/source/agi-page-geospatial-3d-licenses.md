@@ -18,7 +18,7 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | agi-env | 2026.5.23 | BSD-3-Clause |
-| agi-gui | 2026.5.17.post2 | BSD-3-Clause |
+| agi-gui | 2026.5.23 | BSD-3-Clause |
 | agi-node | 2026.5.23 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
@@ -49,13 +49,13 @@ Audit notes:
 | parso | 0.8.7 | MIT LICENSE |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pillow | 12.2.0 | MIT-CMU |
-| plotly | 6.7.0 | MIT |
+| plotly | 6.7.0 | MIT LICENSE |
 | polars | 1.41.0 | MIT LICENSE |
 | polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
-| pyarrow | 24.0.0 | APACHE-2.0 |
+| pyarrow | 23.0.1 | APACHE-2.0 |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | 2.13.4 | MIT |

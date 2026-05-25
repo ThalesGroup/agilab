@@ -2692,8 +2692,8 @@ def build_notebook_document(
                         f"- Environment root: `{stage.get('env') or '(current kernel / controller default)'}`",
                         *_stage_notebook_import_context_lines(stage),
                         "",
-                        f"- Edit the next cell if you want to override the saved stage source.",
-                        f"- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",
+                        "- Edit the next cell if you want to override the saved stage source.",
+                        "- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",
                     ]
                 ),
                 cell_id=_cell_id("stage", f"{int(stage['index']):03d}", "context"),

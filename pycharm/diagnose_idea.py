@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import sys, xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path.cwd()

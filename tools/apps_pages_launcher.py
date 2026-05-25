@@ -19,7 +19,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 PAGES: Dict[str, str] = {
     "view_maps": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
