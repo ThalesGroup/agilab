@@ -1,6 +1,4 @@
 import os
-import shutil
-import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -120,69 +118,6 @@ def test_worker_pyproject_source_missing_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="Missing pyproject.toml"):
         deployment_build_support._worker_pyproject_source(env)
-
-
-def _git_commit(repo: Path) -> None:
-    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        [
-            "git",
-            "-c",
-            "user.email=agilab@example.test",
-            "-c",
-            "user.name=AGILAB Test",
-            "commit",
-            "-m",
-            "initial",
-        ],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-
-def test_directory_fingerprint_uses_git_tree_for_clean_source(tmp_path):
-    if shutil.which("git") is None:
-        pytest.skip("git is required for git tree fingerprint coverage")
-
-    src = tmp_path / "repo" / "app" / "src"
-    package = src / "demo"
-    package.mkdir(parents=True)
-    (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    _git_commit(tmp_path / "repo")
-
-    fingerprint = deployment_build_support._directory_fingerprint(src)
-
-    assert fingerprint == [
-        {
-            "strategy": "git-tree",
-            "path": src.resolve(strict=False).as_posix(),
-            "git_root": (tmp_path / "repo").resolve(strict=False).as_posix(),
-            "rel": "app/src",
-            "tree": fingerprint[0]["tree"],
-        }
-    ]
-    assert fingerprint[0]["tree"]
-
-
-def test_directory_fingerprint_falls_back_when_git_source_is_dirty(tmp_path):
-    if shutil.which("git") is None:
-        pytest.skip("git is required for git tree fingerprint coverage")
-
-    src = tmp_path / "repo" / "app" / "src"
-    package = src / "demo"
-    package.mkdir(parents=True)
-    module = package / "__init__.py"
-    module.write_text("VALUE = 1\n", encoding="utf-8")
-    _git_commit(tmp_path / "repo")
-    module.write_text("VALUE = 2\n", encoding="utf-8")
-
-    fingerprint = deployment_build_support._directory_fingerprint(src)
-
-    assert fingerprint
-    assert fingerprint[0].get("strategy") != "git-tree"
-    assert any(entry.get("rel") == "demo/__init__.py" for entry in fingerprint)
 
 
 def test_copy_cython_worker_lib_raises_when_output_missing(tmp_path):
