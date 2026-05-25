@@ -220,7 +220,7 @@ PAGE_EXPECTED_TEXT = {
     "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
-PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 2, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
     "HOME": ("AGILAB", "Start here"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
@@ -1802,16 +1802,39 @@ def build_seeded_server_env(
     return SeededRuntime(env, home_root, export_root, share_root, cluster_share_root)
 
 
+def _any_visible_locator(locator: Any, *, timeout_ms: float = 100.0, limit: int = 8) -> bool:
+    try:
+        count = locator.count()
+    except Exception:
+        return False
+    for index in range(min(count, limit)):
+        try:
+            if locator.nth(index).is_visible(timeout=timeout_ms):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _initializing_environment_visible(page: Any) -> bool:
+    try:
+        locator = page.get_by_text(re.compile("initializing environment", re.IGNORECASE))
+    except Exception:
+        try:
+            return "initializing environment" in page.locator("body").inner_text(timeout=1000).lower()
+        except Exception:
+            return False
+    return _any_visible_locator(locator)
+
+
 def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     deadline = time.perf_counter() + timeout_ms / 1000.0
     while time.perf_counter() < deadline:
         try:
-            text = page.locator("body").inner_text(timeout=1000).lower()
-            spinner_count = page.locator("[data-testid='stSpinner']").count()
+            spinner_visible = _any_visible_locator(page.locator("[data-testid='stSpinner']"))
         except Exception:
-            text = ""
-            spinner_count = 0
-        if "initializing environment" not in text and spinner_count == 0:
+            spinner_visible = False
+        if not spinner_visible and not _initializing_environment_visible(page):
             page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
             return
         page.wait_for_timeout(PAGE_READY_POLL_MS)

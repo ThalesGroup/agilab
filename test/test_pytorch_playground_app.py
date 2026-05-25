@@ -516,7 +516,7 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
     assert ordered == ["button", "run", "form", "analysis"]
     assert (
         "button",
-        ("controls", "Refresh evidence", {"type": "primary", "use_container_width": True}),
+        ("controls", "Refresh evidence", {"type": "primary", "width": "stretch"}),
     ) in events
     assert ("spinner", "Refreshing PyTorch evidence") in events
     assert load_calls == [PROJECT_PATH.resolve(), PROJECT_PATH.resolve()]

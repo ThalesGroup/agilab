@@ -494,3 +494,507 @@ def test_main_print_only_returns_analysis_view_path_for_remote_app_with_custom_r
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["analysis_view_path"] == "/custom/src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
+
+
+def test_frontend_asset_discovery_deduplicates_and_resolves_relative_urls() -> None:
+    module = _load_module()
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        def read(self) -> str:
+            return (
+                '<script type="module" src="./static/js/app.js"></script>'
+                '<script src="./static/js/app.js"></script>'
+                '<link rel="stylesheet" href="/static/css/app.css">'
+            )
+
+    assets = module.discover_frontend_assets(
+        "http://demo/app/?active_app=flight",
+        opener=lambda _url: _Response(),
+    )
+
+    assert [(asset.kind, asset.url) for asset in assets] == [
+        ("script", "http://demo/app/static/js/app.js"),
+        ("stylesheet", "http://demo/static/css/app.css"),
+    ]
+
+
+def test_frontend_static_asset_check_reports_missing_script_and_open_errors() -> None:
+    module = _load_module()
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        def read(self) -> bytes:
+            return b'<link rel="stylesheet" href="/static/css/app.css">'
+
+    missing_script = module.assert_frontend_static_assets("http://demo/", opener=lambda _url: _Response())
+
+    assert missing_script.success is False
+    assert "no JavaScript frontend assets discovered" in missing_script.detail
+
+    failed_open = module.assert_frontend_static_assets(
+        "http://demo/",
+        opener=lambda _url: (_ for _ in ()).throw(RuntimeError("network down")),
+    )
+
+    assert failed_open.success is False
+    assert "frontend asset check failed: network down" in failed_open.detail
+
+
+def test_response_helpers_handle_header_variants_and_text_payloads() -> None:
+    module = _load_module()
+
+    class _HeadersContentType:
+        @staticmethod
+        def get_content_type() -> str:
+            return "Application/JSON"
+
+    class _HeadersGet:
+        @staticmethod
+        def get(_name: str, _default: str = "") -> str:
+            return "text/css; charset=utf-8"
+
+    class _GetHeaderResponse:
+        @staticmethod
+        def getheader(_name: str, _default: str = "") -> str:
+            return "text/javascript; charset=utf-8"
+
+    class _StringResponse:
+        @staticmethod
+        def read() -> str:
+            return "already decoded"
+
+    assert module._response_content_type(type("R", (), {"headers": _HeadersContentType()})()) == "application/json"
+    assert module._response_content_type(type("R", (), {"headers": _HeadersGet()})()) == "text/css"
+    assert module._response_content_type(_GetHeaderResponse()) == "text/javascript"
+    assert module._response_content_type(object()) == ""
+    assert module._read_response_text(_StringResponse()) == "already decoded"
+
+
+def test_screenshot_manifest_failure_does_not_hide_screenshot(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+
+    class _Page:
+        @staticmethod
+        def screenshot(*, path: str, full_page: bool) -> None:
+            assert full_page is True
+            Path(path).write_bytes(b"not a real png")
+
+    monkeypatch.setattr(
+        module,
+        "build_page_shots_manifest",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("manifest failed")),
+    )
+
+    screenshot = module._screenshot(_Page(), tmp_path, "bad page")
+
+    assert screenshot == str(tmp_path / "bad-page.png")
+    assert (tmp_path / "bad-page.png").read_bytes() == b"not a real png"
+    assert not (tmp_path / "screenshot_manifest.json").exists()
+
+
+def test_assert_page_healthy_reports_rejected_and_missing_text(tmp_path: Path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, text: str = "", count: int = 0) -> None:
+            self.text = text
+            self._count = count
+
+        def count(self) -> int:
+            return self._count
+
+        def inner_text(self, *, timeout: int) -> str:
+            return self.text
+
+    class _Page:
+        url = "http://demo/"
+
+        def __init__(self, body: str) -> None:
+            self.body = body
+            self.waits: list[int] = []
+
+        def wait_for_selector(self, *_args, **_kwargs) -> None:
+            return None
+
+        def wait_for_timeout(self, ms: int) -> None:
+            self.waits.append(ms)
+
+        def screenshot(self, *, path: str, full_page: bool) -> None:
+            assert full_page is True
+            Path(path).write_bytes(b"png")
+
+        def locator(self, selector: str) -> _Locator:
+            if selector == "body":
+                return _Locator(self.body)
+            return _Locator(count=0)
+
+    rejected = module.assert_page_healthy(
+        _Page("Traceback: synthetic failure"),
+        label="analysis rejected",
+        expect_any=("ANALYSIS",),
+        timeout_ms=0,
+        screenshot_dir=tmp_path,
+    )
+    missing = module.assert_page_healthy(
+        _Page("healthy but incomplete"),
+        label="analysis missing",
+        expect_any=("ANALYSIS", "Choose pages"),
+        timeout_ms=0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert rejected.success is False
+    assert "rejected pattern 'traceback'" in rejected.detail
+    assert "screenshot=" in rejected.detail
+    assert missing.success is False
+    assert "missing expected text: ANALYSIS | Choose pages" in missing.detail
+
+
+def test_main_remote_json_uses_patched_browser_robot(capsys, monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "run_browser_robot",
+        lambda **_kwargs: [module.RobotStep("remote browser", True, 1.25, "ok", "http://demo/")],
+    )
+
+    code = module.main(["--url", "http://demo", "--json", "--target-seconds", "2"])
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is True
+    assert payload["within_target"] is True
+    assert payload["steps"][0]["label"] == "remote browser"
+
+
+def test_main_remote_frontend_smoke_json_reports_setup_failure(capsys, monkeypatch) -> None:
+    module = _load_module()
+
+    def _raise_setup(**_kwargs):
+        raise RuntimeError("Playwright missing")
+
+    monkeypatch.setattr(module, "run_frontend_smoke", _raise_setup)
+
+    code = module.main(["--url", "http://demo", "--frontend-smoke-only", "--json"])
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is False
+    assert payload["steps"][0]["label"] == "browser setup"
+    assert payload["steps"][0]["detail"] == "Playwright missing"
+
+
+def _install_fake_playwright(monkeypatch, module, page):
+    class FakePlaywrightError(Exception):
+        pass
+
+    class FakePlaywrightTimeoutError(Exception):
+        pass
+
+    class FakeContext:
+        closed = False
+
+        def new_page(self):
+            return page
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeBrowser:
+        closed = False
+
+        def __init__(self) -> None:
+            self.context = FakeContext()
+
+        def new_context(self, *, viewport):
+            assert viewport == {"width": 1440, "height": 1000}
+            return self.context
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeBrowserType:
+        def launch(self, *, headless):
+            page.launch_headless = headless
+            return FakeBrowser()
+
+    class FakePlaywright:
+        chromium = FakeBrowserType()
+        firefox = FakeBrowserType()
+        webkit = FakeBrowserType()
+
+    class FakeSyncPlaywright:
+        def __enter__(self):
+            return FakePlaywright()
+
+        def __exit__(self, *_exc):
+            return None
+
+    monkeypatch.setattr(
+        module,
+        "_load_playwright",
+        lambda: (FakePlaywrightError, FakePlaywrightTimeoutError, FakeSyncPlaywright),
+    )
+    return FakePlaywrightError, FakePlaywrightTimeoutError
+
+
+class _FakeLocator:
+    def __init__(self, page, *, selector: str, count: int = 0) -> None:
+        self.page = page
+        self.selector = selector
+        self._count = count
+
+    def count(self) -> int:
+        return self._count
+
+    def inner_text(self, *, timeout: int) -> str:
+        assert self.selector == "body"
+        return self.page.body_text
+
+    def click(self, *, timeout: float) -> None:
+        self.page.clicked_selectors.append((self.selector, timeout))
+
+
+class _FakeFileChooser:
+    def __init__(self, page) -> None:
+        self.page = page
+
+    def set_files(self, path: str) -> None:
+        self.page.selected_files.append(Path(path).name)
+
+
+class _FakeFileChooserContext:
+    def __init__(self, page, error: Exception | None = None) -> None:
+        self.value = _FakeFileChooser(page)
+        self.error = error
+
+    def __enter__(self):
+        if self.error is not None:
+            raise self.error
+        return self
+
+    def __exit__(self, *_exc):
+        return None
+
+
+class _FakeBrowserPage:
+    def __init__(self, *, chooser_error: Exception | None = None, url_error: Exception | None = None) -> None:
+        self.url = "about:blank"
+        self.body_text = ""
+        self.launch_headless: bool | None = None
+        self.clicked_selectors: list[tuple[str, float]] = []
+        self.selected_files: list[str] = []
+        self.visited: list[str] = []
+        self.chooser_error = chooser_error
+        self.url_error = url_error
+
+    def goto(self, url: str, *, wait_until: str, timeout: float) -> None:
+        assert wait_until == "domcontentloaded"
+        self.url = url
+        self.visited.append(url)
+        if "ORCHESTRATE" in url:
+            self.body_text = "ORCHESTRATE INSTALL EXECUTE"
+        elif "ANALYSIS" in url and "current_page=" in url:
+            self.body_text = "View: selected analysis view"
+        elif "ANALYSIS" in url:
+            self.body_text = "ANALYSIS Choose pages View:"
+        else:
+            self.body_text = "First proof Upload"
+
+    def wait_for_selector(self, selector: str, *, timeout: float) -> None:
+        assert selector in {
+            "[data-testid='stApp']",
+            "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']",
+        }
+
+    def wait_for_url(self, _pattern, *, timeout: float) -> None:
+        if self.url_error is not None:
+            raise self.url_error
+        self.url = "http://demo/PROJECT?active_app=flight"
+        self.body_text = "PROJECT notebook uploader"
+
+    def expect_file_chooser(self, *, timeout: float):
+        return _FakeFileChooserContext(self, self.chooser_error)
+
+    def locator(self, selector: str):
+        if selector == "body":
+            return _FakeLocator(self, selector=selector)
+        if selector == "[data-testid='stException']":
+            return _FakeLocator(self, selector=selector, count=0)
+        return _FakeLocator(self, selector=selector)
+
+    def screenshot(self, *, path: str, full_page: bool) -> None:
+        assert full_page is True
+        Path(path).write_bytes(b"png")
+
+
+def test_run_browser_robot_covers_full_happy_path_with_analysis_view(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    _install_fake_playwright(monkeypatch, module, page)
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+        analysis_view="view_maps",
+        analysis_view_path="/app/view_maps.py",
+    )
+
+    assert [step.label for step in steps] == [
+        "landing navigation",
+        "landing page",
+        "about upload button",
+        "notebook upload handoff",
+        "project notebook uploader",
+        "orchestrate navigation",
+        "orchestrate page",
+        "analysis navigation",
+        "analysis page",
+        "view_maps navigation",
+        "view_maps analysis view",
+    ]
+    assert all(step.success for step in steps)
+    assert page.launch_headless is True
+    assert page.clicked_selectors == [("[data-testid='stFileUploaderDropzone'] button", 1000.0)]
+    assert page.selected_files == ["agilab-web-robot-upload.ipynb"]
+    assert page.visited[-1].endswith("active_app=flight&current_page=%2Fapp%2Fview_maps.py")
+
+
+def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.url_error = PlaywrightError("PROJECT did not load")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert steps[-1].label == "notebook upload handoff"
+    assert steps[-1].success is False
+    assert "PROJECT did not open after notebook upload" in steps[-1].detail
+    assert "screenshot=" in steps[-1].detail
+
+
+def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    _install_fake_playwright(monkeypatch, module, page)
+    monkeypatch.setattr(
+        module,
+        "assert_frontend_static_assets",
+        lambda landing_url, *, opener: module.RobotStep(
+            "frontend static assets",
+            True,
+            0.01,
+            "ok",
+            landing_url,
+        ),
+    )
+
+    steps = module.run_frontend_smoke(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="firefox",
+        headless=False,
+        timeout=1.0,
+    )
+
+    assert [step.label for step in steps] == [
+        "frontend static assets",
+        "frontend browser navigation",
+        "frontend landing hydration",
+    ]
+    assert all(step.success for step in steps)
+    assert page.launch_headless is False
+
+
+def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeypatch) -> None:
+    module = _load_module()
+
+    class _Process:
+        returncode = 9
+
+        @staticmethod
+        def poll() -> int:
+            return 9
+
+    class _Server:
+        process = _Process()
+
+        def __init__(self, argv, *, env, url) -> None:
+            self.argv = argv
+            self.env = env
+            self.url = url
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        @staticmethod
+        def output_tail() -> str:
+            return "server died"
+
+    monkeypatch.setattr(module, "StreamlitServer", _Server)
+    monkeypatch.setattr(module, "build_server_env", lambda: {"ENV": "1"})
+    monkeypatch.setattr(
+        module,
+        "wait_for_streamlit_health",
+        lambda *_args, **_kwargs: module.RobotStep("streamlit health", False, 0.2, "not ready", "http://demo"),
+    )
+
+    code = module.main(["--json", "--port", "8765", "--timeout", "1"])
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "streamlit process"]
+    assert "process exited with 9" in payload["steps"][1]["detail"]
+
+
+def test_render_human_non_json_output_includes_route_and_step_details(capsys) -> None:
+    module = _load_module()
+    summary = module.RobotSummary(
+        success=False,
+        total_duration_seconds=2.5,
+        target_seconds=2.0,
+        within_target=False,
+        steps=[module.RobotStep("analysis", False, 2.5, "missing View:", "http://demo/ANALYSIS")],
+    )
+
+    text = module.render_human(
+        summary=summary,
+        launch_command=["uv", "run", "streamlit"],
+        base_url="http://demo",
+    )
+
+    assert "$ uv run streamlit" in text
+    assert "verdict: FAIL" in text
+    assert "within_target=no" in text
+    assert "- analysis: FAIL in 2.50s - missing View:" in text
+
+    assert module.main(["--print-only", "--port", "8765"]) == 0
+    human = capsys.readouterr().out
+    assert "mode: print-only" in human
+    assert "route: landing Upload chooser -> PROJECT notebook handoff -> ORCHESTRATE -> ANALYSIS" in human

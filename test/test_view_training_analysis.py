@@ -319,11 +319,11 @@ def test_view_training_analysis_repo_path_and_setting_helpers(monkeypatch, tmp_p
     module_path.write_text("# stub\n", encoding="utf-8")
 
     monkeypatch.setattr(module, "__file__", str(module_path))
-    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(sys, "path", [])
     module._ensure_repo_on_path()
 
-    assert str(src_root) in module.sys.path
-    assert str(repo_root) in module.sys.path
+    assert str(src_root) in sys.path
+    assert str(repo_root) in sys.path
 
     module.st = SimpleNamespace(session_state={"app_settings": {"kept": True}})
     module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=tmp_path / "missing.toml"))
