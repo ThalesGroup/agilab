@@ -134,7 +134,7 @@ def candidate_app_settings_path(base: object) -> Path | None:
     """Return a safe candidate path for ``app_settings.toml`` or ``None``."""
 
     try:
-        base_path = Path(base)
+        base_path = Path(base)  # ty: ignore[invalid-argument-type]
     except PATH_VALUE_EXCEPTIONS:
         return None
 

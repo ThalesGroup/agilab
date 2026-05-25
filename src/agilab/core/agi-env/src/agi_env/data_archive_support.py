@@ -44,7 +44,7 @@ def unzip_data(
     ensure_dir_fn: Callable[[str | Path], Path],
     sevenzip_file_cls: type[Any],
     rmtree_fn: Callable[..., Any],
-    environ: dict[str, str] = os.environ,
+    environ: dict[str, str] = os.environ,  # ty: ignore[invalid-parameter-default]
 ) -> None:
     """Extract a `.7z` dataset archive into the app share directory."""
 

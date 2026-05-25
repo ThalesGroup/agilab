@@ -38,7 +38,7 @@ class BackgroundProcessManager:
         if cwd in (None, ""):
             return None
         try:
-            candidate = Path(cast(str | Path, cwd)).expanduser()
+            candidate = Path(cast(str | Path, cwd)).expanduser()  # ty: ignore[redundant-cast]
         except _NORMALIZE_CWD_EXCEPTIONS:
             return None
         return str(candidate) if candidate.is_dir() else None

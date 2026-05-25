@@ -256,7 +256,7 @@ def activate_gpt_oss(
 
     session_state.pop("gpt_oss_autostart_failed", None)
     try:
-        import gpt_oss  # noqa: F401
+        import gpt_oss  # noqa: F401  # ty: ignore[unresolved-import]
     except ImportError:
         streamlit.warning("Install `gpt-oss` (`pip install gpt-oss`) to enable the offline assistant.")
         session_state["gpt_oss_autostart_failed"] = True

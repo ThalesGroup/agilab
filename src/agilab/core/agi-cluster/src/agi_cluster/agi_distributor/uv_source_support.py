@@ -93,7 +93,7 @@ def ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
         project_tbl = tomlkit.table()
 
     optional_tbl = project_tbl.get("optional-dependencies")
-    if optional_tbl is None or not isinstance(optional_tbl, tomlkit.items.Table):
+    if optional_tbl is None or not isinstance(optional_tbl, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
         optional_tbl = tomlkit.table()
 
     for extra in sorted({e for e in extras if isinstance(e, str) and e.strip()}):

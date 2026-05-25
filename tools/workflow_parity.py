@@ -170,6 +170,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "skills",
             "installer",
             "shared-core-typing",
+            "ty-typing",
             "dependency-policy",
             "release-proof",
             "security-adoption",
@@ -277,6 +278,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _profile_descriptions() -> dict[str, str]:
+    # Typing migration policy:
+    # - ty-typing is the forward strict type-checking path.
+    # - shared-core-typing keeps mypy as the curated temporary release guard until
+    #   ty has proven equivalent signal on the shared-core slice.
     return {
         "agi-env": "Run the local equivalent of the agi-env coverage workflow job.",
         "agi-core-combined": "Run the shared core test suite once and emit both agi-node and agi-cluster coverage XML files.",
@@ -287,7 +292,8 @@ def _profile_descriptions() -> dict[str, str]:
         "badges": "Refresh component coverage badges from local coverage XML files.",
         "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
-        "shared-core-typing": "Run the curated shared-core strict mypy slice.",
+        "shared-core-typing": "Run the curated temporary strict mypy release guard for shared core.",
+        "ty-typing": "Run the forward shared-core strict ty type-check slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
         "release-proof": "Run expensive release-proof gates such as fresh-clone first-proof install validation.",
         "security-adoption": (
@@ -333,6 +339,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "skills": _skills_profile(args.skills),
         "installer": _installer_profile(args.app_path, args.worker_copy),
         "shared-core-typing": _shared_core_typing_profile(),
+        "ty-typing": _shared_core_ty_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
         "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
@@ -1220,6 +1227,49 @@ def _shared_core_typing_profile() -> list[CommandSpec]:
     ]
 
 
+def _shared_core_ty_target_paths() -> list[str]:
+    paths = [
+        "src/agilab/core/agi-core/src",
+        "src/agilab/core/agi-env/src",
+        "src/agilab/core/agi-node/src",
+        "src/agilab/core/agi-cluster/src",
+    ]
+    if (REPO_ROOT / "stubs").is_dir():
+        paths.append("stubs")
+    return paths
+
+
+def _shared_core_ty_typing_profile() -> list[CommandSpec]:
+    target_paths = _shared_core_ty_target_paths()
+    extra_search_path_args = [
+        item
+        for path in target_paths
+        for item in ("--extra-search-path", path)
+    ]
+    return [
+        CommandSpec(
+            label="shared-core strict ty typing",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "ty",
+                "python",
+                "-m",
+                "ty",
+                "check",
+                "--project",
+                ".",
+                "--error-on-warning",
+                *extra_search_path_args,
+                *target_paths,
+            ],
+        )
+    ]
+
+
 def _dependency_policy_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -2039,6 +2089,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "release-proof",
         "security-adoption",
         "production-readiness",
+        "ty-typing",
         "ui-robot-matrix",
         "ui-robot-contract",
         "ui-robot-canary",

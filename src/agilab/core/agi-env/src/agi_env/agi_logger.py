@@ -97,7 +97,7 @@ def _render_log_message(record: logging.LogRecord) -> str:
 
 def _render_venv_label(prefix: str, *, os_name: str) -> str:
     if not prefix:
-        return COLORS["classname"] + "<unknown>" + RESET
+        return COLORS["classname"] + "<unknown>" + RESET  # ty: ignore[unsupported-operator]
     parts = prefix.split("\\") if os_name == "nt" else prefix.split("/")
     return parts[-2] if len(parts) >= 2 else prefix
 
@@ -216,12 +216,12 @@ class LogFormatter(logging.Formatter):
         self.verbose = verbose
 
     def format(self, record):
-        level_color = COLORS["level"].get(record.levelname, "")
+        level_color = COLORS["level"].get(record.levelname, "")  # ty: ignore[unresolved-attribute]
         levelname = level_color
 
         venv_str = _render_venv_label(sys.prefix, os_name=os.name)
         functionName_str = _render_record_origin(record)
-        message = COLORS["msg"] + _render_log_message(record) + RESET
+        message = COLORS["msg"] + _render_log_message(record) + RESET  # ty: ignore[unsupported-operator]
         if not hasattr(record, "subprocess"):
             return levelname + venv_str + '.' + functionName_str + ' ' + message
         return f"{message}"

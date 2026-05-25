@@ -11,7 +11,7 @@ def resolve_preview_nrows(explicit_nrows: object, session_max_rows: object) -> i
     if raw_value is None:
         return None
     try:
-        value = int(raw_value)
+        value = int(raw_value)  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return None
     return None if value == 0 else value

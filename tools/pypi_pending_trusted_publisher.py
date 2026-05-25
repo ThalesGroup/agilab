@@ -290,7 +290,12 @@ def _open_publishing_settings(
     raise RuntimeError(
         "PyPI redirected back to login while opening account publishing "
         "settings after password/TOTP authentication. PyPI likely requires "
-        "unrecognized-login email confirmation from the same runner IP."
+        "unrecognized-login email confirmation from the same runner IP that "
+        "started the login attempt. "
+        "Set repository variable PYPI_CONFIRM_LOGIN_URL from the confirmation "
+        "email link, then rerun with the same project inputs. "
+        "If this repeats on GitHub-hosted runners, switch this workflow to a "
+        "self-hosted/static-IP runner and retry."
     )
 
 

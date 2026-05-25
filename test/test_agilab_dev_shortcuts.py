@@ -170,6 +170,21 @@ def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
     ]
 
 
+def test_typing_shortcut_invokes_ty_typing_profile():
+    assert agilab_dev.planned_commands(["typing"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/workflow_parity.py",
+            "--profile",
+            "ty-typing",
+        ]
+    ]
+
+
 def test_release_shortcut_runs_local_release_guards():
     assert agilab_dev.planned_commands(["release"]) == [
         [

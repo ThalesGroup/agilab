@@ -59,7 +59,7 @@ from agi_env import AgiEnv
 try:
     from .cython_type_preprocess import preprocess_source
 except ImportError:  # pragma: no cover - script execution fallback
-    from cython_type_preprocess import preprocess_source
+    from cython_type_preprocess import preprocess_source  # ty: ignore[unresolved-import]
 
 
 def get_decorator_name(decorator_node):
