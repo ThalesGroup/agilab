@@ -59,6 +59,7 @@ UI and page packages
    agi-page-decision-evidence <agi-page-decision-evidence-licenses>
    agi-page-timeseries-forecast <agi-page-timeseries-forecast-licenses>
    agi-page-inference-report <agi-page-inference-report-licenses>
+   agi-page-live-artifacts <agi-page-live-artifacts-licenses>
    agi-page-geospatial-map <agi-page-geospatial-map-licenses>
    agi-page-geospatial-3d <agi-page-geospatial-3d-licenses>
    agi-page-network-map <agi-page-network-map-licenses>

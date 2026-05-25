@@ -4,6 +4,7 @@ import builtins
 import importlib.util
 import json
 import os
+import runpy
 import subprocess
 import sys
 import time
@@ -50,6 +51,48 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
     assert str(module.DEFAULT_ACTIVE_APP) in command
     assert "--apps-path" in command
     assert str(module.DEFAULT_APPS_PATH) in command
+
+
+def test_web_robot_entrypoint_help_exits_before_launch(monkeypatch, capsys) -> None:
+    src_root = str(MODULE_PATH.parents[1] / "src")
+    monkeypatch.setattr(sys, "path", [path for path in sys.path if path != src_root])
+    monkeypatch.setattr(sys, "argv", [str(MODULE_PATH), "--help"])
+
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected argparse help to raise SystemExit")
+
+    output = capsys.readouterr().out
+    assert "usage: agilab_web_robot.py" in output
+    assert "--frontend-smoke-only" in output
+
+
+def test_web_robot_theme_fallback_rejects_missing_spec(monkeypatch) -> None:
+    original_import = builtins.__import__
+    original_spec = importlib.util.spec_from_file_location
+
+    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agilab.streamlit_theme_env":
+            raise ModuleNotFoundError("blocked theme env")
+        return original_import(name, globals, locals, fromlist, level)
+
+    def missing_theme_spec(name, path, *args, **kwargs):
+        if name == "agilab_streamlit_theme_env_local":
+            return None
+        return original_spec(name, path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", missing_theme_spec)
+
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except ModuleNotFoundError as exc:
+        assert "Unable to load streamlit_theme_env.py" in str(exc)
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected theme fallback import failure")
 
 
 def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None:
@@ -136,6 +179,39 @@ def test_streamlit_server_exit_kills_process_after_timeout() -> None:
     assert output.closed is True
 
 
+def test_streamlit_server_exit_handles_no_process_and_finished_process() -> None:
+    module = _load_module()
+    no_process = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    no_process.__exit__(None, None, None)
+
+    class _Process:
+        terminated = False
+
+        @staticmethod
+        def poll():
+            return 0
+
+        def terminate(self):
+            self.terminated = True
+
+    class _Output:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    finished = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    process = _Process()
+    output = _Output()
+    finished.process = process
+    finished._output_file = output
+
+    finished.__exit__(None, None, None)
+
+    assert process.terminated is False
+    assert output.closed is True
+
+
 def test_streamlit_server_output_tail_handles_missing_and_unreadable_files(tmp_path: Path) -> None:
     module = _load_module()
     server = module.StreamlitServer(["fake"], env={}, url="http://demo")
@@ -164,6 +240,12 @@ def test_build_url_preserves_existing_query_and_encodes_current_page() -> None:
     assert "foo=bar" in url
     assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
+
+
+def test_build_url_preserves_path_without_optional_query() -> None:
+    module = _load_module()
+
+    assert module.build_url("http://127.0.0.1:8501/PROJECT") == "http://127.0.0.1:8501/PROJECT"
 
 
 def test_build_page_url_targets_streamlit_page_route() -> None:
@@ -202,6 +284,16 @@ def test_resolve_local_active_app_accepts_apps_root_paths_and_unknown_names(tmp_
     assert module.resolve_local_active_app("direct_project", str(apps_root)) == direct_project.resolve()
     assert module.resolve_local_active_app("shorthand", str(apps_root)) == shorthand_project.resolve()
     assert module.resolve_local_active_app("missing_project", str(apps_root)) == "missing_project"
+    assert module.resolve_local_active_app("missing", str(apps_root)) == "missing"
+
+
+def test_resolve_local_active_app_accepts_builtin_shorthand_under_custom_apps_root(tmp_path: Path) -> None:
+    module = _load_module()
+    apps_root = tmp_path / "apps"
+    builtin_project = apps_root / "builtin" / "demo_project"
+    builtin_project.mkdir(parents=True)
+
+    assert module.resolve_local_active_app("demo", str(apps_root)) == builtin_project.resolve()
 
 
 def test_resolve_analysis_view_path_switches_between_local_and_remote() -> None:
@@ -432,6 +524,33 @@ def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
     assert calls == ["http://127.0.0.1:9999/_stcore/health"] * 4
 
 
+def test_wait_for_streamlit_health_reports_last_http_status() -> None:
+    module = _load_module()
+
+    class _Response:
+        status = 503
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return None
+
+        def getcode(self):
+            return self.status
+
+    step = module.wait_for_streamlit_health(
+        "http://demo",
+        timeout=0.1,
+        opener=lambda _url: _Response(),
+        clock=iter([0.0, 0.2, 0.3]).__next__,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert step.success is False
+    assert step.detail == "not ready: HTTP 503"
+
+
 def test_assert_page_healthy_reports_streamlit_exception_block() -> None:
     module = _load_module()
 
@@ -462,6 +581,49 @@ def test_assert_page_healthy_reports_streamlit_exception_block() -> None:
     assert step.label == "landing page"
     assert step.detail.startswith("Streamlit exception block found")
     assert step.url == page.url
+
+
+def test_assert_page_healthy_streamlit_exception_includes_screenshot(tmp_path: Path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, *, count: int = 0) -> None:
+            self._count = count
+
+        def count(self) -> int:
+            return self._count
+
+        def inner_text(self, *, timeout: int) -> str:
+            return "healthy text"
+
+    class _Page:
+        url = "http://demo/"
+
+        @staticmethod
+        def wait_for_selector(*_args, **_kwargs) -> None:
+            return None
+
+        @staticmethod
+        def screenshot(*, path: str, full_page: bool) -> None:
+            assert full_page is True
+            Path(path).write_bytes(b"png")
+
+        def locator(self, selector: str) -> _Locator:
+            if selector == "[data-testid='stException']":
+                return _Locator(count=1)
+            return _Locator()
+
+    step = module.assert_page_healthy(
+        _Page(),
+        label="landing exception",
+        expect_any=("First proof",),
+        timeout_ms=0,
+        screenshot_dir=tmp_path,
+    )
+
+    assert step.success is False
+    assert "Streamlit exception block found (1)" in step.detail
+    assert "screenshot=" in step.detail
 
 
 def test_main_print_only_with_remote_url_targets_remote_analysis_view(capsys) -> None:
@@ -749,6 +911,30 @@ def test_screenshot_manifest_helper_fallback_and_missing_file(monkeypatch, tmp_p
     assert (tmp_path / "manifest.json").read_text(encoding="utf-8") == "{'ok': True}"
 
 
+def test_screenshot_manifest_helper_rejects_missing_import_spec(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    original_import = builtins.__import__
+
+    def block_screenshot_manifest(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agilab.screenshot_manifest":
+            raise ModuleNotFoundError("blocked screenshot manifest")
+        return original_import(name, globals, locals, fromlist, level)
+
+    manifest_file = tmp_path / "src" / "agilab" / "screenshot_manifest.py"
+    manifest_file.parent.mkdir(parents=True)
+    manifest_file.write_text("# placeholder\n", encoding="utf-8")
+    monkeypatch.setattr(builtins, "__import__", block_screenshot_manifest)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    try:
+        module._load_screenshot_manifest_helpers()
+    except RuntimeError as exc:
+        assert "Could not build import spec" in str(exc)
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected missing screenshot manifest spec failure")
+
+
 def test_screenshot_manifest_failure_does_not_hide_screenshot(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
 
@@ -829,6 +1015,98 @@ def test_assert_page_healthy_reports_rejected_and_missing_text(tmp_path: Path) -
     assert "missing expected text: ANALYSIS | Choose pages" in missing.detail
 
 
+def test_assert_page_healthy_reports_rejected_and_missing_text_without_screenshots() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, text: str = "", count: int = 0) -> None:
+            self.text = text
+            self._count = count
+
+        def count(self) -> int:
+            return self._count
+
+        def inner_text(self, *, timeout: int) -> str:
+            return self.text
+
+    class _Page:
+        url = "http://demo/"
+
+        def __init__(self, body: str) -> None:
+            self.body = body
+
+        def wait_for_selector(self, *_args, **_kwargs) -> None:
+            return None
+
+        def locator(self, selector: str) -> _Locator:
+            if selector == "body":
+                return _Locator(self.body)
+            return _Locator(count=0)
+
+    rejected = module.assert_page_healthy(
+        _Page("Traceback: synthetic failure"),
+        label="analysis rejected",
+        expect_any=("ANALYSIS",),
+        timeout_ms=0,
+    )
+    missing = module.assert_page_healthy(
+        _Page("healthy but incomplete"),
+        label="analysis missing",
+        expect_any=("ANALYSIS", "Choose pages"),
+        timeout_ms=0,
+    )
+
+    assert rejected.detail == "page text contains rejected pattern 'traceback'"
+    assert missing.detail == "missing expected text: ANALYSIS | Choose pages"
+
+
+def test_assert_page_healthy_waits_until_expected_text_appears(monkeypatch) -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, page, *, selector: str) -> None:
+            self.page = page
+            self.selector = selector
+
+        def count(self) -> int:
+            return 0
+
+        def inner_text(self, *, timeout: int) -> str:
+            assert self.selector == "body"
+            self.page.body_calls += 1
+            if self.page.body_calls == 1:
+                return "loading"
+            return "ANALYSIS ready"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+
+        def __init__(self) -> None:
+            self.body_calls = 0
+            self.waits: list[int] = []
+
+        def wait_for_selector(self, *_args, **_kwargs) -> None:
+            return None
+
+        def wait_for_timeout(self, ms: int) -> None:
+            self.waits.append(ms)
+
+        def locator(self, selector: str) -> _Locator:
+            return _Locator(self, selector=selector)
+
+    monkeypatch.setattr(module.time, "perf_counter", iter([0.0, 0.0, 0.1, 0.2, 0.3]).__next__)
+
+    step = module.assert_page_healthy(
+        _Page(),
+        label="analysis page",
+        expect_any=("ANALYSIS",),
+        timeout_ms=1000,
+    )
+
+    assert step.success is True
+    assert step.detail == "page healthy"
+
+
 def test_assert_page_healthy_reports_selector_exception_with_screenshot(tmp_path: Path) -> None:
     module = _load_module()
 
@@ -855,6 +1133,28 @@ def test_assert_page_healthy_reports_selector_exception_with_screenshot(tmp_path
     assert step.success is False
     assert "health assertion failed: app never hydrated" in step.detail
     assert "screenshot=" in step.detail
+
+
+def test_assert_page_healthy_reports_selector_exception_without_screenshot() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo/"
+
+        @staticmethod
+        def wait_for_selector(*_args, **_kwargs) -> None:
+            raise RuntimeError("app never hydrated")
+
+    step = module.assert_page_healthy(
+        _Page(),
+        label="landing broken",
+        expect_any=("First proof",),
+        timeout_ms=0,
+        screenshot_dir=None,
+    )
+
+    assert step.success is False
+    assert step.detail == "health assertion failed: app never hydrated"
 
 
 def test_main_remote_json_uses_patched_browser_robot(capsys, monkeypatch) -> None:
@@ -1126,6 +1426,24 @@ def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path:
     assert "screenshot=" in steps[-1].detail
 
 
+def test_run_browser_robot_reports_upload_handoff_failure_without_screenshot(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.url_error = PlaywrightError("PROJECT did not load")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps[-1].label == "notebook upload handoff"
+    assert steps[-1].detail == "PROJECT did not open after notebook upload: PROJECT did not load"
+
+
 def test_run_browser_robot_reports_upload_button_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
@@ -1145,6 +1463,25 @@ def test_run_browser_robot_reports_upload_button_failure(monkeypatch, tmp_path: 
     assert steps[-1].success is False
     assert "could not open file chooser" in steps[-1].detail
     assert "screenshot=" in steps[-1].detail
+
+
+def test_run_browser_robot_reports_upload_button_failure_without_screenshot(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.chooser_error = PlaywrightError("chooser blocked")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps[-1].label == "about upload button"
+    assert steps[-1].success is False
+    assert steps[-1].detail == "could not open file chooser from ABOUT Upload button: chooser blocked"
 
 
 def test_run_browser_robot_reports_project_uploader_failure(monkeypatch, tmp_path: Path) -> None:
@@ -1168,6 +1505,60 @@ def test_run_browser_robot_reports_project_uploader_failure(monkeypatch, tmp_pat
     assert "screenshot=" in steps[-1].detail
 
 
+def test_run_browser_robot_reports_project_uploader_failure_without_screenshot(monkeypatch) -> None:
+    module = _load_module()
+    page = _FakeBrowserPage()
+    PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
+    page.selector_error = PlaywrightError("uploader missing")
+
+    steps = module.run_browser_robot(
+        base_url="http://demo",
+        active_app_query="flight",
+        browser_name="chromium",
+        headless=True,
+        timeout=1.0,
+    )
+
+    assert steps[-1].label == "project notebook uploader"
+    assert steps[-1].detail == "PROJECT notebook uploader not visible after upload handoff: uploader missing"
+
+
+def test_run_browser_robot_can_stop_after_navigation_steps(monkeypatch) -> None:
+    module = _load_module()
+    original_append_step = module._append_step
+
+    for stop_label in (
+        "landing navigation",
+        "orchestrate navigation",
+        "analysis navigation",
+        "view_maps navigation",
+    ):
+        page = _FakeBrowserPage()
+        _install_fake_playwright(monkeypatch, module, page)
+
+        def stop_on_label(steps, step, *, _stop_label=stop_label):
+            if step.label == _stop_label:
+                steps.append(step)
+                return False
+            return original_append_step(steps, step)
+
+        monkeypatch.setattr(module, "_append_step", stop_on_label)
+
+        steps = module.run_browser_robot(
+            base_url="http://demo",
+            active_app_query="flight",
+            browser_name="chromium",
+            headless=True,
+            timeout=1.0,
+            analysis_view="view_maps",
+            analysis_view_path="/app/view_maps.py",
+        )
+
+        assert steps[-1].label == stop_label
+
+    monkeypatch.setattr(module, "_append_step", original_append_step)
+
+
 def test_run_browser_robot_reports_outer_playwright_failure(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
@@ -1183,6 +1574,28 @@ def test_run_browser_robot_reports_outer_playwright_failure(monkeypatch) -> None
     )
 
     assert steps == [module.RobotStep("browser robot", False, 0.0, "playwright failed: browser crashed", "http://demo")]
+
+
+def test_run_browser_robot_reraises_runtime_setup_errors(monkeypatch) -> None:
+    module = _load_module()
+
+    def _raise_runtime():
+        raise RuntimeError("playwright setup broken")
+
+    monkeypatch.setattr(module, "_load_playwright", lambda: (Exception, TimeoutError, _raise_runtime))
+
+    try:
+        module.run_browser_robot(
+            base_url="http://demo",
+            active_app_query="flight",
+            browser_name="chromium",
+            headless=True,
+            timeout=1.0,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "playwright setup broken"
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected runtime setup error to be re-raised")
 
 
 def test_run_browser_robot_returns_after_page_health_failures(monkeypatch) -> None:
@@ -1337,6 +1750,39 @@ def test_run_frontend_smoke_reports_playwright_failure(monkeypatch) -> None:
         "playwright failed: hydration crashed",
         "http://demo/?active_app=flight",
     )
+
+
+def test_run_frontend_smoke_reraises_runtime_setup_errors(monkeypatch) -> None:
+    module = _load_module()
+
+    def _raise_runtime():
+        raise RuntimeError("frontend setup broken")
+
+    monkeypatch.setattr(
+        module,
+        "assert_frontend_static_assets",
+        lambda landing_url, *, opener: module.RobotStep(
+            "frontend static assets",
+            True,
+            0.01,
+            "ok",
+            landing_url,
+        ),
+    )
+    monkeypatch.setattr(module, "_load_playwright", lambda: (Exception, TimeoutError, _raise_runtime))
+
+    try:
+        module.run_frontend_smoke(
+            base_url="http://demo",
+            active_app_query="flight",
+            browser_name="chromium",
+            headless=True,
+            timeout=1.0,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "frontend setup broken"
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected runtime setup error to be re-raised")
 
 
 def _patch_local_server(monkeypatch, module, *, health_success: bool) -> None:

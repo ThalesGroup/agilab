@@ -1312,6 +1312,7 @@ def test_analysis_view_profile_describes_known_and_custom_views():
     module = _load_analysis_module()
 
     assert module._analysis_view_profile("view_maps")[0] == "Map evidence"
+    assert module._analysis_view_profile("view_live_artifacts")[0] == "Live artifacts"
     assert module._analysis_view_profile("/tmp/custom_page.py")[0] == "Custom analysis"
 
 

@@ -125,6 +125,10 @@ pulled by the umbrella dependency graph.
      - ``agi-page-inference-report``
      - Allocation and inference-result comparison across exported runs.
      - Included in ``agi-pages``.
+   * - ``view_live_artifacts``
+     - ``agi-page-live-artifacts``
+     - Dynamic artifact, manifest, evidence, and log monitor for active apps.
+     - Included in ``agi-pages``.
    * - ``view_app_ui``
      - ``agi-page-app-ui``
      - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
@@ -270,6 +274,17 @@ Inference and allocation comparison page for producer-agnostic result exports.
   form.
 - Output: side-by-side run metrics, delivered-bandwidth aggregates, and
   allocation charts.
+
+view_live_artifacts
+^^^^^^^^^^^^^^^^^^^
+
+Live evidence monitor for app-agnostic exported artifacts.
+
+- Input: any active app export, run, or custom artifact directory.
+- Output: auto-refreshing inventory of manifests, logs, JSON/CSV/text files,
+  images, file sizes, timestamps, and a stable artifact signature.
+- Use it for long-running local or distributed runs that write incremental
+  evidence while the app remains responsible for execution.
 
 view_app_ui
 ^^^^^^^^^^^

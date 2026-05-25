@@ -4,6 +4,7 @@ import base64
 import builtins
 import importlib.util
 import json
+import runpy
 import struct
 import sys
 from pathlib import Path
@@ -85,6 +86,19 @@ def test_visual_baseline_report_matches_normalized_page_names(tmp_path) -> None:
     assert report["success"] is True
     assert report["comparisons"][0]["page"] == "project"
     assert report["comparisons"][0]["status"] == "matched"
+    assert "- project:" not in module.render_human(report)
+
+
+def test_visual_baseline_report_load_manifest_module_rejects_missing_spec(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    try:
+        module._load_screenshot_manifest_module()
+    except RuntimeError as exc:
+        assert "Could not load screenshot manifest module" in str(exc)
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected screenshot manifest import failure")
 
 
 def test_visual_baseline_report_can_warn_on_missing_baseline(tmp_path) -> None:
@@ -339,3 +353,34 @@ def test_visual_baseline_report_human_cli_writes_nested_output(tmp_path, capsys)
     assert "verdict: PASS" in text
     assert "- settings: warning - no baseline screenshot matched this page" in text
     assert payload["summary"]["warning_count"] == 1
+
+
+def test_visual_baseline_report_entrypoint_runs_json(tmp_path, monkeypatch, capsys) -> None:
+    module = _load_module()
+    current = _write_manifest(module, tmp_path / "current", "project-page.png")
+    baseline = _write_manifest(module, tmp_path / "baseline", "project-page.png")
+    output = tmp_path / "entrypoint-report.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(MODULE_PATH),
+            "--current",
+            str(current),
+            "--baseline",
+            str(baseline),
+            "--output",
+            str(output),
+            "--json",
+        ],
+    )
+
+    try:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected entrypoint to raise SystemExit")
+
+    assert json.loads(capsys.readouterr().out)["success"] is True
+    assert json.loads(output.read_text(encoding="utf-8"))["schema"] == module.SCHEMA
