@@ -612,6 +612,47 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
     assert "test-results/coverage-agi-gui-pipeline.db.fragment" in combined_commands[0]
 
 
+def test_agi_gui_coverage_combine_does_not_recover_failing_junit(tmp_path, monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    recovered_chunk = "pipeline"
+
+    for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
+        db_fragment = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
+        db_fragment.write_text("coverage-db\n", encoding="utf-8")
+        failures = "1" if chunk == recovered_chunk else "0"
+        (test_results / f"junit-agi-gui-{chunk}.xml").write_text(
+            f'<testsuite failures="{failures}" errors="0"/>\n',
+            encoding="utf-8",
+        )
+        if chunk == recovered_chunk:
+            continue
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": f"test-results/coverage-agi-gui-{chunk}.db",
+                    "junit_path": f"test-results/junit-agi-gui-{chunk}.xml",
+                    "coverage_db_paths": [f"test-results/coverage-agi-gui-{chunk}.db.fragment"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 1
+
+    assert "coverage-agi-gui-pipeline.manifest.json" in capsys.readouterr().out
+
+
 def test_badges_profile_accepts_component_filter() -> None:
     module = _load_module()
 

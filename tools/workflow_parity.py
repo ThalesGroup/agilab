@@ -606,6 +606,7 @@ def _agi_gui_coverage_combine_code() -> str:
     return (
         "from pathlib import Path\n"
         "import json, subprocess, sys, time\n"
+        "import xml.etree.ElementTree as ET\n"
         f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
         f"manifest_paths = {manifest_paths!r}\n"
         f"wait_seconds = {AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS!r}\n"
