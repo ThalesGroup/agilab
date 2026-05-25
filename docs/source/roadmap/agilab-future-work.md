@@ -345,6 +345,25 @@ Remaining state-of-the-art scope:
 - enterprise controls for shared deployments: secrets backend integration,
   authentication, RBAC, audit logs, and tenant isolation
 
+State-of-the-art upgrade backlog:
+
+| Priority | Missing capability | First shippable AGILAB contract | Done when |
+| --- | --- | --- | --- |
+| P0 | Signed and attested proof capsules | `agilab sign proof.agipack`, `agilab verify proof.agipack --trust-policy policy.toml`, and optional `.sigstore` / SLSA provenance sidecars | A reviewer can verify archive integrity, signer identity, build provenance, and allowed issuer without the original source checkout. |
+| P0 | Native OpenTelemetry and GenAI traces | `agilab export-traces --otlp-endpoint ...` plus SDK spans for UI actions, worker build, distributed execution, notebook export, MLflow handoff, and agent runs | A run has correlated trace IDs across manager, worker, notebook, and agent events, and an OTLP collector can ingest them without a custom converter. |
+| P0 | OpenLineage transport | `agilab emit-lineage --backend openlineage --url ...` using `START`, `RUNNING`, `COMPLETE`, and `FAIL` events with stable job, run, dataset, and parent-run facets | Marquez/OpenLineage-compatible backends can show AGILAB datasets, artifacts, and job hierarchy from emitted events, not only from local JSON files. |
+| P1 | Continuous eval and LLMOps loop | `eval_manifest.json`, app-declared scorer contracts, baseline/candidate comparisons, optional MLflow GenAI evaluation handoff, and promotion gates | A prompt, model, agent, or notebook change can fail promotion because quality, cost, latency, safety, or regression scores moved outside policy. |
+| P1 | Durable evidence metadata backend | Local SQLite first, then Postgres-compatible storage for runs, artifacts, datasets, models, prompts, cards, lineage, and policy reports | `agilab metadata-store query ...` can answer reviewer questions across runs without scanning ad hoc proof folders. |
+| P1 | Production serving handoff | KServe/Ray Serve/Seldon-style manifest export with model URI, environment, health checks, canary/rollback hints, and prediction-log evidence contract | AGILAB can hand a reproducible candidate to a serving platform while staying out of production traffic control. |
+| P2 | App-authored cards | App-owned model, data, prompt, and eval card schemas with required domain fields and evidence links | Cards are no longer placeholders inferred from run manifests; apps declare meaningful review metadata. |
+| P2 | Policy-as-code and capability sandboxing | OPA/Rego-compatible gates plus filesystem, network, secret, subprocess, and package capability declarations for generated code, notebooks, and agents | Unsafe execution paths are blocked before run, and the proof bundle records the policy decision and granted capabilities. |
+| P2 | Enterprise shared-deployment controls | Secrets-backend integration, authentication, RBAC, audit logs, and tenant-isolation hooks | Shared deployments can be evaluated with explicit platform controls instead of relying on local-workbench assumptions. |
+
+This backlog is intentionally adapter-first. AGILAB should produce portable
+contracts and evidence that platform tools can consume; it should not hide
+production serving, governance, or observability responsibilities inside the
+workbench.
+
 Agent skills and resource evidence hardening:
 
 - keep the public agent discovery surface generated from the repo-managed skill
