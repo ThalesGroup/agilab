@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pathspec.gitignore import GitIgnoreSpec
 
 
 MODULE_PATH = Path("src/agilab/pages/1_PROJECT.py")
@@ -2127,7 +2128,7 @@ def test_process_files_reports_decode_errors(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(Path, "read_text", _raise_decode)
     monkeypatch.setattr(module.st, "warning", warnings.append)
 
-    spec = module.PathSpec.from_lines(module.GitWildMatchPattern, [])
+    spec = GitIgnoreSpec.from_lines([])
     module.process_files(
         str(source_app),
         ["broken.py"],
