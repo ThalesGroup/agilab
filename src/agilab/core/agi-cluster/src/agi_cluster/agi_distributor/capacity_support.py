@@ -98,8 +98,11 @@ def _restore_calibration_cache(agi_cls: Any, *, now: float) -> bool:
         return False
     if cache.get("signature") != _calibration_signature(agi_cls):
         return False
+    measured_at_raw = cache.get("measured_at")
+    if measured_at_raw is None:
+        return False
     try:
-        measured_at = float(cache.get("measured_at"))
+        measured_at = float(measured_at_raw)
     except (TypeError, ValueError):
         return False
     if now - measured_at > ttl_seconds:
