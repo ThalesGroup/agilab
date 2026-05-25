@@ -57,6 +57,7 @@ EXAMPLE_PREVIEWS = {
         "preview_resilience_failure_injection.py",
     ),
     "service_mode": ("preview_service_mode.py",),
+    "sklearn_pipeline_proof": ("preview_sklearn_pipeline_proof.py",),
     "train_then_serve": ("preview_train_then_serve.py",),
     "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
@@ -937,6 +938,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "notebook_migrations/*/notebooks/*.ipynb" in package_data
     assert "resilience_failure_injection/*.py" in package_data
     assert "service_mode/*.py" in package_data
+    assert "sklearn_pipeline_proof/*.py" in package_data
     assert "train_then_serve/*.py" in package_data
 
 
@@ -1334,6 +1336,37 @@ def test_resilience_failure_injection_preview_recommends_adaptive_response(tmp_p
     assert summary["real_policy_training"] is False
     assert "certified MARL" in summary["claim_boundary"]
     assert (tmp_path / "resilience_preview.json").is_file()
+
+
+def test_sklearn_pipeline_proof_preview_writes_model_metrics_and_manifest(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "sklearn_pipeline_proof" / "preview_sklearn_pipeline_proof.py"
+    module_name = "agilab_sklearn_pipeline_proof_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(output_dir=tmp_path, seed=2026, sample_count=120)
+
+    metrics = json.loads((tmp_path / "metrics.json").read_text(encoding="utf-8"))
+    manifest = json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    preview = json.loads((tmp_path / "sklearn_pipeline_preview.json").read_text(encoding="utf-8"))
+    predictions = (tmp_path / "predictions.csv").read_text(encoding="utf-8").splitlines()
+
+    assert metrics["schema"] == module.SCHEMA
+    assert metrics["metrics"]["accuracy"] >= 0.8
+    assert metrics["metrics"]["f1"] >= 0.8
+    assert manifest["example"] == "sklearn_pipeline_proof"
+    assert manifest["promotion_hint"] in {"candidate", "review"}
+    assert manifest["artifacts"]["model"]["path"] == "model.joblib"
+    assert manifest["artifacts"]["predictions"]["sha256"] == summary["artifacts"]["predictions"]["sha256"]
+    assert preview["artifacts"]["manifest"]["sha256"] == summary["artifacts"]["manifest"]["sha256"]
+    assert (tmp_path / "model.joblib").is_file()
+    assert (tmp_path / "sklearn_report.md").is_file()
+    assert predictions[0] == "row_id,target,prediction,positive_probability"
+    assert len(predictions) == metrics["metrics"]["test_rows"] + 1
 
 
 def _load_train_then_serve_preview_module():
