@@ -40,11 +40,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
     assert isolated.assert_workflow_artifacts is True
-    assert entry.pages == "HOME"
+    assert entry.pages == "none"
     assert entry.apps_pages == "configured"
     assert entry.runtime_isolation == "isolated"
-    assert entry.action_button_policy == "safe-click"
+    assert entry.action_button_policy == "trial"
     assert entry.action_timeout_seconds == 30.0
+    assert entry.max_action_clicks_per_page == 0
     assert project.pages == "PROJECT"
     assert project.apps_pages == "none"
     assert project.runtime_isolation == "isolated"
@@ -910,11 +911,12 @@ def test_build_robot_command_covers_entry_shell_and_configured_app_pages(tmp_pat
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME"
+    assert argv[argv.index("--pages") + 1] == "none"
     assert argv[argv.index("--apps-pages") + 1] == "configured"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--action-timeout") + 1] == "30.0"
+    assert argv[argv.index("--max-action-clicks-per-page") + 1] == "0"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-entry-and-app-pages"
     )

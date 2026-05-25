@@ -303,6 +303,25 @@ def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypat
     assert {"kind": "built_in_apps", "detail": "no public built-in apps were discovered"} in payload["issues"]
 
 
+def test_ui_robot_coverage_contract_reports_missing_public_demo_wording(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    demo_doc = tmp_path / "demos.rst"
+    demo_doc.write_text("Public demos\n============\n", encoding="utf-8")
+    monkeypatch.setattr(module, "DEMOS_DOC_PATH", demo_doc)
+
+    payload = module.evaluate_contract()
+
+    assert payload["success"] is False
+    assert any(
+        issue["kind"] == "public_demo_docs"
+        and "demos page is missing robot/proof coverage wording" in issue["detail"]
+        for issue in payload["issues"]
+    )
+
+
 def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch, capsys) -> None:
     module = _load_module()
     app = SimpleNamespace(name="demo_project")

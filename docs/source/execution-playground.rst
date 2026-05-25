@@ -172,6 +172,43 @@ per-row haversine distance calculation into the same worker-only Cython pattern.
 Its reducer summary records ``speed_kernel_runtime``,
 ``speed_dtype_contract``, and ``speed_kernel_checksum_m``.
 
+Optional Rust/PyO3 worker preview
+---------------------------------
+
+AGILAB can also host native Rust code behind a Python worker boundary, but this
+is deliberately an optional advanced lane rather than a base dependency.
+
+Use the packaged ``native_rust_worker`` preview when you want to show the
+architecture without requiring every AGILAB install to carry a Rust toolchain:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python src/agilab/examples/native_rust_worker/preview_native_rust_worker.py --output-dir /tmp/agilab-rust-worker
+
+The preview writes a small PyO3/maturin project, a Python worker wrapper, a
+sample payload, and ``native_rust_worker_evidence.json``. It does not compile
+Rust by default. The evidence records the Python reference checksum, generated
+file hashes, the build backend, and the intended AGILAB boundary:
+
+- orchestration, dataframe I/O, reducers, paths, and evidence stay in Python
+- only the measured typed hot kernel moves to Rust
+- the base AGILAB install remains unchanged
+
+Build the generated project only when you actually want to execute the native
+extension:
+
+.. code-block:: bash
+
+   cd /tmp/agilab-rust-worker/rust_worker
+   uv tool install maturin
+   maturin develop --release
+   python worker_wrapper.py --payload sample_payload.json --output native_result.json
+
+Read this as a worker-extension contract, not a migration strategy. Cython is
+still the first AGILAB-native acceleration path for typed Python kernels. Use
+Rust/PyO3 when ownership, safety, an existing Rust crate, or a long-lived native
+library justifies the extra wheel and toolchain complexity.
+
 2-node 16-mode matrix
 ---------------------
 

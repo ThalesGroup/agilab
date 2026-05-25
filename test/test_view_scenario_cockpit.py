@@ -180,9 +180,9 @@ def test_view_scenario_cockpit_helper_edge_cases(monkeypatch, tmp_path) -> None:
     module = _load_helpers()
 
     module.__file__ = str(tmp_path / "outside" / "view_scenario_cockpit.py")
-    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(sys, "path", [])
     module._ensure_repo_on_path()
-    assert module.sys.path == []
+    assert sys.path == []
 
     errors: list[str] = []
 
@@ -190,7 +190,7 @@ def test_view_scenario_cockpit_helper_edge_cases(monkeypatch, tmp_path) -> None:
         raise RuntimeError("stop")
 
     module.st = SimpleNamespace(error=errors.append, stop=stop_now)
-    monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
+    monkeypatch.setattr(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(RuntimeError, match="stop"):
         module._resolve_active_app()
     assert any("Provided --active-app path not found" in message for message in errors)

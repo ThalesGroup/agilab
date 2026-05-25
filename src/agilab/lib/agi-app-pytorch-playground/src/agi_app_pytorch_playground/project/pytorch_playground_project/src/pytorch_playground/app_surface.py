@@ -189,7 +189,7 @@ def _render_run_button(
 ) -> None:
     import streamlit as st
 
-    if not container.button("Refresh evidence", type="primary", use_container_width=True):
+    if not container.button("Refresh evidence", type="primary", width="stretch"):
         return
     try:
         runtime_env, args_model = _load_orchestrate_args(active_app_path)

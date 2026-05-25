@@ -231,10 +231,10 @@ def test_view_queue_resilience_helper_branches(monkeypatch, tmp_path) -> None:
         encoding="utf-8",
     )
     monkeypatch.setattr(module, "__file__", str(module_path))
-    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(sys, "path", [])
     module._ensure_repo_on_path()
-    assert str(src_root) in module.sys.path
-    assert str(repo_root) in module.sys.path
+    assert str(src_root) in sys.path
+    assert str(repo_root) in sys.path
 
     logo, title = module._load_page_meta()
     assert logo == "queued.svg"
@@ -244,7 +244,7 @@ def test_view_queue_resilience_helper_branches(monkeypatch, tmp_path) -> None:
     def stop_now():
         raise RuntimeError("stop")
     module.st = SimpleNamespace(error=errors.append, stop=stop_now)
-    monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
+    monkeypatch.setattr(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(RuntimeError, match="stop"):
         module._resolve_active_app()
     assert any("Provided --active-app path not found" in message for message in errors)

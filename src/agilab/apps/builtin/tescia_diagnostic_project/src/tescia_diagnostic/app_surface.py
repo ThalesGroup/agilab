@@ -563,7 +563,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             learner_level=learner_level,
             curriculum_id=curriculum_id,
         )
-        st.dataframe(catalog_rows(filtered), use_container_width=True, hide_index=True)
+        st.dataframe(catalog_rows(filtered), width="stretch", hide_index=True)
 
     with answer_tab:
         case_ids = [str(case["case_id"]) for case in cases]
@@ -584,7 +584,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             ),
             confidence=st.slider("Confidence", 0.0, 1.0, float(case.get("student_answer", {}).get("confidence", 0.75))),
         )
-        if st.button("Evaluate answer", type="primary", use_container_width=True):
+        if st.button("Evaluate answer", type="primary", width="stretch"):
             try:
                 scored = score_student_submission(case, answer)
             except ValueError as exc:
@@ -598,13 +598,13 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                     diagnostic_report_to_markdown(scored),
                     file_name=f"{selected_id}_correction.md",
                     mime="text/markdown",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
     with classroom_tab:
         actions, refresh_options = st.columns([1.2, 2.0])
         with actions:
-            if st.button("Refresh classroom artifacts", key="tescia_classroom_refresh", use_container_width=True):
+            if st.button("Refresh classroom artifacts", key="tescia_classroom_refresh", width="stretch"):
                 try:
                     st.cache_data.clear()
                 except Exception:
@@ -632,7 +632,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                     accept_multiple_files=True,
                     key="tescia_classroom_uploads",
                 )
-                if st.button("Save classroom uploads", key="tescia_save_classroom_uploads", use_container_width=True):
+                if st.button("Save classroom uploads", key="tescia_save_classroom_uploads", width="stretch"):
                     try:
                         saved_paths = save_classroom_uploads(list(uploads or []), classroom_inbox_dir)
                     except Exception as exc:
@@ -658,22 +658,22 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
         m2.metric("Students", classroom_report["unique_student_count"])
         m3.metric("Average score", classroom_report["average_score"])
         m4.metric("Needs attention", classroom_report["needs_attention_count"])
-        st.dataframe(classroom_progress_rows(classroom_report), use_container_width=True, hide_index=True)
-        st.dataframe(classroom_heatmap_rows(classroom_report), use_container_width=True, hide_index=True)
-        st.dataframe(classroom_intervention_rows(classroom_report), use_container_width=True, hide_index=True)
+        st.dataframe(classroom_progress_rows(classroom_report), width="stretch", hide_index=True)
+        st.dataframe(classroom_heatmap_rows(classroom_report), width="stretch", hide_index=True)
+        st.dataframe(classroom_intervention_rows(classroom_report), width="stretch", hide_index=True)
         st.download_button(
             "Download teacher summary",
             classroom_report_to_markdown(classroom_report),
             file_name="classroom_teacher_summary.md",
             mime="text/markdown",
-            use_container_width=True,
+            width="stretch",
         )
         st.download_button(
             "Download classroom batch JSON",
             json.dumps(classroom_submission_template(cases), indent=2, sort_keys=True),
             file_name="tescia_classroom_submissions.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
         if live_refresh:
             time.sleep(float(refresh_seconds))
@@ -709,7 +709,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 {"curriculum_id": key, "exercise_count": value}
                 for key, value in coverage["curriculum_id_counts"].items()
             ],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 

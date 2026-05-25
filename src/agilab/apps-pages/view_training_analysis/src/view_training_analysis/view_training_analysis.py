@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import argparse
 from collections import Counter
 import math
 import sys
@@ -18,6 +17,10 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import tomllib
 from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_pages.runtime import (
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    resolve_active_app_path,
+)
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -52,16 +55,7 @@ EMBED_QUERY_VALUES = {"1", "true", "yes", "on"}
 
 
 def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+    _page_ensure_repo_on_path(__file__)
 
 
 _ensure_repo_on_path()
@@ -71,14 +65,7 @@ from agi_gui.pagelib import render_logo
 
 
 def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
-    args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
+    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _ensure_app_settings_loaded(env: AgiEnv) -> None:

@@ -37,12 +37,12 @@ keywords = [
 ]
 
 dependencies = [
-    "pathspec",
-    "psutil",
-    "py7zr",
-    "pydantic",
-    "python-dotenv",
-    "tomlkit",
+    "pathspec>=1.1,<2",
+    "psutil>=7,<8",
+    "py7zr>=1.1,<2",
+    "pydantic>=2.11,<3",
+    "python-dotenv>=1,<2",
+    "tomlkit>=0.13,<1",
 ]
 
 [project.urls]

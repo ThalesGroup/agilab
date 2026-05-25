@@ -136,6 +136,21 @@ The static scenario contract is available as JSON:
   ``speed_kernel_runtime``, ``speed_dtype_contract``, and checksum evidence in
   the reducer summary.
 
+**Rust/PyO3 native-worker preview**
+  Use the packaged ``native_rust_worker`` preview when the demo objective is to
+  show AGILAB's native-worker extension boundary without adding Rust to the base
+  install:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/native_rust_worker/preview_native_rust_worker.py --output-dir /tmp/agilab-rust-worker
+
+  Stop when ``native_rust_worker_evidence.json`` and the generated
+  ``rust_worker`` PyO3/maturin skeleton are visible. This is an advanced worker
+  extension preview: AGILAB orchestration and evidence stay in Python, only a
+  measured typed hot kernel moves to Rust, and compiling the generated extension
+  remains an explicit follow-up step.
+
 **Distributed worker route**
   Use the same public app, then switch ORCHESTRATE from the local path to the
   configured worker or SSH-host path. Keep the demo bounded: prove that worker

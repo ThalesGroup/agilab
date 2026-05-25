@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+import types
 
 
 MODULE_PATH = Path("tools/first_launch_robot.py").resolve()
@@ -42,3 +43,96 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert module.main(["--target-seconds", "90", "--timeout", "90", "--output", str(output), "--json"]) == 0
     persisted = json.loads(output.read_text(encoding="utf-8"))
     assert persisted["status"] == "pass", json.dumps(persisted, indent=2, sort_keys=True)
+
+
+def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(monkeypatch) -> None:
+    module = _load_module()
+
+    class Widget:
+        def __init__(self, value):
+            self.value = value
+
+    assert module._widget_values([Widget("kept"), Widget(None)], "value") == ["kept"]
+    assert module._contains_any(["one", "two"], ["missing"]) is False
+    src_root = str(module.REPO_ROOT / "src")
+    monkeypatch.setattr(module.sys, "path", [path for path in module.sys.path if path != src_root])
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    docs_menu = module._docs_menu_items()
+
+    assert "cannot load page docs module" in docs_menu["_error"]
+    assert module.sys.path[0] == src_root
+
+
+def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(monkeypatch) -> None:
+    module = _load_module()
+
+    class BrokenSessionState:
+        def __contains__(self, _key):
+            raise RuntimeError("session unavailable")
+
+    class FakeApp:
+        exception: list[object] = []
+        markdown: list[object] = []
+        caption: list[object] = []
+        button: list[object] = []
+        session_state = BrokenSessionState()
+
+        def run(self, *, timeout):
+            return self
+
+    class FakeAppTest:
+        @staticmethod
+        def from_file(_path, *, default_timeout):
+            return FakeApp()
+
+    streamlit = types.ModuleType("streamlit")
+    testing = types.ModuleType("streamlit.testing")
+    v1 = types.ModuleType("streamlit.testing.v1")
+    v1.AppTest = FakeAppTest
+    monkeypatch.setitem(sys.modules, "streamlit", streamlit)
+    monkeypatch.setitem(sys.modules, "streamlit.testing", testing)
+    monkeypatch.setitem(sys.modules, "streamlit.testing.v1", v1)
+    monkeypatch.setattr(module, "_docs_menu_items", lambda: {})
+
+    report = module.build_report(timeout=1.0, target_seconds=999.0)
+
+    checks = {check["id"]: check for check in report["checks"]}
+    assert checks["first_launch_no_exceptions"]["status"] == "pass"
+    assert checks["first_launch_env_initialized"]["status"] == "fail"
+
+
+def test_first_launch_robot_main_reports_human_failure(capsys, monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "build_report",
+        lambda **_kwargs: {
+            "status": "fail",
+            "checks": [
+                {
+                    "label": "First launch renders without exceptions",
+                    "status": "fail",
+                    "summary": "synthetic failure",
+                }
+            ],
+        },
+    )
+
+    assert module.main(["--target-seconds", "1", "--timeout", "1"]) == 1
+    output = capsys.readouterr().out
+    assert "AGILAB first-launch robot: FAIL" in output
+    assert "synthetic failure" in output
+
+
+def test_first_launch_robot_rejects_non_positive_timeouts() -> None:
+    module = _load_module()
+
+    for option in ("--timeout", "--target-seconds"):
+        try:
+            module.main([option, "0"])
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:  # pragma: no cover - assertion guard
+            raise AssertionError(f"expected parser error for {option}")
