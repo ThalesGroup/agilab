@@ -128,6 +128,154 @@ def test_ui_robot_coverage_contract_json_cli(capsys) -> None:
     assert payload["coverage"]["hf_robot_scenarios"]
 
 
+def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatch) -> None:
+    module = _load_module()
+
+    def scenario(
+        name: str,
+        *,
+        pages: str = "",
+        apps: str = "",
+        apps_pages: str = "none",
+        click_action_labels: str = "",
+        required_text: str = "",
+        required_action_labels: str = "",
+        success_screenshot: bool = False,
+        above_fold_check: bool = False,
+        browser_error_check: bool = False,
+    ):
+        return SimpleNamespace(
+            name=name,
+            pages=pages,
+            apps=apps,
+            apps_pages=apps_pages,
+            click_action_labels=click_action_labels,
+            required_text=required_text,
+            required_action_labels=required_action_labels,
+            success_screenshot=success_screenshot,
+            above_fold_check=above_fold_check,
+            browser_error_check=browser_error_check,
+        )
+
+    core_scenario = scenario(
+        "core-selected-actions",
+        pages=",".join(module.REQUIRED_CORE_PAGES),
+        apps_pages="configured",
+        click_action_labels=",".join(module.REQUIRED_HIGH_RISK_ACTIONS),
+    )
+    hf_visual = scenario(
+        "hf-first-proof-visual-smoke",
+        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS",
+        success_screenshot=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    )
+    hf_app_pages = scenario(
+        "hf-first-proof-app-pages-visual-smoke",
+        apps_pages=",".join(module.REQUIRED_HF_FIRST_PROOF_PAGES),
+        success_screenshot=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    )
+    hf_install = scenario(
+        "hf-first-proof-install",
+        pages="ORCHESTRATE",
+        click_action_labels="INSTALL",
+    )
+    pytorch = scenario(
+        "isolated-pytorch-playground-analysis",
+        pages="ANALYSIS",
+        apps=module.REQUIRED_PYTORCH_ANALYSIS_APP,
+        required_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_TEXT),
+        required_action_labels=",".join(module.REQUIRED_PYTORCH_ANALYSIS_ACTIONS),
+        browser_error_check=True,
+    )
+    all_scenarios = {
+        item.name: item
+        for item in (core_scenario, hf_visual, hf_app_pages, hf_install, pytorch)
+    }
+    widget_robot = SimpleNamespace(
+        page_label=lambda page: str(page),
+        resolve_pages=lambda pages: [part.strip() for part in str(pages).split(",") if part.strip()],
+        parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
+        _normalized_label=lambda value: str(value).strip().lower(),
+        public_builtin_apps=lambda: [SimpleNamespace(name=name) for name in module.REQUIRED_DEMO_UI_APPS],
+        configured_apps_pages_for_app=lambda _app: [
+            SimpleNamespace(name=name) for name in module.REQUIRED_DEMO_UI_PAGES
+        ],
+    )
+    matrix = SimpleNamespace(
+        DEFAULT_SCENARIOS={"core-selected-actions": core_scenario},
+        ALL_SCENARIOS=all_scenarios,
+        OPT_IN_SCENARIOS={"isolated-pytorch-playground-analysis": pytorch},
+    )
+    hf_smoke = SimpleNamespace(
+        profile_builtin_app_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_APPS),
+        profile_page_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_PAGES),
+    )
+    workflow_parity = SimpleNamespace(
+        _profile_commands=lambda _args: {
+            "hf-visual-smoke-robot": [
+                SimpleNamespace(
+                    argv=[
+                        "--scenario",
+                        "hf-first-proof-visual-smoke",
+                        "--scenario",
+                        "hf-first-proof-app-pages-visual-smoke",
+                        "--apps",
+                        ",".join(module.REQUIRED_HF_FIRST_PROOF_APPS),
+                    ]
+                )
+            ],
+            "hf-install-robot": [
+                SimpleNamespace(
+                    argv=[
+                        "--scenario",
+                        "hf-first-proof-install",
+                        "--apps",
+                        ",".join(module.REQUIRED_HF_FIRST_PROOF_APPS),
+                    ]
+                )
+            ],
+            "ui-robot-matrix": [
+                SimpleNamespace(
+                    argv=[
+                        "--scenario",
+                        "isolated-pytorch-playground-analysis",
+                        "--apps",
+                        ",".join(module.REQUIRED_DEMO_UI_APPS),
+                    ]
+                )
+            ],
+        }
+    )
+    public_proof_scenarios = SimpleNamespace(
+        SCENARIOS=tuple({"id": scenario_id} for scenario_id in module.REQUIRED_DEMO_PROOF_SCENARIOS)
+    )
+
+    def fake_load_module(_name, path):
+        if path == module.WIDGET_ROBOT_PATH:
+            return widget_robot
+        if path == module.MATRIX_PATH:
+            return matrix
+        if path == module.HF_SMOKE_PATH:
+            return hf_smoke
+        if path == module.WORKFLOW_PARITY_PATH:
+            return workflow_parity
+        if path == module.PUBLIC_PROOF_SCENARIOS_PATH:
+            return public_proof_scenarios
+        raise AssertionError(f"unexpected module path: {path}")
+
+    monkeypatch.setattr(module, "_load_module", fake_load_module)
+
+    payload = module.evaluate_contract()
+
+    assert payload["success"] is True
+    assert payload["issues"] == []
+    assert payload["coverage"]["public_demo_contract"]["ui_apps_covered_by"] == "ui-robot-matrix explicit --apps"
+    assert payload["coverage"]["ui_robot_matrix_profile_apps"] == sorted(module.REQUIRED_DEMO_UI_APPS)
+
+
 def test_ui_robot_coverage_contract_load_module_rejects_missing_spec(monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda _name, _path: None)

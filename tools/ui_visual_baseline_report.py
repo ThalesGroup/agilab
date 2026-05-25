@@ -67,9 +67,7 @@ def _record_image_path(manifest: Any, record: Any) -> Path:
     if raw_path.is_absolute():
         return raw_path
     root = Path(str(manifest.root)).expanduser()
-    if root:
-        return root / raw_path
-    return _manifest_file(Path(str(manifest.root))).parent / raw_path
+    return root / raw_path
 
 
 def normalize_page_key(value: str) -> str:

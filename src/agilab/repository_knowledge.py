@@ -379,6 +379,7 @@ def _record_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
     kind_counts: dict[str, int] = {}
     kind_line_counts: dict[str, int] = {}
     suffix_counts: dict[str, int] = {}
+    suffix_line_counts: dict[str, int] = {}
     total_size_bytes = 0
     total_line_count = 0
 
@@ -390,6 +391,7 @@ def _record_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
         kind_counts[kind] = kind_counts.get(kind, 0) + 1
         kind_line_counts[kind] = kind_line_counts.get(kind, 0) + line_count
         suffix_counts[suffix] = suffix_counts.get(suffix, 0) + 1
+        suffix_line_counts[suffix] = suffix_line_counts.get(suffix, 0) + line_count
         total_line_count += line_count
         total_size_bytes += size_bytes
 
@@ -397,9 +399,49 @@ def _record_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
         "kind_counts": dict(sorted(kind_counts.items())),
         "kind_line_counts": dict(sorted(kind_line_counts.items())),
         "suffix_counts": dict(sorted(suffix_counts.items())),
+        "suffix_line_counts": dict(sorted(suffix_line_counts.items())),
         "total_line_count": total_line_count,
         "total_size_bytes": total_size_bytes,
     }
+
+
+def _safe_ratio(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 4)
+
+
+def _count_rows(counts: Mapping[str, int], line_counts: Mapping[str, int]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for name, file_count in counts.items():
+        line_count = int(line_counts.get(name, 0) or 0)
+        rows.append(
+            {
+                "id": name,
+                "file_count": int(file_count or 0),
+                "line_count": line_count,
+                "average_lines_per_file": _safe_ratio(line_count, int(file_count or 0)),
+            }
+        )
+    return sorted(rows, key=lambda row: (-int(row["line_count"]), str(row["id"])))
+
+
+def _top_count_rows(counts: Mapping[str, int], line_counts: Mapping[str, int], *, limit: int) -> list[dict[str, Any]]:
+    return _count_rows(counts, line_counts)[:limit]
+
+
+def _largest_file_rows(records: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    rows = [
+        {
+            "path": str(record.get("path", "")),
+            "kind": str(record.get("kind", "")),
+            "suffix": str(record.get("suffix", "") or "[no extension]"),
+            "line_count": int(record.get("line_count", 0) or 0),
+            "size_bytes": int(record.get("size_bytes", 0) or 0),
+        }
+        for record in records
+    ]
+    return sorted(rows, key=lambda row: (-int(row["line_count"]), str(row["path"])))[:limit]
 
 
 def _query_seeds() -> list[dict[str, str]]:
@@ -443,8 +485,18 @@ def build_repository_knowledge_index(
     stats = _record_stats(records)
     kind_counts = stats["kind_counts"]
     kind_line_counts = stats["kind_line_counts"]
+    suffix_counts = stats["suffix_counts"]
+    suffix_line_counts = stats["suffix_line_counts"]
     knowledge_maps = _knowledge_maps(records)
     query_seeds = _query_seeds()
+    source_line_count = kind_line_counts.get("package_source", 0)
+    tool_line_count = kind_line_counts.get("tool", 0)
+    code_line_count = source_line_count + tool_line_count
+    test_line_count = kind_line_counts.get("test", 0)
+    docs_line_count = kind_line_counts.get("official_docs", 0)
+    pyproject_line_count = kind_line_counts.get("package_manifest", 0)
+    runbook_line_count = kind_line_counts.get("runbook", 0)
+    indexed_file_count = len(records)
     issues = []
     if excluded_path_hits:
         issues.append(
@@ -465,7 +517,7 @@ def build_repository_knowledge_index(
         )
     summary = {
         "execution_mode": "repository_knowledge_static_index",
-        "indexed_file_count": len(records),
+        "indexed_file_count": indexed_file_count,
         "source_file_count": kind_counts.get("package_source", 0),
         "code_file_count": kind_counts.get("package_source", 0)
         + kind_counts.get("tool", 0),
@@ -478,21 +530,28 @@ def build_repository_knowledge_index(
         "pyproject_count": kind_counts.get("package_manifest", 0),
         "runbook_count": kind_counts.get("runbook", 0),
         "total_line_count": stats["total_line_count"],
-        "source_line_count": kind_line_counts.get("package_source", 0),
-        "code_line_count": kind_line_counts.get("package_source", 0)
-        + kind_line_counts.get("tool", 0),
+        "source_line_count": source_line_count,
+        "code_line_count": code_line_count,
         "python_line_count": kind_line_counts.get("package_source", 0)
-        + kind_line_counts.get("tool", 0)
+        + tool_line_count
         + kind_line_counts.get("test", 0),
-        "tool_line_count": kind_line_counts.get("tool", 0),
-        "test_line_count": kind_line_counts.get("test", 0),
-        "docs_line_count": kind_line_counts.get("official_docs", 0),
-        "pyproject_line_count": kind_line_counts.get("package_manifest", 0),
-        "runbook_line_count": kind_line_counts.get("runbook", 0),
+        "tool_line_count": tool_line_count,
+        "test_line_count": test_line_count,
+        "docs_line_count": docs_line_count,
+        "pyproject_line_count": pyproject_line_count,
+        "runbook_line_count": runbook_line_count,
         "total_size_bytes": stats["total_size_bytes"],
         "kind_counts": stats["kind_counts"],
         "kind_line_counts": stats["kind_line_counts"],
         "suffix_counts": stats["suffix_counts"],
+        "suffix_line_counts": suffix_line_counts,
+        "average_lines_per_indexed_file": _safe_ratio(stats["total_line_count"], indexed_file_count),
+        "test_to_code_line_ratio": _safe_ratio(test_line_count, code_line_count),
+        "docs_to_code_line_ratio": _safe_ratio(docs_line_count, code_line_count),
+        "manifest_to_code_line_ratio": _safe_ratio(pyproject_line_count, code_line_count),
+        "top_kinds_by_lines": _top_count_rows(kind_counts, kind_line_counts, limit=8),
+        "top_suffixes_by_lines": _top_count_rows(suffix_counts, suffix_line_counts, limit=8),
+        "largest_files_by_lines": _largest_file_rows(records, limit=10),
         "knowledge_map_count": len(knowledge_maps),
         "query_seed_count": len(query_seeds),
         "excluded_root_count": len(EXCLUDED_PARTS),

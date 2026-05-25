@@ -71,8 +71,9 @@ The command writes a redacted ``agilab.agent_run.v1`` manifest, local
 redacted by default and represented by an argv hash; pass
 ``--include-command-args`` only when the prompt/arguments are safe to store.
 The stdout/stderr files stay local artifacts so tool output is not embedded in
-public JSON by default, and those output artifacts are redacted by default. Pass
-``--include-raw-output`` only for safe local diagnostics.
+public JSON by default. Those output artifacts redact obvious secret
+assignments, supported secret refs, and common standalone API-token patterns by
+default. Pass ``--include-raw-output`` only for safe local diagnostics.
 
 Use ``--tag`` and ``--metadata KEY=VALUE`` for structured, non-secret context
 that other tools can query later. Read previous run evidence from the CLI::
@@ -110,10 +111,15 @@ The tool safety helpers expose the same control points for agent commands and
 future agent tools:
 
 - permission tiers: ``readonly``, ``safe``, ``standard``, and ``operator``;
-  actual command execution is a ``standard`` action
+  actual command execution is a ``standard`` action, while destructive
+  executable names and obvious destructive shell, Python, Git, Docker,
+  Kubernetes, or package-manager command content are operator-gated
 - deterministic confirmation tokens for operator-gated/destructive actions
 - before/after hooks that can approve, deny, redact, audit, or replace a tool
   result before it is written back into evidence
+
+The permission layer is an evidence and operator-confirmation guard. It is not a
+process sandbox; use OS/container isolation for untrusted commands.
 
 Agent configuration is layered from ``~/.agilab/agents/agents.json`` and then
 ``.agilab/agents.json`` files from the project root to the current working

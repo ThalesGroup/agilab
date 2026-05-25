@@ -66,7 +66,15 @@ def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> N
     assert report["summary"]["total_size_bytes"] > 0
     assert report["summary"]["kind_counts"]["test"] == report["summary"]["test_file_count"]
     assert report["summary"]["kind_line_counts"]["test"] == report["summary"]["test_line_count"]
+    assert report["summary"]["suffix_line_counts"][".py"] >= report["summary"]["python_line_count"]
     assert report["summary"]["suffix_counts"][".py"] >= report["summary"]["python_file_count"]
+    assert report["summary"]["average_lines_per_indexed_file"] > 0
+    assert report["summary"]["test_to_code_line_ratio"] > 0
+    assert report["summary"]["docs_to_code_line_ratio"] > 0
+    assert report["summary"]["manifest_to_code_line_ratio"] > 0
+    assert report["summary"]["top_kinds_by_lines"][0]["line_count"] >= report["summary"]["top_kinds_by_lines"][-1]["line_count"]
+    assert report["summary"]["top_suffixes_by_lines"][0]["line_count"] >= report["summary"]["top_suffixes_by_lines"][-1]["line_count"]
+    assert report["summary"]["largest_files_by_lines"][0]["line_count"] >= report["summary"]["largest_files_by_lines"][-1]["line_count"]
     assert report["summary"]["knowledge_map_count"] == 5
     assert report["summary"]["query_seed_count"] >= 4
     assert report["summary"]["excluded_path_hit_count"] == 0
@@ -154,6 +162,36 @@ def test_repository_knowledge_report_docs_failure_and_temporary_output(
                 "kind_counts": {"test": 20},
                 "kind_line_counts": {"test": 200},
                 "suffix_counts": {".py": 45},
+                "suffix_line_counts": {".py": 600},
+                "average_lines_per_indexed_file": 11.1111,
+                "test_to_code_line_ratio": 0.25,
+                "docs_to_code_line_ratio": 0.125,
+                "manifest_to_code_line_ratio": 0.1,
+                "top_kinds_by_lines": [
+                    {
+                        "id": "test",
+                        "file_count": 20,
+                        "line_count": 200,
+                        "average_lines_per_file": 10.0,
+                    }
+                ],
+                "top_suffixes_by_lines": [
+                    {
+                        "id": ".py",
+                        "file_count": 45,
+                        "line_count": 600,
+                        "average_lines_per_file": 13.3333,
+                    }
+                ],
+                "largest_files_by_lines": [
+                    {
+                        "path": "test/test_example.py",
+                        "kind": "test",
+                        "suffix": ".py",
+                        "line_count": 120,
+                        "size_bytes": 4096,
+                    }
+                ],
                 "knowledge_map_count": 5,
                 "query_seed_count": 4,
                 "excluded_root_count": 4,

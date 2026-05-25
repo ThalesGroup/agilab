@@ -174,8 +174,15 @@ def _build_report_with_path(
             and int(summary.get("total_size_bytes", 0) or 0) > 0
             and isinstance(summary.get("kind_counts"), dict)
             and isinstance(summary.get("kind_line_counts"), dict)
-            and isinstance(summary.get("suffix_counts"), dict),
-            "index exposes deterministic file, line, size, kind, and suffix statistics",
+            and isinstance(summary.get("suffix_counts"), dict)
+            and isinstance(summary.get("suffix_line_counts"), dict)
+            and isinstance(summary.get("top_kinds_by_lines"), list)
+            and isinstance(summary.get("top_suffixes_by_lines"), list)
+            and isinstance(summary.get("largest_files_by_lines"), list)
+            and float(summary.get("average_lines_per_indexed_file", 0) or 0) > 0
+            and float(summary.get("test_to_code_line_ratio", 0) or 0) > 0
+            and float(summary.get("docs_to_code_line_ratio", 0) or 0) > 0,
+            "index exposes deterministic file, line, size, ratio, top-kind, and suffix statistics",
             evidence=["src/agilab/repository_knowledge.py"],
             details={
                 "total_line_count": summary.get("total_line_count", 0),
@@ -183,9 +190,17 @@ def _build_report_with_path(
                 "docs_line_count": summary.get("docs_line_count", 0),
                 "test_line_count": summary.get("test_line_count", 0),
                 "total_size_bytes": summary.get("total_size_bytes", 0),
+                "average_lines_per_indexed_file": summary.get("average_lines_per_indexed_file", 0),
+                "test_to_code_line_ratio": summary.get("test_to_code_line_ratio", 0),
+                "docs_to_code_line_ratio": summary.get("docs_to_code_line_ratio", 0),
+                "manifest_to_code_line_ratio": summary.get("manifest_to_code_line_ratio", 0),
                 "kind_counts": summary.get("kind_counts", {}),
                 "kind_line_counts": summary.get("kind_line_counts", {}),
                 "suffix_counts": summary.get("suffix_counts", {}),
+                "suffix_line_counts": summary.get("suffix_line_counts", {}),
+                "top_kinds_by_lines": summary.get("top_kinds_by_lines", []),
+                "top_suffixes_by_lines": summary.get("top_suffixes_by_lines", []),
+                "largest_files_by_lines": summary.get("largest_files_by_lines", []),
             },
         ),
         _check_result(
@@ -295,6 +310,14 @@ def _build_report_with_path(
             "kind_counts": summary.get("kind_counts"),
             "kind_line_counts": summary.get("kind_line_counts"),
             "suffix_counts": summary.get("suffix_counts"),
+            "suffix_line_counts": summary.get("suffix_line_counts"),
+            "average_lines_per_indexed_file": summary.get("average_lines_per_indexed_file"),
+            "test_to_code_line_ratio": summary.get("test_to_code_line_ratio"),
+            "docs_to_code_line_ratio": summary.get("docs_to_code_line_ratio"),
+            "manifest_to_code_line_ratio": summary.get("manifest_to_code_line_ratio"),
+            "top_kinds_by_lines": summary.get("top_kinds_by_lines"),
+            "top_suffixes_by_lines": summary.get("top_suffixes_by_lines"),
+            "largest_files_by_lines": summary.get("largest_files_by_lines"),
             "knowledge_map_count": summary.get("knowledge_map_count"),
             "query_seed_count": summary.get("query_seed_count"),
             "excluded_root_count": summary.get("excluded_root_count"),

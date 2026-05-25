@@ -69,7 +69,8 @@ payloads.
 Command arguments are redacted by default and represented by an argv hash;
 environment override values passed with `--env KEY=VALUE` are also redacted
 from the manifest. Pass `--include-command-args` only when the prompt/arguments
-are safe to store. Output artifact files are redacted by default; pass
+are safe to store. Output artifact files redact obvious secret assignments,
+supported secret refs, and common standalone API-token patterns by default; pass
 `--include-raw-output` only for safe local diagnostics.
 
 Use `--tag` and `--metadata KEY=VALUE` for structured, non-secret context that
@@ -117,8 +118,10 @@ Agent-run evidence now has a stable low-level contract:
   `session_end`.
 - `agilab.agent_tool_safety` enforces permission tiers for command execution:
   `readonly`, `safe`, `standard`, and `operator`. Actual command execution is
-  a `standard` action; destructive executable names such as `rm` are
-  operator-gated and require an explicit confirmation token.
+  a `standard` action; destructive executable names and obvious destructive
+  shell, Python, Git, Docker, Kubernetes, or package-manager command content are
+  operator-gated and require an explicit confirmation token. This is an
+  evidence and operator-confirmation guard, not a process sandbox.
 - Agent provider defaults can be layered through `~/.agilab/agents/agents.json`
   and project-local `.agilab/agents.json` files. Use `--provider`, `--model`,
   and `--permission-level` for one-off CLI execution policy.
