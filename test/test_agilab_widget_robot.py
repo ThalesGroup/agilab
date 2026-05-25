@@ -63,6 +63,7 @@ def test_settings_page_has_stable_robot_expectations() -> None:
         "Environment variables",
     )
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
+    assert module.PAGE_MIN_WIDGETS[""] == 2
 
 
 def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
@@ -2148,6 +2149,39 @@ def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
     module.wait_for_page_ready(_Page(), timeout_ms=1000)
 
     assert waits
+
+
+def test_wait_for_page_ready_ignores_hidden_initialization_text() -> None:
+    module = _load_module()
+    waits: list[int] = []
+
+    class _HiddenText:
+        def count(self):
+            return 1
+
+        def nth(self, _index):
+            return self
+
+        def is_visible(self, timeout):
+            return False
+
+    class _Spinner:
+        def count(self):
+            return 0
+
+    class _Page:
+        def get_by_text(self, _pattern):
+            return _HiddenText()
+
+        def locator(self, _selector):
+            return _Spinner()
+
+        def wait_for_timeout(self, ms):
+            waits.append(ms)
+
+    module.wait_for_page_ready(_Page(), timeout_ms=1000)
+
+    assert waits == [module.PAGE_READY_STABILIZE_MS]
 
 
 def test_summarize_counts_interactions_and_failures() -> None:

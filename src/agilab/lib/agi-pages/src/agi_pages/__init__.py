@@ -21,6 +21,16 @@ from .chart_spec import (
     render_notebook,
     render_streamlit,
 )
+from .runtime import (
+    artifact_root,
+    discover_files,
+    ensure_repo_on_path,
+    load_json_object,
+    relative_label,
+    resolve_active_app_path,
+    safe_float,
+    safe_metric,
+)
 
 PAGE_BUNDLE_ENTRYPOINT_NAMES = ("{module}.py", "main.py", "app.py")
 PAGE_BUNDLE_ENTRYPOINT_GROUP = "agilab.pages"
@@ -323,15 +333,23 @@ __all__ = [
     "ChartData",
     "ChartSpec",
     "PageBundle",
+    "artifact_root",
     "build_chart_spec",
     "bundles_root",
     "chart_spec_to_static_html",
+    "discover_files",
+    "ensure_repo_on_path",
     "inline_renderer_target",
     "iter_bundles",
+    "load_json_object",
     "normalize_chart_data",
     "option_from_data",
+    "relative_label",
     "render_notebook",
     "render_streamlit",
+    "resolve_active_app_path",
     "resolve_bundle",
+    "safe_float",
+    "safe_metric",
     "script_path",
 ]

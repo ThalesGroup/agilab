@@ -5,8 +5,17 @@ from pathlib import Path
 import tomllib
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+try:
+    sys.path.remove(str(SRC_ROOT))
+except ValueError:
+    pass
+sys.path.insert(0, str(SRC_ROOT))
+
+loaded_agilab = sys.modules.get("agilab")
+if loaded_agilab is not None:
+    loaded_paths = [Path(path).resolve(strict=False) for path in getattr(loaded_agilab, "__path__", ())]
+    if (SRC_ROOT / "agilab").resolve(strict=False) not in loaded_paths:
+        sys.modules.pop("agilab", None)
 
 from agilab import streamlit_theme_env  # noqa: E402
 
@@ -97,12 +106,15 @@ def test_streamlit_theme_values_ignore_missing_malformed_and_non_theme_configs(t
     missing = tmp_path / "missing.toml"
     malformed = tmp_path / "malformed.toml"
     non_theme = tmp_path / "server.toml"
+    non_mapping_theme = tmp_path / "theme-string.toml"
     malformed.write_text("[theme\n", encoding="utf-8")
     non_theme.write_text("[server]\nheadless = true\n", encoding="utf-8")
+    non_mapping_theme.write_text('theme = "dark"\n', encoding="utf-8")
 
     assert streamlit_theme_env.load_streamlit_theme_values(missing) == {}
     assert streamlit_theme_env.load_streamlit_theme_values(malformed) == {}
     assert streamlit_theme_env.load_streamlit_theme_values(non_theme) == {}
+    assert streamlit_theme_env.load_streamlit_theme_values(non_mapping_theme) == {}
 
 
 def test_streamlit_theme_environment_preserves_existing_values_and_skips_empty_theme_values(tmp_path) -> None:

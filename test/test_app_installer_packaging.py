@@ -5,6 +5,7 @@ import asyncio
 import importlib.util
 import json
 import py_compile
+import runpy
 import subprocess
 import sys
 import tomllib
@@ -45,6 +46,7 @@ EXAMPLE_PREVIEWS = {
     "excel_workbook_proof": ("preview_excel_workbook_proof.py",),
     "inter_project_dag": ("preview_inter_project_dag.py",),
     "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py",),
+    "native_rust_worker": ("preview_native_rust_worker.py",),
     "notebook_to_dask": (
         "preview_notebook_to_dask.py",
         "notebook_to_dask_sample.ipynb",
@@ -728,6 +730,74 @@ def test_excel_workbook_proof_preview_writes_workbook_refresh_and_evidence(tmp_p
     assert evidence["office_add_in_required"] is False
 
 
+def test_native_rust_worker_preview_writes_pyo3_project_and_evidence(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "native_rust_worker" / "preview_native_rust_worker.py"
+    spec = importlib.util.spec_from_file_location("native_rust_worker_preview_test", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    preview = module.build_preview(output_dir=tmp_path)
+
+    rust_worker = tmp_path / "rust_worker"
+    evidence_path = tmp_path / "native_rust_worker_evidence.json"
+    rust_source = rust_worker / "src" / "lib.rs"
+    pyproject = rust_worker / "pyproject.toml"
+    assert evidence_path.is_file()
+    assert rust_source.is_file()
+    assert pyproject.is_file()
+    assert (rust_worker / "Cargo.toml").is_file()
+    assert (rust_worker / "worker_wrapper.py").is_file()
+    assert (rust_worker / "sample_payload.json").is_file()
+    assert (rust_worker / "python" / "agilab_native_worker_demo" / "__init__.py").is_file()
+    assert "build-backend = \"maturin\"" in pyproject.read_text(encoding="utf-8")
+    assert "#[pyfunction]" in rust_source.read_text(encoding="utf-8")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["schema"] == module.SCHEMA
+    assert evidence["base_install_impact"] == "none"
+    assert evidence["requires_rust_toolchain_for_native_run"] is True
+    assert evidence["recommended_build_backend"] == "maturin"
+    assert evidence["python_binding"] == "PyO3"
+    assert evidence["python_reference"]["checksum"] == preview["python_reference"]["checksum"]
+    assert "rust_lib" in evidence["artifacts"]
+
+
+def test_native_rust_worker_preview_cli_and_reference_validation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = EXAMPLES_ROOT / "native_rust_worker" / "preview_native_rust_worker.py"
+    spec = importlib.util.spec_from_file_location("native_rust_worker_preview_cli_test", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    assert module.python_reference_score([1.0], [2.0], 0) == 0.0
+    with pytest.raises(ValueError, match="same length"):
+        module.python_reference_score([1.0], [], 1)
+
+    cli_output = tmp_path / "cli-preview"
+    monkeypatch.setattr(sys, "argv", [script.name, "--output-dir", str(cli_output)])
+    module.main()
+    printed = json.loads(capsys.readouterr().out)
+
+    assert printed["schema"] == module.SCHEMA
+    assert printed["artifacts"]["evidence"]["path"] == str(cli_output / "native_rust_worker_evidence.json")
+
+    script_output = tmp_path / "script-preview"
+    monkeypatch.setattr(sys, "argv", [script.name, "--output-dir", str(script_output)])
+    runpy.run_path(str(script), run_name="__main__")
+    printed_from_script = json.loads(capsys.readouterr().out)
+
+    assert printed_from_script["schema"] == module.SCHEMA
+    assert printed_from_script["artifacts"]["evidence"]["path"] == str(
+        script_output / "native_rust_worker_evidence.json"
+    )
+
+
 def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
     scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
 
@@ -819,6 +889,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "excel_workbook_proof/*.py" in package_data
     assert "inter_project_dag/*.py" in package_data
     assert "mlflow_auto_tracking/*.py" in package_data
+    assert "native_rust_worker/*.py" in package_data
     assert "notebook_to_dask/*.py" in package_data
     assert "notebook_to_dask/*.json" in package_data
     assert "notebook_to_dask/*.toml" in package_data

@@ -305,12 +305,64 @@ def test_discovery_helpers_ignore_invalid_inputs(tmp_path: Path) -> None:
     missing_shard = tmp_path / "missing-shard" / module.SHARD_MANIFEST_FILENAME
     missing_shard.parent.mkdir()
     missing_shard.write_text(json.dumps({"schema": module.SHARD_MANIFEST_SCHEMA}), encoding="utf-8")
+    malformed_shard = tmp_path / "malformed" / module.SHARD_MANIFEST_FILENAME
+    malformed_shard.parent.mkdir()
+    malformed_shard.write_text("{", encoding="utf-8")
 
     assert module._relative(Path("/definitely/outside"), tmp_path) == "/definitely/outside"
     assert module._resolve_manifest_path(bad_manifest, "") is None
     assert module._shard_from_summary_path(tmp_path / "plain" / "summary.json") == "plain"
     assert module._scenario_from_bundle_manifest(bad_manifest) == ""
     assert module.discover_shard_manifests(tmp_path) == {}
+
+
+def test_discover_failure_bundles_tolerates_manifest_load_race(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    shard_root = tmp_path / "shard"
+    manifest_path = shard_root / "failure-bundles" / "race" / "_scenario" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(json.dumps({"scenario": "race", "command": ["python"]}), encoding="utf-8")
+
+    def flaky_load_json(path: Path):
+        if path == manifest_path:
+            raise json.JSONDecodeError("race", "{", 0)
+        return {}
+
+    monkeypatch.setattr(module, "_scenario_from_bundle_manifest", lambda _path: "race")
+    monkeypatch.setattr(module, "_load_json", flaky_load_json)
+
+    bundles = module.discover_failure_bundles(tmp_path, shard_root, manifest_paths=[manifest_path])
+
+    assert bundles["race"][0]["scenario"] == "race"
+    assert "failure_artifact_retry" not in bundles["race"][0]
+
+
+def test_load_shard_payload_ignores_non_mapping_failure_samples(tmp_path: Path) -> None:
+    module = _load_module()
+    shard_root = _write_shard(tmp_path, "core", success=False, failed_count=1, exit_code="1")
+    summary_path = shard_root / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["failure_samples"] = [
+        "not-a-sample",
+        {
+            "scenario": "core-scenario",
+            "app": "flight_telemetry_project",
+            "page": "ORCHESTRATE",
+        },
+    ]
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+
+    payload = module._load_shard_payload(
+        tmp_path,
+        "core",
+        shard_dir=shard_root,
+        summary_path=summary_path,
+        trend_path=shard_root / "trend-report.json",
+        exit_code_path=shard_root / "exit-code.txt",
+    )
+
+    assert len(payload["failure_samples"]) == 1
+    assert payload["failure_samples"][0]["scenario"] == "core-scenario"
 
 
 def test_render_markdown_includes_failure_replay_command(tmp_path: Path) -> None:
@@ -329,6 +381,43 @@ def test_render_markdown_includes_failure_replay_command(tmp_path: Path) -> None
     ) in markdown
     assert "Artifact retry: `FAIL`" in markdown
     assert "Trace: `" in markdown
+    assert "HAR: `" in markdown
+    assert "Video: `" in markdown
+
+
+def test_render_markdown_handles_minimal_retry_without_artifact_paths() -> None:
+    module = _load_module()
+
+    markdown = module.render_markdown(
+        {
+            "success": False,
+            "summary": {"shard_count": 1, "expected_shard_count": 1},
+            "missing_shards": [],
+            "shards": [
+                {
+                    "name": "core",
+                    "success": False,
+                    "scenario_count": 1,
+                    "trend": {"success": False},
+                }
+            ],
+            "failure_samples": [
+                {
+                    "shard": "core",
+                    "scenario": "demo",
+                    "failure_artifact_retry": {"success": True},
+                    "failure_artifact_retry_status": "PASS",
+                }
+            ],
+        }
+    )
+
+    assert "Artifact retry: `PASS`" in markdown
+    assert "Bundle:" not in markdown
+    assert "Replay:" not in markdown
+    assert "Trace:" not in markdown
+    assert "HAR:" not in markdown
+    assert "Video:" not in markdown
 
 
 def test_render_markdown_skips_non_mapping_rows() -> None:

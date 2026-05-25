@@ -5,8 +5,10 @@ The product north star for AGILAB is a portable proof capsule: a reviewable
 bundle that lets another operator verify what ran, where it ran, which
 artifacts were produced, and how the work can be replayed or handed off.
 
-AGILAB now ships a first proof-pack layer around ``run_manifest.json``. It is a
-directory of plain JSON evidence, not yet a signed ``.agipack`` archive.
+AGILAB now ships a first proof-pack layer around ``run_manifest.json``. It can
+write either a directory of plain JSON evidence or an unsigned, hash-verifiable
+``.agipack`` archive for portable handoff. Detached signatures and external
+attestation binding remain separate roadmap layers.
 
 Why this matters
 ----------------
@@ -80,9 +82,13 @@ The shipped first layer operates on a run manifest:
 .. code-block:: bash
 
    agilab prove ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack
+   agilab prove ~/log/execute/flight_telemetry/run_manifest.json --export proof.agipack
    agilab verify ~/log/execute/flight_telemetry/run_manifest.json --strict
+   agilab verify proof.agipack --strict
    agilab replay ~/log/execute/flight_telemetry/run_manifest.json
+   agilab replay proof.agipack
    agilab export-lineage ~/log/execute/flight_telemetry/run_manifest.json --format all --output-dir proof-pack
+   agilab export-traces proof.agipack --output-dir proof-pack
    agilab policy-check ~/log/execute/flight_telemetry/run_manifest.json --strict
    agilab cards ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack
    agilab metadata-store ~/log/execute/flight_telemetry/run_manifest.json --store ~/.agilab/metadata-store.json
@@ -98,16 +104,13 @@ The proof pack includes:
 * model, dataset, prompt, and evaluation cards generated from available
   manifest evidence
 
-Replay is safe by default: ``agilab replay`` prints the recorded command and
-requires ``--execute`` before launching it.
-
-The reserved archive shape remains roadmap work:
-
-.. code-block:: bash
-
-   agilab prove . --profile audit --export proof.agipack
-   agilab verify proof.agipack
-   agilab replay proof.agipack
+The ``.agipack`` archive contains the same proof-pack files plus
+``agipack-manifest.json`` with per-entry SHA-256 hashes and sizes.
+``agilab verify proof.agipack`` checks the ZIP inventory, the recorded hashes,
+the run-manifest snapshot, and the proof-pack manifest. Replay is safe by
+default: ``agilab replay`` prints the recorded command from either
+``run_manifest.json`` or ``proof.agipack`` and requires ``--execute`` before
+launching it.
 
 Until a signed archive verifier exists, keep using the existing first-proof and
 adoption commands as the entry evidence:
@@ -123,8 +126,8 @@ Roadmap boundary
 
 The following items remain planned work, not shipped capability:
 
-* signed ``.agipack`` archives with detached hashes and Sigstore/SLSA
-  references
+* signed ``.agipack`` archives with detached signatures, Sigstore/SLSA
+  references, and external attestation verification
 * transport to an external OpenLineage backend
 * native OpenTelemetry SDK/OTLP spans across UI, worker build, distributed
   execution, notebook export, MLflow handoff, and agent runs

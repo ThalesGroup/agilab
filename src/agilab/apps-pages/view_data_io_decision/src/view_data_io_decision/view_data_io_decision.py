@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -12,19 +11,17 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from agi_pages.runtime import (
+    artifact_root as _page_artifact_root,
+    discover_files as _page_discover_files,
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    relative_label as _page_relative_label,
+    resolve_active_app_path,
+)
 
 
 def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+    _page_ensure_repo_on_path(__file__)
 
 
 _ensure_repo_on_path()
@@ -38,25 +35,15 @@ SUMMARY_GLOB_KEY = "decision_evidence_summary_glob"
 
 
 def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
-    args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
+    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _default_artifact_root(env: AgiEnv) -> Path:
-    return Path(env.AGILAB_EXPORT_ABS) / env.target / "data_io_decision"
+    return _page_artifact_root(env, "data_io_decision")
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
-    try:
-        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return []
+    return _page_discover_files(base, pattern)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -69,10 +56,7 @@ def _peer_path(summary_path: Path, suffix: str, extension: str) -> Path:
 
 
 def _relative_summary_label(path: Path, artifact_root: Path) -> str:
-    try:
-        return str(path.relative_to(artifact_root))
-    except (RuntimeError, TypeError, ValueError):
-        return path.name
+    return _page_relative_label(path, artifact_root)
 
 
 def _format_delta(value: Any, *, suffix: str = "%") -> str | None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -77,6 +78,18 @@ def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
         ignore_index = command.argv.index("--ignore=src/agilab/test/test_model_returns_code.py")
         targets_by_chunk[match.group(1)] = command.argv[ignore_index + 1 :]
     return targets_by_chunk
+
+
+def test_coverage_shard_plan_module_fails_closed_when_loader_is_missing(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    try:
+        module._coverage_shard_plan_module()
+    except RuntimeError as exc:
+        assert "cannot load coverage shard planner" in str(exc)
+    else:
+        raise AssertionError("_coverage_shard_plan_module should fail when the module spec is missing")
 
 
 def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
@@ -225,6 +238,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "'coverage', 'combine'" in agi_gui_combine_argv
     assert "--keep" in agi_gui_combine_argv
     assert agi_gui_combine.env["COVERAGE_FILE"] == ".coverage.agi-gui"
+    assert module.AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS >= 90.0
     assert "Missing agi-gui coverage manifests" in agi_gui_combine_argv
     assert "coverage_db_paths" in agi_gui_combine_argv
     assert "range(120)" not in agi_gui_combine_argv
@@ -722,6 +736,12 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
     assert module.select_ui_robot_profiles_for_files([".github/workflows/coverage.yml"]) == [
         "ui-robot-contract",
         "ui-robot-canary",
+        "ui-trend-robot",
+    ]
+    assert module.select_ui_robot_profiles_for_files([".github/workflows/ci.yml"]) == [
+        "ui-robot-contract",
+        "ui-robot-canary",
+        "ui-frontend-smoke",
         "ui-trend-robot",
     ]
     assert module.select_ui_robot_profiles_for_files(["src/agilab/pages/project.py"]) == [
@@ -1332,3 +1352,17 @@ def test_main_accepts_production_readiness_profile(capsys) -> None:
         "test-results/production-readiness.json",
         "--compact",
     ]
+
+
+def test_workflow_parity_module_entrypoint_lists_profiles(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["workflow_parity.py", "--list-profiles", "--json"])
+
+    try:
+        runpy.run_path(MODULE_PATH.as_posix(), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:
+        raise AssertionError("workflow_parity __main__ should terminate through SystemExit")
+
+    listed = json.loads(capsys.readouterr().out)
+    assert "skills" in listed

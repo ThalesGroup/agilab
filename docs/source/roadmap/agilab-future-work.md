@@ -220,9 +220,11 @@ Concrete items:
   and compatibility profiles as first-class outputs
 - keep the first public proof-pack CLI layer small and verifiable:
   `agilab prove`, `agilab verify`, `agilab replay`,
-  `agilab export-lineage`, `agilab policy-check`, `agilab cards`, and
-  `agilab metadata-store` operate on `run_manifest.json` and write plain JSON
-  evidence before AGILab claims a signed capsule archive
+  `agilab export-lineage`, `agilab export-traces`, `agilab policy-check`,
+  `agilab cards`, and `agilab metadata-store` operate on `run_manifest.json`,
+  write plain JSON evidence, and export an unsigned, hash-verifiable
+  `.agipack` archive before AGILab claims detached signing or external
+  attestation verification for capsules
 - introduce an Evidence Core contract that bundles the run manifest, workflow
   snapshot, environment lock, artifact hashes, notebook import/export manifest,
   optional MLflow references, policy checks, and verifier results as one

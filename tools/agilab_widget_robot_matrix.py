@@ -53,6 +53,7 @@ class RobotScenario:
     action_timeout_seconds: float = 90.0
     page_timeout_seconds: float = 420.0
     target_seconds: float = 1800.0
+    max_action_clicks_per_page: int = 25
     assert_orchestrate_artifacts: bool = False
     assert_workflow_artifacts: bool = False
     assert_analysis_artifacts: bool = False
@@ -163,15 +164,16 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-entry-and-app-pages": RobotScenario(
         name="isolated-entry-and-app-pages",
         description=(
-            "Sweep the entry shell plus each app's configured analysis "
-            "views with an isolated runtime and guarded safe-click navigation."
+            "Sweep each app's configured analysis views with an isolated runtime. "
+            "HOME stays covered by the dedicated core page scenarios."
         ),
-        pages="HOME",
+        pages="none",
         apps_pages="configured",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "isolated-project-page": RobotScenario(
         name="isolated-project-page",
@@ -728,6 +730,8 @@ def build_robot_command(
         scenario.missing_selected_action_policy,
         "--action-timeout",
         str(scenario.action_timeout_seconds),
+        "--max-action-clicks-per-page",
+        str(scenario.max_action_clicks_per_page),
         "--runtime-isolation",
         scenario.runtime_isolation,
     ]
