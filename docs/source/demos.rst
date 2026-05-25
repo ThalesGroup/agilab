@@ -65,6 +65,25 @@ Short demo routes
 Use these as narrow product demos. They are intentionally generic and should
 not depend on private apps or app-specific claims.
 
+Robot/proof coverage
+~~~~~~~~~~~~~~~~~~~~
+
+Every route on this page must be tied to one of the local validation contracts:
+
+- **UI robot**: browser-visible AGILAB routes are covered by
+  ``tools/ui_robot_coverage_contract.py --json``. The contract checks the local
+  all-built-in ``ui-robot-matrix`` profile, the hosted first-proof visual robot,
+  the hosted install robot, and the configured apps-pages used by
+  ``flight_telemetry_project``, ``weather_forecast_project``,
+  ``mission_decision_project``, ``execution_pandas_project``,
+  ``execution_polars_project``, ``uav_queue_project``, and
+  ``uav_relay_queue_project``.
+- **Static/CLI proof**: non-browser preview routes are covered by
+  ``tools/public_proof_scenarios.py --compact``. This includes the local package
+  proof, hosted weather proof, MLflow proof, distributed-worker health proof,
+  notebook migration proof, resilience failure-injection proof,
+  train-then-serve proof, and service-mode preview proof.
+
 The static scenario contract is available as JSON:
 
 .. code-block:: bash

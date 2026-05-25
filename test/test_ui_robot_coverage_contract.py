@@ -34,6 +34,36 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     for action in module.REQUIRED_HIGH_RISK_ACTIONS:
         assert payload["coverage"]["high_risk_actions"][action]
     assert payload["coverage"]["configured_apps_pages_scenarios"] == ["isolated-entry-and-app-pages"]
+    assert payload["coverage"]["public_demo_contract"]["ui_apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+        "mission_decision_project",
+        "execution_pandas_project",
+        "execution_polars_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+    ]
+    assert payload["coverage"]["public_demo_contract"]["ui_apps_covered_by"] == "ui-robot-matrix --apps all"
+    assert payload["coverage"]["public_demo_contract"]["apps_pages"] == [
+        "view_maps",
+        "view_forecast_analysis",
+        "view_release_decision",
+        "view_data_io_decision",
+        "view_scenario_cockpit",
+        "view_queue_resilience",
+        "view_relay_resilience",
+        "view_maps_network",
+    ]
+    assert payload["coverage"]["public_demo_contract"]["proof_scenarios"] == [
+        "flight-local-first-proof",
+        "weather-forecast-hosted-proof",
+        "mlflow-tracking-proof",
+        "distributed-worker-health-proof",
+        "notebook-migration-proof",
+        "resilience-failure-injection-proof",
+        "train-then-serve-proof",
+        "service-mode-preview-proof",
+    ]
     assert payload["coverage"]["hf_first_proof_apps"] == [
         "flight_telemetry_project",
         "weather_forecast_project",
@@ -160,6 +190,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
             "hf-visual-smoke-robot": [SimpleNamespace(argv=["--scenario", "legacy-hf-smoke"])],
         }
     )
+    public_proof_scenarios = SimpleNamespace(SCENARIOS=({"id": "legacy-proof"},))
 
     def fake_load_module(_name, path):
         if path == module.WIDGET_ROBOT_PATH:
@@ -170,6 +201,8 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
             return hf_smoke
         if path == module.WORKFLOW_PARITY_PATH:
             return workflow_parity
+        if path == module.PUBLIC_PROOF_SCENARIOS_PATH:
+            return public_proof_scenarios
         raise AssertionError(f"unexpected module path: {path}")
 
     monkeypatch.setattr(module, "_load_module", fake_load_module)
@@ -209,6 +242,24 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     assert "hf-first-proof-install is missing from the robot matrix" in details
     assert "isolated-pytorch-playground-analysis is missing from the robot matrix" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
+    assert any(
+        detail.startswith("ui-robot-matrix profile is missing documented demo apps:")
+        and "flight_telemetry_project" in detail
+        and "uav_relay_queue_project" in detail
+        for detail in details
+    )
+    assert any(
+        detail.startswith("documented demo apps-pages are not configured on any built-in app:")
+        and "view_forecast_analysis" in detail
+        and "view_maps_network" in detail
+        for detail in details
+    )
+    assert any(
+        detail.startswith("public proof scenarios are missing documented demo routes:")
+        and "flight-local-first-proof" in detail
+        and "train-then-serve-proof" in detail
+        for detail in details
+    )
 
 
 def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypatch) -> None:
@@ -227,6 +278,9 @@ def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypat
         profile_page_entries=lambda _profile: set(module.REQUIRED_HF_FIRST_PROOF_PAGES),
     )
     workflow_parity = SimpleNamespace(_profile_commands=lambda _args: {})
+    public_proof_scenarios = SimpleNamespace(
+        SCENARIOS=({"id": scenario_id} for scenario_id in module.REQUIRED_DEMO_PROOF_SCENARIOS)
+    )
 
     def fake_load_module(_name, path):
         if path == module.WIDGET_ROBOT_PATH:
@@ -237,6 +291,8 @@ def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypat
             return hf_smoke
         if path == module.WORKFLOW_PARITY_PATH:
             return workflow_parity
+        if path == module.PUBLIC_PROOF_SCENARIOS_PATH:
+            return public_proof_scenarios
         raise AssertionError(f"unexpected module path: {path}")
 
     monkeypatch.setattr(module, "_load_module", fake_load_module)
@@ -332,6 +388,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
             "ui-robot-matrix": [SimpleNamespace(argv=["--scenario", "other"])],
         }
     )
+    public_proof_scenarios = SimpleNamespace(SCENARIOS=({"id": "legacy-proof"},))
 
     def fake_load_module(_name, path):
         if path == module.WIDGET_ROBOT_PATH:
@@ -342,6 +399,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
             return hf_smoke
         if path == module.WORKFLOW_PARITY_PATH:
             return workflow_parity
+        if path == module.PUBLIC_PROOF_SCENARIOS_PATH:
+            return public_proof_scenarios
         raise AssertionError(f"unexpected module path: {path}")
 
     monkeypatch.setattr(module, "_load_module", fake_load_module)
@@ -372,3 +431,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
+    assert any(
+        detail.startswith("public proof scenarios are missing documented demo routes:")
+        and "notebook-migration-proof" in detail
+        for detail in details
+    )

@@ -27,7 +27,6 @@ import stat
 import tempfile
 import time
 import subprocess
-import warnings
 import traceback
 import json
 from pathlib import Path
@@ -36,7 +35,6 @@ from types import SimpleNamespace
 
 # External Libraries:
 import numpy as np
-from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
 import datetime
@@ -48,7 +46,6 @@ from agi_env import AgiEnv, normalize_path
 from .base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
-warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
 RUN_STAGES_KEY = "_agilab_run_stages"
 

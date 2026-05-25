@@ -54,6 +54,7 @@ UI and page packages
    :caption: UI and page packages
 
    agi-gui <agi-gui-licenses>
+   agi-page-app-ui <agi-page-app-ui-licenses>
    agi-page-simplex-map <agi-page-simplex-map-licenses>
    agi-page-decision-evidence <agi-page-decision-evidence-licenses>
    agi-page-timeseries-forecast <agi-page-timeseries-forecast-licenses>
@@ -66,7 +67,6 @@ UI and page packages
    agi-page-scenario-cockpit <agi-page-scenario-cockpit-licenses>
    agi-page-promotion-gate <agi-page-promotion-gate-licenses>
    agi-page-feature-attribution <agi-page-feature-attribution-licenses>
-   agi-page-app-ui <agi-page-app-ui-licenses>
    agi-page-training-report <agi-page-training-report-licenses>
    agi-pages <agi-pages-licenses>
 

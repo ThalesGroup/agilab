@@ -38,14 +38,12 @@ import threading
 import time
 import uuid
 import traceback
-import warnings
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from typing import Any, Callable, ClassVar, Dict, Iterable, List, Optional, Union
 
 # External Libraries:
 import numpy as np
-from distutils.sysconfig import get_python_lib
 import psutil
 import humanize
 import datetime
@@ -63,7 +61,6 @@ from . import base_worker_service_support as service_support
 
 logger = AgiLogger.get_logger(__name__)
 
-warnings.filterwarnings("ignore")
 class BaseWorker(ArtifactContract, abc.ABC):
     """
     class BaseWorker v1.0

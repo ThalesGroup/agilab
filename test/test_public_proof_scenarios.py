@@ -28,13 +28,18 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
 
     assert report["schema"] == "agilab.public_proof_scenarios.v1"
     assert report["status"] == "pass"
-    assert report["summary"]["scenario_count"] == 3
+    assert report["summary"]["scenario_count"] == 8
     assert report["summary"]["first_proof_target_seconds"] == 60.0
     assert report["summary"]["full_install_target_seconds"] == 120.0
     assert report["summary"]["scenario_ids"] == [
         "flight-local-first-proof",
         "weather-forecast-hosted-proof",
         "mlflow-tracking-proof",
+        "distributed-worker-health-proof",
+        "notebook-migration-proof",
+        "resilience-failure-injection-proof",
+        "train-then-serve-proof",
+        "service-mode-preview-proof",
     ]
     rows = {scenario["id"]: scenario for scenario in report["scenarios"]}
     assert 'python -m pip install "agilab[examples]"' in rows[
@@ -48,6 +53,21 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
     )
     assert "MLflow remains the tracking system" in " ".join(
         rows["mlflow-tracking-proof"]["limits"]
+    )
+    assert "tools/service_health_check.py --format json" in " ".join(
+        rows["distributed-worker-health-proof"]["commands"]
+    )
+    assert "preview_notebook_to_dask.py" in " ".join(
+        rows["notebook-migration-proof"]["commands"]
+    )
+    assert "preview_resilience_failure_injection.py" in " ".join(
+        rows["resilience-failure-injection-proof"]["commands"]
+    )
+    assert "preview_train_then_serve.py" in " ".join(
+        rows["train-then-serve-proof"]["commands"]
+    )
+    assert "preview_service_mode.py" in " ".join(
+        rows["service-mode-preview-proof"]["commands"]
     )
     assert all(not scenario["missing_evidence_files"] for scenario in report["scenarios"])
 

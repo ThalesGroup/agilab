@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AGILAB Troubleshooting</title>
+  <style>
+    body {
+      color: #24303f;
+      font-family: Arial, sans-serif;
+      line-height: 1.55;
+      margin: 2rem auto;
+      max-width: 920px;
+      padding: 0 1rem;
+    }
+    code {
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 0.1rem 0.3rem;
+    }
+    pre {
+      background: #172033;
+      border-radius: 6px;
+      color: #eef5ff;
+      overflow-x: auto;
+      padding: 1rem;
+    }
+    a {
+      color: #0f5fa8;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="troubleshooting">Troubleshooting</h1>
+  <p>
+    This packaged help page keeps local AGILAB help links usable when the full
+    public documentation is not available. The public troubleshooting guide
+    remains the source of truth for detailed recovery steps.
+  </p>
+
+  <h2 id="a-prerequisite">A - Prerequisite</h2>
+  <p>
+    Run AGILAB through the managed <code>uv</code> commands or generated run
+    configuration wrappers so the selected project environment is explicit.
+  </p>
+
+  <h2 id="b-list-of-available-scripts">B - List of Available Scripts</h2>
+  <p>
+    Use <code>./dev impact</code>, <code>./dev bugfix</code>,
+    <code>./dev test</code>, and the generated scripts under
+    <code>tools/run_configs/</code> for reproducible local checks.
+  </p>
+
+  <h2 id="c-exemple-of-tests-sequence">C - Example Test Sequence</h2>
+  <pre><code>./dev impact
+./dev bugfix
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp</code></pre>
+
+  <h1 id="known-limitations-and-deprecations">Known Limitations and Deprecations</h1>
+  <p>
+    Known limitations should include impact, workaround, and a migration or
+    removal target. Avoid hiding deprecation warnings globally; fix the source
+    or document the scoped workaround.
+  </p>
+
+  <h2 id="uv-sync-failed">&lt;UV&gt; Sync Failed</h2>
+  <p>
+    If a dependency appears installed but cannot be imported, inspect the app
+    manager and worker <code>pyproject.toml</code> files first. If the
+    <code>uv</code> cache is corrupted, run <code>uv cache clean</code> and retry.
+  </p>
+
+  <h2 id="dask-debug-issue">&lt;DASK&gt; Debug Issue</h2>
+  <p>
+    When PyCharm debugger asyncio patches conflict with Dask, disable the
+    debugger asyncio REPL option and rerun the local reproduction before
+    changing cluster code.
+  </p>
+
+  <h2 id="pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</h2>
+  <p>
+    Regenerate run configuration wrappers after editing PyCharm configuration
+    files. If a worker environment did not install, debug the app install first,
+    then rerun <code>pycharm/setup_pycharm.py</code>.
+  </p>
+
+  <p>
+    Public docs:
+    <a href="https://thalesgroup.github.io/agilab/troubleshooting.html">AGILAB troubleshooting</a>.
+  </p>
+</body>
+</html>
