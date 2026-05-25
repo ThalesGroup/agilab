@@ -90,6 +90,10 @@ Start with the public browser preview or the demo chooser:
 - [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html)
 - [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
+- [50-star promotion kit](PROMOTE.md)
+
+If AGILAB helps you make AI/ML experiments reproducible, please star the
+repository so other engineers can find it.
 
 For spreadsheet-first users, the packaged `excel_workbook_proof` preview keeps
 Excel as the familiar interface and writes a proof workbook, Power Query-friendly
