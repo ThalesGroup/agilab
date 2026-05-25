@@ -13,7 +13,10 @@ from typing import Any
 import pandas as pd
 
 from agi_node.pandas_worker import PandasWorker
+from tescia_diagnostic.classroom import CLASSROOM_SCHEMA, expand_classroom_submissions, write_classroom_artifacts
+from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
 from tescia_diagnostic.diagnostic import diagnose_case, summarize_report, validate_case_payload
+from tescia_diagnostic.exports import write_correction_index, write_correction_sheet
 from tescia_diagnostic.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
@@ -100,6 +103,11 @@ class TesciaDiagnosticWorker(PandasWorker):
         payload = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"Diagnostic file must contain a JSON object: {source}")
+        if payload.get("schema") == CLASSROOM_SCHEMA:
+            try:
+                return expand_classroom_submissions(payload)
+            except ValueError as exc:
+                raise ValueError(f"Invalid TeSciA classroom submission file {source}: {exc}") from exc
         try:
             validated = validate_case_payload(payload)
         except ValueError as exc:
@@ -130,8 +138,11 @@ class TesciaDiagnosticWorker(PandasWorker):
     def _write_artifact_bundle(self, root: Path, df: pd.DataFrame) -> None:
         root.mkdir(parents=True, exist_ok=True)
         summaries: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
+        correction_paths: list[Path] = []
         for _, row in df.iterrows():
             report = json.loads(str(row["report_json"]))
+            reports.append(report)
             summary = {
                 key: row[key].item() if hasattr(row[key], "item") else row[key]
                 for key in row.index
@@ -145,9 +156,28 @@ class TesciaDiagnosticWorker(PandasWorker):
             run_root.mkdir(parents=True, exist_ok=True)
             _write_json(run_root / f"{stem}_diagnostic_report.json", report)
             _write_csv(run_root / f"{stem}_diagnostic_summary.csv", [summary])
+            correction_paths.append(write_correction_sheet(report, root / "correction_sheets"))
 
         if summaries:
             _write_csv(root / "tescia_diagnostic_summary.csv", summaries)
+            write_correction_index(correction_paths, root / "correction_sheets")
+            coverage_cases = [
+                {
+                    "case_id": str(summary.get("case_id", "")),
+                    "curriculum_ids": [
+                        item.strip()
+                        for item in str(summary.get("curriculum_ids", "")).split(",")
+                        if item.strip()
+                    ],
+                }
+                for summary in summaries
+            ]
+            _write_json(
+                root / "math_program_2026_coverage.json",
+                build_math_program_2026_coverage_report(coverage_cases),
+            )
+            if any(str(report.get("classroom", {}).get("student_ref", "")).strip() for report in reports):
+                write_classroom_artifacts(reports, root / "classroom")
             write_reduce_artifact(
                 summaries,
                 root,

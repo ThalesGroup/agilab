@@ -24,7 +24,7 @@ class TesciaDiagnosticArgs(BaseModel):
     minimum_evidence_confidence: float = Field(default=0.65, ge=0.0, le=1.0)
     minimum_regression_coverage: float = Field(default=0.6, ge=0.0, le=1.0)
     reset_target: bool = False
-    case_source: Literal["bundled", "standalone_ai"] = "bundled"
+    case_source: Literal["bundled", "bundled_classroom", "standalone_ai"] = "bundled"
     generated_cases_filename: str = "tescia_diagnostic_cases.generated.json"
     regenerate_cases: bool = False
     ai_provider: Literal["gpt-oss", "ollama"] = "gpt-oss"

@@ -23,7 +23,7 @@ from tescia_diagnostic import (
 
 
 PAGE_ID = "tescia_diagnostic_project:app_args_form"
-CASE_SOURCE_OPTIONS = ("bundled", "standalone_ai")
+CASE_SOURCE_OPTIONS = ("bundled", "bundled_classroom", "standalone_ai")
 AI_PROVIDER_OPTIONS = ("gpt-oss", "ollama")
 SCORING_FORMULAS = (
     r"E = 0.6 \cdot \overline{confidence} + 0.4 \cdot \overline{relevance}",
@@ -65,6 +65,87 @@ def _render_scoring_model() -> None:
         st.caption(
             "E: evidence quality, R: regression coverage, F: selected-fix quality, "
             "gate: 1 when evidence and regression thresholds pass, otherwise 0."
+        )
+
+
+def _render_self_evaluation_contract() -> None:
+    with st.expander("Student self-evaluation contract", expanded=False):
+        st.caption(
+            "A case can behave like an exercise sheet when it includes catalog metadata "
+            "and a student_answer block. RUN grades the submitted answer deterministically."
+        )
+        st.code(
+            """{
+  "title": "Cluster-share diagnostic",
+  "difficulty": "intermediate",
+  "topic_tags": ["cluster", "evidence"],
+  "student_prompt": "Identify the real root cause and the regression tests.",
+  "student_answer": {
+    "diagnosis": "The weak diagnosis confuses SSH reachability with shared storage.",
+    "root_cause": "The worker needs the scheduler share mounted before post-install.",
+    "evidence_ids": ["post_install_share_error", "worker_path_os_mismatch"],
+    "selected_fix_id": "mount_scheduler_share_with_sshfs",
+    "regression_test_ids": ["share_check_only", "post_install_remote_worker"],
+    "confidence": 0.85
+  }
+}""",
+            language="json",
+        )
+        st.caption(
+            "Feedback is exported in the diagnostic report and summary CSV with "
+            "self_evaluation_status, self_evaluation_band, feedback_count, and student_score."
+        )
+    with st.expander("2026 mathematics coverage", expanded=False):
+        st.caption(
+            "Bundled TeSciA exercises include `curriculum_ids` checked against the 2026 French "
+            "mathematics rollout contract at top-level-domain granularity."
+        )
+        st.code(
+            """{
+  "curriculum_ids": [
+    "seconde_gt_fonctions",
+    "seconde_gt_statistiques_probabilites"
+  ]
+}""",
+            language="json",
+        )
+        st.caption(
+            "RUN exports `math_program_2026_coverage.json`; tests fail if a required id is "
+            "missing or if a case references an unknown id."
+        )
+    with st.expander("Classroom batch mode", expanded=False):
+        st.caption(
+            "A classroom file contains student submissions that reference exercise ids. RUN expands "
+            "each submission into an independent scoring row, so cluster workers can process the batch."
+        )
+        st.code(
+            """{
+  "schema": "agilab.tescia_diagnostic.classroom.v1",
+  "classroom": {
+    "class_id": "math_2026_demo_class",
+    "session_id": "live_session_001",
+    "anonymize_student": true
+  },
+  "submissions": [
+    {
+      "student_id": "student-001",
+      "case_id": "math_2026_seconde_gt_coverage",
+      "answer": {
+        "diagnosis": "...",
+        "root_cause": "...",
+        "evidence_ids": ["seconde_required_ids"],
+        "selected_fix_id": "add_seconde_full_domain_set",
+        "regression_test_ids": ["seconde_ids_complete"],
+        "confidence": 0.8
+      }
+    }
+  ]
+}""",
+            language="json",
+        )
+        st.caption(
+            "RUN exports `classroom/classroom_run_report.json`, progress CSV, heatmap CSV, "
+            "and needs-attention CSV for a teacher dashboard."
         )
 
 
@@ -150,6 +231,7 @@ with c7:
     st.checkbox("Reset output", key=_k("reset_target"))
 
 _render_scoring_model()
+_render_self_evaluation_contract()
 
 st.selectbox(
     "Diagnostic case source",
@@ -157,6 +239,7 @@ st.selectbox(
     key=_k("case_source"),
     format_func=lambda value: {
         "bundled": "Bundled deterministic sample",
+        "bundled_classroom": "Bundled classroom sample",
         "standalone_ai": "Generate with standalone AI",
     }.get(value, value),
 )
