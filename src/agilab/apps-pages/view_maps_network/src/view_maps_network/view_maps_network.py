@@ -146,6 +146,36 @@ def _resolve_active_app() -> Path:
     return active_app_path
 
 
+def _analysis_return_url(app: str) -> str:
+    return f"/ANALYSIS?{urlencode({'active_app': app})}"
+
+
+def _active_app_context_from_env(env: Any) -> tuple[str, Path]:
+    app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        return app_name, Path(active_app)
+    apps_path = getattr(env, "apps_path", None)
+    if apps_path:
+        return app_name, Path(apps_path) / app_name
+    return app_name, Path(app_name)
+
+
+def _render_app_page_context(app: str, active_app: Path) -> None:
+    columns = st.columns(2)
+    with columns[0]:
+        st.caption(f"Project: `{app}`")
+    with columns[1]:
+        link_button = getattr(st, "link_button", None)
+        url = _analysis_return_url(app)
+        if callable(link_button):
+            link_button("Back to ANALYSIS", url, type="secondary", width="content")
+        else:
+            st.caption(f"Back to ANALYSIS: {url}")
+    with st.expander("Runtime context", expanded=False):
+        st.code(str(active_app), language="text")
+
+
 def _ensure_app_settings_loaded(env: AgiEnv) -> None:
     if "app_settings" in st.session_state:
         return
@@ -246,8 +276,10 @@ if 'env' not in st.session_state:
     st.session_state['app'] = app_name
 else:
     env = st.session_state['env']
+    app_name, active_app_path = _active_app_context_from_env(env)
 
 _ensure_app_settings_loaded(env)
+_render_app_page_context(app_name, active_app_path)
 
 if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
@@ -3460,7 +3492,8 @@ def page():
         st.session_state.datadir = final_path
         st.session_state.pop("df_file", None)
         st.session_state.pop("csv_files", None)
-    st.sidebar.caption(f"Resolved path: {final_path}")
+    with st.sidebar.expander("Resolved data path", expanded=False):
+        st.caption(str(final_path))
 
     ext_options = ["csv", "parquet", "json", "all"]
     ext_default = st.session_state.get("file_ext_choice", "all")

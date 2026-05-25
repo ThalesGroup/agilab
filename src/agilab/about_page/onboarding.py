@@ -615,15 +615,16 @@ def _render_first_proof_wizard_actions(
         }
         for step in _first_proof_wizard_steps(state)
     ]
-    for action in proof_actions:
-        _first_proof_link_button(
-            action["button"],
-            _first_proof_action_url(action["id"]),
-            key=f"first_proof:wizard:{action['id']}",
-            button_type=action["type"],
-            disabled=not state["project_available"],
-        )
-        st.caption(action["hint"])
+    for column, action in zip(st.columns(len(proof_actions)), proof_actions):
+        with column:
+            _first_proof_link_button(
+                action["button"],
+                _first_proof_action_url(action["id"]),
+                key=f"first_proof:wizard:{action['id']}",
+                button_type=action["type"],
+                disabled=not state["project_available"],
+            )
+            st.caption(action["hint"])
 
     with st.expander("Notebook-first option", expanded=False):
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)

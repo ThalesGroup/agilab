@@ -15,7 +15,7 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 import importlib
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 from datetime import datetime
 
 # Third-Party imports
@@ -1421,6 +1421,42 @@ def _safe_display_path(value: Any) -> str:
         return str(value)
 
 
+def _compact_path_caption(value: Any, *, fallback: str = "see runtime details") -> str:
+    """Return a card-safe path label while keeping the full path for details."""
+
+    display = _safe_display_path(value)
+    lowered = display.lower()
+    if lowered in {"", "not configured", "unknown"}:
+        return display
+    if os.sep not in display and (os.altsep is None or os.altsep not in display):
+        return display if len(display) <= 48 else fallback
+    try:
+        path = Path(display)
+    except (TypeError, ValueError, RuntimeError):
+        return fallback
+
+    name = path.name or display
+    parent = path.parent.name
+    if parent and parent not in {".", os.sep}:
+        return f"{name} in {parent}"
+    return name if len(name) <= 48 else fallback
+
+
+def _compact_data_share_caption(caption: str) -> str:
+    if " in " in caption:
+        return caption.split(" in ", 1)[0]
+    return _compact_path_caption(caption)
+
+
+def _render_runtime_details(rows: Sequence[tuple[str, Any]]) -> None:
+    details = [(label, _safe_display_path(value)) for label, value in rows if value not in (None, "")]
+    if not details:
+        return
+    with st.expander("Runtime details", expanded=False):
+        st.caption("Full paths and diagnostics for support, copy/paste, and troubleshooting.")
+        st.code("\n".join(f"{label}: {value}" for label, value in details), language="text")
+
+
 def _format_header_byte_size(byte_count: int) -> str:
     value = float(max(byte_count, 0))
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -1564,18 +1600,24 @@ def _render_orchestrate_readiness_panel(
     active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
     manager_status, manager_path = _path_status(install_status.get("manager_venv"), venv=True)
     worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
+    manager_detail = manager_path
+    worker_detail = worker_path
     if install_status.get("workerless"):
         worker_status = "not used"
         worker_path = "workerless local app"
+        worker_detail = worker_path
     if not install_status.get("manager_ready"):
         manager_status = "stale" if install_status.get("manager_exists") else "missing"
         if install_status.get("manager_exists"):
             manager_path = install_status.get("manager_problem") or manager_path
+            manager_detail = manager_path
     if not install_status.get("workerless") and not install_status.get("worker_ready"):
         worker_status = "stale" if install_status.get("worker_exists") else "missing"
         if install_status.get("worker_exists"):
             worker_path = install_status.get("worker_problem") or worker_path
+            worker_detail = worker_path
     run_count, run_caption = _run_history_summary(env)
+    share_size, share_caption = _data_share_content_summary(getattr(env, "app_data_rel", None))
 
     with st.container(border=True):
         top_cols = st.columns(3)
@@ -1586,18 +1628,30 @@ def _render_orchestrate_readiness_panel(
                 "Python package used by INSTALL/RUN",
             )
         with top_cols[1]:
-            _render_header_value_card("Manager env", manager_status, manager_path)
+            _render_header_value_card("Manager env", manager_status, _compact_path_caption(manager_path))
         with top_cols[2]:
-            _render_header_value_card("Worker env", worker_status, worker_path)
+            _render_header_value_card("Worker env", worker_status, _compact_path_caption(worker_path))
 
         bottom_cols = st.columns(3)
         with bottom_cols[0]:
             _render_header_value_card("Runs", run_count, run_caption)
         with bottom_cols[1]:
-            share_size, share_caption = _data_share_content_summary(getattr(env, "app_data_rel", None))
-            _render_header_value_card("Data share content (size)", share_size, share_caption)
+            _render_header_value_card("Data share content (size)", share_size, _compact_data_share_caption(share_caption))
         with bottom_cols[2]:
-            _render_header_value_card("Last change", _latest_project_mtime(active_app), _safe_display_path(active_app))
+            _render_header_value_card(
+                "Last change",
+                _latest_project_mtime(active_app),
+                _compact_path_caption(active_app, fallback="active project"),
+            )
+
+    _render_runtime_details(
+        (
+            ("Active project", active_app),
+            ("Manager env", manager_detail),
+            ("Worker env", worker_detail),
+            ("Data share", share_caption),
+        )
+    )
 
 
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")

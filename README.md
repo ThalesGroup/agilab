@@ -93,6 +93,7 @@ Start with the route that matches the proof you want to show:
 | Stay notebook-first | [agi-core notebook demo](https://thalesgroup.github.io/agilab/notebook-quickstart.html) | Small `AgiEnv` / `AGI.run(...)` runtime path before the web UI. |
 | Migrate a notebook into an app | [Weather notebook migration](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | Notebook stages, `lab_stages.toml`, artifacts, and reusable analysis views. |
 | Keep Excel as the front end | [Excel workbook proof](https://thalesgroup.github.io/agilab/excel-users.html) | Workbook inputs plus CSV and JSON evidence without an Office add-in. |
+| Keep a notebook dashboard | [Voila notebook proof](https://thalesgroup.github.io/agilab/voila-users.html) | Hide-code notebook dashboard path plus widget-to-args and app-view evidence. |
 | Prove database access locally | [SQLite connector proof](https://thalesgroup.github.io/agilab/data-connectors.html#sqlite-database-proof) | Local schema, parameterized SQL query, result CSV, and JSON evidence hashes. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
@@ -110,6 +111,11 @@ repository so other engineers can find it.
 For spreadsheet-first users, the packaged `excel_workbook_proof` preview keeps
 Excel as the familiar interface and writes a proof workbook, Power Query-friendly
 CSV files, and JSON hash evidence without requiring an Office add-in.
+
+For notebook-dashboard users, the packaged `voila_notebook_proof` preview keeps
+the notebook dashboard flow and writes a hide-code manifest, widget-to-args
+hints, an app-view plan, and JSON evidence without requiring Voila in the base
+install.
 
 ## Featured Opt-In App
 
@@ -311,10 +317,13 @@ AGILAB already ships many of those pieces separately through first-proof
 manifests, notebook export, release proof, supply-chain scans, robot artifacts,
 and adoption reports. The first public proof-pack layer now adds
 `agilab prove`, `agilab verify`, `agilab replay`, `agilab export-lineage`,
-`agilab policy-check`, `agilab cards`, and `agilab metadata-store` for
-`run_manifest.json` evidence. A signed `.agipack` archive, native lineage or
-observability transport, durable ML metadata, rich app-authored cards, and
-enterprise governance integrations remain roadmap work. See the
+`agilab export-traces`, `agilab policy-check`, `agilab cards`, and
+`agilab metadata-store` for `run_manifest.json` evidence, plus an unsigned,
+hash-verifiable `.agipack` archive for portable handoff with
+`agilab prove --export proof.agipack`. Detached signing/attestation for
+`.agipack`, native lineage or observability transport, durable ML metadata,
+rich app-authored cards, and enterprise governance integrations remain roadmap
+work. See the
 [proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
 contract for the intended boundary.
 

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
-from typing import Any, Mapping, Sequence
+import tempfile
+from typing import Any, Iterator, Mapping, Sequence
+import zipfile
 
 try:
     import tomllib
@@ -22,7 +25,9 @@ from agilab import run_manifest
 
 
 PROOF_PACK_SCHEMA = "agilab.proof_pack.v1"
+PROOF_CAPSULE_SCHEMA = "agilab.proof_capsule.v1"
 VERIFY_SCHEMA = "agilab.evidence_verification.v1"
+CAPSULE_VERIFY_SCHEMA = "agilab.proof_capsule_verification.v1"
 POLICY_SCHEMA = "agilab.policy_report.v1"
 METADATA_STORE_SCHEMA = "agilab.metadata_store.v1"
 CARD_SCHEMA = "agilab.evidence_card.v1"
@@ -30,6 +35,8 @@ OPENLINEAGE_EVENT_SCHEMA = "agilab.openlineage_export.v1"
 OTEL_EXPORT_SCHEMA = "agilab.otel_trace_export.v1"
 DEFAULT_POLICY_ID = "agilab.default_adoption_gate.v1"
 
+PROOF_CAPSULE_EXTENSION = ".agipack"
+PROOF_CAPSULE_MANIFEST_FILENAME = "agipack-manifest.json"
 PROOF_PACK_FILENAME = "agilab_proof_pack.json"
 RUN_MANIFEST_SNAPSHOT_FILENAME = "run_manifest.snapshot.json"
 VERIFY_REPORT_FILENAME = "verification-report.json"
@@ -66,6 +73,14 @@ class ProofPackWriteResult:
     manifest_path: Path
     proof_pack_path: Path
     generated_files: tuple[Path, ...]
+    proof_pack: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ProofCapsuleWriteResult:
+    capsule_path: Path
+    manifest_path: Path
+    capsule_manifest: dict[str, Any]
     proof_pack: dict[str, Any]
 
 
@@ -603,6 +618,389 @@ def write_proof_pack(
     )
 
 
+def write_proof_capsule(
+    manifest_path: Path,
+    capsule_path: Path,
+    *,
+    policy_path: Path | None = None,
+    metadata_store_path: Path | None = None,
+) -> ProofCapsuleWriteResult:
+    """Write a hash-verifiable ``.agipack`` archive for a run manifest.
+
+    The first archive format is intentionally unsigned. It gives reviewers one
+    portable ZIP file with per-entry SHA-256 hashes, while keeping detached
+    signatures and external provenance attestations as explicit later layers.
+    """
+    manifest_path = manifest_path.expanduser()
+    capsule_path = capsule_path.expanduser()
+    capsule_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="agilab-agipack-") as tmp:
+        capsule_root = Path(tmp)
+        result = write_proof_pack(
+            manifest_path,
+            capsule_root,
+            policy_path=policy_path,
+            metadata_store_path=metadata_store_path,
+        )
+
+        archive_payload_files = [
+            path
+            for path in result.generated_files
+            if path.name != PROOF_PACK_FILENAME
+        ]
+        portable_proof_pack = dict(result.proof_pack)
+        portable_proof_pack["output_dir"] = "."
+        portable_proof_pack["files"] = [
+            {
+                "name": path.name,
+                "path": _archive_relative_path(capsule_root, path),
+                "sha256": sha256_file(path),
+                "size_bytes": path.stat().st_size,
+            }
+            for path in _sorted_archive_paths(capsule_root, archive_payload_files)
+        ]
+        _write_json(result.proof_pack_path, portable_proof_pack)
+        archive_payload_files.append(result.proof_pack_path)
+
+        entries = [
+            {
+                "path": _archive_relative_path(capsule_root, path),
+                "sha256": sha256_file(path),
+                "size_bytes": path.stat().st_size,
+            }
+            for path in _sorted_archive_paths(capsule_root, archive_payload_files)
+        ]
+        capsule_manifest = {
+            "schema": PROOF_CAPSULE_SCHEMA,
+            "created_at": run_manifest.utc_now(),
+            "format": "zip",
+            "signed": False,
+            "signature": None,
+            "integrity": "sha256-per-entry",
+            "run_id": result.proof_pack["run_id"],
+            "path_id": result.proof_pack["path_id"],
+            "status": result.proof_pack["status"],
+            "root": PROOF_PACK_FILENAME,
+            "source_manifest": result.proof_pack["source_manifest"],
+            "standards": result.proof_pack["standards"],
+            "cards": result.proof_pack["cards"],
+            "entry_count": len(entries),
+            "entries": entries,
+            "limitations": [
+                "This .agipack is hash-verifiable but not cryptographically signed.",
+                (
+                    "External Sigstore, SLSA, or PyPI attestations must be carried "
+                    "as separate evidence files until a signed capsule layer ships."
+                ),
+            ],
+        }
+        capsule_manifest_path = _write_json(
+            capsule_root / PROOF_CAPSULE_MANIFEST_FILENAME,
+            capsule_manifest,
+        )
+
+        with zipfile.ZipFile(
+            capsule_path,
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+        ) as archive:
+            for path in _sorted_archive_paths(
+                capsule_root,
+                [*archive_payload_files, capsule_manifest_path],
+            ):
+                archive.write(path, _archive_relative_path(capsule_root, path))
+
+    return ProofCapsuleWriteResult(
+        capsule_path=capsule_path,
+        manifest_path=manifest_path,
+        capsule_manifest=capsule_manifest,
+        proof_pack=portable_proof_pack,
+    )
+
+
+def verify_proof_capsule(capsule_path: Path) -> dict[str, Any]:
+    capsule_path = capsule_path.expanduser()
+    checks: list[dict[str, Any]] = []
+    manifest: run_manifest.RunManifest | None = None
+
+    if not capsule_path.is_file():
+        checks.append(
+            _check("capsule_exists", False, f"Missing proof capsule: {capsule_path}")
+        )
+        return _capsule_verification_report(capsule_path, "", checks)
+
+    checks.append(_check("capsule_exists", True, "Proof capsule exists."))
+    capsule_sha256 = sha256_file(capsule_path)
+    try:
+        with zipfile.ZipFile(capsule_path) as archive:
+            archive_entries = sorted(
+                name
+                for name in archive.namelist()
+                if name and not name.endswith("/")
+            )
+            checks.append(
+                _check("zip_readable", True, "Proof capsule ZIP can be read.")
+            )
+
+            unsafe_entries = [
+                name
+                for name in archive_entries
+                if not _safe_archive_member_name(name)
+            ]
+            checks.append(
+                _check(
+                    "archive_paths_safe",
+                    not unsafe_entries,
+                    "Archive member paths are relative and safe."
+                    if not unsafe_entries
+                    else "Archive contains unsafe member paths.",
+                    unsafe_entries=unsafe_entries,
+                )
+            )
+
+            if PROOF_CAPSULE_MANIFEST_FILENAME not in archive_entries:
+                checks.append(
+                    _check(
+                        "capsule_manifest_present",
+                        False,
+                        f"Missing {PROOF_CAPSULE_MANIFEST_FILENAME}.",
+                    )
+                )
+                return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+
+            checks.append(
+                _check(
+                    "capsule_manifest_present",
+                    True,
+                    "Capsule manifest exists.",
+                )
+            )
+            try:
+                capsule_manifest = json.loads(
+                    archive.read(PROOF_CAPSULE_MANIFEST_FILENAME).decode("utf-8")
+                )
+            except Exception as exc:
+                checks.append(
+                    _check(
+                        "capsule_manifest_schema_supported",
+                        False,
+                        f"Capsule manifest is invalid JSON: {exc}",
+                    )
+                )
+                return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+
+            schema_ok = (
+                isinstance(capsule_manifest, Mapping)
+                and capsule_manifest.get("schema") == PROOF_CAPSULE_SCHEMA
+            )
+            actual_schema = (
+                capsule_manifest.get("schema")
+                if isinstance(capsule_manifest, Mapping)
+                else type(capsule_manifest).__name__
+            )
+            checks.append(
+                _check(
+                    "capsule_manifest_schema_supported",
+                    schema_ok,
+                    "Capsule manifest schema is supported."
+                    if schema_ok
+                    else f"Unsupported capsule manifest schema: {actual_schema}",
+                )
+            )
+            if not schema_ok:
+                return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+
+            entries = capsule_manifest.get("entries", [])
+            if not isinstance(entries, list):
+                checks.append(
+                    _check(
+                        "capsule_entries_valid",
+                        False,
+                        "Capsule entries must be a list.",
+                    )
+                )
+                return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+
+            entry_rows = [dict(entry) for entry in entries if isinstance(entry, Mapping)]
+            expected_paths = [str(entry.get("path", "")) for entry in entry_rows]
+            duplicate_paths = sorted(
+                {path for path in expected_paths if expected_paths.count(path) > 1}
+            )
+            invalid_paths = [
+                path
+                for path in expected_paths
+                if not _safe_archive_member_name(path)
+            ]
+            checks.append(
+                _check(
+                    "capsule_entries_valid",
+                    len(entry_rows) == len(entries)
+                    and not duplicate_paths
+                    and not invalid_paths,
+                    "Capsule entries are valid and unique."
+                    if (
+                        len(entry_rows) == len(entries)
+                        and not duplicate_paths
+                        and not invalid_paths
+                    )
+                    else "Capsule entries are malformed, duplicated, or unsafe.",
+                    duplicate_paths=duplicate_paths,
+                    invalid_paths=invalid_paths,
+                    declared_entry_count=len(entries),
+                )
+            )
+
+            expected_set = set(expected_paths)
+            archive_payload_set = set(archive_entries) - {PROOF_CAPSULE_MANIFEST_FILENAME}
+            missing_entries = sorted(expected_set - archive_payload_set)
+            unexpected_entries = sorted(archive_payload_set - expected_set)
+            checks.append(
+                _check(
+                    "capsule_entry_inventory_matches",
+                    not missing_entries and not unexpected_entries,
+                    "Archive inventory matches the capsule manifest."
+                    if not missing_entries and not unexpected_entries
+                    else "Archive inventory differs from the capsule manifest.",
+                    missing_entries=missing_entries,
+                    unexpected_entries=unexpected_entries,
+                )
+            )
+
+            hash_failures = []
+            for entry in entry_rows:
+                name = str(entry.get("path", ""))
+                if name not in archive_payload_set:
+                    continue
+                data = archive.read(name)
+                expected_sha256 = str(entry.get("sha256", ""))
+                try:
+                    expected_size = int(entry.get("size_bytes", -1))
+                except (TypeError, ValueError):
+                    expected_size = -1
+                actual_sha256 = hashlib.sha256(data).hexdigest()
+                actual_size = len(data)
+                if actual_sha256 != expected_sha256 or actual_size != expected_size:
+                    hash_failures.append(
+                        {
+                            "path": name,
+                            "expected_sha256": expected_sha256,
+                            "actual_sha256": actual_sha256,
+                            "expected_size_bytes": expected_size,
+                            "actual_size_bytes": actual_size,
+                        }
+                    )
+            checks.append(
+                _check(
+                    "capsule_entry_hashes_match",
+                    not hash_failures,
+                    "All capsule entry hashes and sizes match."
+                    if not hash_failures
+                    else "One or more capsule entries failed hash or size verification.",
+                    failures=hash_failures,
+                )
+            )
+
+            try:
+                manifest_payload = _read_archive_json(
+                    archive,
+                    RUN_MANIFEST_SNAPSHOT_FILENAME,
+                )
+                manifest = run_manifest.RunManifest.from_dict(manifest_payload)
+                checks.append(
+                    _check(
+                        "run_manifest_snapshot_valid",
+                        True,
+                        "Run manifest snapshot is valid.",
+                    )
+                )
+            except Exception as exc:
+                checks.append(
+                    _check(
+                        "run_manifest_snapshot_valid",
+                        False,
+                        f"Run manifest snapshot is invalid: {exc}",
+                    )
+                )
+
+            try:
+                proof_pack_payload = _read_archive_json(archive, PROOF_PACK_FILENAME)
+            except Exception as exc:
+                proof_pack_payload = {}
+                proof_pack_error = str(exc)
+            else:
+                proof_pack_error = ""
+            proof_pack_schema_ok = proof_pack_payload.get("schema") == PROOF_PACK_SCHEMA
+            snapshot_sha256 = (
+                hashlib.sha256(archive.read(RUN_MANIFEST_SNAPSHOT_FILENAME)).hexdigest()
+                if RUN_MANIFEST_SNAPSHOT_FILENAME in archive_payload_set
+                else ""
+            )
+            source_sha256 = str(
+                dict(proof_pack_payload.get("source_manifest", {})).get("sha256", "")
+            )
+            proof_pack_ok = (
+                proof_pack_schema_ok
+                and bool(snapshot_sha256)
+                and source_sha256 == snapshot_sha256
+            )
+            checks.append(
+                _check(
+                    "proof_pack_manifest_valid",
+                    proof_pack_ok,
+                    "Proof-pack manifest is valid and matches the run manifest snapshot."
+                    if proof_pack_ok
+                    else "Proof-pack manifest is missing, unsupported, or points at a different run manifest hash.",
+                    proof_pack_schema=proof_pack_payload.get("schema"),
+                    proof_pack_error=proof_pack_error,
+                    source_manifest_sha256=source_sha256,
+                    snapshot_sha256=snapshot_sha256,
+                )
+            )
+    except zipfile.BadZipFile as exc:
+        checks.append(
+            _check(
+                "zip_readable",
+                False,
+                f"Proof capsule is not a readable ZIP: {exc}",
+            )
+        )
+        return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+    except KeyError as exc:
+        checks.append(
+            _check(
+                "capsule_required_files_present",
+                False,
+                f"Missing required archive member: {exc}",
+            )
+        )
+        return _capsule_verification_report(capsule_path, capsule_sha256, checks)
+
+    report = _capsule_verification_report(capsule_path, capsule_sha256, checks)
+    if manifest is not None:
+        report["manifest"] = {
+            "run_id": manifest.run_id,
+            "path_id": manifest.path_id,
+            "label": manifest.label,
+            "status": manifest.status,
+            "created_at": manifest.created_at,
+        }
+    return report
+
+
+@contextmanager
+def _manifest_input(input_path: Path) -> Iterator[tuple[run_manifest.RunManifest, Path]]:
+    input_path = input_path.expanduser()
+    if _is_proof_capsule(input_path):
+        with tempfile.TemporaryDirectory(prefix="agilab-agipack-manifest-") as tmp:
+            target = Path(tmp) / RUN_MANIFEST_SNAPSHOT_FILENAME
+            with zipfile.ZipFile(input_path) as archive:
+                target.write_bytes(archive.read(RUN_MANIFEST_SNAPSHOT_FILENAME))
+            yield load_manifest(target), target
+    else:
+        yield load_manifest(input_path), input_path
+
+
 def replay_payload(manifest: run_manifest.RunManifest) -> dict[str, Any]:
     return {
         "schema": "agilab.replay_plan.v1",
@@ -655,17 +1053,30 @@ def run_replay(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    manifest_path = Path(args.manifest).expanduser() if args.manifest else default_manifest_path()
+    input_path = Path(args.manifest).expanduser() if args.manifest else default_manifest_path()
 
     if args.command == "verify":
-        report = verify_manifest(manifest_path, check_artifacts=not args.no_artifacts)
+        report = (
+            verify_proof_capsule(input_path)
+            if _is_proof_capsule(input_path)
+            else verify_manifest(input_path, check_artifacts=not args.no_artifacts)
+        )
         return _emit_report(report, json_output=args.json, strict=args.strict)
 
-    manifest = load_manifest(manifest_path)
-
     if args.command == "prove":
+        if _is_proof_capsule(input_path):
+            raise SystemExit("agilab prove expects a run_manifest.json input, not an existing .agipack.")
+        if args.export:
+            result = write_proof_capsule(
+                input_path,
+                Path(args.export).expanduser(),
+                policy_path=Path(args.policy).expanduser() if args.policy else None,
+                metadata_store_path=Path(args.metadata_store).expanduser() if args.metadata_store else None,
+            )
+            payload = result.capsule_manifest | {"capsule_path": str(result.capsule_path)}
+            return _emit_report(payload, json_output=args.json, strict=False)
         result = write_proof_pack(
-            manifest_path,
+            input_path,
             Path(args.output_dir).expanduser() if args.output_dir else None,
             policy_path=Path(args.policy).expanduser() if args.policy else None,
             metadata_store_path=Path(args.metadata_store).expanduser() if args.metadata_store else None,
@@ -673,53 +1084,64 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = result.proof_pack | {"proof_pack_path": str(result.proof_pack_path)}
         return _emit_report(payload, json_output=args.json, strict=False)
 
-    if args.command == "replay":
-        rc, payload = run_replay(
-            manifest,
-            execute=args.execute,
-            timeout_seconds=args.timeout,
-        )
-        return _emit_report(payload, json_output=args.json, strict=args.execute and rc != 0)
+    with _manifest_input(input_path) as (manifest, manifest_path):
+        if args.command == "replay":
+            rc, payload = run_replay(
+                manifest,
+                execute=args.execute,
+                timeout_seconds=args.timeout,
+            )
+            if _is_proof_capsule(input_path):
+                payload["source_capsule"] = str(input_path)
+            return _emit_report(payload, json_output=args.json, strict=args.execute and rc != 0)
 
-    if args.command == "export-lineage":
-        payloads = _selected_exports(manifest, manifest_path, args.format)
-        paths = _write_selected_exports(payloads, args.output, args.output_dir)
-        report = {
-            "schema": "agilab.evidence_exports.v1",
-            "manifest_path": str(manifest_path),
-            "formats": sorted(payloads),
-            "paths": {key: str(value) for key, value in sorted(paths.items())},
-        }
-        return _emit_report(report, json_output=args.json, strict=False)
-
-    if args.command == "policy-check":
-        report = evaluate_policy(
-            manifest,
-            manifest_path,
-            policy_path=Path(args.policy).expanduser() if args.policy else None,
-        )
-        return _emit_report(report, json_output=args.json, strict=args.strict)
-
-    if args.command == "cards":
-        cards = build_cards(manifest, manifest_path)
-        output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
-        if output_dir:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            paths = {
-                "model": _write_json(output_dir / MODEL_CARD_FILENAME, cards["model"]),
-                "dataset": _write_json(output_dir / DATASET_CARD_FILENAME, cards["dataset"]),
-                "prompt": _write_json(output_dir / PROMPT_CARD_FILENAME, cards["prompt"]),
-                "eval": _write_json(output_dir / EVAL_CARD_FILENAME, cards["eval"]),
+        if args.command in {"export-lineage", "export-traces"}:
+            export_format = "otel" if args.command == "export-traces" else args.format
+            payloads = _selected_exports(manifest, manifest_path, export_format)
+            paths = _write_selected_exports(payloads, args.output, args.output_dir)
+            report = {
+                "schema": "agilab.evidence_exports.v1",
+                "manifest_path": str(manifest_path),
+                "source_capsule": str(input_path) if _is_proof_capsule(input_path) else None,
+                "formats": sorted(payloads),
+                "paths": {key: str(value) for key, value in sorted(paths.items())},
             }
-            payload: dict[str, Any] = {"schema": "agilab.evidence_cards.v1", "paths": {key: str(path) for key, path in paths.items()}}
-        else:
-            payload = {"schema": "agilab.evidence_cards.v1", "cards": cards}
-        return _emit_report(payload, json_output=args.json, strict=False)
+            return _emit_report(report, json_output=args.json, strict=False)
 
-    if args.command == "metadata-store":
-        entry = build_metadata_store_entry(manifest, manifest_path)
-        store = append_metadata_store(Path(args.store).expanduser(), entry)
-        return _emit_report(store, json_output=args.json, strict=False)
+        if args.command == "policy-check":
+            report = evaluate_policy(
+                manifest,
+                manifest_path,
+                policy_path=Path(args.policy).expanduser() if args.policy else None,
+            )
+            if _is_proof_capsule(input_path):
+                report["source_capsule"] = str(input_path)
+            return _emit_report(report, json_output=args.json, strict=args.strict)
+
+        if args.command == "cards":
+            cards = build_cards(manifest, manifest_path)
+            output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+            if output_dir:
+                output_dir.mkdir(parents=True, exist_ok=True)
+                paths = {
+                    "model": _write_json(output_dir / MODEL_CARD_FILENAME, cards["model"]),
+                    "dataset": _write_json(output_dir / DATASET_CARD_FILENAME, cards["dataset"]),
+                    "prompt": _write_json(output_dir / PROMPT_CARD_FILENAME, cards["prompt"]),
+                    "eval": _write_json(output_dir / EVAL_CARD_FILENAME, cards["eval"]),
+                }
+                payload: dict[str, Any] = {"schema": "agilab.evidence_cards.v1", "paths": {key: str(path) for key, path in paths.items()}}
+            else:
+                payload = {"schema": "agilab.evidence_cards.v1", "cards": cards}
+            if _is_proof_capsule(input_path):
+                payload["source_capsule"] = str(input_path)
+            return _emit_report(payload, json_output=args.json, strict=False)
+
+        if args.command == "metadata-store":
+            entry = build_metadata_store_entry(manifest, manifest_path)
+            if _is_proof_capsule(input_path):
+                entry["source_capsule"] = str(input_path)
+            store = append_metadata_store(Path(args.store).expanduser(), entry)
+            return _emit_report(store, json_output=args.json, strict=False)
 
     parser.error(f"unsupported command: {args.command}")
     return 2
@@ -734,6 +1156,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prove = subparsers.add_parser("prove", help="Write a portable AGILAB proof pack.")
     _add_manifest_argument(prove)
     prove.add_argument("--output-dir", help="Directory for the generated proof pack.")
+    prove.add_argument("--export", help="Write a portable .agipack ZIP archive.")
     prove.add_argument("--policy", help="Optional JSON/TOML policy file.")
     prove.add_argument("--metadata-store", help="Append this run to a local metadata store.")
     prove.add_argument("--json", action="store_true", help="Print JSON output.")
@@ -761,6 +1184,12 @@ def _build_parser() -> argparse.ArgumentParser:
     export.add_argument("--output", help="Output file for a single selected format.")
     export.add_argument("--output-dir", help="Output directory for one or more formats.")
     export.add_argument("--json", action="store_true", help="Print JSON output.")
+
+    traces = subparsers.add_parser("export-traces", help="Export OpenTelemetry-shaped trace JSON.")
+    _add_manifest_argument(traces)
+    traces.add_argument("--output", help="Output file for the trace JSON.")
+    traces.add_argument("--output-dir", help="Output directory for the trace JSON.")
+    traces.add_argument("--json", action="store_true", help="Print JSON output.")
 
     policy = subparsers.add_parser("policy-check", help="Evaluate the manifest against a policy.")
     _add_manifest_argument(policy)
@@ -882,6 +1311,21 @@ def _verification_report(
     }
 
 
+def _capsule_verification_report(
+    capsule_path: Path,
+    capsule_sha256: str,
+    checks: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    status = "pass" if checks and all(check.get("status") == "pass" for check in checks) else "fail"
+    return {
+        "schema": CAPSULE_VERIFY_SCHEMA,
+        "status": status,
+        "capsule_path": str(capsule_path.expanduser()),
+        "capsule_sha256": capsule_sha256,
+        "checks": [dict(check) for check in checks],
+    }
+
+
 def _artifact_check(
     artifact: run_manifest.RunManifestArtifact,
     manifest_path: Path,
@@ -904,6 +1348,32 @@ def _artifact_check(
         payload["sha256"] = sha256_file(artifact_path)
         payload["size_bytes"] = artifact_path.stat().st_size
     return payload
+
+
+def _is_proof_capsule(path: Path) -> bool:
+    return path.expanduser().suffix.lower() == PROOF_CAPSULE_EXTENSION
+
+
+def _archive_relative_path(root: Path, path: Path) -> str:
+    return path.resolve().relative_to(root.resolve()).as_posix()
+
+
+def _sorted_archive_paths(root: Path, paths: Sequence[Path]) -> list[Path]:
+    return sorted(paths, key=lambda item: _archive_relative_path(root, item))
+
+
+def _safe_archive_member_name(name: str) -> bool:
+    if not name or name.startswith("/") or name.endswith("/"):
+        return False
+    candidate = PurePosixPath(name)
+    return not candidate.is_absolute() and ".." not in candidate.parts
+
+
+def _read_archive_json(archive: zipfile.ZipFile, name: str) -> dict[str, Any]:
+    payload = json.loads(archive.read(name).decode("utf-8"))
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{name} must contain a JSON object")
+    return dict(payload)
 
 
 def _replay_available(manifest: run_manifest.RunManifest) -> bool:

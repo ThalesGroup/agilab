@@ -203,6 +203,27 @@ def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch)
     assert captured == [["list", "--json"]]
 
 
+def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_kubernetes_job(argv: list[str]) -> int:
+        captured.append(argv)
+        return 47
+
+    monkeypatch.setattr(lab_run, "_run_kubernetes_job", fake_kubernetes_job)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["k8s-job", "--app", "demo_project", "--image", "agilab:local"])
+
+    assert rc == 47
+    assert captured == [["--app", "demo_project", "--image", "agilab:local"]]
+
+
 def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
@@ -264,6 +285,11 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
 
     assert rc == 45
     assert captured == [["export-lineage", "run_manifest.json", "--format", "openlineage"]]
+
+    rc = lab_run.main(["export_traces", "run_manifest.json", "--output", "otel.json"])
+
+    assert rc == 45
+    assert captured[-1] == ["export-traces", "run_manifest.json", "--output", "otel.json"]
 
 
 def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):

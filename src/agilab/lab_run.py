@@ -179,6 +179,12 @@ def _run_app(argv: list[str]) -> int:
     return pypi_app_packages.main(argv)
 
 
+def _run_kubernetes_job(argv: list[str]) -> int:
+    from agilab import kubernetes_job
+
+    return kubernetes_job.main(argv)
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -230,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         ["replay"],
         ["export-lineage"],
         ["export_lineage"],
+        ["export-traces"],
+        ["export_traces"],
         ["policy-check"],
         ["policy_check"],
         ["cards"],
@@ -242,6 +250,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_env(raw_argv[1:])
     if raw_argv[:1] == ["app"]:
         return _run_app(raw_argv[1:])
+    if raw_argv[:1] in (["kubernetes-job"], ["kubernetes_job"], ["k8s-job"], ["k8s_job"]):
+        return _run_kubernetes_job(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

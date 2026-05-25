@@ -17,8 +17,6 @@ import re
 import tomllib
 from typing import Any, Mapping
 
-import tomli_w
-
 
 SCHEMA = "agilab.notebook_pipeline_import.v1"
 PREFLIGHT_SCHEMA = "agilab.notebook_import_preflight.v1"
@@ -46,6 +44,17 @@ ARTIFACT_SUFFIXES = (
     ".txt",
     ".toml",
 )
+
+
+def _dump_toml(payload: Mapping[str, Any], stream: Any) -> None:
+    try:
+        import tomli_w
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Writing a notebook pipeline TOML preview requires tomli-w. "
+            "Install `agilab[ui]` or add `tomli-w>=1.2.0` to the active environment."
+        ) from exc
+    tomli_w.dump(payload, stream)
 
 INPUT_PATH_PREFIXES = ("data/", "input/", "inputs/", "raw/")
 OUTPUT_PATH_PREFIXES = ("artifact", "artifacts/", "output/", "outputs/", "result", "results/")
@@ -1847,7 +1856,7 @@ def write_lab_stages_preview(
     path = path.expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as stream:
-        tomli_w.dump(preview, stream)
+        _dump_toml(preview, stream)
     return path
 
 

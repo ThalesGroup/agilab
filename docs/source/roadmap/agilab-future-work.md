@@ -257,6 +257,10 @@ Current shipped baseline:
 - Excel-shaped proof preview from packaged examples: a workbook, refresh-friendly
   CSV folder, and JSON hash evidence, intentionally before any Office add-in or
   arbitrary workbook import claim
+- Voila-shaped notebook proof preview from packaged examples: a dashboard
+  notebook, hide-code manifest, widget-to-args migration hints, app-view plan,
+  static HTML preview, and JSON hash evidence, intentionally before any Voila
+  server integration or `agilab[voila]` claim
 
 Spreadsheet adoption bridge:
 
@@ -268,6 +272,17 @@ Spreadsheet adoption bridge:
   JSON evidence bundle for workbook runs
 - keep Office add-ins, macro execution, tenant deployment, and formula-preserving
   arbitrary workbook import as later product-expansion work, not current claims
+
+Notebook dashboard adoption bridge:
+
+- keep the shipped preview dependency-light and file-based until there is user
+  pull for deeper Voila integration
+- add a focused `agilab notebook-proof dashboard.ipynb --app-name <name>`
+  command only after the preview validates the user story
+- promote stable ipywidgets to app arguments while keeping app-specific
+  dashboard code inside the app project
+- keep a future `agilab[voila]` extra, server launch, and multi-user dashboard
+  deployment as later product-expansion work, not current claims
 
 Evidence Core roadmap:
 
@@ -1112,6 +1127,9 @@ Current shipped baseline:
   runtime or mixed-environment pipelines
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
+- packaged examples now include a dependency-light Voila-shaped notebook proof
+  preview that records widget-to-args hints, a hide-code manifest, an app-view
+  plan, and evidence hashes without launching a Voila server
 
 Suggested scope:
 
@@ -1583,7 +1601,8 @@ Current shipped baseline:
   `repository_knowledge_static_index` mode
 - the report indexes local code, tools, root tests, official docs, root
   runbooks, and package/app manifests with SHA-256 fingerprints, lightweight
-  outlines, and deterministic file, line, size, kind, and suffix statistics
+  outlines, deterministic file, line, size, kind, and suffix statistics, and
+  ratio, top-category, and largest-file summaries
 - generated artifacts, virtualenvs, build outputs, and distributions are
   excluded by contract
 - the report emits stable onboarding query seeds while explicitly keeping the

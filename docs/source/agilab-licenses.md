@@ -17,13 +17,14 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| accelerate | 1.13.0 | APACHE SOFTWARE LICENSE |
+| accelerate | 0.34.2 | APACHE SOFTWARE LICENSE |
 | agi-app-flight-telemetry | 2026.5.23 | BSD-3-Clause |
 | agi-app-global-dag | 2026.5.23 | BSD-3-Clause |
 | agi-app-mission-decision | 2026.5.23 | BSD-3-Clause |
 | agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
 | agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
 | agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | UNKNOWN | BSD-3-Clause |
 | agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
 | agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
 | agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
@@ -59,13 +60,13 @@ Audit notes:
 | brotli | 1.2.0 | MIT |
 | build | 1.5.0 | MIT |
 | cachecontrol | 0.14.4 | APACHE-2.0 |
-| cachetools | 7.1.2 | MIT |
-| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.1.4 | MIT |
+| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | 2.0.0 | MIT |
 | chardet | 5.2.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | charset-normalizer | 3.4.7 | MIT |
 | chz | 0.4.0 | MIT LICENSE |
-| click | 8.4.0 | BSD-3-CLAUSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | comm | 0.2.3 | BSD LICENSE |
 | contourpy | 1.3.3 | BSD LICENSE |
@@ -74,7 +75,7 @@ Audit notes:
 | cycler | 0.12.1 | BSD LICENSE |
 | cyclonedx-bom | 7.3.0 | APACHE SOFTWARE LICENSE |
 | cyclonedx-python-lib | 11.7.0 | APACHE SOFTWARE LICENSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | dask | 2026.3.0 | BSD-3-CLAUSE |
 | databricks-sdk | 0.111.0 | APACHE SOFTWARE LICENSE |
 | datasets | 4.8.5 | APACHE SOFTWARE LICENSE |
@@ -90,7 +91,7 @@ Audit notes:
 | faiss-cpu | 1.14.2 | MIT |
 | fastapi | 0.136.3 | MIT |
 | fastjsonschema | 2.21.2 | BSD LICENSE |
-| filelock | 3.29.0 | MIT LICENSE |
+| filelock | 3.29.0 | MIT |
 | flask | 3.1.3 | BSD-3-CLAUSE |
 | flask-cors | 6.0.2 | MIT |
 | fonttools | 4.63.0 | MIT |
@@ -115,7 +116,7 @@ Audit notes:
 | huggingface-hub | 1.16.1 | APACHE SOFTWARE LICENSE |
 | humanize | 4.15.0 | MIT |
 | id | 1.6.1 | APACHE SOFTWARE LICENSE |
-| idna | 3.15 | BSD-3-CLAUSE |
+| idna | 3.16 | BSD-3-CLAUSE |
 | importlib-metadata | 8.9.0 | APACHE-2.0 |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | iniconfig | 2.3.0 | MIT |
@@ -164,7 +165,7 @@ Audit notes:
 | license-expression | 30.4.4 | APACHE-2.0 |
 | llguidance | 1.7.5 | MIT |
 | locket | 1.0.0 | BSD LICENSE |
-| lxml | 6.1.0 | BSD-3-CLAUSE |
+| lxml | 6.1.1 | BSD-3-CLAUSE |
 | mako | 1.3.12 | MIT LICENSE |
 | markdown-it-py | 4.2.0 | MIT LICENSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
@@ -181,7 +182,7 @@ Audit notes:
 | mlx-lm | 0.31.3 | MIT |
 | mlx-metal | 0.31.2 | MIT |
 | mlx-vlm | 0.5.0 | MIT LICENSE |
-| more-itertools | 11.0.2 | MIT |
+| more-itertools | 11.1.0 | MIT |
 | mpmath | 1.3.0 | BSD LICENSE |
 | msgpack | 1.1.2 | APACHE-2.0 |
 | multidict | 6.7.1 | APACHE LICENSE 2.0 |
@@ -221,13 +222,13 @@ Audit notes:
 | platformdirs | 4.9.6 | MIT LICENSE |
 | plotly | 6.7.0 | MIT LICENSE |
 | pluggy | 1.6.0 | MIT LICENSE |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.0 | MIT LICENSE |
+| polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | prettytable | 3.17.0 | BSD-3-CLAUSE |
 | prometheus-client | 0.25.0 | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
 | propcache | 0.5.2 | APACHE SOFTWARE LICENSE |
-| protobuf | 7.34.1 | 3-CLAUSE BSD LICENSE |
+| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
 | pure-eval | 0.2.3 | MIT LICENSE |
@@ -266,7 +267,7 @@ Audit notes:
 | rfc3339-validator | 0.1.4 | MIT LICENSE |
 | rfc3986 | 2.0.0 | APACHE SOFTWARE LICENSE |
 | rfc3986-validator | 0.1.1 | MIT LICENSE |
-| rfc3987-syntax | 1.1.0 | APACHE SOFTWARE LICENSE |
+| rfc3987-syntax | 1.1.0 | MIT |
 | rich | 15.0.0 | MIT LICENSE |
 | rpds-py | 0.30.0 | MIT |
 | safetensors | 0.7.0 | APACHE SOFTWARE LICENSE |
