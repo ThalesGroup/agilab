@@ -18,7 +18,7 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | agi-env | 2026.5.23 | BSD-3-Clause |
-| agi-gui | 2026.5.23 | BSD-3-Clause |
+| agi-gui | 2026.5.17.post2 | BSD-3-Clause |
 | agi-node | 2026.5.23 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
@@ -62,7 +62,7 @@ Audit notes:
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | 4.9.0 | ISC LICENSE _ISCL_ |
 | pillow | 12.2.0 | MIT-CMU |
-| plotly | 6.7.0 | MIT LICENSE |
+| plotly | 6.7.0 | MIT |
 | polars | 1.41.0 | MIT LICENSE |
 | polars-runtime-32 | 1.41.0 | MIT LICENSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
@@ -71,7 +71,7 @@ Audit notes:
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
 | pure-eval | 0.2.3 | MIT LICENSE |
 | py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
-| pyarrow | 23.0.1 | APACHE-2.0 |
+| pyarrow | 24.0.0 | APACHE-2.0 |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | 2.13.4 | MIT |
