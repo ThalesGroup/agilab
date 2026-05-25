@@ -1,12 +1,12 @@
 # Agent Workflows for AGILAB
 
-This repository is prepared for five agent paths:
+This repository is prepared for four executable agent paths, plus one catalog-compatible path:
 
 - **Claude**: repo skills under [`.claude/skills`](../.claude/skills/README.md)
 - **Codex**: repo skills under [`.codex/skills`](../.codex/skills/README.md) and the wrapper in [codex_workflow.sh](codex_workflow.sh)
-- **Continue**: consumes the same repo guidance and public skill catalog through AGENT_SKILLS.md / `llms.txt`
 - **Aider**: repo config in [`.aider.conf.yml`](../.aider.conf.yml) and the wrapper in [aider_workflow.sh](aider_workflow.sh)
 - **OpenCode**: project config in [opencode.json](../opencode.json), agents under [`.opencode/agents`](../.opencode/agents), and the wrapper in [opencode_workflow.sh](opencode_workflow.sh)
+- **Continue**: catalog-compatible through AGENT_SKILLS.md / `llms.txt`; AGILAB does not ship a Continue wrapper or project config yet
 
 The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
 and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
@@ -14,7 +14,7 @@ and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks
-- **Works with**: Codex, Claude Code, Continue, Aider, and OpenCode
+- **Works with**: Codex, Claude Code, Aider, and OpenCode
 
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
@@ -35,8 +35,8 @@ when resource constraints explain scheduler, autoscale, or model choices.
 
 ## Skill security scan
 
-Changed repo-managed skills are scanned in CI by `agent-skills-security`.
-Run the same check locally before pushing skill changes:
+Changed repo-managed skills are scanned locally. Run the local check before
+pushing skill changes:
 
 ```bash
 python tools/skill_security_scan.py --changed-only --fail-on critical
@@ -58,7 +58,7 @@ Use `agilab agent-run` when a coding-agent action should leave product-style
 evidence instead of only a tool-specific log:
 
 ```bash
-agilab agent-run --agent codex --label "Review current diff" --tag review --metadata branch=main -- codex review
+agilab agent-run --agent codex --permission-level standard --label "Review current diff" --tag review --metadata branch=main -- codex review
 ```
 
 The command writes a redacted `agilab.agent_run.v1` manifest plus local
@@ -69,7 +69,8 @@ payloads.
 Command arguments are redacted by default and represented by an argv hash;
 environment override values passed with `--env KEY=VALUE` are also redacted
 from the manifest. Pass `--include-command-args` only when the prompt/arguments
-are safe to store.
+are safe to store. Output artifact files are redacted by default; pass
+`--include-raw-output` only for safe local diagnostics.
 
 Use `--tag` and `--metadata KEY=VALUE` for structured, non-secret context that
 other tools can query later. Use `--protocol-adapter` for metadata-only bridge
@@ -97,6 +98,7 @@ result = trace_agent_run(
     ["codex", "review"],
     agent="codex",
     label="Review current diff",
+    permission_level="standard",
     tags=("review",),
     metadata={"branch": "main"},
 )
@@ -113,12 +115,13 @@ Agent-run evidence now has a stable low-level contract:
   `command_start`, `tool_start`, `tool_output`, `tool_done`,
   `permission_request`, `permission_resolved`, `compact`, `rewind`, and
   `session_end`.
-- `agilab.agent_tool_safety` exposes permission tiers (`readonly`, `safe`,
-  `standard`, `operator`) and before/after hooks for future agent-exposed
-  tools.
+- `agilab.agent_tool_safety` enforces permission tiers for command execution:
+  `readonly`, `safe`, `standard`, and `operator`. Actual command execution is
+  a `standard` action; destructive executable names such as `rm` are
+  operator-gated and require an explicit confirmation token.
 - Agent provider defaults can be layered through `~/.agilab/agents/agents.json`
   and project-local `.agilab/agents.json` files. Use `--provider`, `--model`,
-  and `--permission-level` for one-off CLI evidence labels.
+  and `--permission-level` for one-off CLI execution policy.
 
 ## CLI-first references
 

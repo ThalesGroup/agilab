@@ -80,6 +80,9 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
     assert payload["protocols"]["adapters"] == ["ag-ui"]
     assert payload["protocols"]["capabilities"] == ["app-as-tool"]
     assert payload["protocols"]["mode"] == "metadata-only"
+    assert payload["permission"]["allowed"] is False
+    assert payload["permission"]["tier"] == "standard"
+    assert payload["permission"]["level"] == "safe"
     assert payload["events"][0]["type"] == "agent.run.planned"
     assert payload["events"][0]["protocol_adapters"] == ["ag-ui"]
     assert payload["events"][0]["capabilities"] == ["app-as-tool"]
@@ -206,6 +209,7 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path, 
         tags=("api",),
         protocol_adapters=("mcp",),
         capabilities=("agent-as-tool",),
+        permission_level="standard",
     )
 
     assert result.returncode == 0
@@ -269,6 +273,8 @@ def test_agent_run_stamps_provider_config_and_permission_level(tmp_path: Path, m
     assert payload["context"]["provider"]["provider"] == "ollama"
     assert payload["context"]["provider"]["model"] == "qwen2.5-coder:latest"
     assert payload["context"]["provider"]["capability"]["context_window"] == 32768
+    assert payload["permission"]["allowed"] is True
+    assert payload["permission"]["level"] == "standard"
 
 
 def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, capsys) -> None:
@@ -284,6 +290,8 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
             "agent-success",
             "--output-dir",
             str(tmp_path),
+            "--permission-level",
+            "standard",
             "--json",
             "--",
             sys.executable,
@@ -309,10 +317,13 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
         "agent.artifacts.written",
     ]
     assert payload["events"][1]["returncode"] == 0
-    assert payload["artifacts"]["agent_trace"]["event_count"] == 4
+    assert payload["permission"]["allowed"] is True
+    assert payload["artifacts"]["agent_trace"]["event_count"] == 6
     assert payload["artifacts"]["agent_trace"]["event_types"] == [
         "session_start",
         "command_start",
+        "permission_request",
+        "permission_resolved",
         "command_done",
         "session_end",
     ]
@@ -320,6 +331,73 @@ def test_agent_run_executes_command_and_writes_local_artifacts(tmp_path: Path, c
     assert stderr_path.read_text(encoding="utf-8").strip() == "warn"
     assert json.loads(manifest_path.read_text(encoding="utf-8"))["run_id"] == "agent-success"
     assert "command finished with returncode 0" in (tmp_path / "agent_events.ndjson").read_text(encoding="utf-8")
+
+
+def test_agent_run_denies_execution_below_permission_level(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(
+        [
+            "--agent",
+            "codex",
+            "--run-id",
+            "agent-denied",
+            "--output-dir",
+            str(tmp_path),
+            "--json",
+            "--",
+            sys.executable,
+            "-c",
+            "print('should not run')",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 126
+    assert payload["status"] == "denied"
+    assert payload["permission"]["allowed"] is False
+    assert payload["permission"]["tier"] == "standard"
+    assert payload["permission"]["level"] == "safe"
+    assert [event["type"] for event in payload["events"]] == [
+        "agent.run.started",
+        "agent.permission.denied",
+        "agent.artifacts.written",
+    ]
+    assert (tmp_path / "stdout.txt").read_text(encoding="utf-8") == ""
+    assert "standard action exceeds safe permission level" in (tmp_path / "stderr.txt").read_text(encoding="utf-8")
+
+
+def test_agent_run_redacts_output_artifacts_by_default(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(
+        [
+            "--agent",
+            "codex",
+            "--run-id",
+            "agent-redacted-output",
+            "--output-dir",
+            str(tmp_path),
+            "--permission-level",
+            "standard",
+            "--json",
+            "--",
+            sys.executable,
+            "-c",
+            "print('OPENAI_API_KEY=sk-secret')",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    raw_manifest = json.dumps(payload)
+    stdout = (tmp_path / "stdout.txt").read_text(encoding="utf-8")
+
+    assert exit_code == 0
+    assert payload["status"] == "pass"
+    assert stdout.strip() == "OPENAI_API_KEY=<redacted>"
+    assert "sk-secret" not in stdout
+    assert "sk-secret" not in raw_manifest
 
 
 def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) -> None:
@@ -342,6 +420,8 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
             "review",
             "--metadata",
             "branch=main",
+            "--permission-level",
+            "standard",
             "--",
             sys.executable,
             "-c",
@@ -359,6 +439,8 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
             "--output-dir",
             str(aider_dir),
             "--allow-failure",
+            "--permission-level",
+            "standard",
             "--",
             sys.executable,
             "-c",
@@ -402,6 +484,8 @@ def test_agent_run_failure_returns_command_status_and_manifest(tmp_path: Path, c
             "agent-fail",
             "--output-dir",
             str(tmp_path),
+            "--permission-level",
+            "standard",
             "--json",
             "--",
             sys.executable,
@@ -427,6 +511,7 @@ def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
         output_dir=tmp_path,
         run_id="agent-timeout",
         timeout_seconds=1.0,
+        permission_level="standard",
     )
 
     def timeout_runner(*_args, **_kwargs):
@@ -512,6 +597,8 @@ def test_agent_run_human_rendering_and_allow_failure(tmp_path: Path, capsys) -> 
             "--output-dir",
             str(tmp_path),
             "--allow-failure",
+            "--permission-level",
+            "standard",
             "--",
             sys.executable,
             "-c",

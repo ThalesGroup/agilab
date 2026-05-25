@@ -29,7 +29,7 @@ AGENT_BADGES = {
     },
     "works-with": {
         "label": "Works with",
-        "value": "Codex Claude Continue Aider OpenCode",
+        "value": "Codex Claude Aider OpenCode",
         "badge": REPO_ROOT / "badges" / "agent-works-with.svg",
         "color": "#0F766E",
     },
