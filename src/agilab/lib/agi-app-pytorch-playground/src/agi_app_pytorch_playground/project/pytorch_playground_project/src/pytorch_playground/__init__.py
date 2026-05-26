@@ -24,6 +24,7 @@ __all__ = [
     "PYTORCH_PLAYGROUND_REDUCE_CONTRACT",
     "PytorchPlaygroundArgs",
     "PytorchPlaygroundArgsTD",
+    "PYTORCH_PLAYGROUND_REDUCE_CONTRACT",
     "dump_args",
     "ensure_defaults",
     "load_args",

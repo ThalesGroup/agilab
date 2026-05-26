@@ -1,0 +1,33 @@
+[project]
+name = "sklearn_pipeline_project"
+version = "2026.05.23"
+description = "Built-in AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
+requires-python = ">=3.11"
+dependencies = [
+    "agi-env>=2026.05.23",
+    "agi-node>=2026.05.23",
+    "agi-cluster>=2026.05.23",
+    "joblib",
+    "pandas>=2.3.0",
+    "pydantic",
+    "scikit-learn",
+    "streamlit>=1.56,<1.57",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/sklearn_pipeline_project"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
+agi-cluster = { path = "../../../core/agi-cluster", editable = true }
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

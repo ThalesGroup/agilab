@@ -40,6 +40,7 @@ APPS_PAGES_ROOT = ROOT / "src/agilab/apps-pages"
 EXAMPLE_APPS = {
     "mission_decision": ("AGI_install_mission_decision.py", "AGI_run_mission_decision.py"),
     "flight_telemetry": ("AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"),
+    "sklearn_pipeline": ("AGI_install_sklearn_pipeline.py", "AGI_run_sklearn_pipeline.py"),
     "weather_forecast": ("AGI_install_weather_forecast.py", "AGI_run_weather_forecast.py"),
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
@@ -128,6 +129,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-flight-telemetry": "flight_telemetry_project",
     "agi-app-global-dag": "global_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
+    "agi-app-sklearn-pipeline": "sklearn_pipeline_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",
     "agi-app-tescia-diagnostic": "tescia_diagnostic_project",
     "agi-app-uav-queue-project": "uav_queue_project",
@@ -1380,6 +1382,38 @@ def test_resilience_failure_injection_preview_recommends_adaptive_response(tmp_p
     assert summary["real_policy_training"] is False
     assert "certified MARL" in summary["claim_boundary"]
     assert (tmp_path / "resilience_preview.json").is_file()
+
+
+def test_sklearn_pipeline_app_writes_model_metrics_and_manifest(tmp_path: Path) -> None:
+    script = BUILTIN_APPS_ROOT / "sklearn_pipeline_project" / "src" / "sklearn_pipeline" / "core.py"
+    module_name = "agilab_sklearn_pipeline_core_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_sklearn_pipeline_artifacts(output_dir=tmp_path, seed=2026, sample_count=120)
+
+    metrics = json.loads((tmp_path / "metrics.json").read_text(encoding="utf-8"))
+    manifest = json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    summary_payload = json.loads((tmp_path / "sklearn_pipeline_summary.json").read_text(encoding="utf-8"))
+    predictions = (tmp_path / "predictions.csv").read_text(encoding="utf-8").splitlines()
+
+    assert metrics["schema"] == module.SCHEMA
+    assert metrics["metrics"]["accuracy"] >= 0.8
+    assert metrics["metrics"]["f1"] >= 0.8
+    assert manifest["app"] == "sklearn_pipeline_project"
+    assert manifest["promotion_hint"] in {"candidate", "review"}
+    assert manifest["artifacts"]["model"]["path"] == "model.joblib"
+    assert manifest["artifacts"]["predictions"]["sha256"] == summary["artifacts"]["predictions"]["sha256"]
+    assert summary_payload["artifacts"]["manifest"]["sha256"] == summary["artifacts"]["manifest"]["sha256"]
+    assert summary["artifacts"]["summary"]["path"] == "sklearn_pipeline_summary.json"
+    assert (tmp_path / "model.joblib").is_file()
+    assert (tmp_path / "sklearn_report.md").is_file()
+    assert predictions[0] == "row_id,target,prediction,positive_probability"
+    assert len(predictions) == metrics["metrics"]["test_rows"] + 1
 
 
 def _load_train_then_serve_preview_module():

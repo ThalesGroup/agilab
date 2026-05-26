@@ -1,0 +1,28 @@
+[args]
+data_out = "sklearn_pipeline/evidence"
+sample_count = 240
+test_size = 0.25
+regularization_c = 1.0
+seed = 2026
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 1
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[pages]
+restrict_to_view_module = false
+view_module = []

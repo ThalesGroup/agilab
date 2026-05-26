@@ -46,6 +46,7 @@ PROMOTED_PYPI_APP_PACKAGES: tuple[str, ...] = (
     "agi-app-mission-decision",
     "agi-app-pandas-execution",
     "agi-app-polars-execution",
+    "agi-app-sklearn-pipeline",
     "agi-app-tescia-diagnostic",
     "agi-app-uav-relay-queue",
     "agi-app-weather-forecast",
