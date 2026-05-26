@@ -1242,6 +1242,32 @@ Connectors should appear explicitly in the roadmap because they are not just
 implementation detail. They determine how AGILab reaches external systems,
 resolves artefacts, and keeps app workflows portable.
 
+### Audience bridge strategy
+
+The highest-leverage audience bridge is a Quarto / R / notebook bridge, not an
+R-native worker rewrite. AGILAB should stay the reproducible execution and
+evidence engine while bridges let each community consume that evidence in its
+normal workflow.
+
+Priority order:
+
+1. Quarto / R report bridge: `agilab export quarto` and later
+   `agilab run quarto`
+2. read-only MCP evidence server
+3. Hugging Face Docker Space exporter
+4. deeper MLflow export/import handoff
+5. VS Code / devcontainer onboarding
+6. DuckDB / dbt / SQL bridge
+7. Airflow / Dagster exporter for production handoff
+
+The current R-stage smoke app remains the payload-plane proof for external
+Rscript execution. The next bridge implementation should be Quarto report
+export from a run manifest, with R-native worker changes kept out of shared core
+until the app-local contract proves broader value.
+
+See [Audience bridges](audience-bridges.md) for the detailed bridge ranking,
+MVP scopes, and implementation order.
+
 ### 1. Connector framework hardening
 
 Purpose:

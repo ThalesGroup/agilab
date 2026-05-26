@@ -19,13 +19,20 @@ Recommended near-term order:
 4. Make evidence and connector output easier to consume outside the UI:
    proof-pack, release-decision, run-diff, connector provenance, and artifact
    evidence should remain portable and reviewable.
-5. Stabilize the extension contracts across apps, pages, notebooks,
+5. Add the audience bridges in leverage order: Quarto/R report export first,
+   then read-only MCP evidence access, Hugging Face Docker Space export, deeper
+   MLflow handoff, VS Code/devcontainer onboarding, DuckDB/SQL, and only later
+   Airflow/Dagster export.
+6. Stabilize the extension contracts across apps, pages, notebooks,
    connectors, reducers, evidence reports, and package splits.
-6. Productize global DAG, intent-first operator mode, observability, and MLOps
+7. Productize global DAG, intent-first operator mode, observability, and MLOps
    handoff on top of the stable baseline.
 
 Supporting roadmap documents:
 
+- [Audience bridges](./source/roadmap/audience-bridges.md): Quarto/R,
+  MCP, Hugging Face, MLflow, VS Code, DuckDB/SQL, and Airflow/Dagster bridge
+  priority and boundaries.
 - [UX improvement roadmap](./UX_ROADMAP.md): environment health, action
   feedback, settings provenance, heavy-page responsiveness, and intent-first
   workflow pages.
