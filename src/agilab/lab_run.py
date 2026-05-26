@@ -20,19 +20,32 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 try:
-    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+    from agilab.streamlit_theme_env import (
+        apply_streamlit_theme_environment,
+        packaged_streamlit_config_path,
+    )
 except ModuleNotFoundError:
-    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_path = (
+        Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    )
     _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
         "agilab_streamlit_theme_env_local",
         _streamlit_theme_env_path,
     )
     if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
-    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+        raise ModuleNotFoundError(
+            f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}"
+        )
+    _streamlit_theme_env_module = importlib.util.module_from_spec(
+        _streamlit_theme_env_spec
+    )
     _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
-    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
-    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
+    apply_streamlit_theme_environment = (
+        _streamlit_theme_env_module.apply_streamlit_theme_environment
+    )
+    packaged_streamlit_config_path = (
+        _streamlit_theme_env_module.packaged_streamlit_config_path
+    )
 
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 _PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
@@ -41,7 +54,9 @@ _PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
     _PUBLIC_BIND_GUARD_PATH,
 )
 if _PUBLIC_BIND_GUARD_SPEC is None or _PUBLIC_BIND_GUARD_SPEC.loader is None:
-    raise ModuleNotFoundError(f"Unable to load ui_public_bind_guard.py from {_PUBLIC_BIND_GUARD_PATH}")
+    raise ModuleNotFoundError(
+        f"Unable to load ui_public_bind_guard.py from {_PUBLIC_BIND_GUARD_PATH}"
+    )
 _PUBLIC_BIND_GUARD_MODULE = importlib.util.module_from_spec(_PUBLIC_BIND_GUARD_SPEC)
 _PUBLIC_BIND_GUARD_SPEC.loader.exec_module(_PUBLIC_BIND_GUARD_MODULE)
 PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
@@ -58,7 +73,9 @@ def _ensure_streamlit_config_file(environ=os.environ) -> None:
 
 def _detect_repo_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
-        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab").is_dir():
+        if (candidate / "pyproject.toml").is_file() and (
+            candidate / "src" / "agilab"
+        ).is_dir():
             return candidate
     return None
 
@@ -107,7 +124,9 @@ def _read_version_from_pyproject(repo_root: Path) -> str | None:
         return None
 
     try:
-        project = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("project", {})
+        project = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get(
+            "project", {}
+        )
     except Exception:
         return None
 
@@ -185,6 +204,12 @@ def _run_kubernetes_job(argv: list[str]) -> int:
     return kubernetes_job.main(argv)
 
 
+def _run_bridge(argv: list[str]) -> int:
+    from agilab import bridge_cli
+
+    return bridge_cli.main(argv)
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -251,18 +276,28 @@ def main(argv: list[str] | None = None) -> int:
         return _run_env(raw_argv[1:])
     if raw_argv[:1] == ["app"]:
         return _run_app(raw_argv[1:])
-    if raw_argv[:1] in (["kubernetes-job"], ["kubernetes_job"], ["k8s-job"], ["k8s_job"]):
+    if raw_argv[:1] in (
+        ["kubernetes-job"],
+        ["kubernetes_job"],
+        ["k8s-job"],
+        ["k8s_job"],
+    ):
         return _run_kubernetes_job(raw_argv[1:])
+    if raw_argv[:1] in (["export"], ["run"], ["init"], ["import"], ["mcp"]):
+        return _run_bridge(raw_argv)
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."
     )
     parser.add_argument(
-        "--apps-path", type=str, help="Where you store your apps (default is ./)",
-                        default=None
+        "--apps-path",
+        type=str,
+        help="Where you store your apps (default is ./)",
+        default=None,
     )
     parser.add_argument(
-        "-V", "--version",
+        "-V",
+        "--version",
         action="store_true",
         help="Show the AGILAB version and exit.",
     )
@@ -281,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"agilab: {exc}") from exc
 
     # Determine the target script (adjust path if necessary)
-    target_script = str(Path(__file__).parent /"main_page.py")
+    target_script = str(Path(__file__).parent / "main_page.py")
 
     # Build the base argument list for Streamlit.
     new_argv = ["streamlit", "run", "--server.address", streamlit_host, target_script]
@@ -306,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.argv = new_argv
     stcli = _load_streamlit_cli()
     return stcli.main()
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

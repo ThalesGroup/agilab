@@ -1,10 +1,9 @@
 # Audience bridges
 
-Status: roadmap guidance unless a capability is explicitly listed as shipped.
-The current shipped baseline already includes the app-local R stage smoke
-project. The bridge work below should not be presented as a production R-native
-worker or as completed Quarto, MCP, Hugging Face export, MLflow import/export,
-DuckDB, Airflow, or Dagster support.
+Status: dependency-light bridge MVPs are shipped for the commands listed below.
+They are adoption and evidence handoff surfaces, not a production R-native worker
+rewrite and not replacements for Quarto, MLflow, Hugging Face, DuckDB, Airflow,
+Dagster, VS Code, or MCP-native tooling.
 
 ## Executive recommendation
 
@@ -30,6 +29,28 @@ Bridge features then make that evidence useful to different communities:
 Quarto, R, MCP, Hugging Face, MLflow, VS Code, DuckDB, dbt, Airflow, and
 Dagster.
 
+## Shipped MVP baseline
+
+The current baseline implements the bridge command surface without adding heavy
+runtime dependencies to the base install:
+
+```bash
+agilab export quarto --run run_manifest.json --output report.qmd
+agilab run quarto --run run_manifest.json --output report.qmd
+agilab mcp serve --read-only
+agilab export hf-space --project my_project --output hf_space/ --force
+agilab export mlflow --run run_manifest.json --output mlflow_handoff.json
+agilab import mlflow --experiment demo --input mlflow_handoff.json --output import.json
+agilab init vscode --root .
+agilab run duckdb --query analysis.sql --output evidence/ --plan-only
+agilab export airflow-dag --run run_manifest.json --output agilab_dag.py
+agilab export dagster-job --run run_manifest.json --output agilab_job.py
+```
+
+The app-local `r_stage_smoke_project` remains the proof that AGILAB can execute
+an external R payload through the `Rscript` + JSON + artifact contract. Live
+Rscript tests are skipped when R is not installed.
+
 ## Bridge priority ranking
 
 | Priority | Bridge | Audience gained | Why it fits AGILAB |
@@ -53,7 +74,7 @@ notebook/script
   -> artifacts and evidence
 ```
 
-Quarto should become the human-facing report layer:
+Quarto is now the human-facing report layer for AGILAB manifests:
 
 ```bash
 agilab export quarto \
@@ -67,7 +88,7 @@ Then:
 quarto render report.qmd
 ```
 
-The generated `.qmd` should include:
+The generated `.qmd` includes:
 
 - run summary
 - parameters
@@ -99,11 +120,11 @@ reports.
 
 ### Quarto MVP
 
-Create:
+Shipped files:
 
 ```text
 tools/agilab_quarto_export.py
-test/test_agilab_quarto_export.py
+test/test_audience_bridges.py
 docs/source/quarto-users.rst
 ```
 
@@ -111,7 +132,7 @@ Core behavior:
 
 ```text
 read run_manifest.json
-collect stage outputs and artifacts
+collect recorded artifacts and hashes
 write report.qmd
 optionally call quarto render if available
 fail gracefully if quarto is missing
@@ -121,8 +142,7 @@ Generated output:
 
 ```text
 agilab-run-report.qmd
-agilab-run-report.html
-artifacts/
+agilab-run-report.html when Quarto is installed and rendering is requested
 manifest.json
 ```
 
@@ -199,7 +219,7 @@ and let it inspect AGILAB run evidence without weakening the execution boundary.
 
 ## 4. Hugging Face bridge
 
-The public demo route should become systematic:
+The public demo route is now available as a systematic export command:
 
 ```bash
 agilab export hf-space \
@@ -222,8 +242,8 @@ hf_space/
   evidence/
 ```
 
-The export should fail clearly when a project needs unavailable secrets, private
-data, or local-only paths. It should not require private credentials for the
+The export fails clearly when text project inputs contain secret-like assignments
+or secret URI references. It should not require private credentials for the
 generated demo.
 
 ## 5. MLflow bridge
@@ -235,7 +255,7 @@ Positioning:
 > MLflow tracks experiments. AGILAB makes the execution reproducible and
 > evidence-backed.
 
-Support both directions later:
+Support is available through JSON handoff files:
 
 ```bash
 agilab export mlflow --run run_manifest.json
@@ -285,7 +305,7 @@ Suggested tasks:
 
 ## 7. DuckDB / dbt / SQL bridge
 
-Start with DuckDB, not full dbt:
+The shipped SQL bridge starts with DuckDB, not full dbt:
 
 ```bash
 agilab run duckdb \
@@ -311,9 +331,9 @@ optional Quarto report
 This pairs well with the Quarto bridge and brings AGILAB to analysts, not only
 AI/ML engineers.
 
-## 8. Airflow / Dagster exporter later
+## 8. Airflow / Dagster exporter
 
-This should come after the evidence/reporting and analytics bridges.
+This remains a handoff exporter, not a scheduler implementation.
 
 Do not make AGILAB an Airflow or Dagster competitor. Use AGILAB as the proof and
 validation layer:
@@ -363,12 +383,12 @@ Phase 5: MLOps and analytics audiences
 15. DuckDB SQL run bridge
 16. Airflow/Dagster export only after the above are stable
 
-## First PR recommendation
+## Implementation baseline
 
-The next implementation PR should be:
+The first implementation baseline is:
 
 ```text
-agilab export quarto
+agilab export quarto plus the read-first and handoff bridge commands
 ```
 
 not:
@@ -377,19 +397,22 @@ not:
 R-native worker
 ```
 
-Suggested scope:
+Implemented scope:
 
 ```text
+src/agilab/bridge_cli.py
+src/agilab_mcp/
 tools/agilab_quarto_export.py
-test/test_agilab_quarto_export.py
+tools/agilab_hf_space_export.py
+test/test_audience_bridges.py
 docs/source/quarto-users.rst
-README.md demo route entry
 ```
 
 Validation:
 
 ```bash
-pytest -q test/test_agilab_quarto_export.py
+pytest -q test/test_audience_bridges.py
+pytest -q test/test_r_stage_smoke_project.py
 ```
 
 ## Product story
