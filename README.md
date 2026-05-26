@@ -498,6 +498,7 @@ status, and roadmap scope live in:
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html)
 - [Future work](https://thalesgroup.github.io/agilab/roadmap/agilab-future-work.html)
+- [Audience bridges](https://thalesgroup.github.io/agilab/roadmap/audience-bridges.html)
 
 ## Evaluation Snapshot
 
