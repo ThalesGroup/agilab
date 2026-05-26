@@ -3,7 +3,7 @@ name: agilab-example-maturity
 description: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-07
+  updated: 2026-05-26
 ---
 
 # AGILAB Example Maturity
@@ -134,6 +134,14 @@ def agilab_apps_path() -> Path:
 Delete or rename scratch snippets that are not runnable standalone examples.
 If a fragment is intentionally for a notebook or pipeline editor, document it as
 such and prevent the installer from seeding it as a normal run script.
+
+For notebook quickstart/demo assets, keep the AGILAB concepts visible in the
+cells: create `app_env`, create a `request`, optionally call
+`install_if_needed(...)`, then call `AGI.run(app_env, request=request)`. Use the
+shared `agilab.notebook_demo` helpers for path resolution, local `RunRequest`
+defaults, worker-install checks, and log-root display. Do not duplicate
+`worker_env_ready` / `install_if_needed` boilerplate inside each notebook, and
+do not hide the flow behind a one-line `run_demo()` wrapper.
 
 When a read-only preview script is teaching a contract owned by a built-in app,
 keep the JSON/TOML payload with that app rather than duplicating it under

@@ -85,37 +85,27 @@ The notebook file lives in the repository at
 Minimal source-checkout notebook cells
 --------------------------------------
 
-Cell 1: resolve the repository and built-in apps path.
+Cell 1: create the built-in app environment and local request.
 
 .. code-block:: python
 
-   from pathlib import Path
-
-   def find_repo_root(start: Path) -> Path:
-       for candidate in (start, *start.parents):
-           if (candidate / "pyproject.toml").is_file() and (candidate / "src/agilab/apps/builtin").is_dir():
-               return candidate
-       raise RuntimeError(
-           "Launch this notebook from inside the AGILab repository, or edit REPO_ROOT manually."
-       )
-
-   REPO_ROOT = find_repo_root(Path.cwd().resolve())
-   APPS_PATH = REPO_ROOT / "src/agilab/apps/builtin"
-   APP = "mycode_project"  # built-in MyCode example app
-
-Cell 2: build ``AgiEnv`` and run the smallest local ``AGI.run(...)`` shape.
-
-.. code-block:: python
-
-   from agi_cluster.agi_distributor import AGI, RunRequest
-   from agi_env import AgiEnv
-
-   app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
-   request = RunRequest(
-       scheduler="127.0.0.1",
-       workers={"127.0.0.1": 1},
-       mode=AGI.PYTHON_MODE,
+   from agi_cluster.agi_distributor import AGI
+   from agilab.notebook_demo import (
+       notebook_app_env,
+       notebook_local_request,
+       notebook_log_root,
    )
+
+   APP = "mycode_project"  # built-in MyCode example app
+   app_env = notebook_app_env(APP, verbose=1)
+   request = notebook_local_request()
+   print("App:", app_env.app)
+   print("Log root:", notebook_log_root(app_env))
+
+Cell 2: run the visible local ``AGI.run(...)`` shape.
+
+.. code-block:: python
+
    result = await AGI.run(app_env, request=request)
    result
 
@@ -123,7 +113,7 @@ Cell 3: inspect the run artifacts.
 
 .. code-block:: python
 
-   log_root = Path.home() / "log" / "execute" / "mycode"
+   log_root = notebook_log_root(app_env)
    print(log_root)
 
 Related pages

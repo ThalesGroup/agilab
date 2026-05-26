@@ -8,7 +8,6 @@ import socket
 import runpy
 import ast
 import json
-import html
 import logging
 from pathlib import Path
 import importlib
@@ -122,6 +121,28 @@ import_agilab_symbols(
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
     fallback_name="agilab_workflow_ui_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.environment_health",
+    {
+        "compact_data_share_caption": "_environment_compact_data_share_caption",
+        "compact_path_caption": "_environment_compact_path_caption",
+        "data_share_content_summary": "_environment_data_share_content_summary",
+        "format_byte_size": "_environment_format_byte_size",
+        "header_value_state": "_environment_header_value_state",
+        "latest_project_mtime": "_environment_latest_project_mtime",
+        "path_status": "_environment_path_status",
+        "render_environment_details": "_environment_render_environment_details",
+        "render_environment_health_panel": "render_environment_health_panel",
+        "render_health_card": "_environment_render_health_card",
+        "run_history_summary": "_environment_run_history_summary",
+        "safe_display_path": "_environment_safe_display_path",
+        "EnvironmentHealthCard": "_EnvironmentHealthCard",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "environment_health.py",
+    fallback_name="agilab_environment_health_fallback",
 )
 import_agilab_symbols(
     globals(),
@@ -1252,42 +1273,12 @@ def _install_status_warning_message(install_status: dict[str, Any]) -> str | Non
     )
 
 
-_INCOMPLETE_HEADER_VALUE_TOKENS = (
-    "empty",
-    "incomplete",
-    "missing",
-    "no run",
-    "needs install",
-    "not configured",
-    "not selected",
-    "not set",
-    "unknown",
-)
-
-_DATA_SHARE_HEADER_SCAN_LIMIT = 1_000
-
-
 def _header_value_state(value: str, caption: str = "") -> str:
-    normalized = f"{value or ''} {caption or ''}".strip().lower()
-    if not normalized:
-        return "incomplete"
-    if any(token in normalized for token in _INCOMPLETE_HEADER_VALUE_TOKENS):
-        return "incomplete"
-    return "ready"
+    return _environment_header_value_state(value, caption)
 
 
 def _render_header_value_card(label: str, value: str, caption: str) -> None:
-    state = _header_value_state(value, caption)
-    st.markdown(
-        (
-            f"<div class='agilab-header-card agilab-header-card--{state}'>"
-            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
-            f"<div class='agilab-header-value agilab-header-value--{state}'>{html.escape(str(value))}</div>"
-            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
-            "</div>"
-        ),
-        unsafe_allow_html=True,
-    )
+    _environment_render_health_card(st, _EnvironmentHealthCard(label, value, caption))
 
 
 def _orchestrate_snippet_state_key(env: Any, name: str) -> str:
@@ -1409,179 +1400,41 @@ def _render_orchestrate_notebook_expander(env: Any) -> None:
 
 
 def _safe_display_path(value: Any) -> str:
-    if value in (None, ""):
-        return "not configured"
-    try:
-        return str(Path(value).expanduser())
-    except (TypeError, ValueError, RuntimeError):
-        return str(value)
+    return _environment_safe_display_path(value)
 
 
 def _compact_path_caption(value: Any, *, fallback: str = "see runtime details") -> str:
     """Return a card-safe path label while keeping the full path for details."""
-
-    display = _safe_display_path(value)
-    lowered = display.lower()
-    if lowered in {"", "not configured", "unknown"}:
-        return display
-    if os.sep not in display and (os.altsep is None or os.altsep not in display):
-        return display if len(display) <= 48 else fallback
-    try:
-        path = Path(display)
-    except (TypeError, ValueError, RuntimeError):
-        return fallback
-
-    name = path.name or display
-    parent = path.parent.name
-    if parent and parent not in {".", os.sep}:
-        return f"{name} in {parent}"
-    return name if len(name) <= 48 else fallback
+    return _environment_compact_path_caption(value, fallback=fallback)
 
 
 def _compact_data_share_caption(caption: str) -> str:
-    if " in " in caption:
-        return caption.split(" in ", 1)[0]
-    return _compact_path_caption(caption)
+    return _environment_compact_data_share_caption(caption)
 
 
 def _render_runtime_details(rows: Sequence[tuple[str, Any]]) -> None:
-    details = [(label, _safe_display_path(value)) for label, value in rows if value not in (None, "")]
-    if not details:
-        return
-    with st.expander("Runtime details", expanded=False):
-        st.caption("Full paths and diagnostics for support, copy/paste, and troubleshooting.")
-        st.code("\n".join(f"{label}: {value}" for label, value in details), language="text")
+    _environment_render_environment_details(st, rows)
 
 
 def _format_header_byte_size(byte_count: int) -> str:
-    value = float(max(byte_count, 0))
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if value < 1024 or unit == "TB":
-            if unit == "B":
-                return f"{int(value)} B"
-            precision = 0 if value >= 10 else 1
-            return f"{value:.{precision}f} {unit}"
-        value /= 1024
-    return f"{int(value)} B"
+    return _environment_format_byte_size(byte_count)
 
 
 def _data_share_content_summary(path_value: Any) -> tuple[str, str]:
-    display_path = _safe_display_path(path_value)
-    if display_path == "not configured":
-        return "not configured", display_path
-    try:
-        path = Path(path_value).expanduser()
-    except (TypeError, ValueError, RuntimeError):
-        return "not configured", str(path_value)
-
-    try:
-        if not path.exists():
-            return "missing", display_path
-        if path.is_file():
-            size = path.stat().st_size
-            return ("empty" if size <= 0 else _format_header_byte_size(size)), display_path
-        if not path.is_dir():
-            return "unknown", display_path
-
-        total_size = 0
-        file_count = 0
-        truncated = False
-        for root, dirs, files in os.walk(path):
-            dirs[:] = [dirname for dirname in dirs if not (Path(root) / dirname).is_symlink()]
-            for filename in files:
-                candidate = Path(root) / filename
-                if candidate.is_symlink():
-                    continue
-                try:
-                    total_size += candidate.stat().st_size
-                except OSError:
-                    continue
-                file_count += 1
-                if file_count >= _DATA_SHARE_HEADER_SCAN_LIMIT:
-                    truncated = True
-                    break
-            if truncated:
-                break
-    except OSError:
-        return "unknown", display_path
-
-    if file_count == 0 or total_size <= 0:
-        return "empty", display_path
-    size_label = _format_header_byte_size(total_size)
-    file_label = f"{file_count} file" if file_count == 1 else f"{file_count} files"
-    if truncated:
-        size_label = f"{size_label}+"
-        file_label = f"{file_count}+ files"
-    return size_label, f"{file_label} in {display_path}"
+    return _environment_data_share_content_summary(path_value)
 
 
 def _path_status(path: Any, *, venv: bool = False, file: bool = False) -> tuple[str, str]:
-    if path in (None, ""):
-        return "not configured", "not configured"
-    try:
-        candidate = Path(path)
-    except (TypeError, ValueError, RuntimeError):
-        return "not configured", str(path)
-    if venv:
-        python_bin = candidate / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        if python_bin.exists():
-            return "ready", _safe_display_path(candidate)
-        if candidate.exists() or candidate.is_symlink():
-            return "incomplete", _safe_display_path(candidate)
-        return "missing", _safe_display_path(candidate)
-    if file:
-        status = "ready" if candidate.exists() and candidate.is_file() else "missing"
-        return status, _safe_display_path(candidate)
-    status = "ready" if candidate.exists() or candidate.is_symlink() else "missing"
-    return status, _safe_display_path(candidate)
+    return _environment_path_status(path, venv=venv, file=file)
 
 
 def _latest_project_mtime(project_root: Path | None) -> str:
-    if project_root is None or not project_root.exists():
-        return "unknown"
-    try:
-        latest = project_root.stat().st_mtime
-        ignored_dirs = {".venv", "__pycache__", ".git"}
-        for root, dirs, files in os.walk(project_root):
-            dirs[:] = [dirname for dirname in dirs if dirname not in ignored_dirs]
-            for name in files:
-                latest = max(latest, (Path(root) / name).stat().st_mtime)
-    except OSError:
-        return "unknown"
-    return datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M")
+    return _environment_latest_project_mtime(project_root)
 
 
 def _run_history_summary(env: Any) -> tuple[str, str]:
     """Return the number of ORCHESTRATE run logs and the latest run timestamp."""
-    runenv = getattr(env, "runenv", None)
-    if runenv:
-        log_dir = Path(runenv)
-    else:
-        app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "app")
-        log_dir = Path.home() / "log" / "execute" / app_name
-
-    try:
-        run_logs = sorted(path for path in log_dir.glob("run_*.log") if path.is_file())
-    except OSError:
-        return "0", "run log directory unavailable"
-
-    if not run_logs:
-        return "0", "no run logs yet"
-
-    latest: Path | None = None
-    latest_mtime: float | None = None
-    for run_log in run_logs:
-        try:
-            mtime = run_log.stat().st_mtime
-        except OSError:
-            continue
-        if latest_mtime is None or mtime > latest_mtime:
-            latest = run_log
-            latest_mtime = mtime
-    if latest is None or latest_mtime is None:
-        return str(len(run_logs)), "latest run log unavailable"
-    latest_label = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M")
-    return str(len(run_logs)), f"latest {latest_label}"
+    return _environment_run_history_summary(env)
 
 
 def _render_orchestrate_readiness_panel(
@@ -1591,63 +1444,9 @@ def _render_orchestrate_readiness_panel(
     install_status: dict[str, Any],
     show_run: bool,
 ) -> None:
-    """Render the same project runtime header used by the PROJECT page."""
-    del app_settings, show_run
-    active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
-    manager_status, manager_path = _path_status(install_status.get("manager_venv"), venv=True)
-    worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
-    manager_detail = manager_path
-    worker_detail = worker_path
-    if install_status.get("workerless"):
-        worker_status = "not used"
-        worker_path = "workerless local app"
-        worker_detail = worker_path
-    if not install_status.get("manager_ready"):
-        manager_status = "stale" if install_status.get("manager_exists") else "missing"
-        if install_status.get("manager_exists"):
-            manager_path = install_status.get("manager_problem") or manager_path
-            manager_detail = manager_path
-    if not install_status.get("workerless") and not install_status.get("worker_ready"):
-        worker_status = "stale" if install_status.get("worker_exists") else "missing"
-        if install_status.get("worker_exists"):
-            worker_path = install_status.get("worker_problem") or worker_path
-            worker_detail = worker_path
-    run_count, run_caption = _run_history_summary(env)
-    share_size, share_caption = _data_share_content_summary(getattr(env, "app_data_rel", None))
-
-    with st.container(border=True):
-        top_cols = st.columns(3)
-        with top_cols[0]:
-            _render_header_value_card(
-                "Runtime module",
-                str(getattr(env, "target", "unknown")),
-                "Python package used by INSTALL/RUN",
-            )
-        with top_cols[1]:
-            _render_header_value_card("Manager env", manager_status, _compact_path_caption(manager_path))
-        with top_cols[2]:
-            _render_header_value_card("Worker env", worker_status, _compact_path_caption(worker_path))
-
-        bottom_cols = st.columns(3)
-        with bottom_cols[0]:
-            _render_header_value_card("Runs", run_count, run_caption)
-        with bottom_cols[1]:
-            _render_header_value_card("Data share content (size)", share_size, _compact_data_share_caption(share_caption))
-        with bottom_cols[2]:
-            _render_header_value_card(
-                "Last change",
-                _latest_project_mtime(active_app),
-                _compact_path_caption(active_app, fallback="active project"),
-            )
-
-    _render_runtime_details(
-        (
-            ("Active project", active_app),
-            ("Manager env", manager_detail),
-            ("Worker env", worker_detail),
-            ("Data share", share_caption),
-        )
-    )
+    """Render the shared first-run Environment Health surface."""
+    del show_run
+    render_environment_health_panel(st, env, app_settings=app_settings, install_status=install_status)
 
 
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")

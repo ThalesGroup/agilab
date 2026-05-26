@@ -46,6 +46,8 @@ Working with the API
 - Call into ``agi_cluster.agi_distributor.agi_distributor.AGI`` for programmatic
   install / get_distrib / run flows; this is the same surface area surfaced in
   the Orchestrate page snippets.
+- Use ``agilab.notebook_demo`` in tutorial notebooks when you want compact
+  cells that still show ``app_env``, ``request``, and the final ``AGI.run(...)``.
 
 App structure conventions
 -------------------------

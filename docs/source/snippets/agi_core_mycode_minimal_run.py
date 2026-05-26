@@ -1,9 +1,5 @@
-from agi_cluster.agi_distributor import AGI, RunRequest
+from agilab.notebook_demo import install_if_needed
 
-request = RunRequest(
-    scheduler="127.0.0.1",
-    workers={"127.0.0.1": 1},
-    mode=AGI.PYTHON_MODE,
-)
+await install_if_needed(app_env, request=request)
 result = await AGI.run(app_env, request=request)
 result

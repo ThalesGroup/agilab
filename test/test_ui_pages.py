@@ -941,17 +941,21 @@ def test_execute_page_cluster_settings(mock_ui_env):
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Run readiness" not in markdown_text
     assert all("Check what will run" not in str(item.value) for item in at.caption)
-    assert "Runtime module" in markdown_text
+    assert "Environment Health" in markdown_text
+    assert "Project path" in markdown_text
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
+    assert "Settings" in markdown_text
+    assert "Cluster share" in markdown_text
+    assert "API keys" in markdown_text
     assert "Runs" in markdown_text
-    assert "Data share content (size)" in markdown_text
+    assert "Data share" in markdown_text
     assert "Data/share" not in markdown_text
     assert "1.5 KB" in markdown_text
     assert "1 file" in markdown_text
     assert str(env.active_app) not in markdown_text
     assert str(data_share) not in markdown_text
-    assert "Runtime details" in [str(item.label) for item in at.expander]
+    assert "Environment details" in [str(item.label) for item in at.expander]
     assert "Resource summary" in markdown_text
     assert "Share" in markdown_text
     assert "CPU" in markdown_text
@@ -966,7 +970,6 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Mode" not in markdown_text
     assert any("Run mode " in str(item.value) for item in at.info)
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
-    assert "Settings</div>" not in markdown_text
 
     assert "Next action" not in markdown_text
     assert all("Active project" not in str(item.value) for item in at.sidebar.markdown)
@@ -1086,7 +1089,7 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "agi-space" not in markdown_text
     assert str(source_project / ".venv") not in markdown_text
-    assert "Runtime details" in [str(item.label) for item in at.expander]
+    assert "Environment details" in [str(item.label) for item in at.expander]
     code_text = "\n".join(str(item.value) for item in at.code)
     assert str(source_project / ".venv") in code_text
 
@@ -2047,9 +2050,13 @@ def test_edit_page_load(mock_ui_env):
     assert "Functions" in markdown_text
     assert "Classes" in markdown_text
     assert "Docs/config" in markdown_text
-    assert "Runtime module" not in markdown_text
-    assert "Manager env" not in markdown_text
-    assert "Worker env" not in markdown_text
+    assert "Environment Health" in markdown_text
+    assert "Project path" in markdown_text
+    assert "Manager env" in markdown_text
+    assert "Worker env" in markdown_text
+    assert "Settings" in markdown_text
+    assert "Cluster share" in markdown_text
+    assert "API keys" in markdown_text
     assert "Project</div>" not in markdown_text
     assert "Project workspace" not in markdown_text
     assert "README" not in markdown_text

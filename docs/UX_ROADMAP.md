@@ -31,9 +31,9 @@ deterministic, explain its own state, and reduce avoidable operator confusion.
 
 Target horizon: `0-6 weeks`
 
-- Add an `Environment Health` summary panel.
+- Landed: add an `Environment Health` summary panel.
 - Scope: app path resolution, share path validity, cluster share vs local share, API key presence, worker install availability, and app settings path provenance.
-- Best starting surfaces: [AGENTS.md](../AGENTS.md), [PROJECT page](../src/agilab/pages/1_PROJECT.py), and [ORCHESTRATE page](../src/agilab/pages/2_ORCHESTRATE.py).
+- Current surfaces: [PROJECT page](../src/agilab/pages/1_PROJECT.py) and [ORCHESTRATE page](../src/agilab/pages/2_ORCHESTRATE.py) share the same renderer in [environment_health.py](../src/agilab/environment_health.py).
 
 - Standardize long-action feedback across install, execute, service health, and project clone/rename.
 - Every action should emit start, current step, success summary, classified failure, and next action.
@@ -116,7 +116,7 @@ Target horizon: `1-3 months`
 
 ## Recommended Delivery Sequence
 
-1. `Environment Health` panel on PROJECT and ORCHESTRATE.
+1. Done: `Environment Health` panel on PROJECT and ORCHESTRATE.
 2. Shared long-action feedback pattern.
 3. Settings provenance component.
 4. ORCHESTRATE intent-first mode selection.
@@ -126,7 +126,7 @@ Target horizon: `1-3 months`
 
 ## First Concrete Backlog
 
-- Add a repo issue/epic for `Environment Health`.
+- Track follow-up polish for `Environment Health` only after PROJECT and ORCHESTRATE first-run evidence is reviewed.
 - Add a repo issue/epic for `ActionProgressPanel`.
 - Add a repo issue/epic for `SettingProvenanceBadge`.
 - Use `perf_smoke.py` to capture current startup baselines before the first UX refactor wave.
