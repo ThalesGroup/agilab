@@ -685,7 +685,6 @@ jobs:
             --protect-versions-from-projects
             --confirm-delete
             --direct-web-only
-            --allow-delete-failure-warning
             --json
             --github-step-summary "$GITHUB_STEP_SUMMARY"
             --github-confirm-login-repository "$GITHUB_REPOSITORY"
