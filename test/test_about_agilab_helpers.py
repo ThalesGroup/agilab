@@ -83,6 +83,11 @@ class _FakeSidebar:
     def markdown(self, body: object, **_kwargs):
         self._streamlit.events.append(("sidebar.markdown", str(body)))
 
+    def page_link(self, page: object, **kwargs):
+        self._streamlit.events.append(
+            ("sidebar.page_link", {"page": page, "kwargs": kwargs})
+        )
+
 
 class _FakeColumn:
     def __init__(self, streamlit, index: int):
@@ -3786,6 +3791,10 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
 
 
 def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
+    class PageRoute:
+        def __str__(self) -> str:
+            return "PROJECT_PAGE_OBJECT"
+
     fake_st = _FakeStreamlit()
     app_root = tmp_path / "apps" / "builtin" / "flight_telemetry_project"
     app_root.mkdir(parents=True)
@@ -3797,11 +3806,15 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         "docs_menu_url",
         lambda _html_file: "https://docs.example/agilab-help.html",
     )
+    project_route = PageRoute()
+    monkeypatch.setitem(about_agilab._NAVIGATION_PAGE_ROUTES, "project", project_route)
     env = SimpleNamespace(
         app="flight_telemetry_project",
         apps_path=tmp_path / "apps",
         active_app=app_root,
     )
+    fake_st.session_state["_project_section_query_seed_consumed"] = "readme"
+    fake_st.session_state["_project_section_query_target"] = "readme"
 
     about_agilab.render_sidebar_settings_link(env)
 
@@ -3809,13 +3822,31 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         body for kind, body in fake_st.events if kind == "sidebar.markdown"
     ]
     assert "[Settings](/SETTINGS)" in sidebar_markdowns
-    readme_link = next(body for body in sidebar_markdowns if body.startswith("[README]("))
-    assert readme.resolve().as_uri() not in readme_link
+    assert not any(body.startswith("[README](") for body in sidebar_markdowns)
+    readme_links = [
+        body for kind, body in fake_st.events if kind == "sidebar.page_link"
+    ]
+    assert len(readme_links) == 1
+    readme_link = readme_links[0]
+    assert readme_link["page"] is project_route
+    assert readme_link["kwargs"] == {
+        "label": "README",
+        "query_params": {
+            "active_app": "flight_telemetry_project",
+            "sidebar_selection": "Edit",
+            "project_section": "readme",
+        },
+        "help": "Open the active project README in PROJECT.",
+    }
+    assert "_project_section_query_seed_consumed" not in fake_st.session_state
+    assert "_project_section_query_target" not in fake_st.session_state
+    readme_url = about_agilab._sidebar_readme_url(env, readme)
+    assert readme.resolve().as_uri() not in readme_url
     assert (
-        readme_link
-        == "[README](/PROJECT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme)"
+        readme_url
+        == "/PROJECT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
     )
-    parsed = urlparse(readme_link.removeprefix("[README](").removesuffix(")"))
+    parsed = urlparse(readme_url)
     assert parsed.path == "/PROJECT"
     assert parse_qs(parsed.query) == {
         "active_app": ["flight_telemetry_project"],
