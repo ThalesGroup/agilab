@@ -1,0 +1,22 @@
+[[stages]]
+id = "write_input_json"
+label = "Write R stage input"
+kind = "data"
+produces = ["input.json"]
+M = "AGILAB worker JSON payload"
+
+[[stages]]
+id = "run_rscript_stage"
+label = "Execute Rscript stage"
+kind = "analysis"
+depends_on = ["write_input_json"]
+produces = ["output.json", "artifacts/summary.txt", "stage_stdout.log", "stage_stderr.log"]
+M = "Rscript scripts/summarize.R input.json output.json artifacts/"
+
+[[stages]]
+id = "collect_evidence"
+label = "Collect R stage evidence"
+kind = "evidence"
+depends_on = ["run_rscript_stage"]
+produces = ["run_manifest.json", "r_stage_summary.json", "reduce_summary_worker_<id>.json"]
+M = "AGILAB artifact hashes, logs, and reduce contract"

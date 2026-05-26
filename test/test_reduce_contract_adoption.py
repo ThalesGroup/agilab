@@ -46,6 +46,7 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "meteo_forecast_project",
         "mission_decision_project",
         "pytorch_playground_project",
+        "r_stage_smoke_project",
         "sklearn_pipeline_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
