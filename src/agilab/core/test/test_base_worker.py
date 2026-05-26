@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from agi_node.agi_dispatcher import base_worker as base_worker_mod
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
+
 
 class DummyWorker(BaseWorker):
     def __init__(self):
@@ -33,7 +35,9 @@ def teardown_function(_fn):
 
 def test_prepare_output_dir_creates_directory(tmp_path):
     worker = DummyWorker()
-    target = worker.prepare_output_dir(tmp_path, subdir="payload", attribute="custom_attr", clean=True)
+    target = worker.prepare_output_dir(
+        tmp_path, subdir="payload", attribute="custom_attr", clean=True
+    )
 
     assert target.exists()
     assert target.name == "payload"
@@ -75,7 +79,9 @@ def test_baseworker_helper_edge_cases(monkeypatch, tmp_path):
 
 def test_setup_args_applies_defaults_and_creates_output(tmp_path):
     class ConfigWorker(BaseWorker):
-        args_ensure_defaults = staticmethod(lambda args, env=None: SimpleNamespace(**{**vars(args), "extra": "value"}))
+        args_ensure_defaults = staticmethod(
+            lambda args, env=None: SimpleNamespace(**{**vars(args), "extra": "value"})
+        )
         managed_pc_path_fields = ("data_path",)
 
     worker = ConfigWorker()
@@ -123,10 +129,14 @@ def test_apply_managed_pc_path_overrides():
     result = OverrideWorker._apply_managed_pc_path_overrides(args, env=env)
 
     assert isinstance(result.payload, Path)
-    assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
+    assert str(result.payload).startswith(
+        str(Path.home() / OverrideWorker.managed_pc_home_suffix)
+    )
 
 
-def test_baseworker_managed_pc_override_skips_missing_fields_and_bad_values(monkeypatch):
+def test_baseworker_managed_pc_override_skips_missing_fields_and_bad_values(
+    monkeypatch,
+):
     class OverrideWorker(BaseWorker):
         managed_pc_path_fields = ("missing", "payload")
 
@@ -140,7 +150,9 @@ def test_baseworker_managed_pc_override_skips_missing_fields_and_bad_values(monk
     monkeypatch.setattr(
         OverrideWorker,
         "_remap_managed_pc_path",
-        classmethod(lambda cls, value, env=None: (_ for _ in ()).throw(ValueError("bad path"))),
+        classmethod(
+            lambda cls, value, env=None: (_ for _ in ()).throw(ValueError("bad path"))
+        ),
     )
 
     result = OverrideWorker._apply_managed_pc_path_overrides(args, env=env)
@@ -166,13 +178,17 @@ def test_baseworker_apply_managed_pc_paths_instance_wrapper():
     result = worker._apply_managed_pc_paths(args)
 
     assert result is args
-    assert str(result.payload).startswith(str(Path.home() / OverrideWorker.managed_pc_home_suffix))
+    assert str(result.payload).startswith(
+        str(Path.home() / OverrideWorker.managed_pc_home_suffix)
+    )
 
 
 def test_baseworker_ensure_managed_pc_share_dir_branches(tmp_path):
     BaseWorker._ensure_managed_pc_share_dir(None)
 
-    env_not_managed = SimpleNamespace(_is_managed_pc=False, agi_share_path=Path("clustershare"))
+    env_not_managed = SimpleNamespace(
+        _is_managed_pc=False, agi_share_path=Path("clustershare")
+    )
     BaseWorker._ensure_managed_pc_share_dir(env_not_managed)
     assert env_not_managed.agi_share_path == Path("clustershare")
 
@@ -181,9 +197,13 @@ def test_baseworker_ensure_managed_pc_share_dir_branches(tmp_path):
     assert env_without_share.agi_share_path is None
 
     home = Path.home()
-    env_managed = SimpleNamespace(_is_managed_pc=True, agi_share_path=home / "clustershare")
+    env_managed = SimpleNamespace(
+        _is_managed_pc=True, agi_share_path=home / "clustershare"
+    )
     BaseWorker._ensure_managed_pc_share_dir(env_managed)
-    assert str(env_managed.agi_share_path).startswith(str(home / BaseWorker.managed_pc_home_suffix))
+    assert str(env_managed.agi_share_path).startswith(
+        str(home / BaseWorker.managed_pc_home_suffix)
+    )
 
 
 def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
@@ -230,16 +250,23 @@ def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tm
     folder.mkdir()
     (folder / "a.csv").write_text("x\n1\n", encoding="utf-8")
     (folder / "b.csv").write_text("x\n2\n", encoding="utf-8")
-    assert BaseWorker._has_min_input_files(folder, min_files=2, patterns=("*.csv",)) is True
+    assert (
+        BaseWorker._has_min_input_files(folder, min_files=2, patterns=("*.csv",))
+        is True
+    )
 
     original_normalized = BaseWorker._normalized_path
     monkeypatch.setattr(
         BaseWorker,
         "_normalized_path",
-        classmethod(lambda cls, value: (_ for _ in ()).throw(OSError("normalize failed"))),
+        classmethod(
+            lambda cls, value: (_ for _ in ()).throw(OSError("normalize failed"))
+        ),
     )
     fallback = BaseWorker._resolve_data_dir(env, Path("dataset") / "inputs")
-    assert fallback == (tmp_path / "share" / "dataset" / "inputs").expanduser().resolve(strict=False)
+    assert fallback == (tmp_path / "share" / "dataset" / "inputs").expanduser().resolve(
+        strict=False
+    )
 
     monkeypatch.setattr(BaseWorker, "_normalized_path", original_normalized)
     original_resolve = Path.resolve
@@ -251,7 +278,9 @@ def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tm
 
     monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
     resolved = BaseWorker._resolve_data_dir(env, Path("dataset") / "normpath-target")
-    assert resolved == Path(os.path.normpath(str(tmp_path / "share" / "dataset" / "normpath-target")))
+    assert resolved == Path(
+        os.path.normpath(str(tmp_path / "share" / "dataset" / "normpath-target"))
+    )
 
 
 def test_resolve_input_folder_uses_dataset_fallback(tmp_path):
@@ -323,7 +352,11 @@ def test_resolve_input_folder_uses_nested_fallback_and_warns(tmp_path, monkeypat
     (nested / "b.csv").write_text("plane_id,time_s\n1,1\n", encoding="utf-8")
 
     warnings = []
-    monkeypatch.setattr(base_worker_mod.logger, "warning", lambda msg, *args: warnings.append(msg % args))
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "warning",
+        lambda msg, *args: warnings.append(msg % args),
+    )
 
     resolved = BaseWorker.resolve_input_folder(
         None,
@@ -358,11 +391,20 @@ def test_baseworker_path_helper_utilities_cover_share_and_home_cases(tmp_path):
     home_path = Path("/Users/demo/data/file.csv")
     assert BaseWorker._relative_to_user_home(home_path) == Path("data/file.csv")
     assert BaseWorker._relative_to_user_home(Path("/tmp/data/file.csv")) is None
-    assert BaseWorker._remap_user_home(home_path, username="other") == Path("/Users/other/data/file.csv")
-    assert BaseWorker._remap_user_home(Path("/tmp/data/file.csv"), username="other") is None
+    assert BaseWorker._remap_user_home(home_path, username="other") == Path(
+        "/Users/other/data/file.csv"
+    )
+    assert (
+        BaseWorker._remap_user_home(Path("/tmp/data/file.csv"), username="other")
+        is None
+    )
 
-    assert BaseWorker._strip_share_prefix(Path("clustershare/demo/file.csv"), {"clustershare"}) == Path("demo/file.csv")
-    assert BaseWorker._strip_share_prefix(Path("demo/file.csv"), {"clustershare"}) == Path("demo/file.csv")
+    assert BaseWorker._strip_share_prefix(
+        Path("clustershare/demo/file.csv"), {"clustershare"}
+    ) == Path("demo/file.csv")
+    assert BaseWorker._strip_share_prefix(
+        Path("demo/file.csv"), {"clustershare"}
+    ) == Path("demo/file.csv")
 
     aliases = BaseWorker._collect_share_aliases(env, tmp_path / "share")
     assert {"share", "clustershare", "link_sim"} <= aliases
@@ -381,12 +423,16 @@ def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
         _is_managed_pc=False,
     )
 
-    candidates = BaseWorker._candidate_named_dataset_roots(env, dataset_root, namespace="link_sim")
+    candidates = BaseWorker._candidate_named_dataset_roots(
+        env, dataset_root, namespace="link_sim"
+    )
     assert share_root / "link_sim" in candidates
     assert share_root / "link_sim" / "dataset" in candidates
 
     monkeypatch.setattr(base_worker_mod.Path, "home", staticmethod(lambda: tmp_path))
-    assert Path(BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base")).parts[-3:] == (
+    assert Path(
+        BaseWorker.expand("demo/file.csv", base_directory=tmp_path / "base")
+    ).parts[-3:] == (
         "base",
         "demo",
         "file.csv",
@@ -396,7 +442,10 @@ def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
         "nested",
         "file.csv",
     )
-    assert Path(BaseWorker.normalize_dataset_path("relative/data")).parts[-2:] == ("relative", "data")
+    assert Path(BaseWorker.normalize_dataset_path("relative/data")).parts[-2:] == (
+        "relative",
+        "data",
+    )
 
 
 def test_baseworker_candidate_roots_resolve_fallback(monkeypatch, tmp_path):
@@ -421,7 +470,9 @@ def test_baseworker_candidate_roots_resolve_fallback(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
 
-    candidates = BaseWorker._candidate_named_dataset_roots(env, dataset_root, namespace="link_sim")
+    candidates = BaseWorker._candidate_named_dataset_roots(
+        env, dataset_root, namespace="link_sim"
+    )
 
     assert share_root / "link_sim" in candidates
 
@@ -472,6 +523,26 @@ def test_baseworker_expand_and_join_windows_mount_failure_is_swallowed(monkeypat
     assert result.replace("\\", "/").endswith("/Users/demo/data/child.txt")
 
 
+def test_baseworker_windows_net_use_password_is_redacted_from_logs(monkeypatch, caplog):
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_USER", "demo-user")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_PASSWORD", "demo-password")
+    monkeypatch.setenv("AGILAB_WINDOWS_NET_USE_DRIVE", "Y:")
+
+    def _fake_run(cmd, **_kwargs):
+        raise subprocess.CalledProcessError(7, cmd)
+
+    monkeypatch.setattr(base_worker_mod.subprocess, "run", _fake_run)
+
+    with caplog.at_level("INFO", logger=base_worker_mod.logger.name):
+        BaseWorker._try_windows_net_use(r"\\127.0.0.1\demo")
+
+    log_text = caplog.text
+    assert "demo-password" not in log_text
+    assert "<redacted-password>" in log_text
+    assert "demo-user" in log_text
+    assert "returncode=7" in log_text
+
+
 def test_baseworker_normalize_dataset_path_windows_unc(monkeypatch):
     posix_path_cls = type(Path("/tmp"))
     monkeypatch.setattr(base_worker_mod.os, "name", "nt", raising=False)
@@ -484,7 +555,9 @@ def test_baseworker_normalize_dataset_path_windows_unc(monkeypatch):
     assert result.endswith("dataset")
 
 
-def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fallback(monkeypatch):
+def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fallback(
+    monkeypatch,
+):
     posix_path_cls = type(Path("/tmp"))
     home_path = posix_path_cls.home()
     candidate = (home_path / "relative" / "data").expanduser()
@@ -570,7 +643,9 @@ def test_baseworker_iter_input_files_and_can_create_path(tmp_path):
     assert BaseWorker._can_create_path(writable_target) is True
 
 
-def test_baseworker_can_create_path_returns_false_on_permission_error(monkeypatch, tmp_path):
+def test_baseworker_can_create_path_returns_false_on_permission_error(
+    monkeypatch, tmp_path
+):
     monkeypatch.setattr(
         Path,
         "touch",
@@ -613,7 +688,9 @@ def test_baseworker_path_support_runtime_bugs_propagate(tmp_path, monkeypatch):
     monkeypatch.setattr(
         Path,
         "unlink",
-        lambda self, *args, **kwargs: (_ for _ in ()).throw(RuntimeError("cleanup bug")),
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("cleanup bug")
+        ),
     )
     with pytest.raises(RuntimeError, match="cleanup bug"):
         BaseWorker._can_create_path(tmp_path / "output" / "data.csv")
@@ -669,18 +746,24 @@ def test_baseworker_args_helpers_and_payload_round_trip(tmp_path):
         default_settings_path = "worker_settings.toml"
         default_settings_section = "worker"
         args_loader = staticmethod(
-            lambda path, section=None: Payload(settings_path=str(path), section=section, value=1)
+            lambda path, section=None: Payload(
+                settings_path=str(path), section=section, value=1
+            )
         )
         args_merger = staticmethod(
-            lambda base, overrides=None: Payload(**{**base.model_dump(), **(overrides or {})})
+            lambda base, overrides=None: Payload(
+                **{**base.model_dump(), **(overrides or {})}
+            )
         )
         args_ensure_defaults = staticmethod(
-            lambda args, env=None: Payload(**{**args.model_dump(), "env_name": getattr(env, "name", None)})
+            lambda args, env=None: Payload(
+                **{**args.model_dump(), "env_name": getattr(env, "name", None)}
+            )
         )
         args_dumper = staticmethod(
-            lambda args, path, section=None, create_missing=True: events.setdefault("dump_calls", []).append(
-                (args.model_dump(), Path(path), section, create_missing)
-            )
+            lambda args, path, section=None, create_missing=True: events.setdefault(
+                "dump_calls", []
+            ).append((args.model_dump(), Path(path), section, create_missing))
         )
 
         def __init__(self, env=None, args=None):
@@ -727,7 +810,9 @@ def test_baseworker_args_helpers_and_payload_round_trip(tmp_path):
     assert events["dump_mode"] == "json"
 
 
-def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(monkeypatch, tmp_path):
+def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(
+    monkeypatch, tmp_path
+):
     worker = DummyWorker()
     target = tmp_path / "root" / "payload"
     target.mkdir(parents=True)
@@ -746,7 +831,9 @@ def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(monkeypatch,
         return original_mkdir(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "mkdir", _patched_mkdir)
-    prepared = worker.prepare_output_dir(tmp_path / "root", subdir="payload", attribute="payload_dir", clean=True)
+    prepared = worker.prepare_output_dir(
+        tmp_path / "root", subdir="payload", attribute="payload_dir", clean=True
+    )
     assert prepared == target
     assert worker.payload_dir == target
 
@@ -792,7 +879,9 @@ def test_baseworker_stop_and_break_loop_idle_paths(monkeypatch):
     BaseWorker._service_active = {7: True}
 
     calls: list[str] = []
-    monkeypatch.setattr(BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True))
+    monkeypatch.setattr(
+        BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True)
+    )
     worker.stop()
     assert calls == ["break"]
 
@@ -822,7 +911,9 @@ def test_baseworker_start_error_and_inactive_stop(monkeypatch):
     worker._worker = "tcp://127.0.0.1:8787"
     BaseWorker._service_active = {3: False}
     calls: list[str] = []
-    monkeypatch.setattr(BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True))
+    monkeypatch.setattr(
+        BaseWorker, "break_loop", staticmethod(lambda: calls.append("break") or True)
+    )
     worker.stop()
     assert calls == []
 
@@ -923,12 +1014,23 @@ def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
     assert expanded == str((tmp_path / "folder" / "demo.csv").resolve())
     assert Path(BaseWorker._join(str(tmp_path), "child.txt")).name == "child.txt"
 
-    monkeypatch.setattr(BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value)))
-    assert Path(BaseWorker.expand_and_join("base", "child.txt")).parts[-2:] == ("base", "child.txt")
+    monkeypatch.setattr(
+        BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value))
+    )
+    assert Path(BaseWorker.expand_and_join("base", "child.txt")).parts[-2:] == (
+        "base",
+        "child.txt",
+    )
+
 
 def test_baseworker_expand_chunk():
     reconstructed, chunk_len, total_workers = BaseWorker._expand_chunk(
-        {"__agi_worker_chunk__": True, "chunk": ["a"], "total_workers": 3, "worker_idx": 1},
+        {
+            "__agi_worker_chunk__": True,
+            "chunk": ["a"],
+            "total_workers": 3,
+            "worker_idx": 1,
+        },
         1,
     )
     assert reconstructed == [[], ["a"], []]
@@ -980,9 +1082,15 @@ def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
 
     BaseWorker._share_path = tmp_path
     BaseWorker._worker = "127.0.0.1:8787"
-    monkeypatch.setattr(base_worker_mod.psutil, "virtual_memory", lambda: SimpleNamespace(total=8_000_000_000, available=4_000_000_000))
+    monkeypatch.setattr(
+        base_worker_mod.psutil,
+        "virtual_memory",
+        lambda: SimpleNamespace(total=8_000_000_000, available=4_000_000_000),
+    )
     monkeypatch.setattr(base_worker_mod.psutil, "cpu_count", lambda: 4)
-    monkeypatch.setattr(base_worker_mod.psutil, "cpu_freq", lambda: SimpleNamespace(current=3200))
+    monkeypatch.setattr(
+        base_worker_mod.psutil, "cpu_freq", lambda: SimpleNamespace(current=3200)
+    )
     time_values = iter([1.0, 2.0])
     monkeypatch.setattr(base_worker_mod.time, "time", lambda: next(time_values))
     monkeypatch.setattr(base_worker_mod.time, "sleep", lambda *_args, **_kwargs: None)
@@ -1002,7 +1110,9 @@ def test_baseworker_setup_data_directories_requires_source_path():
         worker.setup_data_directories(source_path=None)
 
 
-def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(monkeypatch, tmp_path):
+def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(
+    monkeypatch, tmp_path
+):
     worker = DummyWorker()
     share_root = tmp_path / "share"
     input_dir = share_root / "flight_trajectory" / "pipeline"
@@ -1042,7 +1152,11 @@ def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(mo
     monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
 
     warnings = []
-    monkeypatch.setattr(base_worker_mod.logger, "warning", lambda msg, *args: warnings.append(msg % args))
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "warning",
+        lambda msg, *args: warnings.append(msg % args),
+    )
 
     result = worker.setup_data_directories(
         source_path=Path("flight_trajectory/pipeline"),
@@ -1107,19 +1221,29 @@ def test_baseworker_setup_data_directories_logs_rmtree_failures(monkeypatch, tmp
     assert any("Error removing directory" in message for message in infos)
 
 
-def test_baseworker_onerror_handles_permission_and_non_permission(tmp_path, monkeypatch):
+def test_baseworker_onerror_handles_permission_and_non_permission(
+    tmp_path, monkeypatch
+):
     target = tmp_path / "locked.txt"
     target.write_text("x", encoding="utf-8")
     calls: list[str] = []
 
     monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(base_worker_mod.os, "chmod", lambda *_args, **_kwargs: calls.append("chmod"))
-    BaseWorker._onerror(lambda _path: calls.append("func"), str(target), (PermissionError, PermissionError("denied"), None))
+    monkeypatch.setattr(
+        base_worker_mod.os, "chmod", lambda *_args, **_kwargs: calls.append("chmod")
+    )
+    BaseWorker._onerror(
+        lambda _path: calls.append("func"),
+        str(target),
+        (PermissionError, PermissionError("denied"), None),
+    )
     assert calls == ["chmod", "func"]
 
     monkeypatch.setattr(base_worker_mod.os, "access", lambda *_args, **_kwargs: True)
     with pytest.raises(RuntimeError, match="boom"):
-        BaseWorker._onerror(lambda _path: None, str(target), (RuntimeError, RuntimeError("boom"), None))
+        BaseWorker._onerror(
+            lambda _path: None, str(target), (RuntimeError, RuntimeError("boom"), None)
+        )
 
 
 def test_baseworker_onerror_propagates_non_oserror_from_retry(tmp_path, monkeypatch):
@@ -1159,7 +1283,9 @@ def test_baseworker_onerror_logs_oserror_from_retry(tmp_path, monkeypatch):
     assert any("warning failed to grant write access" in message for message in errors)
 
 
-def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypatch, tmp_path):
+def test_baseworker_setup_data_directories_fallback_to_home_and_failure(
+    monkeypatch, tmp_path
+):
     worker = DummyWorker()
     share_root = tmp_path / "share"
     input_dir = share_root / "flight_trajectory" / "pipeline"
@@ -1189,7 +1315,11 @@ def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypa
 
     errors: list[str] = []
     monkeypatch.setattr(Path, "mkdir", _patched_mkdir, raising=False)
-    monkeypatch.setattr(base_worker_mod.logger, "error", lambda message, *args: errors.append(str(message % args if args else message)))
+    monkeypatch.setattr(
+        base_worker_mod.logger,
+        "error",
+        lambda message, *args: errors.append(str(message % args if args else message)),
+    )
 
     with pytest.raises(OSError):
         worker.setup_data_directories(
@@ -1201,7 +1331,9 @@ def test_baseworker_setup_data_directories_fallback_to_home_and_failure(monkeypa
     assert any("Fallback output directory failed" in message for message in errors)
 
 
-def test_baseworker_setup_data_directories_without_env_falls_back_to_home(monkeypatch, tmp_path):
+def test_baseworker_setup_data_directories_without_env_falls_back_to_home(
+    monkeypatch, tmp_path
+):
     worker = DummyWorker()
     fake_home = tmp_path / "home"
     input_dir = fake_home / "flight_trajectory" / "pipeline"

@@ -22,7 +22,12 @@ from agi_cluster.agi_distributor import deployment_remote_support, uv_source_sup
     ],
 )
 def test_is_legacy_intel_macos_scope(system, machine, product_version, expected):
-    assert deployment_remote_support._is_legacy_intel_macos(system, machine, product_version) is expected
+    assert (
+        deployment_remote_support._is_legacy_intel_macos(
+            system, machine, product_version
+        )
+        is expected
+    )
 
 
 def _rapids_probe_output(capable: bool) -> str:
@@ -48,21 +53,90 @@ def test_parse_remote_rapids_probe_rejects_missing_json():
 
 def test_remote_deployment_path_and_probe_helpers(tmp_path):
     env = SimpleNamespace(home_abs=tmp_path / "home")
-    assert deployment_remote_support._resolve_local_share_path("share", env) == (tmp_path / "home" / "share").resolve(strict=False)
-    assert deployment_remote_support._remote_share_assignment("~/clustershare") == '"$HOME"/clustershare'
+    assert deployment_remote_support._resolve_local_share_path("share", env) == (
+        tmp_path / "home" / "share"
+    ).resolve(strict=False)
+    assert (
+        deployment_remote_support._remote_share_assignment("~/clustershare")
+        == '"$HOME"/clustershare'
+    )
     assert deployment_remote_support._remote_share_assignment("~") == '"$HOME"'
-    assert deployment_remote_support._remote_share_assignment("/mnt/share") == "/mnt/share"
-    assert deployment_remote_support._home_relative_share_setting(str(tmp_path / "home" / "clustershare"), env) == "clustershare"
-    assert deployment_remote_support._home_relative_share_setting("/Users/demo/clustershare", SimpleNamespace()) == "clustershare"
+    assert (
+        deployment_remote_support._remote_share_assignment("/mnt/share") == "/mnt/share"
+    )
+    assert (
+        deployment_remote_support._home_relative_share_setting(
+            str(tmp_path / "home" / "clustershare"), env
+        )
+        == "clustershare"
+    )
+    assert (
+        deployment_remote_support._home_relative_share_setting(
+            "/Users/demo/clustershare", SimpleNamespace()
+        )
+        == "clustershare"
+    )
 
-    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@[fe80::1]:8786")) == "fe80::1"
-    assert deployment_remote_support._scheduler_host_from_state(SimpleNamespace(_scheduler_ip="tcp://user@10.0.0.1:8786")) == "10.0.0.1"
-    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip="10.0.0.1"), SimpleNamespace(user="agi")) == "agi@10.0.0.1"
-    assert deployment_remote_support._scheduler_ssh_target(SimpleNamespace(_scheduler_ip=""), SimpleNamespace(user="agi")) == ""
+    assert (
+        deployment_remote_support._scheduler_host_from_state(
+            SimpleNamespace(_scheduler_ip="tcp://user@[fe80::1]:8786")
+        )
+        == "fe80::1"
+    )
+    assert (
+        deployment_remote_support._scheduler_host_from_state(
+            SimpleNamespace(_scheduler_ip="tcp://user@10.0.0.1:8786")
+        )
+        == "10.0.0.1"
+    )
+    assert (
+        deployment_remote_support._scheduler_ssh_target(
+            SimpleNamespace(_scheduler_ip="10.0.0.1"), SimpleNamespace(user="agi")
+        )
+        == "agi@10.0.0.1"
+    )
+    assert (
+        deployment_remote_support._scheduler_ssh_target(
+            SimpleNamespace(_scheduler_ip=""), SimpleNamespace(user="agi")
+        )
+        == ""
+    )
 
-    assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (10, 15, 7)
+    assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (
+        10,
+        15,
+        7,
+    )
     assert deployment_remote_support._parse_version_prefix("beta") == ()
-    assert deployment_remote_support._parse_remote_rapids_probe('{"rapids_capable": false}\n[]\n{bad json}\n') is False
+    assert (
+        deployment_remote_support._parse_remote_rapids_probe(
+            '{"rapids_capable": false}\n[]\n{bad json}\n'
+        )
+        is False
+    )
+
+
+def test_remote_command_helpers_quote_dynamic_arguments():
+    command = deployment_remote_support._remote_command(
+        "uv",
+        "--project",
+        "worker env/$bad;name",
+        "run",
+        "-p",
+        "3.13; echo bad",
+        "python",
+        "-c",
+        "import pip",
+    )
+
+    assert command == (
+        "uv --project 'worker env/$bad;name' run -p '3.13; echo bad' "
+        "python -c 'import pip'"
+    )
+    assert (
+        deployment_remote_support._remote_tool("source ~/.profile &&", "uv tool")
+        == "source ~/.profile && 'uv tool'"
+    )
 
 
 @pytest.mark.asyncio
@@ -73,9 +147,13 @@ async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
         async def exec_ssh(self, *_args):
             return "ok"
 
-    env = SimpleNamespace(AGI_CLUSTER_SHARE="share", envars={}, home_abs=tmp_path, user="", verbose=0)
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE="share", envars={}, home_abs=tmp_path, user="", verbose=0
+    )
     with pytest.raises(RuntimeError, match="scheduler host is unknown"):
-        await deployment_remote_support._prepare_remote_cluster_share(_AgiNoScheduler(), "10.0.0.2", env, "clustershare")
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _AgiNoScheduler(), "10.0.0.2", env, "clustershare"
+        )
 
     calls: list[str] = []
 
@@ -86,7 +164,12 @@ async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
                 raise RuntimeError("probe failed")
             return "ok"
 
-    assert await deployment_remote_support._legacy_intel_macos_dependency_specs(_Agi(), "10.0.0.2") == ()
+    assert (
+        await deployment_remote_support._legacy_intel_macos_dependency_specs(
+            _Agi(), "10.0.0.2"
+        )
+        == ()
+    )
     assert calls == [deployment_remote_support._remote_platform_probe_command()]
 
 
@@ -144,7 +227,9 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
         del user, password
         send_calls.append((ip, [Path(f).name for f in files], str(remote_path)))
 
-    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
         del user, password
         send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
 
@@ -169,7 +254,7 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
     )
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
-    assert any('python -c "import pip"' in cmd for cmd in ssh_calls)
+    assert any("python -c 'import pip'" in cmd for cmd in ssh_calls)
     assert not any("ensurepip" in cmd for cmd in ssh_calls)
     assert not any("dask[distributed]" in cmd for cmd in ssh_calls)
     assert not any("numba==0.62.1" in cmd for cmd in ssh_calls)
@@ -187,18 +272,23 @@ async def test_remote_project_has_pip_reports_missing_when_probe_fails():
 
     agi_cls = SimpleNamespace(exec_ssh=_fake_exec_ssh)
 
-    assert await deployment_remote_support._remote_project_has_pip(
-        agi_cls,
-        "10.0.0.2",
-        uv="uv",
-        wenv_rel=Path("worker_env"),
-        pyvers="3.13",
-    ) is False
-    assert calls == ['uv --project worker_env run -p 3.13 python -c "import pip"']
+    assert (
+        await deployment_remote_support._remote_project_has_pip(
+            agi_cls,
+            "10.0.0.2",
+            uv="uv",
+            wenv_rel=Path("worker_env"),
+            pyvers="3.13",
+        )
+        is False
+    )
+    assert calls == ["uv --project worker_env run -p 3.13 python -c 'import pip'"]
 
 
 @pytest.mark.asyncio
-async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled(tmp_path):
+async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled(
+    tmp_path,
+):
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
@@ -226,7 +316,9 @@ async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled
     async def _fake_send(_env, _ip, _files, _remote_path, user=None, password=None):
         del user, password
 
-    async def _fake_send_file(_env, _ip, _local_path, _remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, _ip, _local_path, _remote_path, user=None, password=None
+    ):
         del user, password
 
     agi_cls = SimpleNamespace(
@@ -249,10 +341,17 @@ async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled
         log=deployment_remote_support.logger,
     )
 
-    core_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd)
-    dask_index = next(i for i, cmd in enumerate(ssh_calls) if "dask[distributed]" in cmd)
+    core_index = next(
+        i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd
+    )
+    dask_index = next(
+        i for i, cmd in enumerate(ssh_calls) if "dask[distributed]" in cmd
+    )
 
-    assert "uv --project worker_env add -p 3.13 'dask[distributed]'" in ssh_calls[dask_index]
+    assert (
+        "uv --project worker_env add -p 3.13 'dask[distributed]'"
+        in ssh_calls[dask_index]
+    )
     assert core_index < dask_index
 
 
@@ -293,7 +392,9 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     async def _fake_send(_env, _ip, _files, _remote_path, user=None, password=None):
         del user, password
 
-    async def _fake_send_file(_env, _ip, _local_path, _remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, _ip, _local_path, _remote_path, user=None, password=None
+    ):
         del user, password
 
     agi_cls = SimpleNamespace(
@@ -321,11 +422,22 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     remote_env_cmd = next(cmd for cmd in ssh_calls if "AGI_CLUSTER_SHARE=" in cmd)
     assert "clustershare/agi" in remote_env_cmd
     assert "/Users/agi/clustershare/agi" not in remote_env_cmd
-    assert not any("/Users/agi/clustershare/agi" in cmd and "REMOTE_CLUSTER_SHARE" in cmd for cmd in ssh_calls)
+    assert not any(
+        "/Users/agi/clustershare/agi" in cmd and "REMOTE_CLUSTER_SHARE" in cmd
+        for cmd in ssh_calls
+    )
     assert any("command -v sshfs" in cmd for cmd in ssh_calls)
-    assert any("sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\"" in cmd for cmd in ssh_calls)
-    mount_cmd = next(cmd for cmd in ssh_calls if "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in cmd)
-    assert 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; set -e;' in mount_cmd
+    assert any(
+        'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE"' in cmd
+        for cmd in ssh_calls
+    )
+    mount_cmd = next(
+        cmd for cmd in ssh_calls if 'sshfs "$SCHEDULER_CLUSTER_SHARE"' in cmd
+    )
+    assert (
+        'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; set -e;'
+        in mount_cmd
+    )
     assert "-o reconnect" in mount_cmd
     assert "-o ServerAliveInterval=15" in mount_cmd
     assert "-o ServerAliveCountMax=3" in mount_cmd
@@ -336,11 +448,16 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     assert "stale, unexpected, or unwritable SSHFS mount" in mount_cmd
     assert "fusermount3 -u" in mount_cmd
     assert "sudo apt-get install -y sshfs" in mount_cmd
-    assert any("agi@192.168.20.111:" in cmd and str(scheduler_share) in cmd for cmd in ssh_calls)
+    assert any(
+        "agi@192.168.20.111:" in cmd and str(scheduler_share) in cmd
+        for cmd in ssh_calls
+    )
 
 
 @pytest.mark.asyncio
-async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(tmp_path):
+async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
+    tmp_path,
+):
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
@@ -372,7 +489,9 @@ async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
         del user, password
         send_calls.append((ip, [Path(f).name for f in files], str(remote_path)))
 
-    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
         del user, password
         send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
 
@@ -395,7 +514,9 @@ async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
     )
 
     pin_index = next(i for i, cmd in enumerate(ssh_calls) if "numba==0.62.1" in cmd)
-    core_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd)
+    core_index = next(
+        i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env agi-node" in cmd
+    )
 
     assert "pyarrow==17.0.0" in ssh_calls[pin_index]
     assert "add -p 3.11" in ssh_calls[pin_index]
@@ -411,7 +532,9 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     agi_node = tmp_path / "agi_node"
     for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
         (p / "dist").mkdir(parents=True, exist_ok=True)
-        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text(
+            "whl", encoding="utf-8"
+        )
 
     env = SimpleNamespace(
         wenv_abs=tmp_path / "wenv",
@@ -444,7 +567,9 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
             payload.append(entry)
         sent.append((ip, payload, str(remote_path)))
 
-    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
         del user, password
         p = Path(local_path)
         payload = [{"name": p.name, "content": p.read_text(encoding="utf-8")}]
@@ -479,8 +604,14 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     assert any("rapids-probe" in cmd for _, cmd in ssh)
     assert not any("nvidia-smi" == cmd.strip() for _, cmd in ssh)
     assert ("10.0.0.2", "hw_rapids_capable") in env_vars
-    assert any(any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
-    assert any(any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
+    assert any(
+        any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload)
+        for _, payload, _ in sent
+    )
+    assert any(
+        any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload)
+        for _, payload, _ in sent
+    )
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
 
 
@@ -540,7 +671,9 @@ async def test_deploy_remote_worker_source_env_prefers_latest_artifacts(tmp_path
         del user, password
         sent.append((ip, [Path(f).name for f in files], str(remote_path)))
 
-    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
         del _env, ip, user, password
         sent.append(("10.0.0.2", [Path(local_path).name], str(remote_path.parent)))
 
@@ -571,7 +704,9 @@ async def test_deploy_remote_worker_source_env_prefers_latest_artifacts(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_error(tmp_path):
+async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_error(
+    tmp_path,
+):
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")
@@ -579,7 +714,9 @@ async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_err
     agi_node = tmp_path / "agi_node"
     for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
         (p / "dist").mkdir(parents=True, exist_ok=True)
-        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text(
+            "whl", encoding="utf-8"
+        )
 
     env = SimpleNamespace(
         wenv_abs=tmp_path / "wenv",
@@ -606,7 +743,9 @@ async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_err
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
         del _env, ip, files, remote_path, user, password
 
-    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
         del _env, ip, local_path, remote_path, user, password
 
     agi_cls = SimpleNamespace(
@@ -637,7 +776,9 @@ async def test_deploy_remote_worker_source_env_missing_egg_logs_and_raises(tmp_p
     agi_node = tmp_path / "agi_node"
     for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
         (p / "dist").mkdir(parents=True, exist_ok=True)
-        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+        (p / "dist" / f"{name}-0.0.1-py3-none-any.whl").write_text(
+            "whl", encoding="utf-8"
+        )
 
     env = SimpleNamespace(
         wenv_abs=tmp_path / "wenv",
@@ -687,7 +828,9 @@ async def test_deploy_remote_worker_source_env_missing_wheels_raise(tmp_path):
     agi_node = tmp_path / "agi_node"
     (agi_env / "dist").mkdir(parents=True, exist_ok=True)
     (agi_node / "dist").mkdir(parents=True, exist_ok=True)
-    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         wenv_abs=tmp_path / "wenv",
@@ -728,7 +871,9 @@ async def test_deploy_remote_worker_source_env_missing_wheels_raise(tmp_path):
             log=mock.Mock(),
         )
 
-    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
+    (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text(
+        "whl", encoding="utf-8"
+    )
     (agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl").unlink()
     with pytest.raises(FileNotFoundError, match="agi_node"):
         await _call_deploy_remote_worker(
@@ -784,7 +929,9 @@ async def test_deploy_remote_worker_non_source_missing_egg_raises(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_deploy_remote_worker_rapids_false_and_temp_pth_cleanup_missing(monkeypatch, tmp_path):
+async def test_deploy_remote_worker_rapids_false_and_temp_pth_cleanup_missing(
+    monkeypatch, tmp_path
+):
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")

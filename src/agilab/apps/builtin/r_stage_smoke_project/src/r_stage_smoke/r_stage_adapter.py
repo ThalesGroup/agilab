@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import time
 from typing import Any
@@ -14,6 +15,39 @@ from typing import Any
 
 SCHEMA = "agilab.app.r_stage_smoke.v1"
 Runner = Callable[..., subprocess.CompletedProcess[str]]
+_SECRET_KEY_RE = re.compile(
+    r"(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH)",
+    re.IGNORECASE,
+)
+
+try:
+    from agilab.secret_uri import redact_text as _agilab_redact_text
+except (
+    ImportError
+):  # pragma: no cover - used only when running this app package standalone
+    _COMMON_SECRET_RE = re.compile(
+        r"(?<![A-Za-z0-9_])(?:"
+        r"sk-(?:proj-)?[A-Za-z0-9_-]{16,}"
+        r"|github_pat_[A-Za-z0-9_]{16,}"
+        r"|gh[pousr]_[A-Za-z0-9_]{16,}"
+        r"|hf_[A-Za-z0-9]{16,}"
+        r")(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    )
+    _BEARER_RE = re.compile(r"\b(Bearer\s+)([A-Za-z0-9._~+/=-]{20,})", re.IGNORECASE)
+    _SECRET_ASSIGNMENT_RE = re.compile(
+        r"\b((?=[A-Za-z_][A-Za-z0-9_]*=)"
+        r"(?=[A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH))"
+        r"[A-Za-z_][A-Za-z0-9_]*)=([^\s]+)",
+        re.IGNORECASE,
+    )
+
+    def _agilab_redact_text(text: object) -> str:
+        value = _SECRET_ASSIGNMENT_RE.sub(
+            lambda match: f"{match.group(1)}=<redacted>", str(text)
+        )
+        value = _BEARER_RE.sub(lambda match: f"{match.group(1)}<redacted>", value)
+        return _COMMON_SECRET_RE.sub("<redacted>", value)
 
 
 @dataclass(frozen=True)
@@ -49,6 +83,27 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     )
 
 
+def _redact_text(text: object) -> str:
+    return _agilab_redact_text(text)
+
+
+def _redact_manifest_value(value: Any, *, key: object | None = None) -> Any:
+    if key is not None and _SECRET_KEY_RE.search(str(key)):
+        return "<redacted>"
+    if isinstance(value, Mapping):
+        return {
+            str(item_key): _redact_manifest_value(item_value, key=item_key)
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_manifest_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_manifest_value(item) for item in value]
+    if isinstance(value, str):
+        return _redact_text(value)
+    return value
+
+
 def _read_json_object(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -80,6 +135,19 @@ def _artifact_files(root: Path) -> list[Path]:
     if not root.exists():
         return []
     return sorted(path for path in root.rglob("*") if path.is_file())
+
+
+def _resolve_script_path(script_path: Path | str, app_root: Path | str | None) -> Path:
+    script = Path(script_path).expanduser().resolve(strict=False)
+    if app_root is None:
+        return script
+
+    root = Path(app_root).expanduser().resolve(strict=False)
+    if not script.is_relative_to(root):
+        raise RStageExecutionError(
+            f"R stage script must stay inside the app root: script={script}; app_root={root}"
+        )
+    return script
 
 
 def _run_process(
@@ -115,10 +183,11 @@ def run_r_stage(
     timeout_seconds: int = 120,
     runner: Runner | None = None,
     env: Mapping[str, str] | None = None,
+    app_root: Path | str | None = None,
 ) -> RStageResult:
     """Execute an R stage through a JSON-in, JSON-out, artifacts-out contract."""
 
-    output_root = Path(output_dir).expanduser()
+    output_root = Path(output_dir).expanduser().resolve(strict=False)
     output_root.mkdir(parents=True, exist_ok=True)
     artifact_dir = output_root / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -132,8 +201,14 @@ def run_r_stage(
 
     _write_json(input_path, dict(input_payload))
     started_at = time.time()
-    script = Path(script_path).expanduser().resolve(strict=False)
-    command = [rscript, str(script), str(input_path), str(output_path), str(artifact_dir)]
+    script = _resolve_script_path(script_path, app_root)
+    command = [
+        rscript,
+        str(script),
+        str(input_path),
+        str(output_path),
+        str(artifact_dir),
+    ]
 
     try:
         completed = _run_process(
@@ -153,8 +228,8 @@ def run_r_stage(
         )
         raise AssertionError("unreachable") from exc
     except subprocess.TimeoutExpired as exc:
-        stdout_path.write_text(exc.stdout or "", encoding="utf-8")
-        stderr_path.write_text(exc.stderr or "", encoding="utf-8")
+        stdout_path.write_text(_redact_text(exc.stdout or ""), encoding="utf-8")
+        stderr_path.write_text(_redact_text(exc.stderr or ""), encoding="utf-8")
         _raise_stage_error(
             f"R stage timed out after {timeout_seconds} seconds",
             stdout_path=stdout_path,
@@ -163,8 +238,8 @@ def run_r_stage(
         raise AssertionError("unreachable") from exc
 
     runtime_seconds = time.time() - started_at
-    stdout_path.write_text(completed.stdout or "", encoding="utf-8")
-    stderr_path.write_text(completed.stderr or "", encoding="utf-8")
+    stdout_path.write_text(_redact_text(completed.stdout or ""), encoding="utf-8")
+    stderr_path.write_text(_redact_text(completed.stderr or ""), encoding="utf-8")
 
     if completed.returncode != 0:
         _raise_stage_error(
@@ -181,14 +256,24 @@ def run_r_stage(
 
     output = _read_json_object(output_path)
     artifacts = {
-        "input": _artifact(input_path, role="R stage input payload", output_dir=output_root),
-        "output": _artifact(output_path, role="R stage output payload", output_dir=output_root),
-        "stdout": _artifact(stdout_path, role="R stage stdout log", output_dir=output_root),
-        "stderr": _artifact(stderr_path, role="R stage stderr log", output_dir=output_root),
+        "input": _artifact(
+            input_path, role="R stage input payload", output_dir=output_root
+        ),
+        "output": _artifact(
+            output_path, role="R stage output payload", output_dir=output_root
+        ),
+        "stdout": _artifact(
+            stdout_path, role="R stage stdout log", output_dir=output_root
+        ),
+        "stderr": _artifact(
+            stderr_path, role="R stage stderr log", output_dir=output_root
+        ),
     }
     for artifact_file in _artifact_files(artifact_dir):
         key = f"artifact:{artifact_file.relative_to(artifact_dir)}"
-        artifacts[key] = _artifact(artifact_file, role="R stage artifact", output_dir=output_root)
+        artifacts[key] = _artifact(
+            artifact_file, role="R stage artifact", output_dir=output_root
+        )
 
     manifest = {
         "schema": SCHEMA,
@@ -198,17 +283,19 @@ def run_r_stage(
         "command": command,
         "returncode": completed.returncode,
         "runtime_seconds": round(runtime_seconds, 6),
-        "inputs": dict(input_payload),
-        "result": output,
+        "inputs": _redact_manifest_value(dict(input_payload)),
+        "result": _redact_manifest_value(output),
         "artifacts": artifacts,
     }
     _write_json(manifest_path, manifest)
-    artifacts["manifest"] = _artifact(manifest_path, role="artifact hash manifest", output_dir=output_root)
+    artifacts["manifest"] = _artifact(
+        manifest_path, role="artifact hash manifest", output_dir=output_root
+    )
 
     summary = {
         "schema": SCHEMA,
         "output_dir": str(output_root),
-        "result": output,
+        "result": _redact_manifest_value(output),
         "metrics": {
             "n": int(output.get("n", 0) or 0),
             "mean": float(output.get("mean", 0.0) or 0.0),
@@ -220,7 +307,9 @@ def run_r_stage(
         "stderr": str(stderr_path),
     }
     _write_json(summary_path, summary)
-    summary["artifacts"]["summary"] = _artifact(summary_path, role="worker summary", output_dir=output_root)
+    summary["artifacts"]["summary"] = _artifact(
+        summary_path, role="worker summary", output_dir=output_root
+    )
     _write_json(summary_path, summary)
 
     return RStageResult(
@@ -244,6 +333,7 @@ def build_r_stage_smoke_artifacts(
     rscript: str = "Rscript",
     timeout_seconds: int = 120,
     runner: Runner | None = None,
+    app_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run the smoke R stage and return the persisted summary payload."""
 
@@ -254,6 +344,7 @@ def build_r_stage_smoke_artifacts(
         rscript=rscript,
         timeout_seconds=timeout_seconds,
         runner=runner,
+        app_root=app_root,
     )
     return _read_json_object(result.summary_path)
 

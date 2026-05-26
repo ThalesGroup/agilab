@@ -33,19 +33,36 @@ import shutil
 
 from pathlib import Path
 
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+os.environ.setdefault(
+    "STREAMLIT_CONFIG_FILE",
+    str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
+)
 import streamlit as st
 import logging
 import subprocess
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
-_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+_import_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_import_guard_local", _import_guard_path
+)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
-    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+    raise ModuleNotFoundError(
+        f"Unable to load import_guard.py from {_import_guard_path}"
+    )
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 import_agilab_module = _import_guard_module.import_agilab_module
+_public_bind_guard_module = import_agilab_module(
+    "agilab.ui_public_bind_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
+    fallback_name="agilab_ui_public_bind_guard_fallback",
+)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(
+    st, streamlit_config_getter=st.config.get
+)
+
 _page_docs_module = import_agilab_module(
     "agilab.page_docs",
     current_file=__file__,
@@ -118,8 +135,8 @@ import_agilab_symbols(
 )
 
 # Use modern TOML libraries
-import tomllib       # For reading TOML files (read as binary)
-import tomli_w       # For writing TOML files (write as binary)
+import tomllib  # For reading TOML files (read as binary)
+import tomli_w  # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
 from agi_gui.pagelib import (
@@ -241,7 +258,10 @@ _NOTEBOOK_IGNORED_DIRS = {
 
 _ANALYSIS_PAGE_TEMPLATE_NAME = "analysis_page_template"
 _ANALYSIS_PAGE_TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[1] / "apps-pages" / "templates" / _ANALYSIS_PAGE_TEMPLATE_NAME
+    Path(__file__).resolve().parents[1]
+    / "apps-pages"
+    / "templates"
+    / _ANALYSIS_PAGE_TEMPLATE_NAME
 )
 _ANALYSIS_PAGE_TEMPLATE_IGNORED_NAMES = {
     ".mypy_cache",
@@ -293,7 +313,10 @@ def _render_analysis_template_text(text: str, module_name: str) -> str:
 
 def _render_analysis_template_path(relative_path: Path, module_name: str) -> Path:
     return Path(
-        *(_render_analysis_template_text(part, module_name) for part in relative_path.parts)
+        *(
+            _render_analysis_template_text(part, module_name)
+            for part in relative_path.parts
+        )
     )
 
 
@@ -307,7 +330,9 @@ def _analysis_template_entrypoint(template_root: Path, module_name: str) -> Path
         ) from exc
     entrypoint = str(contract.get("entrypoint", ""))
     if not entrypoint:
-        raise RuntimeError(f"AGILAB analysis page template has no entrypoint: {contract_path}")
+        raise RuntimeError(
+            f"AGILAB analysis page template has no entrypoint: {contract_path}"
+        )
     return _render_analysis_template_path(Path(entrypoint), module_name)
 
 
@@ -331,7 +356,9 @@ def _write_minimal_view_template(
     bundle_root = pages_root / module_name
     template_root = _ANALYSIS_PAGE_TEMPLATE_ROOT
     if not template_root.is_dir():
-        raise FileNotFoundError(f"Missing AGILAB analysis page template: {template_root}")
+        raise FileNotFoundError(
+            f"Missing AGILAB analysis page template: {template_root}"
+        )
     if bundle_root.exists():
         raise FileExistsError(f"Analysis page bundle already exists: {bundle_root}")
 
@@ -339,7 +366,9 @@ def _write_minimal_view_template(
         relative_source_path = source_path.relative_to(template_root)
         if not _should_copy_analysis_template_path(relative_source_path):
             continue
-        relative_target_path = _render_analysis_template_path(relative_source_path, module_name)
+        relative_target_path = _render_analysis_template_path(
+            relative_source_path, module_name
+        )
         target_path = bundle_root / relative_target_path
         if source_path.is_dir():
             target_path.mkdir(parents=True, exist_ok=True)
@@ -351,13 +380,18 @@ def _write_minimal_view_template(
         except UnicodeDecodeError:
             shutil.copy2(source_path, target_path)
             continue
-        target_path.write_text(_render_analysis_template_text(payload, module_name), encoding="utf-8")
+        target_path.write_text(
+            _render_analysis_template_text(payload, module_name), encoding="utf-8"
+        )
 
     entrypoint = bundle_root / _analysis_template_entrypoint(template_root, module_name)
     readme = bundle_root / "README.md"
     if not entrypoint.is_file():
-        raise RuntimeError(f"Generated analysis page entrypoint is missing: {entrypoint}")
+        raise RuntimeError(
+            f"Generated analysis page entrypoint is missing: {entrypoint}"
+        )
     return bundle_root, entrypoint, readme
+
 
 # =============== Streamlit page config ==================
 st.set_page_config(
@@ -369,13 +403,16 @@ inject_theme(resources_path)
 
 # =============== Helpers: per-view venv sidecar ==================
 
+
 def _is_port_open(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.2)
         return s.connect_ex(("127.0.0.1", port)) == 0
 
+
 def _python_in_venv(venv: Path) -> Path:
     return venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
 
 def _find_venv_for(script_path: Path) -> Path | None:
     """
@@ -402,9 +439,12 @@ def _find_venv_for(script_path: Path) -> Path | None:
             return venv
     return None
 
+
 def _port_for(key: str) -> int:
     """Stable deterministic port in [8600..8899] from a key (e.g., view path)."""
-    base_value = os.getenv("AGILAB_PAGES_BASE_PORT", os.getenv("AGILAB_PAGES_VENVS_ABS", "8600"))
+    base_value = os.getenv(
+        "AGILAB_PAGES_BASE_PORT", os.getenv("AGILAB_PAGES_VENVS_ABS", "8600")
+    )
     try:
         base = int(base_value)
     except (TypeError, ValueError):
@@ -495,7 +535,9 @@ def _write_page_sync_stamp(project_root: Path) -> None:
     stamp_path = _page_sync_stamp_path(project_root)
     stamp_path.parent.mkdir(parents=True, exist_ok=True)
     stamp_path.write_text(
-        json.dumps(_page_sync_fingerprint(project_root), sort_keys=True, separators=(",", ":")),
+        json.dumps(
+            _page_sync_fingerprint(project_root), sort_keys=True, separators=(",", ":")
+        ),
         encoding="utf-8",
     )
 
@@ -504,14 +546,18 @@ def _source_bootstrap_stamp_path(project_root: Path) -> Path:
     return project_root / ".venv" / ".agilab-source-bootstrap-stamp.json"
 
 
-def _source_bootstrap_fingerprint(project_root: Path, source_root: Path) -> dict[str, Any]:
+def _source_bootstrap_fingerprint(
+    project_root: Path, source_root: Path
+) -> dict[str, Any]:
     resolved_source_root = source_root.resolve(strict=False)
     return {
         "schema": 1,
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
         "page_sync": _page_sync_fingerprint(project_root),
         "source_root": str(resolved_source_root),
-        "source_pyproject": _page_sync_file_entry(resolved_source_root, "pyproject.toml"),
+        "source_pyproject": _page_sync_file_entry(
+            resolved_source_root, "pyproject.toml"
+        ),
     }
 
 
@@ -592,7 +638,9 @@ def _page_apps_path(current_file: str | Path = __file__) -> Path | None:
     return None
 
 
-def _candidate_app_paths(apps_path: Path | None, value: str | Path | None) -> list[Path]:
+def _candidate_app_paths(
+    apps_path: Path | None, value: str | Path | None
+) -> list[Path]:
     if value is None:
         return []
     raw_value = str(value).strip()
@@ -735,7 +783,9 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
     if active_app_path is None:
         last_app = load_last_active_app()
         if last_app is not None:
-            active_app_path = _resolve_app_path(apps_path or _apps_path_for_active_app(Path(last_app)), last_app)
+            active_app_path = _resolve_app_path(
+                apps_path or _apps_path_for_active_app(Path(last_app)), last_app
+            )
 
     if active_app_path is None:
         active_app_path = _default_app_path(apps_path)
@@ -754,11 +804,11 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
         verbose=0,
     )
     env.init_done = True
-    st.session_state['env'] = env
-    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-    st.session_state['apps_path'] = str(apps_path)
-    st.session_state['app'] = app_name
+    st.session_state["env"] = env
+    st.session_state["IS_SOURCE_ENV"] = env.is_source_env
+    st.session_state["IS_WORKER_ENV"] = env.is_worker_env
+    st.session_state["apps_path"] = str(apps_path)
+    st.session_state["app"] = app_name
     try:
         store_last_active_app(active_app_path)
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -773,13 +823,18 @@ def _split_local_command(value: str) -> list[str]:
     return shlex.split(str(value), posix=os.name != "nt") if str(value).strip() else []
 
 
-def _local_uv_command(env: Any, ip: str = "127.0.0.1") -> tuple[list[str], dict[str, str]]:
+def _local_uv_command(
+    env: Any, ip: str = "127.0.0.1"
+) -> tuple[list[str], dict[str, str]]:
     process_env: dict[str, str] = {}
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     cmd_prefix = apply_inline_path_export(cmd_prefix, process_env) or ""
     if "PATH" in process_env:
         process_env["PATH"] = os.path.expandvars(process_env["PATH"])
-    return [*_split_local_command(cmd_prefix), *_split_local_command(env.uv)], process_env
+    return [
+        *_split_local_command(cmd_prefix),
+        *_split_local_command(env.uv),
+    ], process_env
 
 
 def _format_bg_command(cmd: BgCommand) -> str:
@@ -788,7 +843,9 @@ def _format_bg_command(cmd: BgCommand) -> str:
     return shlex.join(str(part) for part in cmd)
 
 
-def exec_bg(agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, str] | None = None) -> None:
+def exec_bg(
+    agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, str] | None = None
+) -> None:
     """
     Execute background command
     Args:
@@ -797,7 +854,7 @@ def exec_bg(agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, st
         process_env: optional explicit environment for subprocess
 
     Returns:
-        """
+    """
     stdout = open(agi_env.out_log, "ab", buffering=0)
     stderr = open(agi_env.err_log, "ab", buffering=0)
     env = dict(os.environ)
@@ -829,11 +886,12 @@ def _terminate_process_quietly(process: subprocess.Popen[Any]) -> None:
     except subprocess.TimeoutExpired:
         return
 
+
 def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) -> bool:
     """Start the view's Streamlit in a separate process (one per session)."""
     if _is_port_open(port):
         return True
-    env = st.session_state['env']
+    env = st.session_state["env"]
     ip = "127.0.0.1"
     uv, uv_process_env = _local_uv_command(env, ip)
     attempts: list[str] = []
@@ -853,11 +911,23 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
         attempts.append(f"Trying uv project root: {page_home}")
 
         if _page_sync_is_fresh(page_root):
-            env.logger.info("Skipping analysis page sync; environment is up to date for %s", page_home)
+            env.logger.info(
+                "Skipping analysis page sync; environment is up to date for %s",
+                page_home,
+            )
         else:
-            sync_cmd = [*uv, "--preview-features", "extra-build-dependencies", "--project", page_home, "sync"]
+            sync_cmd = [
+                *uv,
+                "--preview-features",
+                "extra-build-dependencies",
+                "--project",
+                page_home,
+                "sync",
+            ]
             env.logger.info(_format_bg_command(sync_cmd))
-            sync_process = exec_bg(env, sync_cmd, cwd=page_home, process_env=uv_process_env)
+            sync_process = exec_bg(
+                env, sync_cmd, cwd=page_home, process_env=uv_process_env
+            )
             sync_code = sync_process.wait()
             if sync_code != 0:
                 last_error = f"sync failed with code {sync_code} for {page_home}"
@@ -866,12 +936,19 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             try:
                 _write_page_sync_stamp(page_root)
             except OSError as exc:
-                env.logger.warning("Could not write analysis page sync stamp for %s: %s", page_home, exc)
+                env.logger.warning(
+                    "Could not write analysis page sync stamp for %s: %s",
+                    page_home,
+                    exc,
+                )
 
         if env.is_source_env:
             source_root = Path(env.env_pck).parent.parent
             if _source_bootstrap_is_fresh(page_root, source_root):
-                env.logger.info("Skipping analysis page source bootstrap; environment is up to date for %s", page_home)
+                env.logger.info(
+                    "Skipping analysis page source bootstrap; environment is up to date for %s",
+                    page_home,
+                )
             else:
                 pip_probe_cmd = [
                     *uv,
@@ -885,7 +962,9 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     "import pip",
                 ]
                 env.logger.info(_format_bg_command(pip_probe_cmd))
-                pip_probe_process = exec_bg(env, pip_probe_cmd, cwd=page_home, process_env=uv_process_env)
+                pip_probe_process = exec_bg(
+                    env, pip_probe_cmd, cwd=page_home, process_env=uv_process_env
+                )
                 if pip_probe_process.wait() != 0:
                     ensure_cmd = [
                         *uv,
@@ -899,10 +978,14 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                         "ensurepip",
                     ]
                     env.logger.info(_format_bg_command(ensure_cmd))
-                    ensure_process = exec_bg(env, ensure_cmd, cwd=page_home, process_env=uv_process_env)
+                    ensure_process = exec_bg(
+                        env, ensure_cmd, cwd=page_home, process_env=uv_process_env
+                    )
                     ensure_code = ensure_process.wait()
                     if ensure_code != 0:
-                        last_error = f"ensurepip failed with code {ensure_code} for {page_home}"
+                        last_error = (
+                            f"ensurepip failed with code {ensure_code} for {page_home}"
+                        )
                         env.logger.error(last_error)
                         continue
 
@@ -921,16 +1004,24 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     str(source_root),
                 ]
                 env.logger.info(_format_bg_command(install_cmd))
-                install_process = exec_bg(env, install_cmd, cwd=page_home, process_env=uv_process_env)
+                install_process = exec_bg(
+                    env, install_cmd, cwd=page_home, process_env=uv_process_env
+                )
                 install_code = install_process.wait()
                 if install_code != 0:
-                    last_error = f"pip install failed with code {install_code} for {page_home}"
+                    last_error = (
+                        f"pip install failed with code {install_code} for {page_home}"
+                    )
                     env.logger.error(last_error)
                     continue
                 try:
                     _write_source_bootstrap_stamp(page_root, source_root)
                 except OSError as exc:
-                    env.logger.warning("Could not write analysis page source bootstrap stamp for %s: %s", page_home, exc)
+                    env.logger.warning(
+                        "Could not write analysis page source bootstrap stamp for %s: %s",
+                        page_home,
+                        exc,
+                    )
 
         run_cmd = [
             *uv,
@@ -969,9 +1060,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             time.sleep(0.1)
 
         if run_process.poll() is not None and run_process.returncode != 0:
-            last_error = (
-                f"Sidecar process exited with code {run_process.returncode} for {page_home}"
-            )
+            last_error = f"Sidecar process exited with code {run_process.returncode} for {page_home}"
             env.logger.error(last_error)
             attempts.append(last_error)
             continue
@@ -1093,10 +1182,14 @@ _NOTEBOOK_DISCOVERY_CACHE: dict[Path, tuple[tuple[Any, ...], dict[str, Path]]] =
 
 def _analysis_discovery_cache_enabled(environ: Any = os.environ) -> bool:
     value = str(environ.get(ANALYSIS_DISCOVERY_CACHE_DISABLE_ENV, "")).strip().lower()
-    return value not in {"1", "true", "yes", "on"} and ui_discovery_cache_enabled(environ)
+    return value not in {"1", "true", "yes", "on"} and ui_discovery_cache_enabled(
+        environ
+    )
 
 
-def _directory_tree_signature(root: Path, *, file_suffixes: tuple[str, ...]) -> tuple[Any, ...]:
+def _directory_tree_signature(
+    root: Path, *, file_suffixes: tuple[str, ...]
+) -> tuple[Any, ...]:
     """Return a cheap invalidation signature for discovery-relevant files."""
     try:
         resolved_root = root.expanduser().resolve()
@@ -1135,7 +1228,15 @@ def _directory_tree_signature(root: Path, *, file_suffixes: tuple[str, ...]) -> 
                     and not filename.startswith(".")
                 )
             )
-            entries.append((rel_dir, stat.st_mtime_ns, stat.st_size, tuple(dirnames), relevant_files))
+            entries.append(
+                (
+                    rel_dir,
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                    tuple(dirnames),
+                    relevant_files,
+                )
+            )
     except OSError as exc:
         return ("walk-error", str(resolved_root), type(exc).__name__)
     return ("dir", str(resolved_root), tuple(entries))
@@ -1167,7 +1268,11 @@ def _discover_views_uncached(pages_dir: Path) -> list[Path]:
             if entrypoint is not None:
                 out.add(entrypoint if entrypoint.is_file() else entrypoint.resolve())
             continue
-        if entry.is_file() and entry.suffix.lower() == ".py" and entry.name != "__init__.py":
+        if (
+            entry.is_file()
+            and entry.suffix.lower() == ".py"
+            and entry.name != "__init__.py"
+        ):
             out.add(entry.resolve())
 
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
@@ -1204,7 +1309,9 @@ def _project_notebooks_root(project_root: str | Path | None) -> Path | None:
 def _discover_project_notebooks_uncached(notebooks_root: Path) -> dict[str, Path]:
     discovered: dict[str, Path] = {}
     try:
-        notebook_paths = sorted(notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix())
+        notebook_paths = sorted(
+            notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix()
+        )
     except OSError:
         return {}
     for notebook_path in notebook_paths:
@@ -1212,7 +1319,10 @@ def _discover_project_notebooks_uncached(notebooks_root: Path) -> dict[str, Path
             rel_path = notebook_path.resolve().relative_to(notebooks_root)
         except (OSError, ValueError):
             continue
-        if any(part in _NOTEBOOK_IGNORED_DIRS or part.startswith(".") for part in rel_path.parts):
+        if any(
+            part in _NOTEBOOK_IGNORED_DIRS or part.startswith(".")
+            for part in rel_path.parts
+        ):
             continue
         if notebook_path.name.endswith("-checkpoint.ipynb"):
             continue
@@ -1296,7 +1406,10 @@ def _find_view_entrypoint(view_root: Path) -> Path | None:
                 continue
             fallback_files.append(Path(dirpath) / filename)
 
-    fallback_files = sorted((p.resolve() for p in fallback_files), key=lambda p: (len(p.parts), p.as_posix()))
+    fallback_files = sorted(
+        (p.resolve() for p in fallback_files),
+        key=lambda p: (len(p.parts), p.as_posix()),
+    )
     if len(fallback_files) == 1:
         return fallback_files[0]
     preferred_names = ("main", "app")
@@ -1323,7 +1436,9 @@ def _analysis_page_clone_ignore(src: str, names: list[str]) -> list[str]:
 def _clone_word_substitutions(content: str, rename_map: dict[str, str]) -> str:
     if not rename_map:
         return content
-    for old, new in sorted(rename_map.items(), key=lambda item: len(item[0]), reverse=True):
+    for old, new in sorted(
+        rename_map.items(), key=lambda item: len(item[0]), reverse=True
+    ):
         if not old:
             continue
         escaped_old = re.escape(old)
@@ -1337,7 +1452,9 @@ def _rename_segment(path_name: str, rename_map: dict[str, str]) -> str:
         return path_name
     stem = Path(path_name).stem
     suffix = Path(path_name).suffix
-    for old, new in sorted(rename_map.items(), key=lambda item: len(item[0]), reverse=True):
+    for old, new in sorted(
+        rename_map.items(), key=lambda item: len(item[0]), reverse=True
+    ):
         if not old:
             continue
         if path_name == old:
@@ -1374,9 +1491,7 @@ def _build_page_clone_rename_map(
     return rename_map
 
 
-def _rename_paths_and_contents(
-    bundle_root: Path, rename_map: dict[str, str]
-) -> None:
+def _rename_paths_and_contents(bundle_root: Path, rename_map: dict[str, str]) -> None:
     if not rename_map:
         return
 
@@ -1518,7 +1633,9 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
     return declared
 
 
-def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict) -> bool:
+def _migrate_declared_app_ui_page_config(
+    active_app_path: Path | None, cfg: dict
+) -> bool:
     """Copy an app-owned ANALYSIS UI declaration into stale per-user settings."""
     seed_pages = _declared_app_pages_config(active_app_path)
     declared = _declared_app_ui_page_config(active_app_path)
@@ -1550,14 +1667,17 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
         if isinstance(raw_modules, list)
         else []
     )
-    seed_restricts_views = bool(seed_pages and seed_pages.get("restrict_to_view_module") is True)
+    seed_restricts_views = bool(
+        seed_pages and seed_pages.get("restrict_to_view_module") is True
+    )
     seed_modules = (
         [
             value.strip()
             for value in seed_pages.get("view_module", [])
             if isinstance(value, str) and value.strip()
         ]
-        if isinstance(seed_pages, dict) and isinstance(seed_pages.get("view_module"), list)
+        if isinstance(seed_pages, dict)
+        and isinstance(seed_pages.get("view_module"), list)
         else []
     )
     if seed_restricts_views:
@@ -1578,7 +1698,9 @@ def _migrate_declared_app_ui_page_config(active_app_path: Path | None, cfg: dict
     return changed
 
 
-def _migrate_declared_app_surface_config(active_app_path: Path | None, cfg: dict) -> bool:
+def _migrate_declared_app_surface_config(
+    active_app_path: Path | None, cfg: dict
+) -> bool:
     """Copy an app-owned surface declaration and hide legacy page bridges."""
     declared = app_surface_config(active_app_path)
     if not declared:
@@ -1595,14 +1717,17 @@ def _migrate_declared_app_surface_config(active_app_path: Path | None, cfg: dict
         changed = True
 
     seed_pages = _declared_app_pages_config(active_app_path)
-    seed_restricts_views = bool(seed_pages and seed_pages.get("restrict_to_view_module") is True)
+    seed_restricts_views = bool(
+        seed_pages and seed_pages.get("restrict_to_view_module") is True
+    )
     seed_modules = (
         [
             value.strip()
             for value in seed_pages.get("view_module", [])
             if isinstance(value, str) and value.strip()
         ]
-        if isinstance(seed_pages, dict) and isinstance(seed_pages.get("view_module"), list)
+        if isinstance(seed_pages, dict)
+        and isinstance(seed_pages.get("view_module"), list)
         else []
     )
     if seed_restricts_views:
@@ -1632,10 +1757,14 @@ def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool
     raw_modules = pages.get("view_module")
     raw_excluded = pages.get("excluded_views")
     has_network_module = isinstance(raw_modules, list) and any(
-        value.strip() == "view_maps_network" for value in raw_modules if isinstance(value, str)
+        value.strip() == "view_maps_network"
+        for value in raw_modules
+        if isinstance(value, str)
     )
     has_network_exclusion = isinstance(raw_excluded, list) and any(
-        value.strip() == "view_maps_network" for value in raw_excluded if isinstance(value, str)
+        value.strip() == "view_maps_network"
+        for value in raw_excluded
+        if isinstance(value, str)
     )
     has_legacy_default = pages.get("default_view") == "view_maps_network"
     if not has_legacy_default and not has_network_module and not has_network_exclusion:
@@ -1753,7 +1882,15 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         return False
     try:
         await render_view_page(Path(current_page))
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+        ImportError,
+    ) as exc:
         st.error(f"Failed to render view: {exc}")
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
@@ -1795,14 +1932,24 @@ async def _render_selected_notebook_route(current_notebook: str | None) -> bool:
         return False
     try:
         await render_notebook_page(Path(current_notebook))
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+        ImportError,
+    ) as exc:
         st.error(f"Failed to render notebook: {exc}")
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
     return True
 
 
-def _create_analysis_page_bundle(pages_root: Path, page_name: str, clone_source: str) -> Path:
+def _create_analysis_page_bundle(
+    pages_root: Path, page_name: str, clone_source: str
+) -> Path:
     """Create a new analysis page bundle from a blank template or an existing bundle."""
     if clone_source:
         source_entry = Path(clone_source)
@@ -1822,9 +1969,7 @@ def _resolve_clone_source_root(view_path: Path) -> Path:
     return _resolve_page_project_root(view_path) or view_path
 
 
-def _clone_view_bundle(
-    source_path: Path, source_root: Path, target_root: Path
-) -> Path:
+def _clone_view_bundle(source_path: Path, source_root: Path, target_root: Path) -> Path:
     source_path = source_path.resolve()
     source_root = source_root.resolve()
     if not source_root.exists():
@@ -1838,7 +1983,9 @@ def _clone_view_bundle(
             dirs_exist_ok=False,
             ignore=_analysis_page_clone_ignore,
         )
-        rename_map = _build_page_clone_rename_map(source_path, source_root, target_root.name)
+        rename_map = _build_page_clone_rename_map(
+            source_path, source_root, target_root.name
+        )
         _rename_paths_and_contents(target_root, rename_map)
     else:
         raise FileExistsError(f"Target page already exists: {target_root}")
@@ -1921,22 +2068,54 @@ def _active_analysis_data_root(env: Any) -> Path | None:
 
 def _scan_analysis_artifacts(root: Path | None, *, limit: int = 5000) -> dict[str, Any]:
     if root is None:
-        return {"count": 0, "latest": None, "examples": [], "root": None, "exists": False, "truncated": False}
+        return {
+            "count": 0,
+            "latest": None,
+            "examples": [],
+            "root": None,
+            "exists": False,
+            "truncated": False,
+        }
     try:
         root = root.expanduser()
     except (OSError, RuntimeError):
-        return {"count": 0, "latest": None, "examples": [], "root": root, "exists": False, "truncated": False}
+        return {
+            "count": 0,
+            "latest": None,
+            "examples": [],
+            "root": root,
+            "exists": False,
+            "truncated": False,
+        }
     if not root.exists():
-        return {"count": 0, "latest": None, "examples": [], "root": root, "exists": False, "truncated": False}
+        return {
+            "count": 0,
+            "latest": None,
+            "examples": [],
+            "root": root,
+            "exists": False,
+            "truncated": False,
+        }
 
-    ignored_dirs = {".venv", "venv", "__pycache__", ".git", ".pytest_cache", ".mypy_cache"}
+    ignored_dirs = {
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".git",
+        ".pytest_cache",
+        ".mypy_cache",
+    }
     count = 0
     latest: float | None = None
     examples: list[str] = []
     truncated = False
     try:
         for current_root, dirs, files in os.walk(root):
-            dirs[:] = sorted(dirname for dirname in dirs if dirname not in ignored_dirs and not dirname.startswith("."))
+            dirs[:] = sorted(
+                dirname
+                for dirname in dirs
+                if dirname not in ignored_dirs and not dirname.startswith(".")
+            )
             for filename in sorted(files):
                 path = Path(current_root) / filename
                 if path.suffix.lower() not in _ANALYSIS_ARTIFACT_SUFFIXES:
@@ -1957,8 +2136,22 @@ def _scan_analysis_artifacts(root: Path | None, *, limit: int = 5000) -> dict[st
     except StopIteration:
         pass
     except OSError:
-        return {"count": count, "latest": latest, "examples": examples, "root": root, "exists": True, "truncated": truncated}
-    return {"count": count, "latest": latest, "examples": examples, "root": root, "exists": True, "truncated": truncated}
+        return {
+            "count": count,
+            "latest": latest,
+            "examples": examples,
+            "root": root,
+            "exists": True,
+            "truncated": truncated,
+        }
+    return {
+        "count": count,
+        "latest": latest,
+        "examples": examples,
+        "root": root,
+        "exists": True,
+        "truncated": truncated,
+    }
 
 
 def _format_analysis_latest(timestamp: float | None) -> str:
@@ -2013,13 +2206,21 @@ def _render_analysis_workspace_overview(
 ) -> None:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
-    project_label = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
+    project_label = str(
+        getattr(env, "app", "") or getattr(env, "target", "") or "project"
+    )
     selected_views = tuple(getattr(selection_state, "selected_views", ()) or ())
     selected_count = len(selected_views)
     latest_label = _format_analysis_latest(artifact_summary["latest"])
     latest_value = latest_label if artifact_count else "No output"
-    latest_caption = "latest file timestamp" if artifact_count else "run a project first"
-    views_caption = f"{selected_count} linked to {project_label}" if selected_count else "choose views below"
+    latest_caption = (
+        "latest file timestamp" if artifact_count else "run a project first"
+    )
+    views_caption = (
+        f"{selected_count} linked to {project_label}"
+        if selected_count
+        else "choose views below"
+    )
     notebooks_caption = (
         f"{selected_notebook_count} linked to {project_label}"
         if selected_notebook_count
@@ -2032,11 +2233,17 @@ def _render_analysis_workspace_overview(
         cols = st.columns(4)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
-            _render_analysis_metric("Output files", f"{artifact_count}{suffix}", latest_label)
+            _render_analysis_metric(
+                "Output files", f"{artifact_count}{suffix}", latest_label
+            )
         with cols[1]:
             _render_analysis_metric("Latest output", latest_value, latest_caption)
         with cols[2]:
-            _render_analysis_metric("Views selected", f"{selected_count}/{available_view_count}", views_caption)
+            _render_analysis_metric(
+                "Views selected",
+                f"{selected_count}/{available_view_count}",
+                views_caption,
+            )
         with cols[3]:
             _render_analysis_metric(
                 "Notebooks selected",
@@ -2085,7 +2292,9 @@ def _render_analysis_surface_guide(*, expanded: bool = False) -> None:
                 "Keep an AGI page as the stable result surface and link a notebook for "
                 "the investigation trail or AGI snippets behind the result."
             )
-            st.markdown("_Consequence: page state and notebook selections are saved separately._")
+            st.markdown(
+                "_Consequence: page state and notebook selections are saved separately._"
+            )
 
 
 def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
@@ -2126,7 +2335,9 @@ def _render_analysis_sidebar_view_launcher(
         if view_path is None:
             missing_views.append(display_label)
             continue
-        link_href = html.escape(_analysis_sidebar_view_url(project, view_path), quote=True)
+        link_href = html.escape(
+            _analysis_sidebar_view_url(project, view_path), quote=True
+        )
         link_label = html.escape(display_label)
         link_weight = "650" if view_name in linked_views else "450"
         link_rows.append(
@@ -2175,7 +2386,9 @@ def _render_analysis_sidebar_notebook_launcher(
         if notebook_path is None:
             missing_notebooks.append(display_label)
             continue
-        link_href = html.escape(_analysis_sidebar_notebook_url(project, notebook_path), quote=True)
+        link_href = html.escape(
+            _analysis_sidebar_notebook_url(project, notebook_path), quote=True
+        )
         link_label = html.escape(display_label)
         link_weight = "650" if notebook_name in linked_notebooks else "450"
         link_rows.append(
@@ -2248,7 +2461,13 @@ def _render_custom_analysis_page_authoring(
                     entrypoint_path = _create_analysis_page_bundle(
                         pages_root, page_name, clone_source
                     )
-                except (FileNotFoundError, OSError, shutil.Error, ValueError, RuntimeError) as e:
+                except (
+                    FileNotFoundError,
+                    OSError,
+                    shutil.Error,
+                    ValueError,
+                    RuntimeError,
+                ) as e:
                     st.error(f"Failed to create template page: {e}")
                 else:
                     entry_key = str(entrypoint_path)
@@ -2260,7 +2479,10 @@ def _render_custom_analysis_page_authoring(
                         selected_for_project.append(entry_key)
                     st.session_state[selection_key] = selected_for_project
                     bundle_root = entrypoint_path.parent
-                    if entrypoint_path.parent.name == "src" and len(entrypoint_path.parents) > 2:
+                    if (
+                        entrypoint_path.parent.name == "src"
+                        and len(entrypoint_path.parents) > 2
+                    ):
                         bundle_root = entrypoint_path.parent.parent
                     elif (
                         entrypoint_path.parent.name == page_name
@@ -2279,8 +2501,12 @@ def _render_custom_analysis_page_authoring(
 def _is_hosted_analysis_runtime(env: AgiEnv) -> bool:
     """Return True when the current AGILAB runtime is hosted behind a public HF Space."""
     envars = getattr(env, "envars", {}) or {}
-    space_host = str(envars.get("SPACE_HOST", "") or os.environ.get("SPACE_HOST", "") or "").strip()
-    space_id = str(envars.get("SPACE_ID", "") or os.environ.get("SPACE_ID", "") or "").strip()
+    space_host = str(
+        envars.get("SPACE_HOST", "") or os.environ.get("SPACE_HOST", "") or ""
+    ).strip()
+    space_id = str(
+        envars.get("SPACE_ID", "") or os.environ.get("SPACE_ID", "") or ""
+    ).strip()
     return bool(space_host or space_id)
 
 
@@ -2309,7 +2535,9 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
 
         spec = importlib.util.spec_from_file_location(module_name, resolved_view)
         if spec is None or spec.loader is None:
-            raise ModuleNotFoundError(f"Unable to load analysis view from {resolved_view}")
+            raise ModuleNotFoundError(
+                f"Unable to load analysis view from {resolved_view}"
+            )
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
@@ -2331,7 +2559,9 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
         sys.modules.pop(module_name, None)
 
 
-def _project_root_for_notebook(notebook_path: Path, active_app_path: Path | None) -> Path:
+def _project_root_for_notebook(
+    notebook_path: Path, active_app_path: Path | None
+) -> Path:
     resolved_notebook = notebook_path.resolve()
     if active_app_path is not None:
         try:
@@ -2342,7 +2572,11 @@ def _project_root_for_notebook(notebook_path: Path, active_app_path: Path | None
     for parent in resolved_notebook.parents:
         if parent.name == "notebooks":
             return parent.parent
-    return active_app_path.resolve() if active_app_path is not None else resolved_notebook.parent
+    return (
+        active_app_path.resolve()
+        if active_app_path is not None
+        else resolved_notebook.parent
+    )
 
 
 def _notebook_log_paths(notebook_path: Path, logs_root: Path) -> tuple[str, str]:
@@ -2416,7 +2650,9 @@ def _ensure_notebook_sidecar(
         f"--ServerApp.root_dir={project_home}",
         f"--ServerApp.tornado_settings={tornado_settings}",
     ]
-    env.logger.info("Starting project notebook sidecar: %s", _format_bg_command(run_cmd))
+    env.logger.info(
+        "Starting project notebook sidecar: %s", _format_bg_command(run_cmd)
+    )
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
     run_process = exec_bg(env, run_cmd, cwd=project_home, process_env=uv_process_env)
 
@@ -2458,9 +2694,12 @@ def _hide_parent_sidebar():
         """,
         unsafe_allow_html=True,
     )
+
+
 # --- end helper ---
 
 # =============== Page logic ==================
+
 
 def _read_config(path: Path) -> dict:
     try:
@@ -2475,6 +2714,7 @@ def _read_config(path: Path) -> dict:
 def _normalize_view_name(value: str) -> str:
     """Normalize page bundle labels by removing leading icon glyphs/decoration."""
     return _analysis_normalize_view_name(value)
+
 
 def _write_config(path: Path, cfg: dict):
     try:
@@ -2520,10 +2760,10 @@ async def main():
     current_notebook = qp.get("current_notebook")
     requested_app = qp.get("active_app")
 
-    if 'env' not in st.session_state:
+    if "env" not in st.session_state:
         env = _initialize_analysis_env(requested_app)
     else:
-        env = st.session_state['env']
+        env = st.session_state["env"]
 
     if env.app:
         st.query_params["active_app"] = env.app
@@ -2535,7 +2775,9 @@ async def main():
 
     # Sidebar: project selection
     projects = env.projects
-    current_project = env.app if env.app in projects else (projects[0] if projects else None)
+    current_project = (
+        env.app if env.app in projects else (projects[0] if projects else None)
+    )
     render_project_selector(st, projects, current_project, on_change=on_project_change)
     if env.app:
         st.query_params["active_app"] = env.app
@@ -2577,7 +2819,9 @@ async def main():
         migrated_cfg = True
     if migrated_cfg:
         _write_config(app_settings, cfg)
-    if await _render_configured_app_surface(active_app_path, cfg, current_page=current_page):
+    if await _render_configured_app_surface(
+        active_app_path, cfg, current_page=current_page
+    ):
         return
     configured_views: list[str] = [
         str(v)
@@ -2593,7 +2837,9 @@ async def main():
         _, custom_path = custom_entry
         custom_view_lookup[str(custom_path)] = custom_path
 
-    all_available_views = sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
+    all_available_views = sorted(
+        set(resolved_pages.keys()) | set(custom_view_lookup.keys())
+    )
     if not all_available_views:
         st.info("No pages found under AGILAB_PAGES_ABS.")
 
@@ -2622,8 +2868,13 @@ async def main():
     view_names = list(selection_state.view_names)
     widget_selection = list(selection_state.widget_selection)
     if not has_view_session_selection:
-        for default_view_name in reversed(tuple(getattr(selection_state, "default_view_names", ()) or ())):
-            if default_view_name in view_names and default_view_name not in widget_selection:
+        for default_view_name in reversed(
+            tuple(getattr(selection_state, "default_view_names", ()) or ())
+        ):
+            if (
+                default_view_name in view_names
+                and default_view_name not in widget_selection
+            ):
                 widget_selection.insert(0, default_view_name)
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
@@ -2658,7 +2909,9 @@ async def main():
     )
 
     with st.expander("Choose analysis views", expanded=False):
-        st.caption("Select which views appear in the sidebar launcher for this project.")
+        st.caption(
+            "Select which views appear in the sidebar launcher for this project."
+        )
         selected_views = st.multiselect(
             "Analysis views",
             view_names,
@@ -2705,7 +2958,9 @@ async def main():
         has_session_selection=True,
     )
     selected_views = list(selection_state.selected_views)
-    selected_notebooks = [name for name in selected_notebooks if name in notebook_lookup]
+    selected_notebooks = [
+        name for name in selected_notebooks if name in notebook_lookup
+    ]
     _render_analysis_sidebar_view_launcher(
         project=project,
         selected_views=selected_views,
@@ -2762,14 +3017,18 @@ async def render_notebook_page(notebook_path: Path):
     env = st.session_state["env"]
     resolved_notebook = Path(notebook_path).expanduser().resolve()
     if resolved_notebook.suffix.lower() != ".ipynb":
-        raise ValueError(f"Selected notebook is not an .ipynb file: {resolved_notebook}")
+        raise ValueError(
+            f"Selected notebook is not an .ipynb file: {resolved_notebook}"
+        )
     if not resolved_notebook.exists():
         raise FileNotFoundError(f"Notebook does not exist: {resolved_notebook}")
 
     active_app_path = _active_app_path_for_env(env)
     project_root = _project_root_for_notebook(resolved_notebook, active_app_path)
     try:
-        notebook_label = resolved_notebook.relative_to(project_root / "notebooks").as_posix()
+        notebook_label = resolved_notebook.relative_to(
+            project_root / "notebooks"
+        ).as_posix()
     except ValueError:
         notebook_label = resolved_notebook.name
 
@@ -2790,7 +3049,9 @@ async def render_notebook_page(notebook_path: Path):
 
     notebook_key = f"{notebook_label}|{project_root.as_posix()}"
     port = _port_for(f"notebook|{notebook_key}")
-    sidecar_ready = _ensure_notebook_sidecar(notebook_key, resolved_notebook, port, project_root)
+    sidecar_ready = _ensure_notebook_sidecar(
+        notebook_key, resolved_notebook, port, project_root
+    )
 
     qp = st.query_params
     extras = {}
@@ -2802,7 +3063,11 @@ async def render_notebook_page(notebook_path: Path):
     query = urlencode(extras, doseq=True)
     notebook_url_path = _notebook_lab_tree_path(resolved_notebook, project_root)
     if not sidecar_ready:
-        env.logger.error("Notebook sidecar failed to start for %s on port %s.", resolved_notebook, port)
+        env.logger.error(
+            "Notebook sidecar failed to start for %s on port %s.",
+            resolved_notebook,
+            port,
+        )
         log_file, err_file = _notebook_log_paths(resolved_notebook, env.AGILAB_LOG_ABS)
         logs = Path(log_file)
         errors = Path(err_file)
@@ -2810,14 +3075,20 @@ async def render_notebook_page(notebook_path: Path):
         st.caption("If this persists, check logs and sidecar attempts below.")
         with st.expander("Notebook sidecar logs", expanded=True):
             if logs.exists():
-                st.code(logs.read_text(encoding="utf-8", errors="ignore"), language="bash")
+                st.code(
+                    logs.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                )
             else:
                 st.write("No log file found.")
             if errors.exists():
-                st.code(errors.read_text(encoding="utf-8", errors="ignore"), language="bash")
+                st.code(
+                    errors.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                )
             else:
                 st.write("No error log file found.")
-            sidecar_attempts = st.session_state.get(f"notebook_sidecar_attempts__{notebook_key}", [])
+            sidecar_attempts = st.session_state.get(
+                f"notebook_sidecar_attempts__{notebook_key}", []
+            )
             if sidecar_attempts:
                 st.markdown("Attempt summary:")
                 st.code("\n".join(sidecar_attempts), language="bash")
@@ -2835,7 +3106,7 @@ async def render_view_page(
     back_query_params: dict[str, str] | None = None,
 ):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
-    env = st.session_state['env']
+    env = st.session_state["env"]
     # Hide THIS page's sidebar while a child view is displayed
     _hide_parent_sidebar()
 
@@ -2859,7 +3130,9 @@ async def render_view_page(
     active_app_arg = _active_app_arg_for_env(env)
 
     if _is_hosted_analysis_runtime(env):
-        env.logger.info("Hosted runtime detected; rendering analysis view inline: %s", view_path)
+        env.logger.info(
+            "Hosted runtime detected; rendering analysis view inline: %s", view_path
+        )
         await _render_view_page_inline(view_path, active_app_arg)
         return
 
@@ -2884,11 +3157,15 @@ async def render_view_page(
         st.caption("If this persists, check logs and sidecar attempts below.")
         with st.expander("Sidecar logs", expanded=True):
             if logs.exists():
-                st.code(logs.read_text(encoding="utf-8", errors="ignore"), language="bash")
+                st.code(
+                    logs.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                )
             else:
                 st.write("No log file found.")
             if errors.exists():
-                st.code(errors.read_text(encoding="utf-8", errors="ignore"), language="bash")
+                st.code(
+                    errors.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                )
             else:
                 st.write("No error log file found.")
             sidecar_attempts = st.session_state.get(f"sidecar_attempts__{view_key}", [])
@@ -2901,6 +3178,7 @@ async def render_view_page(
     st.iframe(url, height=900)
 
     # --- end sidecar embed ---
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -102,7 +102,9 @@ def test_ensure_asyncio_run_signature_handles_uninspectable_run():
 
     runtime_misc_support.ensure_asyncio_run_signature(
         asyncio_module=fake_asyncio,
-        inspect_signature_fn=lambda *_a, **_k: (_ for _ in ()).throw(ValueError("no signature")),
+        inspect_signature_fn=lambda *_a, **_k: (_ for _ in ()).throw(
+            ValueError("no signature")
+        ),
     )
 
     assert fake_asyncio.run is _fake_run
@@ -152,7 +154,9 @@ def test_agi_version_missing_on_pypi_detection(tmp_path, monkeypatch):
     assert runtime_misc_support.agi_version_missing_on_pypi(project) is False
 
 
-def test_agi_version_missing_on_pypi_propagates_unexpected_lookup_bug(tmp_path, monkeypatch):
+def test_agi_version_missing_on_pypi_propagates_unexpected_lookup_bug(
+    tmp_path, monkeypatch
+):
     project = tmp_path / "project"
     project.mkdir(parents=True, exist_ok=True)
     (project / "pyproject.toml").write_text('agi-core = "==1.2.3"\n', encoding="utf-8")
@@ -167,7 +171,9 @@ def test_agi_version_missing_on_pypi_propagates_unexpected_lookup_bug(tmp_path, 
         runtime_misc_support.agi_version_missing_on_pypi(project)
 
 
-def test_agi_version_missing_on_pypi_ignores_unpinned_specs_and_read_failures(tmp_path, monkeypatch):
+def test_agi_version_missing_on_pypi_ignores_unpinned_specs_and_read_failures(
+    tmp_path, monkeypatch
+):
     project = tmp_path / "project"
     project.mkdir(parents=True, exist_ok=True)
     pyproject = project / "pyproject.toml"
@@ -200,7 +206,9 @@ def test_format_exception_chain_strips_generic_error_prefixes():
     class CustomError(Exception):
         pass
 
-    text = runtime_misc_support.format_exception_chain(CustomError("CustomError: precise detail"))
+    text = runtime_misc_support.format_exception_chain(
+        CustomError("CustomError: precise detail")
+    )
 
     assert text.endswith("CustomError: precise detail")
 
@@ -276,11 +284,17 @@ def test_load_capacity_predictor_handles_legacy_module_error(tmp_path):
     model_path = tmp_path / "balancer_model.pkl"
     model_path.write_bytes(b"pickle-bytes")
     calls = {"retrain": 0, "warnings": []}
-    log = SimpleNamespace(warning=lambda message, path, exc: calls["warnings"].append((message, path, str(exc))))
+    log = SimpleNamespace(
+        warning=lambda message, path, exc: calls["warnings"].append(
+            (message, path, str(exc))
+        )
+    )
 
     loaded = runtime_misc_support.load_capacity_predictor(
         model_path,
-        load_fn=lambda _stream: (_ for _ in ()).throw(ModuleNotFoundError("numpy.core.numeric")),
+        load_fn=lambda _stream: (_ for _ in ()).throw(
+            ModuleNotFoundError("numpy.core.numeric")
+        ),
         retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
         log=log,
     )
@@ -291,12 +305,62 @@ def test_load_capacity_predictor_handles_legacy_module_error(tmp_path):
     assert "numpy.core.numeric" in calls["warnings"][0][2]
 
 
+def test_load_capacity_predictor_rejects_model_outside_trusted_root(tmp_path):
+    model_path = tmp_path / "outside" / "balancer_model.pkl"
+    trusted_root = tmp_path / "resources"
+    model_path.parent.mkdir()
+    trusted_root.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path, exc: calls["warnings"].append(
+            (message, path, str(exc))
+        )
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        log=log,
+        trusted_root=trusted_root,
+    )
+
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert "outside trusted resource root" in calls["warnings"][0][2]
+
+
+def test_load_capacity_predictor_rejects_world_writable_trusted_model(tmp_path):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    model_path.chmod(0o666)
+    calls = {"load": 0, "retrain": 0}
+
+    try:
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+            retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+            trusted_root=model_path.parent,
+        )
+    finally:
+        model_path.chmod(0o600)
+
+    assert loaded is None
+    assert calls == {"load": 0, "retrain": 1}
+
+
 def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path):
     agi_cls = SimpleNamespace()
     env = SimpleNamespace(resources_path=tmp_path / "resources")
     env.resources_path.mkdir(parents=True, exist_ok=True)
     calls = {"info": []}
-    log = SimpleNamespace(info=lambda message, path: calls["info"].append((message, path)))
+    log = SimpleNamespace(
+        info=lambda message, path: calls["info"].append((message, path))
+    )
 
     predictor = runtime_misc_support.bootstrap_capacity_predictor(
         agi_cls,
@@ -310,7 +374,10 @@ def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path
     assert agi_cls._capacity_data_file == env.resources_path / "balancer_df.csv"
     assert agi_cls._capacity_model_file == env.resources_path / "balancer_model.pkl"
     assert calls["info"] == [
-        ("Capacity model not found at %s; skipping bootstrap.", agi_cls._capacity_model_file)
+        (
+            "Capacity model not found at %s; skipping bootstrap.",
+            agi_cls._capacity_model_file,
+        )
     ]
 
 
@@ -318,7 +385,11 @@ def test_initialize_runtime_state_sets_common_runtime_fields():
     agi_cls = SimpleNamespace()
     env = SimpleNamespace(manager_path=Path("/tmp/manager"), target="demo", verbose=1)
     calls = {"info": []}
-    log = SimpleNamespace(info=lambda message, target, verbose: calls["info"].append((message, target, verbose)))
+    log = SimpleNamespace(
+        info=lambda message, target, verbose: calls["info"].append(
+            (message, target, verbose)
+        )
+    )
 
     runtime_misc_support.initialize_runtime_state(
         agi_cls,
@@ -368,7 +439,9 @@ def test_configure_runtime_mode_rejects_invalid_type_with_custom_message():
     agi_cls = SimpleNamespace(_RUN_MASK=0b001111, RAPIDS_MODE=16, DASK_MODE=4)
     env = SimpleNamespace(mode2int=lambda value: value)
 
-    with pytest.raises(ValueError, match="parameter <mode> must be an int, a list of int or a string"):
+    with pytest.raises(
+        ValueError, match="parameter <mode> must be an int, a list of int or a string"
+    ):
         runtime_misc_support.configure_runtime_mode(
             agi_cls,
             env,
@@ -464,29 +537,40 @@ def test_hardware_supports_rapids_true_and_false(monkeypatch):
     monkeypatch.setattr(
         runtime_misc_support.subprocess,
         "run",
-        lambda *_a, **_k: (_ for _ in ()).throw(FileNotFoundError("nvidia-smi missing")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            FileNotFoundError("nvidia-smi missing")
+        ),
     )
     assert runtime_misc_support.hardware_supports_rapids() is False
 
 
 def test_should_install_pip_checks_user_and_scripts_path(tmp_path):
-    assert runtime_misc_support.should_install_pip(
-        getuser_fn=lambda: "agi",
-        sys_prefix=str(tmp_path),
-    ) is False
+    assert (
+        runtime_misc_support.should_install_pip(
+            getuser_fn=lambda: "agi",
+            sys_prefix=str(tmp_path),
+        )
+        is False
+    )
 
-    assert runtime_misc_support.should_install_pip(
-        getuser_fn=lambda: "T01234",
-        sys_prefix=str(tmp_path),
-    ) is True
+    assert (
+        runtime_misc_support.should_install_pip(
+            getuser_fn=lambda: "T01234",
+            sys_prefix=str(tmp_path),
+        )
+        is True
+    )
 
     scripts_dir = tmp_path / "Scripts"
     scripts_dir.mkdir()
     (scripts_dir / "pip.exe").write_text("", encoding="utf-8")
-    assert runtime_misc_support.should_install_pip(
-        getuser_fn=lambda: "T01234",
-        sys_prefix=str(tmp_path),
-    ) is False
+    assert (
+        runtime_misc_support.should_install_pip(
+            getuser_fn=lambda: "T01234",
+            sys_prefix=str(tmp_path),
+        )
+        is False
+    )
 
 
 def test_format_elapsed_uses_precisedelta_callback():

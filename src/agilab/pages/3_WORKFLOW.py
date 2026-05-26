@@ -10,10 +10,14 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 import re
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+
+os.environ.setdefault(
+    "STREAMLIT_CONFIG_FILE",
+    str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
+)
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
-import tomllib        # For reading TOML files
+import tomllib  # For reading TOML files
 
 PIPELINE_PROJECT_LABEL = "Project"
 PIPELINE_PROJECT_HELP = (
@@ -22,13 +26,27 @@ PIPELINE_PROJECT_HELP = (
 )
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
-_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+_import_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_import_guard_local", _import_guard_path
+)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
-    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+    raise ModuleNotFoundError(
+        f"Unable to load import_guard.py from {_import_guard_path}"
+    )
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 load_local_module = _import_guard_module.load_local_module
+
+_public_bind_guard_module = load_local_module(
+    "agilab.ui_public_bind_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
+    fallback_name="agilab_ui_public_bind_guard_fallback",
+)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(
+    st, streamlit_config_getter=st.config.get
+)
 
 _page_project_selector_module = load_local_module(
     "agilab.page_project_selector",
@@ -59,6 +77,7 @@ from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import app_name_aliases
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
+
 import_agilab_symbols(
     globals(),
     "agilab.pipeline_views",
@@ -284,13 +303,16 @@ import_agilab_symbols(
 STAGES_FILE_NAME = "lab_stages.toml"
 DEFAULT_DF = "lab_out.csv"
 SAFE_SERVICE_START_TEMPLATE_FILENAME = "AGI_serve_safe_start_template.py"
-SAFE_SERVICE_START_TEMPLATE_MARKER = "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START"
+SAFE_SERVICE_START_TEMPLATE_MARKER = (
+    "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START"
+)
 logger = logging.getLogger(__name__)
 ANSI_ESCAPE_RE = re.compile(r"\x1b[^m]*m")
 
 
 class JumpToMain(Exception):
     """Custom exception to jump back to the main execution flow."""
+
     pass
 
 
@@ -325,6 +347,7 @@ def run_all_stages(
         force_lock_clear=force_lock_clear,
     )
 
+
 def on_page_change() -> None:
     """Set the 'page_broken' flag in session state."""
     st.session_state.page_broken = True
@@ -341,11 +364,15 @@ def on_stage_change(
     st.session_state.stage_checked = False
     # Schedule prompt clear and blank on next render; bump input revision to remount widget
     st.session_state[f"{index_page}__clear_q"] = True
-    st.session_state[f"{index_page}__q_rev"] = st.session_state.get(f"{index_page}__q_rev", 0) + 1
+    st.session_state[f"{index_page}__q_rev"] = (
+        st.session_state.get(f"{index_page}__q_rev", 0) + 1
+    )
     # Drop any existing editor instance state for this stage (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_stage}", None)
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-    st.session_state["lab_selected_venv"] = normalize_runtime_path(venv_map.get(index_stage, ""))
+    st.session_state["lab_selected_venv"] = normalize_runtime_path(
+        venv_map.get(index_stage, "")
+    )
     # Do not call st.rerun() here: callbacks automatically trigger a rerun
     # after returning. Rely on the updated session_state to refresh the UI.
     return
@@ -418,7 +445,9 @@ def clean_query(index_page: str) -> None:
     df_value = st.session_state.get("df_file", "") or ""
     st.session_state[index_page][1:-1] = [df_value, "", "", "", ""]
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
-    current_stage = st.session_state[index_page][0] if index_page in st.session_state else None
+    current_stage = (
+        st.session_state[index_page][0] if index_page in st.session_state else None
+    )
     if current_stage is not None:
         details_store.pop(current_stage, None)
         venv_store = st.session_state.setdefault(f"{index_page}__venv_map", {})
@@ -443,7 +472,9 @@ def _resolve_dataframe_selection(
     export_root_resolved = export_root.resolve(strict=False)
     if raw_path.is_absolute():
         try:
-            relative_path = raw_path.resolve(strict=False).relative_to(export_root_resolved)
+            relative_path = raw_path.resolve(strict=False).relative_to(
+                export_root_resolved
+            )
         except ValueError:
             return None
     else:
@@ -451,7 +482,9 @@ def _resolve_dataframe_selection(
 
     if relative_path not in df_files_rel:
         return None
-    return relative_path, str((export_root_resolved / relative_path).resolve(strict=False))
+    return relative_path, str(
+        (export_root_resolved / relative_path).resolve(strict=False)
+    )
 
 
 def _apply_dataframe_picker_selection(
@@ -483,7 +516,9 @@ def _apply_dataframe_picker_selection(
     return current_df_rel is not None and current_df_rel != picked_df_rel
 
 
-def _clear_dataframe_picker_selection(dataframe_key: str, *, picker_key: str | None = None) -> None:
+def _clear_dataframe_picker_selection(
+    dataframe_key: str, *, picker_key: str | None = None
+) -> None:
     if picker_key:
         st.session_state.pop(f"{picker_key}:selected_paths", None)
     st.session_state.pop(dataframe_key, None)
@@ -492,7 +527,9 @@ def _clear_dataframe_picker_selection(dataframe_key: str, *, picker_key: str | N
 
 
 @st.cache_data(show_spinner=False)
-def _read_stages(stages_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
+def _read_stages(
+    stages_file: Path, module_key: str, mtime_ns: int
+) -> List[Dict[str, Any]]:
     """Read stages for a specific module key from a TOML file.
 
     Caches on (path, module_key, mtime_ns) so saves invalidate automatically.
@@ -511,7 +548,13 @@ def _ensure_notebook_export(stages_file: Path) -> None:
         with open(stages_file, "rb") as stream:
             stages_full = tomllib.load(stream)
         toml_to_notebook(stages_full, stages_file)
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        tomllib.TOMLDecodeError,
+        TypeError,
+        ValueError,
+    ) as exc:
         logger.warning(
             "Skipping notebook generation: %s",
             bound_log_value(exc, LOG_DETAIL_LIMIT),
@@ -582,13 +625,17 @@ def _render_notebook_actions(
             stages_file,
             project_name=project_name,
         )
-        notebook_path = refresh_notebook_export(stages_file, export_context=export_context)
+        notebook_path = refresh_notebook_export(
+            stages_file, export_context=export_context
+        )
         st.markdown("##### Export")
         if notebook_path and notebook_path.exists():
             _render_notebook_download_button(
                 notebook_path,
                 index_page_str + "export_notebook",
-                pycharm_path=resolve_pycharm_notebook_path(stages_file, export_context=export_context),
+                pycharm_path=resolve_pycharm_notebook_path(
+                    stages_file, export_context=export_context
+                ),
             )
         else:
             st.caption("No notebook export is available for this pipeline yet.")
@@ -645,7 +692,9 @@ def on_query_change(
             trimmed = raw_text.strip()
             # Skip chat calls when the input looks like a pure comment.
             if trimmed.startswith("#") or trimmed.endswith("#"):
-                st.info("Query skipped because it looks like a comment (starts/ends with '#').")
+                st.info(
+                    "Query skipped because it looks like a comment (starts/ends with '#')."
+                )
                 return
 
             answer = ask_gpt(
@@ -658,12 +707,16 @@ def on_query_change(
             )
             detail = answer[4] if len(answer) > 4 else ""
             model_label = answer[2] if len(answer) > 2 else ""
-            extra_fields = answer[5] if len(answer) > 5 and isinstance(answer[5], dict) else None
+            extra_fields = (
+                answer[5] if len(answer) > 5 and isinstance(answer[5], dict) else None
+            )
             if not str(answer[3] if len(answer) > 3 else "").strip():
                 if detail:
                     st.info(detail)
                 else:
-                    st.info("Assistant response did not include runnable code. Stage was not saved.")
+                    st.info(
+                        "Assistant response did not include runnable code. Stage was not saved."
+                    )
                 return
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
             engine_map = st.session_state.get(f"{index_page}__engine_map", {})
@@ -685,7 +738,9 @@ def on_query_change(
             else:
                 details_store[stage] = detail
             if skipped:
-                st.info("Assistant response did not include runnable code. Stage was not saved.")
+                st.info(
+                    "Assistant response did not include runnable code. Stage was not saved."
+                )
             _bump_history_revision()
             st.session_state[index_page][0] = stage
             # Deterministic mapping to D/Q/M/C slots
@@ -733,8 +788,7 @@ def on_nb_change(
     if notebook_file.exists():
         cmd = ["uv", "-q", "run", "jupyter", "notebook", str(notebook_file)]
         code = (
-            "import subprocess\n"
-            f"subprocess.Popen({cmd!r}, cwd={str(project_path)!r})\n"
+            f"import subprocess\nsubprocess.Popen({cmd!r}, cwd={str(project_path)!r})\n"
         )
         output = run_agi(code, path=project_path)
         if output is None:
@@ -774,7 +828,9 @@ def _canonical_pipeline_project_name(raw_name: Any, project_catalog: List[str]) 
     return name
 
 
-def _canonical_pipeline_project_modules(env: AgiEnv, raw_modules: List[str]) -> List[str]:
+def _canonical_pipeline_project_modules(
+    env: AgiEnv, raw_modules: List[str]
+) -> List[str]:
     project_catalog = _pipeline_project_catalog(env)
     modules: List[str] = []
     seen: set[str] = set()
@@ -844,11 +900,15 @@ def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     Agi_export_abs = _pipeline_export_root(env)
-    modules = _canonical_pipeline_project_modules(env, _available_lab_modules(env, Agi_export_abs))
+    modules = _canonical_pipeline_project_modules(
+        env, _available_lab_modules(env, Agi_export_abs)
+    )
     if not modules:
         modules = [env.target] if env.target else []
 
-    requested_lab = _normalize_lab_choice(st.session_state.get("_requested_lab_dir"), modules)
+    requested_lab = _normalize_lab_choice(
+        st.session_state.get("_requested_lab_dir"), modules
+    )
 
     # If no explicit project was known, prefer the configured environment target.
     project_changed = st.session_state.pop("project_changed", False)
@@ -874,7 +934,7 @@ def sidebar_controls() -> None:
     modules = [m for m in modules if m != "apps"]
     if not modules:
         modules = ["apps"]
-    st.session_state['modules'] = modules
+    st.session_state["modules"] = modules
 
     def _qp_first(key: str) -> str | None:
         val = st.query_params.get(key)
@@ -911,7 +971,9 @@ def sidebar_controls() -> None:
     project_index = modules.index(persisted_lab) if persisted_lab in modules else 0
     if st.session_state.get("project_selectbox") not in project_options:
         st.session_state.pop("project_selectbox", None)
-    project_selector_col, project_edit_col = st.sidebar.columns([0.76, 0.24], vertical_alignment="bottom")
+    project_selector_col, project_edit_col = st.sidebar.columns(
+        [0.76, 0.24], vertical_alignment="bottom"
+    )
     selected_lab = project_selector_col.selectbox(
         PIPELINE_PROJECT_LABEL,
         project_options,
@@ -938,7 +1000,9 @@ def sidebar_controls() -> None:
         diagnostics_settings_file = env.resolve_user_app_settings_file(selected_lab)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         diagnostics_settings_file = getattr(env, "app_settings_file", None)
-    diagnostics_settings = load_runtime_diagnostics_settings_file(diagnostics_settings_file)
+    diagnostics_settings = load_runtime_diagnostics_settings_file(
+        diagnostics_settings_file
+    )
     selected_diagnostics_verbose = global_diagnostics_verbose(
         session_state=st.session_state,
         envars=getattr(env, "envars", None),
@@ -1003,16 +1067,22 @@ def sidebar_controls() -> None:
     if not stages_file.parent.exists():
         stages_file.parent.mkdir(parents=True, exist_ok=True)
 
-    df_files_rel = sorted((Path(file).relative_to(Agi_export_abs) for file in df_files), key=str)
+    df_files_rel = sorted(
+        (Path(file).relative_to(Agi_export_abs) for file in df_files), key=str
+    )
     key_df = index_page_str + "df"
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
     df_file_default = st.session_state.get("df_file")
     current_df_selection = st.session_state.get(key_df)
-    if current_df_selection is not None and _resolve_dataframe_selection(
-        current_df_selection,
-        df_files_rel=df_files_rel,
-        export_root=Agi_export_abs,
-    ) is None:
+    if (
+        current_df_selection is not None
+        and _resolve_dataframe_selection(
+            current_df_selection,
+            df_files_rel=df_files_rel,
+            export_root=Agi_export_abs,
+        )
+        is None
+    ):
         st.session_state.pop(key_df, None)
 
     picker_default: Path | None = None
@@ -1043,15 +1113,22 @@ def sidebar_controls() -> None:
         st.sidebar.caption("Used by generated pipeline steps.")
         if picked_df:
             try:
-                picked_df_rel = Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
+                picked_df_rel = (
+                    Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
+                )
             except ValueError:
-                st.sidebar.warning("Selected data source is outside the export directory.")
+                st.sidebar.warning(
+                    "Selected data source is outside the export directory."
+                )
             else:
-                if _resolve_dataframe_selection(
-                    picked_df_rel,
-                    df_files_rel=df_files_rel,
-                    export_root=Agi_export_abs,
-                ) is None:
+                if (
+                    _resolve_dataframe_selection(
+                        picked_df_rel,
+                        df_files_rel=df_files_rel,
+                        export_root=Agi_export_abs,
+                    )
+                    is None
+                ):
                     _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
                 else:
                     dataframe_changed = _apply_dataframe_picker_selection(
@@ -1067,11 +1144,14 @@ def sidebar_controls() -> None:
             _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
     else:
         _clear_dataframe_picker_selection(key_df, picker_key=picker_key)
-    if _resolve_dataframe_selection(
-        st.session_state.get(key_df),
-        df_files_rel=df_files_rel,
-        export_root=Agi_export_abs,
-    ) is None:
+    if (
+        _resolve_dataframe_selection(
+            st.session_state.get(key_df),
+            df_files_rel=df_files_rel,
+            export_root=Agi_export_abs,
+        )
+        is None
+    ):
         _clear_dataframe_picker_selection(key_df)
 
     # Persist sidebar selections into query params for reloads
@@ -1110,16 +1190,27 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
         with open(pre_prompt_path, encoding="utf-8") as stream:
             pre_prompt_content = json.load(stream)
     except FileNotFoundError:
-        logger.info("No pre_prompt.json found at %s; using empty Workflow prompt.", pre_prompt_path)
+        logger.info(
+            "No pre_prompt.json found at %s; using empty Workflow prompt.",
+            pre_prompt_path,
+        )
         return []
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+    ) as exc:
         st.warning(f"Failed to load pre_prompt.json: {exc}")
         return []
 
     if isinstance(pre_prompt_content, list):
         return pre_prompt_content
 
-    st.warning(f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt.")
+    st.warning(
+        f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt."
+    )
     return []
 
 
@@ -1233,9 +1324,16 @@ def _scan_pipeline_output_files(root: Path, *, limit: int = 500) -> dict[str, An
     truncated = False
     try:
         for current_root, dirs, files in os.walk(root):
-            dirs[:] = sorted(dirname for dirname in dirs if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS)
+            dirs[:] = sorted(
+                dirname
+                for dirname in dirs
+                if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS
+            )
             for filename in sorted(files):
-                if filename.startswith(".") or filename in _PIPELINE_OUTPUT_EXCLUDED_NAMES:
+                if (
+                    filename.startswith(".")
+                    or filename in _PIPELINE_OUTPUT_EXCLUDED_NAMES
+                ):
                     continue
                 path = Path(current_root) / filename
                 count += 1
@@ -1252,7 +1350,12 @@ def _scan_pipeline_output_files(root: Path, *, limit: int = 500) -> dict[str, An
         pass
     except OSError:
         pass
-    return {"count": count, "dataframes": dataframes, "latest": latest, "truncated": truncated}
+    return {
+        "count": count,
+        "dataframes": dataframes,
+        "latest": latest,
+        "truncated": truncated,
+    }
 
 
 def _latest_pipeline_workspace_mtime(root: Path, stages_file: Path) -> float | None:
@@ -1260,7 +1363,11 @@ def _latest_pipeline_workspace_mtime(root: Path, stages_file: Path) -> float | N
     if root.exists():
         try:
             for current_root, dirs, files in os.walk(root):
-                dirs[:] = sorted(dirname for dirname in dirs if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS)
+                dirs[:] = sorted(
+                    dirname
+                    for dirname in dirs
+                    if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS
+                )
                 for filename in sorted(files):
                     if filename.startswith("."):
                         continue
@@ -1326,8 +1433,14 @@ def _pipeline_graph_shape_summary(
 
     if shape is not None:
         nodes, links = shape
-        source_label = conceptual_source.name if conceptual_source else "conceptual view"
-        return f"{nodes}/{links}", f"{source_label}: stages / dependencies", "ready" if nodes else "incomplete"
+        source_label = (
+            conceptual_source.name if conceptual_source else "conceptual view"
+        )
+        return (
+            f"{nodes}/{links}",
+            f"{source_label}: stages / dependencies",
+            "ready" if nodes else "incomplete",
+        )
 
     execution_links = max(execution_nodes - 1, 0)
     return (
@@ -1337,7 +1450,9 @@ def _pipeline_graph_shape_summary(
     )
 
 
-def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, stages_file: Path) -> None:
+def _render_pipeline_workspace_overview(
+    env: AgiEnv, lab_dir: Path, stages_file: Path
+) -> None:
     stages = get_stages_list(lab_dir, stages_file)
     total_stages = len(stages)
     dict_stages = [entry for entry in stages if isinstance(entry, dict)]
@@ -1375,7 +1490,9 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, stages_file:
             _render_pipeline_header_card(
                 "Output files",
                 f"{output_count}{output_suffix}",
-                _format_pipeline_timestamp(output_summary["latest"], empty="no output yet"),
+                _format_pipeline_timestamp(
+                    output_summary["latest"], empty="no output yet"
+                ),
                 state="ready" if output_count else "incomplete",
             )
 
@@ -1422,7 +1539,9 @@ def page() -> None:
         return
 
     if "openai_api_key" not in st.session_state:
-        seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get(
+            "OPENAI_API_KEY", ""
+        )
         if seed_key:
             st.session_state["openai_api_key"] = seed_key
 
@@ -1462,7 +1581,9 @@ def page() -> None:
     load_last_stage(module_path, stages_file, index_page_str)
 
     df_file = st.session_state.get("df_file")
-    if not is_dag_based_app(env, index_page_str) and (not df_file or not Path(df_file).exists()):
+    if not is_dag_based_app(env, index_page_str) and (
+        not df_file or not Path(df_file).exists()
+    ):
         default_df_path = (lab_dir / DEFAULT_DF).resolve()
         _caption_once(
             f"missing_df::{lab_dir}",
@@ -1526,7 +1647,9 @@ def get_df_files(export_abs_path: Path) -> List[Path]:
 
 
 @st.cache_data
-def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Optional[pd.DataFrame]:
+def load_df_cached(
+    path: Path, nrows: int = 50, with_index: bool = True
+) -> Optional[pd.DataFrame]:
     return load_df(path, nrows, with_index)
 
 
@@ -1535,7 +1658,7 @@ def main() -> None:
     if env is None:
         return
 
-    env: AgiEnv = st.session_state['env']
+    env: AgiEnv = st.session_state["env"]
 
     try:
         st.set_page_config(
@@ -1548,17 +1671,23 @@ def main() -> None:
         st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
         st.session_state.setdefault("projects", env.apps_path)
-        st.session_state.setdefault("snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py")
+        st.session_state.setdefault(
+            "snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py"
+        )
         st.session_state.setdefault("server_started", False)
         st.session_state.setdefault("mlflow_port", 5000)
         st.session_state.setdefault("lab_selected_venv", "")
 
         df_dir_def = _pipeline_export_root(env) / env.target
-        st.session_state.setdefault("stages_file", Path(env.active_app) / STAGES_FILE_NAME)
+        st.session_state.setdefault(
+            "stages_file", Path(env.active_app) / STAGES_FILE_NAME
+        )
         st.session_state.setdefault("df_file_out", str(df_dir_def / DEFAULT_DF))
         st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
 
-        df_file = Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
+        df_file = (
+            Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
+        )
         if df_file:
             render_logo()
         else:
@@ -1566,7 +1695,9 @@ def main() -> None:
         render_pinned_expanders(st)
         render_page_context(st, page_label="WORKFLOW", env=env)
 
-        if background_services_enabled() and not st.session_state.get("server_started", False):
+        if background_services_enabled() and not st.session_state.get(
+            "server_started", False
+        ):
             activate_mlflow(env)
 
         # Initialize session defaults
@@ -1582,7 +1713,14 @@ def main() -> None:
 
         page()
 
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as e:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+    ) as e:
         st.error(f"An error occurred: {e}")
         import traceback
 

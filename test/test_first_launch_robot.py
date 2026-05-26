@@ -38,15 +38,34 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert checks["first_launch_env_initialized"]["status"] == "pass"
     assert checks["first_launch_first_proof_signal"]["status"] == "pass"
     docs_menu = checks["first_launch_docs_action"]["details"]["menu_items"]
-    assert docs_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
+    assert (
+        docs_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
+    )
 
     output = tmp_path / "first-launch-robot.json"
-    assert module.main(["--target-seconds", "90", "--timeout", "90", "--output", str(output), "--json"]) == 0
+    assert (
+        module.main(
+            [
+                "--target-seconds",
+                "90",
+                "--timeout",
+                "90",
+                "--output",
+                str(output),
+                "--json",
+            ]
+        )
+        == 0
+    )
     persisted = json.loads(output.read_text(encoding="utf-8"))
-    assert persisted["status"] == "pass", json.dumps(persisted, indent=2, sort_keys=True)
+    assert persisted["status"] == "pass", json.dumps(
+        persisted, indent=2, sort_keys=True
+    )
 
 
-def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(monkeypatch) -> None:
+def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(
+    monkeypatch,
+) -> None:
     module = _load_module()
 
     class Widget:
@@ -56,22 +75,37 @@ def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(m
     assert module._widget_values([Widget("kept"), Widget(None)], "value") == ["kept"]
     assert module._contains_any(["one", "two"], ["missing"]) is False
     readme_path = module.DEFAULT_ACTIVE_APP / "README.md"
+    readme_route = module._readme_route(readme_path.parent.name)
     has_readme_link, readme_details = module._readme_link_details(
-        [f"[README]({readme_path.resolve().as_uri()})"],
+        [f'<a href="{readme_route}" target="_self">README</a>'],
+        [],
         module.DEFAULT_ACTIVE_APP,
         module.DEFAULT_APPS_PATH,
     )
     assert has_readme_link is True
     assert readme_details["expected_path"] == str(readme_path)
+    assert readme_details["expected_route"] == readme_route
     has_readme_link, _ = module._readme_link_details(
         ["README without the file link"],
+        [],
         module.DEFAULT_ACTIVE_APP,
         module.DEFAULT_APPS_PATH,
     )
     assert has_readme_link is False
+    has_readme_link, _ = module._readme_link_details(
+        [],
+        ["README"],
+        module.DEFAULT_ACTIVE_APP,
+        module.DEFAULT_APPS_PATH,
+    )
+    assert has_readme_link is True
     src_root = str(module.REPO_ROOT / "src")
-    monkeypatch.setattr(module.sys, "path", [path for path in module.sys.path if path != src_root])
-    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module.sys, "path", [path for path in module.sys.path if path != src_root]
+    )
+    monkeypatch.setattr(
+        module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None
+    )
 
     docs_menu = module._docs_menu_items()
 
@@ -79,7 +113,9 @@ def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(m
     assert module.sys.path[0] == src_root
 
 
-def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(monkeypatch) -> None:
+def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(
+    monkeypatch,
+) -> None:
     module = _load_module()
 
     class BrokenSessionState:
@@ -153,8 +189,11 @@ def test_first_launch_robot_rejects_non_positive_timeouts() -> None:
             raise AssertionError(f"expected parser error for {option}")
 
 
-def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsys) -> None:
-    readme_uri = (
+def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
+    monkeypatch, capsys
+) -> None:
+    readme_route = "/PROJECT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
+    readme_path = (
         MODULE_PATH.parents[1]
         / "src"
         / "agilab"
@@ -162,7 +201,8 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsy
         / "builtin"
         / "flight_telemetry_project"
         / "README.md"
-    ).resolve().as_uri()
+    )
+    assert readme_path.is_file()
 
     class Widget:
         def __init__(self, value: str = "", label: str = ""):
@@ -174,7 +214,7 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsy
         markdown = [
             Widget(
                 "AGILAB logo AI/ML reproducibility workbench "
-                f"DEMO / ORCHESTRATE / ANALYSIS [README]({readme_uri})"
+                f'DEMO / ORCHESTRATE / ANALYSIS <a href="{readme_route}">README</a>'
             )
         ]
         caption: list[object] = []

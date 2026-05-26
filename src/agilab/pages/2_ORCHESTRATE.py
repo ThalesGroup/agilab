@@ -15,20 +15,39 @@ from typing import Any, Optional, Sequence
 from datetime import datetime
 
 # Third-Party imports
-import tomllib       # For reading TOML files
+import tomllib  # For reading TOML files
 import pandas as pd
+
 # Theme configuration
-os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
+os.environ.setdefault(
+    "STREAMLIT_CONFIG_FILE",
+    str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
+)
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
+
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
-_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+_import_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_import_guard_local", _import_guard_path
+)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
-    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+    raise ModuleNotFoundError(
+        f"Unable to load import_guard.py from {_import_guard_path}"
+    )
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 import_agilab_module = _import_guard_module.import_agilab_module
+
+_public_bind_guard_module = import_agilab_module(
+    "agilab.ui_public_bind_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
+    fallback_name="agilab_ui_public_bind_guard_fallback",
+)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(
+    st, streamlit_config_getter=st.config.get
+)
 
 _page_docs_module = import_agilab_module(
     "agilab.page_docs",
@@ -194,7 +213,8 @@ import_agilab_symbols(
         "classify_runtime_failure": "classify_runtime_failure",
     },
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "runtime_failure_diagnostics.py",
+    fallback_path=Path(__file__).resolve().parents[1]
+    / "runtime_failure_diagnostics.py",
     fallback_name="agilab_runtime_failure_diagnostics_fallback",
 )
 import_agilab_symbols(
@@ -302,7 +322,8 @@ import_agilab_symbols(
         "queue_pending_execute_action": "queue_pending_execute_action",
     },
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_pending_actions.py",
+    fallback_path=Path(__file__).resolve().parents[1]
+    / "orchestrate_pending_actions.py",
     fallback_name="agilab_orchestrate_pending_actions_fallback",
 )
 import_agilab_symbols(
@@ -327,8 +348,15 @@ import_agilab_symbols(
 )
 # Project Libraries:
 from agi_gui.pagelib import (
-    background_services_enabled, render_logo, activate_mlflow, init_custom_ui, on_project_change,
-    inject_theme, is_valid_ip, render_dataframe_preview, resolve_active_app
+    background_services_enabled,
+    render_logo,
+    activate_mlflow,
+    init_custom_ui,
+    on_project_change,
+    inject_theme,
+    is_valid_ip,
+    render_dataframe_preview,
+    resolve_active_app,
 )
 
 from agi_env import AgiEnv
@@ -340,6 +368,7 @@ logger = logging.getLogger(__name__)
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
 FIRST_PROOF_ORCHESTRATE_ACTIONS = {"install", "run"}
 
+
 # ===========================
 # Session State Initialization
 # ===========================
@@ -347,9 +376,11 @@ def init_session_state(defaults: dict[str, Any]) -> None:
     """Initialize session state variables with default values if they are not already set."""
     _orchestrate_init_session_state(st.session_state, defaults)
 
+
 # ===========================
 # Utility and Helper Functions
 # ===========================
+
 
 def clear_log() -> None:
     """Clear the accumulated log in session state."""
@@ -375,6 +406,7 @@ def _update_delete_confirm_state(
         delete_cancel_clicked=delete_cancel_clicked,
     )
 
+
 def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -> None:
     _orchestrate_update_log(
         st.session_state,
@@ -391,7 +423,6 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
     )
     update_log._skip_traceback = bool(_TRACEBACK_SKIP["active"])
     return None
-
 
 
 def _reset_traceback_skip() -> None:
@@ -422,7 +453,9 @@ def _looks_like_shared_path(path: Path) -> bool:
 
 def _set_active_app_query_param(active_app: Any) -> None:
     """Best-effort update of the active-app query parameter during page transitions."""
-    _orchestrate_set_active_app_query_param(st.query_params, active_app, streamlit_api_exception=StreamlitAPIException)
+    _orchestrate_set_active_app_query_param(
+        st.query_params, active_app, streamlit_api_exception=StreamlitAPIException
+    )
 
 
 def _query_param_scalar(query_params: Any, key: str) -> str:
@@ -459,11 +492,20 @@ def _remove_query_param(query_params: Any, key: str) -> bool:
 
         del query_params[key]
         return True
-    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError, RecursionError):
+    except (
+        AttributeError,
+        KeyError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        RecursionError,
+    ):
         return False
 
 
-def _consume_first_proof_action_query_seed(session_state: Any, query_params: Any) -> str | None:
+def _consume_first_proof_action_query_seed(
+    session_state: Any, query_params: Any
+) -> str | None:
     """Queue a first-proof ORCHESTRATE action requested by a new-tab URL."""
     action = _query_param_scalar(query_params, FIRST_PROOF_ACTION_QUERY_KEY).lower()
     if not action:
@@ -518,7 +560,9 @@ def _has_configured_cluster_share(env: Any) -> bool:
     if text.lower() in {"", "none", "local", "localshare"}:
         return False
     try:
-        candidate = _resolve_share_candidate(text, getattr(env, "home_abs", Path.home()))
+        candidate = _resolve_share_candidate(
+            text, getattr(env, "home_abs", Path.home())
+        )
     except (OSError, RuntimeError, TypeError, ValueError):
         return True
     return not _path_points_to_local_share(candidate, env)
@@ -531,7 +575,9 @@ def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
     cluster_share_text = _clean_share_path_text(_env_cluster_share_value(env))
     if cluster_share_text.lower() not in {"", "none", "local", "localshare"}:
         try:
-            cluster_share_paths.append(_resolve_share_candidate(cluster_share_text, home_abs))
+            cluster_share_paths.append(
+                _resolve_share_candidate(cluster_share_text, home_abs)
+            )
         except (OSError, RuntimeError, TypeError, ValueError):
             pass
 
@@ -593,7 +639,9 @@ def _cluster_args_share_root(env: Any, cluster_params: dict[str, Any]) -> Path |
         if text.lower() in {"", "none", "local", "localshare"}:
             continue
         try:
-            candidate = _resolve_share_candidate(text, getattr(env, "home_abs", Path.home()))
+            candidate = _resolve_share_candidate(
+                text, getattr(env, "home_abs", Path.home())
+            )
         except (OSError, RuntimeError, TypeError, ValueError):
             continue
         if _path_points_to_local_share(candidate, env):
@@ -685,37 +733,64 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
     if not has_nonlocal_workers(cluster_params.get("workers")):
         return None
     active_share_root = _cluster_args_share_root(env, cluster_params)
-    share_source = active_share_root if active_share_root is not None else getattr(env, "agi_share_path", None)
+    share_source = (
+        active_share_root
+        if active_share_root is not None
+        else getattr(env, "agi_share_path", None)
+    )
     if share_source is None:
         return None
     try:
         share_candidate = Path(share_source)
         if not share_candidate.is_absolute():
-            share_candidate = Path(getattr(env, "home_abs", Path.home())) / share_candidate
+            share_candidate = (
+                Path(getattr(env, "home_abs", Path.home())) / share_candidate
+            )
         share_candidate = share_candidate.expanduser()
-        share_resolved = _resolve_share_candidate(share_candidate, getattr(env, "home_abs", Path.home()))
+        share_resolved = _resolve_share_candidate(
+            share_candidate, getattr(env, "home_abs", Path.home())
+        )
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
 
     is_symlink = share_candidate.is_symlink()
-    looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
+    looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(
+        share_resolved
+    )
     workers_data_path = _clean_share_path_text(cluster_params.get("workers_data_path"))
-    has_worker_share_path = workers_data_path.lower() not in {"", "none", "local", "localshare"}
+    has_worker_share_path = workers_data_path.lower() not in {
+        "",
+        "none",
+        "local",
+        "localshare",
+    }
     try:
-        worker_path = _resolve_share_candidate(workers_data_path, getattr(env, "home_abs", Path.home()))
-        has_worker_share_path = has_worker_share_path and not _path_points_to_local_share(worker_path, env)
+        worker_path = _resolve_share_candidate(
+            workers_data_path, getattr(env, "home_abs", Path.home())
+        )
+        has_worker_share_path = (
+            has_worker_share_path and not _path_points_to_local_share(worker_path, env)
+        )
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
     # SSHFS cluster-share contract: the scheduler-side AGI_CLUSTER_SHARE can be a
     # normal local filesystem; remote workers mount it at Workers Data Path.
-    if is_symlink or looks_shared or (
-        has_worker_share_path
-        and _has_configured_cluster_share(env)
-        and has_nonlocal_workers(cluster_params.get("workers"))
+    if (
+        is_symlink
+        or looks_shared
+        or (
+            has_worker_share_path
+            and _has_configured_cluster_share(env)
+            and has_nonlocal_workers(cluster_params.get("workers"))
+        )
     ):
         return None
 
-    fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
+    fstype = (
+        _fstype_for_path(share_resolved)
+        or _fstype_for_path(share_candidate)
+        or "unknown"
+    )
     hint = _macos_autofs_hint(share_candidate)
     extra = f"\n\n{hint}" if hint else ""
     return (
@@ -744,7 +819,9 @@ def display_log(stdout, stderr):
         stderr,
         session_state=st.session_state,
         strip_ansi_fn=strip_ansi,
-        filter_warning_messages_fn=lambda text: filter_warning_messages(filter_noise_lines(text)),
+        filter_warning_messages_fn=lambda text: filter_warning_messages(
+            filter_noise_lines(text)
+        ),
         format_log_block_fn=lambda text: format_log_block(
             text,
             newest_first=False,
@@ -756,11 +833,14 @@ def display_log(stdout, stderr):
         log_display_height=400,
     )
 
+
 update_log._skip_traceback = False
 
 
 def safe_eval(expression: str, expected_type: Any, error_message: str) -> Any:
-    return _orchestrate_safe_eval(expression, expected_type, error_message, on_error=st.error)
+    return _orchestrate_safe_eval(
+        expression, expected_type, error_message, on_error=st.error
+    )
 
 
 def parse_and_validate_scheduler(scheduler: str) -> Optional[str]:
@@ -779,6 +859,7 @@ def parse_and_validate_workers(workers_input: str) -> dict[str, int]:
         default_workers={"127.0.0.1": 1},
     )
 
+
 def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None:
     env = st.session_state["env"]
 
@@ -790,9 +871,19 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
         try:
             from flight_telemetry import apply_source_defaults, load_args_from_toml
 
-            args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
+            args_model = apply_source_defaults(
+                load_args_from_toml(env.app_settings_file)
+            )
             app_settings["args"] = args_model.to_toml_payload()
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
+        except (
+            ImportError,
+            AttributeError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            tomllib.TOMLDecodeError,
+        ) as exc:
             st.warning(f"Unable to load Flight args: {exc}")
             app_settings.setdefault("args", {})
     else:
@@ -811,6 +902,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
     st.session_state.app_settings = app_settings
     st.session_state["args_project"] = env.app
 
+
 # ===========================
 # Caching Functions for Performance
 # ===========================
@@ -827,11 +919,16 @@ def load_toml_file(file_path: str | Path) -> dict[str, Any]:
             return {}
     return {}
 
+
 @st.cache_data(show_spinner=False)
 def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list[Any]]:
     with open(file_path, "r") as f:
         data = json.load(f)
-    workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
+    workers = [
+        f"{ip}-{i}"
+        for ip, count in data.get("workers", {}).items()
+        for i in range(1, count + 1)
+    ]
     return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
 
 
@@ -930,7 +1027,14 @@ async def _check_distribution_action(
             log_callback=lambda message: _append_log_lines(dist_log, message),
             venv=runtime_root,
         )
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+    ) as exc:
         _append_log_lines(dist_log, f"ERROR: {exc}")
         return ActionResult.error(
             "Distribution build failed.",
@@ -977,7 +1081,14 @@ async def _install_worker_action(
             log_callback=lambda message: _append_log_lines(local_log, message),
             venv=None,
         )
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+    ) as exc:
         install_error = exc
         install_stderr = str(exc)
         _append_log_lines(local_log, f"ERROR: {install_stderr}")
@@ -1015,8 +1126,14 @@ async def _install_worker_action(
             data["failure_category"] = diagnostic.category
         return ActionResult.error(
             diagnostic.title if diagnostic else "Cluster installation failed.",
-            detail=diagnostic.detail if diagnostic else str(install_stderr or install_error or "Install logs indicate failure."),
-            next_action=diagnostic.next_action if diagnostic else "Check install logs above, fix the worker environment, then rerun INSTALL.",
+            detail=diagnostic.detail
+            if diagnostic
+            else str(
+                install_stderr or install_error or "Install logs indicate failure."
+            ),
+            next_action=diagnostic.next_action
+            if diagnostic
+            else "Check install logs above, fix the worker environment, then rerun INSTALL.",
             data=data,
         )
     return ActionResult.success(
@@ -1030,10 +1147,14 @@ def generate_profile_report(df: pd.DataFrame) -> Any:
     env = st.session_state["env"]
     if env.python_version > "3.12":
         from ydata_profiling.profile_report import ProfileReport
+
         return ProfileReport(df, minimal=True)
     else:
-        st.info(f"Function not available with this version of Python {env.python_version}.")
+        st.info(
+            f"Function not available with this version of Python {env.python_version}."
+        )
         return None
+
 
 # ===========================
 # UI Rendering Functions
@@ -1116,14 +1237,20 @@ def render_generic_ui() -> None:
         arg_valid = False
 
     args_input = dict(new_args_list)
-    is_args_reload_required = arg_valid and (args_input != st.session_state.app_settings.get("args", {}))
+    is_args_reload_required = arg_valid and (
+        args_input != st.session_state.app_settings.get("args", {})
+    )
 
     if is_args_reload_required:
         st.session_state["args_input"] = args_input
         app_settings_file = env.app_settings_file
         if env.app == "flight_telemetry_project":
             try:
-                from flight_telemetry import apply_source_defaults, dump_args_to_toml, FlightArgs
+                from flight_telemetry import (
+                    apply_source_defaults,
+                    dump_args_to_toml,
+                    FlightArgs,
+                )
                 from pydantic import ValidationError
 
                 parsed_args = FlightArgs(**args_input)
@@ -1154,8 +1281,10 @@ def render_generic_ui() -> None:
     if arg_valid:
         st.session_state.app_settings["args"] = args_input
 
+
 def toggle_select_all():
     _orchestrate_toggle_select_all(st.session_state)
+
 
 def update_select_all():
     _orchestrate_update_select_all(st.session_state)
@@ -1169,6 +1298,7 @@ def _capture_dataframe_preview_state() -> dict:
 def _restore_dataframe_preview_state(payload: dict) -> None:
     """Restore dataframe preview session state from an undo payload."""
     _orchestrate_restore_dataframe_preview_state(st.session_state, payload)
+
 
 def _is_app_installed(env: Any) -> bool:
     return _orchestrate_is_app_installed(env)
@@ -1215,7 +1345,7 @@ def _is_local_worker_host(host: Any) -> bool:
     if "@" in text:
         text = text.rsplit("@", 1)[-1]
     if text.startswith("[") and "]" in text:
-        text = text[1:text.index("]")]
+        text = text[1 : text.index("]")]
     elif text.count(":") == 1:
         text = text.rsplit(":", 1)[0]
     return text in {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
@@ -1227,7 +1357,9 @@ def _cluster_mode_label(cluster_params: dict[str, Any]) -> str:
 
     workers = cluster_params.get("workers", {})
     worker_hosts = tuple(workers) if isinstance(workers, dict) else ()
-    nonlocal_workers = [host for host in worker_hosts if not _is_local_worker_host(host)]
+    nonlocal_workers = [
+        host for host in worker_hosts if not _is_local_worker_host(host)
+    ]
     return "LAN cluster" if nonlocal_workers else "Local Dask demo"
 
 
@@ -1239,18 +1371,36 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
         if manager_ready:
             return "Ready", "Manager environment can import AGILAB runtime packages."
         if install_status.get("manager_exists"):
-            return "Needs INSTALL", install_status.get("manager_problem") or "Manager environment is missing or stale."
-        return "Needs INSTALL", "Manager environment has not been created yet. Run INSTALL before RUN."
+            return "Needs INSTALL", install_status.get(
+                "manager_problem"
+            ) or "Manager environment is missing or stale."
+        return (
+            "Needs INSTALL",
+            "Manager environment has not been created yet. Run INSTALL before RUN.",
+        )
     if manager_ready and worker_ready:
-        return "Ready", "Manager and worker environments can import AGILAB runtime packages."
+        return (
+            "Ready",
+            "Manager and worker environments can import AGILAB runtime packages.",
+        )
     if manager_ready:
         if not install_status.get("worker_exists"):
-            return "Needs INSTALL", "Worker environment has not been created yet. Run INSTALL before RUN."
-        return "Needs INSTALL", install_status.get("worker_problem") or "Worker environment is missing or stale."
+            return (
+                "Needs INSTALL",
+                "Worker environment has not been created yet. Run INSTALL before RUN.",
+            )
+        return "Needs INSTALL", install_status.get(
+            "worker_problem"
+        ) or "Worker environment is missing or stale."
     if worker_ready:
         if not install_status.get("manager_exists"):
-            return "Needs INSTALL", "Manager environment has not been created yet. Run INSTALL before RUN."
-        return "Needs INSTALL", install_status.get("manager_problem") or "Manager environment is missing or stale."
+            return (
+                "Needs INSTALL",
+                "Manager environment has not been created yet. Run INSTALL before RUN.",
+            )
+        return "Needs INSTALL", install_status.get(
+            "manager_problem"
+        ) or "Manager environment is missing or stale."
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
 
 
@@ -1258,13 +1408,17 @@ def _install_status_warning_message(install_status: dict[str, Any]) -> str | Non
     """Return a warning only for existing-but-stale install environments."""
     stale_problems = []
     if install_status.get("manager_exists") and not install_status.get("manager_ready"):
-        stale_problems.append(str(install_status.get("manager_problem") or "manager environment is stale"))
+        stale_problems.append(
+            str(install_status.get("manager_problem") or "manager environment is stale")
+        )
     if (
         not install_status.get("workerless")
         and install_status.get("worker_exists")
         and not install_status.get("worker_ready")
     ):
-        stale_problems.append(str(install_status.get("worker_problem") or "worker environment is stale"))
+        stale_problems.append(
+            str(install_status.get("worker_problem") or "worker environment is stale")
+        )
     if not stale_problems:
         return None
     return (
@@ -1286,7 +1440,9 @@ def _orchestrate_snippet_state_key(env: Any, name: str) -> str:
     return f"orchestrate:notebook_snippet:{app_name}:{name}"
 
 
-def _store_orchestrate_notebook_snippet(env: Any, name: str, snippet: str | None) -> None:
+def _store_orchestrate_notebook_snippet(
+    env: Any, name: str, snippet: str | None
+) -> None:
     key = _orchestrate_snippet_state_key(env, name)
     if snippet:
         st.session_state[key] = snippet
@@ -1295,7 +1451,9 @@ def _store_orchestrate_notebook_snippet(env: Any, name: str, snippet: str | None
 
 
 def _orchestrate_notebook_cell(cell_type: str, source: str) -> dict[str, Any]:
-    lines = [line if line.endswith("\n") else line + "\n" for line in source.splitlines()]
+    lines = [
+        line if line.endswith("\n") else line + "\n" for line in source.splitlines()
+    ]
     if cell_type == "code":
         return {
             "cell_type": "code",
@@ -1311,7 +1469,9 @@ def _orchestrate_notebook_cell(cell_type: str, source: str) -> dict[str, Any]:
     }
 
 
-def _orchestrate_notebook_document(env: Any, snippets: list[tuple[str, str]]) -> dict[str, Any]:
+def _orchestrate_notebook_document(
+    env: Any, snippets: list[tuple[str, str]]
+) -> dict[str, Any]:
     app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
     snippet_labels = [label for label, _snippet in snippets]
     run_sentence = (
@@ -1379,11 +1539,17 @@ def _render_orchestrate_notebook_expander(env: Any) -> None:
         )
         if not snippets:
             if supports_distribution_preview(env):
-                st.info("No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first.")
+                st.info(
+                    "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
+                )
             else:
-                st.info("No orchestration snippets are available yet. Configure INSTALL or RUN first.")
+                st.info(
+                    "No orchestration snippets are available yet. Configure INSTALL or RUN first."
+                )
             return
-        app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
+        app_name = str(
+            getattr(env, "app", "") or getattr(env, "target", "") or "project"
+        )
         notebook_payload = json.dumps(
             _orchestrate_notebook_document(env, snippets),
             indent=2,
@@ -1424,7 +1590,9 @@ def _data_share_content_summary(path_value: Any) -> tuple[str, str]:
     return _environment_data_share_content_summary(path_value)
 
 
-def _path_status(path: Any, *, venv: bool = False, file: bool = False) -> tuple[str, str]:
+def _path_status(
+    path: Any, *, venv: bool = False, file: bool = False
+) -> tuple[str, str]:
     return _environment_path_status(path, venv=venv, file=file)
 
 
@@ -1446,7 +1614,9 @@ def _render_orchestrate_readiness_panel(
 ) -> None:
     """Render the shared first-run Environment Health surface."""
     del show_run
-    render_environment_health_panel(st, env, app_settings=app_settings, install_status=install_status)
+    render_environment_health_panel(
+        st, env, app_settings=app_settings, install_status=install_status
+    )
 
 
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")
@@ -1503,11 +1673,13 @@ async def _render_deployment_panel(
         render_cluster_settings_ui(env, cluster_deps, show_run_mode_info=False)
         _render_orchestrate_resource_summary(env, target=resource_summary_slot)
         cluster_params = st.session_state.app_settings["cluster"]
-        verbose = cluster_params.get('verbose', 1)
+        verbose = cluster_params.get("verbose", 1)
 
         if not show_install:
             if consume_pending_install_action(st.session_state):
-                st.info("INSTALL is hidden. Re-enable Resources and install, then retry INSTALL.")
+                st.info(
+                    "INSTALL is hidden. Re-enable Resources and install, then retry INSTALL."
+                )
             return verbose
 
         enabled = cluster_params.get("cluster_enabled", False)
@@ -1563,7 +1735,10 @@ async def _render_deployment_panel(
         )
         install_requested = install_requested or pending_install_requested
         if install_requested:
-            if install_state.runtime_root is None or install_state.install_command is None:
+            if (
+                install_state.runtime_root is None
+                or install_state.install_command is None
+            ):
                 st.warning(install_state.action.disabled_reason)
                 return verbose
             st.session_state["_install_logs_expanded"] = True
@@ -1582,7 +1757,9 @@ async def _render_deployment_panel(
                 language="python",
                 height=INSTALL_LOG_HEIGHT,
             )
-            spinner_label = "Installing app..." if workerless else "Installing worker..."
+            spinner_label = (
+                "Installing app..." if workerless else "Installing worker..."
+            )
             with st.spinner(spinner_label):
                 result = await _install_worker_action(
                     env,
@@ -1592,7 +1769,11 @@ async def _render_deployment_panel(
                 )
                 with log_expander:
                     log_placeholder.code(
-                        "\n".join(result.data.get("install_log", local_log)[-LOG_DISPLAY_MAX_LINES:]),
+                        "\n".join(
+                            result.data.get("install_log", local_log)[
+                                -LOG_DISPLAY_MAX_LINES:
+                            ]
+                        ),
                         language="python",
                         height=INSTALL_LOG_HEIGHT,
                     )
@@ -1638,7 +1819,15 @@ async def _render_distribution_panel(
                         env=args_env,
                         container=st,
                     )
-            except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+            except (
+                SyntaxError,
+                RuntimeError,
+                OSError,
+                TypeError,
+                ValueError,
+                AttributeError,
+                ImportError,
+            ) as e:
                 st.warning(e)
 
         if not surface_rendered:
@@ -1646,7 +1835,9 @@ async def _render_distribution_panel(
             if toggle_key not in st.session_state:
                 st.session_state[toggle_key] = not snippet_not_empty
 
-            st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
+            st.toggle(
+                "Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form]
+            )
 
             if st.session_state[toggle_key]:
                 with _with_app_args_env(args_env):
@@ -1658,8 +1849,19 @@ async def _render_distribution_panel(
                 if snippet_exists and snippet_not_empty:
                     try:
                         with _with_app_args_env(args_env):
-                            runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
-                    except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
+                            runpy.run_path(
+                                app_args_form,
+                                init_globals={**globals(), "env": args_env},
+                            )
+                    except (
+                        SyntaxError,
+                        RuntimeError,
+                        OSError,
+                        TypeError,
+                        ValueError,
+                        AttributeError,
+                        ImportError,
+                    ) as e:
                         st.warning(e)
                 else:
                     with _with_app_args_env(args_env):
@@ -1688,7 +1890,9 @@ async def _render_distribution_panel(
         return
 
     with st.expander("3. Preview distribution workplan", expanded=False):
-        st.caption("Preview how the current arguments will be partitioned across available workers.")
+        st.caption(
+            "Preview how the current arguments will be partitioned across available workers."
+        )
         cluster_params = st.session_state.app_settings["cluster"]
         enabled = cluster_params.get("cluster_enabled", False)
         scheduler = cluster_params.get("scheduler", "")
@@ -1741,7 +1945,9 @@ async def _render_distribution_panel(
             if st.session_state.get("preview_tree"):
                 dist_tree_path = distribution_state.distribution_path
                 if dist_tree_path is not None and dist_tree_path.exists():
-                    workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
+                    workers, work_plan_metadata, work_plan = load_distribution(
+                        dist_tree_path
+                    )
                     partition_key = "Partition"
                     weights_key = "Units"
                     weights_unit = "Unit"
@@ -1754,7 +1960,9 @@ async def _render_distribution_panel(
                                 work_plan,
                                 partition_key,
                                 weights_key,
-                                show_leaf_list=st.checkbox("Show leaf nodes", value=False),
+                                show_leaf_list=st.checkbox(
+                                    "Show leaf nodes", value=False
+                                ),
                             )
                         else:
                             show_tree(
@@ -1763,13 +1971,28 @@ async def _render_distribution_panel(
                                 work_plan,
                                 partition_key,
                                 weights_key,
-                                show_leaf_list=st.checkbox("Show leaf nodes", value=False),
+                                show_leaf_list=st.checkbox(
+                                    "Show leaf nodes", value=False
+                                ),
                             )
                     with tabs[1]:
-                        workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit)
-                    unused_workers = [worker for worker, chunks in zip(workers, work_plan_metadata) if not chunks]
+                        workload_barchart(
+                            workers,
+                            work_plan_metadata,
+                            partition_key,
+                            weights_key,
+                            weights_unit,
+                        )
+                    unused_workers = [
+                        worker
+                        for worker, chunks in zip(workers, work_plan_metadata)
+                        if not chunks
+                    ]
                     if unused_workers:
-                        st.warning(f"**{len(unused_workers)} Unused workers:** " + ", ".join(unused_workers))
+                        st.warning(
+                            f"**{len(unused_workers)} Unused workers:** "
+                            + ", ".join(unused_workers)
+                        )
                     st.markdown("**Modify Distribution:**")
                     ncols = 2
                     cols = st.columns([10, 1, 10])
@@ -1779,11 +2002,19 @@ async def _render_distribution_panel(
                             partition, size = chunk
                             with cols[0 if count % ncols == 0 else 2]:
                                 b1, b2 = st.columns(2)
-                                b1.text(f"{partition_key.title()} {partition} ({weights_key}: {size} {weights_unit})")
+                                b1.text(
+                                    f"{partition_key.title()} {partition} ({weights_key}: {size} {weights_unit})"
+                                )
                                 key = workplan_selection_key(partition, i, j)
-                                b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
+                                b2.selectbox(
+                                    "Worker",
+                                    options=workers,
+                                    key=key,
+                                    index=i if i < len(workers) else 0,
+                                )
                             count += 1
                     if st.button("Apply", key="apply_btn", type="primary"):
+
                         def _rerun_after_apply(_result: Any) -> None:
                             _clear_cached_distribution()
                             st.rerun()
@@ -1814,7 +2045,9 @@ async def _render_distribution_panel(
                         "Run CHECK distribute to regenerate it.",
                     )
                 else:
-                    st.caption("Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute.")
+                    st.caption(
+                        "Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute."
+                    )
 
 
 def _execution_mode_options(env: Any) -> tuple[str, ...]:
@@ -1872,7 +2105,9 @@ async def _render_run_panels(
 
     if show_run_panel:
         st.markdown("#### 4. Run or serve")
-        st.caption("Use the selected execution view, then keep benchmark and generated-code details available on demand.")
+        st.caption(
+            "Use the selected execution view, then keep benchmark and generated-code details available on demand."
+        )
         with st.expander("Run options", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
             try:
@@ -1894,7 +2129,9 @@ async def _render_run_panels(
             run_state = build_orchestrate_page_state(
                 cluster_params=cluster_params,
                 selected_benchmark_modes=st.session_state.get(benchmark_modes_key, []),
-                benchmark_best_single_node=bool(st.session_state.get(benchmark_best_node_key, False)),
+                benchmark_best_single_node=bool(
+                    st.session_state.get(benchmark_best_node_key, False)
+                ),
                 local_share_path=local_share_path,
                 deps=run_state_deps,
             )
@@ -1915,7 +2152,9 @@ async def _render_run_panels(
                         "the single mode defined by the optimization toggles."
                     ),
                 )
-                selected_dask_benchmark = any(int(mode) & 4 for mode in selected_benchmark_modes)
+                selected_dask_benchmark = any(
+                    int(mode) & 4 for mode in selected_benchmark_modes
+                )
                 benchmark_best_single_node = st.checkbox(
                     "Add best single-node Dask run",
                     key=benchmark_best_node_key,
@@ -1930,7 +2169,9 @@ async def _render_run_panels(
                 selected_benchmark_modes=selected_benchmark_modes,
                 benchmark_best_single_node=benchmark_best_single_node,
                 local_share_path=local_share_path,
-                cluster_share_issue=str(st.session_state.get("_orchestrate_cluster_share_warning") or ""),
+                cluster_share_issue=str(
+                    st.session_state.get("_orchestrate_cluster_share_warning") or ""
+                ),
                 deps=run_state_deps,
             )
 
@@ -1938,10 +2179,15 @@ async def _render_run_panels(
             st.session_state["mode"] = run_state.run_mode
             st.info(run_state.run_mode_label)
             if run_state.benchmark_enabled:
-                labels = ", ".join(benchmark_mode_label(mode) for mode in run_state.selected_benchmark_modes)
+                labels = ", ".join(
+                    benchmark_mode_label(mode)
+                    for mode in run_state.selected_benchmark_modes
+                )
                 st.caption(f"Benchmark will iterate only on: {labels}")
             else:
-                st.caption("Leave Benchmark modes empty to run the single selected mode.")
+                st.caption(
+                    "Leave Benchmark modes empty to run the single selected mode."
+                )
 
             verbose = run_state.verbose
             scheduler = run_state.scheduler
@@ -1979,13 +2225,19 @@ async def _render_run_panels(
 
                         df_nonempty = benchmark_df.dropna(how="all")
                         if not df_nonempty.empty:
-                            df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
+                            df_nonempty = df_nonempty.loc[
+                                :, df_nonempty.notna().any(axis=0)
+                            ]
                             df_nonempty = df_nonempty.loc[
                                 :,
-                                order_benchmark_display_columns(list(df_nonempty.columns)),
+                                order_benchmark_display_columns(
+                                    list(df_nonempty.columns)
+                                ),
                             ]
                         if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                            date_value = _benchmark_display_date(env.benchmark, date_value)
+                            date_value = _benchmark_display_date(
+                                env.benchmark, date_value
+                            )
 
                             if date_value:
                                 st.caption(f"Benchmark date: {date_value}")
@@ -1994,10 +2246,14 @@ async def _render_run_panels(
                             render_dataframe_preview(
                                 df_nonempty,
                                 truncation_label="Benchmark table preview limited",
-                                column_config=benchmark_dataframe_column_config(st.column_config),
+                                column_config=benchmark_dataframe_column_config(
+                                    st.column_config
+                                ),
                             )
                         else:
-                            st.info("Benchmark file is present but empty. Run the benchmark to collect data.")
+                            st.info(
+                                "Benchmark file is present but empty. Run the benchmark to collect data."
+                            )
                     else:
                         st.info(
                             "No benchmark results yet. Select one or more Benchmark modes and click RUN to gather data."
@@ -2030,6 +2286,7 @@ async def _render_run_panels(
         )
 
     return show_run_panel, show_submit_panel, cmd
+
 
 # ===========================
 # Main Application UI
@@ -2137,7 +2394,9 @@ async def page() -> None:
     pyproject_file = env.active_app / "pyproject.toml"
     if pyproject_file.exists():
         pyproject_content = pyproject_file.read_text()
-        st.session_state["rapids_default"] = ("-cu12" in pyproject_content) and os.name != "nt"
+        st.session_state["rapids_default"] = (
+            "-cu12" in pyproject_content
+        ) and os.name != "nt"
     else:
         st.session_state["rapids_default"] = False
     if "df_export_file" not in st.session_state:
@@ -2157,8 +2416,13 @@ async def page() -> None:
     _consume_first_proof_action_query_seed(st.session_state, st.query_params)
 
     install_status = _app_install_status(env)
-    installed = bool(install_status.get("manager_ready") and install_status.get("worker_ready"))
-    install_block_reason = _install_status_warning_message(install_status) or _runtime_status_label(install_status)[1]
+    installed = bool(
+        install_status.get("manager_ready") and install_status.get("worker_ready")
+    )
+    install_block_reason = (
+        _install_status_warning_message(install_status)
+        or _runtime_status_label(install_status)[1]
+    )
 
     # Sidebar toggles for each page section
     if "show_install" not in st.session_state:
@@ -2238,17 +2502,28 @@ async def page() -> None:
         install_disabled_reason=install_block_reason,
     )
 
+
 # ===========================
 # Main Entry Point
 # ===========================
 async def main():
     try:
         await page()
-    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as e:
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+        ImportError,
+    ) as e:
         st.error(f"An error occurred: {e}")
         import traceback
+
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
