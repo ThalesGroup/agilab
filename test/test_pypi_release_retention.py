@@ -285,6 +285,72 @@ def test_delete_release_can_use_direct_web_only(monkeypatch, capsys) -> None:
     assert "direct PyPI web deletion" in capsys.readouterr().err
 
 
+def test_direct_pypi_delete_treats_missing_manage_release_as_already_deleted(
+    monkeypatch,
+    capsys,
+) -> None:
+    module = _load_module()
+
+    class NotFoundError(Exception):
+        def __init__(self) -> None:
+            self.response = type("Response", (), {"status_code": 404})()
+
+    class FakeResponse:
+        def __init__(self, *, text: str, url: str, not_found: bool = False) -> None:
+            self.text = text
+            self.url = url
+            self.not_found = not_found
+
+        def raise_for_status(self) -> None:
+            if self.not_found:
+                raise NotFoundError()
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.headers = {}
+            self.posts = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            if url == "https://pypi.org/account/login/":
+                return FakeResponse(
+                    url=url,
+                    text="""
+                    <form method="post" action="/account/login/">
+                      <input name="csrf_token" value="login-csrf">
+                    </form>
+                    """,
+                )
+            return FakeResponse(url=url, text="<html>missing</html>", not_found=True)
+
+        def post(self, url, **kwargs):
+            self.posts.append((url, kwargs))
+            return FakeResponse(
+                url="https://pypi.org/manage/projects/",
+                text="<html></html>",
+            )
+
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.5.26"])
+    session = FakeSession()
+
+    module.delete_release_via_pypi_web(
+        package="agilab",
+        version="2026.5.25",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        session_factory=lambda: session,
+    )
+
+    assert session.posts[0][1]["data"]["username"] == "maintainer"
+    assert "release already absent" in capsys.readouterr().err
+
+
 def test_delete_form_parser_accepts_empty_action_and_fills_confirmation_fields() -> None:
     module = _load_module()
 

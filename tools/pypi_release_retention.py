@@ -308,6 +308,66 @@ def _redact_auth_code(output: str, auth_code: str | None) -> str:
     return output
 
 
+def _http_status_from_exception(exc: BaseException) -> int | None:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
+def _version_is_absent_from_public_index(*, package: str, version: str, repo: str) -> bool:
+    target = Version(normalize_version(version))
+    return all(
+        Version(normalize_version(candidate)) != target
+        for candidate in fetch_releases(package, repo)
+    )
+
+
+def _release_absent_after_not_found(
+    *,
+    package: str,
+    version: str,
+    repo: str,
+    attempts: int = 4,
+    retry_delay: float = 5.0,
+) -> bool:
+    for attempt in range(1, max(1, attempts) + 1):
+        if _version_is_absent_from_public_index(
+            package=package,
+            version=version,
+            repo=repo,
+        ):
+            return True
+        if attempt < attempts:
+            time.sleep(max(0.0, retry_delay))
+    return False
+
+
+def _raise_for_status_or_ignore_deleted_release(
+    response: Any,
+    *,
+    package: str,
+    version: str,
+    repo: str,
+    action: str,
+) -> bool:
+    try:
+        response.raise_for_status()
+    except Exception as exc:
+        if _http_status_from_exception(exc) == 404 and _release_absent_after_not_found(
+            package=package,
+            version=version,
+            repo=repo,
+        ):
+            print(
+                "[pypi-retention] release already absent while "
+                f"{action}; treating {package} {version} as deleted",
+                file=sys.stderr,
+            )
+            return False
+        raise
+    return True
+
+
 def _fresh_totp_code(previous: str | None, *, secret: str | None = None) -> str | None:
     secret = (secret or os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
     if not secret:
@@ -548,7 +608,14 @@ def delete_release_via_pypi_web(
 
         def open_delete_page() -> Any:
             page_response = session.get(delete_url)
-            page_response.raise_for_status()
+            if not _raise_for_status_or_ignore_deleted_release(
+                page_response,
+                package=package,
+                version=version,
+                repo=repo,
+                action="opening the delete page",
+            ):
+                return None
             return _submit_reauthentication_if_needed(
                 session,
                 response=page_response,
@@ -558,12 +625,16 @@ def delete_release_via_pypi_web(
             )
 
         response = open_delete_page()
+        if response is None:
+            return
         if urlparse(response.url).path.rstrip("/") == "/account/login":
             if confirm_login_url_provider is not None:
                 confirm_url = confirm_login_url_provider()
                 if confirm_url:
                     _consume_confirm_login_url(session, confirm_url)
                     response = open_delete_page()
+                    if response is None:
+                        return
             if urlparse(response.url).path.rstrip("/") == "/account/login":
                 raise RuntimeError(
                     "PyPI redirected back to login while opening the release delete "
@@ -592,7 +663,13 @@ def delete_release_via_pypi_web(
             data=delete_data,
             headers={"referer": delete_url},
         )
-        response.raise_for_status()
+        _raise_for_status_or_ignore_deleted_release(
+            response,
+            package=package,
+            version=version,
+            repo=repo,
+            action="submitting the delete form",
+        )
 
 
 def delete_release(
