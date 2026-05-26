@@ -3809,7 +3809,19 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         body for kind, body in fake_st.events if kind == "sidebar.markdown"
     ]
     assert "[Settings](/SETTINGS)" in sidebar_markdowns
-    assert f"[README]({readme.resolve().as_uri()})" in sidebar_markdowns
+    readme_link = next(body for body in sidebar_markdowns if body.startswith("[README]("))
+    assert readme.resolve().as_uri() not in readme_link
+    assert (
+        readme_link
+        == "[README](/PROJECT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme)"
+    )
+    parsed = urlparse(readme_link.removeprefix("[README](").removesuffix(")"))
+    assert parsed.path == "/PROJECT"
+    assert parse_qs(parsed.query) == {
+        "active_app": ["flight_telemetry_project"],
+        "sidebar_selection": ["Edit"],
+        "project_section": ["readme"],
+    }
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
 
 
