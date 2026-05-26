@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 
@@ -66,6 +67,58 @@ def test_run_command_rejects_non_hf_failures(monkeypatch) -> None:
         assert "command failed with exit 1" in str(exc)
     else:
         raise AssertionError("non-HF failures must not be treated as successful")
+
+
+def test_set_space_visibility_uses_current_hf_api(monkeypatch) -> None:
+    module = _load_module()
+    calls: list[dict[str, object]] = []
+
+    class _Api:
+        def update_repo_settings(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(HfApi=lambda: _Api()),
+    )
+
+    module.set_space_visibility("jpmorard/agilab", token="hf-token", private=False)
+
+    assert calls == [
+        {
+            "repo_id": "jpmorard/agilab",
+            "private": False,
+            "repo_type": "space",
+            "token": "hf-token",
+        }
+    ]
+
+
+def test_set_space_visibility_falls_back_to_legacy_hf_api(monkeypatch) -> None:
+    module = _load_module()
+    calls: list[dict[str, object]] = []
+
+    class _Api:
+        def update_repo_visibility(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(HfApi=lambda: _Api()),
+    )
+
+    module.set_space_visibility("jpmorard/agilab", token="hf-token", private=True)
+
+    assert calls == [
+        {
+            "repo_id": "jpmorard/agilab",
+            "private": True,
+            "repo_type": "space",
+            "token": "hf-token",
+        }
+    ]
 
 
 def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:

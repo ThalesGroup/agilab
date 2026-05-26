@@ -483,6 +483,21 @@ def parse_commit_sha(output: str) -> str | None:
     return match.group(1) if match else None
 
 
+def set_space_visibility(space_id: str, *, token: str, private: bool) -> None:
+    from huggingface_hub import HfApi
+
+    api = HfApi()
+    if hasattr(api, "update_repo_settings"):
+        api.update_repo_settings(
+            repo_id=space_id,
+            private=private,
+            repo_type="space",
+            token=token,
+        )
+        return
+    api.update_repo_visibility(repo_id=space_id, private=private, repo_type="space", token=token)
+
+
 def upload_space(stage_dir: Path, *, space_id: str, token: str, private: bool) -> str:
     env = os.environ.copy()
     env["HF_TOKEN"] = token
@@ -519,8 +534,7 @@ def upload_space(stage_dir: Path, *, space_id: str, token: str, private: bool) -
         ],
         env=env,
     )
-    visibility = "--private" if private else "--public"
-    run_command(["hf", "repos", "settings", space_id, "--repo-type", "space", visibility, "--format", "quiet"], env=env)
+    set_space_visibility(space_id, token=token, private=private)
     return parse_commit_sha(output) or current_space_sha(space_id, token=token)
 
 
