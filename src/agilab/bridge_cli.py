@@ -6,12 +6,15 @@ import argparse
 import csv
 import hashlib
 import json
+import platform
 from pathlib import Path
 import re
 import shlex
 import shutil
 import subprocess
+import sys
 import textwrap
+import time
 from typing import Any, Callable, Mapping, Sequence
 
 from agilab import run_manifest
@@ -28,6 +31,10 @@ except Exception:  # pragma: no cover - standalone fallback
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
+NotebookExecutor = Callable[
+    [Path, Path, Path, Path, Mapping[str, Any], int, str | None, bool],
+    Mapping[str, Any],
+]
 SCHEMA_PREFIX = "agilab.bridge"
 _TEXT_EXTENSIONS = {
     ".cfg",
@@ -62,12 +69,28 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _read_json_if_present(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    return _read_json(path)
+
+
 def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return path
+
+
+def _repo_root(start: Path | None = None) -> Path:
+    base = (start or Path.cwd()).resolve(strict=False)
+    for candidate in (base, *base.parents):
+        if (candidate / "pyproject.toml").is_file() and (
+            candidate / "src" / "agilab"
+        ).is_dir():
+            return candidate
+    return Path.cwd().resolve(strict=False)
 
 
 def _sha256(path: Path) -> str:
@@ -106,6 +129,212 @@ def _safe_identifier(value: str) -> str:
     if not _IDENTIFIER_RE.fullmatch(value):
         raise ValueError(f"Unsafe SQL identifier: {value!r}")
     return value
+
+
+def _notebook_parameter_cell_source(params_path: Path, artifact_dir: Path) -> str:
+    return "\n".join(
+        [
+            "# AGILAB notebook sandbox parameters.",
+            "import json",
+            "from pathlib import Path",
+            f"AGILAB_PARAMS_PATH = Path({str(params_path)!r})",
+            f"AGILAB_ARTIFACT_DIR = Path({str(artifact_dir)!r})",
+            "AGILAB_ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)",
+            "AGILAB_PARAMS = json.loads(AGILAB_PARAMS_PATH.read_text(encoding='utf-8'))",
+            "for _agilab_key, _agilab_value in AGILAB_PARAMS.items():",
+            "    if isinstance(_agilab_key, str) and _agilab_key.isidentifier():",
+            "        globals()[_agilab_key] = _agilab_value",
+        ]
+    )
+
+
+def _load_notebook_json(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected notebook JSON object in {path}")
+    cells = payload.get("cells")
+    if not isinstance(cells, list):
+        raise ValueError(f"Expected notebook cells list in {path}")
+    return payload
+
+
+def _ensure_notebook_cell_ids(notebook: dict[str, Any]) -> None:
+    cells = notebook.get("cells", [])
+    if not isinstance(cells, list):
+        return
+    used_ids = {
+        str(cell.get("id"))
+        for cell in cells
+        if isinstance(cell, Mapping) and cell.get("id")
+    }
+    next_id = 1
+    for cell in cells:
+        if not isinstance(cell, dict) or cell.get("id"):
+            continue
+        while True:
+            candidate = f"agilab-cell-{next_id:04d}"
+            next_id += 1
+            if candidate not in used_ids:
+                cell["id"] = candidate
+                used_ids.add(candidate)
+                break
+
+
+def _prepare_notebook_for_sandbox(
+    notebook_path: Path,
+    prepared_notebook_path: Path,
+    *,
+    params_path: Path,
+    artifact_dir: Path,
+) -> None:
+    notebook = _load_notebook_json(notebook_path)
+    injection_cell = {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {"tags": ["agilab-parameters"]},
+        "outputs": [],
+        "source": _notebook_parameter_cell_source(params_path, artifact_dir),
+    }
+    notebook["cells"] = [injection_cell, *notebook["cells"]]
+    _ensure_notebook_cell_ids(notebook)
+    prepared_notebook_path.write_text(
+        json.dumps(notebook, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def _execute_notebook_with_nbclient(
+    prepared_notebook_path: Path,
+    executed_notebook_path: Path,
+    work_dir: Path,
+    _artifact_dir: Path,
+    _params: Mapping[str, Any],
+    timeout_seconds: int,
+    kernel_name: str | None,
+    allow_errors: bool,
+) -> Mapping[str, Any]:
+    try:
+        import nbformat
+        from nbclient import NotebookClient
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Notebook sandbox requires optional notebook dependencies. "
+            "Install `agilab[notebook]` or run with `uv run --extra notebook`."
+        ) from exc
+
+    notebook = nbformat.read(prepared_notebook_path, as_version=4)
+    client_kwargs: dict[str, Any] = {
+        "timeout": timeout_seconds,
+        "resources": {"metadata": {"path": str(work_dir)}},
+        "allow_errors": allow_errors,
+    }
+    if kernel_name:
+        client_kwargs["kernel_name"] = kernel_name
+    client = NotebookClient(notebook, **client_kwargs)
+    try:
+        client.execute()
+    finally:
+        nbformat.write(notebook, executed_notebook_path)
+    return {"status": "pass"}
+
+
+def _text_from_notebook_value(value: object) -> str:
+    if isinstance(value, list):
+        return "".join(str(item) for item in value)
+    return "" if value is None else str(value)
+
+
+def _extract_notebook_streams(notebook_path: Path) -> dict[str, str]:
+    if not notebook_path.is_file():
+        return {"stdout": "", "stderr": ""}
+    try:
+        notebook = _load_notebook_json(notebook_path)
+    except Exception:
+        return {"stdout": "", "stderr": ""}
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+    for cell in notebook.get("cells", []):
+        if not isinstance(cell, Mapping):
+            continue
+        outputs = cell.get("outputs", [])
+        if not isinstance(outputs, list):
+            continue
+        for output in outputs:
+            if not isinstance(output, Mapping):
+                continue
+            output_type = str(output.get("output_type", ""))
+            if output_type == "stream":
+                text = _text_from_notebook_value(output.get("text"))
+                if output.get("name") == "stderr":
+                    stderr_parts.append(text)
+                else:
+                    stdout_parts.append(text)
+            elif output_type == "error":
+                traceback = output.get("traceback")
+                if isinstance(traceback, list):
+                    stderr_parts.append("\n".join(str(line) for line in traceback))
+                else:
+                    stderr_parts.append(_text_from_notebook_value(output.get("evalue")))
+    return {"stdout": "".join(stdout_parts), "stderr": "".join(stderr_parts)}
+
+
+def _notebook_artifact_rows(artifact_dir: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not artifact_dir.exists():
+        return rows
+    for path in sorted(artifact_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        rows.append(
+            {
+                "path": str(path),
+                "relative_path": path.relative_to(artifact_dir).as_posix(),
+                "size_bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+            }
+        )
+    return rows
+
+
+def _redact_exception(exc: BaseException) -> str:
+    return redact_text(f"{exc.__class__.__name__}: {exc}")
+
+
+def _redact_notebook_json_value(value: object) -> object:
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, list):
+        return [_redact_notebook_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _redact_notebook_json_value(item) for key, item in value.items()
+        }
+    return value
+
+
+def _redact_notebook_text_fields(path: Path) -> None:
+    if not path.is_file():
+        return
+    try:
+        notebook = _load_notebook_json(path)
+    except Exception:
+        return
+    for cell in notebook.get("cells", []):
+        if not isinstance(cell, dict):
+            continue
+        if "source" in cell:
+            cell["source"] = _redact_notebook_json_value(cell["source"])
+        outputs = cell.get("outputs", [])
+        if not isinstance(outputs, list):
+            continue
+        for output in outputs:
+            if not isinstance(output, dict):
+                continue
+            for key in ("text", "evalue", "traceback", "data"):
+                if key in output:
+                    output[key] = _redact_notebook_json_value(output[key])
+    path.write_text(
+        json.dumps(notebook, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _artifact_rows(
@@ -595,6 +824,206 @@ def init_vscode_bridge(root: Path, *, force: bool = False) -> dict[str, Any]:
     }
 
 
+def run_notebook_sandbox(
+    notebook_path: Path,
+    output_dir: Path,
+    *,
+    params_path: Path | None = None,
+    timeout_seconds: int = 600,
+    kernel_name: str | None = None,
+    allow_errors: bool = False,
+    executor: NotebookExecutor | None = None,
+) -> dict[str, Any]:
+    notebook = notebook_path.expanduser().resolve(strict=False)
+    output = output_dir.expanduser().resolve(strict=False)
+    artifact_dir = output / "artifacts"
+    output.mkdir(parents=True, exist_ok=True)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    params_source = (
+        params_path.expanduser().resolve(strict=False) if params_path else None
+    )
+    params: dict[str, Any] = {}
+    sandbox_params = output / "params.json"
+    prepared_notebook = output / "prepared_notebook.ipynb"
+    executed_notebook = output / "executed_notebook.ipynb"
+    stdout_log = output / "stdout.log"
+    stderr_log = output / "stderr.log"
+    evidence_path = output / "notebook_sandbox_evidence.json"
+    manifest_path = run_manifest.run_manifest_path(output)
+
+    started_at = run_manifest.utc_now()
+    started_monotonic = time.monotonic()
+    status = "pass"
+    error = ""
+    execution_payload: Mapping[str, Any] = {}
+
+    argv = [
+        "agilab",
+        "run",
+        "notebook",
+        "--notebook",
+        str(notebook),
+        "--output",
+        str(output),
+        "--timeout",
+        str(timeout_seconds),
+    ]
+    if params_source is not None:
+        argv.extend(["--params", str(params_source)])
+    if kernel_name:
+        argv.extend(["--kernel-name", kernel_name])
+    if allow_errors:
+        argv.append("--allow-errors")
+
+    try:
+        params = _read_json_if_present(params_source)
+        _write_json(sandbox_params, params)
+        _prepare_notebook_for_sandbox(
+            notebook,
+            prepared_notebook,
+            params_path=sandbox_params,
+            artifact_dir=artifact_dir,
+        )
+        notebook_executor = executor or _execute_notebook_with_nbclient
+        execution_payload = notebook_executor(
+            prepared_notebook,
+            executed_notebook,
+            output,
+            artifact_dir,
+            params,
+            timeout_seconds,
+            kernel_name,
+            allow_errors,
+        )
+        if str(execution_payload.get("status", "pass")).lower() not in {
+            "pass",
+            "ok",
+            "success",
+        }:
+            status = "fail"
+    except Exception as exc:  # keep failed notebooks inspectable as evidence
+        status = "fail"
+        error = _redact_exception(exc)
+        if prepared_notebook.is_file() and not executed_notebook.is_file():
+            shutil.copy2(prepared_notebook, executed_notebook)
+    finally:
+        _redact_notebook_text_fields(prepared_notebook)
+        _redact_notebook_text_fields(executed_notebook)
+
+    streams = _extract_notebook_streams(executed_notebook)
+    stdout_parts = [streams["stdout"]]
+    stderr_parts = [streams["stderr"]]
+    if execution_payload.get("stdout"):
+        stdout_parts.append(str(execution_payload["stdout"]))
+    if execution_payload.get("stderr"):
+        stderr_parts.append(str(execution_payload["stderr"]))
+    if error:
+        stderr_parts.append(error)
+    stdout_log.write_text(redact_text("\n".join(stdout_parts)), encoding="utf-8")
+    stderr_log.write_text(redact_text("\n".join(stderr_parts)), encoding="utf-8")
+
+    artifact_rows = _notebook_artifact_rows(artifact_dir)
+    duration_seconds = round(time.monotonic() - started_monotonic, 6)
+    finished_at = run_manifest.utc_now()
+    payload: dict[str, Any] = {
+        "schema": f"{SCHEMA_PREFIX}.notebook_sandbox.v1",
+        "status": status,
+        "security_boundary": (
+            "Jupyter execution uses a kernel/process boundary for evidence "
+            "capture; it is not hostile-code isolation."
+        ),
+        "notebook_path": str(notebook),
+        "prepared_notebook_path": str(prepared_notebook),
+        "executed_notebook_path": str(executed_notebook),
+        "params_path": str(params_source) if params_source else "",
+        "sandbox_params_path": str(sandbox_params),
+        "output_dir": str(output),
+        "artifact_dir": str(artifact_dir),
+        "stdout_log": str(stdout_log),
+        "stderr_log": str(stderr_log),
+        "run_manifest_path": str(manifest_path),
+        "params": redact_mapping(params),
+        "artifacts": artifact_rows,
+        "execution": {
+            "timeout_seconds": timeout_seconds,
+            "kernel_name": kernel_name or "",
+            "allow_errors": allow_errors,
+            "duration_seconds": duration_seconds,
+            "error": error,
+        },
+    }
+    _write_json(evidence_path, payload)
+
+    manifest_artifacts = [
+        run_manifest.RunManifestArtifact.from_path(
+            sandbox_params, name="notebook-params", kind="json"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            prepared_notebook, name="prepared-notebook", kind="notebook"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            executed_notebook, name="executed-notebook", kind="notebook"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            stdout_log, name="stdout", kind="log"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            stderr_log, name="stderr", kind="log"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            artifact_dir, name="notebook-artifacts", kind="directory"
+        ),
+        run_manifest.RunManifestArtifact.from_path(
+            evidence_path, name="notebook-sandbox-evidence", kind="json"
+        ),
+    ]
+    manifest = run_manifest.build_run_manifest(
+        path_id="notebook-sandbox",
+        label=f"Notebook sandbox: {notebook.name}",
+        status=status,
+        command=run_manifest.RunManifestCommand(
+            label="agilab run notebook",
+            argv=tuple(argv),
+            cwd=str(output),
+            env_overrides={},
+        ),
+        environment=run_manifest.RunManifestEnvironment(
+            python_version=platform.python_version(),
+            python_executable=sys.executable,
+            platform=platform.platform(),
+            repo_root=str(_repo_root(notebook.parent)),
+            active_app=str(notebook),
+            app_name=notebook.stem,
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            target_seconds=float(timeout_seconds),
+        ),
+        artifacts=manifest_artifacts,
+        validations=[
+            run_manifest.RunManifestValidation(
+                label="notebook execution",
+                status=status,
+                summary=(
+                    "Notebook executed and evidence was captured."
+                    if status == "pass"
+                    else "Notebook execution failed; failure evidence was captured."
+                ),
+                details={
+                    "artifact_count": len(artifact_rows),
+                    "allow_errors": allow_errors,
+                    "has_error": bool(error),
+                },
+            )
+        ],
+    )
+    run_manifest.write_run_manifest(manifest, manifest_path)
+    return payload
+
+
 def run_duckdb_query(
     query_path: Path,
     output_dir: Path,
@@ -823,6 +1252,15 @@ def _build_parser() -> argparse.ArgumentParser:
     duckdb.add_argument("--plan-only", action="store_true")
     duckdb.add_argument("--json", action="store_true")
 
+    notebook = run_sub.add_parser("notebook")
+    notebook.add_argument("--notebook", required=True)
+    notebook.add_argument("--params")
+    notebook.add_argument("--output", required=True)
+    notebook.add_argument("--timeout", type=int, default=600)
+    notebook.add_argument("--kernel-name")
+    notebook.add_argument("--allow-errors", action="store_true")
+    notebook.add_argument("--json", action="store_true")
+
     init = subparsers.add_parser("init")
     init_sub = init.add_subparsers(dest="bridge", required=True)
     vscode = init_sub.add_parser("vscode")
@@ -904,6 +1342,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 params_path=Path(args.params) if args.params else None,
                 table_name=args.table_name,
                 plan_only=args.plan_only,
+            ),
+            json_output=args.json,
+        )
+    if args.group == "run" and args.bridge == "notebook":
+        return _emit(
+            run_notebook_sandbox(
+                Path(args.notebook),
+                Path(args.output),
+                params_path=Path(args.params) if args.params else None,
+                timeout_seconds=args.timeout,
+                kernel_name=args.kernel_name,
+                allow_errors=args.allow_errors,
             ),
             json_output=args.json,
         )

@@ -8,6 +8,40 @@ worker-path inspection.
 If you want the smallest newcomer notebook path, use :doc:`notebook-quickstart`
 instead.
 
+Notebook evidence sandbox
+-------------------------
+
+Use the notebook sandbox when you want AGILAB to execute a local ``.ipynb`` file
+and collect notebook evidence without first turning it into a full app:
+
+.. code-block:: bash
+
+   agilab run notebook \
+     --notebook analysis.ipynb \
+     --params params.json \
+     --output run/notebook-sandbox \
+     --json
+
+Install the optional runner dependencies with ``agilab[notebook]``. In a source
+checkout, use ``uv run --extra notebook agilab run notebook ...``.
+
+The sandbox writes:
+
+- ``prepared_notebook.ipynb`` with an injected ``AGILAB_PARAMS`` cell,
+- ``executed_notebook.ipynb`` after kernel execution,
+- redacted ``stdout.log`` and ``stderr.log``,
+- an ``artifacts/`` directory for notebook-created files,
+- ``notebook_sandbox_evidence.json``,
+- ``run_manifest.json`` for the normal AGILAB evidence path.
+
+The injected cell exposes ``AGILAB_PARAMS``, ``AGILAB_PARAMS_PATH``, and
+``AGILAB_ARTIFACT_DIR``. Keys in ``params.json`` that are valid Python
+identifiers are also added as globals for concise notebook cells.
+
+This is a reproducibility sandbox, not hostile-code isolation. Run trusted
+notebooks locally, or add an external container/VM boundary before using
+untrusted notebooks.
+
 Source-checkout launchers
 -------------------------
 

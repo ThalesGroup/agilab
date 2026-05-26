@@ -58,6 +58,7 @@ The same bridge command surface also exposes read-only and handoff integrations:
    agilab export hf-space --project my_project --output hf_space/ --force
    agilab export mlflow --run run_manifest.json --output mlflow_handoff.json
    agilab init vscode --root .
+   agilab run notebook --notebook analysis.ipynb --output notebook-evidence/
    agilab run duckdb --query analysis.sql --output evidence/ --plan-only
 
 For the detailed bridge strategy, see :doc:`roadmap/audience-bridges`.

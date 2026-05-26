@@ -64,6 +64,7 @@ ui = ["agi-apps==2026.05.25", "agi-pages==2026.05.25", "agi-gui==2026.05.25", "n
 viz = ["matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7"]
 mlflow = ["mlflow>=3.11.1,<4", "idna>=3.15,<4", "starlette>=1.0.1,<2"]
 bridges = ["duckdb>=1.4.0,<2"]
+notebook = ["ipykernel>=6.29.0,<7", "nbclient>=0.10.0,<1", "nbformat>=5.10.0,<6"]
 examples = ["agi-apps==2026.05.25", "jupyterlab>=4.4.0,<5", "matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7"]
 pages = ["agi-pages==2026.05.25"]
 proof = ["cryptography>=46.0.0,<47"]
