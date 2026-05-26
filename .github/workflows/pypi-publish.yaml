@@ -689,7 +689,7 @@ jobs:
             --github-step-summary "$GITHUB_STEP_SUMMARY"
             --github-confirm-login-repository "$GITHUB_REPOSITORY"
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL"
-            --github-confirm-login-timeout 300
+            --github-confirm-login-timeout 1800
             --github-confirm-login-poll-delay 5
             --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}"
           )

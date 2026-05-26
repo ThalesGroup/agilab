@@ -340,7 +340,7 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "PyPI release retention must poll for temporary login confirmation"
         ),
         "--github-confirm-login-timeout": (
-            "PyPI release retention must leave a bounded confirmation window"
+            "PyPI release retention must leave a long bounded confirmation window"
         ),
         "needs.pypi-release-retention.result == 'success'": (
             "release assets must wait for successful PyPI release retention"
