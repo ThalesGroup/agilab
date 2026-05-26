@@ -394,6 +394,10 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-app-weather-forecast"
     editable = true
 
+[tool.uv.sources.agi-app-sklearn-pipeline]
+    path = "./src/agilab/lib/agi-app-sklearn-pipeline"
+    editable = true
+
 [tool.uv.sources.agi-app-pytorch-playground]
     path = "./src/agilab/lib/agi-app-pytorch-playground"
     editable = true

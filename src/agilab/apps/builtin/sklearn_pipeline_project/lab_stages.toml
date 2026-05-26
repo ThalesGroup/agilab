@@ -1,0 +1,22 @@
+[[stages]]
+id = "generate_dataset"
+label = "Generate deterministic dataset"
+kind = "data"
+produces = ["synthetic_classification_dataset"]
+M = "sklearn.datasets.make_classification"
+
+[[stages]]
+id = "train_pipeline"
+label = "Train sklearn pipeline"
+kind = "model"
+depends_on = ["generate_dataset"]
+produces = ["model.joblib", "metrics.json", "predictions.csv"]
+M = "StandardScaler + LogisticRegression"
+
+[[stages]]
+id = "write_evidence"
+label = "Write evidence manifest"
+kind = "evidence"
+depends_on = ["train_pipeline"]
+produces = ["run_manifest.json", "sklearn_pipeline_summary.json"]
+M = "AGILAB worker evidence writer"
