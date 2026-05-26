@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -59,6 +60,47 @@ def test_resolve_notebook_apps_path_reports_install_hint(monkeypatch, tmp_path: 
         notebook_demo.resolve_notebook_apps_path(start=tmp_path)
 
 
+def test_notebook_demo_package_and_installed_app_resolution_edges(monkeypatch, tmp_path: Path) -> None:
+    assert notebook_demo._normalise_project_app("") == "mycode_project"
+    assert notebook_demo._normalise_project_app("weather-forecast") == "weather_forecast_project"
+
+    builtin_root = tmp_path / "pkg" / "apps" / "builtin"
+    app_root = _make_app(builtin_root, "weather_forecast_project")
+    assert notebook_demo._root_for_app(builtin_root.parent, "weather_forecast") == builtin_root
+    assert notebook_demo._root_for_app(app_root, "weather_forecast") == builtin_root
+
+    class FakeSpec:
+        submodule_search_locations = [str(tmp_path / "package")]
+        origin = None
+
+    monkeypatch.setattr(notebook_demo.importlib.util, "find_spec", lambda _package: FakeSpec())
+    assert notebook_demo._package_dir("demo") == tmp_path / "package"
+
+    class OriginSpec:
+        submodule_search_locations = []
+        origin = str(tmp_path / "origin_pkg" / "__init__.py")
+
+    monkeypatch.setattr(notebook_demo.importlib.util, "find_spec", lambda _package: OriginSpec())
+    assert notebook_demo._package_dir("demo") == tmp_path / "origin_pkg"
+    monkeypatch.setattr(
+        notebook_demo.importlib.util,
+        "find_spec",
+        lambda _package: (_ for _ in ()).throw(ValueError("bad spec")),
+    )
+    assert notebook_demo._package_dir("demo") is None
+
+    provider = ModuleType("agi_env.app_provider_registry")
+    provider.resolve_installed_app_project = lambda _app: app_root
+    monkeypatch.setitem(sys.modules, "agi_env.app_provider_registry", provider)
+    assert notebook_demo._installed_app_project_root("weather_forecast_project") == app_root
+    provider.resolve_installed_app_project = lambda _app: (_ for _ in ()).throw(RuntimeError("boom"))
+    assert notebook_demo._installed_app_project_root("weather_forecast_project") is None
+
+    monkeypatch.setattr(notebook_demo, "_package_dir", lambda package: tmp_path / "pkg" if package == "agilab" else None)
+    monkeypatch.setattr(notebook_demo, "_installed_app_project_root", lambda _app: None)
+    assert notebook_demo.resolve_notebook_apps_path("weather_forecast", start=tmp_path / "missing") == builtin_root
+
+
 def test_notebook_local_request_uses_visible_local_defaults(monkeypatch) -> None:
     requests = []
 
@@ -83,6 +125,26 @@ def test_notebook_local_request_uses_visible_local_defaults(monkeypatch) -> None
             "mode": 0,
         }
     ]
+
+
+def test_notebook_local_request_rejects_mixed_params_and_uses_keyword_params(monkeypatch) -> None:
+    class FakeRunRequest:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    monkeypatch.setattr(notebook_demo, "_import_run_request", lambda: FakeRunRequest)
+
+    with pytest.raises(ValueError, match="either params"):
+        notebook_demo.notebook_local_request(params={"seed": 1}, dataset="moons")
+
+    request = notebook_demo.notebook_local_request(
+        workers={"worker": 2},
+        mode="debug",
+        dataset="spiral",
+    )
+    assert request.params == {"dataset": "spiral"}
+    assert request.workers == {"worker": 2}
+    assert request.mode == "debug"
 
 
 def test_notebook_app_env_resolves_apps_path_and_returns_agi_env(monkeypatch, tmp_path: Path) -> None:
@@ -129,6 +191,36 @@ async def test_install_if_needed_uses_request_defaults_without_hiding_agi_run(mo
     assert calls[0][2]["workers"] == {"10.0.0.2": 2}
     assert calls[0][2]["modes_enabled"] == 3
     assert callable(calls[0][2]["print_fn"])
+
+
+@pytest.mark.asyncio
+async def test_install_if_needed_accepts_explicit_scheduler_workers_and_modes(monkeypatch) -> None:
+    calls = []
+
+    async def fake_install_if_needed(_AGI, _env, **kwargs):
+        calls.append(kwargs)
+        return False
+
+    monkeypatch.setattr(notebook_demo, "_import_agi", lambda: object())
+    monkeypatch.setattr(notebook_demo, "_install_if_needed_with_agi", fake_install_if_needed)
+
+    installed = await notebook_demo.install_if_needed(
+        SimpleNamespace(app="demo"),
+        request=SimpleNamespace(scheduler="ignored", workers={"ignored": 1}, mode="bad"),
+        scheduler="127.0.0.9",
+        workers={"127.0.0.10": 3},
+        modes_enabled=5,
+    )
+
+    assert installed is False
+    assert calls == [
+        {
+            "scheduler": "127.0.0.9",
+            "workers": {"127.0.0.10": 3},
+            "modes_enabled": 5,
+            "print_fn": print,
+        }
+    ]
 
 
 def test_notebook_log_root_uses_runtime_target(monkeypatch, tmp_path: Path) -> None:

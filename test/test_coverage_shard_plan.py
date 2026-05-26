@@ -52,8 +52,11 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert list(chunks) == list(module.AGI_GUI_CHUNKS)
     assert "src/agilab/lib/agi-gui/test/test_agi_gui_package.py" in chunks["support"]
     assert "src/agilab/test" not in chunks["support"]
+    assert "test/test_audience_bridges.py" in chunks["support"]
     assert "test/test_evidence_contract.py" in chunks["support"]
     assert "test/test_env_footprint.py" in chunks["support"]
+    assert "test/test_environment_health.py" in chunks["support"]
+    assert "test/test_lightning_evidence.py" in chunks["support"]
     assert "test/test_pytorch_playground_app.py" in chunks["support"]
     assert "test/test_python_versions.py" in chunks["support"]
     assert chunks["pages-flow"] == [
@@ -61,6 +64,7 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
         "-k",
         "execute_page or experiment_page or pipeline_page_project_selectbox",
     ]
+    assert "test/test_notebook_demo.py" in chunks["pipeline"]
     assert "test/test_notebook_import_sample.py" in chunks["pipeline"]
     assert "test/test_pypi_app_packages.py" in chunks["pages-rest"]
     assert "test/test_agi_pages_chart_spec.py" in chunks["pages-rest"]

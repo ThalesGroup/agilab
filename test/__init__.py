@@ -23,6 +23,21 @@ if src_root_str not in sys.path:
     sys.path.insert(0, src_root_str)
 
 
+def _ensure_source_agilab_package_path() -> None:
+    """Prefer the source package when pytest imports tests as ``agilab.test``."""
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        return
+    package_root = str(_SRC_ROOT / "agilab")
+    package_path = list(pkg.__path__)
+    if package_root in package_path:
+        return
+    pkg.__path__ = [package_root, *package_path]
+    spec = getattr(pkg, "__spec__", None)
+    if spec is not None and getattr(spec, "submodule_search_locations", None) is not None:
+        spec.submodule_search_locations = list(pkg.__path__)
+
+
 def import_agilab_module(module_name: str):
     """Import an ``agilab.*`` module from the repo source tree even if another package is already loaded."""
     pkg = sys.modules.get("agilab")
@@ -32,11 +47,12 @@ def import_agilab_module(module_name: str):
         pkg.__path__ = [package_root]
         sys.modules["agilab"] = pkg
     else:
-        package_path = list(pkg.__path__)
-        if package_root not in package_path:
-            pkg.__path__ = [package_root, *package_path]
+        _ensure_source_agilab_package_path()
     importlib.invalidate_caches()
     return importlib.import_module(module_name)
+
+
+_ensure_source_agilab_package_path()
 
 def _iter_app_dirs():
     if not _APPS_ROOT.is_dir():

@@ -115,6 +115,7 @@ references, and example projects.
    :caption: Examples
 
    Demo chooser <demos>
+   Packaged examples <packaged-examples>
    Public app catalog <public-app-catalog>
    Execution playground <execution-playground>
    Industrial optimization examples <industrial-optimization-examples>

@@ -152,3 +152,77 @@ def test_lightning_evidence_helpers_are_dependency_light_and_json_safe(tmp_path:
     assert decoded["nan"] is None
     assert decoded["scalar"] == 4.5
     assert lightning_evidence.LightningEvidenceCallback is lightning_evidence.AgilabLightningEvidenceCallback
+
+
+def test_lightning_evidence_lifecycle_and_verifier_edges(tmp_path: Path) -> None:
+    trainer = SimpleNamespace(
+        current_epoch=1,
+        global_step=2,
+        callback_metrics={},
+        callbacks=[],
+        checkpoint_callback=None,
+    )
+    callback = lightning_evidence.AgilabLightningEvidenceCallback(
+        tmp_path / "lifecycle",
+        run_id="run-lifecycle",
+        checkpoint_paths=[""],
+        include_checkpoint_hashes=False,
+    )
+
+    callback.on_fit_start(trainer, None)
+    callback.on_validation_epoch_end(trainer, None)
+    callback.on_test_epoch_end(trainer, None)
+    assert [event["event"] for event in callback.metrics] == ["fit_start"]
+
+    callback.on_fit_end(trainer, None)
+    manifest = json.loads((tmp_path / "lifecycle" / "lightning_evidence.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "pass"
+
+    failing = lightning_evidence.AgilabLightningEvidenceCallback(tmp_path / "failing", run_id="run-failing")
+    failing.on_exception(trainer, None, RuntimeError("boom"))
+    fail_manifest = json.loads((tmp_path / "failing" / "lightning_evidence.json").read_text(encoding="utf-8"))
+    assert fail_manifest["status"] == "fail"
+    assert fail_manifest["exception"] == "RuntimeError: boom"
+
+    invalid_manifest_dir = tmp_path / "invalid"
+    invalid_manifest_dir.mkdir()
+    (invalid_manifest_dir / "lightning_evidence.json").write_text("{bad json", encoding="utf-8")
+    verify = lightning_evidence.verify_lightning_evidence(invalid_manifest_dir)
+    assert verify["status"] == "fail"
+    assert any(check["id"] == "manifest_schema_supported" for check in verify["checks"])
+
+    assert lightning_evidence.discover_checkpoint_paths(None) == ()
+    bad_checks = lightning_evidence._verify_checkpoint_hashes({"checkpoints": {"checkpoints": "bad"}})
+    assert bad_checks[0]["id"] == "checkpoints_shape"
+    invalid_entry_checks = lightning_evidence._verify_checkpoint_hashes({"checkpoints": {"checkpoints": ["bad"]}})
+    assert invalid_entry_checks[0]["id"] == "checkpoint:0"
+    missing_artifact = lightning_evidence._verify_artifact({"path": tmp_path / "missing.txt", "sha256": "expected"})
+    assert missing_artifact["status"] == "fail"
+    assert lightning_evidence.object_identity(None) is None
+    assert lightning_evidence._hparams(SimpleNamespace(hparams=SimpleNamespace(alpha=1))) == {"alpha": 1}
+    assert lightning_evidence._duration_seconds("not-a-date", "also-bad") is None
+
+
+def test_lightning_json_safe_handles_array_like_fallbacks() -> None:
+    class BrokenItem:
+        def item(self):
+            raise RuntimeError("bad scalar")
+
+        def tolist(self):
+            return [1, 2]
+
+    class BrokenListAndDetach:
+        def item(self):
+            raise RuntimeError("bad scalar")
+
+        def tolist(self):
+            raise RuntimeError("bad list")
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return {"tensor": 3}
+
+    assert lightning_evidence._json_safe(BrokenItem()) == [1, 2]
+    assert lightning_evidence._json_safe(BrokenListAndDetach()) == {"tensor": 3}
