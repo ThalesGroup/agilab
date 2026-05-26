@@ -323,7 +323,7 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "--allow-delete-failure-warning" not in text
     assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
-    assert "--github-confirm-login-timeout 300" in text
+    assert "--github-confirm-login-timeout 1800" in text
     assert "--github-confirm-login-poll-delay 5" in text
     assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
     assert "--protect-versions-from-projects" in text
