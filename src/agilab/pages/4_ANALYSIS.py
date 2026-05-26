@@ -59,9 +59,7 @@ _public_bind_guard_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
     fallback_name="agilab_ui_public_bind_guard_fallback",
 )
-_public_bind_guard_module.enforce_public_bind_policy_or_stop(
-    st, streamlit_config_getter=st.config.get
-)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
 
 _page_docs_module = import_agilab_module(
     "agilab.page_docs",

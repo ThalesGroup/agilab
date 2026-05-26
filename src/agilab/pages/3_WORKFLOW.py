@@ -44,9 +44,7 @@ _public_bind_guard_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
     fallback_name="agilab_ui_public_bind_guard_fallback",
 )
-_public_bind_guard_module.enforce_public_bind_policy_or_stop(
-    st, streamlit_config_getter=st.config.get
-)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
 
 _page_project_selector_module = load_local_module(
     "agilab.page_project_selector",
