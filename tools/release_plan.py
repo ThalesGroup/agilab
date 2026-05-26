@@ -356,6 +356,9 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "sync-hf-space:\n    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true'": (
             "HF Space sync and release-proof refresh must run only for the umbrella AGILAB release"
         ),
+        "huggingface_hub click": (
+            "HF Space sync must install the current HF CLI dependency set explicitly"
+        ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
         "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
         "update_public_release_references_for_guard(": (

@@ -729,7 +729,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install HF release sync dependencies
-        run: python -m pip install --upgrade --no-cache-dir "huggingface_hub[cli]"
+        run: python -m pip install --upgrade --no-cache-dir huggingface_hub click
 
       - name: Deploy and validate Hugging Face Space
         id: hf-sync
