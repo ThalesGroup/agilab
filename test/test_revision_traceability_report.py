@@ -80,10 +80,21 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
     assert state["provenance"]["queries_network"] is False
 
 
-def test_revision_traceability_reports_missing_synthetic_repo_contracts(tmp_path: Path) -> None:
+def test_revision_traceability_reports_missing_synthetic_repo_contracts(
+    tmp_path: Path,
+) -> None:
     core = _load_module(CORE_PATH, "revision_traceability_core_missing_test_module")
     app_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "demo_project"
     app_dir.mkdir(parents=True)
+    hidden_cache_dir = (
+        tmp_path
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / ".agilab-editable-install-cache"
+    )
+    hidden_cache_dir.mkdir(parents=True)
 
     state = core.build_revision_traceability(tmp_path)
 
@@ -95,10 +106,13 @@ def test_revision_traceability_reports_missing_synthetic_repo_contracts(tmp_path
     assert state["summary"]["missing_app_settings_count"] == 1
     assert "core.agilab" in issue_locations
     assert "apps.demo_project" in issue_locations
+    assert "apps..agilab-editable-install-cache" not in issue_locations
     assert state["builtin_apps"][0]["fingerprint_sha256"] == core._combined_digest([])
 
 
-def test_revision_traceability_reads_gitdir_files_packed_refs_and_bad_versions(tmp_path: Path) -> None:
+def test_revision_traceability_reads_gitdir_files_packed_refs_and_bad_versions(
+    tmp_path: Path,
+) -> None:
     core = _load_module(CORE_PATH, "revision_traceability_core_git_test_module")
 
     repo = tmp_path / "repo"
@@ -135,7 +149,9 @@ def test_revision_traceability_reads_gitdir_files_packed_refs_and_bad_versions(t
     assert core._read_pyproject_version(bad_pyproject) == ""
 
 
-def test_persist_revision_traceability_round_trips_invalid_state(tmp_path: Path) -> None:
+def test_persist_revision_traceability_round_trips_invalid_state(
+    tmp_path: Path,
+) -> None:
     core = _load_module(CORE_PATH, "revision_traceability_core_persist_test_module")
     (tmp_path / "src" / "agilab" / "apps" / "builtin").mkdir(parents=True)
 

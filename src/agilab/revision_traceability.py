@@ -74,7 +74,9 @@ def _read_git_head(repo_root: Path) -> dict[str, str]:
     if head.startswith("ref:"):
         ref = head.removeprefix("ref:").strip()
         ref_path = git_dir / ref
-        commit = ref_path.read_text(encoding="utf-8").strip() if ref_path.is_file() else ""
+        commit = (
+            ref_path.read_text(encoding="utf-8").strip() if ref_path.is_file() else ""
+        )
         if not commit:
             packed_refs = git_dir / "packed-refs"
             if packed_refs.is_file():
@@ -99,7 +101,9 @@ def _read_git_head(repo_root: Path) -> dict[str, str]:
     }
 
 
-def _core_component_row(repo_root: Path, name: str, relative_path: Path) -> dict[str, Any]:
+def _core_component_row(
+    repo_root: Path, name: str, relative_path: Path
+) -> dict[str, Any]:
     path = repo_root / relative_path
     exists = path.is_file()
     return {
@@ -147,11 +151,15 @@ def build_revision_traceability(repo_root: Path) -> dict[str, Any]:
     app_rows = [
         _app_trace_row(repo_root, app_dir)
         for app_dir in sorted(apps_root.iterdir())
-        if app_dir.is_dir()
+        if app_dir.is_dir() and not app_dir.name.startswith(".")
     ]
     missing_core = [row["name"] for row in core_components if not row["exists"]]
-    missing_app_pyprojects = [row["app"] for row in app_rows if not row["has_pyproject"]]
-    missing_app_settings = [row["app"] for row in app_rows if not row["has_app_settings"]]
+    missing_app_pyprojects = [
+        row["app"] for row in app_rows if not row["has_pyproject"]
+    ]
+    missing_app_settings = [
+        row["app"] for row in app_rows if not row["has_app_settings"]
+    ]
     repository = _read_git_head(repo_root)
     issues = [
         {
@@ -193,11 +201,15 @@ def build_revision_traceability(repo_root: Path) -> dict[str, Any]:
             },
             "builtin_app_count": len(app_rows),
             "builtin_apps": [row["app"] for row in app_rows],
-            "app_fingerprint_count": sum(1 for row in app_rows if row["file_count"] > 0),
+            "app_fingerprint_count": sum(
+                1 for row in app_rows if row["file_count"] > 0
+            ),
             "missing_core_component_count": len(missing_core),
             "missing_app_pyproject_count": len(missing_app_pyprojects),
             "missing_app_settings_count": len(missing_app_settings),
-            "pipeline_view_app_count": sum(1 for row in app_rows if row["has_pipeline_view"]),
+            "pipeline_view_app_count": sum(
+                1 for row in app_rows if row["has_pipeline_view"]
+            ),
             "command_execution_count": 0,
             "network_probe_count": 0,
             "repository_commit": repository.get("commit", ""),
@@ -217,7 +229,9 @@ def build_revision_traceability(repo_root: Path) -> dict[str, Any]:
 def write_revision_traceability(path: Path, state: Mapping[str, Any]) -> Path:
     path = path.expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return path
 
 
@@ -225,7 +239,9 @@ def load_revision_traceability(path: Path) -> dict[str, Any]:
     return json.loads(path.expanduser().read_text(encoding="utf-8"))
 
 
-def persist_revision_traceability(*, repo_root: Path, output_path: Path) -> dict[str, Any]:
+def persist_revision_traceability(
+    *, repo_root: Path, output_path: Path
+) -> dict[str, Any]:
     state = build_revision_traceability(repo_root)
     path = write_revision_traceability(output_path, state)
     reloaded = load_revision_traceability(path)
