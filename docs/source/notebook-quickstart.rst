@@ -53,20 +53,20 @@ clean environment:
    mkdir ~/agi-core-demo && cd ~/agi-core-demo
    uv venv
    source .venv/bin/activate
-   uv pip install agilab
-   uv run --with jupyterlab jupyter lab
+   uv pip install "agilab[examples]"
+   jupyter lab
 
 Then use the minimal notebook cells below in a blank notebook.
 
 Minimal notebook cells
 ----------------------
 
-Cell 1: select the built-in MyCode example app.
+Cell 1: select the built-in MyCode example app and create the local request.
 
 .. literalinclude:: snippets/agi_core_mycode_minimal_app_env.py
    :language: python
 
-Cell 2: run the smallest local ``AGI.run(...)`` shape.
+Cell 2: install the worker if needed, then run the visible ``AGI.run(...)`` call.
 
 .. literalinclude:: snippets/agi_core_mycode_minimal_run.py
    :language: python
@@ -79,8 +79,11 @@ Cell 3: inspect the run artifacts.
 How this maps back to the web UI
 --------------------------------
 
-- Notebook ``AgiEnv(app=\"mycode_project\")`` corresponds to choosing the
-  built-in MyCode example app in **PROJECT**.
+- Notebook ``notebook_app_env(\"mycode_project\")`` is the compact form of
+  ``AgiEnv(...)`` and corresponds to choosing the built-in MyCode example app
+  in **PROJECT**.
+- Notebook ``notebook_local_request()`` creates the small local ``RunRequest``
+  that **ORCHESTRATE** would generate for a one-worker run.
 - Notebook ``AGI.run(...)`` corresponds to the generated snippet from
   **ORCHESTRATE**.
 - The output path under ``~/log/execute/mycode`` is the same family of artifacts

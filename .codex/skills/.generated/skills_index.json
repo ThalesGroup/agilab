@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-21T07:11:17Z",
+  "generated_at_utc": "2026-05-26T07:02:37Z",
   "tool": "tools/codex_skills.py",
   "count": 28,
   "skills": [
@@ -31,7 +31,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-07",
+      "updated": "2026-05-26",
       "path": ".codex/skills/agilab-example-maturity/SKILL.md",
       "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
     },

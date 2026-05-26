@@ -103,6 +103,14 @@ _workflow_ui_module = import_agilab_module(
 )
 render_page_context = _workflow_ui_module.render_page_context
 
+_environment_health_module = import_agilab_module(
+    "agilab.environment_health",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "environment_health.py",
+    fallback_name="agilab_environment_health_fallback",
+)
+render_environment_health_panel = _environment_health_module.render_environment_health_panel
+
 _page_project_selector_module = import_agilab_module(
     "agilab.page_project_selector",
     current_file=__file__,
@@ -2319,6 +2327,7 @@ def handle_project_selection():
         st.warning("No projects available.")
         return
 
+    render_environment_health_panel(st, env)
     _render_project_software_metrics(env)
     st.markdown("### Edit project files")
 
