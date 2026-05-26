@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGILAB R stage smoke output",
+  "type": "object",
+  "required": ["n", "mean", "sd"],
+  "properties": {
+    "n": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mean": {
+      "type": "number"
+    },
+    "sd": {
+      "type": "number"
+    }
+  },
+  "additionalProperties": true
+}

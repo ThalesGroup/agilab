@@ -65,6 +65,12 @@ Status legend:
      - PyPI app package
      - Reproducible PyTorch classifier playground with persisted controls and
        evidence artifacts.
+   * - ``r_stage_smoke_project``
+     - None
+     - Source built-in
+     - Narrow R stage runtime proof: AGILAB stays the Python orchestrator while
+       a worker executes ``Rscript`` through JSON input/output, captured logs,
+       artifact directories, manifest hashes, and reducer evidence.
    * - ``tescia_diagnostic_project``
      - ``agi-app-tescia-diagnostic``
      - PyPI app package
