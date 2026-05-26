@@ -2158,6 +2158,7 @@ async def page() -> None:
 
     install_status = _app_install_status(env)
     installed = bool(install_status.get("manager_ready") and install_status.get("worker_ready"))
+    install_block_reason = _install_status_warning_message(install_status) or _runtime_status_label(install_status)[1]
 
     # Sidebar toggles for each page section
     if "show_install" not in st.session_state:
@@ -2233,6 +2234,8 @@ async def page() -> None:
         show_run_panel=show_run_panel,
         cmd=cmd,
         deps=execute_deps,
+        install_ready=installed,
+        install_disabled_reason=install_block_reason,
     )
 
 # ===========================

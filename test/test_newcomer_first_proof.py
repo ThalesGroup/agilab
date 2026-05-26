@@ -45,9 +45,32 @@ def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> Non
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
+        "install readiness check",
     ]
     assert "src/agilab/apps/install.py" in " ".join(commands[2].argv)
     assert "AGI_install_flight_telemetry.py" in commands[3].argv[-1]
+    assert "app_install_status" in commands[4].argv[-1]
+
+
+def test_build_proof_commands_with_run_adds_execute_probe() -> None:
+    module = _load_module()
+
+    commands = module.build_proof_commands(
+        module.DEFAULT_ACTIVE_APP,
+        with_install=False,
+        with_run=True,
+    )
+
+    assert [command.label for command in commands] == [
+        "preinit smoke",
+        "source ui smoke",
+        "flight install smoke",
+        "seeded script check",
+        "install readiness check",
+        "flight execute smoke",
+    ]
+    assert "AGI_run_flight_telemetry.py" in commands[-1].argv[-1]
+    assert str(module.DEFAULT_ACTIVE_APP / ".venv" / "bin" / "python") in commands[-1].argv[-1]
 
 
 def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
@@ -84,16 +107,32 @@ def test_main_print_only_json_emits_selected_commands(capsys) -> None:
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["with_install"] is True
+    assert payload["with_run"] is False
     assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
     assert payload["run_manifest_filename"] == "run_manifest.json"
     assert payload["run_manifest_path"].endswith("/log/execute/flight_telemetry/run_manifest.json")
     assert payload["commands"][0]["label"] == "preinit smoke"
-    assert payload["commands"][-1]["label"] == "seeded script check"
+    assert payload["commands"][-1]["label"] == "install readiness check"
     serialized = json.dumps(payload)
     assert "argv" not in serialized
     assert '"env":' not in serialized
     assert "sk-test-newcomer" not in serialized
     assert "orchestrate_errors" not in serialized
+
+
+def test_main_print_only_with_run_implies_install(capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(["--print-only", "--json", "--with-run"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["with_install"] is True
+    assert payload["with_run"] is True
+    assert [command["label"] for command in payload["commands"]][-2:] == [
+        "install readiness check",
+        "flight execute smoke",
+    ]
 
 
 def test_main_json_redacts_internal_commands_and_success_stdout(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -123,6 +162,7 @@ def test_main_json_redacts_internal_commands_and_success_stdout(monkeypatch, tmp
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is True
+    assert payload["with_run"] is False
     assert payload["steps"][0]["status"] == "pass"
     assert payload["steps"][1]["command"][-1] == "<inline first-proof smoke>"
     assert "stdout" not in payload["steps"][0]
@@ -213,6 +253,7 @@ def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None
     manifest = module.build_run_manifest(
         active_app=module.DEFAULT_ACTIVE_APP,
         with_install=False,
+        with_run=False,
         commands=commands,
         results=results,
         summary=summary,
@@ -257,6 +298,7 @@ def test_build_run_manifest_records_custom_manifest_path(tmp_path: Path) -> None
     manifest = module.build_run_manifest(
         active_app=module.DEFAULT_ACTIVE_APP,
         with_install=False,
+        with_run=False,
         commands=commands,
         results=results,
         summary=summary,

@@ -44,6 +44,12 @@ DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
 DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
 EDITABLE_INSTALL_CACHE_SCHEMA = "agilab-editable-install-cache-v1"
+DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
+    "pillow": ("PIL",),
+    "python-dotenv": ("dotenv",),
+    "pyyaml": ("yaml",),
+    "scikit-learn": ("sklearn",),
+}
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -1598,6 +1604,76 @@ def _gather_dependency_specs(
     return dependency_info, worker_pyprojects
 
 
+def _dependency_modules_from_info(
+    dependency_info: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    modules: list[str] = []
+    for key, meta in dependency_info.items():
+        if key.startswith("agi-") or key == "agilab":
+            continue
+        extras = {
+            str(item).strip().lower()
+            for item in meta.get("extras", set())
+            if str(item).strip()
+        }
+        modules.extend(
+            DEPENDENCY_MODULE_ALIASES.get(
+                key,
+                (str(meta.get("name") or key).replace("-", "_"),),
+            )
+        )
+        if key == "dask" and "distributed" in extras:
+            modules.append("distributed")
+    return tuple(dict.fromkeys(modules))
+
+
+def _pth_import_roots(site_packages: Path) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    try:
+        pth_files = sorted(site_packages.glob("*.pth"))
+    except OSError:
+        return ()
+    for pth_file in pth_files:
+        try:
+            lines = pth_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            value = line.strip()
+            if not value or value.startswith("#") or value.startswith("import "):
+                continue
+            candidate = Path(value).expanduser()
+            if not candidate.is_absolute():
+                candidate = site_packages / candidate
+            candidate = candidate.resolve(strict=False)
+            if candidate.is_dir():
+                roots.append(candidate)
+    return tuple(dict.fromkeys(roots))
+
+
+def _module_available_on_root(root: Path, module: str) -> bool:
+    package_path = root / module
+    if package_path.exists():
+        return True
+    return any((root / f"{module}{suffix}").exists() for suffix in (".py", ".so", ".pyd", ".dylib"))
+
+
+def _project_venv_has_modules(
+    project: Path,
+    modules: tuple[str, ...],
+    *,
+    python_version: str | None = None,
+) -> bool:
+    if not modules:
+        return True
+    site_packages = _project_site_packages_dir(project, python_version=python_version)
+    roots = tuple(dict.fromkeys((site_packages, *_pth_import_roots(site_packages))))
+    return all(
+        any(_module_available_on_root(root, module) for root in roots)
+        for module in modules
+    )
+
+
 async def deploy_local_worker(
     agi_cls: Any,
     src: Path,
@@ -1732,6 +1808,17 @@ async def deploy_local_worker(
         log.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
     app_path = env.active_app
+    manager_probe_dependency_info, _ = _gather_dependency_specs(
+        [env_project, node_project, core_project, cluster_project, app_path]
+    )
+    manager_probe_modules = _dependency_modules_from_info(manager_probe_dependency_info)
+
+    def worker_probe_modules() -> tuple[str, ...]:
+        worker_probe_dependency_info, _ = _gather_dependency_specs(
+            [env_project, node_project, wenv_abs]
+        )
+        return _dependency_modules_from_info(worker_probe_dependency_info)
+
     manager_pyproject = app_path / "pyproject.toml"
     manager_pyproject_is_repo_file = _is_within_repo(manager_pyproject, repo_root)
     if (not env.is_source_env) and (not env.is_worker_env) and dependency_info:
@@ -1830,6 +1917,11 @@ async def deploy_local_worker(
                 ),
                 output_probe=lambda: _project_venv_matches(
                     app_path, python_version=pyvers
+                )
+                and _project_venv_has_modules(
+                    app_path,
+                    manager_probe_modules,
+                    python_version=pyvers,
                 ),
             )
         )
@@ -2111,6 +2203,11 @@ async def deploy_local_worker(
             ),
             output_probe=lambda: _project_venv_matches(
                 worker_venv_project,
+                python_version=pyvers_worker,
+            )
+            and _project_venv_has_modules(
+                worker_venv_project,
+                worker_probe_modules(),
                 python_version=pyvers_worker,
             ),
             dependencies=tuple(worker_dependency_names),

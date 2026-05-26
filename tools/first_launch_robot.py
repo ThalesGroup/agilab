@@ -55,6 +55,47 @@ def _contains_any(values: Sequence[str], needles: Sequence[str]) -> bool:
     return any(needle in joined for needle in needles)
 
 
+def _active_app_readme_path(active_app: Path, apps_path: Path) -> Path | None:
+    candidates = [
+        active_app,
+        apps_path / active_app,
+        apps_path / "builtin" / active_app,
+    ]
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve(strict=False)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        readme_path = resolved / "README.md"
+        if readme_path.is_file():
+            return readme_path
+    return None
+
+
+def _readme_link_details(markdown: Sequence[str], active_app: Path, apps_path: Path) -> tuple[bool, dict[str, Any]]:
+    readme_path = _active_app_readme_path(active_app, apps_path)
+    if readme_path is None:
+        return False, {
+            "active_app": str(active_app),
+            "apps_path": str(apps_path),
+            "expected_path": "",
+            "expected_markdown": "",
+        }
+
+    readme_url = readme_path.resolve(strict=False).as_uri()
+    expected_markdown = f"[README]({readme_url})"
+    return any(expected_markdown in item for item in markdown), {
+        "active_app": str(active_app),
+        "apps_path": str(apps_path),
+        "expected_path": str(readme_path),
+        "expected_markdown": expected_markdown,
+    }
+
+
 def _docs_menu_items() -> dict[str, str]:
     src_root = REPO_ROOT / "src"
     src_root_str = str(src_root)
@@ -106,6 +147,7 @@ def build_report(
     captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
     docs_menu = _docs_menu_items()
+    has_readme_link, readme_details = _readme_link_details(markdown, active_app, apps_path)
 
     has_env = False
     try:
@@ -200,6 +242,16 @@ def build_report(
             "Landing page exposes documentation through the Streamlit page menu",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
             details={"buttons": buttons, "menu_items": docs_menu},
+        ),
+        _check_result(
+            "first_launch_readme_action",
+            "First launch exposes app README link",
+            has_readme_link,
+            "Sidebar exposes the active app README link"
+            if has_readme_link
+            else "Sidebar is missing the active app README link",
+            evidence=[readme_details["expected_path"]],
+            details=readme_details,
         ),
         _check_result(
             "first_launch_runtime_budget",

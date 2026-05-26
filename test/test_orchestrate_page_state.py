@@ -412,6 +412,27 @@ def test_orchestrate_execute_workflow_state_reports_missing_install_paths(tmp_pa
     assert "installation is incomplete" in state.combo_action.disabled_reason
 
 
+def test_orchestrate_execute_workflow_state_blocks_stale_install(tmp_path):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+    (project_path / ".venv").mkdir(parents=True)
+    (worker_env_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+        install_ready=False,
+        install_disabled_reason="missing modules: humanize",
+    )
+
+    assert state.missing_install_paths == ()
+    assert state.run_action.enabled is False
+    assert state.combo_action.enabled is False
+    assert state.run_action.disabled_reason == "missing modules: humanize"
+
+
 def test_orchestrate_execute_workflow_state_skips_worker_env_for_workerless_apps(tmp_path):
     project_path = tmp_path / "project"
     (project_path / ".venv").mkdir(parents=True)

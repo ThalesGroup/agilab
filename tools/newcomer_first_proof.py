@@ -89,6 +89,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--with-run",
+        action="store_true",
+        help=(
+            "Run the full local first-proof execution probe. This implies --with-install, "
+            "checks manager/worker dependency readiness, then executes the seeded "
+            "AGI_run_flight_telemetry.py helper."
+        ),
+    )
+    parser.add_argument(
         "--print-only",
         action="store_true",
         help="Print the commands that would run without executing them.",
@@ -262,16 +271,131 @@ def _seeded_script_command(active_app: Path) -> ProofCommand:
     )
 
 
-def build_proof_commands(active_app: Path, *, with_install: bool) -> list[ProofCommand]:
+def _install_readiness_code(active_app: Path) -> str:
+    return textwrap.dedent(
+        f"""
+        import json
+        from pathlib import Path
+
+        from agi_env import AgiEnv
+        from agilab.orchestrate_page_support import app_install_status
+
+        active_app = Path({str(active_app)!r})
+        env = AgiEnv(active_app=active_app, verbose=1)
+        status = app_install_status(env)
+
+        def encode(value):
+            if isinstance(value, Path):
+                return str(value)
+            if isinstance(value, tuple):
+                return [encode(item) for item in value]
+            return value
+
+        keys = (
+            "manager_ready",
+            "worker_ready",
+            "manager_problem",
+            "worker_problem",
+            "manager_missing_modules",
+            "worker_missing_modules",
+            "manager_missing_symbols",
+            "worker_missing_symbols",
+            "manager_python",
+            "worker_python",
+        )
+        payload = {{key: encode(status.get(key)) for key in keys}}
+        if not status.get("manager_ready") or not status.get("worker_ready"):
+            raise SystemExit("install-readiness: FAIL " + json.dumps(payload, sort_keys=True))
+        print("install-readiness: OK " + json.dumps(payload, sort_keys=True))
+        """
+    ).strip()
+
+
+def _install_readiness_command(active_app: Path) -> ProofCommand:
+    return ProofCommand(
+        label="install readiness check",
+        description="Verify manager and worker venv imports, including third-party dependencies.",
+        argv=(*UV_RUN_PYTHON, "-c", _install_readiness_code(active_app)),
+        env={
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "OPENAI_API_KEY": "sk-test-newcomer-proof-000000000000",
+            "PYTHONUNBUFFERED": "1",
+        },
+    )
+
+
+def _manager_python(active_app: Path) -> Path:
+    if os.name == "nt":
+        return active_app / ".venv" / "Scripts" / "python.exe"
+    return active_app / ".venv" / "bin" / "python"
+
+
+def _execute_script_code(active_app: Path) -> str:
+    app_slug = active_app.name.replace("_project", "")
+    manager_python = _manager_python(active_app)
+    run_script = default_output_dir(active_app) / f"AGI_run_{app_slug}.py"
+    return textwrap.dedent(
+        f"""
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+
+        manager_python = Path({str(manager_python)!r})
+        run_script = Path({str(run_script)!r})
+        if not manager_python.is_file():
+            raise SystemExit(f"manager python missing: {{manager_python}}")
+        if not run_script.is_file():
+            raise SystemExit(f"seeded run helper missing: {{run_script}}")
+
+        env = os.environ.copy()
+        env.setdefault("AGILAB_DISABLE_BACKGROUND_SERVICES", "1")
+        env.setdefault("OPENAI_API_KEY", "sk-test-newcomer-proof-000000000000")
+        env.setdefault("PYTHONUNBUFFERED", "1")
+        proc = subprocess.run(
+            [str(manager_python), str(run_script)],
+            cwd={str(REPO_ROOT)!r},
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        if proc.stdout:
+            print(proc.stdout, end="" if proc.stdout.endswith("\\n") else "\\n")
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
+        print("execute-script: OK")
+        """
+    ).strip()
+
+
+def _execute_script_command(active_app: Path) -> ProofCommand:
+    return ProofCommand(
+        label="flight execute smoke",
+        description="Run the seeded AGI_run_flight_telemetry.py helper with the installed manager venv.",
+        argv=(*UV_RUN_PYTHON, "-c", _execute_script_code(active_app)),
+        env={
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "OPENAI_API_KEY": "sk-test-newcomer-proof-000000000000",
+            "PYTHONUNBUFFERED": "1",
+        },
+    )
+
+
+def build_proof_commands(active_app: Path, *, with_install: bool, with_run: bool = False) -> list[ProofCommand]:
     commands = [
         _preinit_smoke_command(),
         _ui_smoke_command(active_app),
     ]
-    if with_install:
+    if with_install or with_run:
         commands.extend([
             _install_command(active_app),
             _seeded_script_command(active_app),
+            _install_readiness_command(active_app),
         ])
+    if with_run:
+        commands.append(_execute_script_command(active_app))
     return commands
 
 
@@ -426,6 +550,7 @@ def build_run_manifest(
     *,
     active_app: Path,
     with_install: bool,
+    with_run: bool = False,
     commands: Sequence[ProofCommand],
     results: Sequence[ProofStepResult],
     summary: dict[str, object],
@@ -438,6 +563,8 @@ def build_run_manifest(
         executed_argv = (*executed_argv, "--active-app", str(active_app))
     if with_install:
         executed_argv = (*executed_argv, "--with-install")
+    if with_run:
+        executed_argv = (*executed_argv, "--with-run")
     if max_seconds != float(DEFAULT_MAX_SECONDS):
         executed_argv = (*executed_argv, "--max-seconds", str(max_seconds))
     if manifest_path.expanduser() != default_manifest_path(active_app).expanduser():
@@ -518,6 +645,7 @@ def render_human(
     *,
     active_app: Path,
     with_install: bool,
+    with_run: bool = False,
     commands: Sequence[ProofCommand],
     results: Sequence[ProofStepResult] | None = None,
     print_only: bool = False,
@@ -549,6 +677,7 @@ def render_human(
     lines.append(
         "scope: preinit import smoke + About/ORCHESTRATE page boot"
         + (" + install/seeding" if with_install else "")
+        + (" + runtime execute" if with_run else "")
     )
     for result in results:
         status = "OK" if result.returncode == 0 else f"FAIL ({result.returncode})"
@@ -573,7 +702,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--max-seconds must be greater than 0")
 
     active_app = resolve_active_app(args.active_app)
-    commands = build_proof_commands(active_app, with_install=args.with_install)
+    with_install = args.with_install or args.with_run
+    commands = build_proof_commands(
+        active_app,
+        with_install=with_install,
+        with_run=args.with_run,
+    )
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
@@ -582,7 +716,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(
                     {
                         "active_app": str(active_app),
-                        "with_install": args.with_install,
+                        "with_install": with_install,
+                        "with_run": args.with_run,
                         "kpi_target_seconds": args.max_seconds,
                         "run_manifest_path": str(manifest_path),
                         "run_manifest_filename": _load_run_manifest_module().RUN_MANIFEST_FILENAME,
@@ -595,7 +730,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 render_human(
                     active_app=active_app,
-                    with_install=args.with_install,
+                    with_install=with_install,
+                    with_run=args.with_run,
                     commands=commands,
                     print_only=True,
                     max_seconds=args.max_seconds,
@@ -610,7 +746,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_manifest:
         manifest = build_run_manifest(
             active_app=active_app,
-            with_install=args.with_install,
+            with_install=with_install,
+            with_run=args.with_run,
             commands=commands,
             results=results,
             summary=summary,
@@ -621,7 +758,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.json:
         payload = {
             "active_app": str(active_app),
-            "with_install": args.with_install,
+            "with_install": with_install,
+            "with_run": args.with_run,
             **summary,
             "steps": [_step_payload(result) for result in results],
         }
@@ -633,7 +771,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             render_human(
                 active_app=active_app,
-                with_install=args.with_install,
+                with_install=with_install,
+                with_run=args.with_run,
                 commands=commands,
                 results=results,
                 max_seconds=args.max_seconds,

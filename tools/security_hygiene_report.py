@@ -319,6 +319,27 @@ def _adoption_profile_check(security_text: str) -> dict[str, Any]:
     )
 
 
+def _security_release_process_check(security_text: str) -> dict[str, Any]:
+    required_tokens = [
+        "Security Release Process",
+        "GitHub Security Advisories",
+        "CVE",
+        "GHSA",
+        "affected versions",
+        "fixed versions",
+        "mitigation guidance",
+    ]
+    missing = [token for token in required_tokens if token not in security_text]
+    return _check_result(
+        "security_release_process_documented",
+        "Security release process is documented",
+        not missing,
+        "SECURITY.md explains advisory, CVE/GHSA, mitigation, and release-note handling",
+        evidence=["SECURITY.md"],
+        details={"missing_tokens": missing},
+    )
+
+
 def _security_disclosure_channel_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     documents = {
         "SECURITY.md": security_text,
@@ -367,6 +388,50 @@ def _security_disclosure_channel_check(repo_root: Path, security_text: str) -> d
         "Public docs and package READMEs route suspected vulnerabilities to private reporting, not public issues",
         evidence=list(documents),
         details={"stale_public_issue_tokens": stale_hits, "missing_tokens": missing},
+    )
+
+
+def _security_issue_template_intake_check(repo_root: Path) -> dict[str, Any]:
+    issue_template_root = repo_root / ".github" / "ISSUE_TEMPLATE"
+    documents = {
+        ".github/ISSUE_TEMPLATE/bug_report.md": _read_text(
+            issue_template_root / "bug_report.md"
+        ),
+        ".github/ISSUE_TEMPLATE/feature_request.md": _read_text(
+            issue_template_root / "feature_request.md"
+        ),
+        ".github/ISSUE_TEMPLATE/config.yml": _read_text(issue_template_root / "config.yml"),
+    }
+    required = {
+        ".github/ISSUE_TEMPLATE/bug_report.md": [
+            "Do not report suspected vulnerabilities here",
+            "GitHub Private Vulnerability Reporting",
+            "sharing exploit details publicly",
+        ],
+        ".github/ISSUE_TEMPLATE/feature_request.md": [
+            "Do not report suspected vulnerabilities here",
+            "GitHub Private Vulnerability Reporting",
+            "sharing exploit details publicly",
+        ],
+        ".github/ISSUE_TEMPLATE/config.yml": [
+            "Security vulnerability",
+            "security/advisories/new",
+            "Do not share exploit details in public issues",
+        ],
+    }
+    missing = [
+        f"{path}: {token}"
+        for path, tokens in required.items()
+        for token in tokens
+        if token not in documents.get(path, "")
+    ]
+    return _check_result(
+        "issue_templates_route_security_reports_privately",
+        "Issue templates route security reports privately",
+        not missing,
+        "Issue templates warn against public vulnerability disclosure and expose a private report link",
+        evidence=list(documents),
+        details={"missing_tokens": missing},
     )
 
 
@@ -738,7 +803,9 @@ def build_report(
         _local_secret_storage_policy_check(repo_root, security_text),
         _release_evidence_scope_check(repo_root, security_text),
         _adoption_profile_check(security_text),
+        _security_release_process_check(security_text),
         _security_disclosure_channel_check(repo_root, security_text),
+        _security_issue_template_intake_check(repo_root),
         _external_apps_repository_policy_check(repo_root, security_text),
         _supply_chain_profile_evidence_check(security_text),
         _release_proof_freshness_check(repo_root, security_text),

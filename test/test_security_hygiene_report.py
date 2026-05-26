@@ -62,10 +62,12 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["local_secret_storage_is_developer_only"]["status"] == "pass"
     assert checks["release_evidence_scope_is_bounded"]["status"] == "pass"
     assert checks["adoption_profile_go_no_go_documented"]["status"] == "pass"
+    assert checks["security_release_process_documented"]["status"] == "pass"
     assert checks["security_disclosure_channel_consistency"]["status"] == "pass"
     assert checks["security_disclosure_channel_consistency"]["details"][
         "stale_public_issue_tokens"
     ] == []
+    assert checks["issue_templates_route_security_reports_privately"]["status"] == "pass"
     assert checks["external_apps_repository_trust_boundary"]["status"] == "pass"
     assert checks["supply_chain_profile_evidence_documented"]["status"] == "pass"
     assert checks["release_proof_freshness_policy_documented"]["status"] == "pass"
@@ -184,6 +186,12 @@ def test_security_hygiene_static_checks_report_missing_or_unsafe_files(tmp_path:
     )
     assert disclosure_check["status"] == "fail"
     assert disclosure_check["details"]["stale_public_issue_tokens"]
+
+    issue_template_check = module._security_issue_template_intake_check(tmp_path)
+    assert issue_template_check["status"] == "fail"
+    assert ".github/ISSUE_TEMPLATE/bug_report.md" in issue_template_check["details"][
+        "missing_tokens"
+    ][0]
 
 
 def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:

@@ -7,6 +7,10 @@ assignees: ''
 
 ---
 
+> Do not report suspected vulnerabilities here. Use GitHub Private Vulnerability Reporting from
+> the Security tab, or ask the maintainers for a private AGILAB security intake channel without
+> sharing exploit details publicly.
+
 **Describe the bug**
 A clear and concise description of what the bug is.
 

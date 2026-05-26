@@ -368,6 +368,8 @@ def test_flight_telemetry_worker_helper_and_error_branches(monkeypatch, tmp_path
     assert worker_module._haversine_distance_m({"prev_lat": None, "prev_long": 2, "lat": 3, "long": 4}) == 0.0
     assert worker_module._haversine_distance_m({"prev_lat": "bad", "prev_long": 2, "lat": 3, "long": 4}) == 0.0
     assert worker_module._haversine_distance_m({"prev_lat": 48.0, "prev_long": 2.0, "lat": 48.001, "long": 2.001}) > 0
+    values = worker_module._as_contiguous_float64(pl.Series("lat", [48.0, 48.001]))
+    assert values.flags.writeable is True
     kernel_df = pl.DataFrame(
         {
             "prev_lat": pl.Series("prev_lat", [None, 48.0, "bad"], strict=False),

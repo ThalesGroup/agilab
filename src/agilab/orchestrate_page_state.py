@@ -394,6 +394,8 @@ def _execute_readiness(
     show_run_panel: bool,
     command_configured: bool,
     missing_install_paths: tuple[str, ...],
+    install_ready: bool = True,
+    install_disabled_reason: str = "",
 ) -> OrchestrateActionReadiness:
     if not show_run_panel:
         return OrchestrateActionReadiness(
@@ -417,6 +419,14 @@ def _execute_readiness(
             disabled_reason=_install_gap_reason(action_label, missing_install_paths),
             missing_install_paths=missing_install_paths,
         )
+    if not install_ready:
+        reason = install_disabled_reason or "RUN is unavailable because the installation is incomplete or stale. Run INSTALL first."
+        return OrchestrateActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason=reason,
+            missing_install_paths=missing_install_paths,
+        )
     return OrchestrateActionReadiness(
         action=action,
         enabled=True,
@@ -432,6 +442,8 @@ def build_orchestrate_execute_workflow_state(
     project_path: Path | str,
     worker_env_path: Path | str | None,
     worker_env_required: bool = True,
+    install_ready: bool = True,
+    install_disabled_reason: str = "",
 ) -> OrchestrateExecuteWorkflowState:
     """Build the pure ORCHESTRATE execute/combo action state."""
     manager_venv = Path(project_path) / ".venv"
@@ -444,6 +456,8 @@ def build_orchestrate_execute_workflow_state(
             show_run_panel=show_run_panel,
             command_configured=command_configured,
             missing_install_paths=missing_paths,
+            install_ready=install_ready,
+            install_disabled_reason=install_disabled_reason,
         )
         for action in OrchestrateExecuteAction
     }

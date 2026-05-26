@@ -15,6 +15,7 @@ from pathlib import Path
 
 import cython
 import numpy as np
+import polars as pl
 from agi_env import normalize_path
 from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
@@ -23,8 +24,6 @@ from flight_telemetry.flight_args import UNSUPPORTED_DATA_SOURCE_MESSAGE
 from flight_telemetry.reduction import write_reduce_artifact
 
 logger = AgiLogger.get_logger(__name__)
-
-import polars as pl
 
 _EARTH_RADIUS_M = 6_371_000.0
 SPEED_DTYPE_CONTRACT = "float64-contiguous"
@@ -58,10 +57,13 @@ def _haversine_distance_m(row) -> float:
 
 
 def _as_contiguous_float64(series: pl.Series) -> np.ndarray:
-    return np.ascontiguousarray(
+    values = np.ascontiguousarray(
         series.cast(pl.Float64, strict=False).fill_null(float("nan")).to_numpy(),
         dtype=np.float64,
     )
+    if not values.flags.writeable:
+        values = values.copy()
+    return values
 
 
 @cython.boundscheck(False)
