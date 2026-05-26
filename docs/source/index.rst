@@ -56,6 +56,7 @@ references, and example projects.
    Data connectors <data-connectors>
    AGILAB for Excel users <excel-users>
    AGILAB for Voila users <voila-users>
+   AGILAB for Quarto users <quarto-users>
    Proof capsule <proof-capsule>
    Public web demo <agilab-demo>
    Advanced proof pack <advanced-proof-pack>
