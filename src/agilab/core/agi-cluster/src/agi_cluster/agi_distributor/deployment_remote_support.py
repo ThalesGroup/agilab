@@ -30,7 +30,9 @@ _SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
-_REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
+_REMOTE_PATH_PREFIX = (
+    'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
+)
 
 
 def _resolve_local_share_path(value: str, env: Any) -> Path:
@@ -57,13 +59,32 @@ def _sshfs_options_args() -> str:
     return " ".join(f"-o {quote(option)}" for option in _SSHFS_OPTIONS)
 
 
+def _operator_command_prefix(value: Any) -> str:
+    prefix = str(value or "").strip()
+    return f"{prefix} " if prefix else ""
+
+
+def _remote_tool(prefix: Any, executable: Any) -> str:
+    return _operator_command_prefix(prefix) + quote(str(executable))
+
+
+def _remote_arg(value: Any) -> str:
+    if isinstance(value, (Path, PurePosixPath)):
+        return quote(value.as_posix())
+    return quote(str(value))
+
+
+def _remote_command(tool: str, *args: Any) -> str:
+    return " ".join([tool, *(_remote_arg(arg) for arg in args)])
+
+
 def _remote_share_unmount_snippet() -> str:
     return (
         "if command -v fusermount3 >/dev/null 2>&1; then "
-        "fusermount3 -u \"$REMOTE_CLUSTER_SHARE\" || true; "
+        'fusermount3 -u "$REMOTE_CLUSTER_SHARE" || true; '
         "elif command -v fusermount >/dev/null 2>&1; then "
-        "fusermount -u \"$REMOTE_CLUSTER_SHARE\" || true; "
-        "else umount \"$REMOTE_CLUSTER_SHARE\" || true; fi"
+        'fusermount -u "$REMOTE_CLUSTER_SHARE" || true; '
+        'else umount "$REMOTE_CLUSTER_SHARE" || true; fi'
     )
 
 
@@ -91,7 +112,11 @@ def _home_relative_share_setting(value: str, env: Any) -> str:
 
 
 def _scheduler_host_from_state(agi_cls: Any) -> str:
-    raw_host = getattr(agi_cls, "_scheduler_ip", None) or getattr(agi_cls, "_scheduler", None) or ""
+    raw_host = (
+        getattr(agi_cls, "_scheduler_ip", None)
+        or getattr(agi_cls, "_scheduler", None)
+        or ""
+    )
     host = str(raw_host).strip()
     if host.startswith("tcp://"):
         host = host.removeprefix("tcp://")
@@ -114,7 +139,7 @@ def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
 
 def _remote_env_update_command(remote_share: str) -> str:
     line = f"AGI_CLUSTER_SHARE={remote_share!r}"
-    return f"mkdir -p \"$HOME/.agilab\" && printf '%s\\n' {quote(line)} > \"$HOME/.agilab/.env\""
+    return f'mkdir -p "$HOME/.agilab" && printf \'%s\\n\' {quote(line)} > "$HOME/.agilab/.env"'
 
 
 def _remote_share_mount_command(
@@ -127,32 +152,29 @@ def _remote_share_mount_command(
     sshfs_options = _sshfs_options_args()
     unmount_snippet = _remote_share_unmount_snippet()
     return (
-        _REMOTE_PATH_PREFIX
-        + "set -e; "
-        "mkdir -p \"$HOME/.agilab\"; "
+        _REMOTE_PATH_PREFIX + "set -e; "
+        'mkdir -p "$HOME/.agilab"; '
         "if ! command -v sshfs >/dev/null 2>&1; then "
         f"printf '%s\\n' {quote(_SSHFS_INSTALL_HINT)} >&2; exit 70; "
         "fi; "
-        "REMOTE_CLUSTER_SHARE="
-        + _remote_share_assignment(remote_share)
-        + "; "
+        "REMOTE_CLUSTER_SHARE=" + _remote_share_assignment(remote_share) + "; "
         f"SCHEDULER_CLUSTER_SHARE={quote(source)}; "
-        "mkdir -p \"$REMOTE_CLUSTER_SHARE\"; "
-        "MOUNT_LINE=$(mount | grep -F -- \"$REMOTE_CLUSTER_SHARE\" || true); "
-        "if [ -n \"$MOUNT_LINE\" ]; then "
-        "if printf '%s\\n' \"$MOUNT_LINE\" | grep -F -- \"$SCHEDULER_CLUSTER_SHARE\" >/dev/null 2>&1 "
-        "&& test -d \"$REMOTE_CLUSTER_SHARE\" && test -w \"$REMOTE_CLUSTER_SHARE\"; then "
-        "echo \"already mounted: $REMOTE_CLUSTER_SHARE\"; "
+        'mkdir -p "$REMOTE_CLUSTER_SHARE"; '
+        'MOUNT_LINE=$(mount | grep -F -- "$REMOTE_CLUSTER_SHARE" || true); '
+        'if [ -n "$MOUNT_LINE" ]; then '
+        'if printf \'%s\\n\' "$MOUNT_LINE" | grep -F -- "$SCHEDULER_CLUSTER_SHARE" >/dev/null 2>&1 '
+        '&& test -d "$REMOTE_CLUSTER_SHARE" && test -w "$REMOTE_CLUSTER_SHARE"; then '
+        'echo "already mounted: $REMOTE_CLUSTER_SHARE"; '
         "else "
-        "echo \"stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting\" >&2; "
+        'echo "stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting" >&2; '
         + unmount_snippet
         + "; "
-        f"sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" {sshfs_options}; "
+        f'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
         "fi; "
         "else "
-        f"sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" {sshfs_options}; "
+        f'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
         "fi; "
-        "test -d \"$REMOTE_CLUSTER_SHARE\" && test -w \"$REMOTE_CLUSTER_SHARE\""
+        'test -d "$REMOTE_CLUSTER_SHARE" && test -w "$REMOTE_CLUSTER_SHARE"'
     )
 
 
@@ -166,7 +188,11 @@ async def _prepare_remote_cluster_share(
 ) -> None:
     local_share_raw = (
         str(getattr(env, "AGI_CLUSTER_SHARE", "") or "")
-        or str(getattr(env, "envars", {}).get("AGI_CLUSTER_SHARE", "") if isinstance(getattr(env, "envars", None), dict) else "")
+        or str(
+            getattr(env, "envars", {}).get("AGI_CLUSTER_SHARE", "")
+            if isinstance(getattr(env, "envars", None), dict)
+            else ""
+        )
         or remote_share
     )
     local_share = _resolve_local_share_path(local_share_raw, env)
@@ -174,7 +200,9 @@ async def _prepare_remote_cluster_share(
 
     scheduler_target = _scheduler_ssh_target(agi_cls, env)
     if not scheduler_target:
-        raise RuntimeError("Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown.")
+        raise RuntimeError(
+            "Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown."
+        )
 
     remote_share_setting = _home_relative_share_setting(remote_share, env)
     await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
@@ -184,7 +212,9 @@ async def _prepare_remote_cluster_share(
         remote_share=remote_share_setting,
     )
     if getattr(env, "verbose", 0) > 0:
-        log.info("Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip)
+        log.info(
+            "Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip
+        )
     await agi_cls.exec_ssh(ip, mount_cmd)
 
 
@@ -231,8 +261,19 @@ def _parse_remote_platform_probe(output: str) -> tuple[str, str, str]:
     return padded[0], padded[1], padded[2]
 
 
-def _remote_rapids_probe_command(uv: str, pyvers: str, cli: PurePosixPath | Path) -> str:
-    return f"{uv} run --no-sync -p {quote(str(pyvers))} python {quote(cli.as_posix())} rapids-probe"
+def _remote_rapids_probe_command(
+    uv: str, pyvers: str, cli: PurePosixPath | Path
+) -> str:
+    return _remote_command(
+        uv,
+        "run",
+        "--no-sync",
+        "-p",
+        pyvers,
+        "python",
+        cli,
+        "rapids-probe",
+    )
 
 
 def _parse_remote_rapids_probe(output: str) -> bool:
@@ -266,13 +307,19 @@ async def _remote_rapids_capability(
     return _parse_remote_rapids_probe(result)
 
 
-async def _legacy_intel_macos_dependency_specs(agi_cls: Any, ip: str, *, log: Any = logger) -> tuple[str, ...]:
+async def _legacy_intel_macos_dependency_specs(
+    agi_cls: Any, ip: str, *, log: Any = logger
+) -> tuple[str, ...]:
     try:
         probe = await agi_cls.exec_ssh(ip, _remote_platform_probe_command())
     except ConnectionError:
         raise
     except _REMOTE_PLATFORM_PROBE_EXCEPTIONS as exc:
-        log.warning("Could not probe remote worker platform on %s; skipping legacy macOS pins: %s", ip, exc)
+        log.warning(
+            "Could not probe remote worker platform on %s; skipping legacy macOS pins: %s",
+            ip,
+            exc,
+        )
         return ()
 
     system, machine, product_version = _parse_remote_platform_probe(probe)
@@ -289,11 +336,23 @@ async def _legacy_intel_macos_dependency_specs(agi_cls: Any, ip: str, *, log: An
     return _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS
 
 
-async def _remote_project_has_pip(agi_cls: Any, ip: str, *, uv: str, wenv_rel: Path, pyvers: str) -> bool:
+async def _remote_project_has_pip(
+    agi_cls: Any, ip: str, *, uv: str, wenv_rel: Path, pyvers: str
+) -> bool:
     try:
         await agi_cls.exec_ssh(
             ip,
-            f'{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -c "import pip"',
+            _remote_command(
+                uv,
+                "--project",
+                wenv_rel,
+                "run",
+                "-p",
+                pyvers,
+                "python",
+                "-c",
+                "import pip",
+            ),
         )
     except ConnectionError:
         raise
@@ -306,7 +365,9 @@ def _latest_artifact_match(root: Path, pattern: str) -> Path | None:
     matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
     if not matches:
         return None
-    return max(matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+    return max(
+        matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name)
+    )
 
 
 async def deploy_remote_worker(
@@ -329,7 +390,7 @@ async def deploy_remote_worker(
     dist_abs = env.dist_abs
     pyvers = env.pyvers_worker
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    uv = cmd_prefix + env.uv_worker
+    uv = _remote_tool(cmd_prefix, env.uv_worker)
 
     if agi_cls._workers_data_path:
         await _prepare_remote_cluster_share(
@@ -345,8 +406,12 @@ async def deploy_remote_worker(
         if egg_file is None:
             egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
         if egg_file is None:
-            log.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
-            raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
+            log.error(
+                f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg"
+            )
+            raise FileNotFoundError(
+                f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*"
+            )
 
         wenv = env.agi_env / "dist"
         env_whl = _latest_artifact_match(wenv, "agi_env*.whl")
@@ -360,7 +425,7 @@ async def deploy_remote_worker(
 
         dist_remote = wenv_rel / "dist"
         log.info(f"mkdir {dist_remote}")
-        await agi_cls.exec_ssh(ip, f"mkdir -p '{dist_remote}'")
+        await agi_cls.exec_ssh(ip, f"mkdir -p {_remote_arg(dist_remote)}")
         await agi_cls.send_files(env, ip, [egg_file], wenv_rel)
         await agi_cls.send_files(env, ip, [node_whl, env_whl], dist_remote)
     else:
@@ -368,8 +433,12 @@ async def deploy_remote_worker(
         if egg_file is None:
             egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
         if egg_file is None:
-            log.error(f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg")
-            raise FileNotFoundError(f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*")
+            log.error(
+                f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg"
+            )
+            raise FileNotFoundError(
+                f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*"
+            )
 
         await agi_cls.send_files(env, ip, [egg_file], wenv_rel)
         env_whl = None
@@ -397,24 +466,37 @@ async def deploy_remote_worker(
             set_env_var_fn(ip, "no_rapids_hw")
         log.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
-    cmd = f"{uv} run -p {pyvers} python  {cli.as_posix()} unzip {wenv_rel.as_posix()}"
+    cmd = _remote_command(uv, "run", "-p", pyvers, "python", cli, "unzip", wenv_rel)
     await agi_cls.exec_ssh(ip, cmd)
 
-    if await _remote_project_has_pip(agi_cls, ip, uv=uv, wenv_rel=wenv_rel, pyvers=pyvers):
-        log.info("[%s] pip is already available in %s; skipping ensurepip.", ip, wenv_rel.as_posix())
+    if await _remote_project_has_pip(
+        agi_cls, ip, uv=uv, wenv_rel=wenv_rel, pyvers=pyvers
+    ):
+        log.info(
+            "[%s] pip is already available in %s; skipping ensurepip.",
+            ip,
+            wenv_rel.as_posix(),
+        )
     else:
-        cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
+        cmd = _remote_command(
+            uv, "--project", wenv_rel, "run", "-p", pyvers, "python", "-m", "ensurepip"
+        )
         await agi_cls.exec_ssh(ip, cmd)
 
-    compatibility_specs = await _legacy_intel_macos_dependency_specs(agi_cls, ip, log=log)
+    compatibility_specs = await _legacy_intel_macos_dependency_specs(
+        agi_cls, ip, log=log
+    )
     if compatibility_specs:
-        quoted_specs = " ".join(quote(spec) for spec in compatibility_specs)
-        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} {quoted_specs}"
+        cmd = _remote_command(
+            uv, "--project", wenv_rel, "add", "-p", pyvers, *compatibility_specs
+        )
         await agi_cls.exec_ssh(ip, cmd)
 
     if env.is_source_env:
         if env_whl is None or node_whl is None:
-            raise RuntimeError("source environment remote deployment requires local agi-env and agi-node wheels")
+            raise RuntimeError(
+                "source environment remote deployment requires local agi-env and agi-node wheels"
+            )
         env_pck: Union[str, Path] = wenv_rel / "dist" / env_whl.name
         node_pck: Union[str, Path] = wenv_rel / "dist" / node_whl.name
     else:
@@ -424,8 +506,10 @@ async def deploy_remote_worker(
     def _pkg_ref(pkg: Union[str, Path]) -> str:
         return pkg.as_posix() if isinstance(pkg, Path) else str(pkg)
 
-    core_package_refs = " ".join(quote(_pkg_ref(pkg)) for pkg in (env_pck, node_pck))
-    cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {core_package_refs}"
+    core_package_refs = [_pkg_ref(pkg) for pkg in (env_pck, node_pck)]
+    cmd = _remote_command(
+        uv, "--project", wenv_rel, "add", "-p", pyvers, "--upgrade", *core_package_refs
+    )
     await agi_cls.exec_ssh(ip, cmd)
 
     if deployment_dask_support.dask_mode_enabled(agi_cls):
@@ -442,11 +526,13 @@ async def deploy_remote_worker(
         windows=False,
     )
     remote_uv_sources = PurePosixPath(wenv_rel.as_posix()) / "_uv_sources"
-    pth_content = staged_uv_sources_pth_content_fn(remote_site_packages, remote_uv_sources)
+    pth_content = staged_uv_sources_pth_content_fn(
+        remote_site_packages, remote_uv_sources
+    )
     tmp_pth = Path(gettempdir()) / f"agilab_uv_sources_{uuid.uuid4().hex}.pth"
     tmp_pth.write_text(pth_content, encoding="utf-8")
     try:
-        await agi_cls.exec_ssh(ip, f"mkdir -p '{remote_site_packages.as_posix()}'")
+        await agi_cls.exec_ssh(ip, f"mkdir -p {_remote_arg(remote_site_packages)}")
         await agi_cls.send_file(
             env,
             ip,
@@ -459,23 +545,71 @@ async def deploy_remote_worker(
         except FileNotFoundError:
             pass
 
-    cmd = f"{uv} --project {wenv_rel.as_posix()}  run --no-sync -p {pyvers} python {cli.as_posix()} unzip {wenv_rel.as_posix()}"
+    cmd = _remote_command(
+        uv,
+        "--project",
+        wenv_rel,
+        "run",
+        "--no-sync",
+        "-p",
+        pyvers,
+        "python",
+        cli,
+        "unzip",
+        wenv_rel,
+    )
     await agi_cls.exec_ssh(ip, cmd)
 
-    cmd = (
-        f"{uv} --project {wenv_rel.as_posix()} run --no-sync -p {pyvers} python -m "
-        f"{env.post_install_rel} {wenv_rel.stem}"
+    cmd = _remote_command(
+        uv,
+        "--project",
+        wenv_rel,
+        "run",
+        "--no-sync",
+        "-p",
+        pyvers,
+        "python",
+        "-m",
+        env.post_install_rel,
+        wenv_rel.stem,
     )
     await agi_cls.exec_ssh(ip, cmd)
 
     if env.verbose > 1:
-        cmd = (
-            f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
-            f"agi_node.agi_dispatcher.build  --app-path  '{wenv_rel.as_posix()}' build_ext -b '{wenv_rel.as_posix()}'"
+        cmd = _remote_command(
+            uv,
+            "--project",
+            wenv_rel,
+            "run",
+            "--no-sync",
+            "-p",
+            pyvers,
+            "python",
+            "-m",
+            "agi_node.agi_dispatcher.build",
+            "--app-path",
+            wenv_rel,
+            "build_ext",
+            "-b",
+            wenv_rel,
         )
     else:
-        cmd = (
-            f"{uv} --project '{wenv_rel.as_posix()}' run --no-sync -p {pyvers} python -m "
-            f"agi_node.agi_dispatcher.build --app-path '{wenv_rel.as_posix()}' -q build_ext -b '{wenv_rel.as_posix()}'"
+        cmd = _remote_command(
+            uv,
+            "--project",
+            wenv_rel,
+            "run",
+            "--no-sync",
+            "-p",
+            pyvers,
+            "python",
+            "-m",
+            "agi_node.agi_dispatcher.build",
+            "--app-path",
+            wenv_rel,
+            "-q",
+            "build_ext",
+            "-b",
+            wenv_rel,
         )
     await agi_cls.exec_ssh(ip, cmd)

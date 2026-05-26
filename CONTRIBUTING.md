@@ -30,6 +30,10 @@ running expensive checks too early.
 
 If you are unsure, start with docs or app-local changes. Shared core changes
 have the highest blast radius and need a clear regression plan before edits.
+Main CI is a guardrail, not the full validation suite. For runtime, workflow,
+release, security, dependency, or shared-core changes, run the matching local
+workflow parity profile or focused regression slice and include that evidence
+in the pull request.
 
 ### Before Opening Your First Pull Request
 

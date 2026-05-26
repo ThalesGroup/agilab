@@ -49,7 +49,9 @@ def test_run_r_stage_writes_json_logs_artifacts_and_manifest(tmp_path):
         artifact_dir.mkdir(parents=True, exist_ok=True)
         (artifact_dir / "summary.txt").write_text("n=5\n", encoding="utf-8")
         output_path.write_text(
-            json.dumps({"n": len(values), "mean": sum(values) / len(values), "sd": 1.58113883}),
+            json.dumps(
+                {"n": len(values), "mean": sum(values) / len(values), "sd": 1.58113883}
+            ),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(cmd, 0, stdout="ok\n", stderr="note\n")
@@ -93,8 +95,79 @@ def test_run_r_stage_failure_keeps_captured_logs(tmp_path):
     with pytest.raises(RStageExecutionError, match="exit code 7"):
         run_r_stage(script, {"x": [1]}, tmp_path / "evidence", runner=fake_runner)
 
-    assert (tmp_path / "evidence" / "stage_stdout.log").read_text(encoding="utf-8") == "partial\n"
-    assert (tmp_path / "evidence" / "stage_stderr.log").read_text(encoding="utf-8") == "boom\n"
+    assert (tmp_path / "evidence" / "stage_stdout.log").read_text(
+        encoding="utf-8"
+    ) == "partial\n"
+    assert (tmp_path / "evidence" / "stage_stderr.log").read_text(
+        encoding="utf-8"
+    ) == "boom\n"
+
+
+def test_run_r_stage_rejects_script_outside_app_root(tmp_path):
+    from r_stage_smoke.r_stage_adapter import RStageExecutionError, run_r_stage
+
+    app_root = tmp_path / "app"
+    app_root.mkdir()
+    script = tmp_path / "outside.R"
+    script.write_text("# fake R script\n", encoding="utf-8")
+
+    def fake_runner(*_args, **_kwargs):
+        raise AssertionError("runner should not be called")
+
+    with pytest.raises(RStageExecutionError, match="inside the app root"):
+        run_r_stage(
+            script,
+            {"x": [1]},
+            tmp_path / "evidence",
+            runner=fake_runner,
+            app_root=app_root,
+        )
+
+
+def test_run_r_stage_redacts_logs_and_manifest_secrets(tmp_path):
+    from r_stage_smoke.r_stage_adapter import run_r_stage
+
+    app_root = tmp_path / "app"
+    script = app_root / "scripts" / "summarize.R"
+    script.parent.mkdir(parents=True)
+    script.write_text("# fake R script\n", encoding="utf-8")
+
+    def fake_runner(cmd, **_kwargs):
+        output_path = Path(cmd[3])
+        output_path.write_text(
+            json.dumps(
+                {
+                    "n": 1,
+                    "mean": 1,
+                    "sd": 0,
+                    "api_token": "sk-proj-" + ("a" * 24),
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="OPENAI_API_KEY=sk-proj-" + ("b" * 24) + "\n",
+            stderr="Bearer " + ("c" * 24) + "\n",
+        )
+
+    result = run_r_stage(
+        script,
+        {"x": [1], "service_token": "github_pat_" + ("d" * 24)},
+        tmp_path / "evidence",
+        runner=fake_runner,
+        app_root=app_root,
+    )
+
+    assert "sk-proj-" not in result.stdout_path.read_text(encoding="utf-8")
+    assert "Bearer c" not in result.stderr_path.read_text(encoding="utf-8")
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
+    assert manifest["inputs"]["service_token"] == "<redacted>"
+    assert manifest["inputs"]["x"] == [1]
+    assert manifest["result"]["api_token"] == "<redacted>"
+    assert summary["result"]["api_token"] == "<redacted>"
 
 
 def test_r_stage_smoke_manager_round_trips_settings(tmp_path):
@@ -115,7 +188,10 @@ def test_r_stage_smoke_manager_round_trips_settings(tmp_path):
     manager = RStageSmoke(env, x=[2.0, 4.0], reset_target=True)
 
     assert manager.data_out == tmp_path / "share" / "r_stage_smoke" / "evidence"
-    assert manager.analysis_artifact_dir == tmp_path / "export" / "r_stage_smoke_project" / "r_stage_smoke"
+    assert (
+        manager.analysis_artifact_dir
+        == tmp_path / "export" / "r_stage_smoke_project" / "r_stage_smoke"
+    )
     work_plan, metadata, *_ = manager.build_distribution("3")
     assert work_plan == [[["r_stage_smoke"]], [], []]
     assert metadata[0] == [{"run": "r_stage_smoke", "work_items": 1}]
@@ -141,7 +217,10 @@ def test_r_stage_smoke_reducer_merges_worker_summaries(tmp_path):
         },
         {
             "metrics": {"n": 3, "mean": 2.0, "sd": 1.0},
-            "artifacts": {"output": {"path": "output.json"}, "extra": {"path": "artifacts/a.txt"}},
+            "artifacts": {
+                "output": {"path": "output.json"},
+                "extra": {"path": "artifacts/a.txt"},
+            },
         },
     ]
     partials = [
@@ -162,10 +241,12 @@ def test_r_stage_smoke_reducer_merges_worker_summaries(tmp_path):
     assert written["payload"]["run_count"] == 2
 
 
-def test_r_stage_smoke_worker_exports_reduce_and_analysis_artifacts(tmp_path, monkeypatch):
+def test_r_stage_smoke_worker_exports_reduce_and_analysis_artifacts(
+    tmp_path, monkeypatch
+):
     import r_stage_smoke_worker.r_stage_smoke_worker as worker_mod
 
-    def fake_build(*, output_dir, script_path, x, rscript, timeout_seconds):
+    def fake_build(*, output_dir, script_path, x, rscript, timeout_seconds, app_root):
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "output.json").write_text(
             json.dumps({"n": len(x), "mean": 3.0, "sd": 1.58113883}),
@@ -177,6 +258,7 @@ def test_r_stage_smoke_worker_exports_reduce_and_analysis_artifacts(tmp_path, mo
         (output_dir / "artifacts").mkdir(exist_ok=True)
         (output_dir / "artifacts" / "summary.txt").write_text("n=5\n", encoding="utf-8")
         return {
+            "app_root": str(app_root),
             "metrics": {"n": len(x), "mean": 3.0, "sd": 1.58113883},
             "artifacts": {
                 "output": {"path": "output.json"},
@@ -196,7 +278,9 @@ def test_r_stage_smoke_worker_exports_reduce_and_analysis_artifacts(tmp_path, mo
 
     monkeypatch.setattr(worker_mod, "build_r_stage_smoke_artifacts", fake_build)
     worker = worker_mod.RStageSmokeWorker()
-    worker.env = FakeEnv(share_root=tmp_path / "share", AGILAB_EXPORT_ABS=tmp_path / "export")
+    worker.env = FakeEnv(
+        share_root=tmp_path / "share", AGILAB_EXPORT_ABS=tmp_path / "export"
+    )
     worker.args = {
         "data_out": "r_stage_smoke/evidence",
         "script_path": "scripts/summarize.R",

@@ -57,6 +57,7 @@ from . import base_worker_service_support as service_support
 
 logger = AgiLogger.get_logger(__name__)
 
+
 class BaseWorker(ArtifactContract, abc.ABC):
     """
     class BaseWorker v1.0
@@ -176,7 +177,9 @@ class BaseWorker(ArtifactContract, abc.ABC):
             env,
             data_path,
             share_root_path_fn=cls._share_root_path,
-            remap_managed_pc_path_fn=lambda value: cls._remap_managed_pc_path(value, env=env),
+            remap_managed_pc_path_fn=lambda value: cls._remap_managed_pc_path(
+                value, env=env
+            ),
             normalized_path_fn=cls._normalized_path,
             path_cls=Path,
             home_factory=Path.home,
@@ -199,9 +202,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
         return path_support.can_create_path(path, path_cls=Path)
 
     @staticmethod
-    def _collect_share_aliases(
-        env: AgiEnv | None, share_base: Path
-    ) -> set[str]:
+    def _collect_share_aliases(env: AgiEnv | None, share_base: Path) -> set[str]:
         return path_support.collect_share_aliases(env, share_base, path_cls=Path)
 
     @staticmethod
@@ -272,7 +273,9 @@ class BaseWorker(ArtifactContract, abc.ABC):
             required_label=required_label,
             normalized_path_fn=cls._normalized_path,
             has_min_input_files_fn=cls._has_min_input_files,
-            candidate_named_dataset_roots_fn=lambda current_env, root, namespace=None: cls._candidate_named_dataset_roots(
+            candidate_named_dataset_roots_fn=lambda current_env,
+            root,
+            namespace=None: cls._candidate_named_dataset_roots(
                 current_env,
                 root,
                 namespace=namespace,
@@ -280,7 +283,6 @@ class BaseWorker(ArtifactContract, abc.ABC):
             warn_fn=logger.warning,
             path_cls=Path,
         )
-
 
     def prepare_output_dir(
         self,
@@ -328,7 +330,8 @@ class BaseWorker(ArtifactContract, abc.ABC):
         env = env or getattr(self, "env", None)
         if args is None:
             raise ValueError(
-                error or f"{type(self).__name__} requires an initialized arguments object"
+                error
+                or f"{type(self).__name__} requires an initialized arguments object"
             )
 
         ensure_fn = getattr(type(self), "args_ensure_defaults", None)
@@ -423,8 +426,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
         """
         Returns:
         """
-        logger.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}"
-                        )
+        logger.info(f"worker #{self._worker_id}: {self._worker} - mode: {self._mode}")
         with BaseWorker._service_lock:
             is_active = BaseWorker._service_active.get(self._worker_id)  # ty: ignore[invalid-argument-type]
         if is_active:
@@ -456,8 +458,10 @@ class BaseWorker(ArtifactContract, abc.ABC):
             BaseWorker._service_stop_events[worker_id] = stop_event
             BaseWorker._service_active[worker_id] = True
 
-        poll = BaseWorker._service_poll_default if poll_interval is None else max(
-            poll_interval, 0.0
+        poll = (
+            BaseWorker._service_poll_default
+            if poll_interval is None
+            else max(poll_interval, 0.0)
         )
         # Only invoke a worker-defined loop implementation. If the worker
         # relies on BaseWorker.loop (default), block on stop_event instead of
@@ -582,7 +586,9 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 try:
                     stop_hook()
                 except Exception:  # pragma: no cover - intentional hook boundary
-                    logger.exception("Worker stop hook raised inside service loop", exc_info=True)
+                    logger.exception(
+                        "Worker stop hook raised inside service loop", exc_info=True
+                    )
                     if primary_exc is None:
                         raise
 
@@ -645,6 +651,12 @@ class BaseWorker(ArtifactContract, abc.ABC):
         return ["net", "use", drive, net_path, f"/user:{user}", password]
 
     @staticmethod
+    def _redacted_windows_net_use_command(cmd: list[str]) -> list[str]:
+        if not cmd:
+            return []
+        return [*cmd[:-1], "<redacted-password>"]
+
+    @staticmethod
     def _try_windows_net_use(net_path: str) -> None:
         cmd = BaseWorker._windows_net_use_command(net_path)
         if cmd is None:
@@ -654,9 +666,19 @@ class BaseWorker(ArtifactContract, abc.ABC):
             )
             return
         try:
-            logger.info(cmd)
+            logger.info(
+                "Running Windows net use command: %s",
+                BaseWorker._redacted_windows_net_use_command(cmd),
+            )
             subprocess.run(cmd, check=True)
-        except (OSError, subprocess.CalledProcessError) as exc:
+        except subprocess.CalledProcessError as exc:
+            logger.info(
+                "Failed to map Windows network drive with net use "
+                "(returncode=%s, command=%s)",
+                exc.returncode,
+                BaseWorker._redacted_windows_net_use_command(cmd),
+            )
+        except OSError as exc:
             logger.info("Failed to map Windows network drive: %s", exc)
 
     @staticmethod
@@ -780,12 +802,16 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 path_obj.mkdir(parents=True, exist_ok=True)
                 return path_obj
             except (OSError, TypeError, ValueError) as exc:
-                raise OSError(f"Failed to create output directory {path_obj}: {exc}") from exc
+                raise OSError(
+                    f"Failed to create output directory {path_obj}: {exc}"
+                ) from exc
 
         try:
             if reset_target:
                 try:
-                    shutil.rmtree(normalized_output, ignore_errors=True, onerror=self._onerror)
+                    shutil.rmtree(
+                        normalized_output, ignore_errors=True, onerror=self._onerror
+                    )
                 except (OSError, RuntimeError) as exc:
                     logger.info("Error removing directory: %s", exc)
             output_path = _ensure_output_dir(normalized_output)
@@ -810,7 +836,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
                     normalized_output = normalized_output.replace("\\", "/")
                 logger.warning(
                     "Output path %s unavailable; using fallback %s",
-                    output_path if 'output_path' in locals() else normalized_output,
+                    output_path if "output_path" in locals() else normalized_output,
                     normalized_output,
                 )
             except OSError as exc:
@@ -929,7 +955,9 @@ class BaseWorker(ArtifactContract, abc.ABC):
             BaseWorker.env
 
         def _load_dispatcher():
-            from .agi_dispatcher import WorkDispatcher  # Local import to avoid circular dependency
+            from .agi_dispatcher import (
+                WorkDispatcher,
+            )  # Local import to avoid circular dependency
 
             return WorkDispatcher
 
@@ -971,13 +999,13 @@ class BaseWorker(ArtifactContract, abc.ABC):
 
     @staticmethod
     def _new(
-            env: AgiEnv=None,  # ty: ignore[invalid-parameter-default]
-            app: str=None,  # ty: ignore[invalid-parameter-default]
-            mode: int=0,
-            verbose: int=0,
-            worker_id: int=0,
-            worker: str="localhost",
-            args: dict=None,  # ty: ignore[invalid-parameter-default]
+        env: AgiEnv = None,  # ty: ignore[invalid-parameter-default]
+        app: str = None,  # ty: ignore[invalid-parameter-default]
+        mode: int = 0,
+        verbose: int = 0,
+        worker_id: int = 0,
+        worker: str = "localhost",
+        args: dict = None,  # ty: ignore[invalid-parameter-default]
     ):
         """new worker instance
         Args:
@@ -1070,7 +1098,9 @@ class BaseWorker(ArtifactContract, abc.ABC):
 
         chunk = payload.get("chunk", [])
         total_workers = payload.get("total_workers")
-        worker_idx = payload.get("worker_idx", worker_id if worker_id is not None else 0)
+        worker_idx = payload.get(
+            "worker_idx", worker_id if worker_id is not None else 0
+        )
 
         if isinstance(total_workers, int) and total_workers > 0:
             reconstructed_len = max(total_workers, worker_idx + 1)
@@ -1114,9 +1144,10 @@ class BaseWorker(ArtifactContract, abc.ABC):
         )
 
 
-
 # enable dotted access ``BaseWorker.break()`` even though ``break`` is a keyword
 setattr(BaseWorker, "break", BaseWorker.break_loop)
+
+
 class ArgsNamespace(SimpleNamespace):
     """Namespace that supports both attribute and key-style access."""
 

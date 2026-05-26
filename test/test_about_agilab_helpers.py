@@ -3822,22 +3822,6 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         body for kind, body in fake_st.events if kind == "sidebar.markdown"
     ]
     assert "[Settings](/SETTINGS)" in sidebar_markdowns
-    assert not any(body.startswith("[README](") for body in sidebar_markdowns)
-    readme_links = [
-        body for kind, body in fake_st.events if kind == "sidebar.page_link"
-    ]
-    assert len(readme_links) == 1
-    readme_link = readme_links[0]
-    assert readme_link["page"] is project_route
-    assert readme_link["kwargs"] == {
-        "label": "README",
-        "query_params": {
-            "active_app": "flight_telemetry_project",
-            "sidebar_selection": "Edit",
-            "project_section": "readme",
-        },
-        "help": "Open the active project README in PROJECT.",
-    }
     assert "_project_section_query_seed_consumed" not in fake_st.session_state
     assert "_project_section_query_target" not in fake_st.session_state
     readme_url = about_agilab._sidebar_readme_url(env, readme)
@@ -3853,7 +3837,70 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         "sidebar_selection": ["Edit"],
         "project_section": ["readme"],
     }
+    readme_markup = [
+        body
+        for kind, body in fake_st.events
+        if kind == "sidebar.markdown" and "README" in body
+    ]
+    escaped_readme_url = readme_url.replace("&", "&amp;")
+    assert readme_markup == [
+        (
+            f'<a href="{escaped_readme_url}" target="_self" '
+            'title="Open the active project README in PROJECT.">README</a>'
+        )
+    ]
+    assert not [body for kind, body in fake_st.events if kind == "sidebar.page_link"]
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
+
+
+def test_main_page_sidebar_readme_button_fallback_switches_project(
+    tmp_path, monkeypatch
+):
+    class PageRoute:
+        def __str__(self) -> str:
+            return "PROJECT_PAGE_OBJECT"
+
+    class ButtonOnlySidebar:
+        def __init__(self, streamlit):
+            self._streamlit = streamlit
+
+        def button(self, label: str, **kwargs):
+            self._streamlit.events.append(
+                ("sidebar.button", {"label": label, "kwargs": kwargs})
+            )
+            return label == "README"
+
+    fake_st = _FakeStreamlit()
+    fake_st.sidebar = ButtonOnlySidebar(fake_st)
+    app_root = tmp_path / "apps" / "builtin" / "flight_telemetry_project"
+    app_root.mkdir(parents=True)
+    readme = app_root / "README.md"
+    readme.write_text("# Flight telemetry\n", encoding="utf-8")
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    project_route = PageRoute()
+    monkeypatch.setitem(about_agilab._NAVIGATION_PAGE_ROUTES, "project", project_route)
+    env = SimpleNamespace(app="flight_telemetry_project", active_app=app_root)
+
+    assert about_agilab._render_sidebar_readme_link(env, readme)
+
+    assert fake_st.events == [
+        (
+            "sidebar.button",
+            {
+                "label": "README",
+                "kwargs": {
+                    "help": "Open the active project README in PROJECT.",
+                    "width": "stretch",
+                },
+            },
+        ),
+        ("switch_page", "PROJECT_PAGE_OBJECT"),
+    ]
+    assert fake_st.query_params == {
+        "active_app": "flight_telemetry_project",
+        "sidebar_selection": "Edit",
+        "project_section": "readme",
+    }
 
 
 def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):

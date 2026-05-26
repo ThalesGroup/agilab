@@ -31,7 +31,9 @@ def configured_streamlit_host(
     streamlit_config_getter: Callable[[str], object] | None = None,
 ) -> str:
     env = environ or os.environ
-    env_host = str(env.get("AGILAB_UI_HOST") or env.get("STREAMLIT_SERVER_ADDRESS") or "").strip()
+    env_host = str(
+        env.get("AGILAB_UI_HOST") or env.get("STREAMLIT_SERVER_ADDRESS") or ""
+    ).strip()
     if env_host:
         return env_host
 
@@ -67,7 +69,31 @@ def enforce_public_bind_policy(
     streamlit_config_getter: Callable[[str], object] | None = None,
 ) -> str:
     """Return the Streamlit host to use or fail before exposing the UI."""
-    host = configured_streamlit_host(environ, streamlit_config_getter=streamlit_config_getter)
+    host = configured_streamlit_host(
+        environ, streamlit_config_getter=streamlit_config_getter
+    )
     if host in EXPOSED_UI_HOSTS and not public_bind_has_controls(environ):
         raise PublicBindPolicyError(public_bind_error_message(host))
     return host
+
+
+def enforce_public_bind_policy_or_stop(
+    streamlit_module: object,
+    environ: Mapping[str, str] | None = None,
+    *,
+    streamlit_config_getter: Callable[[str], object] | None = None,
+) -> str:
+    """Apply the public-bind guard from direct Streamlit page entrypoints."""
+    try:
+        return enforce_public_bind_policy(
+            environ,
+            streamlit_config_getter=streamlit_config_getter,
+        )
+    except PublicBindPolicyError as exc:
+        error_fn = getattr(streamlit_module, "error", None)
+        stop_fn = getattr(streamlit_module, "stop", None)
+        if callable(error_fn):
+            error_fn(str(exc))
+        if callable(stop_fn):
+            stop_fn()
+        raise

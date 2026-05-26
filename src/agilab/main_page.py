@@ -3,7 +3,9 @@
 # All rights reserved.
 # Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
+
 import asyncio
+import html
 import inspect
 import json
 import os
@@ -34,7 +36,9 @@ except ModuleNotFoundError as exc:
         _ui_performance_path,
     )
     if _ui_performance_spec is None or _ui_performance_spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load ui_performance.py from {_ui_performance_path}") from exc
+        raise ModuleNotFoundError(
+            f"Unable to load ui_performance.py from {_ui_performance_path}"
+        ) from exc
     _ui_performance_module = importlib.util.module_from_spec(_ui_performance_spec)
     sys.modules[_ui_performance_spec.name] = _ui_performance_module
     _ui_performance_spec.loader.exec_module(_ui_performance_module)
@@ -44,32 +48,48 @@ except ModuleNotFoundError as exc:
     ui_timing_trace_enabled = _ui_performance_module.ui_timing_trace_enabled
 
 try:
-    from agilab.streamlit_theme_env import apply_streamlit_theme_environment, packaged_streamlit_config_path
+    from agilab.streamlit_theme_env import (
+        apply_streamlit_theme_environment,
+        packaged_streamlit_config_path,
+    )
 except ModuleNotFoundError:
-    _streamlit_theme_env_path = Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    _streamlit_theme_env_path = (
+        Path(__file__).resolve().parent / "streamlit_theme_env.py"
+    )
     _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
         "agilab_streamlit_theme_env_local",
         _streamlit_theme_env_path,
     )
     if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
-    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
+        raise ModuleNotFoundError(
+            f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}"
+        )
+    _streamlit_theme_env_module = importlib.util.module_from_spec(
+        _streamlit_theme_env_spec
+    )
     _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
-    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
-    packaged_streamlit_config_path = _streamlit_theme_env_module.packaged_streamlit_config_path
+    apply_streamlit_theme_environment = (
+        _streamlit_theme_env_module.apply_streamlit_theme_environment
+    )
+    packaged_streamlit_config_path = (
+        _streamlit_theme_env_module.packaged_streamlit_config_path
+    )
 
 logger = AgiLogger.get_logger(__name__)
 
 apply_streamlit_theme_environment(packaged_streamlit_config_path(__file__))
 
 import streamlit as st
+
 _public_bind_guard_path = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
 _public_bind_guard_spec = importlib.util.spec_from_file_location(
     "agilab_ui_public_bind_guard_local",
     _public_bind_guard_path,
 )
 if _public_bind_guard_spec is None or _public_bind_guard_spec.loader is None:
-    raise ModuleNotFoundError(f"Unable to load ui_public_bind_guard.py from {_public_bind_guard_path}")
+    raise ModuleNotFoundError(
+        f"Unable to load ui_public_bind_guard.py from {_public_bind_guard_path}"
+    )
 _public_bind_guard_module = importlib.util.module_from_spec(_public_bind_guard_spec)
 _public_bind_guard_spec.loader.exec_module(_public_bind_guard_module)
 
@@ -85,14 +105,22 @@ except _public_bind_guard_module.PublicBindPolicyError as exc:
     st.stop()
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
-_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+_import_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_import_guard_local", _import_guard_path
+)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
-    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+    raise ModuleNotFoundError(
+        f"Unable to load import_guard.py from {_import_guard_path}"
+    )
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 assert_agilab_checkout_alignment = _import_guard_module.assert_agilab_checkout_alignment
-assert_python_environment_alignment = _import_guard_module.assert_python_environment_alignment
-assert_sys_path_checkout_alignment = _import_guard_module.assert_sys_path_checkout_alignment
+assert_python_environment_alignment = (
+    _import_guard_module.assert_python_environment_alignment
+)
+assert_sys_path_checkout_alignment = (
+    _import_guard_module.assert_sys_path_checkout_alignment
+)
 import_agilab_module = _import_guard_module.import_agilab_module
 
 
@@ -158,7 +186,9 @@ def _stop_for_import_guard_error(exc: BaseException) -> None:
     message = str(exc)
     rebind_commands = _extract_import_guard_rebind_commands(message)
 
-    st.error("AGILAB cannot start because PyCharm/Python is bound to another AGILAB checkout.")
+    st.error(
+        "AGILAB cannot start because PyCharm/Python is bound to another AGILAB checkout."
+    )
     st.markdown(
         "**What happened:** this Streamlit run is using AGILAB code from one checkout "
         "and the Python SDK or import path from another checkout. Stop the current run, "
@@ -193,7 +223,9 @@ _AGILAB_ROOT = Path(__file__).resolve().parent
 class _LazyAgilabModule:
     """Import heavier page helper modules only when their attributes are used."""
 
-    def __init__(self, module_name: str, *, fallback_path: Path, fallback_name: str) -> None:
+    def __init__(
+        self, module_name: str, *, fallback_path: Path, fallback_name: str
+    ) -> None:
         object.__setattr__(self, "_lazy_module_name", module_name)
         object.__setattr__(self, "_lazy_fallback_path", fallback_path)
         object.__setattr__(self, "_lazy_fallback_name", fallback_name)
@@ -278,7 +310,10 @@ def global_diagnostics_verbose(*args: Any, **kwargs: Any) -> int:
 
 
 def render_runtime_diagnostics_control(*args: Any, **kwargs: Any) -> int:
-    return _runtime_diagnostics_module.render_runtime_diagnostics_control(*args, **kwargs)
+    return _runtime_diagnostics_module.render_runtime_diagnostics_control(
+        *args, **kwargs
+    )
+
 
 _page_docs_module = _import_agilab_module_or_stop(
     "agilab.page_docs",
@@ -310,12 +345,14 @@ _workflow_ui_module = _LazyAgilabModule(
 def render_page_context(*args: Any, **kwargs: Any) -> Any:
     return _workflow_ui_module.render_page_context(*args, **kwargs)
 
+
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
     # If last run asked for a reset, clear BEFORE widgets are created this run
     if st.session_state.pop("env_editor_reset", False):
         st.session_state["env_editor_new_key"] = ""
         st.session_state["env_editor_new_value"] = ""
+
 
 # One-time safe defaults (ok to run every time)
 st.session_state.setdefault("env_editor_new_key", "")
@@ -329,16 +366,22 @@ _LAZY_IMPORT_ATTR_CACHE: Dict[tuple[str, str], Any] = {}
 def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
     cache_key = (module_name, attr_name)
     if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
-        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(importlib.import_module(module_name), attr_name)
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(
+            importlib.import_module(module_name), attr_name
+        )
     return _LAZY_IMPORT_ATTR_CACHE[cache_key]
 
 
 def store_cluster_credentials(*args: Any, **kwargs: Any) -> Any:
-    return _lazy_import_attr("agi_env.credential_store_support", "store_cluster_credentials")(*args, **kwargs)
+    return _lazy_import_attr(
+        "agi_env.credential_store_support", "store_cluster_credentials"
+    )(*args, **kwargs)
 
 
 def detect_agilab_version(*args: Any, **kwargs: Any) -> str:
-    return _lazy_import_attr("agi_gui.ui_support", "detect_agilab_version")(*args, **kwargs)
+    return _lazy_import_attr("agi_gui.ui_support", "detect_agilab_version")(
+        *args, **kwargs
+    )
 
 
 def read_theme_css(*args: Any, **kwargs: Any) -> Any:
@@ -346,7 +389,9 @@ def read_theme_css(*args: Any, **kwargs: Any) -> Any:
 
 
 def store_last_active_app(*args: Any, **kwargs: Any) -> Any:
-    return _lazy_import_attr("agi_gui.ui_support", "store_last_active_app")(*args, **kwargs)
+    return _lazy_import_attr("agi_gui.ui_support", "store_last_active_app")(
+        *args, **kwargs
+    )
 
 
 def compact_choice(*args: Any, **kwargs: Any) -> Any:
@@ -558,10 +603,39 @@ def _reset_project_readme_query_seed() -> None:
         pass
 
 
+def _sidebar_readme_link_markdown(env: Any | None, readme_path: Path) -> str:
+    readme_url = html.escape(_sidebar_readme_url(env, readme_path), quote=True)
+    return (
+        f'<a href="{readme_url}" target="_self" title="Open the active project README in PROJECT.">'
+        "README"
+        "</a>"
+    )
+
+
 def _render_sidebar_readme_link(env: Any | None, readme_path: Path) -> bool:
+    markdown_fn = getattr(st.sidebar, "markdown", None)
+    if callable(markdown_fn):
+        _reset_project_readme_query_seed()
+        markdown_fn(
+            _sidebar_readme_link_markdown(env, readme_path), unsafe_allow_html=True
+        )
+        return True
+
     query_params = _sidebar_readme_query_params(env, readme_path)
-    page_link_fn = getattr(st.sidebar, "page_link", None)
+    switch_page_fn = getattr(st, "switch_page", None)
+    button_fn = getattr(st.sidebar, "button", None)
     project_page = _NAVIGATION_PAGE_ROUTES.get("project")
+    if callable(button_fn) and callable(switch_page_fn) and project_page is not None:
+        _reset_project_readme_query_seed()
+        if button_fn(
+            "README",
+            help="Open the active project README in PROJECT.",
+            width="stretch",
+        ):
+            switch_page_fn(project_page, query_params=query_params)
+        return True
+
+    page_link_fn = getattr(st.sidebar, "page_link", None)
     if callable(page_link_fn) and project_page is not None:
         _reset_project_readme_query_seed()
         page_link_fn(
@@ -570,12 +644,6 @@ def _render_sidebar_readme_link(env: Any | None, readme_path: Path) -> bool:
             query_params=query_params,
             help="Open the active project README in PROJECT.",
         )
-        return True
-
-    markdown_fn = getattr(st.sidebar, "markdown", None)
-    if callable(markdown_fn):
-        _reset_project_readme_query_seed()
-        markdown_fn(f"[README]({_sidebar_readme_url(env, readme_path)})")
         return True
 
     caption_fn = getattr(st.sidebar, "caption", None)
@@ -724,6 +792,7 @@ def openai_status_banner(env: Any) -> None:
     _sync_layout_module()
     _about_layout.openai_status_banner(env, env_file_path=ENV_FILE_PATH)
 
+
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
 try:
     TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
@@ -847,16 +916,22 @@ def _render_global_runtime_diagnostics(env: Any, container: Any | None = None) -
     diagnostics_container = container
     if diagnostics_container is None:
         with st.expander("Runtime diagnostics", expanded=False) as expander_container:
-            selected_verbose = _render_global_runtime_diagnostics_control(expander_container, settings)
+            selected_verbose = _render_global_runtime_diagnostics_control(
+                expander_container, settings
+            )
     else:
-        selected_verbose = _render_global_runtime_diagnostics_control(diagnostics_container, settings)
+        selected_verbose = _render_global_runtime_diagnostics_control(
+            diagnostics_container, settings
+        )
     if selected_verbose != current_verbose:
         _store_global_runtime_diagnostics_verbose(env, selected_verbose)
     else:
         st.session_state["cluster_verbose"] = selected_verbose
 
 
-def _render_global_runtime_diagnostics_control(container: Any, settings: Dict[str, Any]) -> int:
+def _render_global_runtime_diagnostics_control(
+    container: Any, settings: Dict[str, Any]
+) -> int:
     container.caption(
         "Global log detail reused by ORCHESTRATE, WORKFLOW, generated snippets, and CLI runs."
     )
@@ -927,7 +1002,9 @@ def _about_resources_path() -> Path:
     return Path(__file__).resolve().parent / "resources"
 
 
-def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstrap: bool) -> Any | None:
+def _ensure_navigation_environment(
+    resources_path: Path, *, rerun_after_bootstrap: bool
+) -> Any | None:
     """Bootstrap AGILAB once before a navigation page renders project-specific UI."""
     os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))
     st.session_state.setdefault("first_run", True)
@@ -950,7 +1027,7 @@ def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstra
                 st.rerun()
                 return None
 
-    env = st.session_state['env']
+    env = st.session_state["env"]
     _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
     try:
@@ -978,11 +1055,12 @@ def _render_navigation_page_shell(resources_path: Path) -> None:
         """<style>
         body { background: #f6f8fa !important; }
         </style>""",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
 # ------------------------- Main Entrypoint -------------------------
+
 
 def _render_about_page_entry() -> None:
     """Initialise the main page and display the landing UI."""
@@ -991,7 +1069,9 @@ def _render_about_page_entry() -> None:
     _render_navigation_page_shell(resources_path)
     bootstrap_started_at = time.perf_counter()
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
-    _record_ui_timing_span("ABOUT:bootstrap", bootstrap_started_at, category="bootstrap")
+    _record_ui_timing_span(
+        "ABOUT:bootstrap", bootstrap_started_at, category="bootstrap"
+    )
     if env is None:
         return
     render_started_at = time.perf_counter()
@@ -1010,7 +1090,9 @@ def _render_settings_page_entry() -> None:
     _render_navigation_page_shell(resources_path)
     bootstrap_started_at = time.perf_counter()
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
-    _record_ui_timing_span("SETTINGS:bootstrap", bootstrap_started_at, category="bootstrap")
+    _record_ui_timing_span(
+        "SETTINGS:bootstrap", bootstrap_started_at, category="bootstrap"
+    )
     if env is None:
         return
     render_started_at = time.perf_counter()
@@ -1067,7 +1149,14 @@ def _navigation_pages() -> list[Any]:
             "analysis": analysis_page,
         }
     )
-    return [main_page, settings_nav_page, project_page, orchestrate_page, workflow_page, analysis_page]
+    return [
+        main_page,
+        settings_nav_page,
+        project_page,
+        orchestrate_page,
+        workflow_page,
+        analysis_page,
+    ]
 
 
 def _page_module_name(page_file: Path) -> str:
@@ -1098,7 +1187,12 @@ def _load_page_module(page_file: Path) -> Any:
     except Exception:
         sys.modules.pop(module_name, None)
         raise
-    _PAGE_MODULE_CACHE[resolved_page] = (stat.st_mtime_ns, stat.st_size, module_name, module)
+    _PAGE_MODULE_CACHE[resolved_page] = (
+        stat.st_mtime_ns,
+        stat.st_size,
+        module_name,
+        module,
+    )
     return module
 
 
@@ -1109,13 +1203,24 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
         started_at = time.perf_counter()
         page_label = page_file.stem
         bootstrap_started_at = time.perf_counter()
-        if _ensure_navigation_environment(_about_resources_path(), rerun_after_bootstrap=True) is None:
-            _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
+        if (
+            _ensure_navigation_environment(
+                _about_resources_path(), rerun_after_bootstrap=True
+            )
+            is None
+        ):
+            _record_ui_timing_span(
+                f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap"
+            )
             return
-        _record_ui_timing_span(f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap")
+        _record_ui_timing_span(
+            f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap"
+        )
         import_started_at = time.perf_counter()
         module = _load_page_module(page_file)
-        _record_ui_timing_span(f"{page_label}:import", import_started_at, category="import")
+        _record_ui_timing_span(
+            f"{page_label}:import", import_started_at, category="import"
+        )
         main_fn = getattr(module, "main", None)
         if main_fn is None:
             raise AttributeError(f"Page {page_file} does not expose a main() function")
@@ -1124,7 +1229,9 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
             asyncio.run(main_fn())
         else:
             main_fn()
-        _record_ui_timing_span(f"{page_label}:render", render_started_at, category="render")
+        _record_ui_timing_span(
+            f"{page_label}:render", render_started_at, category="render"
+        )
         _render_page_load_timing(page_label, started_at)
 
     _run_page.__name__ = f"run_{page_file.stem}"

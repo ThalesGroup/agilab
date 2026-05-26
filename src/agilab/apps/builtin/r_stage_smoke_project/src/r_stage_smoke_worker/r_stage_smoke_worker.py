@@ -41,7 +41,9 @@ def _args_with_defaults(value: Any) -> RStageSmokeArgs:
         raw = vars(value).copy()
     else:
         raw = vars(value).copy()
-    return RStageSmokeArgs(**{key: val for key, val in raw.items() if not key.startswith("_")})
+    return RStageSmokeArgs(
+        **{key: val for key, val in raw.items() if not key.startswith("_")}
+    )
 
 
 def _copy_artifacts(source: Path, destination: Path) -> None:
@@ -63,7 +65,9 @@ class RStageSmokeWorker(PandasWorker):
         global _runtime
         self.args = _args_with_defaults(self.args)
         data_out = Path(self.args.data_out).expanduser()
-        if not data_out.is_absolute() and callable(getattr(self.env, "resolve_share_path", None)):
+        if not data_out.is_absolute() and callable(
+            getattr(self.env, "resolve_share_path", None)
+        ):
             data_out = Path(self.env.resolve_share_path(data_out))
         self.args.data_out = data_out
         self.data_out = data_out
@@ -99,6 +103,12 @@ class RStageSmokeWorker(PandasWorker):
     def _current_script_path(self) -> Path:
         return Path(_runtime.get("script_path", self.script_path))
 
+    def _current_app_root(self) -> Path | None:
+        active_app = getattr(self.env, "active_app", None)
+        if active_app in (None, ""):
+            return None
+        return Path(active_app).expanduser().resolve(strict=False)
+
     def work_init(self) -> None:
         return None
 
@@ -130,8 +140,11 @@ class RStageSmokeWorker(PandasWorker):
             x=args.x,
             rscript=args.rscript,
             timeout_seconds=args.timeout_seconds,
+            app_root=self._current_app_root(),
         )
-        write_reduce_artifact([summary], self.data_out, worker_id=int(getattr(self, "_worker_id", 0)))
+        write_reduce_artifact(
+            [summary], self.data_out, worker_id=int(getattr(self, "_worker_id", 0))
+        )
         _copy_artifacts(Path(self.data_out), Path(self.artifact_dir))
         metrics = dict(summary["metrics"])
         metrics["worker_id"] = int(getattr(self, "_worker_id", 0))

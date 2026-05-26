@@ -6,6 +6,7 @@ import inspect
 import json
 import pickle
 import re
+import stat
 import subprocess
 import sys
 import traceback
@@ -111,7 +112,9 @@ def agi_version_missing_on_pypi(project_path: Path) -> bool:
             return False
         pkg, ver = pairs[0]
         try:
-            with urllib.request.urlopen(f"https://pypi.org/pypi/{pkg}/json", timeout=5) as response:
+            with urllib.request.urlopen(
+                f"https://pypi.org/pypi/{pkg}/json", timeout=5
+            ) as response:
                 data = json.load(response)
             return ver not in data.get("releases", {})
         except (urllib.error.URLError, OSError, TimeoutError, ValueError):
@@ -130,9 +133,16 @@ def format_exception_chain(exc: BaseException) -> str:
     def _normalize(text: str) -> str:
         text = text.strip()
         lowered = text.lower()
-        for token in ("error:", "exception:", "warning:", "runtimeerror:", "valueerror:", "typeerror:"):
+        for token in (
+            "error:",
+            "exception:",
+            "warning:",
+            "runtimeerror:",
+            "valueerror:",
+            "typeerror:",
+        ):
             if lowered.startswith(token):
-                return text[len(token):].strip()
+                return text[len(token) :].strip()
         if ": " in text:
             head, tail = text.split(": ", 1)
             if head.endswith(("Error", "Exception", "Warning")):
@@ -164,7 +174,9 @@ def format_exception_chain(exc: BaseException) -> str:
 
         if current.__cause__ is not None:
             current = current.__cause__
-        elif current.__context__ is not None and not getattr(current, "__suppress_context__", False):
+        elif current.__context__ is not None and not getattr(
+            current, "__suppress_context__", False
+        ):
             current = current.__context__
         else:
             break
@@ -178,6 +190,7 @@ def load_capacity_predictor(
     load_fn: Callable[[Any], Any] = pickle.load,
     retrain_fn: Optional[Callable[[], Any]] = None,
     log: Any = None,
+    trusted_root: Path | None = None,
 ) -> Any:
     path = Path(model_path)
     if not path.is_file():
@@ -185,8 +198,21 @@ def load_capacity_predictor(
             retrain_fn()
         return None
 
+    if trusted_root is not None:
+        trust_error = _capacity_model_trust_error(path, trusted_root)
+        if trust_error is not None:
+            if log is not None:
+                log.warning(
+                    "Refusing to load untrusted capacity model from %s: %s",
+                    path,
+                    trust_error,
+                )
+            if retrain_fn is not None:
+                retrain_fn()
+            return None
+
     try:
-        with open(path, "rb") as stream:
+        with open(path.resolve(strict=False), "rb") as stream:
             return load_fn(stream)
     except _CAPACITY_LOAD_EXCEPTIONS as exc:
         if log is not None:
@@ -194,6 +220,22 @@ def load_capacity_predictor(
         if retrain_fn is not None:
             retrain_fn()
         return None
+
+
+def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | None:
+    path = Path(model_path).expanduser().resolve(strict=False)
+    root = Path(trusted_root).expanduser().resolve(strict=False)
+    if not path.is_relative_to(root):
+        return f"path is outside trusted resource root {root}"
+
+    try:
+        mode = path.stat().st_mode
+    except OSError as exc:
+        return f"cannot stat model file: {exc}"
+
+    if mode & stat.S_IWOTH:
+        return "model file is world-writable"
+    return None
 
 
 def bootstrap_capacity_predictor(
@@ -213,6 +255,7 @@ def bootstrap_capacity_predictor(
         load_fn=load_fn,
         retrain_fn=retrain_fn,
         log=log,
+        trusted_root=env.resources_path,
     )
     agi_cls._capacity_predictor = predictor
     if (
@@ -272,7 +315,9 @@ def configure_runtime_mode(
     elif isinstance(mode, str):
         pattern = r"^[dcrp]+$"
         if not re.fullmatch(pattern, mode.lower()):
-            raise ValueError("parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'")
+            raise ValueError(
+                "parameter <mode> must only contain the letters 'd', 'c', 'r', 'p'"
+            )
         agi_cls._mode = env.mode2int(mode)
     elif isinstance(mode, int):
         agi_cls._mode = int(mode)
@@ -301,7 +346,9 @@ def resolve_install_worker_group(
     if not base_worker_cls:
         return None
 
-    worker_groups = dict(_SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers)
+    worker_groups = dict(
+        _SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers
+    )
     resolved = worker_groups.get(base_worker_cls)
     if resolved is not None:
         return resolved
@@ -323,7 +370,9 @@ def resolve_install_worker_group(
         ancestor_name = getattr(ancestor, "__name__", "")
         if not ancestor_name:
             continue
-        resolved = worker_groups.get(_DERIVED_WORKER_BASES.get(ancestor_name, ancestor_name))
+        resolved = worker_groups.get(
+            _DERIVED_WORKER_BASES.get(ancestor_name, ancestor_name)
+        )
         if resolved is not None:
             return resolved
 
@@ -337,11 +386,15 @@ def configure_install_worker_group(
     agi_workers: dict[str, str] | None = None,
     import_module_fn: Callable[[str], Any] = importlib.import_module,
 ) -> str:
-    worker_groups = dict(_SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers)
+    worker_groups = dict(
+        _SUPPORTED_INSTALL_WORKERS if agi_workers is None else agi_workers
+    )
     agi_cls.agi_workers = worker_groups
     base_worker_cls = getattr(env, "base_worker_cls", None)
     if not base_worker_cls:
-        target_worker_class = getattr(env, "target_worker_class", None) or "<worker class>"
+        target_worker_class = (
+            getattr(env, "target_worker_class", None) or "<worker class>"
+        )
         worker_path = getattr(env, "worker_path", None) or "<worker path>"
         supported = ", ".join(sorted(worker_groups.keys()))
         raise ValueError(
@@ -387,7 +440,10 @@ def should_install_pip(
     getuser_fn: Callable[[], str] = getpass.getuser,
     sys_prefix: str = sys.prefix,
 ) -> bool:
-    return str(getuser_fn()).startswith("T0") and not (Path(sys_prefix) / "Scripts/pip.exe").exists()
+    return (
+        str(getuser_fn()).startswith("T0")
+        and not (Path(sys_prefix) / "Scripts/pip.exe").exists()
+    )
 
 
 def format_elapsed(

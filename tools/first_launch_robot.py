@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from html import unescape
 import importlib.util
 import json
 from pathlib import Path
@@ -12,11 +13,14 @@ import platform
 import sys
 import time
 from typing import Any, Sequence
+from urllib.parse import urlencode
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ABOUT_PAGE = REPO_ROOT / "src" / "agilab" / "main_page.py"
-DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+DEFAULT_ACTIVE_APP = (
+    REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+)
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"
 DEFAULT_TARGET_SECONDS = 45.0
@@ -76,23 +80,38 @@ def _active_app_readme_path(active_app: Path, apps_path: Path) -> Path | None:
     return None
 
 
-def _readme_link_details(markdown: Sequence[str], active_app: Path, apps_path: Path) -> tuple[bool, dict[str, Any]]:
+def _readme_route(app_name: str) -> str:
+    return f"/PROJECT?{urlencode({'active_app': app_name, 'sidebar_selection': 'Edit', 'project_section': 'readme'})}"
+
+
+def _readme_link_details(
+    markdown: Sequence[str],
+    buttons: Sequence[str],
+    active_app: Path,
+    apps_path: Path,
+) -> tuple[bool, dict[str, Any]]:
     readme_path = _active_app_readme_path(active_app, apps_path)
     if readme_path is None:
         return False, {
             "active_app": str(active_app),
             "apps_path": str(apps_path),
             "expected_path": "",
-            "expected_markdown": "",
+            "expected_route": "",
         }
 
-    readme_url = readme_path.resolve(strict=False).as_uri()
-    expected_markdown = f"[README]({readme_url})"
-    return any(expected_markdown in item for item in markdown), {
+    app_name = readme_path.parent.name
+    expected_route = _readme_route(app_name)
+    route_in_markdown = any(
+        "README" in item and expected_route in unescape(item) for item in markdown
+    )
+    button_fallback = "README" in buttons
+    return route_in_markdown or button_fallback, {
         "active_app": str(active_app),
         "apps_path": str(apps_path),
         "expected_path": str(readme_path),
-        "expected_markdown": expected_markdown,
+        "expected_route": expected_route,
+        "route_in_markdown": route_in_markdown,
+        "button_fallback": button_fallback,
     }
 
 
@@ -147,7 +166,9 @@ def build_report(
     captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
     docs_menu = _docs_menu_items()
-    has_readme_link, readme_details = _readme_link_details(markdown, active_app, apps_path)
+    has_readme_link, readme_details = _readme_link_details(
+        markdown, buttons, active_app, apps_path
+    )
 
     has_env = False
     try:
@@ -217,8 +238,12 @@ def build_report(
                 ["DEMO / ORCHESTRATE / ANALYSIS", "PROJECT / ORCHESTRATE / ANALYSIS"],
             )
             or (
-                _contains_any(buttons, ["1. ORCHESTRATE", "1. Open run page", "2. Open run page"])
-                and _contains_any(buttons, ["2. ANALYSIS", "2. Run first proof", "3. Run first proof"])
+                _contains_any(
+                    buttons, ["1. ORCHESTRATE", "1. Open run page", "2. Open run page"]
+                )
+                and _contains_any(
+                    buttons, ["2. ANALYSIS", "2. Run first proof", "3. Run first proof"]
+                )
             )
             or all(
                 _contains_any([*markdown, *captions, *buttons], [token])
@@ -238,7 +263,9 @@ def build_report(
         _check_result(
             "first_launch_docs_action",
             "First launch exposes documentation menu",
-            docs_menu.get("Get help", "").startswith("https://thalesgroup.github.io/agilab/"),
+            docs_menu.get("Get help", "").startswith(
+                "https://thalesgroup.github.io/agilab/"
+            ),
             "Landing page exposes documentation through the Streamlit page menu",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
             details={"buttons": buttons, "menu_items": docs_menu},
@@ -257,14 +284,10 @@ def build_report(
             "first_launch_runtime_budget",
             "First launch stays within runtime budget",
             duration <= target_seconds,
-            (
-                f"first launch rendered in {duration:.2f}s within "
-                f"{target_seconds:.2f}s"
-            )
+            (f"first launch rendered in {duration:.2f}s within {target_seconds:.2f}s")
             if duration <= target_seconds
             else (
-                f"first launch rendered in {duration:.2f}s, above "
-                f"{target_seconds:.2f}s"
+                f"first launch rendered in {duration:.2f}s, above {target_seconds:.2f}s"
             ),
             details={
                 "duration_seconds": duration,
