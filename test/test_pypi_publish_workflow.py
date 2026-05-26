@@ -289,6 +289,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "needs.publish-release-assets.result == 'success'" in text
     assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in text
     assert "HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}" in text
+    assert "ref: ${{ github.sha }}" in text
     assert "huggingface_hub click" in text
     assert "tools/hf_space_release_sync.py" in text
     assert "HF_TOKEN secret is required" in text
