@@ -3046,6 +3046,31 @@ def test_project_page_notebook_import_query_cleanup_failure_does_not_recurse():
     assert session_state["create_mode"] == "Template clone"
 
 
+def test_project_page_readme_query_opens_edit_section_once():
+    project_page = _load_project_page_module()
+
+    session_state = {"sidebar_selection": "Create"}
+    query_params = {
+        "active_app": "flight_telemetry_project",
+        "project_section": "readme",
+    }
+
+    assert project_page._consume_project_section_query_seed(session_state, query_params)
+    assert session_state["sidebar_selection"] == "Edit"
+    assert (
+        session_state[project_page.PROJECT_SECTION_SESSION_KEY]
+        == project_page.PROJECT_README_SECTION
+    )
+
+    session_state["sidebar_selection"] = "Create"
+    assert not project_page._consume_project_section_query_seed(session_state, query_params)
+    assert session_state["sidebar_selection"] == "Create"
+
+    query_params = {"active_app": "flight_telemetry_project"}
+    assert not project_page._consume_project_section_query_seed(session_state, query_params)
+    assert project_page.PROJECT_SECTION_CONSUMED_KEY not in session_state
+
+
 def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(

@@ -15,6 +15,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlencode
 from agi_env.agi_logger import AgiLogger
 
 try:
@@ -535,11 +536,14 @@ def _active_app_readme_path(env: Any | None) -> Path | None:
     return None
 
 
-def _sidebar_file_url(path: Path) -> str:
-    try:
-        return path.expanduser().resolve(strict=False).as_uri()
-    except (OSError, RuntimeError, ValueError):
-        return str(path)
+def _sidebar_readme_url(env: Any | None, readme_path: Path) -> str:
+    app_name = str(getattr(env, "app", "") or readme_path.parent.name).strip()
+    query = {
+        "active_app": app_name,
+        "sidebar_selection": "Edit",
+        "project_section": "readme",
+    }
+    return f"/PROJECT?{urlencode(query)}"
 
 
 def render_sidebar_settings_link(env: Any | None = None) -> None:
@@ -547,7 +551,7 @@ def render_sidebar_settings_link(env: Any | None = None) -> None:
     settings_url = "/SETTINGS"
     docs_url = docs_menu_url("agilab-help.html")
     readme_path = _active_app_readme_path(env)
-    readme_url = _sidebar_file_url(readme_path) if readme_path is not None else ""
+    readme_url = _sidebar_readme_url(env, readme_path) if readme_path is not None else ""
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(f"[Settings]({settings_url})")

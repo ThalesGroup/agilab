@@ -194,6 +194,17 @@ PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = (
     "sidebar_selection",
     PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
 )
+PROJECT_SECTION_QUERY_KEY = "project_section"
+PROJECT_SECTION_CONSUMED_KEY = "_project_section_query_seed_consumed"
+PROJECT_SECTION_SESSION_KEY = "_project_section_query_target"
+PROJECT_README_SECTION = "readme"
+PROJECT_README_SECTION_ALIASES = {
+    PROJECT_README_SECTION,
+    "docs",
+    "documentation",
+    "documentation-readme",
+    "documentation/readme",
+}
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
@@ -361,6 +372,27 @@ def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
         session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
         session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
     session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
+    return True
+
+
+def _consume_project_section_query_seed(session_state, query_params) -> bool:
+    """Open a PROJECT edit section once when linked from another page."""
+    requested_section = _project_query_param_value(query_params, PROJECT_SECTION_QUERY_KEY).lower()
+    if requested_section not in PROJECT_README_SECTION_ALIASES:
+        try:
+            if PROJECT_SECTION_CONSUMED_KEY in session_state:
+                del session_state[PROJECT_SECTION_CONSUMED_KEY]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            pass
+        return False
+
+    seed_signature = requested_section
+    if session_state.get(PROJECT_SECTION_CONSUMED_KEY) == seed_signature:
+        return False
+
+    session_state["sidebar_selection"] = "Edit"
+    session_state[PROJECT_SECTION_SESSION_KEY] = PROJECT_README_SECTION
+    session_state[PROJECT_SECTION_CONSUMED_KEY] = seed_signature
     return True
 
 
@@ -2332,24 +2364,25 @@ def handle_project_selection():
     st.markdown("### Edit project files")
 
     # Keep all sections visible; each renderer handles its own absence checks.
+    requested_section = str(st.session_state.pop(PROJECT_SECTION_SESSION_KEY, "") or "").lower()
     sections = [
-        ("Documentation / README", lambda: _render_readme(env)),
-        ("Configuration / app settings", lambda: _render_app_settings(env)),
-        ("Configuration / arguments model", lambda: _render_app_args_module(env)),
-        ("Configuration / arguments UI", lambda: _render_args_ui(env)),
-        ("Runtime / manager environment", lambda: _render_python_env(env)),
-        ("Runtime / worker environment", lambda: _render_worker_python_env(env)),
-        ("Runtime / uv overrides", lambda: _render_uv_env(env)),
-        ("Runtime / export filter", lambda: _render_gitignore(env)),
-        ("AI / pre-prompt", lambda: _render_pre_prompt(env)),
-        ("Code / manager", lambda: _render_manager(env)),
-        ("Code / worker", lambda: _render_worker(env)),
+        (PROJECT_README_SECTION, "Documentation / README", lambda: _render_readme(env)),
+        ("settings", "Configuration / app settings", lambda: _render_app_settings(env)),
+        ("args-model", "Configuration / arguments model", lambda: _render_app_args_module(env)),
+        ("args-ui", "Configuration / arguments UI", lambda: _render_args_ui(env)),
+        ("manager-env", "Runtime / manager environment", lambda: _render_python_env(env)),
+        ("worker-env", "Runtime / worker environment", lambda: _render_worker_python_env(env)),
+        ("uv-overrides", "Runtime / uv overrides", lambda: _render_uv_env(env)),
+        ("export-filter", "Runtime / export filter", lambda: _render_gitignore(env)),
+        ("pre-prompt", "AI / pre-prompt", lambda: _render_pre_prompt(env)),
+        ("manager", "Code / manager", lambda: _render_manager(env)),
+        ("worker", "Code / worker", lambda: _render_worker(env)),
     ]
 
-    for label, render_fn in sections:
+    for section_id, label, render_fn in sections:
         icon = _expander_icon(label)
         title = f"{icon} {label}" if icon else label
-        with st.expander(title, expanded=False):
+        with st.expander(title, expanded=section_id == requested_section):
             render_fn()
 
 
@@ -4347,7 +4380,8 @@ def page():
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"
-    _consume_notebook_import_query_seed(st.session_state, st.query_params)
+    if not _consume_notebook_import_query_seed(st.session_state, st.query_params):
+        _consume_project_section_query_seed(st.session_state, st.query_params)
 
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
