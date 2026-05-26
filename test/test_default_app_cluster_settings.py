@@ -18,6 +18,13 @@ if str(SRC_PACKAGE) not in _agilab_package.__path__:
 from agilab.app_template_registry import discover_app_templates
 
 
+SINGLE_WORKER_PROJECTS = {
+    "pytorch_playground_project",
+    "r_stage_smoke_project",
+    "sklearn_pipeline_project",
+}
+
+
 def _settings_files() -> list[Path]:
     templates = discover_app_templates(ROOT / "src/agilab/apps/templates", require_settings=True)
     return [
@@ -39,7 +46,7 @@ def test_default_apps_seed_local_worker_settings_by_template_type() -> None:
         assert cluster.get("scheduler") == "127.0.0.1:8786", settings_file
         if "simple_app_template" in settings_file.parts:
             assert cluster.get("workers") == {}, settings_file
-        elif "pytorch_playground_project" in settings_file.parts:
+        elif SINGLE_WORKER_PROJECTS.intersection(settings_file.parts):
             assert cluster.get("workers") == {"127.0.0.1": 1}, settings_file
         else:
             assert cluster.get("workers") == {"127.0.0.1": 2}, settings_file
