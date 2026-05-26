@@ -654,11 +654,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     env:
       PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
       PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
       PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+      PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
       PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
@@ -670,9 +672,11 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install PyPI retention dependencies
-        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup
+        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests
 
       - name: Delete older PyPI releases and keep the current release only
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
           args=(
@@ -680,10 +684,14 @@ jobs:
             --repo-root .
             --protect-versions-from-projects
             --confirm-delete
-            --allow-delete-failure-warning
             --direct-web-only
             --json
             --github-step-summary "$GITHUB_STEP_SUMMARY"
+            --github-confirm-login-repository "$GITHUB_REPOSITORY"
+            --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL"
+            --github-confirm-login-timeout 300
+            --github-confirm-login-poll-delay 5
+            --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}"
           )
           for package in ${PYPI_RETENTION_PACKAGES}; do
             args+=(--package "$package")

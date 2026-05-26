@@ -235,14 +235,13 @@ Trusted Publishing, so the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
 ``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
 authentication can use non-interactive authentication through
 ``PYPI_RELEASE_PRUNE_TOTP_SECRET``. ``PYPI_RELEASE_PRUNE_OTP`` exists only as a
-short-lived manual rerun fallback. If PyPI still requires interactive cleanup,
-the job records the stale releases as a warning and lets release assets and the
-Hugging Face sync continue, because upload and provenance have already been
-validated. PyPI may require unrecognized-login email confirmation from the same
-IP address before accepting destructive web-management actions, so GitHub-hosted
-runners cannot guarantee automated deletion; use a self-hosted/static-IP runner
-or manual cleanup from a confirmed device when strict one-release retention is
-required. A missing selected package version remains a hard failure.
+short-lived manual rerun fallback. PyPI may require unrecognized-login email
+confirmation from the same IP address before accepting destructive
+web-management actions, so the release workflow polls the temporary
+``PYPI_CONFIRM_LOGIN_URL`` Actions variable for a bounded confirmation window.
+If old releases remain after that window, the retention job fails and blocks
+GitHub release assets and Hugging Face sync. A missing selected package version
+or any remaining stale release is a hard failure.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror

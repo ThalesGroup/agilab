@@ -286,11 +286,13 @@ locally. PyPI publication uses Trusted Publishing/OIDC and the release workflow
 runs `tools/pypi_provenance_check.py` after upload so missing PyPI attestations
 fail before GitHub release assets are published. The workflow then attempts to
 prune older PyPI releases for each selected project; missing current versions
-remain a hard failure, while PyPI web-login cleanup blockage is recorded as a
-warning so release assets can still be published after provenance succeeds.
-After release assets are published, the same workflow syncs the public Hugging
-Face Space, runs the hosted smoke test, and records the resulting Space commit
-in release proof.
+or remaining stale releases are hard failures. If PyPI asks for unrecognized
+login confirmation, the workflow waits on the temporary
+`PYPI_CONFIRM_LOGIN_URL` Actions variable instead of silently continuing. Release
+assets and Hugging Face sync only proceed after PyPI retention verifies that each
+selected project exposes only the current release. After release assets are
+published, the same workflow syncs the public Hugging Face Space, runs the
+hosted smoke test, and records the resulting Space commit in release proof.
 
 ## Evidence Taxonomy
 

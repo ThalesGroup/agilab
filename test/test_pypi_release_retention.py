@@ -742,6 +742,39 @@ def test_main_can_warn_when_cleanup_requires_interactive_pypi(monkeypatch, capsy
     assert '"delete_versions": [\n        "2026.04.16"\n      ]' in captured.out
 
 
+def test_main_fails_closed_when_cleanup_requires_interactive_pypi_by_default(monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.05.17"],
+    )
+
+    def fail_delete_release(**kwargs):
+        raise SystemExit("PyPI redirected back to login")
+
+    monkeypatch.setattr(module, "delete_release", fail_delete_release)
+
+    with pytest.raises(SystemExit, match="PyPI redirected back to login"):
+        module.main(
+            [
+                "--package",
+                "agilab",
+                "--protect-version",
+                "2026.05.17",
+                "--username",
+                "maintainer",
+                "--password",
+                "secret",
+                "--confirm-delete",
+                "--json",
+                "--retry-delay",
+                "0",
+            ]
+        )
+
+
 def test_main_rejects_missing_protected_release(monkeypatch) -> None:
     module = _load_module()
 

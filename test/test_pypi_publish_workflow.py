@@ -312,12 +312,18 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
     assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
     assert "PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}" in text
+    assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
     assert "PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
-    assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup" in text
+    assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests" in text
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
-    assert "--allow-delete-failure-warning" in text
+    assert "--allow-delete-failure-warning" not in text
+    assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text
+    assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
+    assert "--github-confirm-login-timeout 300" in text
+    assert "--github-confirm-login-poll-delay 5" in text
+    assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
     assert "--protect-versions-from-projects" in text
     assert "--repo-root ." in text
     assert "--protect-version \"$current_version\"" not in text
