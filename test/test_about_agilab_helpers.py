@@ -3717,6 +3717,7 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
 
 def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeypatch):
     fake_st = _FakeStreamlit()
+    app_root = Path("/tmp/agilab/apps/builtin/flight_telemetry_project")
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(
         about_agilab._about_layout,
@@ -3751,6 +3752,7 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     env = SimpleNamespace(
         app="flight_telemetry_project",
         apps_path=Path("/tmp/agilab/apps"),
+        active_app=app_root,
         agi_share_path_abs=Path("/tmp/agilab/localshare"),
         AGILAB_LOG_ABS=Path("/tmp/agilab/log"),
         TABLE_MAX_ROWS=100,
@@ -3773,6 +3775,7 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
     assert "[Settings](/SETTINGS)" in sidebar_markup
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markup
+    assert "[README]" not in sidebar_markup
     assert "agilab-sidebar-system" not in sidebar_markup
     assert "Active project" not in sidebar_markup
     assert "Scheduler" not in sidebar_markup
@@ -3780,6 +3783,34 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert not any(
         "OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption"
     )
+
+
+def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    app_root = tmp_path / "apps" / "builtin" / "flight_telemetry_project"
+    app_root.mkdir(parents=True)
+    readme = app_root / "README.md"
+    readme.write_text("# Flight telemetry\n", encoding="utf-8")
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab,
+        "docs_menu_url",
+        lambda _html_file: "https://docs.example/agilab-help.html",
+    )
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        apps_path=tmp_path / "apps",
+        active_app=app_root,
+    )
+
+    about_agilab.render_sidebar_settings_link(env)
+
+    sidebar_markdowns = [
+        body for kind, body in fake_st.events if kind == "sidebar.markdown"
+    ]
+    assert "[Settings](/SETTINGS)" in sidebar_markdowns
+    assert f"[README]({readme.resolve().as_uri()})" in sidebar_markdowns
+    assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
 
 
 def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):

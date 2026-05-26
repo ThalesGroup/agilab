@@ -32,7 +32,7 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert report["status"] == "pass", json.dumps(report, indent=2, sort_keys=True)
     assert report["success"] is True
     assert report["within_target"] is True
-    assert report["summary"]["check_count"] == 7
+    assert report["summary"]["check_count"] == 8
     checks = {check["id"]: check for check in report["checks"]}
     assert checks["first_launch_no_exceptions"]["status"] == "pass"
     assert checks["first_launch_env_initialized"]["status"] == "pass"
@@ -55,6 +55,20 @@ def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(m
 
     assert module._widget_values([Widget("kept"), Widget(None)], "value") == ["kept"]
     assert module._contains_any(["one", "two"], ["missing"]) is False
+    readme_path = module.DEFAULT_ACTIVE_APP / "README.md"
+    has_readme_link, readme_details = module._readme_link_details(
+        [f"[README]({readme_path.resolve().as_uri()})"],
+        module.DEFAULT_ACTIVE_APP,
+        module.DEFAULT_APPS_PATH,
+    )
+    assert has_readme_link is True
+    assert readme_details["expected_path"] == str(readme_path)
+    has_readme_link, _ = module._readme_link_details(
+        ["README without the file link"],
+        module.DEFAULT_ACTIVE_APP,
+        module.DEFAULT_APPS_PATH,
+    )
+    assert has_readme_link is False
     src_root = str(module.REPO_ROOT / "src")
     monkeypatch.setattr(module.sys, "path", [path for path in module.sys.path if path != src_root])
     monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
@@ -140,6 +154,16 @@ def test_first_launch_robot_rejects_non_positive_timeouts() -> None:
 
 
 def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsys) -> None:
+    readme_uri = (
+        MODULE_PATH.parents[1]
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "flight_telemetry_project"
+        / "README.md"
+    ).resolve().as_uri()
+
     class Widget:
         def __init__(self, value: str = "", label: str = ""):
             self.value = value
@@ -150,7 +174,7 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsy
         markdown = [
             Widget(
                 "AGILAB logo AI/ML reproducibility workbench "
-                "DEMO / ORCHESTRATE / ANALYSIS"
+                f"DEMO / ORCHESTRATE / ANALYSIS [README]({readme_uri})"
             )
         ]
         caption: list[object] = []
@@ -189,4 +213,4 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(monkeypatch, capsy
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "pass"
-    assert payload["summary"]["check_count"] == 7
+    assert payload["summary"]["check_count"] == 8

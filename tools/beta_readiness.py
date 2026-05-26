@@ -75,7 +75,7 @@ FINAL_NETWORK_COMMANDS = (
 )
 FINAL_LOCAL_COMMANDS = (
     "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env --profile agi-core-combined --profile agi-gui --profile docs --profile installer --profile shared-core-typing --profile ty-typing --profile dependency-policy",
-    "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install",
+    "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-run",
     "uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose",
 )
 

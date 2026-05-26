@@ -88,6 +88,15 @@ _WORKER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
 _MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
     ("agi_cluster.agi_distributor", "StageRequest"),
 )
+_DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
+    "pillow": ("PIL",),
+    "python-dotenv": ("dotenv",),
+    "pyyaml": ("yaml",),
+    "scikit-learn": ("sklearn",),
+}
+_REQUIREMENT_NAME_PATTERN = re.compile(
+    r"^\s*([A-Za-z0-9_.-]+)(?:\s*\[([A-Za-z0-9_,.\s-]+)\])?"
+)
 
 
 def _python_string(value: Any) -> str:
@@ -1261,10 +1270,134 @@ def _missing_symbols_on_import_roots(
     )
 
 
+def _normalized_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value.strip()).strip("-").lower()
+
+
+def _project_distribution_name(project_path: Path | None) -> str | None:
+    if project_path is None:
+        return None
+    try:
+        data = tomllib.loads((project_path / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    project = data.get("project", {})
+    name = project.get("name") if isinstance(project, dict) else None
+    return _normalized_distribution_name(name) if isinstance(name, str) and name.strip() else None
+
+
+def _dependency_modules_from_requirement(requirement: str) -> tuple[str, ...]:
+    requirement_part, _, marker = requirement.partition(";")
+    if "extra ==" in marker or "extra==" in marker:
+        return ()
+    match = _REQUIREMENT_NAME_PATTERN.match(requirement_part)
+    if not match:
+        return ()
+    raw_name = match.group(1)
+    normalized = _normalized_distribution_name(raw_name)
+    if normalized.startswith("agi-") or normalized == "agilab":
+        return ()
+
+    modules = list(_DEPENDENCY_MODULE_ALIASES.get(normalized, (raw_name.replace("-", "_"),)))
+    extras = {
+        item.strip().lower()
+        for item in (match.group(2) or "").split(",")
+        if item.strip()
+    }
+    if normalized == "dask" and "distributed" in extras:
+        modules.append("distributed")
+    return tuple(dict.fromkeys(modules))
+
+
+def _metadata_distribution_name(metadata_file: Path) -> str | None:
+    try:
+        for line in metadata_file.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("Name:"):
+                return _normalized_distribution_name(line.partition(":")[2])
+    except OSError:
+        return None
+    return None
+
+
+def _dependency_modules_from_metadata(
+    site_packages: Sequence[Path],
+    distribution_names: Sequence[str],
+) -> tuple[str, ...]:
+    wanted = {
+        _normalized_distribution_name(name)
+        for name in distribution_names
+        if isinstance(name, str) and name.strip()
+    }
+    if not wanted:
+        return ()
+
+    modules: list[str] = []
+    for site_package in site_packages:
+        try:
+            metadata_files = sorted(site_package.glob("*.dist-info/METADATA"))
+        except OSError:
+            continue
+        for metadata_file in metadata_files:
+            name = _metadata_distribution_name(metadata_file)
+            if name not in wanted:
+                continue
+            try:
+                lines = metadata_file.read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                ).splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                if not line.startswith("Requires-Dist:"):
+                    continue
+                modules.extend(
+                    _dependency_modules_from_requirement(line.partition(":")[2])
+                )
+    return tuple(dict.fromkeys(modules))
+
+
+def _dependency_modules_from_pyproject(project_path: Path | None) -> tuple[str, ...]:
+    if project_path is None:
+        return ()
+    try:
+        data = tomllib.loads((project_path / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return ()
+    project = data.get("project", {})
+    dependencies = project.get("dependencies") if isinstance(project, dict) else None
+    if not isinstance(dependencies, list):
+        return ()
+    modules: list[str] = []
+    for dependency in dependencies:
+        if isinstance(dependency, str):
+            modules.extend(_dependency_modules_from_requirement(dependency))
+    return tuple(dict.fromkeys(modules))
+
+
+def _required_modules_with_dependencies(
+    venv: Path,
+    modules: Sequence[str],
+    *,
+    distribution_names: Sequence[str] = (),
+    dependency_projects: Sequence[Path] = (),
+) -> tuple[str, ...]:
+    site_packages = _venv_site_package_dirs(venv)
+    dependency_modules: list[str] = list(
+        _dependency_modules_from_metadata(site_packages, distribution_names)
+    )
+    for project_path in dependency_projects:
+        dependency_modules.extend(_dependency_modules_from_pyproject(project_path))
+    return tuple(dict.fromkeys((*modules, *dependency_modules)))
+
+
 def _venv_import_status(
     venv: Path,
     modules: Sequence[str],
     required_symbols: Sequence[tuple[str, str]] = (),
+    *,
+    distribution_names: Sequence[str] = (),
+    dependency_projects: Sequence[Path] = (),
 ) -> dict[str, Any]:
     exists = venv.exists() or venv.is_symlink()
     python = _venv_python_path(venv)
@@ -1285,7 +1418,13 @@ def _venv_import_status(
             "python": python,
         }
 
-    missing, roots = _missing_modules_on_import_roots(venv, modules)
+    required_modules = _required_modules_with_dependencies(
+        venv,
+        modules,
+        distribution_names=distribution_names,
+        dependency_projects=dependency_projects,
+    )
+    missing, roots = _missing_modules_on_import_roots(venv, required_modules)
     missing_symbols = () if missing else _missing_symbols_on_import_roots(roots, required_symbols)
     imports_ready = not missing and not missing_symbols
     problem = ""
@@ -1301,6 +1440,7 @@ def _venv_import_status(
         "problem": problem,
         "python": python,
         "import_roots": roots,
+        "required_modules": required_modules,
     }
 
 
@@ -1313,11 +1453,30 @@ def is_app_installed(env: Any) -> bool:
 def app_install_status(env: Any) -> dict[str, Any]:
     """Return manager/worker installation readiness, including runtime imports."""
     workerless = app_declares_workerless(env)
-    manager_venv = env.active_app / ".venv"
+    active_app = Path(env.active_app)
+    active_app_distribution = _project_distribution_name(active_app)
+    app_dependency_projects = (active_app,)
+    app_distribution_names = tuple(
+        name
+        for name in (
+            "agi-env",
+            "agi-node",
+            "agi-cluster",
+            active_app_distribution,
+        )
+        if name
+    )
+    manager_venv = active_app / ".venv"
     worker_venv = None if workerless else env.wenv_abs / ".venv"
     manager_modules = ("agi_env",) if workerless else _MANAGER_REQUIRED_MODULES
     manager_symbols = () if workerless else _MANAGER_REQUIRED_SYMBOLS
-    manager_imports = _venv_import_status(manager_venv, manager_modules, manager_symbols)
+    manager_imports = _venv_import_status(
+        manager_venv,
+        manager_modules,
+        manager_symbols,
+        distribution_names=app_distribution_names,
+        dependency_projects=app_dependency_projects,
+    )
     if workerless:
         worker_imports = {
             "exists": True,
@@ -1326,9 +1485,16 @@ def app_install_status(env: Any) -> dict[str, Any]:
             "missing_symbols": (),
             "problem": "workerless app; no worker environment required",
             "python": None,
+            "required_modules": (),
         }
     else:
-        worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
+        worker_dependency_projects = (Path(env.wenv_abs),)
+        worker_imports = _venv_import_status(
+            worker_venv,
+            _WORKER_REQUIRED_MODULES,
+            distribution_names=("agi-env", "agi-node"),
+            dependency_projects=worker_dependency_projects,
+        )
     manager_ready = bool(manager_imports["exists"] and manager_imports["imports_ready"])
     worker_ready = bool(worker_imports["exists"] and worker_imports["imports_ready"])
     return {

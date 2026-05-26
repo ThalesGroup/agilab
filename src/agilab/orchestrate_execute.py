@@ -420,6 +420,8 @@ async def render_execute_section(
     show_run_panel: bool,
     cmd: Optional[str],
     deps: OrchestrateExecuteDeps,
+    install_ready: bool = True,
+    install_disabled_reason: str = "",
 ) -> None:
     clear_log = deps.clear_log
     update_log = deps.update_log
@@ -432,15 +434,14 @@ async def render_execute_section(
     _capture_dataframe_preview_state = deps.capture_dataframe_preview_state
     _restore_dataframe_preview_state = deps.restore_dataframe_preview_state
     generate_profile_report = deps.generate_profile_report
-    LOG_DISPLAY_MAX_LINES = deps.log_display_max_lines
-    LIVE_LOG_MIN_HEIGHT = deps.live_log_min_height
-    INSTALL_LOG_HEIGHT = deps.install_log_height
     execute_state = build_orchestrate_execute_workflow_state(
         show_run_panel=show_run_panel,
         cmd=cmd,
         project_path=project_path,
         worker_env_path=getattr(env, "wenv_abs", None),
         worker_env_required=not app_declares_workerless(env),
+        install_ready=install_ready,
+        install_disabled_reason=install_disabled_reason,
     )
     dag_based_app = _is_dag_based_app(env, app_state_name)
 

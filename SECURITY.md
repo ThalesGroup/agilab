@@ -35,6 +35,16 @@ please upgrade to the latest release before requesting a patch.
 - Public GitHub issues are only for non-sensitive post-fix advisories or follow-up after a private
   report has been triaged. They are not an initial vulnerability disclosure channel.
 
+After a private channel is open, include the details needed to triage the report without delay:
+
+- Affected AGILAB package, app, page, installer, worker, or workflow.
+- AGILAB version, install profile, Python version, operating system, and deployment mode.
+- Whether the issue affects local-only use, a shared workstation, a cluster worker, public UI
+  exposure, package publishing, or an external apps repository.
+- Reproduction steps and expected impact, including whether credentials, generated code, datasets,
+  worker queues, artifacts, or network boundaries are involved.
+- Any known mitigation, patch idea, dependency advisory, CVE, GHSA, or upstream issue link.
+
 We will acknowledge receipt within **two business days**. If you do not hear
 back, please resend your message through the same private channel or ask the
 maintainers for an alternate private contact route.
@@ -49,6 +59,15 @@ maintainers for an alternate private contact route.
    otherwise.
 
 We appreciate coordinated disclosure and will keep you updated throughout the process.
+
+## Security Release Process
+
+Confirmed vulnerabilities are triaged by exploitability, impact, affected adoption profile, and
+available mitigations. When appropriate, we use GitHub Security Advisories to coordinate fixes,
+request CVE identifiers, and publish post-fix advisories. Critical or actively exploited issues are
+patched outside the normal release cadence; lower-risk issues may be bundled into the next scheduled
+monthly update. Public notes include affected versions, fixed versions, mitigation guidance, and
+CVE/GHSA identifiers when available.
 
 ## Security Updates
 

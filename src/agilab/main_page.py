@@ -498,18 +498,68 @@ def render_sidebar_version(version: str) -> None:
     st.sidebar.caption(version_label)
 
 
-def render_sidebar_settings_link() -> None:
+def _active_app_readme_path(env: Any | None) -> Path | None:
+    """Return the current app README path when the active project exposes one."""
+    if env is None:
+        return None
+
+    candidates: list[Path] = []
+    active_app = getattr(env, "active_app", None)
+    if active_app not in (None, ""):
+        try:
+            candidates.append(Path(active_app).expanduser())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    app_name = str(getattr(env, "app", "") or "").strip()
+    apps_path = getattr(env, "apps_path", None)
+    if app_name and apps_path not in (None, ""):
+        try:
+            apps_root = Path(apps_path).expanduser()
+            candidates.extend([apps_root / app_name, apps_root / "builtin" / app_name])
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=False)
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        readme_path = resolved / "README.md"
+        if readme_path.is_file():
+            return readme_path
+    return None
+
+
+def _sidebar_file_url(path: Path) -> str:
+    try:
+        return path.expanduser().resolve(strict=False).as_uri()
+    except (OSError, RuntimeError, ValueError):
+        return str(path)
+
+
+def render_sidebar_settings_link(env: Any | None = None) -> None:
     """Keep persistent runtime controls and docs reachable from the sidebar."""
     settings_url = "/SETTINGS"
     docs_url = docs_menu_url("agilab-help.html")
+    readme_path = _active_app_readme_path(env)
+    readme_url = _sidebar_file_url(readme_path) if readme_path is not None else ""
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(f"[Settings]({settings_url})")
+        if readme_url:
+            markdown_fn(f"[README]({readme_url})")
         markdown_fn(f"[Documentation]({docs_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
         caption_fn(f"Settings: {settings_url}")
+        if readme_url:
+            caption_fn(f"README: {readme_url}")
         caption_fn(f"Documentation: {docs_url}")
 
 
@@ -792,7 +842,7 @@ def _render_navigation_context(env: Any, *, page_label: str) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-    render_sidebar_settings_link()
+    render_sidebar_settings_link(env)
     render_pinned_expanders(st)
     render_page_context(st, page_label=page_label, env=env)
 

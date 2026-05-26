@@ -44,7 +44,7 @@ def _import_agilab_module(module_name: str):
 
 orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
 
-from agi_env.snippet_contract import CURRENT_SNIPPET_API
+from agi_env.snippet_contract import CURRENT_SNIPPET_API  # noqa: E402
 
 
 def _touch_fake_venv_python(venv: Path) -> Path:
@@ -1217,6 +1217,72 @@ def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) 
     assert status["worker_ready"] is True
     assert status["manager_missing_modules"] == ("agi_cluster",)
     assert status["manager_problem"] == "missing modules: agi_cluster"
+
+
+def test_app_install_status_rejects_manager_missing_core_dependency(tmp_path: Path) -> None:
+    active_app = tmp_path / "flight_telemetry_project"
+    worker_root = tmp_path / "wenv" / "flight_telemetry_worker"
+    manager_site = _seed_fake_venv_modules(
+        active_app / ".venv",
+        "agi_env",
+        "agi_node",
+        "agi_cluster",
+    )
+    _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
+    dist_info = manager_site / "agi_cluster-2026.5.25.dist-info"
+    dist_info.mkdir(parents=True, exist_ok=True)
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.4\n"
+        "Name: agi-cluster\n"
+        "Requires-Dist: humanize<5,>=4.10\n"
+        "Requires-Dist: dask[distributed]<2027.0,>=2026.3\n",
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is False
+    assert status["worker_ready"] is True
+    assert status["manager_missing_modules"] == ("humanize", "dask", "distributed")
+    assert status["manager_problem"] == "missing modules: humanize, dask, distributed"
+
+
+def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> None:
+    active_app = tmp_path / "flight_telemetry_project"
+    worker_root = tmp_path / "wenv" / "flight_telemetry_worker"
+    active_app.mkdir(parents=True)
+    worker_root.mkdir(parents=True)
+    (active_app / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='flight-telemetry-project'\n"
+        "dependencies=['python-dotenv>=1', 'streamlit>=1']\n",
+        encoding="utf-8",
+    )
+    (worker_root / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='flight-telemetry-project'\n"
+        "dependencies=['python-dotenv>=1', 'polars>=1']\n",
+        encoding="utf-8",
+    )
+    _seed_fake_venv_modules(
+        active_app / ".venv",
+        "agi_env",
+        "agi_node",
+        "agi_cluster",
+        "dotenv",
+        "streamlit",
+    )
+    _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node", "dotenv", "polars")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert orchestrate_page_support._dependency_modules_from_requirement("python-dotenv>=1") == ("dotenv",)
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
+    assert "streamlit" not in status["worker_missing_modules"]
+    assert "python_dotenv" not in status["worker_missing_modules"]
 
 
 def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
