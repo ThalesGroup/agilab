@@ -318,7 +318,7 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
-    assert "--allow-delete-failure-warning" not in text
+    assert "--allow-delete-failure-warning" in text
     assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
     assert "--github-confirm-login-timeout 300" in text
