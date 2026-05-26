@@ -537,13 +537,53 @@ def _active_app_readme_path(env: Any | None) -> Path | None:
 
 
 def _sidebar_readme_url(env: Any | None, readme_path: Path) -> str:
+    return f"/PROJECT?{urlencode(_sidebar_readme_query_params(env, readme_path))}"
+
+
+def _sidebar_readme_query_params(env: Any | None, readme_path: Path) -> dict[str, str]:
     app_name = str(getattr(env, "app", "") or readme_path.parent.name).strip()
-    query = {
+    return {
         "active_app": app_name,
         "sidebar_selection": "Edit",
         "project_section": "readme",
     }
-    return f"/PROJECT?{urlencode(query)}"
+
+
+def _reset_project_readme_query_seed() -> None:
+    """Allow the PROJECT README shortcut to work again after returning home."""
+    try:
+        st.session_state.pop("_project_section_query_seed_consumed", None)
+        st.session_state.pop("_project_section_query_target", None)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+
+
+def _render_sidebar_readme_link(env: Any | None, readme_path: Path) -> bool:
+    query_params = _sidebar_readme_query_params(env, readme_path)
+    page_link_fn = getattr(st.sidebar, "page_link", None)
+    project_page = _NAVIGATION_PAGE_ROUTES.get("project")
+    if callable(page_link_fn) and project_page is not None:
+        _reset_project_readme_query_seed()
+        page_link_fn(
+            project_page,
+            label="README",
+            query_params=query_params,
+            help="Open the active project README in PROJECT.",
+        )
+        return True
+
+    markdown_fn = getattr(st.sidebar, "markdown", None)
+    if callable(markdown_fn):
+        _reset_project_readme_query_seed()
+        markdown_fn(f"[README]({_sidebar_readme_url(env, readme_path)})")
+        return True
+
+    caption_fn = getattr(st.sidebar, "caption", None)
+    if callable(caption_fn):
+        _reset_project_readme_query_seed()
+        caption_fn(f"README: {_sidebar_readme_url(env, readme_path)}")
+        return True
+    return False
 
 
 def render_sidebar_settings_link(env: Any | None = None) -> None:
@@ -551,19 +591,18 @@ def render_sidebar_settings_link(env: Any | None = None) -> None:
     settings_url = "/SETTINGS"
     docs_url = docs_menu_url("agilab-help.html")
     readme_path = _active_app_readme_path(env)
-    readme_url = _sidebar_readme_url(env, readme_path) if readme_path is not None else ""
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(f"[Settings]({settings_url})")
-        if readme_url:
-            markdown_fn(f"[README]({readme_url})")
+        if readme_path is not None:
+            _render_sidebar_readme_link(env, readme_path)
         markdown_fn(f"[Documentation]({docs_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
         caption_fn(f"Settings: {settings_url}")
-        if readme_url:
-            caption_fn(f"README: {readme_url}")
+        if readme_path is not None:
+            _render_sidebar_readme_link(env, readme_path)
         caption_fn(f"Documentation: {docs_url}")
 
 
