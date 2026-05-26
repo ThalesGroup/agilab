@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,6 +33,39 @@ def test_parse_upload_commit_url() -> None:
         "url=https://huggingface.co/spaces/jpmorard/agilab/commit/"
         "0123456789abcdef0123456789abcdef01234567"
     ) == "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_run_command_accepts_hf_cli_click_exit_zero(monkeypatch) -> None:
+    module = _load_module()
+    output = (
+        "✓ Uploaded\n"
+        "  url: https://huggingface.co/spaces/jpmorard/agilab/commit/"
+        "0123456789abcdef0123456789abcdef01234567\n"
+        "click.exceptions.Exit: 0\n"
+    )
+
+    def _run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(["hf", "upload"], 1, output)
+
+    monkeypatch.setattr(module.subprocess, "run", _run)
+
+    assert module.run_command(["hf", "upload", "jpmorard/agilab"]) == output
+
+
+def test_run_command_rejects_non_hf_failures(monkeypatch) -> None:
+    module = _load_module()
+
+    def _run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(["python", "--version"], 1, "click.exceptions.Exit: 0\n")
+
+    monkeypatch.setattr(module.subprocess, "run", _run)
+
+    try:
+        module.run_command(["python", "--version"])
+    except RuntimeError as exc:
+        assert "command failed with exit 1" in str(exc)
+    else:
+        raise AssertionError("non-HF failures must not be treated as successful")
 
 
 def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:

@@ -310,6 +310,10 @@ def info(message: str) -> None:
     print(f"[hf-release-sync] {message}", flush=True)
 
 
+def hf_cli_reported_success_with_bad_exit(command: Sequence[str], output: str) -> bool:
+    return bool(command and command[0] == "hf" and "click.exceptions.Exit: 0" in output)
+
+
 def run_command(command: Sequence[str], *, env: dict[str, str] | None = None) -> str:
     info("running: " + " ".join(command))
     completed = subprocess.run(
@@ -323,6 +327,12 @@ def run_command(command: Sequence[str], *, env: dict[str, str] | None = None) ->
     if completed.stdout:
         print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
     if completed.returncode != 0:
+        if hf_cli_reported_success_with_bad_exit(command, completed.stdout or ""):
+            info(
+                "hf CLI reported click Exit(0) with non-zero process status; "
+                "treating command as successful"
+            )
+            return completed.stdout or ""
         raise RuntimeError(f"command failed with exit {completed.returncode}: {' '.join(command)}")
     return completed.stdout or ""
 
