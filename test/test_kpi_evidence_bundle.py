@@ -917,7 +917,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["checked_app_count"] == 11
+    assert check["details"]["checked_app_count"] == 12
     assert check["details"]["template_only_exemptions"] == {
         "global_dag_project": "cross-app DAG template preview with no concrete worker merge output",
         "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",

@@ -509,7 +509,6 @@ markers = [
   "release_proof: expensive release-proof gates that run only during release validation",
   "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
 ]
-# addopts = "--import-mode=importlib"   # if you had it
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
   "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
@@ -520,6 +519,7 @@ filterwarnings = [
 ]
 
 addopts = [
+  "--import-mode=importlib",
   "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_gui", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
   "--cov-report=term-missing:skip-covered"
 ]
