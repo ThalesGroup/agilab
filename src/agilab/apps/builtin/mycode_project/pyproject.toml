@@ -1,9 +1,9 @@
 [project]
 name = "mycode_project"
-version = "2026.05.25"
+version = "2026.05.26"
 description = "Built-in AGILab example app template (minimal manager + worker)"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.25,<2027.0", "agi-node>=2026.05.25,<2027.0", "agi-cluster>=2026.05.25,<2027.0", "polars>=1.35,<2", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57"]
+dependencies = ["agi-env>=2026.05.26", "agi-node>=2026.05.26", "agi-cluster>=2026.05.26", "polars>=1.35,<2", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }

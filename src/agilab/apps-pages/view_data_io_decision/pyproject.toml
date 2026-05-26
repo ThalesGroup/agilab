@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-decision-evidence"
-version = "2026.05.25"
+version = "2026.05.26"
 description = "AGILAB page bundle for decision evidence review."
 readme = { text = "AGILAB page bundle for decision evidence review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -35,6 +35,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 
 
 

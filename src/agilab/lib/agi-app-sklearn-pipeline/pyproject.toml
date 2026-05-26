@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.25"
+version = "2026.05.26"
 name = "agi-app-sklearn-pipeline"
 description = "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
 requires-python = ">=3.11"
@@ -46,6 +46,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 sklearn_pipeline = "agi_app_sklearn_pipeline:project_root"
 sklearn_pipeline_project = "agi_app_sklearn_pipeline:project_root"
+
 
 [dependency-groups]
 dev = [
