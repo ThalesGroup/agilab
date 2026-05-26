@@ -3,7 +3,7 @@ name: agilab-pypi-release-maintenance
 description: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-26
 ---
 
 # AGILAB PyPI Release Maintenance
@@ -35,6 +35,9 @@ uploading packages when PyPI already exposes the expected artifacts.
 - Never use `--delete-project`.
 - Never print PyPI passwords, TOTP secrets, API tokens, or session cookies.
 - Use exact versions for targeted deletion. Do not use loose regexes.
+- For AGILAB release-workflow reruns, use the `ThalesGroup/agilab`
+  repository only. Do not spend `thales_agilab` Actions quota for PyPI
+  cleanup.
 - Prefer exact deletion with `tools/pypi_publish.py --delete-pypi-release`
   when the user names a specific bad version.
 - Use `tools/pypi_release_retention.py` only when the goal is to keep one
@@ -100,9 +103,9 @@ show two or more visible releases, explain the most likely causes:
 - Trusted Publishing/OIDC can upload files but cannot delete old releases.
 - Release deletion uses PyPI web-management credentials and may be blocked by
   2FA, unrecognized-login confirmation, CSRF/form changes, or PyPI cache delay.
-- The AGILAB workflow records stale releases as a retention warning when PyPI
-  deletion is operationally blocked, instead of invalidating otherwise complete
-  release assets and Hugging Face sync.
+- The AGILAB release workflow is fail-closed for retention. If stale releases
+  remain, report the exact residual package/version set instead of saying the
+  cleanup completed.
 - With split-package versioning, retention protects each selected package's own
   project version from the release-plan metadata. Do not assume every package
   must share the umbrella `agilab` version before deciding what is stale.
@@ -204,11 +207,35 @@ uv --preview-features extra-build-dependencies run python tools/pypi_release_ret
   --json \
   --github-confirm-login-repository ThalesGroup/agilab \
   --github-confirm-login-variable PYPI_CONFIRM_LOGIN_URL \
-  --github-confirm-login-timeout 300
+  --github-confirm-login-timeout 1800
 ```
 
 Do not work around PyPI cleanup failures by storing credentials in the repo,
 weakening the protected-release check, or reusing an old confirmation URL.
+
+For the release workflow path, dispatch only from the public AGILAB repository:
+
+```bash
+gh workflow run pypi-publish.yaml \
+  -R ThalesGroup/agilab \
+  --ref main \
+  -f release_tag=v2026.05.26
+```
+
+If the retention job logs that it is waiting for
+`PYPI_CONFIRM_LOGIN_URL`, set the fresh URL from the PyPI email immediately:
+
+```bash
+gh variable set PYPI_CONFIRM_LOGIN_URL \
+  -R ThalesGroup/agilab \
+  --body 'https://pypi.org/account/confirm-login/?token=FRESH_TOKEN_FROM_EMAIL'
+```
+
+After the run, clear the temporary handoff variable:
+
+```bash
+printf 'y\n' | gh variable delete PYPI_CONFIRM_LOGIN_URL -R ThalesGroup/agilab
+```
 
 ## Retention Retry Lessons
 
@@ -228,9 +255,16 @@ When retention cleanup runs from GitHub Actions against many split packages:
 - After the workflow reports success, verify public PyPI JSON again with
   cache-busting headers before declaring cleanup complete; immediately after
   deletion, stale versions can appear briefly due to PyPI/cache propagation.
+- PyPI can return `404 Not Found` from the manage release page after a deletion
+  already succeeded. Current retention code treats that as success only after
+  public PyPI JSON confirms the exact stale version is absent. If an older
+  checkout fails on this race, update the retention tool before retrying.
 - Remove temporary confirmation handoff variables or short-lived reader tokens
   after the run. Keep only the normal release-prune credentials that are part
   of the repository maintenance contract.
+- If the user explicitly says to move forward with a known residual stale
+  package, stop spending Actions minutes, cancel any extra cleanup workflow, and
+  report the exact residual package/version as not blocked but not cleaned.
 
 ## Deprecated Package Cleanup
 
