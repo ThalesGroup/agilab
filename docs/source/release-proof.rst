@@ -22,7 +22,7 @@ Current public release
    * - GitHub release
      - `v2026.05.26 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.26>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``3f0c6d0614a87b6bf1b0038b66c5c45d7e716ca7``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``18050bdca443754ada6a6d1f07911efd5f0b09c3``
    * - Public guardrails
      - `repo-guardrails run 26418364385 <https://github.com/ThalesGroup/agilab/actions/runs/26418364385>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
