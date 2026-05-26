@@ -208,6 +208,212 @@ def test_duckdb_bridge_plan_and_optional_execution(tmp_path: Path) -> None:
         )
 
 
+def _write_minimal_notebook(path: Path, source: str = "print('hello')") -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": source,
+                    }
+                ],
+                "metadata": {
+                    "kernelspec": {
+                        "display_name": "Python 3",
+                        "language": "python",
+                        "name": "python3",
+                    }
+                },
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_notebook_sandbox_evidence_runner(tmp_path: Path) -> None:
+    secret = "sk-notebook-secret-0000000000"
+    notebook = _write_minimal_notebook(tmp_path / "demo.ipynb")
+    params = tmp_path / "params.json"
+    params.write_text(
+        json.dumps({"threshold": 3, "OPENAI_API_KEY": secret}),
+        encoding="utf-8",
+    )
+
+    def fake_executor(
+        prepared,
+        executed,
+        _work_dir,
+        artifact_dir,
+        payload,
+        timeout_seconds,
+        kernel_name,
+        allow_errors,
+    ):
+        assert payload["threshold"] == 3
+        assert timeout_seconds == 5
+        assert kernel_name == "python3"
+        assert allow_errors is True
+        prepared_payload = json.loads(prepared.read_text(encoding="utf-8"))
+        assert prepared_payload["cells"][0]["metadata"]["tags"] == ["agilab-parameters"]
+        assert prepared_payload["cells"][0]["id"].startswith("agilab-cell-")
+        assert prepared_payload["cells"][1]["id"].startswith("agilab-cell-")
+        assert "AGILAB_PARAMS" in prepared_payload["cells"][0]["source"]
+        (artifact_dir / "result.txt").write_text("done", encoding="utf-8")
+        prepared_payload["cells"].append(
+            {
+                "cell_type": "code",
+                "execution_count": 2,
+                "metadata": {},
+                "outputs": [
+                    {
+                        "output_type": "stream",
+                        "name": "stdout",
+                        "text": f"ok OPENAI_API_KEY={secret}\n",
+                    },
+                    {
+                        "output_type": "stream",
+                        "name": "stderr",
+                        "text": "warning\n",
+                    },
+                ],
+                "source": "print('ok')",
+            }
+        )
+        executed.write_text(json.dumps(prepared_payload), encoding="utf-8")
+        return {"status": "pass", "stdout": f"runner {secret}\n"}
+
+    payload = bridge_cli.run_notebook_sandbox(
+        notebook,
+        tmp_path / "notebook-run",
+        params_path=params,
+        timeout_seconds=5,
+        kernel_name="python3",
+        allow_errors=True,
+        executor=fake_executor,
+    )
+
+    assert payload["status"] == "pass"
+    assert payload["schema"] == "agilab.bridge.notebook_sandbox.v1"
+    assert payload["params"]["OPENAI_API_KEY"] == "<redacted>"
+    assert payload["artifacts"][0]["relative_path"] == "result.txt"
+    assert secret not in Path(payload["stdout_log"]).read_text(encoding="utf-8")
+    assert secret not in Path(payload["stderr_log"]).read_text(encoding="utf-8")
+    assert secret not in Path(payload["executed_notebook_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert secret not in (
+        tmp_path / "notebook-run" / "notebook_sandbox_evidence.json"
+    ).read_text(encoding="utf-8")
+    manifest = run_manifest.load_run_manifest(
+        tmp_path / "notebook-run" / "run_manifest.json"
+    )
+    assert manifest.path_id == "notebook-sandbox"
+    assert manifest.status == "pass"
+    assert any(artifact.name == "executed-notebook" for artifact in manifest.artifacts)
+
+
+def test_notebook_sandbox_failure_is_evidence(tmp_path: Path) -> None:
+    secret = "sk-notebook-secret-0000000000"
+    notebook = _write_minimal_notebook(
+        tmp_path / "demo.ipynb",
+        source=f"OPENAI_API_KEY='{secret}'\nraise RuntimeError('boom')",
+    )
+
+    def failing_executor(*_args):
+        raise RuntimeError(f"OPENAI_API_KEY={secret} failed")
+
+    payload = bridge_cli.run_notebook_sandbox(
+        notebook,
+        tmp_path / "notebook-fail",
+        executor=failing_executor,
+    )
+
+    assert payload["status"] == "fail"
+    assert secret not in payload["execution"]["error"]
+    assert "<redacted>" in payload["execution"]["error"]
+    assert secret not in Path(payload["stderr_log"]).read_text(encoding="utf-8")
+    assert secret not in Path(payload["prepared_notebook_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert secret not in Path(payload["executed_notebook_path"]).read_text(
+        encoding="utf-8"
+    )
+    manifest = run_manifest.load_run_manifest(
+        tmp_path / "notebook-fail" / "run_manifest.json"
+    )
+    assert manifest.status == "fail"
+    assert manifest.validations[0].status == "fail"
+
+
+def test_notebook_sandbox_missing_params_is_evidence(tmp_path: Path) -> None:
+    notebook = _write_minimal_notebook(tmp_path / "demo.ipynb")
+
+    payload = bridge_cli.run_notebook_sandbox(
+        notebook,
+        tmp_path / "notebook-missing-params",
+        params_path=tmp_path / "missing.json",
+    )
+
+    assert payload["status"] == "fail"
+    assert "FileNotFoundError" in payload["execution"]["error"]
+    assert Path(payload["stderr_log"]).is_file()
+    manifest = run_manifest.load_run_manifest(
+        tmp_path / "notebook-missing-params" / "run_manifest.json"
+    )
+    assert manifest.status == "fail"
+
+
+def test_notebook_sandbox_cli_route(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_run(notebook, output, **kwargs):
+        calls.append({"notebook": notebook, "output": output, **kwargs})
+        return {"schema": "agilab.bridge.notebook_sandbox.v1", "status": "pass"}
+
+    monkeypatch.setattr(bridge_cli, "run_notebook_sandbox", fake_run)
+
+    rc = bridge_cli.main(
+        [
+            "run",
+            "notebook",
+            "--notebook",
+            "demo.ipynb",
+            "--params",
+            "params.json",
+            "--output",
+            "out",
+            "--timeout",
+            "5",
+            "--kernel-name",
+            "python3",
+            "--allow-errors",
+            "--json",
+        ]
+    )
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["schema"] == (
+        "agilab.bridge.notebook_sandbox.v1"
+    )
+    assert calls == [
+        {
+            "notebook": Path("demo.ipynb"),
+            "output": Path("out"),
+            "params_path": Path("params.json"),
+            "timeout_seconds": 5,
+            "kernel_name": "python3",
+            "allow_errors": True,
+        }
+    ]
+
+
 def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     apps_root = tmp_path / "apps"
@@ -261,7 +467,11 @@ def test_lab_run_routes_bridge_commands(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(lab_run, "_run_bridge", lambda argv: calls.append(argv) or 0)
 
     assert lab_run.main(["export", "quarto", "--help"]) == 0
-    assert calls == [["export", "quarto", "--help"]]
+    assert lab_run.main(["run", "notebook", "--help"]) == 0
+    assert calls == [
+        ["export", "quarto", "--help"],
+        ["run", "notebook", "--help"],
+    ]
 
 
 def test_tool_wrappers_forward_sys_argv(monkeypatch: pytest.MonkeyPatch) -> None:

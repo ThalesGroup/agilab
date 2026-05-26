@@ -41,7 +41,9 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
 
 
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
-    active_app = clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+    active_app = (
+        clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     env = {
         **os.environ,
         "HOME": str(clone_root / "home"),
@@ -80,7 +82,7 @@ def _extract_marked_json(stdout: str, marker: str) -> dict[str, object]:
     prefix = f"{marker}="
     for line in reversed(stdout.splitlines()):
         if line.startswith(prefix):
-            payload = json.loads(line[len(prefix):])
+            payload = json.loads(line[len(prefix) :])
             assert isinstance(payload, dict)
             return payload
     raise AssertionError(f"missing {marker} marker in output:\n{stdout[-4000:]}")
@@ -241,7 +243,9 @@ print(marker + "=" + json.dumps(payload, sort_keys=True))
         )
     payload["install_returncode"] = install.returncode
     if install.returncode:
-        tail = "\n".join(install_log.read_text(encoding="utf-8", errors="replace").splitlines()[-80:])
+        tail = "\n".join(
+            install_log.read_text(encoding="utf-8", errors="replace").splitlines()[-80:]
+        )
         raise AssertionError(
             f"notebook import install smoke failed with {install.returncode}; "
             f"log={install_log}\n{tail}"
@@ -589,7 +593,11 @@ def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> Non
         assert conf_module._is_generated_root_project_src(stray_project_src) is True
 
         release_report = release_module.build_report(
-            manifest_path=clone_root / "docs" / "source" / "data" / "release_proof.toml",
+            manifest_path=clone_root
+            / "docs"
+            / "source"
+            / "data"
+            / "release_proof.toml",
             output_path=clone_root / "docs" / "source" / "release-proof.rst",
             repo_root=clone_root,
             check_github_runs=False,
@@ -607,7 +615,9 @@ def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> Non
         assert public_report["summary"]["failed"] == 0
         assert compatibility_report["status"] == "pass"
         assert compatibility_report["summary"]["failed"] == 0
-        assert compatibility_report["summary"]["manifest_evidence"]["load_failures"] == 0
+        assert (
+            compatibility_report["summary"]["manifest_evidence"]["load_failures"] == 0
+        )
     finally:
         sys.path[:] = original_sys_path
 
@@ -622,19 +632,30 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
     proof_payload = _run_clone_newcomer_proof(clone_root)
     notebook_payload = _run_clone_notebook_import_proof(clone_root)
 
-    assert proof_payload["active_app"] == str(clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project")
+    assert proof_payload["active_app"] == str(
+        clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
+    )
     assert proof_payload["with_install"] is True
     assert proof_payload["success"] is True
-    assert proof_payload["passed_steps"] == proof_payload["expected_steps"] == 4
-    assert [step["label"] for step in proof_payload["steps"]] == [
+    expected_step_labels = [
         "preinit smoke",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
+        "install readiness check",
     ]
+    assert (
+        proof_payload["passed_steps"]
+        == proof_payload["expected_steps"]
+        == len(expected_step_labels)
+    )
+    assert [step["label"] for step in proof_payload["steps"]] == expected_step_labels
     assert notebook_payload["status"] == "pass"
     assert notebook_payload["project_name"] == "flight_telemetry_from_notebook_project"
-    assert notebook_payload["source_notebook"] == "notebooks/source/flight_telemetry_from_notebook.ipynb"
+    assert (
+        notebook_payload["source_notebook"]
+        == "notebooks/source/flight_telemetry_from_notebook.ipynb"
+    )
     assert notebook_payload["stage_count"] == 2
     assert notebook_payload["install_returncode"] == 0
     assert notebook_payload["execute_returncode"] == 0
