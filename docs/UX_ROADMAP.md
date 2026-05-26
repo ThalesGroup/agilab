@@ -33,7 +33,7 @@ Target horizon: `0-6 weeks`
 
 - Add an `Environment Health` summary panel.
 - Scope: app path resolution, share path validity, cluster share vs local share, API key presence, worker install availability, and app settings path provenance.
-- Best starting surfaces: [AGENTS.md](/Users/agi/PycharmProjects/agilab/AGENTS.md), [PROJECT page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/1_PROJECT.py), and [ORCHESTRATE page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/2_ORCHESTRATE.py).
+- Best starting surfaces: [AGENTS.md](../AGENTS.md), [PROJECT page](../src/agilab/pages/1_PROJECT.py), and [ORCHESTRATE page](../src/agilab/pages/2_ORCHESTRATE.py).
 
 - Standardize long-action feedback across install, execute, service health, and project clone/rename.
 - Every action should emit start, current step, success summary, classified failure, and next action.
@@ -95,13 +95,13 @@ Target horizon: `1-3 months`
 - Time to first successful local execute on a clean machine
 - Number of actions that end in raw traceback exposure
 - Number of pages with explicit loading and empty-state summaries
-- Median startup/import time for heavy pages using [perf_smoke.py](/Users/agi/PycharmProjects/agilab/tools/perf_smoke.py)
+- Median startup/import time for heavy pages using [perf_smoke.py](../tools/perf_smoke.py)
 - Number of settings screens that expose provenance explicitly
 - Number of workflow pages using shared action-feedback primitives instead of custom ad hoc messaging
 
 ## Performance And UX Budgets
 
-- Use [perf_smoke.py](/Users/agi/PycharmProjects/agilab/tools/perf_smoke.py) before and after maintainability refactors on:
+- Use [perf_smoke.py](../tools/perf_smoke.py) before and after maintainability refactors on:
 - `orchestrate-execute-import`
 - `pipeline-ai-import`
 - `runtime-distribution-import`

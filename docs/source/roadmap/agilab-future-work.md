@@ -220,11 +220,12 @@ Concrete items:
   and compatibility profiles as first-class outputs
 - keep the first public proof-pack CLI layer small and verifiable:
   `agilab prove`, `agilab verify`, `agilab replay`,
-  `agilab export-lineage`, `agilab export-traces`, `agilab policy-check`,
-  `agilab cards`, and `agilab metadata-store` operate on `run_manifest.json`,
-  write plain JSON evidence, and export an unsigned, hash-verifiable
-  `.agipack` archive before AGILab claims detached signing or external
-  attestation verification for capsules
+  `agilab sign`, `agilab export-lineage`, `agilab export-traces`,
+  `agilab policy-check`, `agilab cards`, and `agilab metadata-store` operate on
+  `run_manifest.json` or `.agipack` evidence where appropriate, write plain
+  JSON evidence, export a hash-verifiable `.agipack` archive, and support
+  optional detached Ed25519 signatures plus local trust-policy verification
+  before AGILab claims external Sigstore/SLSA attestation verification
 - introduce an Evidence Core contract that bundles the run manifest, workflow
   snapshot, environment lock, artifact hashes, notebook import/export manifest,
   optional MLflow references, policy checks, and verifier results as one
@@ -250,6 +251,8 @@ Current shipped baseline:
 - proof-pack directory export from a run manifest with verification report,
   policy report, OpenLineage-shaped JSON, RO-Crate metadata, OpenTelemetry-shaped
   trace JSON, local metadata-store entry, and model/dataset/prompt/eval cards
+- hash-verifiable `.agipack` archive export with optional detached Ed25519
+  signatures and local JSON/TOML trust-policy verification
 - replay is safe by default: it prints the recorded command unless the operator
   explicitly passes `--execute`
 - policy-as-code starts with a small JSON/TOML gate over the manifest checks
@@ -322,8 +325,9 @@ Context-engineering gaps to close:
 
 Remaining state-of-the-art scope:
 
-- signed `.agipack` archive with detached hashes, Sigstore/SLSA references, and
-  a verifier that can validate the archive without the source checkout
+- external Sigstore/SLSA attestation for signed `.agipack` archives and a
+  third-party verifier path that validates provenance without a local trust root
+  or source checkout
 - OpenLineage transport integration to emit events to an external lineage
   backend, not only write an interoperable JSON payload
 - native OpenTelemetry SDK/OTLP instrumentation across Streamlit actions,
