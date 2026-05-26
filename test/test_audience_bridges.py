@@ -3,10 +3,16 @@ from __future__ import annotations
 import importlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
+from types import ModuleType
 
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from agilab import bridge_cli, run_manifest
 from agilab_mcp import manifest_tools, server as mcp_server
@@ -100,6 +106,34 @@ def test_quarto_export_and_run_command(
     assert emitted["schema"] == "agilab.bridge.quarto_export.v1"
 
 
+def test_quarto_render_runner_and_empty_manifest_edges(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["artifacts"] = []
+    payload["validations"] = []
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    calls: list[list[str]] = []
+
+    def fake_runner(argv, **_kwargs):
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 7, stdout="ok", stderr="render failed")
+
+    report = bridge_cli.export_quarto_report(
+        manifest_path,
+        tmp_path / "rendered.qmd",
+        render=True,
+        runner=fake_runner,
+        which=lambda _name: "/usr/bin/quarto",
+    )
+
+    assert calls == [["quarto", "render", str(tmp_path / "rendered.qmd")]]
+    assert report["render"]["status"] == "fail"
+    text = (tmp_path / "rendered.qmd").read_text(encoding="utf-8")
+    assert "No validation rows recorded" in text
+    assert "No artifacts recorded" in text
+
+
 def test_hf_space_export_and_secret_rejection(tmp_path: Path) -> None:
     project = tmp_path / "demo_project"
     project.mkdir()
@@ -115,6 +149,32 @@ def test_hf_space_export_and_secret_rejection(tmp_path: Path) -> None:
     (project / ".env").write_text("OPENAI_API_KEY=sk-real-value\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="secret-like"):
         bridge_cli.export_hf_space(project, tmp_path / "hf-secret", force=True)
+
+
+def test_hf_space_export_edges_and_secret_scan(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        bridge_cli.export_hf_space(tmp_path / "missing-project", tmp_path / "hf")
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Project\n", encoding="utf-8")
+    (project / "binary.env").write_bytes(b"\xff\xfe")
+    (project / "notes.txt").write_text("secret://vault/path\n", encoding="utf-8")
+    findings = bridge_cli._secret_findings(project)
+    assert findings == [{"path": str(project / "notes.txt"), "reason": "secret reference URI"}]
+    (project / "notes.txt").write_text("OPENAI_API_KEY=example\n", encoding="utf-8")
+
+    output = tmp_path / "hf-existing"
+    output.mkdir()
+    (output / "old.txt").write_text("old\n", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        bridge_cli.export_hf_space(project, output)
+
+    evidence_file = tmp_path / "evidence.txt"
+    evidence_file.write_text("evidence\n", encoding="utf-8")
+    payload = bridge_cli.export_hf_space(project, output, evidence_path=evidence_file, force=True)
+    assert payload["status"] == "pass"
+    assert (output / "evidence" / "evidence.txt").is_file()
 
 
 def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
@@ -368,6 +428,109 @@ def test_notebook_sandbox_missing_params_is_evidence(tmp_path: Path) -> None:
         tmp_path / "notebook-missing-params" / "run_manifest.json"
     )
     assert manifest.status == "fail"
+
+
+def test_notebook_bridge_helper_edges(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    assert bridge_cli._text_from_notebook_value(["a", 1, None]) == "a1None"
+    assert bridge_cli._extract_notebook_streams(tmp_path / "missing.ipynb") == {
+        "stdout": "",
+        "stderr": "",
+    }
+    invalid = tmp_path / "invalid.ipynb"
+    invalid.write_text("{bad json", encoding="utf-8")
+    assert bridge_cli._extract_notebook_streams(invalid) == {"stdout": "", "stderr": ""}
+
+    executed = tmp_path / "executed.ipynb"
+    executed.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    "not-a-cell",
+                    {"outputs": "not-a-list"},
+                    {
+                        "outputs": [
+                            "not-a-mapping",
+                            {"output_type": "stream", "name": "stdout", "text": ["hello", "\n"]},
+                            {"output_type": "stream", "name": "stderr", "text": "warn\n"},
+                            {"output_type": "error", "traceback": ["line1", "line2"]},
+                            {"output_type": "error", "evalue": "boom"},
+                        ]
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    streams = bridge_cli._extract_notebook_streams(executed)
+    assert streams["stdout"] == "hello\n"
+    assert "line1\nline2" in streams["stderr"]
+    assert "boom" in streams["stderr"]
+
+    artifact_dir = tmp_path / "artifacts"
+    assert bridge_cli._notebook_artifact_rows(artifact_dir) == []
+    artifact_dir.mkdir()
+    (artifact_dir / "subdir").mkdir()
+    (artifact_dir / "result.txt").write_text("done", encoding="utf-8")
+    assert bridge_cli._notebook_artifact_rows(artifact_dir)[0]["relative_path"] == "result.txt"
+
+    secret = "sk-redact-me-000000000"
+    redaction_target = tmp_path / "redact.ipynb"
+    redaction_target.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    "skip",
+                    {
+                        "source": f"OPENAI_API_KEY={secret}",
+                        "outputs": [
+                            {
+                                "text": f"{secret}\n",
+                                "evalue": secret,
+                                "traceback": [secret],
+                                "data": {"text/plain": secret},
+                            },
+                            "skip",
+                        ],
+                    },
+                    {"outputs": "skip"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    bridge_cli._redact_notebook_text_fields(redaction_target)
+    assert secret not in redaction_target.read_text(encoding="utf-8")
+
+    fake_nbformat = ModuleType("nbformat")
+    fake_nbformat.read = lambda path, as_version: {"path": str(path), "as_version": as_version}
+    writes: list[tuple[object, Path]] = []
+    fake_nbformat.write = lambda notebook, path: writes.append((notebook, path))
+
+    class FakeNotebookClient:
+        def __init__(self, notebook, **kwargs):
+            self.notebook = notebook
+            self.kwargs = kwargs
+
+        def execute(self):
+            self.notebook["executed"] = True
+
+    fake_nbclient = ModuleType("nbclient")
+    fake_nbclient.NotebookClient = FakeNotebookClient
+    monkeypatch.setitem(sys.modules, "nbformat", fake_nbformat)
+    monkeypatch.setitem(sys.modules, "nbclient", fake_nbclient)
+
+    status = bridge_cli._execute_notebook_with_nbclient(
+        tmp_path / "prepared.ipynb",
+        tmp_path / "executed-out.ipynb",
+        tmp_path,
+        artifact_dir,
+        {},
+        9,
+        "python3",
+        True,
+    )
+    assert status == {"status": "pass"}
+    assert writes and writes[0][0]["executed"] is True
 
 
 def test_notebook_sandbox_cli_route(monkeypatch: pytest.MonkeyPatch, capsys) -> None:

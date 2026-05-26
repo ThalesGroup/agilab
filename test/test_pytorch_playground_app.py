@@ -1846,6 +1846,153 @@ def test_pytorch_playground_compact_app_args_form_uses_shared_fields(monkeypatch
     assert ("slider", "Span", True) in events
 
 
+def test_pytorch_playground_app_args_form_renders_wide_sidebar_and_snippets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    form_module = _load_app_args_form_module()
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(form_module.st, "session_state", session_state)
+    model = form_module.app_args.PytorchPlaygroundArgs()
+    persisted: list[object] = []
+
+    class FakeContainer:
+        def __init__(self, label: str = "root"):
+            self.label = label
+            self.events: list[tuple[str, object]] = []
+
+        def __enter__(self):
+            self.events.append(("enter", self.label))
+            return self
+
+        def __exit__(self, *_args):
+            self.events.append(("exit", self.label))
+            return False
+
+        def markdown(self, body, **_kwargs):
+            self.events.append(("markdown", body))
+
+        def caption(self, body, **_kwargs):
+            self.events.append(("caption", body))
+
+        def code(self, body, **kwargs):
+            self.events.append(("code", (body, kwargs.get("language"))))
+
+        def error(self, body, **_kwargs):
+            self.events.append(("error", body))
+
+        def expander(self, label, *, expanded=False):
+            self.events.append(("expander", (label, expanded)))
+            child = FakeContainer(str(label))
+            child.events = self.events
+            return child
+
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            columns = [FakeContainer(f"column-{index}") for index in range(count)]
+            for column in columns:
+                column.events = self.events
+            return columns
+
+        def text_input(self, _label, *, key):
+            return session_state[key]
+
+        def checkbox(self, _label, *, key):
+            return session_state[key]
+
+        def number_input(self, _label, *, key, **_kwargs):
+            return session_state[key]
+
+        def slider(self, _label, *, key, **_kwargs):
+            return session_state[key]
+
+        def selectbox(self, _label, options, *, key):
+            return session_state[key]
+
+    def fake_load_args_state(_env, *, args_module):
+        assert args_module is form_module.app_args
+        return model, {"dataset": model.dataset}, tmp_path / "app_settings.toml"
+
+    monkeypatch.setattr(form_module, "load_args_state", fake_load_args_state)
+    monkeypatch.setattr(
+        form_module,
+        "persist_args",
+        lambda _args_module, parsed, **_kwargs: persisted.append(parsed),
+    )
+    monkeypatch.setattr(
+        form_module,
+        "_build_synced_run_snippet",
+        lambda parsed, *, env: f"snippet for {parsed.dataset} in {env.app}",
+    )
+
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        target="pytorch_playground_project",
+        active_app=tmp_path / "apps" / "pytorch_playground_project",
+        apps_path=tmp_path / "apps",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+    )
+    wide_container = FakeContainer()
+    form_module.render(env=env, container=wide_container, wide=True, compact=False)
+
+    assert any(event == ("markdown", "### Settings") for event in wide_container.events)
+    assert any(event[0] == "code" and "snippet for" in event[1][0] for event in wide_container.events)
+    assert persisted[-1].dataset == model.dataset
+
+    compact_container = FakeContainer()
+    form_module.render(env=env, container=compact_container, compact=True)
+
+    assert any(event == ("markdown", "**Settings**") for event in compact_container.events)
+    assert any(event[0] == "expander" and event[1][0] == "Current run payload" for event in compact_container.events)
+
+
+def test_pytorch_playground_app_args_form_fallback_snippet_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    form_module = _load_app_args_form_module()
+    monkeypatch.setattr(
+        form_module.st,
+        "session_state",
+        {
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "pool": True,
+                    "cython": True,
+                    "rapids": True,
+                    "verbose": "3",
+                    "scheduler": "tcp://scheduler:8786",
+                    "workers": {"worker-a": 2},
+                    "workers_data_path": tmp_path / "share",
+                }
+            },
+            "mode": 15,
+        },
+    )
+
+    env = SimpleNamespace(
+        app="",
+        active_app=tmp_path / "apps" / "pytorch_playground_project",
+        apps_path=tmp_path / "apps",
+    )
+    snippet = form_module._fallback_run_snippet(
+        env=env,
+        run_args={
+            "params": {"dataset": "moons"},
+            "args": {"unexpected": "mapping"},
+            "data_in": "",
+            "data_out": "evidence",
+            "reset_target": True,
+        },
+    )
+
+    assert "APP = \"pytorch_playground_project\"" in snippet
+    assert "mode=15" in snippet
+    assert "scheduler=\"tcp://scheduler:8786\"" in snippet
+    assert "RUN_STAGES_PAYLOAD = json.loads('[]')" in snippet
+
+
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
     source_root = PROJECT_PATH / "src"
     payload_root = PACKAGE_PROJECT_PATH / "src"

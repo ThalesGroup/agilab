@@ -63,6 +63,8 @@ EXAMPLE_PREVIEWS = {
     "train_then_serve": ("preview_train_then_serve.py",),
     "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
+EXAMPLE_CATALOG_DOC = ROOT / "docs/source/packaged-examples.rst"
+DOCS_INDEX = ROOT / "docs/source/index.rst"
 DEPRECATED_EXAMPLE_DIR_NAMES = {
     "data_io_2026",
     "flight",
@@ -152,6 +154,14 @@ def _expected_script_paths() -> list[Path]:
         EXAMPLES_ROOT / example_name / script_name
         for example_name, script_names in EXAMPLE_APPS.items()
         for script_name in script_names
+    )
+
+
+def _packaged_example_dirs() -> list[str]:
+    return sorted(
+        path.name
+        for path in EXAMPLES_ROOT.iterdir()
+        if path.is_dir() and not path.name.startswith("__")
     )
 
 
@@ -947,6 +957,18 @@ def test_packaged_example_catalog_is_documented() -> None:
             "## Troubleshooting",
         ):
             assert heading in readme_text
+
+
+def test_packaged_example_catalog_has_rendered_docs_page() -> None:
+    assert EXAMPLE_CATALOG_DOC.is_file()
+    catalog_text = EXAMPLE_CATALOG_DOC.read_text(encoding="utf-8")
+    index_text = DOCS_INDEX.read_text(encoding="utf-8")
+
+    assert "Packaged examples <packaged-examples>" in index_text
+    assert "Packaged example catalog" in catalog_text
+    assert "src/agilab/examples" in catalog_text
+    for example_name in _packaged_example_dirs():
+        assert f"``{example_name}``" in catalog_text
 
 
 def test_packaged_example_readmes_teach_safe_adaptation() -> None:

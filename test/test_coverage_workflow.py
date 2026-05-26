@@ -145,6 +145,7 @@ def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
     run_block = _agi_gui_run_block()
 
     assert "test/test_notebook_colab_support.py" in run_block
+    assert "test/test_notebook_demo.py" in run_block
 
 
 def test_agi_gui_coverage_includes_first_proof_and_notebook_import_helpers() -> None:
@@ -318,10 +319,17 @@ def test_agi_gui_coverage_includes_analysis_page_helpers() -> None:
 def test_agi_gui_coverage_includes_support_parity_helpers() -> None:
     run_block = _agi_gui_run_block()
 
+    assert "test/test_agent_config_and_capabilities.py" in run_block
     assert "test/test_agent_run.py" in run_block
+    assert "test/test_agent_trace.py" in run_block
     assert "test/test_agent_tool_safety.py" in run_block
+    assert "test/test_app_surface.py" in run_block
+    assert "test/test_audience_bridges.py" in run_block
     assert "test/test_code_editor_support.py" in run_block
     assert "test/test_env_file_utils.py" in run_block
+    assert "test/test_environment_health.py" in run_block
+    assert "test/test_kubernetes_job.py" in run_block
+    assert "test/test_lightning_evidence.py" in run_block
     assert "test/test_security_check.py" in run_block
     assert "test/test_secret_uri.py" in run_block
     assert "test/test_ui_public_bind_guard.py" in run_block
