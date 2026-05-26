@@ -336,6 +336,10 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "workflow must support PyPI unrecognized-login confirmation polling"
         ),
         "--confirm-delete": "workflow must make destructive PyPI retention explicit",
+        "--allow-delete-failure-warning": (
+            "PyPI release retention must warn instead of blocking release assets "
+            "when PyPI requires interactive login confirmation"
+        ),
         "--github-confirm-login-variable": (
             "PyPI release retention must poll for temporary login confirmation"
         ),
@@ -371,11 +375,6 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
     ]
     if "\n          - package: " in text:
         missing.append("library package matrix must not be hard-coded in the workflow")
-    if "--allow-delete-failure-warning" in text:
-        missing.append(
-            "PyPI release retention must fail closed when stale releases remain: "
-            "remove '--allow-delete-failure-warning'"
-        )
     return missing
 
 
