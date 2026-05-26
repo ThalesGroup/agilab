@@ -299,7 +299,11 @@ def _seed_env_editor_state(at: AppTest, env: AgiEnv) -> None:
             at.session_state[editor_key] = env_values.get(key, "")
 
 
-def _seed_probeable_venv(venv: Path) -> None:
+def _seed_probeable_venv(
+    venv: Path,
+    *,
+    extra_modules: tuple[str, ...] = (),
+) -> None:
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     python.parent.mkdir(parents=True, exist_ok=True)
     if python.exists() or python.is_symlink():
@@ -318,7 +322,7 @@ def _seed_probeable_venv(venv: Path) -> None:
             / "site-packages"
         )
     site_packages.mkdir(parents=True, exist_ok=True)
-    for module_name in ("agi_env", "agi_node", "agi_cluster"):
+    for module_name in (*("agi_env", "agi_node", "agi_cluster"), *extra_modules):
         package_dir = site_packages / module_name
         package_dir.mkdir(parents=True, exist_ok=True)
         (package_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -1205,8 +1209,14 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         calls.append({"code": code, "venv": venv, "type": type})
         if "AGI.install" in code:
             assert venv is None
-            _seed_probeable_venv(self.active_app / ".venv")
-            _seed_probeable_venv(self.wenv_abs / ".venv")
+            _seed_probeable_venv(
+                self.active_app / ".venv",
+                extra_modules=("polars", "pydantic", "py7zr", "streamlit"),
+            )
+            _seed_probeable_venv(
+                self.wenv_abs / ".venv",
+                extra_modules=("polars", "pydantic"),
+            )
             if log_callback is not None:
                 log_callback(
                     "Remote command stderr: error: Permission denied (os error 13)"
@@ -3063,11 +3073,15 @@ def test_project_page_readme_query_opens_edit_section_once():
     )
 
     session_state["sidebar_selection"] = "Create"
-    assert not project_page._consume_project_section_query_seed(session_state, query_params)
+    assert not project_page._consume_project_section_query_seed(
+        session_state, query_params
+    )
     assert session_state["sidebar_selection"] == "Create"
 
     query_params = {"active_app": "flight_telemetry_project"}
-    assert not project_page._consume_project_section_query_seed(session_state, query_params)
+    assert not project_page._consume_project_section_query_seed(
+        session_state, query_params
+    )
     assert project_page.PROJECT_SECTION_CONSUMED_KEY not in session_state
 
 

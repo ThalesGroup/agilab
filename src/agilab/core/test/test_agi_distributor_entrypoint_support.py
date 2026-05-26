@@ -46,10 +46,14 @@ def _reset_agi_entrypoint_state():
 async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')", encoding="utf-8"
+    )
     active_app = tmp_path / "app"
     active_app.mkdir(parents=True, exist_ok=True)
-    (active_app / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (active_app / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
 
     AGI._mode = AGI.DASK_MODE
     AGI._mode_auto = False
@@ -98,7 +102,9 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
     monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_port_release))
     monkeypatch.setattr(AGI, "find_free_port", staticmethod(lambda *_a, **_k: 8899))
     monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
-    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+    monkeypatch.setattr(
+        AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect)
+    )
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
     monkeypatch.setattr(
         AGI,
@@ -118,8 +124,16 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
     assert AGI._scheduler_port == 8899
     assert AGI._dask_client == "fake-client"
     assert AGI._install_done is True
-    assert calls["bg"][0][0][:5] == ["uv", "run", "--no-sync", "--project", str(AGI.env.wenv_abs)]
-    assert calls["bg"][0][2]["env"]["PATH"].startswith(str(Path.home() / ".local" / "bin"))
+    assert calls["bg"][0][0][:5] == [
+        "uv",
+        "run",
+        "--no-sync",
+        "--project",
+        str(AGI.env.wenv_abs),
+    ]
+    assert calls["bg"][0][2]["env"]["PATH"].startswith(
+        str(Path.home() / ".local" / "bin")
+    )
     assert calls["bg"]
     assert any(entry[0] == "127.0.0.1_CMD_PREFIX" for entry in calls["set_env"])
 
@@ -132,18 +146,36 @@ def test_load_capacity_predictor_uses_shared_runtime_helper(monkeypatch, tmp_pat
     env.resources_path.mkdir(parents=True, exist_ok=True)
     env.home_abs.mkdir(parents=True, exist_ok=True)
     sentinels = {"retrain": 0}
+    calls = {}
     predictor = object()
+
+    def fake_load_capacity_predictor(
+        model_path, *, retrain_fn=None, log=None, load_fn=None, trusted_root=None
+    ):
+        calls["model_path"] = model_path
+        calls["trusted_root"] = trusted_root
+        return predictor
 
     monkeypatch.setattr(
         entrypoint_support.runtime_misc_support,
         "load_capacity_predictor",
-        lambda model_path, *, retrain_fn=None, log=None, load_fn=None: predictor,
+        fake_load_capacity_predictor,
     )
-    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: sentinels.__setitem__("retrain", sentinels["retrain"] + 1)))
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(
+            lambda *_args, **_kwargs: sentinels.__setitem__(
+                "retrain", sentinels["retrain"] + 1
+            )
+        ),
+    )
 
     entrypoint_support._load_capacity_predictor(AGI, env)
 
     assert AGI._capacity_predictor is predictor
+    assert calls["model_path"] == env.resources_path / "balancer_model.pkl"
+    assert calls["trusted_root"] == env.resources_path
     assert sentinels["retrain"] == 0
 
 
@@ -154,7 +186,9 @@ def test_prepare_run_execution_calls_runtime_steps_in_order(monkeypatch):
     monkeypatch.setattr(
         entrypoint_support,
         "_configure_mode",
-        lambda agi_cls, current_env, mode: calls.append(("configure", agi_cls, current_env, mode)),
+        lambda agi_cls, current_env, mode: calls.append(
+            ("configure", agi_cls, current_env, mode)
+        ),
     )
     monkeypatch.setattr(
         entrypoint_support,
@@ -164,7 +198,9 @@ def test_prepare_run_execution_calls_runtime_steps_in_order(monkeypatch):
     monkeypatch.setattr(
         entrypoint_support,
         "_resolve_install_worker_group",
-        lambda agi_cls, current_env: calls.append(("install-group", agi_cls, current_env)),
+        lambda agi_cls, current_env: calls.append(
+            ("install-group", agi_cls, current_env)
+        ),
     )
 
     entrypoint_support._prepare_run_execution(AGI, env, AGI.DASK_MODE)
@@ -184,7 +220,9 @@ async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
     monkeypatch.setattr(
         entrypoint_support,
         "_prepare_run_execution",
-        lambda agi_cls, current_env, mode: calls.append(("prepare", agi_cls, current_env, mode)),
+        lambda agi_cls, current_env, mode: calls.append(
+            ("prepare", agi_cls, current_env, mode)
+        ),
     )
 
     async def _fake_run_main(
@@ -209,7 +247,9 @@ async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
         )
         return "ok"
 
-    monkeypatch.setattr(entrypoint_support, "_run_main_with_handled_errors", _fake_run_main)
+    monkeypatch.setattr(
+        entrypoint_support, "_run_main_with_handled_errors", _fake_run_main
+    )
 
     process_error_type = RuntimeError
     format_exception_chain_fn = str
@@ -243,7 +283,9 @@ async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(monkeypatch):
+async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(
+    monkeypatch,
+):
     calls = []
     env = object()
     benchmark_request = RunRequest(
@@ -370,7 +412,9 @@ def test_connection_error_payload_defaults_empty_message(capsys):
         def info(self, message):
             self.info_messages.append(message)
 
-    payload = entrypoint_support._connection_error_payload(ConnectionError(""), log=_FakeLogger())
+    payload = entrypoint_support._connection_error_payload(
+        ConnectionError(""), log=_FakeLogger()
+    )
 
     assert payload == {
         "status": "error",
@@ -486,7 +530,9 @@ async def test_run_main_with_handled_errors_logs_and_reraises_unexpected_excepti
             log=fake_logger,
         )
 
-    assert fake_logger.error_messages == ["Unhandled exception in AGI.run: chain:unexpected failure"]
+    assert fake_logger.error_messages == [
+        "Unhandled exception in AGI.run: chain:unexpected failure"
+    ]
     assert fake_logger.debug_messages == ["Traceback:\ntraceback-body"]
 
 
@@ -556,23 +602,29 @@ async def test_connect_scheduler_with_retry_propagates_unexpected_value_error():
 
 @pytest.mark.asyncio
 async def test_detect_export_cmd_local_and_remote(monkeypatch):
-    assert await entrypoint_support.detect_export_cmd(
-        AGI,
-        "127.0.0.1",
-        is_local_fn=lambda ip: ip == "127.0.0.1",
-        local_export_bin="LOCAL_PREFIX ",
-    ) == "LOCAL_PREFIX "
+    assert (
+        await entrypoint_support.detect_export_cmd(
+            AGI,
+            "127.0.0.1",
+            is_local_fn=lambda ip: ip == "127.0.0.1",
+            local_export_bin="LOCAL_PREFIX ",
+        )
+        == "LOCAL_PREFIX "
+    )
 
     async def _fake_exec(_ip, _cmd):
         return "Linux"
 
     monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
-    assert await entrypoint_support.detect_export_cmd(
-        AGI,
-        "10.0.0.2",
-        is_local_fn=lambda _ip: False,
-        local_export_bin="LOCAL_PREFIX ",
-    ) == 'export PATH="$HOME/.local/bin:$PATH";'
+    assert (
+        await entrypoint_support.detect_export_cmd(
+            AGI,
+            "10.0.0.2",
+            is_local_fn=lambda _ip: False,
+            local_export_bin="LOCAL_PREFIX ",
+        )
+        == 'export PATH="$HOME/.local/bin:$PATH";'
+    )
 
 
 @pytest.mark.asyncio
@@ -581,12 +633,15 @@ async def test_detect_export_cmd_returns_empty_for_non_posix(monkeypatch):
         return "Windows_NT"
 
     monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
-    assert await entrypoint_support.detect_export_cmd(
-        AGI,
-        "10.0.0.3",
-        is_local_fn=lambda _ip: False,
-        local_export_bin="LOCAL_PREFIX ",
-    ) == ""
+    assert (
+        await entrypoint_support.detect_export_cmd(
+            AGI,
+            "10.0.0.3",
+            is_local_fn=lambda _ip: False,
+            local_export_bin="LOCAL_PREFIX ",
+        )
+        == ""
+    )
 
 
 @pytest.mark.asyncio
@@ -605,7 +660,9 @@ async def test_detect_export_cmd_propagates_unexpected_value_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_resolve_scheduler_cmd_prefix_propagates_unexpected_value_error(monkeypatch):
+async def test_resolve_scheduler_cmd_prefix_propagates_unexpected_value_error(
+    monkeypatch,
+):
     AGI.env = SimpleNamespace(envars={})
     AGI._scheduler_ip = "10.0.0.9"
 
@@ -627,7 +684,9 @@ async def test_start_scheduler_wraps_retryable_connect_error(monkeypatch, tmp_pa
     app_path.mkdir()
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         wenv_rel=Path("wenv/demo_worker"),
@@ -670,12 +729,22 @@ async def test_start_scheduler_wraps_retryable_connect_error(monkeypatch, tmp_pa
 
     monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
     monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
-    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
-    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
-    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect_scheduler_with_retry))
+    monkeypatch.setattr(
+        AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release)
+    )
+    monkeypatch.setattr(
+        AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd)
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_connect_scheduler_with_retry",
+        staticmethod(_fake_connect_scheduler_with_retry),
+    )
     monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+    monkeypatch.setattr(
+        AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799))
+    )
 
     with pytest.raises(RuntimeError, match="Failed to instantiate Dask Client"):
         await entrypoint_support.start_scheduler(
@@ -693,7 +762,9 @@ async def test_start_scheduler_propagates_unexpected_connect_bug(monkeypatch, tm
     app_path.mkdir()
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         wenv_rel=Path("wenv/demo_worker"),
@@ -736,12 +807,22 @@ async def test_start_scheduler_propagates_unexpected_connect_bug(monkeypatch, tm
 
     monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
     monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
-    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
-    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
-    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect_scheduler_with_retry))
+    monkeypatch.setattr(
+        AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release)
+    )
+    monkeypatch.setattr(
+        AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd)
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_connect_scheduler_with_retry",
+        staticmethod(_fake_connect_scheduler_with_retry),
+    )
     monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+    monkeypatch.setattr(
+        AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799))
+    )
 
     with pytest.raises(ValueError, match="client bug"):
         await entrypoint_support.start_scheduler(
@@ -788,7 +869,9 @@ async def test_update_get_distrib_and_distribute_delegate_to_run(monkeypatch):
     )
 
     assert AGI._run_type == "simulate"
-    assert calls[0][1]["request"].mode == ((AGI._UPDATE_MODE | AGI.DASK_MODE) & AGI._DASK_RESET)
+    assert calls[0][1]["request"].mode == (
+        (AGI._UPDATE_MODE | AGI.DASK_MODE) & AGI._DASK_RESET
+    )
     assert calls[1][0] == (env,)
     assert calls[1][1]["request"].scheduler == "127.0.0.1"
     assert calls[1][1]["request"].workers == {"127.0.0.1": 1}
@@ -804,16 +887,21 @@ async def test_detect_export_cmd_expected_lookup_error_returns_empty(monkeypatch
 
     monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec))
 
-    assert await entrypoint_support.detect_export_cmd(
-        AGI,
-        "10.0.0.7",
-        is_local_fn=lambda _ip: False,
-        local_export_bin="LOCAL ",
-    ) == ""
+    assert (
+        await entrypoint_support.detect_export_cmd(
+            AGI,
+            "10.0.0.7",
+            is_local_fn=lambda _ip: False,
+            local_export_bin="LOCAL ",
+        )
+        == ""
+    )
 
 
 @pytest.mark.asyncio
-async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_missing_remote_scheduler(monkeypatch, tmp_path):
+async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_missing_remote_scheduler(
+    monkeypatch, tmp_path
+):
     cluster_pck = tmp_path / "cluster"
     cli_path = cluster_pck / "agi_distributor" / "cli.py"
     cli_path.parent.mkdir(parents=True, exist_ok=True)
@@ -827,15 +915,23 @@ async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_miss
     async def _fake_kill(ip, _pid, force=True):
         calls["kill"].append((ip, force))
 
-    log = SimpleNamespace(info=lambda message, *args: calls["info"].append(message % args if args else message))
+    log = SimpleNamespace(
+        info=lambda message, *args: calls["info"].append(
+            message % args if args else message
+        )
+    )
 
-    AGI.env = SimpleNamespace(cluster_pck=cluster_pck, envars={}, hw_rapids_capable=False)
+    AGI.env = SimpleNamespace(
+        cluster_pck=cluster_pck, envars={}, hw_rapids_capable=False
+    )
     AGI._mode_auto = False
     AGI._mode = AGI.DASK_MODE
     AGI._workers = {"127.0.0.1": 1}
     monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
     monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786)))
+    monkeypatch.setattr(
+        AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8786))
+    )
 
     scheduler = await entrypoint_support._prepare_scheduler_nodes(
         AGI,
@@ -849,7 +945,9 @@ async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_miss
 
     calls = {"send": [], "kill": [], "info": []}
     AGI._workers = {"10.0.0.2": 1}
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("10.0.0.1", 8786)))
+    monkeypatch.setattr(
+        AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("10.0.0.1", 8786))
+    )
 
     scheduler = await entrypoint_support._prepare_scheduler_nodes(
         AGI,
@@ -884,10 +982,14 @@ async def test_resolve_scheduler_cmd_prefix_ignores_expected_detect_error(monkey
 
 
 @pytest.mark.asyncio
-async def test_launch_scheduler_process_local_logs_background_result(monkeypatch, tmp_path):
+async def test_launch_scheduler_process_local_logs_background_result(
+    monkeypatch, tmp_path
+):
     app_path = tmp_path / "app"
     app_path.mkdir()
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
 
     calls = {"info": []}
     AGI.env = SimpleNamespace(
@@ -903,9 +1005,15 @@ async def test_launch_scheduler_process_local_logs_background_result(monkeypatch
     AGI._scheduler_ip = "127.0.0.1"
     AGI._scheduler_port = 8786
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
-    monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: "started"))
+    monkeypatch.setattr(
+        AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: "started")
+    )
 
-    log = SimpleNamespace(info=lambda message, *args: calls["info"].append(message % args if args else message))
+    log = SimpleNamespace(
+        info=lambda message, *args: calls["info"].append(
+            message % args if args else message
+        )
+    )
 
     async def _fake_sleep(_delay):
         return None
@@ -922,10 +1030,14 @@ async def test_launch_scheduler_process_local_logs_background_result(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_worker(monkeypatch, tmp_path):
+async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_worker(
+    monkeypatch, tmp_path
+):
     app_path = tmp_path / "app"
     app_path.mkdir()
-    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n", encoding="utf-8"
+    )
 
     calls = {"exec": [], "send": [], "tasks": []}
     AGI.env = SimpleNamespace(
@@ -972,12 +1084,16 @@ async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_
 
 
 @pytest.mark.asyncio
-async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(monkeypatch, tmp_path):
+async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(
+    monkeypatch, tmp_path
+):
     app_path = tmp_path / "app"
     app_path.mkdir()
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True)
-    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+    (cluster_pck / "agi_distributor" / "cli.py").write_text(
+        "print('cli')\n", encoding="utf-8"
+    )
 
     env = SimpleNamespace(
         wenv_rel=Path("wenv/demo_worker"),
@@ -1016,16 +1132,24 @@ async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(monk
 
     monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send_file))
     monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
-    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release))
-    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd))
+    monkeypatch.setattr(
+        AGI, "_wait_for_port_release", staticmethod(_fake_wait_for_port_release)
+    )
+    monkeypatch.setattr(
+        AGI, "_detect_export_cmd", staticmethod(_fake_detect_export_cmd)
+    )
     monkeypatch.setattr(AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: None))
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
-    monkeypatch.setattr(AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799)))
+    monkeypatch.setattr(
+        AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("127.0.0.1", 8799))
+    )
 
     async def _raise_runtime(*_args, **_kwargs):
         raise RuntimeError("retry exhausted")
 
-    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_raise_runtime))
+    monkeypatch.setattr(
+        AGI, "_connect_scheduler_with_retry", staticmethod(_raise_runtime)
+    )
     AGI._worker_init_error = False
     with pytest.raises(RuntimeError, match="retry exhausted"):
         await entrypoint_support.start_scheduler(

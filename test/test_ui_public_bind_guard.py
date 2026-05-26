@@ -21,6 +21,7 @@ configured_streamlit_host = guard.configured_streamlit_host
 enforce_public_bind_policy = guard.enforce_public_bind_policy
 enforce_public_bind_policy_or_stop = guard.enforce_public_bind_policy_or_stop
 public_bind_has_controls = guard.public_bind_has_controls
+streamlit_config_getter_from_module = guard.streamlit_config_getter_from_module
 
 
 def test_configured_streamlit_host_defaults_to_loopback():
@@ -118,6 +119,44 @@ def test_public_bind_guard_or_stop_reports_error_before_stopping():
     assert FakeStreamlit.stopped is True
 
 
+def test_public_bind_guard_or_stop_uses_streamlit_get_option_when_available():
+    class FakeStreamlit:
+        stopped = False
+
+        @staticmethod
+        def get_option(key: str) -> str:
+            assert key == "server.address"
+            return "0.0.0.0"
+
+        @classmethod
+        def stop(cls) -> None:
+            cls.stopped = True
+
+    with pytest.raises(PublicBindPolicyError, match="0.0.0.0"):
+        enforce_public_bind_policy_or_stop(FakeStreamlit, {})
+
+    assert FakeStreamlit.stopped is True
+
+
+def test_streamlit_config_getter_prefers_get_option_over_legacy_config_get():
+    class FakeConfig:
+        @staticmethod
+        def get(_key: str) -> str:
+            return "legacy"
+
+    class FakeStreamlit:
+        config = FakeConfig()
+
+        @staticmethod
+        def get_option(_key: str) -> str:
+            return "modern"
+
+    getter = streamlit_config_getter_from_module(FakeStreamlit)
+
+    assert getter is not None
+    assert getter("server.address") == "modern"
+
+
 def test_main_page_entrypoint_enforces_public_bind_guard():
     text = (ROOT / "src" / "agilab" / "main_page.py").read_text(encoding="utf-8")
 
@@ -138,4 +177,4 @@ def test_direct_streamlit_pages_enforce_public_bind_guard():
 
         assert "agilab.ui_public_bind_guard" in text
         assert "enforce_public_bind_policy_or_stop(" in text
-        assert "streamlit_config_getter=st.config.get" in text
+        assert "st.config.get" not in text

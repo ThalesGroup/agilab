@@ -63,6 +63,21 @@ def public_bind_error_message(host: str) -> str:
     )
 
 
+def streamlit_config_getter_from_module(
+    streamlit_module: object,
+) -> Callable[[str], object] | None:
+    """Return the compatible Streamlit config getter for the installed version."""
+    get_option = getattr(streamlit_module, "get_option", None)
+    if callable(get_option):
+        return get_option
+
+    config = getattr(streamlit_module, "config", None)
+    config_get = getattr(config, "get", None)
+    if callable(config_get):
+        return config_get
+    return None
+
+
 def enforce_public_bind_policy(
     environ: Mapping[str, str] | None = None,
     *,
@@ -84,6 +99,8 @@ def enforce_public_bind_policy_or_stop(
     streamlit_config_getter: Callable[[str], object] | None = None,
 ) -> str:
     """Apply the public-bind guard from direct Streamlit page entrypoints."""
+    if streamlit_config_getter is None:
+        streamlit_config_getter = streamlit_config_getter_from_module(streamlit_module)
     try:
         return enforce_public_bind_policy(
             environ,

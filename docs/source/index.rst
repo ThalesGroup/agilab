@@ -42,6 +42,7 @@ references, and example projects.
    Newcomer guide <newcomer-guide>
    Local first proof <quick-start>
    Release proof <release-proof>
+   Beta readiness <beta-readiness>
    Evidence claims policy <evidence-claims-policy>
    Evidence taxonomy <evidence-taxonomy>
    First-failure recovery <newcomer-troubleshooting>
