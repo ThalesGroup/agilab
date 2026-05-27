@@ -286,10 +286,13 @@ Python and GitHub Actions manifests, release workflows publish per-profile
 `tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
 locally. PyPI publication uses Trusted Publishing/OIDC and the release workflow
 runs `tools/pypi_provenance_check.py` after upload so missing PyPI attestations
-fail before GitHub release assets are published. The workflow then attempts to
-prune older PyPI releases for each selected project; missing current versions
-or remaining stale releases are hard failures. If PyPI asks for unrecognized
-login confirmation, the workflow waits on the temporary
+fail before GitHub release assets are published. By default, the workflow omits
+selected PyPI projects whose current wheel/sdist artifacts already exist, so
+unchanged split packages do not enter upload, provenance, retention, or release
+asset jobs. For packages that still need publication, the workflow then attempts
+to prune older PyPI releases; missing current versions or remaining stale
+releases are hard failures. If PyPI asks for unrecognized login confirmation,
+the workflow waits on the temporary
 `PYPI_CONFIRM_LOGIN_URL` Actions variable instead of silently continuing. Release
 assets and Hugging Face sync only proceed after PyPI retention verifies that each
 selected project exposes only the current release. After release assets are

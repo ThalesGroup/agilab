@@ -79,3 +79,33 @@ def test_selected_public_versions_reads_filtered_package_versions(tmp_path, monk
     assert policy.selected_public_versions(tmp_path, package_names=("agilab",)) == {
         "agilab": "2026.05.18rc1"
     }
+
+
+def test_public_package_entries_can_reuse_release_plan_skip_existing_mode(
+    tmp_path, monkeypatch
+) -> None:
+    policy = _load_policy()
+    observed = {}
+
+    def fake_release_plan(**kwargs):
+        observed.update(kwargs)
+        return {
+            "library_matrix": [{"package": "agi-env", "publish_to_pypi": "true"}],
+            "umbrella_package": {"package": "agilab", "publish_to_pypi": "true"},
+            "umbrella_selected": "false",
+        }
+
+    monkeypatch.setattr(policy, "release_plan", fake_release_plan)
+
+    entries = policy.public_package_entries(
+        repo_root=tmp_path,
+        package_names=("agi-env",),
+        roles=("runtime-component",),
+        skip_existing_pypi=True,
+    )
+
+    assert entries == [{"package": "agi-env", "publish_to_pypi": "true"}]
+    assert observed["repo_root"] == tmp_path
+    assert observed["package_names"] == ("agi-env",)
+    assert observed["roles"] == ("runtime-component",)
+    assert observed["skip_existing_pypi"] is True
