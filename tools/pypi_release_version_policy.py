@@ -70,8 +70,15 @@ def public_package_entries(
     *,
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
+    repo_root: Path = Path.cwd(),
+    skip_existing_pypi: bool = False,
 ) -> list[dict[str, str]]:
-    payload = release_plan(package_names=package_names, roles=roles)
+    payload = release_plan(
+        package_names=package_names,
+        roles=roles,
+        repo_root=repo_root,
+        skip_existing_pypi=skip_existing_pypi,
+    )
     entries = [
         package
         for package in payload["library_matrix"]
@@ -97,10 +104,16 @@ def selected_public_versions(
     *,
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
+    skip_existing_pypi: bool = False,
 ) -> dict[str, str]:
     return {
         package["package"]: read_project_version(repo_root, package["project"])
-        for package in public_package_entries(package_names=package_names, roles=roles)
+        for package in public_package_entries(
+            package_names=package_names,
+            roles=roles,
+            repo_root=repo_root,
+            skip_existing_pypi=skip_existing_pypi,
+        )
     }
 
 
@@ -146,6 +159,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Critical hotfix justification required when --allow-post-release is set.",
     )
     parser.add_argument(
+        "--skip-existing-pypi",
+        action="store_true",
+        help=(
+            "Validate only selected PyPI packages whose current project version is not "
+            "already complete on PyPI."
+        ),
+    )
+    parser.add_argument(
         "--github-step-summary",
         type=Path,
         default=None,
@@ -162,6 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.repo_root.resolve(),
             package_names=split_filter_values(args.packages),
             roles=split_filter_values(args.roles),
+            skip_existing_pypi=args.skip_existing_pypi,
         )
         result = validate_public_release_versions(
             package_versions,
