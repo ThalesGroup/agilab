@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import traceback
 from pathlib import Path
@@ -11,7 +12,44 @@ import py7zr
 
 STAMP_WRITE_EXCEPTIONS = (OSError,)
 SIZE_PROBE_EXCEPTIONS = (OSError,)
-EXTRACTION_FAILURE_EXCEPTIONS = (OSError, py7zr.exceptions.ArchiveError)
+
+
+def _load_py7zr_exceptions_module() -> Any | None:
+    """Return ``py7zr.exceptions`` even when the package omits the attribute."""
+    try:
+        return importlib.import_module("py7zr.exceptions")
+    except (AttributeError, ImportError):
+        return getattr(py7zr, "exceptions", None)
+
+
+def _exception_class(container: Any | None, name: str) -> type[BaseException] | None:
+    candidate = getattr(container, name, None)
+    if isinstance(candidate, type) and issubclass(candidate, BaseException):
+        return candidate
+    return None
+
+
+def _py7zr_archive_error_classes(
+    py7zr_module: Any = py7zr,
+    exceptions_module: Any | None = None,
+) -> tuple[type[BaseException], ...]:
+    """Resolve py7zr archive errors across py7zr package layouts."""
+    classes: list[type[BaseException]] = []
+    for container in (exceptions_module, getattr(py7zr_module, "exceptions", None), py7zr_module):
+        for name in ("ArchiveError", "Bad7zFile"):
+            candidate = _exception_class(container, name)
+            if candidate is not None and candidate not in classes:
+                classes.append(candidate)
+    return tuple(classes)
+
+
+PY7ZR_EXCEPTIONS_MODULE = _load_py7zr_exceptions_module()
+PY7ZR_ARCHIVE_ERROR_CLASSES = _py7zr_archive_error_classes(py7zr, PY7ZR_EXCEPTIONS_MODULE)
+PY7ZR_BAD7Z_FILE = (
+    _exception_class(PY7ZR_EXCEPTIONS_MODULE, "Bad7zFile")
+    or _exception_class(py7zr, "Bad7zFile")
+)
+EXTRACTION_FAILURE_EXCEPTIONS = (OSError, *PY7ZR_ARCHIVE_ERROR_CLASSES)
 
 
 def _archive_size_mb(archive_path: Path) -> float | None:

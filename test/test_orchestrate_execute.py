@@ -854,6 +854,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert any(kind == "success" and "Loaded dataframe preview from 2 files" in msg for kind, msg in fake_st.messages)
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
     assert fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "success"
+    assert "Dataframe exported successfully" in fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["message"]
     assert ("rerun_fragment_or_app", "called") in fake_st.messages
     assert ("markdown", "#### 5. Run and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)

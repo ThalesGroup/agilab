@@ -1230,7 +1230,13 @@ async def render_execute_section(
                 else:
                     exported_df = loaded_df[st.session_state.selected_cols]
                     if save_csv(exported_df, target_path):
-                        st.success(f"Dataframe exported successfully to {target_path}.")
+                        export_message = f"Dataframe exported successfully to {target_path}."
+                        st.success(export_message)
+                        queue_execute_notice(
+                            st.session_state,
+                            kind="success",
+                            message=export_message,
+                        )
                         record_action_history(
                             st.session_state,
                             page_label="ORCHESTRATE",
@@ -1245,6 +1251,8 @@ async def render_execute_section(
 
                 if st.session_state.profile_report_file.exists():
                     os.remove(st.session_state.profile_report_file)
+                if st.session_state.get(EXECUTE_NOTICE_KEY):
+                    _rerun_fragment_or_app()
     else:
         st.session_state.df_cols = []
         st.session_state.selected_cols = []

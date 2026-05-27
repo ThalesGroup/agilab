@@ -14,6 +14,7 @@ from unittest import mock
 
 from agi_env import AgiEnv
 import agi_env.agi_env as agi_env_module
+from agi_env import data_archive_support
 
 from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
@@ -1706,6 +1707,8 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
     archive = tmp_path / "demo.7z"
     archive.write_bytes(b"7z")
     monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+    bad7z_file = data_archive_support.PY7ZR_BAD7Z_FILE
+    assert bad7z_file is not None
 
     class _BrokenSevenZip:
         def __init__(self, *_args, **_kwargs):
@@ -1718,7 +1721,7 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
             return False
 
         def extractall(self, path):
-            raise agi_env_module.py7zr.exceptions.Bad7zFile("bad archive")
+            raise bad7z_file("bad archive")
 
     monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _BrokenSevenZip)
 
