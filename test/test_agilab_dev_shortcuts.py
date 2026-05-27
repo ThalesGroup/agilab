@@ -77,6 +77,36 @@ def test_test_shortcut_keeps_pytest_arguments():
     ]
 
 
+def test_lint_shortcut_provisions_ruff_from_dev_extra_by_default():
+    assert agilab_dev.planned_commands(["lint"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--extra",
+            "dev",
+            "ruff",
+            "check",
+        ]
+    ]
+
+
+def test_ruff_shortcut_keeps_ruff_arguments():
+    assert agilab_dev.planned_commands(["ruff", "--version"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--extra",
+            "dev",
+            "ruff",
+            "--version",
+        ]
+    ]
+
+
 def test_regress_shortcut_defaults_to_staged_ga_run():
     assert agilab_dev.planned_commands(["regress"]) == [
         [
@@ -287,6 +317,16 @@ def test_release_shortcut_runs_local_release_guards():
             "tools/pypi_trusted_publisher_contract.py",
             "--check-workflow",
             ".github/workflows/pypi-publish.yaml",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--extra",
+            "dev",
+            "ruff",
+            "--version",
         ],
         [
             "uv",
