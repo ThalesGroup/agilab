@@ -25,13 +25,16 @@ Use this runbook whenever you:
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
   GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
   `regress` for GA-selected fast regression subsets, `robust` for P0 fail-closed
-  robustness scenarios, `flow` for one or more workflow parity profiles,
+  robustness scenarios, `app-contracts` for built-in app/package/catalog/docs alignment,
+  `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
   narrow pytest slice, `bugfix` is the default low-load pre-push loop for normal code fixes,
   `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
   `robust` runs synthetic bad-state checks for cluster shares, public UI binds,
   service health gates, evidence manifests, notebook import, app settings, and UI routes,
+  `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
+  promoted PyPI package metadata, app catalog entries, and public docs rows,
   `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
   plan, trusted-publisher contract, dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror

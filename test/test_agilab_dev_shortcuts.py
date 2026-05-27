@@ -144,6 +144,33 @@ def test_robust_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_app_contracts_shortcut_runs_contract_matrix_by_default():
+    assert agilab_dev.planned_commands(["app-contracts"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/app_contract_matrix.py",
+        ]
+    ]
+
+
+def test_app_contracts_shortcut_keeps_matrix_arguments():
+    assert agilab_dev.planned_commands(["apps-contracts", "--compact"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/app_contract_matrix.py",
+            "--compact",
+        ]
+    ]
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
     calls = []
 
