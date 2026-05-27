@@ -33,6 +33,18 @@ RELEASE_PROOF_GUARD_FILES = {
     "test/test_release_proof_report.py",
     "tools/release_proof_report.py",
 }
+APP_CONTRACT_GUARD_PREFIXES = (
+    "src/agilab/apps/builtin/",
+    "src/agilab/lib/agi-app-",
+    "src/agilab/lib/agi-apps/",
+)
+APP_CONTRACT_GUARD_FILES = {
+    "docs/source/public-app-catalog.rst",
+    "src/agilab/pypi_app_packages.py",
+    "test/test_app_contract_matrix.py",
+    "tools/app_contract_matrix.py",
+    "tools/package_split_contract.py",
+}
 
 
 GitRunner = Callable[[Sequence[str]], str]
@@ -43,6 +55,7 @@ class GuardState:
     changed_files: tuple[str, ...]
     docs_changed: bool
     release_proof_changed: bool
+    app_contracts_changed: bool
     detection_failed: bool = False
     error: str = ""
 
@@ -121,10 +134,15 @@ def classify_changed_files(changed_files: Sequence[str]) -> GuardState:
         _matches(path, prefixes=RELEASE_PROOF_GUARD_PREFIXES, files=RELEASE_PROOF_GUARD_FILES)
         for path in changed_files
     )
+    app_contracts_changed = any(
+        _matches(path, prefixes=APP_CONTRACT_GUARD_PREFIXES, files=APP_CONTRACT_GUARD_FILES)
+        for path in changed_files
+    )
     return GuardState(
         changed_files=tuple(sorted(set(changed_files))),
         docs_changed=docs_changed,
         release_proof_changed=release_proof_changed,
+        app_contracts_changed=app_contracts_changed,
     )
 
 
@@ -133,6 +151,7 @@ def failed_detection_state(error: Exception) -> GuardState:
         changed_files=(),
         docs_changed=True,
         release_proof_changed=True,
+        app_contracts_changed=True,
         detection_failed=True,
         error=str(error),
     )
@@ -146,6 +165,7 @@ def render_shell(state: GuardState) -> str:
     lines = [
         f"DOCS_CHANGED={_shell_bool(state.docs_changed)}",
         f"RELEASE_PROOF_CHANGED={_shell_bool(state.release_proof_changed)}",
+        f"APP_CONTRACTS_CHANGED={_shell_bool(state.app_contracts_changed)}",
         f"DETECTION_FAILED={_shell_bool(state.detection_failed)}",
         f"CHANGED_COUNT={len(state.changed_files)}",
     ]

@@ -335,7 +335,9 @@ and Streamlit route contracts. A scenario passes only when the bad state is
 rejected with a clear remediation and replay command.
 For adoption-surface evidence, maintainers can run `./dev app-contracts`; it
 checks that built-in apps, worker manifests, reducer expectations, promoted PyPI
-app packages, the app catalog, and public app docs stay aligned.
+app packages, the app catalog, and public app docs stay aligned. The same guard
+runs in release validation, CI, and targeted pre-push checks when those inputs
+change.
 External Sigstore/SLSA attestation binding, native lineage or observability
 transport, durable ML metadata, rich app-authored cards, and enterprise
 governance integrations remain roadmap work. See the

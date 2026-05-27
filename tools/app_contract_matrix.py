@@ -556,6 +556,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=None, help="Optional JSON output path.")
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
     parser.add_argument("--json", action="store_true", help="Alias for --compact.")
+    parser.add_argument("--quiet", action="store_true", help="Do not print the JSON report to stdout.")
     return parser
 
 
@@ -568,6 +569,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             json.dumps(report, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+    if args.quiet:
+        return 0 if report["status"] == "pass" else 1
     if args.compact or args.json:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     else:

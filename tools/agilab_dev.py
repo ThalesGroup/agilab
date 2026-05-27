@@ -89,6 +89,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "--check-workflow",
                 ".github/workflows/pypi-publish.yaml",
             ),
+            _uv_python("tools/app_contract_matrix.py", "--quiet"),
             _uv_python(
                 "tools/workflow_parity.py",
                 "--profile",

@@ -34,7 +34,8 @@ Use this runbook whenever you:
   `robust` runs synthetic bad-state checks for cluster shares, public UI binds,
   service health gates, evidence manifests, notebook import, app settings, and UI routes,
   `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
-  promoted PyPI package metadata, app catalog entries, and public docs rows,
+  promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
+  part of the release shortcut and targeted pre-push guards,
   `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
   plan, trusted-publisher contract, dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
@@ -113,7 +114,8 @@ Use this runbook whenever you:
 - **Local pre-push guardrails**: Keep the repo hook enabled with
   `git config core.hooksPath .githooks`. The pre-push hook first classifies the pushed
   changed files with `tools/pre_push_changed_files.py`. It runs docs mirror checks only when
-  docs mirror inputs changed, and release-proof checks only when release-proof inputs changed.
+  docs mirror inputs changed, release-proof checks only when release-proof inputs changed,
+  and app-contract checks only when built-in app/package/catalog/docs contract inputs changed.
   If classification fails, it fails safe by running all local guards. Coverage badge freshness is
   intentionally not part of the default bugfix pre-push path; run `./dev badge` or the `badges`
   workflow parity profile before release/pre-release publication. Bypass only with

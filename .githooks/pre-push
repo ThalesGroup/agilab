@@ -14,6 +14,7 @@ guard_state="$(
 )"
 DOCS_CHANGED=1
 RELEASE_PROOF_CHANGED=1
+APP_CONTRACTS_CHANGED=1
 DETECTION_FAILED=1
 CHANGED_COUNT=0
 DETECTION_ERROR="missing guard-state output"
@@ -21,6 +22,7 @@ while IFS='=' read -r key value; do
   case "$key" in
     DOCS_CHANGED) DOCS_CHANGED="$value" ;;
     RELEASE_PROOF_CHANGED) RELEASE_PROOF_CHANGED="$value" ;;
+    APP_CONTRACTS_CHANGED) APP_CONTRACTS_CHANGED="$value" ;;
     DETECTION_FAILED) DETECTION_FAILED="$value" ;;
     CHANGED_COUNT) CHANGED_COUNT="$value" ;;
     DETECTION_ERROR) DETECTION_ERROR="$value" ;;
@@ -50,4 +52,12 @@ if [[ "${RELEASE_PROOF_CHANGED:-1}" == "1" ]]; then
     --quiet
 else
   echo "[agilab pre-push] release-proof inputs unchanged; skipping release-proof guard." >&2
+fi
+
+if [[ "${APP_CONTRACTS_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/app_contract_matrix.py \
+    --output .pytest_cache/agilab/app-contract-matrix-pre-push.json \
+    --quiet
+else
+  echo "[agilab pre-push] app-contract inputs unchanged; skipping app-contract guard." >&2
 fi
