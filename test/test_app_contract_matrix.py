@@ -57,3 +57,11 @@ def test_app_contract_matrix_cli_writes_json_output(tmp_path: Path, capsys):
     file_report = json.loads(output_path.read_text(encoding="utf-8"))
     assert stdout_report["schema"] == module.SCHEMA
     assert file_report["summary"]["check_count"] == stdout_report["summary"]["check_count"]
+
+
+def test_app_contract_matrix_quiet_mode_suppresses_stdout(capsys):
+    module = _load_module()
+
+    assert module.main(["--quiet"]) == 0
+
+    assert capsys.readouterr().out == ""

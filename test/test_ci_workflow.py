@@ -1,6 +1,7 @@
 import ast
 import importlib.util
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -164,6 +165,8 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "python tools/install_release_proof_package.py --retries 20 --delay-seconds 15" in text
     assert "python -m pip install agilab" not in text
     assert "agilab first-proof --json --no-manifest --max-seconds 60" in text
+    assert "tools/app_contract_matrix.py --output app-contract-matrix.json --quiet" in text
+    assert "app-contract-matrix.json" in text
     assert "tools/ui_robot_matrix_aggregate.py" in text
 
 
@@ -289,3 +292,10 @@ def test_root_conftest_keeps_streamlit_testing_import_lazy() -> None:
             continue
         if isinstance(node, ast.ImportFrom):
             assert node.module != "streamlit.testing.v1"
+
+
+def test_dev_extra_installs_ruff_for_local_linting() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    dev_dependencies = pyproject["project"]["optional-dependencies"]["dev"]
+
+    assert any(dependency.startswith("ruff>=") for dependency in dev_dependencies)
