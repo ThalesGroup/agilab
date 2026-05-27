@@ -108,6 +108,42 @@ def test_regress_shortcut_keeps_selector_arguments():
     ]
 
 
+def test_robust_shortcut_runs_p0_robustness_matrix_by_default():
+    assert agilab_dev.planned_commands(["robust"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/robustness_matrix.py",
+        ]
+    ]
+
+
+def test_robust_shortcut_keeps_matrix_arguments():
+    assert agilab_dev.planned_commands(
+        [
+            "robustness",
+            "--scenario",
+            "public_streamlit_bind_without_controls_refused",
+            "--compact",
+        ]
+    ) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/robustness_matrix.py",
+            "--scenario",
+            "public_streamlit_bind_without_controls_refused",
+            "--compact",
+        ]
+    ]
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
     calls = []
 
