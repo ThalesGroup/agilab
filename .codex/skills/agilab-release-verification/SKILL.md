@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-27
 ---
 
 # AGILAB Release Verification
@@ -29,8 +29,9 @@ rg -n "sync-hf-space|publish-release-assets|pypi-release-retention|release-proof
 
 State whether Hugging Face sync, release proof refresh, PyPI retention, GitHub
 release assets, and docs updates are workflow-owned or manual for the current
-release scope. If a workflow owns a step, give its condition instead of adding a
-duplicate manual step.
+release scope. For PyPI, inspect whether the optimized release plan selected
+packages or skipped already-complete PyPI artifacts. If a workflow owns a step,
+give its condition instead of adding a duplicate manual step.
 
 ## Release Readiness Gate
 
@@ -71,6 +72,7 @@ uploaded, not just the source version:
 ```bash
 uv lock --check
 uv run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --format json --compact
+uv run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --format json --compact --skip-existing-pypi
 rm -rf /tmp/agilab-build-check
 uv run python -m build --wheel --outdir /tmp/agilab-build-check .
 python - <<'PY'
@@ -95,10 +97,11 @@ because `Requires-Dist` points at pruned versions.
 The public release path is currently GitHub-workflow-owned after the tag or
 workflow dispatch:
 
+- `release-plan`: by default passes `--skip-existing-pypi`, so split packages whose current wheel/sdist already exist on PyPI are omitted from publication, provenance, retention, and release assets. Manual workflow dispatch can set `include_existing_pypi=true` only for deliberate release-asset repair.
 - `publish-library-packages`: publishes selected split packages with PyPI Trusted Publishing.
-- `publish-agilab`: publishes the top-level `agilab` package.
-- `pypi-provenance-evidence`: verifies PyPI attestations after upload.
-- `pypi-release-retention`: attempts to prune older public PyPI releases for selected projects; missing current releases remain a hard failure, while PyPI web-login cleanup blockage is recorded as a warning after provenance passes.
+- `publish-agilab`: publishes the top-level `agilab` package only when the umbrella package is still selected.
+- `pypi-provenance-evidence`: verifies PyPI attestations only for `provenance_packages` selected by the release plan.
+- `pypi-release-retention`: prunes older public PyPI releases only for selected provenance packages; missing current releases or failed cleanup are hard failures.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
 - `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
 - `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof; package-only app/page publishes should skip it by release scope.
@@ -120,8 +123,10 @@ gh run view <run-id> --repo ThalesGroup/agilab --json status,conclusion,url,jobs
 
 Success requires the relevant publish, provenance, retention, release-assets,
 and `sync-hf-space` jobs to be successful or intentionally skipped by release
-scope. A successful retention job can still report old-release cleanup warnings
-when PyPI blocks destructive web-management actions from the runner.
+scope. If the optimized release plan reports `pypi_publish_selected=false`, the
+publish/provenance/retention/release-assets path is expected to skip. Do not
+report that as a failed release unless the user intended a new public
+publication.
 
 ### GitHub Release
 
@@ -167,18 +172,30 @@ uv --preview-features extra-build-dependencies run --refresh-package agilab --no
 Use `agilab[examples]` for packaged first-proof smoke; bare `agilab` is
 intentionally lean.
 
-For split-package release truth, check every provenance package, not only
-`agilab`:
+For split-package release truth, check every provenance package from the
+completed workflow, not only `agilab`. Do not recompute the optimized plan after
+publication and assume an empty `provenance_packages` list means nothing was
+published; after PyPI propagation, `--skip-existing-pypi` should often return
+no remaining targets.
+
+For a pre-dispatch preview:
+
+```bash
+uv run python tools/release_plan.py --skip-existing-pypi --format json --compact
+```
+
+For a completed workflow, use the `provenance_packages` output or step summary
+from that run, then check those packages:
 
 ```bash
 uv run python - <<'PY'
 import json, urllib.request
-from tools.release_plan import release_plan
 
 expected = "<normalized-version>"  # Example: 2026.5.17.post2
+packages = "<workflow provenance_packages output>".split()
 missing = []
 stale = []
-for name in release_plan()["provenance_packages"]:
+for name in packages:
     req = urllib.request.Request(
         f"https://pypi.org/pypi/{name}/json",
         headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
