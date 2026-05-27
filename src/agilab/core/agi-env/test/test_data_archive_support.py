@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -31,6 +32,8 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
     archive = tmp_path / "demo.7z"
     archive.write_bytes(b"7z")
     logger = mock.Mock()
+    bad7z_file = data_archive_support.PY7ZR_BAD7Z_FILE
+    assert bad7z_file is not None
 
     class _BrokenSevenZip:
         def __init__(self, *_args, **_kwargs):
@@ -43,7 +46,7 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
             return False
 
         def extractall(self, path):
-            raise data_archive_support.py7zr.exceptions.Bad7zFile("bad archive")
+            raise bad7z_file("bad archive")
 
     with pytest.raises(RuntimeError, match="Extraction failed"):
         unzip_data(
@@ -60,6 +63,23 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
             sevenzip_file_cls=_BrokenSevenZip,
             rmtree_fn=lambda *_a, **_k: None,
         )
+
+
+def test_py7zr_archive_error_resolution_handles_missing_package_exceptions_attr():
+    class _ArchiveError(Exception):
+        pass
+
+    class _Bad7zFile(_ArchiveError):
+        pass
+
+    fake_py7zr = SimpleNamespace(Bad7zFile=_Bad7zFile)
+    fake_exceptions = SimpleNamespace(ArchiveError=_ArchiveError, Bad7zFile=_Bad7zFile)
+
+    resolved = data_archive_support._py7zr_archive_error_classes(
+        fake_py7zr, fake_exceptions
+    )
+
+    assert resolved == (_ArchiveError, _Bad7zFile)
 
 
 def test_unzip_data_propagates_unexpected_extract_bug(tmp_path: Path):

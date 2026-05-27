@@ -1384,6 +1384,51 @@ def test_first_proof_orchestrate_query_seed_queues_install_and_cleans_url():
     assert query_params == {"active_app": "flight_telemetry_project"}
 
 
+def test_first_proof_orchestrate_query_seed_forces_safe_local_mode():
+    module = _load_orchestrate_module()
+    env = SimpleNamespace(app="flight_telemetry_project")
+    keys = module.cluster_widget_keys("flight_telemetry_project")
+    session_state: dict[str, object] = {
+        "app_settings": {
+            "cluster": {
+                "cluster_enabled": True,
+                "cython": True,
+                "pool": True,
+                "rapids": True,
+                "verbose": 3,
+            }
+        },
+        keys["cluster_enabled"]: True,
+        keys["cython"]: True,
+        keys["pool"]: True,
+        keys["rapids"]: True,
+        "orchestrate_execution_view__flight_telemetry_project": "Serve",
+        "benchmark_modes__flight_telemetry_project": [15],
+        "benchmark_best_single_node__flight_telemetry_project": True,
+        "benchmark": True,
+        "dask": True,
+        "mode": 15,
+    }
+    query_params = {"first_proof_action": "install"}
+
+    action = module._consume_first_proof_action_query_seed(
+        session_state, query_params, env=env
+    )
+
+    assert action == "install"
+    cluster = session_state["app_settings"]["cluster"]  # type: ignore[index]
+    assert cluster["verbose"] == 3
+    for flag in module.FIRST_PROOF_SAFE_CLUSTER_FLAGS:
+        assert cluster[flag] is False
+        assert session_state[keys[flag]] is False
+    assert session_state["orchestrate_execution_view__flight_telemetry_project"] == "Run now"
+    assert session_state["benchmark_modes__flight_telemetry_project"] == []
+    assert session_state["benchmark_best_single_node__flight_telemetry_project"] is False
+    assert session_state["benchmark"] is False
+    assert session_state["dask"] is False
+    assert session_state["mode"] == 0
+
+
 def test_first_proof_orchestrate_query_seed_queues_run_and_cleans_url():
     module = _load_orchestrate_module()
     session_state: dict[str, object] = {}

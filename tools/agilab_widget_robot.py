@@ -3926,7 +3926,7 @@ def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:  # prag
 
 def _visible_spinner_count(page: Any) -> int:  # pragma: no cover - live browser path
     try:
-        return int(page.locator("[data-testid='stSpinner']").count())
+        return int(_any_visible_locator(page.locator("[data-testid='stSpinner']")))
     except Exception:
         return 0
 

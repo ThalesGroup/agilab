@@ -270,6 +270,7 @@ import_agilab_symbols(
     {
         "OrchestrateClusterDeps": "OrchestrateClusterDeps",
         "clear_cluster_widget_state": "clear_cluster_widget_state",
+        "cluster_widget_keys": "cluster_widget_keys",
         "hydrate_cluster_widget_state": "hydrate_cluster_widget_state",
         "render_cluster_settings_ui": "render_cluster_settings_ui",
     },
@@ -365,6 +366,7 @@ logger = logging.getLogger(__name__)
 
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
 FIRST_PROOF_ORCHESTRATE_ACTIONS = {"install", "run"}
+FIRST_PROOF_SAFE_CLUSTER_FLAGS = ("cluster_enabled", "cython", "pool", "rapids")
 
 
 # ===========================
@@ -501,8 +503,34 @@ def _remove_query_param(query_params: Any, key: str) -> bool:
         return False
 
 
+def _apply_first_proof_safe_local_settings(session_state: Any, env: Any) -> None:
+    """Force first-proof wizard actions onto the safe local Python path."""
+    app_settings = session_state.get("app_settings")
+    if not isinstance(app_settings, dict):
+        app_settings = {"args": {}, "cluster": {}}
+    cluster_settings = app_settings.setdefault("cluster", {})
+    for flag in FIRST_PROOF_SAFE_CLUSTER_FLAGS:
+        cluster_settings[flag] = False
+    cluster_settings.setdefault("verbose", 1)
+
+    app_state_name = Path(str(getattr(env, "app", "") or "")).name
+    if app_state_name:
+        keys = cluster_widget_keys(app_state_name)
+        for flag in FIRST_PROOF_SAFE_CLUSTER_FLAGS:
+            session_state[keys[flag]] = False
+        session_state.pop(f"{keys['cluster_enabled']}__reset", None)
+        session_state[f"orchestrate_execution_view__{app_state_name}"] = "Run now"
+        session_state[f"benchmark_modes__{app_state_name}"] = []
+        session_state[f"benchmark_best_single_node__{app_state_name}"] = False
+
+    session_state["benchmark"] = False
+    session_state["dask"] = False
+    session_state["mode"] = 0
+    session_state["app_settings"] = app_settings
+
+
 def _consume_first_proof_action_query_seed(
-    session_state: Any, query_params: Any
+    session_state: Any, query_params: Any, *, env: Any | None = None
 ) -> str | None:
     """Queue a first-proof ORCHESTRATE action requested by a new-tab URL."""
     action = _query_param_scalar(query_params, FIRST_PROOF_ACTION_QUERY_KEY).lower()
@@ -512,6 +540,9 @@ def _consume_first_proof_action_query_seed(
     _remove_query_param(query_params, FIRST_PROOF_ACTION_QUERY_KEY)
     if action not in FIRST_PROOF_ORCHESTRATE_ACTIONS:
         return None
+
+    if env is not None:
+        _apply_first_proof_safe_local_settings(session_state, env)
 
     if action == "install":
         queue_pending_install_action(session_state)
@@ -2411,7 +2442,7 @@ async def page() -> None:
             app_settings = {"args": {}, "cluster": {}}
             st.session_state["app_settings"] = app_settings
 
-    _consume_first_proof_action_query_seed(st.session_state, st.query_params)
+    _consume_first_proof_action_query_seed(st.session_state, st.query_params, env=env)
 
     install_status = _app_install_status(env)
     installed = bool(
