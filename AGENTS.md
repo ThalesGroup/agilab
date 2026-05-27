@@ -24,12 +24,14 @@ Use this runbook whenever you:
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
   GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
-  `regress` for GA-selected fast regression subsets, `robust` for P0 fail-closed
-  robustness scenarios, `app-contracts` for built-in app/package/catalog/docs alignment,
+  `lint` for Ruff through the repo dev extra, `regress` for GA-selected fast regression subsets,
+  `robust` for P0 fail-closed robustness scenarios, `app-contracts` for
+  built-in app/package/catalog/docs alignment,
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
-  narrow pytest slice, `bugfix` is the default low-load pre-push loop for normal code fixes,
+  narrow pytest slice, `lint` provisions Ruff through `uv --extra dev` so it does not depend
+  on an already-synced local venv, `bugfix` is the default low-load pre-push loop for normal code fixes,
   `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
   `robust` runs synthetic bad-state checks for cluster shares, public UI binds,
   service health gates, evidence manifests, notebook import, app settings, and UI routes,
@@ -37,7 +39,7 @@ Use this runbook whenever you:
   promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
   part of the release shortcut and targeted pre-push guards,
   `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
-  plan, trusted-publisher contract, dependency policy, strict typing, docs, and badges before a tag,
+  plan, trusted-publisher contract, Ruff availability, dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
   aligned. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
