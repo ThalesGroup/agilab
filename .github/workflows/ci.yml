@@ -69,6 +69,7 @@ jobs:
             tools/install_release_proof_package.py \
             tools/public_proof_scenarios.py \
             tools/release_proof_report.py \
+            tools/app_contract_matrix.py \
             tools/ui_robot_evidence.py \
             tools/ui_robot_matrix_aggregate.py \
             tools/pypi_publish.py
@@ -96,6 +97,18 @@ jobs:
         run: |
           set -euo pipefail
           python tools/public_proof_scenarios.py --compact
+
+      - name: Validate app contract matrix
+        run: |
+          set -euo pipefail
+          python tools/app_contract_matrix.py --output app-contract-matrix.json --quiet
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("app-contract-matrix.json").read_text(encoding="utf-8"))
+          print(f"app contracts: {report['summary']['passed']}/{report['summary']['check_count']} passed")
+          PY
 
       - name: Validate first-launch robot
         env:
@@ -136,6 +149,7 @@ jobs:
           name: local-proof-artifacts
           path: |
             first-launch-robot.json
+            app-contract-matrix.json
             frontend-smoke-robot.json
             frontend-smoke-screenshots/**
             security-hygiene.json

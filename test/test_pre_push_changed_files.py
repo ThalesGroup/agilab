@@ -20,6 +20,7 @@ def test_classify_source_only_change_skips_docs_and_release_proof_guards():
 
     assert not state.docs_changed
     assert not state.release_proof_changed
+    assert not state.app_contracts_changed
 
 
 def test_classify_docs_source_change_runs_docs_guard_only():
@@ -27,6 +28,7 @@ def test_classify_docs_source_change_runs_docs_guard_only():
 
     assert state.docs_changed
     assert not state.release_proof_changed
+    assert not state.app_contracts_changed
 
 
 def test_classify_release_proof_change_runs_both_doc_related_guards():
@@ -34,6 +36,7 @@ def test_classify_release_proof_change_runs_both_doc_related_guards():
 
     assert state.docs_changed
     assert state.release_proof_changed
+    assert not state.app_contracts_changed
 
 
 def test_classify_release_tool_change_runs_release_proof_guard_only():
@@ -41,6 +44,23 @@ def test_classify_release_tool_change_runs_release_proof_guard_only():
 
     assert not state.docs_changed
     assert state.release_proof_changed
+    assert not state.app_contracts_changed
+
+
+def test_classify_app_contract_change_runs_app_contract_guard_only():
+    state = pre_push_changed_files.classify_changed_files(["src/agilab/pypi_app_packages.py"])
+
+    assert not state.docs_changed
+    assert not state.release_proof_changed
+    assert state.app_contracts_changed
+
+
+def test_classify_public_app_catalog_change_runs_docs_and_app_contract_guards():
+    state = pre_push_changed_files.classify_changed_files(["docs/source/public-app-catalog.rst"])
+
+    assert state.docs_changed
+    assert not state.release_proof_changed
+    assert state.app_contracts_changed
 
 
 def test_pre_push_records_use_remote_sha_as_diff_base():
@@ -63,6 +83,7 @@ def test_render_shell_is_eval_friendly():
     assert pre_push_changed_files.render_shell(state).splitlines() == [
         "DOCS_CHANGED=1",
         "RELEASE_PROOF_CHANGED=1",
+        "APP_CONTRACTS_CHANGED=0",
         "DETECTION_FAILED=0",
         "CHANGED_COUNT=1",
         "DETECTION_ERROR=",
