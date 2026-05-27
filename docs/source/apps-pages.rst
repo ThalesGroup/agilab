@@ -155,7 +155,7 @@ pulled by the umbrella dependency graph.
      - Included in ``agi-pages``.
    * - ``view_release_decision``
      - ``agi-page-promotion-gate``
-     - Baseline/candidate promotion-gate evidence review.
+     - Evidence cockpit for baseline/candidate run review, gates, and handoff decisions.
      - Included in ``agi-pages``.
    * - ``view_scenario_cockpit``
      - ``agi-page-scenario-cockpit``
@@ -304,11 +304,11 @@ Generic bridge for app-owned interactive Streamlit UIs.
 view_release_decision
 ^^^^^^^^^^^^^^^^^^^^^
 
-Promotion-gate page for baseline/candidate evidence bundles.
+Evidence cockpit for baseline/candidate run review and promotion gates.
 
 - Input: candidate and baseline evidence directories.
-- Output: gate checks, decision summary, and downloadable
-  ``promotion_decision.json`` evidence.
+- Output: cockpit summary, blocking-gate counts, indexed evidence history,
+  handoff checklist, and downloadable ``promotion_decision.json`` evidence.
 
 view_shap_explanation
 ^^^^^^^^^^^^^^^^^^^^^

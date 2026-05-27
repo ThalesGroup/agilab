@@ -187,9 +187,9 @@ _ANALYSIS_VIEW_PROFILES = {
         "Use for long-running local or distributed runs that write incremental artifacts.",
     ),
     "view_release_decision": (
-        "Release decision",
-        "Aggregate run evidence into pass/fail release support.",
-        "Use before publishing a demo, package, or validation result.",
+        "Evidence cockpit",
+        "Review baseline/candidate runs, evidence gates, and portable handoff decisions.",
+        "Use after a run when you need to decide whether evidence is ready to share.",
     ),
     "view_shap_explanation": (
         "SHAP explanation",
