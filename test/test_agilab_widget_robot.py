@@ -4877,6 +4877,38 @@ def test_action_outcome_can_idle_settle_for_already_ready_idempotent_action() ->
     assert settled is True
 
 
+def test_visible_spinner_count_ignores_hidden_streamlit_spinners() -> None:
+    module = _load_module()
+
+    class _Spinner:
+        def __init__(self, visible: bool):
+            self.visible = visible
+
+        def is_visible(self, timeout):
+            return self.visible
+
+    class _Locator:
+        def __init__(self, visible_values):
+            self.visible_values = visible_values
+
+        def count(self):
+            return len(self.visible_values)
+
+        def nth(self, index):
+            return _Spinner(self.visible_values[index])
+
+    class _Page:
+        def __init__(self, visible_values):
+            self.visible_values = visible_values
+
+        def locator(self, selector):
+            assert selector == "[data-testid='stSpinner']"
+            return _Locator(self.visible_values)
+
+    assert module._visible_spinner_count(_Page([False, False])) == 0
+    assert module._visible_spinner_count(_Page([False, True])) == 1
+
+
 def test_selected_action_button_detects_failure_in_orchestration_log_expander(tmp_path) -> None:
     module = _load_module()
     clicks: list[dict] = []

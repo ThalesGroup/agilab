@@ -241,6 +241,32 @@ def test_cleanup_editable_ignores_missing_entries():
     assert removed == ["env.pth"]
 
 
+def test_cleanup_editable_shadow_packages_removes_core_import_shadow(tmp_path):
+    site_packages = deployment_local_support._project_site_packages_dir(
+        tmp_path,
+        python_version="3.13",
+    )
+    shadow_package = site_packages / "agi_cluster"
+    shadow_module = site_packages / "agi_env.py"
+    keep_package = site_packages / "other_package"
+    shadow_package.mkdir(parents=True)
+    shadow_module.write_text("# stale module\n", encoding="utf-8")
+    keep_package.mkdir()
+    package_cluster = tmp_path / "core" / "agi-cluster"
+    package_env = tmp_path / "core" / "agi-env"
+
+    removed = deployment_local_support._cleanup_editable_shadow_packages(
+        tmp_path,
+        [package_cluster, package_env],
+        python_version="3.13",
+    )
+
+    assert sorted(path.name for path in removed) == ["agi_cluster", "agi_env.py"]
+    assert not shadow_package.exists()
+    assert not shadow_module.exists()
+    assert keep_package.exists()
+
+
 @pytest.mark.asyncio
 async def test_install_into_project_venv_uses_target_python(tmp_path):
     calls = []
@@ -490,6 +516,63 @@ async def test_install_many_into_project_venv_skips_cached_editables(tmp_path):
             tmp_path,
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_install_many_into_project_venv_cleans_cached_core_shadow(tmp_path):
+    calls = []
+    package_cluster = tmp_path / "agi-cluster"
+    package_cluster.mkdir()
+    (package_cluster / "pyproject.toml").write_text(
+        "[project]\nname='agi-cluster'\n",
+        encoding="utf-8",
+    )
+    venv_python = _write_venv_python(tmp_path, python_version="3.13.13")
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+        _write_editable_direct_url(tmp_path, package_cluster)
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_cluster],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+    shadow_package = (
+        deployment_local_support._project_site_packages_dir(
+            tmp_path,
+            python_version="3.13",
+        )
+        / "agi_cluster"
+    )
+    shadow_package.mkdir()
+    (shadow_package / "__init__.py").write_text(
+        "class StageRequest: ...\n",
+        encoding="utf-8",
+    )
+
+    await deployment_local_support._install_many_into_project_venv(
+        "uv",
+        tmp_path,
+        [package_cluster],
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=True,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps '
+            f'-e "{package_cluster}"',
+            tmp_path,
+        )
+    ]
+    assert not shadow_package.exists()
 
 
 @pytest.mark.asyncio
@@ -1859,7 +1942,7 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
     (app_path / "pyproject.toml").write_text(
         "[project]\nname='demo-app'\n", encoding="utf-8"
     )
-    app_python = _write_venv_python(app_path, python_version="3.13.13")
+    _write_venv_python(app_path, python_version="3.13.13")
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
@@ -1880,7 +1963,7 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker-app'\n", encoding="utf-8"
     )
-    worker_python = _write_venv_python(wenv_abs, python_version="3.13.13")
+    _write_venv_python(wenv_abs, python_version="3.13.13")
 
     env = SimpleNamespace(
         is_source_env=False,

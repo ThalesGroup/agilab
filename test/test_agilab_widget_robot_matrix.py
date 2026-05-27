@@ -680,6 +680,12 @@ def test_build_robot_command_enables_first_proof_failure_evidence(tmp_path) -> N
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE,ANALYSIS"
+    assert argv[argv.index("--route-query") + 1] == "first_proof_action=install"
+    first_proof_actions = argv[argv.index("--click-action-labels") + 1].split(",")
+    assert "INSTALL" in first_proof_actions
+    assert "Run -> Load -> Export" in first_proof_actions
+    assert "Load output" not in first_proof_actions
+    assert "EXPORT dataframe" not in first_proof_actions
     assert "--assert-orchestrate-artifacts" in argv
     assert "--assert-analysis-artifacts" in argv
     assert "--success-screenshot" in argv
