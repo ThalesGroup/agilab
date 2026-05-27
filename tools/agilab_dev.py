@@ -61,6 +61,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"robust", "robustness"}:
         return [_uv_python("tools/robustness_matrix.py", *args)]
 
+    if command in {"app-contracts", "apps-contracts"}:
+        return [_uv_python("tools/app_contract_matrix.py", *args)]
+
     if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
@@ -133,6 +136,7 @@ def _usage() -> str:
   ./dev [--print-only] test [pytest args]
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] robust [robustness_matrix args]
+  ./dev [--print-only] app-contracts [app_contract_matrix args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] typing [workflow-parity options]
   ./dev [--print-only] release [impact_validate args]
@@ -146,6 +150,7 @@ High-frequency mappings:
   test      -> Run targeted pytest with -q and repo-wide coverage disabled, while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
+  app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
   release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
