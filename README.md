@@ -338,6 +338,9 @@ checks that built-in apps, worker manifests, reducer expectations, promoted PyPI
 app packages, the app catalog, and public app docs stay aligned. The same guard
 runs in release validation, CI, and targeted pre-push checks when those inputs
 change.
+For style tooling, maintainers should run `./dev lint`; it executes Ruff through
+the repo `dev` extra so a fresh checkout provisions the tool instead of relying
+on an already-synced local environment.
 External Sigstore/SLSA attestation binding, native lineage or observability
 transport, durable ML metadata, rich app-authored cards, and enterprise
 governance integrations remain roadmap work. See the

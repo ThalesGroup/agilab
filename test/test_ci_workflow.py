@@ -165,6 +165,7 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "python tools/install_release_proof_package.py --retries 20 --delay-seconds 15" in text
     assert "python -m pip install agilab" not in text
     assert "agilab first-proof --json --no-manifest --max-seconds 60" in text
+    assert "uv --preview-features extra-build-dependencies run --extra dev ruff --version" in text
     assert "tools/app_contract_matrix.py --output app-contract-matrix.json --quiet" in text
     assert "app-contract-matrix.json" in text
     assert "tools/ui_robot_matrix_aggregate.py" in text

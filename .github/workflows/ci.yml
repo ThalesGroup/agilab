@@ -98,6 +98,11 @@ jobs:
           set -euo pipefail
           python tools/public_proof_scenarios.py --compact
 
+      - name: Validate Ruff local tool availability
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --extra dev ruff --version
+
       - name: Validate app contract matrix
         run: |
           set -euo pipefail

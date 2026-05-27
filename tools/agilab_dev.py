@@ -18,6 +18,10 @@ def _uv_python(*args: str) -> list[str]:
     return [*UV_RUN, "python", *args]
 
 
+def _uv_dev(*args: str) -> list[str]:
+    return [*UV_RUN, "--extra", "dev", *args]
+
+
 def _split_leading_values(args: Sequence[str], *, command_name: str) -> tuple[list[str], list[str]]:
     values: list[str] = []
     rest: list[str] = []
@@ -54,6 +58,12 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "test":
         return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", "--import-mode=importlib", *args]]
 
+    if command == "lint":
+        return [_uv_dev("ruff", "check", *args)]
+
+    if command == "ruff":
+        return [_uv_dev("ruff", *(args or ["check"]))]
+
     if command in {"regress", "ga-regress"}:
         forwarded = args or ["--staged", "--run"]
         return [_uv_python("tools/ga_regression_selector.py", *forwarded)]
@@ -89,6 +99,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "--check-workflow",
                 ".github/workflows/pypi-publish.yaml",
             ),
+            _uv_dev("ruff", "--version"),
             _uv_python("tools/app_contract_matrix.py", "--quiet"),
             _uv_python(
                 "tools/workflow_parity.py",
@@ -135,6 +146,7 @@ def _usage() -> str:
   ./dev [--print-only] impact [impact_validate args]
   ./dev [--print-only] bugfix [changed-file args]
   ./dev [--print-only] test [pytest args]
+  ./dev [--print-only] lint|ruff [ruff args]
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] robust [robustness_matrix args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
@@ -149,12 +161,13 @@ High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
   bugfix    -> Run impact triage, then run the GA-selected fast regression subset; defaults to --staged.
   test      -> Run targeted pytest with -q and repo-wide coverage disabled, while keeping all extra pytest arguments.
+  lint      -> Run Ruff through the repo dev extra; defaults to `ruff check`.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
-  release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
+  release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
