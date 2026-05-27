@@ -1446,6 +1446,138 @@ def _evidence_bundle_comparison_summary(rows: list[dict[str, Any]], candidate_pa
     }
 
 
+def _count_rows_with_status(rows: list[dict[str, Any]], status: str) -> int:
+    return sum(1 for row in rows if str(row.get("status", "")) == status)
+
+
+def _build_evidence_cockpit_summary(
+    *,
+    decision_status: str,
+    decision_summary: str,
+    artifact_root: Path,
+    baseline_path: Path,
+    candidate_path: Path,
+    metrics_files: list[Path],
+    artifact_rows: list[dict[str, Any]],
+    metric_rows: list[dict[str, Any]],
+    run_manifest_rows: list[dict[str, Any]],
+    run_manifest_summary: dict[str, Any],
+    imported_manifest_summary: dict[str, Any],
+    ci_artifact_harvest_summary: dict[str, Any],
+    manifest_index_summary: dict[str, Any],
+    evidence_bundle_comparison_summary: dict[str, Any],
+    reduce_artifact_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    artifact_fail_count = _count_rows_with_status(artifact_rows, "fail")
+    metric_fail_count = _count_rows_with_status(metric_rows, "fail")
+    manifest_fail_count = _count_rows_with_status(run_manifest_rows, "fail")
+    ci_gate_status = str(ci_artifact_harvest_summary.get("gate_status", "not_configured"))
+    ci_fail_count = 1 if ci_gate_status == "fail" else 0
+    explicit_blocking_count = (
+        artifact_fail_count
+        + metric_fail_count
+        + manifest_fail_count
+        + ci_fail_count
+    )
+    comparison_blocking_count = int(
+        evidence_bundle_comparison_summary.get("blocking_count", 0) or 0
+    )
+    status_label = {
+        "promotable": "Ready to export",
+        "blocked": "Blocked",
+        "needs_review": "Needs review",
+    }.get(decision_status, decision_status or "Unknown")
+    next_action = {
+        "promotable": "Export promotion_decision.json, then hand off through notebook, MLflow, Quarto, or your production stack.",
+        "blocked": "Fix failing manifest, artifact, KPI, or CI evidence gates before sharing this run.",
+        "needs_review": "Select distinct baseline/candidate runs or add standardized KPI evidence before promotion.",
+    }.get(decision_status, "Review the evidence tables and export only after the decision is understood.")
+    return {
+        "schema": "agilab.evidence_cockpit_summary.v1",
+        "status": decision_status,
+        "status_label": status_label,
+        "summary": decision_summary,
+        "next_action": next_action,
+        "artifact_root": str(artifact_root),
+        "baseline_bundle_root": str(baseline_path.parent),
+        "candidate_bundle_root": str(candidate_path.parent),
+        "baseline_metrics_file": str(baseline_path),
+        "candidate_metrics_file": str(candidate_path),
+        "run_manifest_path": str(run_manifest_summary.get("path", "")),
+        "metrics_file_count": len(metrics_files),
+        "artifact_gate_count": len(artifact_rows),
+        "artifact_gate_fail_count": artifact_fail_count,
+        "kpi_gate_count": len(metric_rows),
+        "kpi_gate_fail_count": metric_fail_count,
+        "run_manifest_gate_count": len(run_manifest_rows),
+        "run_manifest_gate_fail_count": manifest_fail_count,
+        "run_manifest_status": run_manifest_summary.get("status", ""),
+        "run_manifest_loaded": bool(run_manifest_summary.get("loaded")),
+        "imported_manifest_count": int(imported_manifest_summary.get("loaded_manifest_count", 0) or 0),
+        "validated_imported_manifest_count": int(
+            imported_manifest_summary.get("validated_manifest_count", 0) or 0
+        ),
+        "ci_artifact_harvest_gate_status": ci_gate_status,
+        "ci_artifact_harvest_validated_count": int(
+            ci_artifact_harvest_summary.get("validated_harvest_count", 0) or 0
+        ),
+        "indexed_release_count": int(manifest_index_summary.get("release_count", 0) or 0),
+        "indexed_manifest_count": int(manifest_index_summary.get("manifest_count", 0) or 0),
+        "reduce_artifact_count": len(reduce_artifact_rows),
+        "valid_reduce_artifact_count": sum(1 for row in reduce_artifact_rows if row.get("status") == "pass"),
+        "explicit_blocking_gate_count": explicit_blocking_count,
+        "comparison_blocking_count": comparison_blocking_count,
+        "export_ready": decision_status == "promotable",
+    }
+
+
+def _render_evidence_cockpit_summary(st_api: Any, summary: dict[str, Any]) -> None:
+    st_api.subheader("Run review cockpit")
+    st_api.caption(
+        "Baseline -> candidate -> gates -> decision -> portable handoff. "
+        "Use this section to decide whether the run is better, reproducible, reviewable, and ready to share."
+    )
+    status_col, gates_col, history_col, export_col = st_api.columns(4)
+    status_col.metric("Decision", summary["status_label"])
+    gates_col.metric(
+        "Blocking gates",
+        str(summary["explicit_blocking_gate_count"]),
+        help="Failing manifest, artifact, KPI, or CI artifact-harvest gates.",
+    )
+    history_col.metric(
+        "Indexed evidence",
+        str(summary["indexed_release_count"]),
+        help="Prior candidate bundles already recorded in manifest_index.json.",
+    )
+    export_col.metric(
+        "Export",
+        "ready" if summary["export_ready"] else "not ready",
+        help="Whether promotion_decision.json should be exported as shareable evidence.",
+    )
+    st_api.markdown(f"**Next action:** {summary['next_action']}")
+    st_api.caption(
+        f"Baseline: `{Path(summary['baseline_bundle_root']).name}` | "
+        f"Candidate: `{Path(summary['candidate_bundle_root']).name}` | "
+        f"Metrics files discovered: {summary['metrics_file_count']} | "
+        f"Valid reduce artifacts: {summary['valid_reduce_artifact_count']}"
+    )
+    handoff_commands = ["# Add a passing run_manifest.json before exporting proof-pack handoffs."]
+    if summary["run_manifest_loaded"]:
+        run_manifest_path = str(summary["run_manifest_path"])
+        handoff_commands = [
+            f"agilab verify {shlex.quote(run_manifest_path)}",
+            f"agilab export quarto --run {shlex.quote(run_manifest_path)} --output report.qmd",
+            f"agilab export mlflow --run {shlex.quote(run_manifest_path)} --output mlflow_handoff.json",
+        ]
+    with st_api.expander("Handoff checklist", expanded=False):
+        st_api.markdown(
+            "- Keep `promotion_decision.json` with the candidate artifacts.\n"
+            "- Keep `manifest_index.json` with the artifact root for later run comparison.\n"
+            "- Export to notebook, MLflow, Quarto, or a production stack only after the cockpit decision is understood."
+        )
+        st_api.code("\n".join(handoff_commands), language="bash")
+
+
 def _write_manifest_index(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -1838,6 +1970,7 @@ def _decision_payload(
     evidence_bundle_comparison_summary: dict[str, Any],
     connector_registry_rows: list[dict[str, Any]],
     connector_registry_summary: dict[str, Any],
+    evidence_cockpit_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -1857,6 +1990,7 @@ def _decision_payload(
         "status": status,
         "summary": summary,
         "tolerance_pct": tolerance_pct,
+        "evidence_cockpit_summary": evidence_cockpit_summary,
         "baseline_metadata": _metadata_subset(baseline_payload),
         "candidate_metadata": _metadata_subset(candidate_payload),
         "run_manifest_path": str(run_manifest_path),
@@ -1948,10 +2082,10 @@ else:
     env = st.session_state["env"]
 _reset_app_scoped_session_defaults(st, env)
 
-render_logo("Release Decision")
-st.title("Release decision")
+render_logo("Evidence Cockpit")
+st.title("Evidence cockpit")
 st.caption(
-    "Compare a candidate bundle against a baseline, apply explicit evidence gates, and export a promotion decision."
+    "Review baseline versus candidate evidence, explain gate failures, and export a portable promotion decision."
 )
 
 connector_registry = _connector_path_registry(env)
@@ -2140,6 +2274,23 @@ decision_status, decision_summary = _decision_status(
     manifest_rows=run_manifest_rows,
     ci_artifact_harvest_summary=ci_artifact_harvest_summary,
 )
+evidence_cockpit_summary = _build_evidence_cockpit_summary(
+    decision_status=decision_status,
+    decision_summary=decision_summary,
+    artifact_root=artifact_root,
+    baseline_path=baseline_path,
+    candidate_path=candidate_path,
+    metrics_files=metrics_files,
+    artifact_rows=artifact_rows,
+    metric_rows=metric_rows,
+    run_manifest_rows=run_manifest_rows,
+    run_manifest_summary=run_manifest_summary,
+    imported_manifest_summary=imported_manifest_summary,
+    ci_artifact_harvest_summary=ci_artifact_harvest_summary,
+    manifest_index_summary=manifest_index_summary,
+    evidence_bundle_comparison_summary=evidence_bundle_comparison_summary,
+    reduce_artifact_rows=reduce_artifact_rows,
+)
 payload = _decision_payload(
     env=env,
     artifact_root=artifact_root,
@@ -2165,10 +2316,13 @@ payload = _decision_payload(
     evidence_bundle_comparison_summary=evidence_bundle_comparison_summary,
     connector_registry_rows=connector_registry_rows,
     connector_registry_summary=connector_registry_summary,
+    evidence_cockpit_summary=evidence_cockpit_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
 )
+
+_render_evidence_cockpit_summary(st, evidence_cockpit_summary)
 
 if decision_status == "promotable":
     st.success(f"Promotable: {decision_summary}")

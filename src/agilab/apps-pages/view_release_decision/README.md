@@ -1,9 +1,12 @@
 # view_release_decision
 
-Reusable Streamlit analysis page for baseline-vs-candidate promotion decisions.
+Reusable Streamlit evidence cockpit for baseline-vs-candidate run review and
+promotion decisions.
 
 Primary use:
 
+- see one cockpit summary for decision status, blocking gates, indexed evidence,
+  and export readiness
 - compare two exported metric bundles
 - resolve artifact, log, export, and first-proof paths through the shared connector path registry
 - gate promotion on first-proof `run_manifest.json`
@@ -15,6 +18,11 @@ Primary use:
 - maintain a per-artifact-root `manifest_index.json`
 - compare current evidence against prior indexed releases
 - compare full evidence bundles across runs
+
+The page is intentionally a review surface, not a production governance system:
+it helps answer whether a run is better, reproducible, reviewable, and ready to
+hand off through `promotion_decision.json`, notebook, MLflow, Quarto, or another
+production stack.
 
 Default search root:
 

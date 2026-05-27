@@ -397,7 +397,8 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     at = _run_release_page(tmp_path, monkeypatch, project_dir)
 
     assert not at.exception
-    assert any(title.value == "Release decision" for title in at.title)
+    assert any(title.value == "Evidence cockpit" for title in at.title)
+    assert any(header.value == "Run review cockpit" for header in at.subheader)
     assert any("Promotable" in message.value for message in at.success)
     assert any(header.value == "Connector path registry" for header in at.subheader)
     connector_live_ui = at.session_state["release_decision_connector_live_ui"]
@@ -414,6 +415,10 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     assert decision_path.is_file()
     payload = json.loads(decision_path.read_text(encoding="utf-8"))
     assert payload["status"] == "promotable"
+    assert payload["evidence_cockpit_summary"]["status_label"] == "Ready to export"
+    assert payload["evidence_cockpit_summary"]["export_ready"] is True
+    assert payload["evidence_cockpit_summary"]["explicit_blocking_gate_count"] == 0
+    assert payload["evidence_cockpit_summary"]["candidate_bundle_root"] == str(candidate_root)
     assert payload["candidate_bundle_root"] == str(candidate_root)
     assert payload["connector_registry_summary"]["paths"]["artifact_root"] == str(export_root)
     assert {
@@ -871,6 +876,32 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     )
     assert manifest_status == "blocked"
     assert "manifest gate" in manifest_summary
+
+    cockpit_summary = module._build_evidence_cockpit_summary(
+        decision_status=manifest_status,
+        decision_summary=manifest_summary,
+        artifact_root=tmp_path / "artifact_root",
+        baseline_path=tmp_path / "artifact_root" / "run_a" / "metrics.json",
+        candidate_path=tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        metrics_files=[
+            tmp_path / "artifact_root" / "run_a" / "metrics.json",
+            tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        ],
+        artifact_rows=[{"status": "pass"}],
+        metric_rows=[{"status": "pass"}],
+        run_manifest_rows=bad_rows,
+        run_manifest_summary=bad_summary,
+        imported_manifest_summary={"loaded_manifest_count": 0, "validated_manifest_count": 0},
+        ci_artifact_harvest_summary={"gate_status": "not_configured"},
+        manifest_index_summary={"release_count": 0, "manifest_count": 0},
+        evidence_bundle_comparison_summary={"blocking_count": 0},
+        reduce_artifact_rows=[{"status": "pass"}],
+    )
+    assert cockpit_summary["schema"] == "agilab.evidence_cockpit_summary.v1"
+    assert cockpit_summary["status_label"] == "Blocked"
+    assert cockpit_summary["explicit_blocking_gate_count"] == 1
+    assert cockpit_summary["export_ready"] is False
+    assert "Fix failing" in cockpit_summary["next_action"]
 
     import_args = (
         f"uv run python tools/compatibility_report.py --manifest {bad_manifest} "
