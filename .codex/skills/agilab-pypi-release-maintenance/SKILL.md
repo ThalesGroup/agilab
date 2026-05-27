@@ -3,7 +3,7 @@ name: agilab-pypi-release-maintenance
 description: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-26
+  updated: 2026-05-27
 ---
 
 # AGILAB PyPI Release Maintenance
@@ -24,8 +24,10 @@ This skill covers:
 This skill does not cover normal package publication. Use
 `agilab-release-verification` for release readiness and post-release truth.
 For publication-process optimization checks, inspect the current workflow first:
-`pypi-publish` has package-aware reuse logic and should avoid rebuilding or
-uploading packages when PyPI already exposes the expected artifacts.
+`pypi-publish` now makes the release plan package-aware. By default it omits
+selected package versions whose expected PyPI artifacts already exist, so those
+packages do not enter build, upload, provenance, retention, or release-asset
+jobs.
 
 ## Required Safety Rules
 
@@ -72,6 +74,7 @@ Useful checks:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --format json --compact
+uv --preview-features extra-build-dependencies run python tools/release_plan.py --format json --compact --skip-existing-pypi
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --compact
 uv --preview-features extra-build-dependencies run python tools/show_dependencies.py --repo pypi
 ```
@@ -109,6 +112,9 @@ show two or more visible releases, explain the most likely causes:
 - With split-package versioning, retention protects each selected package's own
   project version from the release-plan metadata. Do not assume every package
   must share the umbrella `agilab` version before deciding what is stale.
+- Normal release reruns skip packages whose current artifacts already exist on
+  PyPI. If an unchanged package still has old visible releases, clean it with an
+  explicit maintenance command instead of forcing a full release rerun.
 
 Only move to cleanup after verifying the exact stale version, the affected
 package list, and the protected version that must remain.
@@ -156,7 +162,19 @@ Use this only when the desired policy is "keep this protected release and delete
 older releases" for selected packages.
 
 For normal split-package releases, protect each selected package's own project
-version from the release-plan metadata:
+version from the release-plan metadata. First inspect the optimized release plan;
+if it has no `provenance_packages`, there is no normal release-retention target
+to clean:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/release_plan.py \
+  --skip-existing-pypi \
+  --format json \
+  --compact
+```
+
+Then run retention only for the packages that actually need publication or for
+an explicit package set requested as cleanup:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/pypi_release_retention.py \
@@ -222,6 +240,11 @@ gh workflow run pypi-publish.yaml \
   -f release_tag=v2026.05.26
 ```
 
+Use `-f include_existing_pypi=true` only when intentionally repairing GitHub
+release assets from already-published PyPI artifacts. It re-includes existing
+package versions in the workflow scope and can reintroduce broad provenance or
+retention work; it is not the normal path for unchanged packages.
+
 If the retention job logs that it is waiting for
 `PYPI_CONFIRM_LOGIN_URL`, set the fresh URL from the PyPI email immediately:
 
@@ -239,7 +262,9 @@ printf 'y\n' | gh variable delete PYPI_CONFIRM_LOGIN_URL -R ThalesGroup/agilab
 
 ## Retention Retry Lessons
 
-When retention cleanup runs from GitHub Actions against many split packages:
+When retention cleanup runs from GitHub Actions against many split packages
+(usually because a real package set changed or `include_existing_pypi=true` was
+used intentionally):
 
 - PyPI may require an unrecognized-login confirmation URL from the same runner
   IP before the delete form can be opened. Clear any stale
@@ -323,18 +348,20 @@ cleanup runs do not reuse an expired confirmation link.
 ## Publication Reuse Behavior
 
 If an audit or release review flags noisy public publishes, check whether the
-real issue is cleanup or package reuse. The public `pypi-publish` workflow now
-performs a package-aware PyPI state check before each publishable package build:
+real issue is cleanup, release-plan selection, or package reuse. The public
+`pypi-publish` workflow now uses two layers:
 
-- it reads the selected package/project/version from the release-plan matrix;
-- it compares the expected wheel/sdist filenames with the current PyPI JSON
-  metadata;
-- when every expected artifact exists, it skips build, Trusted Publishing auth,
-  and upload for that package;
-- it writes release artifact hash evidence from PyPI metadata and downloads the
-  reused files back into the GitHub Release distribution bundle;
-- when any expected artifact is missing, it falls back to build, verify,
-  manifest, and Trusted Publishing upload.
+- The `release-plan` job runs with `--skip-existing-pypi` by default and omits
+  packages whose expected wheel/sdist artifacts already exist on PyPI.
+- Omitted packages do not enter build/upload, provenance, retention, or GitHub
+  release-asset assembly.
+- `include_existing_pypi=true` is the manual repair path for already-published
+  artifacts; use it only when release assets need to be rebuilt from existing
+  PyPI files.
+- The per-package PyPI state check remains a fail-safe for manual repair,
+  explicit package selection, and race conditions between planning and upload.
+- When any expected artifact is missing, the workflow builds, verifies,
+  manifests, and publishes that package with Trusted Publishing.
 
 Do not use deletion/reupload churn to compensate for unchanged package
 publication. Prefer fixing the reuse gate, release-plan matrix, or artifact
