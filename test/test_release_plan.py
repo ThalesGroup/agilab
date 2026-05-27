@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "release_plan.py"
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import (
+from package_split_contract import (  # noqa: E402
     LIBRARY_PACKAGE_CONTRACTS,
     PROMOTED_APP_PROJECT_PACKAGE_NAMES,
     UMBRELLA_PACKAGE_CONTRACT,
@@ -88,6 +88,7 @@ def test_release_plan_github_output_is_compact_and_parseable(tmp_path: Path) -> 
     assert values["library_selected"] == "true"
     assert values["umbrella_selected"] == "true"
     assert values["pypi_publish_selected"] == "true"
+    assert values["pypi_existing_packages"] == ""
     assert "agi-env" in values["provenance_packages"]
     assert "\n" not in values["library_matrix"]
 
@@ -105,6 +106,40 @@ def test_release_plan_provenance_packages_match_selected_public_publish_set() ->
     expected.append(UMBRELLA_PACKAGE_CONTRACT.name)
 
     assert payload["provenance_packages"] == expected
+
+
+def test_release_plan_can_skip_pypi_packages_whose_artifacts_already_exist() -> None:
+    module = _load_module()
+
+    payload = module.release_plan(
+        skip_existing_pypi=True,
+        pypi_artifacts_exist=lambda package, _repo_root: package["package"] in {"agi-env", "agilab"},
+    )
+
+    selected_names = {package["package"] for package in payload["library_matrix"]}
+    assert "agi-env" not in selected_names
+    assert all(package["publish_to_pypi"] == "true" for package in payload["library_matrix"])
+    assert "agilab" not in payload["provenance_packages"]
+    assert payload["umbrella_selected"] == "false"
+    assert payload["pypi_existing_packages"] == ["agi-env", "agilab"]
+    assert payload["pypi_selection_mode"] == "missing-artifacts"
+    assert payload["pypi_publish_selected"] == "true"
+
+
+def test_release_plan_reports_no_publish_when_only_selected_package_already_exists() -> None:
+    module = _load_module()
+
+    payload = module.release_plan(
+        package_names=["agilab"],
+        skip_existing_pypi=True,
+        pypi_artifacts_exist=lambda _package, _repo_root: True,
+    )
+
+    assert payload["library_matrix"] == []
+    assert payload["umbrella_selected"] == "false"
+    assert payload["pypi_publish_selected"] == "false"
+    assert payload["provenance_packages"] == []
+    assert payload["pypi_existing_packages"] == ["agilab"]
 
 
 def test_release_plan_public_packages_default_to_wheel_and_sdist() -> None:

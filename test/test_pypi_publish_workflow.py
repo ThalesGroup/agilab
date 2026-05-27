@@ -8,7 +8,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMBRELLA_PACKAGE_CONTRACT
+from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMBRELLA_PACKAGE_CONTRACT  # noqa: E402
 
 
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
@@ -116,10 +116,13 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "roles:" in text
     assert "allow_post_release:" in text
     assert "post_release_reason:" in text
+    assert "include_existing_pypi:" in text
     assert "RELEASE_PACKAGES" in text
     assert "RELEASE_ROLES" in text
+    assert "INCLUDE_EXISTING_PYPI" in text
     assert "--packages \"$RELEASE_PACKAGES\"" in text
     assert "--roles \"$RELEASE_ROLES\"" in text
+    assert "--skip-existing-pypi" in text
     assert "id-token: write" in text
     assert "name: ${{ matrix.pypi_environment }}" in text
     assert "name: pypi-agilab" in text
@@ -138,7 +141,9 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "library_selected: ${{ steps.release-plan.outputs.library_selected }}" in text
     assert "umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}" in text
     assert "pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}" in text
+    assert "pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}" in text
     assert "provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}" in text
+    assert "python -m pip install --upgrade --no-cache-dir packaging" in text
     assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in text
     assert "needs.release-plan.outputs.library_selected == 'true'" in text
     assert "needs.release-plan.outputs.umbrella_selected == 'true'" in text

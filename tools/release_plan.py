@@ -8,7 +8,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 try:
     from package_split_contract import (
@@ -41,6 +41,7 @@ PYPI_PUBLISH_ROLES = {
 
 
 PACKAGE_ROLES = tuple(sorted({package.role for package in PACKAGE_CONTRACTS}))
+PyPIArtifactExists = Callable[[dict[str, str], Path], bool]
 
 
 def _package_entry(package: Any) -> dict[str, str]:
@@ -92,21 +93,81 @@ def _publish_packages(payload: dict[str, Any]) -> list[str]:
     return packages
 
 
+def _pypi_artifacts_exist(package: dict[str, str], repo_root: Path) -> bool:
+    try:
+        from pypi_distribution_state import (
+            DistributionStateError,
+            all_distributions_exist,
+            analyze_expected_project_distributions,
+        )
+    except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
+        from tools.pypi_distribution_state import (
+            DistributionStateError,
+            all_distributions_exist,
+            analyze_expected_project_distributions,
+        )
+
+    try:
+        states = analyze_expected_project_distributions(
+            package=package["package"],
+            project=(repo_root / package["project"]).resolve(),
+            artifact_policy=package["artifact_policy"],
+        )
+    except DistributionStateError as exc:
+        raise ValueError(
+            f"Could not evaluate existing PyPI artifacts for {package['package']}: {exc}"
+        ) from exc
+    return all_distributions_exist(states)
+
+
+def _filter_existing_pypi_packages(
+    packages: Sequence[dict[str, str]],
+    *,
+    repo_root: Path,
+    skip_existing_pypi: bool,
+    pypi_artifacts_exist: PyPIArtifactExists | None,
+) -> tuple[list[dict[str, str]], list[str]]:
+    if not skip_existing_pypi:
+        return list(packages), []
+
+    exists = pypi_artifacts_exist or _pypi_artifacts_exist
+    selected: list[dict[str, str]] = []
+    skipped: list[str] = []
+    for package in packages:
+        if package["publish_to_pypi"] != "true":
+            continue
+        if exists(package, repo_root):
+            skipped.append(package["package"])
+            continue
+        selected.append(package)
+    return selected, skipped
+
+
 def library_matrix(
     *,
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    skip_existing_pypi: bool = False,
+    pypi_artifacts_exist: PyPIArtifactExists | None = None,
 ) -> list[dict[str, str]]:
     """Return the GitHub matrix entries for publishable library packages."""
 
     package_filter = set(package_names or ())
     role_filter = set(roles or ())
     _validate_filters(package_names, roles)
-    return [
+    packages = [
         _package_entry(package)
         for package in LIBRARY_PACKAGE_CONTRACTS
         if _selected(package, package_filter, role_filter)
     ]
+    selected, _skipped = _filter_existing_pypi_packages(
+        packages,
+        repo_root=(repo_root or Path.cwd()).resolve(),
+        skip_existing_pypi=skip_existing_pypi,
+        pypi_artifacts_exist=pypi_artifacts_exist,
+    )
+    return selected
 
 
 def umbrella_package() -> dict[str, str]:
@@ -119,20 +180,42 @@ def release_plan(
     *,
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
+    repo_root: Path | None = None,
+    skip_existing_pypi: bool = False,
+    pypi_artifacts_exist: PyPIArtifactExists | None = None,
 ) -> dict[str, Any]:
     """Return the complete release package plan."""
 
     package_filter = set(package_names or ())
     role_filter = set(roles or ())
     _validate_filters(package_names, roles)
-    matrix = library_matrix(package_names=package_names, roles=roles)
+    resolved_repo_root = (repo_root or Path.cwd()).resolve()
+    candidate_matrix = [
+        _package_entry(package)
+        for package in LIBRARY_PACKAGE_CONTRACTS
+        if _selected(package, package_filter, role_filter)
+    ]
+    matrix, skipped_existing = _filter_existing_pypi_packages(
+        candidate_matrix,
+        repo_root=resolved_repo_root,
+        skip_existing_pypi=skip_existing_pypi,
+        pypi_artifacts_exist=pypi_artifacts_exist,
+    )
     umbrella_selected = _selected(UMBRELLA_PACKAGE_CONTRACT, package_filter, role_filter)
+    umbrella = umbrella_package()
+    if skip_existing_pypi and umbrella_selected and umbrella["publish_to_pypi"] == "true":
+        exists = pypi_artifacts_exist or _pypi_artifacts_exist
+        if exists(umbrella, resolved_repo_root):
+            umbrella_selected = False
+            skipped_existing.append(umbrella["package"])
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "library_matrix": matrix,
-        "umbrella_package": umbrella_package(),
+        "umbrella_package": umbrella,
         "library_selected": "true" if matrix else "false",
         "umbrella_selected": "true" if umbrella_selected else "false",
+        "pypi_selection_mode": "missing-artifacts" if skip_existing_pypi else "all-selected",
+        "pypi_existing_packages": skipped_existing,
     }
     publish_packages = _publish_packages(payload)
     payload["pypi_publish_selected"] = "true" if publish_packages else "false"
@@ -153,6 +236,9 @@ def format_text(payload: dict[str, Any]) -> str:
         f"library selected: {payload['library_selected']}",
         f"umbrella selected: {payload['umbrella_selected']}",
         f"PyPI publish selected: {payload['pypi_publish_selected']}",
+        f"PyPI selection mode: {payload['pypi_selection_mode']}",
+        "PyPI packages already present: "
+        + (", ".join(payload["pypi_existing_packages"]) or "(none)"),
         "",
         "Library packages:",
     ]
@@ -184,6 +270,8 @@ def format_markdown(payload: dict[str, Any]) -> str:
         f"- Library selected: `{payload['library_selected']}`",
         f"- Umbrella selected: `{payload['umbrella_selected']}`",
         f"- PyPI publication selected: `{payload['pypi_publish_selected']}`",
+        f"- PyPI selection mode: `{payload['pypi_selection_mode']}`",
+        f"- PyPI packages already present: `{', '.join(payload['pypi_existing_packages']) or '(none)'}`",
         f"- Provenance packages: `{', '.join(payload['provenance_packages']) or '(none)'}`",
         "",
         "| Selected | Package | Project | PyPI environment | Artifact policy | Publish to PyPI |",
@@ -213,6 +301,7 @@ def write_github_output(path: Path, payload: dict[str, Any]) -> None:
         f"library_selected={payload['library_selected']}",
         f"umbrella_selected={payload['umbrella_selected']}",
         f"pypi_publish_selected={payload['pypi_publish_selected']}",
+        "pypi_existing_packages=" + " ".join(payload["pypi_existing_packages"]),
         "provenance_packages=" + " ".join(payload["provenance_packages"]),
     ]
     with path.open("a", encoding="utf-8") as handle:
@@ -245,8 +334,23 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}": (
             "release-plan job must expose whether any PyPI publication is selected"
         ),
+        "pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}": (
+            "release-plan job must expose packages skipped because current PyPI artifacts already exist"
+        ),
         "provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}": (
             "release-plan job must expose the selected provenance package list"
+        ),
+        "include_existing_pypi:": (
+            "workflow must provide an explicit override for rebuilding assets from existing PyPI artifacts"
+        ),
+        "INCLUDE_EXISTING_PYPI": (
+            "workflow must propagate the explicit existing-PyPI override"
+        ),
+        "--skip-existing-pypi": (
+            "workflow must omit already-published package versions from publish/provenance/retention by default"
+        ),
+        "python -m pip install --upgrade --no-cache-dir packaging": (
+            "release-plan job must install the lightweight dependency needed for PyPI artifact checks"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
             "library publish matrix must be generated from the release plan"
@@ -420,6 +524,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Limit the release plan to comma- or space-separated package roles.",
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path.cwd(),
+        help="Repository root used to read selected package versions for PyPI artifact checks.",
+    )
+    parser.add_argument(
+        "--skip-existing-pypi",
+        action="store_true",
+        help=(
+            "Omit selected PyPI packages when all expected artifacts for the current "
+            "project version already exist on PyPI."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -429,6 +547,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = release_plan(
             package_names=_split_filter_values(args.packages),
             roles=_split_filter_values(args.roles),
+            repo_root=args.repo_root.resolve(),
+            skip_existing_pypi=args.skip_existing_pypi,
         )
     except ValueError as exc:
         print(f"ERROR: {exc}")

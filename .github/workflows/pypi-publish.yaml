@@ -20,6 +20,11 @@ on:
       post_release_reason:
         description: "Critical hotfix justification required when allow_post_release is true."
         required: false
+      include_existing_pypi:
+        description: "Include package versions that already exist on PyPI to repair release assets. Default skips them."
+        required: false
+        type: boolean
+        default: false
   push:
     tags:
       - "v*.*.*"
@@ -204,6 +209,7 @@ jobs:
       library_selected: ${{ steps.release-plan.outputs.library_selected }}
       umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}
       pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}
+      pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}
       provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
@@ -214,18 +220,26 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install release-plan dependencies
+        run: python -m pip install --upgrade --no-cache-dir packaging
+
       - name: Render release package plan
         id: release-plan
         env:
           RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
           RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
         run: |
           set -euxo pipefail
           args=(
+            --repo-root .
             --github-output "$GITHUB_OUTPUT"
             --github-step-summary "$GITHUB_STEP_SUMMARY"
             --check-workflow .github/workflows/pypi-publish.yaml
           )
+          if [ "${INCLUDE_EXISTING_PYPI:-false}" != "true" ]; then
+            args+=(--skip-existing-pypi)
+          fi
           if [ -n "${RELEASE_PACKAGES:-}" ]; then
             args+=(--packages "$RELEASE_PACKAGES")
           fi
@@ -245,11 +259,15 @@ jobs:
         env:
           RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
           RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
           ALLOW_POST_RELEASE: ${{ github.event.inputs.allow_post_release || 'false' }}
           POST_RELEASE_REASON: ${{ github.event.inputs.post_release_reason || '' }}
         run: |
           set -euxo pipefail
-          args=(--github-step-summary "$GITHUB_STEP_SUMMARY")
+          args=(--repo-root . --github-step-summary "$GITHUB_STEP_SUMMARY")
+          if [ "${INCLUDE_EXISTING_PYPI:-false}" != "true" ]; then
+            args+=(--skip-existing-pypi)
+          fi
           if [ -n "${RELEASE_PACKAGES:-}" ]; then
             args+=(--packages "$RELEASE_PACKAGES")
           fi
