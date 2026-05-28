@@ -2228,6 +2228,10 @@ def _render_analysis_workspace_overview(
     )
 
     with st.container(border=True):
+        st.markdown("### Evidence first")
+        st.caption(
+            "Start from discovered project outputs, then choose the page or notebook that best reviews them."
+        )
         cols = st.columns(4)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
@@ -2249,10 +2253,19 @@ def _render_analysis_workspace_overview(
                 notebooks_caption,
             )
 
+        if artifact_summary["examples"]:
+            st.caption(
+                "Discovered evidence: "
+                + ", ".join(str(item) for item in artifact_summary["examples"])
+            )
         if not artifact_summary["exists"]:
-            st.info("Run ORCHESTRATE or WORKFLOW to create analysis outputs.")
+            st.info(
+                "No analysis workspace found. Run ORCHESTRATE -> EXECUTE, then return here to review manifests, tables, figures, logs, and notebooks."
+            )
         elif not artifact_summary["examples"]:
-            st.info("No output files detected yet.")
+            st.info(
+                "No evidence files detected yet. Run ORCHESTRATE -> EXECUTE or WORKFLOW, then use ANALYSIS to inspect the generated outputs."
+            )
 
 
 def _render_analysis_surface_guide(*, expanded: bool = False) -> None:

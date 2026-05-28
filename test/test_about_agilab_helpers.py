@@ -4925,7 +4925,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         and "Opens ANALYSIS on `view_maps`" in fake_st.events[index][1]
     )
     notebook_option = _event_index(
-        fake_st.events, "expander", "Notebook-first option:False"
+        fake_st.events, "expander", "Create from included notebook:False"
     )
     notebook_start = _event_index(
         fake_st.events, "link_button", "Create from built-in notebook"
@@ -4949,7 +4949,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
-        "Notebook-first option:False",
+        "Create from included notebook:False",
         "Notebook to validated app: full proof:False",
         "If it fails / proof details:False",
     ]
@@ -4969,9 +4969,9 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     second_action_column = _event_index(fake_st.events, "enter_column", "1")
     third_action_column = _event_index(fake_st.events, "enter_column", "2")
     caption_bodies = [body for kind, body in pre_details if kind == "caption"]
-    assert len(caption_bodies) == 11
+    assert len(caption_bodies) == 12
     assert caption_bodies[0] == (
-        "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence."
+        "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence. Notebook-first paths are below: use AGILAB's included notebook first; upload your own notebook from PROJECT Create when you are ready."
     )
     assert (
         caption_bodies[1]
@@ -4981,7 +4981,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert (
         caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
     )
-    assert caption_bodies[4] == "Notebook import: included sample"
+    assert caption_bodies[4] == "Create from included notebook"
     assert caption_bodies[5] == (
         "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
     )
@@ -4992,12 +4992,15 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         caption_bodies[7] == "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
     )
     assert caption_bodies[8] == (
+        "For your own notebook: open PROJECT -> Create -> From notebook -> Upload your own notebook."
+    )
+    assert caption_bodies[9] == (
         "Use this lane when the starting asset is a notebook and the target is a reusable app with a no-lock-in handoff."
     )
-    assert caption_bodies[9].startswith("Adoption gate: Not ready yet.")
-    assert "Run one local proof first" in caption_bodies[9]
-    assert caption_bodies[10].startswith("Handoff bundle:")
-    assert "strict security-check output" in caption_bodies[10]
+    assert caption_bodies[10].startswith("Adoption gate: Not ready yet.")
+    assert "Run one local proof first" in caption_bodies[10]
+    assert caption_bodies[11].startswith("Handoff bundle:")
+    assert "strict security-check output" in caption_bodies[11]
     assert link_types == {
         "1. INSTALL demo": "secondary",
         "2. EXECUTE demo": "secondary",
