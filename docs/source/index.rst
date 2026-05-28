@@ -77,6 +77,7 @@ references, and example projects.
 
    Architecture in 5 minutes <architecture-five-minutes>
    Product architecture <architecture>
+   Architecture scorecard <architecture-scorecard>
    AGI Core architecture <agi-core-architecture>
    MLOps positioning <agilab-mlops-positioning>
    Learning workflows <learning-workflows>

@@ -246,6 +246,42 @@ def _run_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_architecture_scorecard(repo_root: Path) -> dict[str, Any]:
+    try:
+        architecture_scorecard = _load_tool_module("architecture_scorecard")
+        report = architecture_scorecard.build_report(repo_root=repo_root)
+        checks = report.get("checks", [])
+        score_scope = str(report.get("score_scope", ""))
+        ok = (
+            report.get("status") == "pass"
+            and report.get("supported_score") == architecture_scorecard.SUPPORTED_SCORE
+            and "multi-tenant production" in score_scope
+        )
+        summary = (
+            "architecture scorecard passes with an explicit multi-tenant production boundary"
+            if ok
+            else "architecture scorecard is missing, failing, or over-scoped"
+        )
+        details = {
+            "supported_score": report.get("supported_score"),
+            "score_scope": score_scope,
+            "check_ids": [check.get("id") for check in checks],
+            "failed": [check.get("id") for check in checks if check.get("status") != "pass"],
+        }
+    except Exception as exc:
+        ok = False
+        summary = str(exc)
+        details = {"error": str(exc)}
+    return _check_result(
+        "architecture_scorecard",
+        "Architecture scorecard",
+        ok,
+        summary,
+        evidence=["tools/architecture_scorecard.py", "docs/source/architecture-scorecard.rst"],
+        details=details,
+    )
+
+
 def _check_compatibility_matrix(repo_root: Path) -> dict[str, Any]:
     matrix_path = repo_root / "docs" / "source" / "data" / "compatibility_matrix.toml"
     required_validated_ids = {
@@ -748,6 +784,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
         _check_docs_mirror_stamp(repo_root),
         _check_docs_workflow_profile(repo_root),
         _check_production_readiness_workflow_profile(repo_root),
+        _check_architecture_scorecard(repo_root),
         _check_compatibility_matrix(repo_root),
         _check_service_health_contract(repo_root),
         _check_controlled_pilot_readiness_gate(repo_root),

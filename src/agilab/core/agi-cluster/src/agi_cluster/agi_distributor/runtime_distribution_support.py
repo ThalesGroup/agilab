@@ -65,6 +65,37 @@ def _local_dask_worker_command(uv_cmd: str, wenv_abs: Path, scheduler: str, pid_
     ]
 
 
+def _remote_prefix(value: Any) -> str:
+    text = str(value or "")
+    if text and not text.endswith(" "):
+        text += " "
+    return text
+
+
+def _remote_path(value: Path | str) -> str:
+    return shlex.quote(str(value))
+
+
+def _remote_dask_worker_command(
+    *,
+    cmd_prefix: str,
+    dask_env: str,
+    uv_cmd: str,
+    wenv_rel: Path | str,
+    scheduler: str,
+    pid_file: str,
+) -> str:
+    uv_parts = " ".join(shlex.quote(part) for part in shlex.split(str(uv_cmd), posix=True))
+    worker_path = Path(wenv_rel)
+    return (
+        f"{_remote_prefix(cmd_prefix)}"
+        f"{_remote_prefix(dask_env)}"
+        f"{uv_parts} --project {_remote_path(worker_path)} run --no-sync "
+        f"dask worker {shlex.quote(f'tcp://{scheduler}')} --no-nanny "
+        f"--pid-file {_remote_path(worker_path.parent / pid_file)}"
+    )
+
+
 def _record_phase_timing(agi_cls: Any, phase: str, seconds: float) -> None:
     timings = getattr(agi_cls, "_phase_timings", None)
     if not isinstance(timings, list):
@@ -364,10 +395,13 @@ async def start(
                     agi_cls._exec_bg(local_cmd, str(wenv_abs), env=process_env)
                 else:
                     wenv_rel = env.wenv_rel
-                    remote_cmd = (
-                        f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync '
-                        f'dask worker '
-                        f'tcp://{agi_cls._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
+                    remote_cmd = _remote_dask_worker_command(
+                        cmd_prefix=cmd_prefix,
+                        dask_env=dask_env,
+                        uv_cmd=str(env.uv),
+                        wenv_rel=wenv_rel,
+                        scheduler=agi_cls._scheduler,
+                        pid_file=pid_file,
                     )
                     create_task_fn(agi_cls.exec_ssh_async(ip, remote_cmd))
                     log.info(f"Launched remote worker in background on {ip}: {remote_cmd}")
