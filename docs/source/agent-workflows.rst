@@ -79,6 +79,11 @@ Use ``--tag`` and ``--metadata KEY=VALUE`` for structured, non-secret context
 that other tools can query later. Read previous run evidence from the CLI::
 
    agilab agent-run list --agent codex --json
+   agilab agent-run list --tag review --metadata branch=main --protocol-adapter mcp --capability evidence-review --json
+   agilab agent-run handoff ~/log/agents/codex/<run-id>
+   agilab agent-run next ~/log/agents/codex/<run-id> --json
+   agilab agent-run context --tag review --metadata branch=main --limit 5 --json
+   agilab agent-run lineage <run-id> --json
 
 or from Python::
 
@@ -101,6 +106,9 @@ AGILAB keeps the agent evidence layer deliberately small and provider-neutral:
   ``permission_resolved``, ``compact``, ``rewind``, and ``session_end``.
 - ``tool-output/`` is reserved for large or structured tool payloads that
   should stay out of public JSON.
+- The read side can produce redacted continuation cards, deterministic
+  next-action cards, filtered context packs, and follow-up lineage graphs. These
+  surfaces point to local artifacts but do not embed stdout/stderr contents.
 
 The base package records protocol bridges as evidence labels only. Add
 ``--protocol-adapter mcp`` or ``--capability app-as-tool`` when experimenting
