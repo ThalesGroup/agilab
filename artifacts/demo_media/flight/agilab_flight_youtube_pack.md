@@ -9,8 +9,9 @@
 - Previous silent upload: https://youtu.be/c4aogHDh4do
 - YouTube Studio URL: https://studio.youtube.com/video/KsBe8lIahH4
 - Duration: 15.47 seconds
-- Format: 1920x1080, 30 fps, H.264 video + AAC audio MP4
-- Audio: original generated voiceover with a low-volume synthetic sound bed
+- Format: 1920x1080, 30 fps, premium H.264 video + stereo AAC audio MP4
+- Video master: regenerated from source frames at CRF 12
+- Audio: original generated voiceover with a low-volume stereo synthetic sound bed, loudness-normalized with safe peak headroom
 
 ## Core claim
 
