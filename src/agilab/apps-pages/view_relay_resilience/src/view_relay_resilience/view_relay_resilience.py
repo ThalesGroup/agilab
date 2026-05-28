@@ -32,6 +32,16 @@ from agi_gui.pagelib import render_logo
 RUN_SELECTION_KEY = "relay_resilience_selected_runs"
 DETAIL_RUN_KEY = "relay_resilience_detail_run"
 REFERENCE_RUN_KEY = "relay_resilience_reference_run"
+DATA_DIR_KEY = "relay_resilience_datadir"
+SUMMARY_GLOB_KEY = "relay_resilience_summary_glob"
+APP_SCOPE_KEY = "relay_resilience_active_app_scope"
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    RUN_SELECTION_KEY,
+    DETAIL_RUN_KEY,
+    REFERENCE_RUN_KEY,
+    DATA_DIR_KEY,
+    SUMMARY_GLOB_KEY,
+)
 
 
 def _resolve_active_app() -> Path:
@@ -44,6 +54,18 @@ def _default_artifact_root(env: AgiEnv) -> Path:
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
     return _page_discover_files(base, pattern)
+
+
+def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
+    """Clear persisted Relay Resilience defaults when the active app changes."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -162,8 +184,9 @@ def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.Dat
 
 st.set_page_config(layout="wide")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
+if "env" not in st.session_state or app_scope_changed:
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
@@ -183,17 +206,17 @@ st.info(
 )
 
 default_root = _default_artifact_root(env)
-st.session_state.setdefault("relay_resilience_datadir", str(default_root))
+st.session_state.setdefault(DATA_DIR_KEY, str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    key="relay_resilience_datadir",
+    key=DATA_DIR_KEY,
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
-st.session_state.setdefault("relay_resilience_summary_glob", "**/*_summary_metrics.json")
+st.session_state.setdefault(SUMMARY_GLOB_KEY, "**/*_summary_metrics.json")
 metrics_pattern = st.sidebar.text_input(
     "Summary glob",
-    key="relay_resilience_summary_glob",
+    key=SUMMARY_GLOB_KEY,
 )
 
 summary_files = _discover_files(artifact_root, metrics_pattern) if artifact_root.exists() else []
@@ -208,34 +231,44 @@ if not summary_files:
 
 summary_label_to_path = {_relative_summary_label(path, artifact_root): path for path in summary_files}
 summary_labels = list(summary_label_to_path.keys())
+default_selection = summary_labels[-1:] if summary_labels else []
+if RUN_SELECTION_KEY in st.session_state:
+    saved_selection = st.session_state.get(RUN_SELECTION_KEY)
+    if isinstance(saved_selection, (list, tuple, set)) and not saved_selection:
+        st.session_state[RUN_SELECTION_KEY] = []
+    else:
+        st.session_state[RUN_SELECTION_KEY] = _coerce_selection(
+            saved_selection,
+            summary_labels,
+            fallback=default_selection[0] if default_selection else None,
+        )
+else:
+    st.session_state[RUN_SELECTION_KEY] = default_selection
 
 selected_run_labels = st.sidebar.multiselect(
     "Runs to compare",
     options=summary_labels,
-    default=_coerce_selection(st.session_state.get(RUN_SELECTION_KEY), summary_labels),
     key=RUN_SELECTION_KEY,
 )
 if not selected_run_labels:
     st.info("Select at least one run in the sidebar.")
     st.stop()
 
+if st.session_state.get(DETAIL_RUN_KEY) not in selected_run_labels:
+    st.session_state[DETAIL_RUN_KEY] = selected_run_labels[0]
 detailed_run_label = st.sidebar.selectbox(
     "Detailed run",
     options=selected_run_labels,
-    index=selected_run_labels.index(st.session_state.get(DETAIL_RUN_KEY))
-    if st.session_state.get(DETAIL_RUN_KEY) in selected_run_labels
-    else 0,
     key=DETAIL_RUN_KEY,
 )
 
 reference_run_label = detailed_run_label
 if len(selected_run_labels) > 1:
+    if st.session_state.get(REFERENCE_RUN_KEY) not in selected_run_labels:
+        st.session_state[REFERENCE_RUN_KEY] = selected_run_labels[0]
     reference_run_label = st.sidebar.selectbox(
         "Reference run",
         options=selected_run_labels,
-        index=selected_run_labels.index(st.session_state.get(REFERENCE_RUN_KEY))
-        if st.session_state.get(REFERENCE_RUN_KEY) in selected_run_labels
-        else 0,
         key=REFERENCE_RUN_KEY,
     )
 
