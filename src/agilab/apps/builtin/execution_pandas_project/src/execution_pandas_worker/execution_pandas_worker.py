@@ -91,6 +91,22 @@ def _as_contiguous_float64(series: pd.Series) -> np.ndarray:
     return np.ascontiguousarray(series.to_numpy(dtype=np.float64, copy=False))
 
 
+def _fill_vectorized_score_array(
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    weighted_signal: np.ndarray,
+    *,
+    x_scale: float,
+    y_scale: float,
+    out: np.ndarray,
+) -> None:
+    """Fill one score output array with a low-allocation NumPy expression."""
+    np.multiply(x_values, x_scale, out=out)
+    out -= y_values * y_scale
+    out += weighted_signal
+    np.abs(out, out=out)
+
+
 def _tail_checksum_from_arrays(
     x_values: np.ndarray,
     y_values: np.ndarray,
@@ -180,14 +196,23 @@ class ExecutionPandasWorker(PandasWorker):
         score_0 = np.empty(len(df), dtype=np.float64)
         score_last = np.empty(len(df), dtype=np.float64)
         if not cython.compiled:
-            score_0[:] = np.abs(
-                (x_values * 1.3) - (y_values * 0.35) + (signal_values * weight_values)
+            weighted_signal = np.multiply(signal_values, weight_values)
+            _fill_vectorized_score_array(
+                x_values,
+                y_values,
+                weighted_signal,
+                x_scale=1.3,
+                y_scale=0.35,
+                out=score_0,
             )
             last_idx = passes - 1
-            score_last[:] = np.abs(
-                (x_values * (last_idx + 1.3))
-                - (y_values * (0.35 + last_idx * 0.05))
-                + (signal_values * weight_values)
+            _fill_vectorized_score_array(
+                x_values,
+                y_values,
+                weighted_signal,
+                x_scale=last_idx + 1.3,
+                y_scale=0.35 + last_idx * 0.05,
+                out=score_last,
             )
             checksum = _tail_checksum_from_arrays(
                 x_values,
