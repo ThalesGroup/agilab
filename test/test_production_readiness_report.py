@@ -97,7 +97,7 @@ def test_architecture_scorecard_is_scoped_and_evidence_backed() -> None:
     check = next(check for check in report["checks"] if check["id"] == "architecture_scorecard")
 
     assert check["status"] == "pass"
-    assert check["details"]["supported_score"] == "4.6 / 5"
+    assert check["details"]["supported_score"] == "4.7 / 5"
     assert "multi-tenant production" in check["details"]["score_scope"]
     assert set(check["details"]["check_ids"]) >= {
         "architecture_plane_boundaries",

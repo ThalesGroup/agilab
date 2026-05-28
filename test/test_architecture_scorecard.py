@@ -43,7 +43,7 @@ def test_architecture_scorecard_passes_current_evidence() -> None:
 
     assert report["schema"] == module.SCHEMA
     assert report["status"] == "pass"
-    assert report["supported_score"] == "4.6 / 5"
+    assert report["supported_score"] == "4.7 / 5"
     assert "not external certification" in report["summary"]["score_boundary"]
     assert checks["architecture_remote_execution_hardening"]["status"] == "pass"
     assert checks["architecture_capacity_model_trust_boundary"]["status"] == "pass"
@@ -53,8 +53,9 @@ def test_architecture_scorecard_passes_current_evidence() -> None:
         "enterprise-auth-rbac",
         "production-rollback",
         "regulated-serving",
-        "capacity-model-signature",
     }
+    gap_statuses = checks["architecture_hardening_gap_register"]["details"]["gap_statuses"]
+    assert gap_statuses["capacity-model-signature"] == "shipped"
 
 
 def test_architecture_scorecard_cli_writes_json(tmp_path: Path, capsys) -> None:
@@ -66,7 +67,7 @@ def test_architecture_scorecard_cli_writes_json(tmp_path: Path, capsys) -> None:
     stdout_payload = json.loads(capsys.readouterr().out)
     file_payload = json.loads(output.read_text(encoding="utf-8"))
     assert stdout_payload["status"] == "pass"
-    assert file_payload["supported_score"] == "4.6 / 5"
+    assert file_payload["supported_score"] == "4.7 / 5"
 
 
 def test_remote_dask_worker_command_quotes_dynamic_fragments() -> None:
@@ -134,6 +135,31 @@ def test_capacity_predictor_refuses_world_writable_trusted_model(tmp_path: Path)
         )
     finally:
         model_path.chmod(model_path.stat().st_mode & ~stat.S_IWOTH)
+
+    assert predictor is None
+    assert retrained == [True]
+
+
+def test_capacity_predictor_refuses_signature_mismatch(tmp_path: Path) -> None:
+    module = _load_cluster_module("runtime_misc_support")
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"signed-pickle")
+    manifest_path = module.write_capacity_model_manifest(model_path)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["digest_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    retrained: list[bool] = []
+
+    def _load_should_not_run(_stream):
+        raise AssertionError("mismatched capacity model should not be deserialized")
+
+    predictor = module.load_capacity_predictor(
+        model_path,
+        trusted_root=tmp_path,
+        load_fn=_load_should_not_run,
+        retrain_fn=lambda: retrained.append(True),
+    )
 
     assert predictor is None
     assert retrained == [True]
