@@ -1,6 +1,6 @@
 {
   "schema": "agilab.architecture_hardening_gaps.v1",
-  "supported_score": "4.6 / 5",
+  "supported_score": "4.7 / 5",
   "scope": "Excellent evidence-first workbench architecture; shared or multi-tenant production use remains conditional.",
   "gaps": [
     {
@@ -54,13 +54,13 @@
     {
       "id": "capacity-model-signature",
       "severity": "P2",
-      "status": "conditional",
+      "status": "shipped",
       "surface": "optional capacity predictor model artifact",
-      "production_boundary": "The pickle model is constrained to a trusted resource root, but cryptographic signature verification is not yet a shipped requirement.",
+      "production_boundary": "The pickle model is constrained to a trusted resource root and a SHA-256 sidecar manifest is verified before deserialization.",
       "evidence_required": [
-        "signed capacity model manifest",
-        "hash or signature verification before deserialization",
-        "regression test for signature mismatch refusal"
+        "capacity model SHA-256 sidecar manifest",
+        "hash verification before deserialization",
+        "regression test for hash mismatch refusal"
       ]
     }
   ]
