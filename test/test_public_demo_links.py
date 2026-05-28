@@ -205,7 +205,7 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
     assert pypi_readme.count("agilab[ui]") == 1
 
 
-def test_source_package_version_contract_is_explicit_and_current() -> None:
+def test_source_package_version_contract_is_explicit_and_proven_release_scoped() -> None:
     readme = README.read_text(encoding="utf-8")
     pypi_readme = PYPI_README.read_text(encoding="utf-8")
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
@@ -223,13 +223,15 @@ def test_source_package_version_contract_is_explicit_and_current() -> None:
     agi_apps_version = agi_apps_pyproject["project"]["version"]
     optional_dependencies = pyproject["project"]["optional-dependencies"]
 
-    assert Version(source_version) == Version(package_version)
+    assert Version(package_version) <= Version(source_version)
     assert Version(core_version) <= Version(source_version)
     assert Version(agi_apps_version) <= Version(source_version)
     assert f"agi-apps=={agi_apps_version}" in optional_dependencies["ui"]
     assert f"agi-apps=={agi_apps_version}" in optional_dependencies["examples"]
-    assert "version%20alignment-release%20proof" in readme
-    assert "version%20alignment-release%20proof" in pypi_readme
+    assert "release%20proof-latest%20proven%20release" in readme
+    assert "release%20proof-latest%20proven%20release" in pypi_readme
+    assert "version%20alignment-release%20proof" not in readme
+    assert "version%20alignment-release%20proof" not in pypi_readme
     assert "main` branch and root `pyproject.toml" in readme
     assert "main` branch and root `pyproject.toml" in pypi_readme
     assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in readme
