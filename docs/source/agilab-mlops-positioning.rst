@@ -266,13 +266,11 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   controlled-pilot boundary into an executable proof for service health,
   persisted artifacts, public-bind controls, secret redaction, and explicit
   failure modes
-- the Evidence Cockpit / release-decision page gates on the first-proof
-  ``run_manifest.json``, resolves artifact/log/export roots through the shared
-  connector path registry, imports external manifest evidence, applies artifact
-  and KPI gates, summarizes decision status, blocking gates, indexed evidence,
-  export readiness, and next action, and exports ``promotion_decision.json`` plus
-  ``manifest_index.json`` with the same cockpit summary, connector registry
-  paths, manifest summary, import summary, provenance-tagged attachment
+- the release-decision page gates on the first-proof ``run_manifest.json``,
+  resolves artifact/log/export roots through the shared connector path registry,
+  imports external manifest evidence, applies artifact and KPI gates, and
+  exports ``promotion_decision.json`` plus ``manifest_index.json`` with connector
+  registry paths, manifest summary, import summary, provenance-tagged attachment
   metadata, per-release evidence history, cross-release manifest comparison,
   cross-run evidence bundle comparison, and gate details
 - the standalone run-diff/counterfactual report gives those comparison claims a

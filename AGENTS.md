@@ -25,7 +25,9 @@ Use this runbook whenever you:
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
   GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
   `lint` for Ruff through the repo dev extra, `regress` for GA-selected fast regression subsets,
-  `robust` for P0 fail-closed robustness scenarios, `app-contracts` for
+  `robust` for P0 fail-closed robustness scenarios, `parallel-stage` for
+  creating or checking a function + split rule + reducer contract before scaling code,
+  `app-contracts` for
   built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
   state,
   `flow` for one or more workflow parity profiles,
@@ -36,6 +38,8 @@ Use this runbook whenever you:
   `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
   `robust` runs synthetic bad-state checks for cluster shares, public UI binds,
   service health gates, evidence manifests, notebook import, app settings, and UI routes,
+  `parallel-stage` captures the intended parallelization contract without changing
+  shared runtime code,
   `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
   promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
   part of the release shortcut and targeted pre-push guards,

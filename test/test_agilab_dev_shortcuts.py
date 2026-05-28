@@ -174,6 +174,36 @@ def test_robust_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_parallel_stage_shortcut_runs_parallel_stage_tool():
+    assert agilab_dev.planned_commands(["parallel-stage", "--check", "parallel_stage.toml"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/parallel_stage.py",
+            "--check",
+            "parallel_stage.toml",
+        ]
+    ]
+
+
+def test_parallel_stage_shortcut_has_parallel_alias():
+    assert agilab_dev.planned_commands(["parallel", "--name", "stage"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/parallel_stage.py",
+            "--name",
+            "stage",
+        ]
+    ]
+
+
 def test_app_contracts_shortcut_runs_contract_matrix_by_default():
     assert agilab_dev.planned_commands(["app-contracts"]) == [
         [

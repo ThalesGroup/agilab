@@ -224,24 +224,13 @@ and release-candidate versions such as ``YYYY.MM.DDrc1`` are acceptable for
 preview validation, but those rehearsals are not the source of truth for a real
 final release.
 
-By default, the GitHub PyPI workflow asks ``tools/release_plan.py`` to omit
-selected PyPI packages whose expected wheel/sdist artifacts for the committed
-project version already exist on PyPI. Those skipped packages are not sent to
-the build/upload matrix, PyPI provenance verification, release retention, or
-GitHub release-asset assembly. This keeps split packages independent in
-practice: unchanged packages do not need a new version and do not trigger slow
-PyPI web cleanup. Use the manual ``include_existing_pypi=true`` dispatch input
-only when intentionally repairing release assets from already-published PyPI
-artifacts.
-
 After PyPI provenance passes, the release workflow attempts to keep one retained
-PyPI release per selected PyPI project that still needs publication in the
-optimized release plan. ``tools/pypi_release_retention.py`` reads the selected
-release-plan projects, confirms that each package's own committed project
-version is visible, then tries to delete older releases before GitHub release
-assets are published. This allows split packages to advance independently while
-keeping retention from deleting another package's current version. This is a
-destructive PyPI web-management operation, separate from
+PyPI release per selected PyPI project. ``tools/pypi_release_retention.py`` reads
+the selected release-plan projects, confirms that each package's own committed
+project version is visible, then tries to delete older releases before GitHub
+release assets are published. This allows split packages to advance
+independently while keeping retention from deleting another package's current
+version. This is a destructive PyPI web-management operation, separate from
 Trusted Publishing, so the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
 ``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
 authentication can use non-interactive authentication through
