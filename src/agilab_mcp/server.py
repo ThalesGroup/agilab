@@ -15,6 +15,9 @@ ToolFn = Callable[..., dict[str, Any]]
 TOOLS: dict[str, ToolFn] = {
     "list_projects": manifest_tools.list_projects,
     "list_runs": manifest_tools.list_runs,
+    "list_agent_runs": manifest_tools.list_agent_runs,
+    "read_agent_run": manifest_tools.read_agent_run,
+    "summarize_agent_run": manifest_tools.summarize_agent_run,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -41,6 +44,40 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {"log_root": {"type": "string"}},
                 "required": ["log_root"],
+            },
+        },
+        {
+            "name": "list_agent_runs",
+            "description": "List redacted AGILAB agent-run evidence manifests.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "log_root": {"type": "string"},
+                    "agent": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["", "planned", "pass", "fail", "timeout", "denied"],
+                    },
+                    "limit": {"type": "integer", "minimum": 0},
+                },
+            },
+        },
+        {
+            "name": "read_agent_run",
+            "description": "Read and redact one AGILAB agent-run manifest.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "summarize_agent_run",
+            "description": "Summarize one AGILAB agent-run manifest.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
             },
         },
         {
