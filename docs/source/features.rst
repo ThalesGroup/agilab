@@ -465,14 +465,12 @@ production platform:
 - ``tools/controlled_pilot_readiness_report.py --compact`` packages the
   controlled-pilot readiness proof for service health, persisted artifacts,
   public-bind controls, secret redaction, and explicit failure modes
-- the Evidence Cockpit analysis page compares baseline and candidate bundles,
-  summarizes decision status, blocking gates, indexed evidence, and export
-  readiness, resolves artifact/log/export roots through the shared connector
-  path registry, gates on the first-proof ``run_manifest.json``, imports
-  external manifest evidence with ``--manifest`` / ``--manifest-dir`` style
-  inputs, evaluates artifact and KPI gates, and exports
-  ``promotion_decision.json`` with the cockpit summary, connector registry
-  paths, manifest summary, import summary, provenance-tagged attachment
+- the release-decision analysis page compares baseline and candidate bundles,
+  resolves artifact/log/export roots through the shared connector path registry,
+  gates on the first-proof ``run_manifest.json``, imports external manifest
+  evidence with ``--manifest`` / ``--manifest-dir`` style inputs, evaluates
+  artifact and KPI gates, and exports ``promotion_decision.json`` with connector
+  registry paths, manifest summary, import summary, provenance-tagged attachment
   metadata, per-release ``manifest_index.json`` evidence history,
   cross-release manifest comparison, cross-run evidence bundle comparison, and
   gate details; it also imports ``ci_artifact_harvest.json`` evidence, displays

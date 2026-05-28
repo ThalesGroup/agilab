@@ -101,6 +101,7 @@ references, and example projects.
 
    Cluster setup <cluster>
    Kubernetes Job preview <kubernetes-job>
+   Parallel stages <parallel-stages>
    Distributed workers <distributed-workers>
    SSH keys for workers <key-generation>
    Service mode <service-mode>

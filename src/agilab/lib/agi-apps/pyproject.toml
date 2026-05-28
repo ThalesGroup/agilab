@@ -145,6 +145,8 @@ packages = [
     "notebook_to_dask/*.json",
     "notebook_to_dask/*.toml",
     "notebook_to_dask/*.ipynb",
+    "parallel_stage/*.py",
+    "parallel_stage/*.toml",
     "sqlite_connector_proof/*.py",
     "voila_notebook_proof/*.py",
     "notebook_quickstart/*.ipynb",
