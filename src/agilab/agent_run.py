@@ -1291,10 +1291,145 @@ def render_handoff_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _next_action_items(summary: AgentRunSummary, permission: Mapping[str, object]) -> list[dict[str, str]]:
+    status = summary.status
+    if status == "pass":
+        return [
+            {
+                "priority": "P1",
+                "action": "Attach this manifest path to the proof, review, or release note that depends on it.",
+                "reason": "The agent run completed successfully and has reusable evidence artifacts.",
+            },
+            {
+                "priority": "P2",
+                "action": "Use matching tags, metadata, protocol adapters, and capabilities for follow-up runs.",
+                "reason": "Context-stable metadata keeps later agent evidence queryable.",
+            },
+        ]
+    if status == "denied":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect the permission tier and stderr artifact before rerunning.",
+                "reason": str(permission.get("reason") or "The command was blocked by the permission policy."),
+            },
+            {
+                "priority": "P1",
+                "action": "Prefer a narrower non-destructive command; escalate permission only with explicit operator intent.",
+                "reason": "AGILAB records confirmation requirements but does not sandbox the process.",
+            },
+        ]
+    if status == "timeout":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect stderr, stdout, and trace events to identify the slow phase before increasing timeout.",
+                "reason": "A timeout is ambiguous without artifact review.",
+            },
+            {
+                "priority": "P1",
+                "action": "Retry with the same tags and metadata after narrowing the command or extending timeout deliberately.",
+                "reason": "Stable context makes timeout regressions comparable.",
+            },
+        ]
+    if status == "fail":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect stderr and trace events, fix the smallest reproducible cause, then rerun.",
+                "reason": "The command returned a non-zero exit status.",
+            },
+            {
+                "priority": "P1",
+                "action": "Record the follow-up run with metadata followup_of=<run_id>.",
+                "reason": "A linked follow-up preserves the debugging chain for another agent.",
+            },
+        ]
+    return [
+        {
+            "priority": "P1",
+            "action": "Read the manifest and trace events before deciding whether to rerun or archive this evidence.",
+            "reason": f"Status {status!r} does not have a specialized policy.",
+        }
+    ]
+
+
+def agent_next_actions_payload(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Build deterministic next-action guidance from one agent-run manifest."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    permission = manifest.get("permission", {})
+    permission_map = permission if isinstance(permission, dict) else {}
+    followup_metadata = dict(summary.metadata)
+    if summary.run_id:
+        followup_metadata["followup_of"] = summary.run_id
+    return {
+        "schema": "agilab.agent_next_actions.v1",
+        "run": _summary_payload(summary),
+        "protocols": _protocol_summary(manifest),
+        "permission": {
+            "allowed": bool(permission_map.get("allowed", False)),
+            "tier": permission_map.get("tier"),
+            "level": permission_map.get("level"),
+            "reason": permission_map.get("reason"),
+        },
+        "next_actions": _next_action_items(summary, permission_map),
+        "followup_context": {
+            "agent": summary.agent,
+            "tags": list(summary.tags),
+            "metadata": followup_metadata,
+            "protocol_adapters": _protocol_summary(manifest)["adapters"],
+            "capabilities": _protocol_summary(manifest)["capabilities"],
+            "command_policy": (
+                "Do not reconstruct redacted argv from the manifest. Rebuild the next command from current task context."
+            ),
+        },
+    }
+
+
+def render_next_actions_markdown(payload: dict[str, object]) -> str:
+    """Render next-action guidance as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    actions = payload.get("next_actions", [])
+    action_list = actions if isinstance(actions, list) else []
+    lines = [
+        "# AGILAB agent next actions",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- agent: {run_map.get('agent', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- manifest: {run_map.get('manifest', '')}",
+        "",
+        "## Recommended actions",
+        "",
+    ]
+    for item in action_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('priority', 'P?')}: {item.get('action', '')} "
+            f"Reason: {item.get('reason', '')}"
+        )
+    return "\n".join(lines)
+
+
 def _build_handoff_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
     parser.add_argument("--json", action="store_true", help="Print the handoff card as JSON.")
+    return parser
+
+
+def _build_next_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render AGILAB agent-run next-action guidance.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print next-action guidance as JSON.")
     return parser
 
 
@@ -1306,6 +1441,17 @@ def _main_handoff(argv: Sequence[str]) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(render_handoff_markdown(payload))
+    return 0
+
+
+def _main_next(argv: Sequence[str]) -> int:
+    parser = _build_next_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_next_actions_payload(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_next_actions_markdown(payload))
     return 0
 
 
@@ -1363,6 +1509,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main_list(raw_argv[1:])
     if raw_argv[:1] == ["handoff"]:
         return _main_handoff(raw_argv[1:])
+    if raw_argv[:1] in (["next"], ["next-actions"], ["next_actions"]):
+        return _main_next(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:

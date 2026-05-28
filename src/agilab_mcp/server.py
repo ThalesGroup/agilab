@@ -19,6 +19,7 @@ TOOLS: dict[str, ToolFn] = {
     "read_agent_run": manifest_tools.read_agent_run,
     "summarize_agent_run": manifest_tools.summarize_agent_run,
     "agent_handoff": manifest_tools.agent_handoff,
+    "agent_next_actions": manifest_tools.agent_next_actions,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -91,6 +92,15 @@ def tool_descriptors() -> list[dict[str, Any]]:
         {
             "name": "agent_handoff",
             "description": "Render a compact AGILAB agent-run continuation card.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "agent_next_actions",
+            "description": "Render deterministic next-action guidance from AGILAB agent-run evidence.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"manifest_path": {"type": "string"}},

@@ -634,6 +634,74 @@ def test_agent_run_handoff_card_does_not_embed_output(tmp_path: Path, capsys) ->
     assert "private output" not in markdown
 
 
+def test_agent_run_next_actions_are_status_aware(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    fail_dir = tmp_path / "fail"
+    denied_dir = tmp_path / "denied"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Failing smoke",
+            "--run-id",
+            "agent-fail-next",
+            "--output-dir",
+            str(fail_dir),
+            "--tag",
+            "debug",
+            "--metadata",
+            "branch=main",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(7)",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Denied smoke",
+            "--run-id",
+            "agent-denied-next",
+            "--output-dir",
+            str(denied_dir),
+            "--",
+            sys.executable,
+            "-c",
+            "print('should not run')",
+        ]
+    ) == 126
+    capsys.readouterr()
+
+    fail_payload = module.agent_next_actions_payload(fail_dir)
+    assert fail_payload["schema"] == "agilab.agent_next_actions.v1"
+    assert fail_payload["run"]["status"] == "fail"
+    assert fail_payload["followup_context"]["metadata"]["followup_of"] == "agent-fail-next"
+    assert fail_payload["next_actions"][0]["priority"] == "P0"
+    assert "stderr" in fail_payload["next_actions"][0]["action"]
+
+    denied_payload = module.agent_next_actions_payload(denied_dir)
+    assert denied_payload["run"]["status"] == "denied"
+    assert denied_payload["permission"]["allowed"] is False
+    assert "permission" in denied_payload["next_actions"][0]["action"]
+
+    assert module.main(["next", str(fail_dir), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["run"]["run_id"] == "agent-fail-next"
+
+    assert module.main(["next-actions", str(denied_dir)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent next actions" in markdown
+    assert "agent-denied-next" in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

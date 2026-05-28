@@ -136,6 +136,15 @@ def agent_handoff(manifest_path: str | Path) -> dict[str, Any]:
     }
 
 
+def agent_next_actions(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.agent_next_actions.v1",
+        "manifest_path": str(path),
+        "next_actions": agent_run.agent_next_actions_payload(path),
+    }
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = Path(manifest_path).expanduser().resolve(strict=False)
     payload = json.loads(path.read_text(encoding="utf-8"))
