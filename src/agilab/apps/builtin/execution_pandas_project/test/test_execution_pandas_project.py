@@ -30,6 +30,7 @@ from execution_pandas.reduction import (
 )
 from execution_pandas_worker.execution_pandas_worker import (
     ExecutionPandasWorker,
+    _fill_vectorized_score_array,
     _tail_checksum_from_arrays,
 )
 
@@ -155,6 +156,27 @@ def test_execution_pandas_vectorized_tail_checksum_matches_scalar_reference() ->
     )
 
     assert actual == expected
+
+
+def test_execution_pandas_vectorized_score_fill_matches_reference() -> None:
+    x_values = np.asarray([1.5, -2.0, 3.5, 5.0], dtype=np.float64)
+    y_values = np.asarray([0.2, 0.4, -0.6, 0.8], dtype=np.float64)
+    signal_values = np.asarray([0.1, -0.2, 0.3, -0.4], dtype=np.float64)
+    weight_values = np.asarray([1.0, 1.1, 1.2, 1.3], dtype=np.float64)
+    weighted_signal = signal_values * weight_values
+    out = np.empty_like(x_values)
+
+    _fill_vectorized_score_array(
+        x_values,
+        y_values,
+        weighted_signal,
+        x_scale=2.3,
+        y_scale=0.45,
+        out=out,
+    )
+
+    expected = np.abs((x_values * 2.3) - (y_values * 0.45) + weighted_signal)
+    np.testing.assert_allclose(out, expected, rtol=0.0, atol=0.0)
 
 
 def test_execution_pandas_typed_kernel_matches_dataframe_scores(tmp_path: Path) -> None:
