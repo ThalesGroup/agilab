@@ -29,8 +29,53 @@ from agi_env import AgiEnv
 from agi_gui.pagelib import render_logo
 
 
+PAGE_KEY = "view_forecast_analysis"
+APP_SCOPE_KEY = f"{PAGE_KEY}_active_app_path"
+APP_SCOPED_SESSION_KEYS = (
+    "env",
+    "forecast_analysis_datadir",
+    "forecast_metrics_glob",
+    "forecast_predictions_glob",
+)
+
+
 def _resolve_active_app() -> Path:
     return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+
+
+def _env_app_scope_key(env: Any) -> str | None:
+    app_path = getattr(env, "app_path", None)
+    if app_path:
+        return str(Path(app_path).resolve())
+    apps_path = getattr(env, "apps_path", None)
+    app = getattr(env, "app", None)
+    if apps_path and app:
+        return str((Path(apps_path) / str(app)).resolve())
+    return None
+
+
+def _ensure_app_scoped_env() -> AgiEnv:
+    env = st.session_state.get("env")
+    scope_key = st.session_state.get(APP_SCOPE_KEY)
+    if env is not None and scope_key is None:
+        inferred_scope_key = _env_app_scope_key(env)
+        if inferred_scope_key is None:
+            return env
+        st.session_state[APP_SCOPE_KEY] = inferred_scope_key
+        scope_key = inferred_scope_key
+
+    active_app_path = _resolve_active_app()
+    active_app_key = str(active_app_path.resolve())
+    if scope_key != active_app_key:
+        for key in APP_SCOPED_SESSION_KEYS:
+            st.session_state.pop(key, None)
+        st.session_state[APP_SCOPE_KEY] = active_app_key
+
+    if "env" not in st.session_state:
+        env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+        env.init_done = True
+        st.session_state["env"] = env
+    return st.session_state["env"]
 
 
 def _default_artifact_root(env: AgiEnv) -> Path:
@@ -60,13 +105,7 @@ def _load_predictions(path: Path) -> pd.DataFrame:
 
 st.set_page_config(layout="wide")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
-    env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-    env.init_done = True
-    st.session_state["env"] = env
-else:
-    env = st.session_state["env"]
+env = _ensure_app_scoped_env()
 
 render_logo("Forecast Analysis")
 st.title("Forecast analysis")
