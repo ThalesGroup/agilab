@@ -72,6 +72,76 @@ def _extract_toolbar_buttons(payload):
     return buttons
 
 
+def _write_project_editor_resources(
+    resources: Path,
+    *,
+    button_name: str = "Copy",
+    info_name: str = "python",
+    css_text: str = ".editor { color: #111; }\n",
+) -> None:
+    resources.mkdir(parents=True, exist_ok=True)
+    (resources / "custom_buttons.json").write_text(
+        json.dumps({"buttons": [{"name": button_name}]}),
+        encoding="utf-8",
+    )
+    (resources / "info_bar.json").write_text(
+        json.dumps({"info": [{"name": info_name}]}),
+        encoding="utf-8",
+    )
+    (resources / "code_editor.scss").write_text(css_text, encoding="utf-8")
+
+
+def test_project_editor_resources_cache_invalidates_when_resource_files_change(
+    tmp_path: Path,
+):
+    module = _load_project_module()
+    resources = tmp_path / "resources"
+    _write_project_editor_resources(resources, button_name="Copy")
+    module._load_project_editor_resources.clear()
+
+    first_fingerprint = module._project_editor_resource_fingerprint(resources)
+    first_buttons, first_info_bar, first_css = module._load_project_editor_resources(
+        str(resources),
+        first_fingerprint,
+    )
+
+    assert first_buttons == [{"name": "Copy"}]
+    assert first_info_bar == {"info": [{"name": "python"}]}
+    assert first_css == ".editor { color: #111; }\n"
+
+    _write_project_editor_resources(
+        resources,
+        button_name="Run",
+        css_text=".editor { color: #222; }\n",
+    )
+    future_mtime = max(item[1] for item in first_fingerprint) + 1_000_000_000
+    os.utime(resources / "custom_buttons.json", ns=(future_mtime, future_mtime))
+    os.utime(resources / "code_editor.scss", ns=(future_mtime, future_mtime))
+
+    second_fingerprint = module._project_editor_resource_fingerprint(resources)
+    second_buttons, second_info_bar, second_css = module._load_project_editor_resources(
+        str(resources),
+        second_fingerprint,
+    )
+
+    assert second_fingerprint != first_fingerprint
+    assert second_buttons == [{"name": "Run"}]
+    assert second_info_bar == first_info_bar
+    assert second_css == ".editor { color: #222; }\n"
+
+
+def test_project_editor_resource_fingerprint_reports_missing_static_file(
+    tmp_path: Path,
+):
+    module = _load_project_module()
+    resources = tmp_path / "resources"
+    _write_project_editor_resources(resources)
+    (resources / "code_editor.scss").unlink()
+
+    with pytest.raises(FileNotFoundError, match="code_editor\\.scss"):
+        module._project_editor_resource_fingerprint(resources)
+
+
 def test_finalize_cloned_project_environment_detaches_shared_venv(tmp_path: Path):
     module = _load_project_module()
     source_root = tmp_path / "source_project"
