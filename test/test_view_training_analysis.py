@@ -635,6 +635,91 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
     assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
 
 
+def test_view_training_analysis_main_resets_state_when_active_app_changes(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    old_app = tmp_path / "apps" / "old_trainer_project"
+    new_app = tmp_path / "apps" / "new_trainer_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir(parents=True)
+    old_export = tmp_path / "old-export"
+    new_export = tmp_path / "new-export"
+    new_export.mkdir()
+    old_settings_path = tmp_path / "old_settings.toml"
+    new_settings_path = tmp_path / "new_settings.toml"
+    warnings_seen: list[str] = []
+
+    old_env = SimpleNamespace(
+        apps_path=old_app.parent,
+        app=old_app.name,
+        app_settings_file=old_settings_path,
+        share_root_path=lambda: str(tmp_path / "old-share"),
+        AGILAB_EXPORT_ABS=str(old_export),
+    )
+
+    class FakeEnv:
+        def __init__(self, apps_path, app, verbose):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.app_settings_file = new_settings_path
+            self.share_root_path = lambda: str(tmp_path / "new-share")
+            self.AGILAB_EXPORT_ABS = str(new_export)
+            self.init_done = False
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": old_env,
+            module.APP_SCOPE_KEY: str(old_app.resolve()),
+            "app_settings": {"view_training_analysis": {"datadir_rel": "stale"}},
+            "base_dir_choice": "Custom",
+            "input_datadir": str(old_export),
+            "datadir_rel": "stale",
+            module.TRAINERS_KEY: ["old-trainer"],
+            module.RUN_ROOTS_KEY: ["old-run"],
+            module.TAGS_KEY: ["old-tag"],
+            module.X_AXIS_KEY: "timestamp",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            selectbox=lambda label, options, index=0, key=None, format_func=None: options[index],
+            multiselect=lambda *args, **kwargs: [],
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=warnings_seen.append,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda *args, **kwargs: None,
+        stop=_stop,
+    )
+    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: new_app)
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(new_app.resolve())
+    assert module.st.session_state["env"].app == "new_trainer_project"
+    assert module.st.session_state["env"].init_done is True
+    assert module.st.session_state["app_settings"] == {"view_training_analysis": {}}
+    assert module.st.session_state["input_datadir"] == ""
+    assert module.st.session_state["datadir_rel"] == ""
+    assert module.st.session_state[module.X_AXIS_KEY] == "step"
+    assert module.TRAINERS_KEY not in module.st.session_state
+    assert module.RUN_ROOTS_KEY not in module.st.session_state
+    assert module.TAGS_KEY not in module.st.session_state
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
+
+
 def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     export_root = tmp_path / "export"
