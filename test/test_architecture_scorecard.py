@@ -43,10 +43,18 @@ def test_architecture_scorecard_passes_current_evidence() -> None:
 
     assert report["schema"] == module.SCHEMA
     assert report["status"] == "pass"
-    assert report["supported_score"] == "4.5 / 5"
+    assert report["supported_score"] == "4.6 / 5"
     assert "not external certification" in report["summary"]["score_boundary"]
     assert checks["architecture_remote_execution_hardening"]["status"] == "pass"
     assert checks["architecture_capacity_model_trust_boundary"]["status"] == "pass"
+    assert checks["architecture_hardening_gap_register"]["status"] == "pass"
+    assert set(checks["architecture_hardening_gap_register"]["details"]["gap_ids"]) >= {
+        "tenant-isolation",
+        "enterprise-auth-rbac",
+        "production-rollback",
+        "regulated-serving",
+        "capacity-model-signature",
+    }
 
 
 def test_architecture_scorecard_cli_writes_json(tmp_path: Path, capsys) -> None:
@@ -58,7 +66,7 @@ def test_architecture_scorecard_cli_writes_json(tmp_path: Path, capsys) -> None:
     stdout_payload = json.loads(capsys.readouterr().out)
     file_payload = json.loads(output.read_text(encoding="utf-8"))
     assert stdout_payload["status"] == "pass"
-    assert file_payload["supported_score"] == "4.5 / 5"
+    assert file_payload["supported_score"] == "4.6 / 5"
 
 
 def test_remote_dask_worker_command_quotes_dynamic_fragments() -> None:
@@ -77,7 +85,7 @@ def test_remote_dask_worker_command_quotes_dynamic_fragments() -> None:
     assert tokens[:2] == ["env", "AGILAB_REMOTE=1"]
     assert "worker env/worker's env" in tokens
     assert "tcp://scheduler.example; touch /tmp/bad" in tokens
-    assert "worker env/worker's env/worker pid.pid" in tokens
+    assert "worker env/worker pid.pid" in tokens
     assert "; touch /tmp/bad --no-nanny" not in command
 
 

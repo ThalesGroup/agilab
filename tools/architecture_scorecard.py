@@ -11,7 +11,8 @@ from typing import Any, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.architecture_scorecard.v1"
-SUPPORTED_SCORE = "4.5 / 5"
+HARDENING_GAPS_SCHEMA = "agilab.architecture_hardening_gaps.v1"
+SUPPORTED_SCORE = "4.6 / 5"
 SCORE_SCOPE = (
     "Excellent evidence-first workbench architecture; conditional for shared "
     "or multi-tenant production use."
@@ -234,6 +235,62 @@ def _check_claim_boundary(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_hardening_gap_register(repo_root: Path) -> dict[str, Any]:
+    path = repo_root / "docs" / "source" / "data" / "architecture_hardening_gaps.json"
+    required_gap_ids = {
+        "tenant-isolation",
+        "enterprise-auth-rbac",
+        "production-rollback",
+        "regulated-serving",
+        "capacity-model-signature",
+    }
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        gaps = payload.get("gaps", [])
+        gap_ids = {gap.get("id") for gap in gaps if isinstance(gap, dict)}
+        missing_ids = sorted(required_gap_ids - gap_ids)
+        invalid_gaps = [
+            gap.get("id", "<missing-id>")
+            for gap in gaps
+            if not isinstance(gap, dict)
+            or not gap.get("severity")
+            or not gap.get("status")
+            or not gap.get("surface")
+            or not gap.get("production_boundary")
+            or not gap.get("evidence_required")
+        ]
+        ok = (
+            payload.get("schema") == HARDENING_GAPS_SCHEMA
+            and payload.get("supported_score") == SUPPORTED_SCORE
+            and isinstance(gaps, list)
+            and not missing_ids
+            and not invalid_gaps
+        )
+        details = {
+            "schema": payload.get("schema"),
+            "supported_score": payload.get("supported_score"),
+            "gap_ids": sorted(gap_ids),
+            "missing_ids": missing_ids,
+            "invalid_gaps": invalid_gaps,
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc), "gap_ids": [], "missing_ids": sorted(required_gap_ids)}
+
+    return _check_result(
+        "architecture_hardening_gap_register",
+        "Architecture hardening gap register",
+        ok,
+        (
+            "remaining production-hardening gaps are machine-readable, scoped, and tied to evidence requirements"
+            if ok
+            else "architecture hardening gap register is missing or incomplete"
+        ),
+        evidence=["docs/source/data/architecture_hardening_gaps.json"],
+        details=details,
+    )
+
+
 def build_report(*, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     checks = [
@@ -242,6 +299,7 @@ def build_report(*, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         _check_supply_chain_and_release(repo_root),
         _check_remote_execution_hardening(repo_root),
         _check_capacity_model_trust_boundary(repo_root),
+        _check_hardening_gap_register(repo_root),
         _check_claim_boundary(repo_root),
     ]
     passed = sum(1 for check in checks if check["status"] == "pass")

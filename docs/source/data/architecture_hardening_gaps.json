@@ -1,0 +1,67 @@
+{
+  "schema": "agilab.architecture_hardening_gaps.v1",
+  "supported_score": "4.6 / 5",
+  "scope": "Excellent evidence-first workbench architecture; shared or multi-tenant production use remains conditional.",
+  "gaps": [
+    {
+      "id": "tenant-isolation",
+      "severity": "P1",
+      "status": "conditional",
+      "surface": "workspace, artifacts, cache, and worker execution boundaries",
+      "production_boundary": "AGILAB does not currently claim hard multi-tenant isolation as a shipped platform primitive.",
+      "evidence_required": [
+        "tenant-scoped workspace isolation tests",
+        "artifact access policy checks",
+        "cross-tenant cache and worker leakage regression tests"
+      ]
+    },
+    {
+      "id": "enterprise-auth-rbac",
+      "severity": "P1",
+      "status": "conditional",
+      "surface": "operator identity, project permissions, and UI/API authorization",
+      "production_boundary": "AGILAB can run controlled local or team workflows, but enterprise identity and RBAC remain deployment responsibilities.",
+      "evidence_required": [
+        "authenticated operator identity propagation",
+        "role-based project and artifact access tests",
+        "public UI bind checks with auth/TLS evidence"
+      ]
+    },
+    {
+      "id": "production-rollback",
+      "severity": "P1",
+      "status": "conditional",
+      "surface": "release, worker, and evidence store rollback",
+      "production_boundary": "Release proof exists, but regulated production rollback is not claimed as a full platform guarantee.",
+      "evidence_required": [
+        "rollback drill manifest",
+        "worker environment rollback test",
+        "evidence-store compatibility and migration rollback test"
+      ]
+    },
+    {
+      "id": "regulated-serving",
+      "severity": "P1",
+      "status": "conditional",
+      "surface": "model serving, audit retention, monitoring, and regulated operations",
+      "production_boundary": "AGILAB is positioned as an evidence workbench, not as the sole regulated model-serving control plane.",
+      "evidence_required": [
+        "serving boundary documentation",
+        "monitoring and incident-response contract",
+        "audit-retention and export verification"
+      ]
+    },
+    {
+      "id": "capacity-model-signature",
+      "severity": "P2",
+      "status": "conditional",
+      "surface": "optional capacity predictor model artifact",
+      "production_boundary": "The pickle model is constrained to a trusted resource root, but cryptographic signature verification is not yet a shipped requirement.",
+      "evidence_required": [
+        "signed capacity model manifest",
+        "hash or signature verification before deserialization",
+        "regression test for signature mismatch refusal"
+      ]
+    }
+  ]
+}
