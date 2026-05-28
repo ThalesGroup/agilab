@@ -169,13 +169,13 @@ def build_sidebar_dataframe_selection(
     )
     key_df = f"{index_page}df"
     default_index = next(
-        (i for i, rel_path in enumerate(df_files_rel) if rel_path.name == "default_df"),  # ty: ignore[unresolved-attribute]
+        (i for i, rel_path in enumerate(df_files_rel) if rel_path.name == "default_df"),
         0,
     )
     return SidebarDataframeSelection(
         module_path=Path(lab_dir_name),
-        df_files_rel=df_files_rel,  # ty: ignore[invalid-argument-type]
-        index_page=index_page,  # ty: ignore[invalid-argument-type]
+        df_files_rel=df_files_rel,
+        index_page=index_page,
         key_df=key_df,
         default_index=default_index,
     )
