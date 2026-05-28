@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 import html
 import json
 import os
@@ -78,6 +79,12 @@ class RegistrationResult:
     registered: bool
     already_registered: bool
     dry_run: bool = False
+
+
+@dataclass(frozen=True)
+class GitHubActionsVariable:
+    value: str
+    updated_at: float | None
 
 
 def _normalize_html(text: str) -> str:
@@ -200,12 +207,24 @@ def _response_diagnostic(text: str) -> str:
     return " || ".join(snippets)[:2400]
 
 
-def _fetch_github_actions_variable(
+def _parse_github_timestamp(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _fetch_github_actions_variable_payload(
     *,
     repository: str,
     variable: str,
     token: str,
-) -> str | None:
+) -> GitHubActionsVariable | None:
     api_url = f"https://api.github.com/repos/{repository}/actions/variables/{variable}"
     request = urllib.request.Request(
         api_url,
@@ -226,7 +245,39 @@ def _fetch_github_actions_variable(
             f"GitHub Actions variable lookup failed with HTTP {exc.code}"
         ) from exc
     value = str(payload.get("value") or "").strip()
-    return value or None
+    if not value:
+        return None
+    return GitHubActionsVariable(
+        value=value,
+        updated_at=_parse_github_timestamp(str(payload.get("updated_at") or "")),
+    )
+
+
+def _fetch_github_actions_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> str | None:
+    payload = _fetch_github_actions_variable_payload(
+        repository=repository,
+        variable=variable,
+        token=token,
+    )
+    return payload.value if payload else None
+
+
+def _github_variable_is_fresh(
+    payload: GitHubActionsVariable,
+    *,
+    minimum_updated_at: float,
+    allow_existing: bool,
+) -> bool:
+    if allow_existing:
+        return True
+    if payload.updated_at is None:
+        return False
+    return payload.updated_at >= minimum_updated_at
 
 
 def _wait_for_github_confirm_login_url(
@@ -236,16 +287,31 @@ def _wait_for_github_confirm_login_url(
     token: str,
     timeout: float,
     poll_delay: float,
+    allow_existing: bool = False,
 ) -> str | None:
+    minimum_updated_at = time.time() - 10.0
     deadline = time.monotonic() + max(0.0, timeout)
+    stale_reported = False
     while time.monotonic() <= deadline:
-        value = _fetch_github_actions_variable(
+        payload = _fetch_github_actions_variable_payload(
             repository=repository,
             variable=variable,
             token=token,
         )
-        if value:
-            return value
+        if payload and _github_variable_is_fresh(
+            payload,
+            minimum_updated_at=minimum_updated_at,
+            allow_existing=allow_existing,
+        ):
+            return payload.value
+        if payload and not stale_reported:
+            stale_reported = True
+            print(
+                "Ignoring stale PyPI login confirmation URL from GitHub Actions "
+                f"variable {variable!r}; set a fresh URL from the current PyPI "
+                "email for this runner attempt.",
+                file=sys.stderr,
+            )
         time.sleep(max(1.0, poll_delay))
     return None
 
@@ -473,6 +539,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=float,
         default=5.0,
     )
+    parser.add_argument(
+        "--allow-existing-github-confirm-login-url",
+        action="store_true",
+        help=(
+            "Allow a pre-existing PYPI_CONFIRM_LOGIN_URL value. The default is "
+            "to ignore values older than this workflow attempt so stale email "
+            "links cannot be reused accidentally."
+        ),
+    )
     parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -523,6 +598,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     token=args.github_token,
                     timeout=args.github_confirm_login_timeout,
                     poll_delay=args.github_confirm_login_poll_delay,
+                    allow_existing=args.allow_existing_github_confirm_login_url,
                 )
 
         result = register_pending_github_publisher(

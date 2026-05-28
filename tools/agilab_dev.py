@@ -74,6 +74,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"app-contracts", "apps-contracts"}:
         return [_uv_python("tools/app_contract_matrix.py", *args)]
 
+    if command == "audit":
+        return [_uv_python("tools/agilab_audit.py", *args)]
+
     if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
@@ -94,6 +97,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 ".github/workflows/pypi-publish.yaml",
             ),
             _uv_python("tools/pypi_release_version_policy.py"),
+            _uv_python("tools/pypi_project_preflight.py"),
             _uv_python(
                 "tools/pypi_trusted_publisher_contract.py",
                 "--check-workflow",
@@ -150,6 +154,7 @@ def _usage() -> str:
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] robust [robustness_matrix args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
+  ./dev [--print-only] audit [agilab_audit args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] typing [workflow-parity options]
   ./dev [--print-only] release [impact_validate args]
@@ -165,9 +170,10 @@ High-frequency mappings:
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
+  audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
-  release   -> Run local release guards: impact, generated PyPI plan, release cadence, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
+  release   -> Run local release guards: impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
