@@ -1491,8 +1491,9 @@ def test_sklearn_pipeline_app_writes_model_metrics_and_manifest(tmp_path: Path) 
     assert manifest["promotion_hint"] in {"candidate", "review"}
     assert manifest["artifacts"]["model"]["path"] == "model.joblib"
     assert manifest["artifacts"]["predictions"]["sha256"] == summary["artifacts"]["predictions"]["sha256"]
+    assert summary_payload == summary
     assert summary_payload["artifacts"]["manifest"]["sha256"] == summary["artifacts"]["manifest"]["sha256"]
-    assert summary["artifacts"]["summary"]["path"] == "sklearn_pipeline_summary.json"
+    assert "summary" not in summary["artifacts"]
     assert (tmp_path / "model.joblib").is_file()
     assert (tmp_path / "sklearn_report.md").is_file()
     assert predictions[0] == "row_id,target,prediction,positive_probability"

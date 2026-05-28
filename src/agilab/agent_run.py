@@ -19,7 +19,12 @@ from uuid import uuid4
 
 from agilab.agent_config import load_agent_config, resolve_agent_provider
 from agilab.agent_tool_safety import evaluate_tool_permission, normalize_permission_level
-from agilab.agent_trace import AgentTraceStore, trace_artifact_payload
+from agilab.agent_trace import (
+    AgentTraceStore,
+    load_trace_events,
+    trace_artifact_payload,
+    validate_event_sequence,
+)
 from agilab.secret_uri import redact_text
 
 
@@ -929,6 +934,10 @@ def find_agent_run_manifests(
     *,
     agent: str | None = None,
     status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
     limit: int | None = None,
 ) -> list[Path]:
     """Find agent-run manifest files, newest first."""
@@ -937,6 +946,10 @@ def find_agent_run_manifests(
     search_root = Path(root).expanduser() if explicit_root else _default_log_root() / "agents"
     if agent and not explicit_root:
         search_root = search_root / _slug(agent, "agent")
+    required_tags = set(_normalize_tags(tags))
+    required_metadata = dict(metadata or {})
+    required_protocol_adapters = set(_normalize_slug_values(protocol_adapters))
+    required_capabilities = set(_normalize_slug_values(capabilities))
     if not search_root.exists():
         return []
     candidates = [
@@ -945,7 +958,14 @@ def find_agent_run_manifests(
         if path.is_file()
     ]
     candidates.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
-    if agent or status:
+    if (
+        agent
+        or status
+        or required_tags
+        or required_metadata
+        or required_protocol_adapters
+        or required_capabilities
+    ):
         filtered: list[Path] = []
         for path in candidates:
             try:
@@ -955,9 +975,41 @@ def find_agent_run_manifests(
             if agent and manifest.get("agent") != agent:
                 continue
             if manifest.get("status") == status:
-                filtered.append(path)
-            elif not status:
-                filtered.append(path)
+                pass
+            elif status:
+                continue
+            context = manifest.get("context", {})
+            context_map = context if isinstance(context, dict) else {}
+            raw_tags = context_map.get("tags", [])
+            manifest_tags = set(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else set()
+            if required_tags and not required_tags.issubset(manifest_tags):
+                continue
+            raw_metadata = context_map.get("metadata", {})
+            manifest_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            if required_metadata and any(
+                str(manifest_metadata.get(key, "")) != value
+                for key, value in required_metadata.items()
+            ):
+                continue
+            protocols = manifest.get("protocols", {})
+            protocols_map = protocols if isinstance(protocols, dict) else {}
+            raw_adapters = protocols_map.get("adapters", [])
+            manifest_adapters = (
+                set(str(value) for value in raw_adapters)
+                if isinstance(raw_adapters, list)
+                else set()
+            )
+            if required_protocol_adapters and not required_protocol_adapters.issubset(manifest_adapters):
+                continue
+            raw_capabilities = protocols_map.get("capabilities", [])
+            manifest_capabilities = (
+                set(str(value) for value in raw_capabilities)
+                if isinstance(raw_capabilities, list)
+                else set()
+            )
+            if required_capabilities and not required_capabilities.issubset(manifest_capabilities):
+                continue
+            filtered.append(path)
         candidates = filtered
     return candidates[:limit] if limit is not None else candidates
 
@@ -967,12 +1019,25 @@ def list_agent_runs(
     *,
     agent: str | None = None,
     status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
     limit: int | None = None,
 ) -> list[AgentRunSummary]:
     """Return compact summaries for agent-run manifests, newest first."""
 
     summaries: list[AgentRunSummary] = []
-    for path in find_agent_run_manifests(root, agent=agent, status=status, limit=limit):
+    for path in find_agent_run_manifests(
+        root,
+        agent=agent,
+        status=status,
+        tags=tags,
+        metadata=metadata,
+        protocol_adapters=protocol_adapters,
+        capabilities=capabilities,
+        limit=limit,
+    ):
         try:
             summaries.append(summarize_agent_run(load_agent_run_manifest(path)))
         except (OSError, json.JSONDecodeError, ValueError):
@@ -1086,6 +1151,20 @@ def _build_list_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
     parser.add_argument("--agent", default="", help="Only list runs for this agent.")
     parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout", "denied"], help="Only list runs with this status.")
+    parser.add_argument("--tag", action="append", default=[], help="Only list runs containing this tag. May be repeated.")
+    parser.add_argument("--metadata", action="append", default=[], help="Only list runs with this metadata KEY=VALUE. May be repeated.")
+    parser.add_argument(
+        "--protocol-adapter",
+        action="append",
+        default=[],
+        help="Only list runs containing this protocol adapter label. May be repeated.",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Only list runs containing this capability label. May be repeated.",
+    )
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to list.")
     parser.add_argument("--json", action="store_true", help="Print summaries as JSON.")
     return parser
@@ -1108,6 +1187,794 @@ def _summary_payload(summary: AgentRunSummary) -> dict[str, object]:
     }
 
 
+def _protocol_summary(manifest: dict[str, object]) -> dict[str, object]:
+    protocols = manifest.get("protocols", {})
+    protocols_map = protocols if isinstance(protocols, dict) else {}
+    return {
+        "adapters": list(protocols_map.get("adapters", []))
+        if isinstance(protocols_map.get("adapters"), list)
+        else [],
+        "capabilities": list(protocols_map.get("capabilities", []))
+        if isinstance(protocols_map.get("capabilities"), list)
+        else [],
+        "mode": str(protocols_map.get("mode") or ""),
+    }
+
+
+def agent_handoff_payload(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Build a compact, redacted handoff card for a prior agent run."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    command = manifest.get("command", {})
+    command_map = command if isinstance(command, dict) else {}
+    permission = manifest.get("permission", {})
+    permission_map = permission if isinstance(permission, dict) else {}
+    trace_events: list[dict[str, object]] = []
+    if summary.trace_events_path:
+        for event in load_trace_events(summary.trace_events_path.parent):
+            trace_events.append(
+                {
+                    "sequence": event.sequence,
+                    "event": event.event,
+                    "status": event.status,
+                    "message": event.message,
+                }
+            )
+    manifest_path = str(summary.manifest_path)
+    continue_prompt = (
+        "Continue from AGILAB agent-run evidence "
+        f"{manifest_path}. Read the manifest first, inspect stdout/stderr only if needed, "
+        "and preserve the recorded tags, metadata, protocol adapters, and capabilities "
+        "when creating follow-up evidence."
+    )
+    return {
+        "schema": "agilab.agent_handoff.v1",
+        "run": _summary_payload(summary),
+        "command": {
+            "argv": command_map.get("argv", []),
+            "argv_redacted": bool(command_map.get("argv_redacted", False)),
+            "argv_count": command_map.get("argv_count"),
+            "argv_sha256": command_map.get("argv_sha256"),
+            "cwd": command_map.get("cwd"),
+        },
+        "protocols": _protocol_summary(manifest),
+        "permission": {
+            "allowed": bool(permission_map.get("allowed", False)),
+            "tier": permission_map.get("tier"),
+            "level": permission_map.get("level"),
+            "reason": permission_map.get("reason"),
+        },
+        "trace": {
+            "event_count": len(trace_events),
+            "events": trace_events,
+        },
+        "handoff": {
+            "continue_prompt": continue_prompt,
+            "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+        },
+    }
+
+
+def render_handoff_markdown(payload: dict[str, object]) -> str:
+    """Render an agent handoff payload as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    protocols = payload.get("protocols", {})
+    protocol_map = protocols if isinstance(protocols, dict) else {}
+    handoff = payload.get("handoff", {})
+    handoff_map = handoff if isinstance(handoff, dict) else {}
+    trace = payload.get("trace", {})
+    trace_map = trace if isinstance(trace, dict) else {}
+    tags = run_map.get("tags", [])
+    metadata = run_map.get("metadata", {})
+    lines = [
+        "# AGILAB agent handoff",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- agent: {run_map.get('agent', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- label: {run_map.get('label', '')}",
+        f"- manifest: {run_map.get('manifest', '')}",
+        f"- stdout: {run_map.get('stdout', '')}",
+        f"- stderr: {run_map.get('stderr', '')}",
+        f"- trace_events: {run_map.get('trace_events', '')}",
+        f"- tags: {', '.join(str(tag) for tag in tags) if isinstance(tags, list) else ''}",
+        f"- metadata: {json.dumps(metadata, sort_keys=True) if isinstance(metadata, dict) else '{}'}",
+        f"- protocol_adapters: {', '.join(str(value) for value in protocol_map.get('adapters', []))}",
+        f"- capabilities: {', '.join(str(value) for value in protocol_map.get('capabilities', []))}",
+        f"- trace_event_count: {trace_map.get('event_count', 0)}",
+        "",
+        "## Continue prompt",
+        "",
+        str(handoff_map.get("continue_prompt", "")),
+    ]
+    return "\n".join(lines)
+
+
+def _next_action_items(summary: AgentRunSummary, permission: Mapping[str, object]) -> list[dict[str, str]]:
+    status = summary.status
+    if status == "pass":
+        return [
+            {
+                "priority": "P1",
+                "action": "Attach this manifest path to the proof, review, or release note that depends on it.",
+                "reason": "The agent run completed successfully and has reusable evidence artifacts.",
+            },
+            {
+                "priority": "P2",
+                "action": "Use matching tags, metadata, protocol adapters, and capabilities for follow-up runs.",
+                "reason": "Context-stable metadata keeps later agent evidence queryable.",
+            },
+        ]
+    if status == "denied":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect the permission tier and stderr artifact before rerunning.",
+                "reason": str(permission.get("reason") or "The command was blocked by the permission policy."),
+            },
+            {
+                "priority": "P1",
+                "action": "Prefer a narrower non-destructive command; escalate permission only with explicit operator intent.",
+                "reason": "AGILAB records confirmation requirements but does not sandbox the process.",
+            },
+        ]
+    if status == "timeout":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect stderr, stdout, and trace events to identify the slow phase before increasing timeout.",
+                "reason": "A timeout is ambiguous without artifact review.",
+            },
+            {
+                "priority": "P1",
+                "action": "Retry with the same tags and metadata after narrowing the command or extending timeout deliberately.",
+                "reason": "Stable context makes timeout regressions comparable.",
+            },
+        ]
+    if status == "fail":
+        return [
+            {
+                "priority": "P0",
+                "action": "Inspect stderr and trace events, fix the smallest reproducible cause, then rerun.",
+                "reason": "The command returned a non-zero exit status.",
+            },
+            {
+                "priority": "P1",
+                "action": "Record the follow-up run with metadata followup_of=<run_id>.",
+                "reason": "A linked follow-up preserves the debugging chain for another agent.",
+            },
+        ]
+    return [
+        {
+            "priority": "P1",
+            "action": "Read the manifest and trace events before deciding whether to rerun or archive this evidence.",
+            "reason": f"Status {status!r} does not have a specialized policy.",
+        }
+    ]
+
+
+def agent_next_actions_payload(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Build deterministic next-action guidance from one agent-run manifest."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    permission = manifest.get("permission", {})
+    permission_map = permission if isinstance(permission, dict) else {}
+    followup_metadata = dict(summary.metadata)
+    if summary.run_id:
+        followup_metadata["followup_of"] = summary.run_id
+    return {
+        "schema": "agilab.agent_next_actions.v1",
+        "run": _summary_payload(summary),
+        "protocols": _protocol_summary(manifest),
+        "permission": {
+            "allowed": bool(permission_map.get("allowed", False)),
+            "tier": permission_map.get("tier"),
+            "level": permission_map.get("level"),
+            "reason": permission_map.get("reason"),
+        },
+        "next_actions": _next_action_items(summary, permission_map),
+        "followup_context": {
+            "agent": summary.agent,
+            "tags": list(summary.tags),
+            "metadata": followup_metadata,
+            "protocol_adapters": _protocol_summary(manifest)["adapters"],
+            "capabilities": _protocol_summary(manifest)["capabilities"],
+            "command_policy": (
+                "Do not reconstruct redacted argv from the manifest. Rebuild the next command from current task context."
+            ),
+        },
+    }
+
+
+def render_next_actions_markdown(payload: dict[str, object]) -> str:
+    """Render next-action guidance as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    actions = payload.get("next_actions", [])
+    action_list = actions if isinstance(actions, list) else []
+    lines = [
+        "# AGILAB agent next actions",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- agent: {run_map.get('agent', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- manifest: {run_map.get('manifest', '')}",
+        "",
+        "## Recommended actions",
+        "",
+    ]
+    for item in action_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('priority', 'P?')}: {item.get('action', '')} "
+            f"Reason: {item.get('reason', '')}"
+        )
+    return "\n".join(lines)
+
+
+def agent_context_payload(
+    root: Path | str | None = None,
+    *,
+    agent: str | None = None,
+    status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
+    limit: int = 20,
+) -> dict[str, object]:
+    """Build a safe context pack from matching agent-run evidence."""
+
+    summaries = list_agent_runs(
+        root,
+        agent=agent,
+        status=status,
+        tags=tags,
+        metadata=metadata,
+        protocol_adapters=protocol_adapters,
+        capabilities=capabilities,
+        limit=limit,
+    )
+    status_counts: dict[str, int] = {}
+    for summary in summaries:
+        key = summary.status or "unknown"
+        status_counts[key] = status_counts.get(key, 0) + 1
+    latest_handoff: dict[str, object] | None = None
+    latest_next_actions: dict[str, object] | None = None
+    if summaries and str(summaries[0].manifest_path):
+        try:
+            latest_handoff = agent_handoff_payload(summaries[0].manifest_path)
+            latest_next_actions = agent_next_actions_payload(summaries[0].manifest_path)
+        except (OSError, json.JSONDecodeError, ValueError):
+            latest_handoff = None
+            latest_next_actions = None
+    return {
+        "schema": "agilab.agent_context.v1",
+        "query": {
+            "root": str(Path(root).expanduser()) if root is not None else "~/log/agents",
+            "agent": agent,
+            "status": status,
+            "tags": list(_normalize_tags(tags)),
+            "metadata": dict(metadata or {}),
+            "protocol_adapters": list(_normalize_slug_values(protocol_adapters)),
+            "capabilities": list(_normalize_slug_values(capabilities)),
+            "limit": limit,
+        },
+        "match_count": len(summaries),
+        "status_counts": status_counts,
+        "runs": [_summary_payload(summary) for summary in summaries],
+        "latest": {
+            "handoff": latest_handoff,
+            "next_actions": latest_next_actions,
+        },
+        "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_context_markdown(payload: dict[str, object]) -> str:
+    """Render an agent context pack as compact Markdown."""
+
+    runs = payload.get("runs", [])
+    run_list = runs if isinstance(runs, list) else []
+    status_counts = payload.get("status_counts", {})
+    status_map = status_counts if isinstance(status_counts, dict) else {}
+    latest = payload.get("latest", {})
+    latest_map = latest if isinstance(latest, dict) else {}
+    latest_next = latest_map.get("next_actions", {})
+    latest_next_map = latest_next if isinstance(latest_next, dict) else {}
+    actions = latest_next_map.get("next_actions", [])
+    action_list = actions if isinstance(actions, list) else []
+    lines = [
+        "# AGILAB agent context pack",
+        "",
+        f"- match_count: {payload.get('match_count', 0)}",
+        f"- status_counts: {json.dumps(status_map, sort_keys=True)}",
+        "",
+        "## Matching runs",
+        "",
+    ]
+    if not run_list:
+        lines.append("- No matching agent runs found.")
+    for item in run_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('status', '-')}: {item.get('agent', '-')} "
+            f"{item.get('run_id', '-')} - {item.get('label', '')}"
+        )
+    if action_list:
+        lines.extend(["", "## Latest run next actions", ""])
+        for item in action_list:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('priority', 'P?')}: {item.get('action', '')} "
+                f"Reason: {item.get('reason', '')}"
+            )
+    return "\n".join(lines)
+
+
+def agent_lineage_payload(
+    root: Path | str | None = None,
+    *,
+    run_id: str,
+) -> dict[str, object]:
+    """Build a follow-up lineage graph from agent-run metadata."""
+
+    summaries = list_agent_runs(root, limit=None)
+    by_run_id = {summary.run_id: summary for summary in summaries if summary.run_id}
+    children_by_parent: dict[str, list[AgentRunSummary]] = {}
+    parent_by_child: dict[str, str] = {}
+    for summary in summaries:
+        parent = summary.metadata.get("followup_of")
+        if not isinstance(parent, str) or not parent:
+            continue
+        parent_by_child[summary.run_id] = parent
+        children_by_parent.setdefault(parent, []).append(summary)
+
+    target = by_run_id.get(run_id)
+    ancestors: list[AgentRunSummary] = []
+    seen = {run_id}
+    cursor = run_id
+    while cursor in parent_by_child:
+        parent_id = parent_by_child[cursor]
+        if parent_id in seen:
+            break
+        seen.add(parent_id)
+        parent = by_run_id.get(parent_id)
+        if parent is None:
+            break
+        ancestors.append(parent)
+        cursor = parent_id
+    ancestors.reverse()
+
+    descendants: list[AgentRunSummary] = []
+
+    def visit(parent_id: str, seen_ids: set[str]) -> None:
+        for child in children_by_parent.get(parent_id, []):
+            if child.run_id in seen_ids:
+                continue
+            seen_ids.add(child.run_id)
+            descendants.append(child)
+            visit(child.run_id, seen_ids)
+
+    visit(run_id, {run_id})
+    chain = [*ancestors, *([target] if target is not None else []), *descendants]
+    edges = [
+        {"from": parent, "to": child}
+        for child, parent in sorted(parent_by_child.items())
+        if child in by_run_id and parent in by_run_id
+    ]
+    return {
+        "schema": "agilab.agent_lineage.v1",
+        "query": {
+            "root": str(Path(root).expanduser()) if root is not None else "~/log/agents",
+            "run_id": run_id,
+        },
+        "found": target is not None,
+        "target": _summary_payload(target) if target is not None else None,
+        "ancestors": [_summary_payload(summary) for summary in ancestors],
+        "descendants": [_summary_payload(summary) for summary in descendants],
+        "chain": [_summary_payload(summary) for summary in chain],
+        "edges": edges,
+        "artifact_policy": "Manifest paths and metadata links only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_lineage_markdown(payload: dict[str, object]) -> str:
+    """Render an agent lineage graph as compact Markdown."""
+
+    chain = payload.get("chain", [])
+    chain_list = chain if isinstance(chain, list) else []
+    edges = payload.get("edges", [])
+    edge_list = edges if isinstance(edges, list) else []
+    lines = [
+        "# AGILAB agent lineage",
+        "",
+        f"- run_id: {payload.get('query', {}).get('run_id', '') if isinstance(payload.get('query'), dict) else ''}",
+        f"- found: {payload.get('found', False)}",
+        "",
+        "## Chain",
+        "",
+    ]
+    if not chain_list:
+        lines.append("- No linked agent runs found.")
+    for item in chain_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('status', '-')}: {item.get('run_id', '-')} "
+            f"({item.get('agent', '-')}) - {item.get('label', '')}"
+        )
+    if edge_list:
+        lines.extend(["", "## Links", ""])
+        for edge in edge_list:
+            if not isinstance(edge, dict):
+                continue
+            lines.append(f"- {edge.get('from', '')} -> {edge.get('to', '')}")
+    return "\n".join(lines)
+
+
+def _string_set_delta(left: Sequence[object], right: Sequence[object]) -> dict[str, list[str]]:
+    left_set = {str(value) for value in left}
+    right_set = {str(value) for value in right}
+    return {
+        "added": sorted(right_set - left_set),
+        "removed": sorted(left_set - right_set),
+    }
+
+
+def _metadata_delta(
+    left: Mapping[str, object], right: Mapping[str, object]
+) -> dict[str, object]:
+    left_keys = set(left)
+    right_keys = set(right)
+    shared = left_keys & right_keys
+    return {
+        "added": {key: right[key] for key in sorted(right_keys - left_keys)},
+        "removed": {key: left[key] for key in sorted(left_keys - right_keys)},
+        "changed": {
+            key: {"left": left[key], "right": right[key]}
+            for key in sorted(shared)
+            if left[key] != right[key]
+        },
+    }
+
+
+def _trace_event_count(summary: AgentRunSummary) -> int:
+    if not summary.trace_events_path:
+        return 0
+    try:
+        return len(load_trace_events(summary.trace_events_path.parent))
+    except OSError:
+        return 0
+
+
+def compare_agent_runs(
+    left_manifest_or_path: dict[str, object] | Path | str,
+    right_manifest_or_path: dict[str, object] | Path | str,
+) -> dict[str, object]:
+    """Compare two agent-run manifests without embedding stdout/stderr contents."""
+
+    left_manifest = (
+        left_manifest_or_path
+        if isinstance(left_manifest_or_path, dict)
+        else load_agent_run_manifest(left_manifest_or_path)
+    )
+    right_manifest = (
+        right_manifest_or_path
+        if isinstance(right_manifest_or_path, dict)
+        else load_agent_run_manifest(right_manifest_or_path)
+    )
+    left = summarize_agent_run(left_manifest)
+    right = summarize_agent_run(right_manifest)
+    left_command = left_manifest.get("command", {})
+    right_command = right_manifest.get("command", {})
+    left_command_map = left_command if isinstance(left_command, dict) else {}
+    right_command_map = right_command if isinstance(right_command, dict) else {}
+    left_protocols = _protocol_summary(left_manifest)
+    right_protocols = _protocol_summary(right_manifest)
+    left_trace_count = _trace_event_count(left)
+    right_trace_count = _trace_event_count(right)
+    return {
+        "schema": "agilab.agent_compare.v1",
+        "left": _summary_payload(left),
+        "right": _summary_payload(right),
+        "status_changed": left.status != right.status,
+        "returncode_changed": left.returncode != right.returncode,
+        "duration_delta_seconds": right.duration_seconds - left.duration_seconds,
+        "command": {
+            "argv_sha256_changed": left_command_map.get("argv_sha256")
+            != right_command_map.get("argv_sha256"),
+            "argv_count_delta": int(right_command_map.get("argv_count") or 0)
+            - int(left_command_map.get("argv_count") or 0),
+            "cwd_changed": left_command_map.get("cwd") != right_command_map.get("cwd"),
+        },
+        "tags": _string_set_delta(left.tags, right.tags),
+        "metadata": _metadata_delta(left.metadata, right.metadata),
+        "protocol_adapters": _string_set_delta(
+            left_protocols["adapters"], right_protocols["adapters"]
+        ),
+        "capabilities": _string_set_delta(
+            left_protocols["capabilities"], right_protocols["capabilities"]
+        ),
+        "trace_event_count_delta": right_trace_count - left_trace_count,
+        "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_compare_markdown(payload: dict[str, object]) -> str:
+    """Render an agent-run comparison as compact Markdown."""
+
+    left = payload.get("left", {})
+    right = payload.get("right", {})
+    left_map = left if isinstance(left, dict) else {}
+    right_map = right if isinstance(right, dict) else {}
+    lines = [
+        "# AGILAB agent-run comparison",
+        "",
+        f"- left: {left_map.get('run_id', '')} ({left_map.get('status', '')})",
+        f"- right: {right_map.get('run_id', '')} ({right_map.get('status', '')})",
+        f"- status_changed: {payload.get('status_changed', False)}",
+        f"- returncode_changed: {payload.get('returncode_changed', False)}",
+        f"- duration_delta_seconds: {payload.get('duration_delta_seconds', 0.0)}",
+        f"- trace_event_count_delta: {payload.get('trace_event_count_delta', 0)}",
+    ]
+    metadata = payload.get("metadata", {})
+    if isinstance(metadata, dict) and any(metadata.get(key) for key in ("added", "removed", "changed")):
+        lines.extend(["", "## Metadata delta", "", json.dumps(metadata, sort_keys=True)])
+    return "\n".join(lines)
+
+
+def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Validate one agent-run manifest enough for safe read-side reuse."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    issues: list[dict[str, str]] = []
+    warnings: list[dict[str, str]] = []
+
+    def fail(code: str, message: str) -> None:
+        issues.append({"code": code, "message": message})
+
+    def warn(code: str, message: str) -> None:
+        warnings.append({"code": code, "message": message})
+
+    if manifest.get("kind") != TRACE_KIND:
+        fail("kind", f"unsupported manifest kind: {manifest.get('kind')!r}")
+    if summary.status not in {"planned", "pass", "fail", "timeout", "denied"}:
+        fail("status", f"unsupported status: {summary.status!r}")
+    if summary.manifest_path and not summary.manifest_path.exists():
+        fail("manifest_path", f"manifest artifact path is missing: {summary.manifest_path}")
+    if summary.status != "planned":
+        if not summary.stdout_path:
+            fail("stdout_path", "stdout artifact path is missing from manifest")
+        elif not summary.stdout_path.exists():
+            fail("stdout_exists", f"stdout artifact does not exist: {summary.stdout_path}")
+        if not summary.stderr_path:
+            fail("stderr_path", "stderr artifact path is missing from manifest")
+        elif not summary.stderr_path.exists():
+            fail("stderr_exists", f"stderr artifact does not exist: {summary.stderr_path}")
+
+    command = manifest.get("command", {})
+    command_map = command if isinstance(command, dict) else {}
+    if command_map.get("argv_redacted") is False:
+        warn("argv_redaction", "command arguments are stored in full; confirm they contain no prompt secrets")
+    if not command_map.get("argv_sha256"):
+        fail("argv_sha256", "command argv hash is missing")
+
+    if summary.trace_events_path:
+        if summary.trace_events_path.exists():
+            trace_events = load_trace_events(summary.trace_events_path.parent)
+            for issue in validate_event_sequence(trace_events):
+                fail("trace_sequence", issue)
+        else:
+            fail("trace_events_exists", f"trace events file does not exist: {summary.trace_events_path}")
+    else:
+        warn("trace_events_path", "trace events path is missing from manifest")
+
+    return {
+        "schema": "agilab.agent_run_validation.v1",
+        "run": _summary_payload(summary),
+        "ok": not issues,
+        "issue_count": len(issues),
+        "warning_count": len(warnings),
+        "issues": issues,
+        "warnings": warnings,
+        "artifact_policy": "Validation inspects manifest metadata and artifact presence; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_validation_markdown(payload: dict[str, object]) -> str:
+    """Render agent-run validation as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    issues = payload.get("issues", [])
+    warnings = payload.get("warnings", [])
+    issue_list = issues if isinstance(issues, list) else []
+    warning_list = warnings if isinstance(warnings, list) else []
+    lines = [
+        "# AGILAB agent-run validation",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- ok: {payload.get('ok', False)}",
+        f"- issue_count: {payload.get('issue_count', 0)}",
+        f"- warning_count: {payload.get('warning_count', 0)}",
+    ]
+    if issue_list:
+        lines.extend(["", "## Issues", ""])
+        for issue in issue_list:
+            if isinstance(issue, dict):
+                lines.append(f"- {issue.get('code', '')}: {issue.get('message', '')}")
+    if warning_list:
+        lines.extend(["", "## Warnings", ""])
+        for warning in warning_list:
+            if isinstance(warning, dict):
+                lines.append(f"- {warning.get('code', '')}: {warning.get('message', '')}")
+    return "\n".join(lines)
+
+
+def _build_handoff_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print the handoff card as JSON.")
+    return parser
+
+
+def _build_next_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render AGILAB agent-run next-action guidance.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print next-action guidance as JSON.")
+    return parser
+
+
+def _build_context_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run context pack.")
+    parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
+    parser.add_argument("--agent", default="", help="Only include runs for this agent.")
+    parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout", "denied"], help="Only include runs with this status.")
+    parser.add_argument("--tag", action="append", default=[], help="Only include runs containing this tag. May be repeated.")
+    parser.add_argument("--metadata", action="append", default=[], help="Only include runs with this metadata KEY=VALUE. May be repeated.")
+    parser.add_argument(
+        "--protocol-adapter",
+        action="append",
+        default=[],
+        help="Only include runs containing this protocol adapter label. May be repeated.",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Only include runs containing this capability label. May be repeated.",
+    )
+    parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to include.")
+    parser.add_argument("--json", action="store_true", help="Print the context pack as JSON.")
+    return parser
+
+
+def _build_lineage_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run follow-up lineage.")
+    parser.add_argument("run_id", help="Target agent-run id to explain.")
+    parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
+    parser.add_argument("--json", action="store_true", help="Print the lineage graph as JSON.")
+    return parser
+
+
+def _build_compare_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Compare two AGILAB agent-run manifests.")
+    parser.add_argument("left_manifest", help="Left agent-run manifest path or run directory.")
+    parser.add_argument("right_manifest", help="Right agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print the comparison as JSON.")
+    return parser
+
+
+def _build_validate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate one AGILAB agent-run manifest.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print validation as JSON.")
+    return parser
+
+
+def _main_handoff(argv: Sequence[str]) -> int:
+    parser = _build_handoff_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_handoff_payload(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_handoff_markdown(payload))
+    return 0
+
+
+def _main_next(argv: Sequence[str]) -> int:
+    parser = _build_next_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_next_actions_payload(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_next_actions_markdown(payload))
+    return 0
+
+
+def _main_context(argv: Sequence[str]) -> int:
+    parser = _build_context_parser()
+    args = parser.parse_args(list(argv))
+    if args.limit < 0:
+        parser.error("--limit must be >= 0")
+    payload = agent_context_payload(
+        Path(args.root).expanduser() if args.root else None,
+        agent=args.agent or None,
+        status=args.status or None,
+        tags=args.tag,
+        metadata=_parse_metadata(args.metadata),
+        protocol_adapters=args.protocol_adapter,
+        capabilities=args.capability,
+        limit=args.limit,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_context_markdown(payload))
+    return 0
+
+
+def _main_lineage(argv: Sequence[str]) -> int:
+    parser = _build_lineage_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_lineage_payload(
+        Path(args.root).expanduser() if args.root else None,
+        run_id=args.run_id,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_lineage_markdown(payload))
+    return 0
+
+
+def _main_compare(argv: Sequence[str]) -> int:
+    parser = _build_compare_parser()
+    args = parser.parse_args(list(argv))
+    payload = compare_agent_runs(
+        Path(args.left_manifest).expanduser(),
+        Path(args.right_manifest).expanduser(),
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_compare_markdown(payload))
+    return 0
+
+
+def _main_validate(argv: Sequence[str]) -> int:
+    parser = _build_validate_parser()
+    args = parser.parse_args(list(argv))
+    payload = validate_agent_run(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_validation_markdown(payload))
+    return 0 if payload["ok"] else 1
+
+
 def _render_summary_table(summaries: Sequence[AgentRunSummary]) -> str:
     if not summaries:
         return "No AGILAB agent runs found."
@@ -1128,6 +1995,10 @@ def _main_list(argv: Sequence[str]) -> int:
         Path(args.root).expanduser() if args.root else None,
         agent=args.agent or None,
         status=args.status or None,
+        tags=args.tag,
+        metadata=_parse_metadata(args.metadata),
+        protocol_adapters=args.protocol_adapter,
+        capabilities=args.capability,
         limit=args.limit,
     )
     if args.json:
@@ -1156,6 +2027,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv[:1] == ["list"]:
         return _main_list(raw_argv[1:])
+    if raw_argv[:1] == ["handoff"]:
+        return _main_handoff(raw_argv[1:])
+    if raw_argv[:1] in (["next"], ["next-actions"], ["next_actions"]):
+        return _main_next(raw_argv[1:])
+    if raw_argv[:1] == ["context"]:
+        return _main_context(raw_argv[1:])
+    if raw_argv[:1] == ["lineage"]:
+        return _main_lineage(raw_argv[1:])
+    if raw_argv[:1] == ["compare"]:
+        return _main_compare(raw_argv[1:])
+    if raw_argv[:1] in (["validate"], ["check"], ["audit"]):
+        return _main_validate(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:

@@ -468,6 +468,10 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
             "review",
             "--metadata",
             "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence review",
             "--permission-level",
             "standard",
             "--",
@@ -513,8 +517,36 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
 
     assert [path.parent.name for path in module.find_agent_run_manifests(run_root, status="fail")] == ["aider-run"]
     assert [item.run_id for item in module.list_agent_runs(run_root, agent="codex")] == ["agent-codex"]
+    assert [
+        item.run_id
+        for item in module.list_agent_runs(
+            run_root,
+            tags=("review",),
+            metadata={"branch": "main"},
+            protocol_adapters=("MCP",),
+            capabilities=("evidence review",),
+        )
+    ] == ["agent-codex"]
+    assert module.list_agent_runs(run_root, metadata={"branch": "other"}) == []
 
-    assert module.main(["list", "--root", str(run_root), "--agent", "codex", "--json"]) == 0
+    assert module.main(
+        [
+            "list",
+            "--root",
+            str(run_root),
+            "--agent",
+            "codex",
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--json",
+        ]
+    ) == 0
     listed = json.loads(capsys.readouterr().out)
     assert [item["run_id"] for item in listed] == ["agent-codex"]
     assert listed[0]["metadata"] == {"branch": "main"}
@@ -547,6 +579,464 @@ def test_agent_run_failure_returns_command_status_and_manifest(tmp_path: Path, c
     assert payload["status"] == "fail"
     assert payload["returncode"] == 7
     assert (tmp_path / "stderr.txt").read_text(encoding="utf-8").strip() == "bad"
+
+
+def test_agent_run_handoff_card_does_not_embed_output(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Handoff smoke",
+            "--run-id",
+            "agent-handoff",
+            "--output-dir",
+            str(tmp_path),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private output should stay in stdout artifact')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.agent_handoff_payload(tmp_path)
+    assert payload["schema"] == "agilab.agent_handoff.v1"
+    assert payload["run"]["run_id"] == "agent-handoff"
+    assert payload["run"]["tags"] == ["review"]
+    assert payload["protocols"]["adapters"] == ["mcp"]
+    assert payload["protocols"]["capabilities"] == ["evidence-review"]
+    assert payload["trace"]["event_count"] == 6
+    assert "private output" not in json.dumps(payload)
+    assert "Continue from AGILAB agent-run evidence" in payload["handoff"]["continue_prompt"]
+
+    assert module.main(["handoff", str(tmp_path), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["run"]["run_id"] == "agent-handoff"
+    assert "private output" not in json.dumps(cli_payload)
+
+    assert module.main(["handoff", str(tmp_path)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent handoff" in markdown
+    assert "agent-handoff" in markdown
+    assert "private output" not in markdown
+
+
+def test_agent_run_next_actions_are_status_aware(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    fail_dir = tmp_path / "fail"
+    denied_dir = tmp_path / "denied"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Failing smoke",
+            "--run-id",
+            "agent-fail-next",
+            "--output-dir",
+            str(fail_dir),
+            "--tag",
+            "debug",
+            "--metadata",
+            "branch=main",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(7)",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Denied smoke",
+            "--run-id",
+            "agent-denied-next",
+            "--output-dir",
+            str(denied_dir),
+            "--",
+            sys.executable,
+            "-c",
+            "print('should not run')",
+        ]
+    ) == 126
+    capsys.readouterr()
+
+    fail_payload = module.agent_next_actions_payload(fail_dir)
+    assert fail_payload["schema"] == "agilab.agent_next_actions.v1"
+    assert fail_payload["run"]["status"] == "fail"
+    assert fail_payload["followup_context"]["metadata"]["followup_of"] == "agent-fail-next"
+    assert fail_payload["next_actions"][0]["priority"] == "P0"
+    assert "stderr" in fail_payload["next_actions"][0]["action"]
+
+    denied_payload = module.agent_next_actions_payload(denied_dir)
+    assert denied_payload["run"]["status"] == "denied"
+    assert denied_payload["permission"]["allowed"] is False
+    assert "permission" in denied_payload["next_actions"][0]["action"]
+
+    assert module.main(["next", str(fail_dir), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["run"]["run_id"] == "agent-fail-next"
+
+    assert module.main(["next-actions", str(denied_dir)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent next actions" in markdown
+    assert "agent-denied-next" in markdown
+
+
+def test_agent_run_context_pack_summarizes_matching_runs(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    run_root = tmp_path / "runs"
+    first_dir = run_root / "first"
+    second_dir = run_root / "second"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "First pass",
+            "--run-id",
+            "agent-context-pass",
+            "--output-dir",
+            str(first_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('context private output')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Second fail",
+            "--run-id",
+            "agent-context-fail",
+            "--output-dir",
+            str(second_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(3)",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.agent_context_payload(
+        run_root,
+        agent="codex",
+        tags=("review",),
+        metadata={"branch": "main"},
+        protocol_adapters=("mcp",),
+        capabilities=("evidence-review",),
+    )
+    assert payload["schema"] == "agilab.agent_context.v1"
+    assert payload["match_count"] == 2
+    assert payload["status_counts"] == {"fail": 1, "pass": 1}
+    assert [item["run_id"] for item in payload["runs"]] == [
+        "agent-context-fail",
+        "agent-context-pass",
+    ]
+    assert payload["latest"]["handoff"]["run"]["run_id"] == "agent-context-fail"
+    assert payload["latest"]["next_actions"]["run"]["status"] == "fail"
+    assert "context private output" not in json.dumps(payload)
+
+    assert module.main(
+        [
+            "context",
+            "--root",
+            str(run_root),
+            "--agent",
+            "codex",
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--json",
+        ]
+    ) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["match_count"] == 2
+    assert "context private output" not in json.dumps(cli_payload)
+
+    assert module.main(["context", "--root", str(run_root)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent context pack" in markdown
+    assert "agent-context-fail" in markdown
+
+
+def test_agent_run_lineage_links_followups(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    run_root = tmp_path / "lineage"
+    root_dir = run_root / "root"
+    child_dir = run_root / "child"
+    grandchild_dir = run_root / "grandchild"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Root review",
+            "--run-id",
+            "agent-root",
+            "--output-dir",
+            str(root_dir),
+            "--tag",
+            "review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('lineage private root output')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Child fix",
+            "--run-id",
+            "agent-child",
+            "--output-dir",
+            str(child_dir),
+            "--metadata",
+            "followup_of=agent-root",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('child')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Grandchild verify",
+            "--run-id",
+            "agent-grandchild",
+            "--output-dir",
+            str(grandchild_dir),
+            "--metadata",
+            "followup_of=agent-child",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('grandchild')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    root_payload = module.agent_lineage_payload(run_root, run_id="agent-root")
+    assert root_payload["schema"] == "agilab.agent_lineage.v1"
+    assert root_payload["found"] is True
+    assert [item["run_id"] for item in root_payload["descendants"]] == [
+        "agent-child",
+        "agent-grandchild",
+    ]
+    assert [item["run_id"] for item in root_payload["chain"]] == [
+        "agent-root",
+        "agent-child",
+        "agent-grandchild",
+    ]
+    assert {"from": "agent-root", "to": "agent-child"} in root_payload["edges"]
+    assert "lineage private root output" not in json.dumps(root_payload)
+
+    grandchild_payload = module.agent_lineage_payload(run_root, run_id="agent-grandchild")
+    assert [item["run_id"] for item in grandchild_payload["ancestors"]] == [
+        "agent-root",
+        "agent-child",
+    ]
+    assert [item["run_id"] for item in grandchild_payload["chain"]] == [
+        "agent-root",
+        "agent-child",
+        "agent-grandchild",
+    ]
+
+    assert module.main(["lineage", "agent-grandchild", "--root", str(run_root), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["target"]["run_id"] == "agent-grandchild"
+
+    assert module.main(["lineage", "agent-root", "--root", str(run_root)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent lineage" in markdown
+    assert "agent-root -> agent-child" in markdown
+
+
+def test_agent_run_compare_highlights_followup_changes(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    left_dir = tmp_path / "left"
+    right_dir = tmp_path / "right"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Failed review",
+            "--run-id",
+            "agent-compare-fail",
+            "--output-dir",
+            str(left_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private failed output'); raise SystemExit(5)",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Fixed review",
+            "--run-id",
+            "agent-compare-pass",
+            "--output-dir",
+            str(right_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--metadata",
+            "followup_of=agent-compare-fail",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private fixed output')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.compare_agent_runs(left_dir, right_dir)
+    assert payload["schema"] == "agilab.agent_compare.v1"
+    assert payload["left"]["run_id"] == "agent-compare-fail"
+    assert payload["right"]["run_id"] == "agent-compare-pass"
+    assert payload["status_changed"] is True
+    assert payload["returncode_changed"] is True
+    assert payload["metadata"]["added"] == {"followup_of": "agent-compare-fail"}
+    assert payload["protocol_adapters"]["added"] == ["mcp"]
+    assert payload["capabilities"]["added"] == ["evidence-review"]
+    assert "private failed output" not in json.dumps(payload)
+    assert "private fixed output" not in json.dumps(payload)
+
+    assert module.main(["compare", str(left_dir), str(right_dir), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["right"]["run_id"] == "agent-compare-pass"
+
+    assert module.main(["compare", str(left_dir), str(right_dir)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent-run comparison" in markdown
+    assert "status_changed: True" in markdown
+
+
+def test_agent_run_validate_checks_artifact_presence_and_trace(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Validation smoke",
+            "--run-id",
+            "agent-validate",
+            "--output-dir",
+            str(tmp_path),
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('validation private output')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.validate_agent_run(tmp_path)
+    assert payload["schema"] == "agilab.agent_run_validation.v1"
+    assert payload["ok"] is True
+    assert payload["issue_count"] == 0
+    assert payload["run"]["run_id"] == "agent-validate"
+    assert "validation private output" not in json.dumps(payload)
+
+    assert module.main(["validate", str(tmp_path), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["ok"] is True
+
+    (tmp_path / module.STDOUT_FILENAME).unlink()
+    broken = module.validate_agent_run(tmp_path)
+    assert broken["ok"] is False
+    assert broken["issues"][0]["code"] == "stdout_exists"
+    assert module.main(["validate", str(tmp_path)]) == 1
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent-run validation" in markdown
+    assert "stdout artifact does not exist" in markdown
 
 
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:

@@ -69,6 +69,10 @@ def list_agent_runs(
     *,
     agent: str = "",
     status: str = "",
+    tag: str = "",
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapter: str = "",
+    capability: str = "",
     limit: int = 20,
 ) -> dict[str, Any]:
     if limit < 0:
@@ -82,6 +86,10 @@ def list_agent_runs(
         root,
         agent=agent or None,
         status=status or None,
+        tags=(tag,) if tag else (),
+        metadata=metadata,
+        protocol_adapters=(protocol_adapter,) if protocol_adapter else (),
+        capabilities=(capability,) if capability else (),
         limit=limit,
     )
     return {
@@ -89,6 +97,10 @@ def list_agent_runs(
         "log_root": str(root) if root is not None else "~/log/agents",
         "agent": agent or None,
         "status": status or None,
+        "tag": tag or None,
+        "metadata": dict(metadata or {}),
+        "protocol_adapter": protocol_adapter or None,
+        "capability": capability or None,
         "runs": [_agent_run_summary_payload(summary) for summary in summaries],
     }
 
@@ -112,6 +124,97 @@ def summarize_agent_run(manifest_path: str | Path) -> dict[str, Any]:
         "schema": "agilab.mcp.summarize_agent_run.v1",
         "manifest_path": str(summary.manifest_path or path),
         "summary": _agent_run_summary_payload(summary),
+    }
+
+
+def agent_handoff(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.agent_handoff.v1",
+        "manifest_path": str(path),
+        "handoff": agent_run.agent_handoff_payload(path),
+    }
+
+
+def agent_next_actions(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.agent_next_actions.v1",
+        "manifest_path": str(path),
+        "next_actions": agent_run.agent_next_actions_payload(path),
+    }
+
+
+def agent_context(
+    log_root: str | Path | None = None,
+    *,
+    agent: str = "",
+    status: str = "",
+    tag: str = "",
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapter: str = "",
+    capability: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    if limit < 0:
+        raise ValueError("limit must be >= 0")
+    root = (
+        Path(log_root).expanduser().resolve(strict=False)
+        if log_root not in (None, "")
+        else None
+    )
+    return {
+        "schema": "agilab.mcp.agent_context.v1",
+        "log_root": str(root) if root is not None else "~/log/agents",
+        "context": agent_run.agent_context_payload(
+            root,
+            agent=agent or None,
+            status=status or None,
+            tags=(tag,) if tag else (),
+            metadata=metadata,
+            protocol_adapters=(protocol_adapter,) if protocol_adapter else (),
+            capabilities=(capability,) if capability else (),
+            limit=limit,
+        ),
+    }
+
+
+def agent_lineage(
+    log_root: str | Path | None = None,
+    *,
+    run_id: str,
+) -> dict[str, Any]:
+    root = (
+        Path(log_root).expanduser().resolve(strict=False)
+        if log_root not in (None, "")
+        else None
+    )
+    return {
+        "schema": "agilab.mcp.agent_lineage.v1",
+        "log_root": str(root) if root is not None else "~/log/agents",
+        "lineage": agent_run.agent_lineage_payload(root, run_id=run_id),
+    }
+
+
+def compare_agent_runs(
+    left_manifest: str | Path, right_manifest: str | Path
+) -> dict[str, Any]:
+    left = Path(left_manifest).expanduser().resolve(strict=False)
+    right = Path(right_manifest).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.compare_agent_runs.v1",
+        "left_manifest": str(left),
+        "right_manifest": str(right),
+        "comparison": agent_run.compare_agent_runs(left, right),
+    }
+
+
+def validate_agent_run(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.validate_agent_run.v1",
+        "manifest_path": str(path),
+        "validation": agent_run.validate_agent_run(path),
     }
 
 

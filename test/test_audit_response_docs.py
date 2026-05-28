@@ -195,7 +195,7 @@ def test_quick_start_documents_security_adoption_checkpoint() -> None:
 
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
-    local_pypi_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
+    local_pypi_proof = readme.split("### Local PyPI Proof", 1)[1].split(
         "For a zero-install browser preview", 1
     )[0]
 
@@ -204,8 +204,8 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
     assert "AGILAB complements MLflow and production MLOps platforms." in readme
     assert "MLflow tracks experiments; AGILAB transforms notebooks and scripts" in readme
     assert "reproducible execution and analysis layer" in readme
-    assert "agilab\n```" in local_pypi_proof
-    assert "first-proof" not in local_pypi_proof
+    assert "agilab first-proof --json" in local_pypi_proof
+    assert "--with-ui" not in local_pypi_proof
     assert "If startup fails, run a progressive fallback" in readme
     assert "| `examples` extra |" in readme
     assert "| `proof` extra |" in readme
@@ -257,7 +257,8 @@ def test_quick_start_documents_public_install_tiers() -> None:
     assert 'tool install --upgrade "agilab[ui]"\n    agilab' in ui_route
     assert "agilab first-proof --json --max-seconds 60" not in ui_route
     assert "agilab dry-run" in ui_route
-    assert "agilab first-proof --json --with-ui" in ui_route
+    assert "agilab first-proof --json --with-ui" not in ui_route
+    assert "Add ``--with-ui``" in ui_route
     assert "base, UI, pages, AI, agents, examples, MLflow, local-LLM, offline, and dev\ninstall profiles" in quick_start
 
 

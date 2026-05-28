@@ -134,6 +134,8 @@ import_agilab_symbols(
     {
         "is_dag_worker_base": "is_dag_worker_base",
         "render_page_context": "render_page_context",
+        "render_project_evidence_drawer": "render_project_evidence_drawer",
+        "render_workflow_timeline": "render_workflow_timeline",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
@@ -1648,6 +1650,61 @@ def _render_orchestrate_readiness_panel(
     )
 
 
+def _render_orchestrate_action_rail(
+    env: Any,
+    *,
+    install_status: dict[str, Any],
+    installed: bool,
+    install_block_reason: str,
+) -> None:
+    """Show the concrete ORCHESTRATE path before detailed controls."""
+    run_count, run_caption = _run_history_summary(env)
+    has_run = str(run_count).strip() not in {"", "0"}
+    project_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "").strip()
+    install_exists = bool(
+        install_status.get("manager_exists") or install_status.get("worker_exists")
+    )
+    install_state = "done" if installed else "warning" if install_exists else "waiting"
+    install_detail = (
+        "environment ready"
+        if installed
+        else install_block_reason or "run INSTALL before EXECUTE"
+    )
+    render_workflow_timeline(
+        st,
+        title="Path: Prepare -> Install -> Execute -> Review evidence",
+        expanded=True,
+        items=(
+            {
+                "label": "Prepare",
+                "state": "ready" if project_name else "blocked",
+                "detail": f"`{project_name}` selected" if project_name else "select a project first",
+            },
+            {
+                "label": "Install",
+                "state": install_state,
+                "detail": install_detail,
+            },
+            {
+                "label": "Execute",
+                "state": "ready" if installed else "waiting",
+                "detail": "run the project" if installed else "disabled until INSTALL is ready",
+            },
+            {
+                "label": "Review evidence",
+                "state": "ready" if has_run else "waiting",
+                "detail": run_caption if has_run else "open ANALYSIS after EXECUTE writes outputs",
+            },
+        ),
+    )
+    render_project_evidence_drawer(
+        st,
+        env=env,
+        key_prefix="orchestrate:evidence",
+        expanded=has_run,
+    )
+
+
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")
 
 
@@ -2451,6 +2508,12 @@ async def page() -> None:
     install_block_reason = (
         _install_status_warning_message(install_status)
         or _runtime_status_label(install_status)[1]
+    )
+    _render_orchestrate_action_rail(
+        env,
+        install_status=install_status,
+        installed=installed,
+        install_block_reason=install_block_reason,
     )
 
     # Sidebar toggles for each page section

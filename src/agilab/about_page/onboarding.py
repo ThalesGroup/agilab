@@ -36,12 +36,15 @@ FIRST_PROOF_NOTEBOOK_BUTTON = "Create from built-in notebook"
 FIRST_PROOF_NOTEBOOK_HINT = (
     "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
 )
-FIRST_PROOF_NOTEBOOK_LANE_LABEL = "Notebook import: included sample"
+FIRST_PROOF_NOTEBOOK_LANE_LABEL = "Create from included notebook"
 FIRST_PROOF_NOTEBOOK_PROJECT = "flight_telemetry_from_notebook_project"
 FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
     f"Then click PROJECT `Create`; it builds `{FIRST_PROOF_NOTEBOOK_PROJECT}`."
 )
 FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+FIRST_PROOF_OWN_NOTEBOOK_HINT = (
+    "For your own notebook: open PROJECT -> Create -> From notebook -> Upload your own notebook."
+)
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
@@ -326,6 +329,7 @@ def _first_proof_action_columns_layout(
             notebook_hint,
             FIRST_PROOF_NOTEBOOK_AFTER_HINT,
             FIRST_PROOF_NOTEBOOK_RUN_HINT,
+            FIRST_PROOF_OWN_NOTEBOOK_HINT,
         ]
     )
     spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
@@ -604,7 +608,8 @@ def _render_first_proof_wizard_actions(
     st.markdown("**First proof: built-in demo**")
     st.caption(
         "Recommended path: run the built-in flight telemetry demo, then inspect the generated "
-        "evidence."
+        "evidence. Notebook-first paths are below: use AGILAB's included notebook first; upload "
+        "your own notebook from PROJECT Create when you are ready."
     )
     proof_actions = [
         {
@@ -626,7 +631,7 @@ def _render_first_proof_wizard_actions(
             )
             st.caption(action["hint"])
 
-    with st.expander("Notebook-first option", expanded=False):
+    with st.expander("Create from included notebook", expanded=False):
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         _first_proof_link_button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
@@ -637,6 +642,7 @@ def _render_first_proof_wizard_actions(
         st.caption(FIRST_PROOF_NOTEBOOK_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
         st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
+        st.caption(FIRST_PROOF_OWN_NOTEBOOK_HINT)
 
     with st.expander("Notebook to validated app: full proof", expanded=False):
         st.caption(

@@ -1,11 +1,10 @@
-# Notebook Quickstart Examples
+# Notebook Quickstart Assets
 
 ## Example Class
 
-**Notebook import asset.** This folder contains notebook-first AGILAB runtime
-routes for local Jupyter, Colab, Kaggle, source-checkout, and PyPI-package
-users. It is not an installed `AGI_*.py` helper and it does not install an
-AGILAB app project by itself.
+**Notebook import asset.** This directory packages notebook-first AGILAB runtime
+routes and onboarding material. It is not seeded as an `AGI_*.py` execution
+helper and it does not install an AGILAB app project by itself.
 
 ## Purpose
 
@@ -16,7 +15,9 @@ notebook -> AgiEnv -> RunRequest -> AGI.run -> run manifest
 ```
 
 Use these notebooks when you want to stay in a notebook while still showing the
-same AGILAB concepts that the UI and app helpers use.
+same AGILAB concepts that the UI and app helpers use. The folder also includes
+worker-path, simple data-DAG, Colab, Kaggle, source-checkout, PyPI-package, and
+benchmark variants for the same notebook-first route.
 
 ## What You Learn
 
@@ -24,6 +25,8 @@ same AGILAB concepts that the UI and app helpers use.
 - How to build a `RunRequest` with explicit inputs, outputs, and run mode.
 - How to call `AGI.run(...)` without hiding the flow behind a one-line wrapper.
 - How local, Colab, Kaggle, source-checkout, and PyPI-package variants differ.
+- How worker paths and data DAG notebooks introduce execution structure before a
+  full app migration.
 
 ## Install
 
@@ -34,6 +37,7 @@ Choose the notebook variant that matches the environment:
 - `agi_core_kaggle_first_run.ipynb` for Kaggle.
 - `*_source.ipynb` variants when the notebook should point at a source checkout.
 - `*_pypi.ipynb` variants when the notebook should use the published package.
+The notebooks are source assets, not installer-seeded run scripts.
 
 ## Run
 

@@ -342,8 +342,9 @@ Remaining state-of-the-art scope:
   promotion gates, release gates, and sensitive-data gates
 - capability-based sandboxing for generated code, notebooks, and agent runs:
   explicit filesystem, network, secret, and subprocess scopes
-- first-class agent eval traces: prompt/tool/file/command timeline, permission
-  decisions, diff evidence, replay, scoring, and safety policy results
+- first-class agent eval traces beyond the shipped local agent-run cards:
+  prompt/tool/file timeline detail, diff evidence, replay, scoring, and safety
+  policy results
 - monitoring and drift handoff adapters for production systems without turning
   AGILab into the production control plane
 - enterprise controls for shared deployments: secrets backend integration,
@@ -390,9 +391,11 @@ Agent skills and resource evidence hardening:
 - feed resource snapshots and cluster inventory into scheduler recommendations
   and future autoscale decisions, while keeping autoscale behavior explicit and
   auditable rather than silently changing execution topology
-- extend `agilab agent-run` evidence so skill identity, skill version, resource
-  snapshot, permission decisions, changed files, command timeline, and resulting
-  proof artifacts can be replayed or reviewed together
+- build on the shipped `agilab agent-run` evidence commands (`list`,
+  `handoff`, `next`, `context`, and `lineage`) by adding skill identity, skill
+  version, resource snapshot, changed files, richer command timeline, and
+  resulting proof-artifact links so multi-agent work can be replayed or reviewed
+  together
 - publish agent-surface validation as release evidence: generated catalogs,
   badge freshness, changed-skill scan reports, and resource snapshot checks
   should be archived alongside SBOM, `pip-audit`, hashes, and provenance
@@ -1252,7 +1255,11 @@ normal workflow.
 The dependency-light bridge MVP baseline now exposes these commands:
 
 1. Quarto / R report bridge: `agilab export quarto` and `agilab run quarto`
-2. read-only MCP evidence server: `agilab mcp serve --read-only`
+2. read-only MCP evidence server and agent evidence cards:
+   `agilab mcp serve --read-only`, `agilab agent-run list`,
+   `agilab agent-run handoff`, `agilab agent-run next`,
+   `agilab agent-run context`, `agilab agent-run lineage`, and
+   `agilab agent-run compare`, plus `agilab agent-run validate`
 3. Hugging Face Docker Space exporter: `agilab export hf-space`
 4. MLflow JSON handoff: `agilab export mlflow` and `agilab import mlflow`
 5. VS Code / devcontainer onboarding: `agilab init vscode`

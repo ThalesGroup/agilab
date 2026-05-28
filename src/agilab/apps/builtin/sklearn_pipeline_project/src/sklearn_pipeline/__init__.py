@@ -9,8 +9,12 @@ from .app_args import (
     SklearnPipelineArgsTD,
     dump_args,
     ensure_defaults,
+    filter_arg_overrides,
     load_args,
     merge_args,
+    safe_reset_path,
+    share_root_from_env,
+    validate_relative_data_out,
 )
 from .core import SCHEMA, build_sklearn_pipeline_artifacts
 from .reduction import SKLEARN_PIPELINE_REDUCE_CONTRACT
@@ -28,6 +32,10 @@ __all__ = [
     "build_sklearn_pipeline_artifacts",
     "dump_args",
     "ensure_defaults",
+    "filter_arg_overrides",
     "load_args",
     "merge_args",
+    "safe_reset_path",
+    "share_root_from_env",
+    "validate_relative_data_out",
 ]

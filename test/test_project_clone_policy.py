@@ -935,6 +935,58 @@ def test_create_project_from_notebook_blocks_unreviewed_runtime_roles(tmp_path: 
     assert not (tmp_path / "needs_role_project").exists()
 
 
+def test_create_project_from_notebook_removes_clone_when_import_write_fails(
+    monkeypatch, tmp_path: Path
+):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+
+    def _clone_project(source: Path, target: Path) -> None:
+        clone_calls.append((source, target))
+        dest_root = tmp_path / target
+        dest_root.mkdir()
+        (dest_root / "clone-marker.txt").write_text("created", encoding="utf-8")
+
+    def _raise_import_write(*_args, **_kwargs):
+        raise ValueError("import write boom")
+
+    monkeypatch.setattr(module, "_write_project_notebook_import_preview", _raise_import_write)
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"agilab": {"runtime_role": "manager"}},
+                "source": ["print('ready')\n"],
+            }
+        ],
+    }
+    uploaded = SimpleNamespace(
+        name="cleanup.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_from_notebook_action(
+        env,
+        template_source="pandas_app_template",
+        raw_project_name="Cleanup Demo",
+        uploaded_notebook=uploaded,
+        clone_env_strategy="detach_venv",
+    )
+
+    dest_root = tmp_path / "cleanup_demo_project"
+    assert result.status == "error"
+    assert result.title == "Project 'cleanup_demo_project' was created, but notebook import failed."
+    assert "import write boom" in str(result.detail)
+    assert "Removed incomplete project clone" in str(result.detail)
+    assert result.data["cleanup_ok"] is True
+    assert clone_calls == [(Path("pandas_app_template"), Path("cleanup_demo_project"))]
+    assert not dest_root.exists()
+
+
 def test_project_notebook_runtime_role_review_shows_cell_context() -> None:
     module = _load_project_module()
     messages: list[tuple] = []

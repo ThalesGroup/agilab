@@ -13,10 +13,10 @@ the command shape stable.
 
 | Order | Example | App | Main lesson |
 |---:|---|---|---|
-| 1 | `notebook_quickstart` | `agi-core` notebook route | Notebook-first runtime proof for local, Colab, and Kaggle users. |
-| 2 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
-| 3 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
-| 4 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
+| 1 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
+| 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
+| 3 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
+| 4 | `notebook_quickstart` | notebook-first proof assets | Packaged notebooks for first-run, Colab, Kaggle, worker-path, benchmark, and data-DAG onboarding. |
 | 5 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
 | 6 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
 | 7 | `parallel_stage` | function + split rule + reducer | Read-only parallelization preview: fewer files than cores, chunk partitions, worker capping, and reducer-first planning. |
@@ -102,6 +102,9 @@ From an installed package, locate one with
 - `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
   notebooks, exported artifacts, migrated `lab_stages.toml`, and conceptual
   pipeline view in the packaged examples tree.
+- `notebook_quickstart` keeps notebook-first first-run, Colab, Kaggle,
+  worker-path, benchmark, and data-DAG notebooks together as importable learning
+  assets rather than seeded executable scripts.
 - `sklearn_pipeline/AGI_run_sklearn_pipeline.py` runs the classic ML app proof:
   deterministic scikit-learn dataset, fitted pipeline, model artifact,
   predictions, metrics, report, and hash manifest.
@@ -157,14 +160,13 @@ uv --preview-features extra-build-dependencies run pytest -q test/test_app_insta
 ## When To Use These Scripts
 
 Run `agilab first-proof --json` when you want the shortest packaged product
-proof. Use `notebook_quickstart` when you want the notebook-first `agi-core`
-route before any UI or app-helper run. Use the installed scripts when you want
-to inspect or adapt the generated programmatic calls. Select
-`global_dag_project` in WORKFLOW when you want to understand how project-level
-app runs can be connected by explicit artifact contracts, and use
-`inter_project_dag` only when you need the standalone compatibility preview
-path. Use
-`notebook_to_dask` when you want to evaluate a notebook migration before
+proof. Use `notebook_quickstart` when you want notebook-first onboarding
+material or the smaller `agi-core` route before any UI or app-helper run. Use
+the installed scripts when you want to inspect or adapt the generated
+programmatic calls. Select `global_dag_project` in WORKFLOW when you want to
+understand how project-level app runs can be connected by explicit artifact
+contracts, and use `inter_project_dag` only when you need the standalone
+compatibility preview path. Use `notebook_to_dask` when you want to evaluate a notebook migration before
 creating an app or running Dask. Use `sklearn_pipeline` when you want a minimal
 classic ML app proof that writes predictions, metrics, a serialized model, and
 artifact hashes without any tracking backend. Use `parallel_stage` when you want

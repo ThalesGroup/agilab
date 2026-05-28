@@ -1097,17 +1097,86 @@ def test_on_import_notebook_imports_ipynb_and_marks_page_broken(monkeypatch, tmp
     fake_st = SimpleNamespace(session_state=_State({"upload": uploaded, "idx": [0, "", "", "", "", "", 0]}))
     calls: dict[str, object] = {}
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    def _fake_notebook_to_toml(uploaded_file, toml_name, module_dir):
-        calls["args"] = (uploaded_file, toml_name, module_dir)
+
+    def _fake_build_notebook_import_preview(uploaded_file, module_dir):
+        calls["build_args"] = (uploaded_file, module_dir)
+        return {"preflight": {"safe_to_import": True}}
+
+    def _fake_confirm_notebook_import_preview(module_dir, stages_file, index_page, *, view_manifest_dir=None):
+        calls["confirm_args"] = (module_dir, stages_file, index_page, view_manifest_dir)
+        fake_st.session_state["idx"][-1] = 3
+        fake_st.session_state["page_broken"] = True
         return 3
 
-    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", _fake_notebook_to_toml)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "build_notebook_import_preview",
+        _fake_build_notebook_import_preview,
+    )
+    monkeypatch.setattr(
+        pipeline_editor,
+        "confirm_notebook_import_preview",
+        _fake_confirm_notebook_import_preview,
+    )
 
-    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
+    view_manifest_dir = tmp_path / "app"
+    pipeline_editor.on_import_notebook(
+        "upload",
+        tmp_path,
+        tmp_path / "lab_stages.toml",
+        "idx",
+        view_manifest_dir=view_manifest_dir,
+    )
 
-    assert calls["args"][0] is uploaded
+    assert calls["build_args"] == (uploaded, tmp_path)
+    assert calls["confirm_args"] == (
+        tmp_path,
+        tmp_path / "lab_stages.toml",
+        "idx",
+        view_manifest_dir,
+    )
     assert fake_st.session_state["idx"][-1] == 3
     assert fake_st.session_state["page_broken"] is True
+
+
+def test_write_notebook_import_preview_keeps_existing_stages_when_sidecar_write_fails(
+    monkeypatch, tmp_path
+):
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {
+                        "cell_type": "code",
+                        "metadata": {"agilab": {"runtime_role": "manager"}},
+                        "source": ["print(1)\n"],
+                    }
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    module_dir = tmp_path / "demo_project"
+    module_dir.mkdir()
+    stages_file = module_dir / "lab_stages.toml"
+    original_stages = "[[demo_project]]\nQ = 'old'\nC = 'print(0)'\n"
+    stages_file.write_text(original_stages, encoding="utf-8")
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+
+    def _raise_contract_write(*_args, **_kwargs):
+        raise ValueError("contract boom")
+
+    monkeypatch.setattr(pipeline_editor, "write_notebook_import_contract", _raise_contract_write)
+
+    with pytest.raises(ValueError, match="contract boom"):
+        pipeline_editor.write_notebook_import_preview(preview, module_dir, stages_file)
+
+    assert stages_file.read_text(encoding="utf-8") == original_stages
+    assert not (module_dir / "notebook_import_contract.json").exists()
+    assert not (module_dir / "notebook_import_pipeline_view.json").exists()
+    assert not (module_dir / "notebook_import_view_plan.json").exists()
+    assert list(module_dir.glob(".*.tmp")) == []
 
 
 def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, tmp_path):
@@ -2710,7 +2779,11 @@ def test_on_import_notebook_does_not_mark_page_broken_when_import_fails(monkeypa
     pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     fake_st.session_state["upload"] = SimpleNamespace(type="application/x-ipynb+json")
-    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "build_notebook_import_preview",
+        lambda *_args, **_kwargs: None,
+    )
     pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     assert messages == [
@@ -2737,7 +2810,23 @@ def test_on_import_notebook_warns_when_successful_import_has_no_code_cells(monke
         success=lambda message, *args, **kwargs: messages.append(("success", message)),
     )
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "build_notebook_import_preview",
+        lambda *_args, **_kwargs: {"preflight": {"safe_to_import": True}},
+    )
+
+    def _confirm_zero_cell_import(*_args, **_kwargs):
+        messages.append(("warning", "Notebook imported, but no code cells were found."))
+        fake_st.session_state["page_broken"] = True
+        fake_st.session_state["idx"][-1] = 0
+        return 0
+
+    monkeypatch.setattr(
+        pipeline_editor,
+        "confirm_notebook_import_preview",
+        _confirm_zero_cell_import,
+    )
 
     pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
@@ -2752,13 +2841,21 @@ def test_on_import_notebook_does_not_report_success_after_write_failure(monkeypa
         session_state=_State(
             {
                 "upload": SimpleNamespace(
-                    name="demo.ipynb",
-                    type="application/x-ipynb+json",
-                    read=lambda: json.dumps(
-                        {"cells": [{"cell_type": "code", "source": ["print(1)\n"]}]}
-                    ).encode("utf-8"),
-                ),
-                "idx": [0, "", "", "", "", "", 0],
+                        name="demo.ipynb",
+                        type="application/x-ipynb+json",
+                        read=lambda: json.dumps(
+                            {
+                                "cells": [
+                                    {
+                                        "cell_type": "code",
+                                        "metadata": {"agilab": {"runtime_role": "manager"}},
+                                        "source": ["print(1)\n"],
+                                    }
+                                ]
+                            }
+                        ).encode("utf-8"),
+                    ),
+                    "idx": [0, "", "", "", "", "", 0],
             }
         ),
         error=lambda message, *args, **kwargs: messages.append(("error", message)),
@@ -2779,7 +2876,7 @@ def test_on_import_notebook_does_not_report_success_after_write_failure(monkeypa
         "idx",
     )
 
-    assert messages == [("error", "Failed to save TOML file: toml boom")]
+    assert messages == [("error", "Failed to save notebook import preview: toml boom")]
     assert "page_broken" not in fake_st.session_state
     assert fake_st.session_state["idx"][-1] == 0
     assert not (tmp_path / "demo_project" / "lab_stages.toml").exists()
