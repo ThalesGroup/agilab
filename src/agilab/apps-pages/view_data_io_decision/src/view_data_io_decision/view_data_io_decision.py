@@ -31,6 +31,12 @@ from agi_gui.pagelib import render_logo
 ARTIFACT_ROOT_KEY = "decision_evidence_artifact_root"
 RUN_SELECTION_KEY = "decision_evidence_selected_run"
 SUMMARY_GLOB_KEY = "decision_evidence_summary_glob"
+APP_SCOPE_KEY = "decision_evidence_active_app_scope"
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    ARTIFACT_ROOT_KEY,
+    RUN_SELECTION_KEY,
+    SUMMARY_GLOB_KEY,
+)
 
 
 def _resolve_active_app() -> Path:
@@ -39,6 +45,18 @@ def _resolve_active_app() -> Path:
 
 def _default_artifact_root(env: AgiEnv) -> Path:
     return _page_artifact_root(env, "data_io_decision")
+
+
+def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
+    """Clear persisted Decision Evidence defaults when the active app changes."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
@@ -78,8 +96,9 @@ def _read_csv_if_present(path: Path) -> pd.DataFrame:
 
 st.set_page_config(layout="wide")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
+if "env" not in st.session_state or app_scope_changed:
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
@@ -118,12 +137,11 @@ if not summary_files:
 
 summary_label_to_path = {_relative_summary_label(path, artifact_root): path for path in summary_files}
 summary_labels = list(summary_label_to_path.keys())
-saved_run = st.session_state.get(RUN_SELECTION_KEY)
-default_index = summary_labels.index(saved_run) if saved_run in summary_labels else len(summary_labels) - 1
+if st.session_state.get(RUN_SELECTION_KEY) not in summary_labels:
+    st.session_state[RUN_SELECTION_KEY] = summary_labels[-1]
 selected_label = st.sidebar.selectbox(
     "Run",
     options=summary_labels,
-    index=default_index,
     key=RUN_SELECTION_KEY,
 )
 summary_path = summary_label_to_path[selected_label]
