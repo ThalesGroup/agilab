@@ -1,5 +1,10 @@
 # Service Mode Example
 
+## Example Class
+
+**Read-only preview.** The preview evaluates service lifecycle and health evidence. It does not start persistent workers or install an AGILAB app project.
+
+
 ## Purpose
 
 Shows how to reason about AGILAB service mode before starting persistent

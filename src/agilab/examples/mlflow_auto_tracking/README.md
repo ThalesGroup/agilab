@@ -1,5 +1,10 @@
 # MLflow Auto-Tracking Example
 
+## Example Class
+
+**Read-only preview.** The preview writes deterministic tracking evidence and optionally logs to MLflow when available. It does not install or run an AGILAB app project.
+
+
 ## Purpose
 
 Shows the intended AGILAB tracking posture:

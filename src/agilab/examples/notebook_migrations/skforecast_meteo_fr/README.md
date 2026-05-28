@@ -1,5 +1,10 @@
 # skforecast Meteo-France Migration Pilot
 
+## Example Class
+
+**Notebook import asset.** This folder contains notebooks, artifacts, `lab_stages.toml`, and a pipeline view for import or inspection. It is not an installed AGI project helper.
+
+
 This folder is a lightweight, local-first migration example for showing how a
 small notebook workflow can move into AGILAB without changing the core data
 science story.

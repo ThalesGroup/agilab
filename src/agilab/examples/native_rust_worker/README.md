@@ -1,5 +1,10 @@
 # Native Rust Worker Example
 
+## Example Class
+
+**Read-only preview.** The preview writes a Rust/PyO3 worker skeleton and evidence. It does not compile Rust or install an AGILAB app project.
+
+
 ## Purpose
 
 Shows the optional Rust/PyO3 acceleration lane for an AGILAB worker:

@@ -1,5 +1,10 @@
 # SQLite Connector Proof Example
 
+## Example Class
+
+**Read-only preview.** The preview writes a deterministic SQLite database, CSV result, and evidence. It does not install or run an AGILAB app project.
+
+
 ## Purpose
 
 Shows the smallest database-shaped AGILAB adoption bridge:
