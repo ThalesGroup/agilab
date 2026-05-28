@@ -1,10 +1,10 @@
 [project]
 name = "pytorch_playground_project"
-version = "2026.05.28"
+version = "2026.05.29"
 description = "Built-in AGILab app for reproducible PyTorch classifier playground experiments."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["agi-env>=2026.05.28", "agi-node>=2026.05.28", "agi-cluster>=2026.05.28", "agi-gui>=2026.05.28", "numpy>=2.2,<3", "pandas>=2.3.0,<4", "plotly>=6.3.0,<7", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57", "torch>=2.8.0,<3"]
+dependencies = ["agi-env>=2026.05.29", "agi-node>=2026.05.29", "agi-cluster>=2026.05.29", "agi-gui>=2026.05.29", "numpy>=2.2,<3", "pandas>=2.3.0,<4", "plotly>=6.3.0,<7", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57", "torch>=2.8.0,<3"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -14,6 +14,8 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 

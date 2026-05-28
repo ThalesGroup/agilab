@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-geospatial-3d"
-version = "2026.05.28"
+version = "2026.05.29"
 description = "AGILAB page bundle for 3D geospatial exploration."
 readme = { text = "AGILAB page bundle for 3D geospatial exploration.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -36,6 +36,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 
 
 
