@@ -314,6 +314,7 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "pypi-release-retention:" in text
+    assert "(github.event.inputs.include_existing_pypi || 'false') != 'true'" in text
     assert "needs.pypi-provenance-evidence.result == 'success'" in text
     assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
@@ -336,6 +337,27 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "--protect-version \"$current_version\"" not in text
     assert "root pyproject.toml has no project version" not in text
     assert "needs.pypi-release-retention.result == 'success'" in text
+    assert "needs.pypi-release-retention.result == 'skipped'" in text
+    assert "      - pypi-release-retention" in text
+
+
+def test_pypi_publish_repair_mode_skips_retention_without_blocking_release_assets() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    retention_match = re.search(r"pypi-release-retention:\n    if: \$\{\{ (?P<expr>.*?) \}\}", text)
+    assert retention_match is not None
+    retention_expr = retention_match.group("expr")
+    assert "(github.event.inputs.include_existing_pypi || 'false') != 'true'" in retention_expr
+    assert "needs.pypi-provenance-evidence.result == 'success'" in retention_expr
+    assert "needs.publish-library-packages.result == 'success'" in retention_expr
+    assert "needs.publish-agilab.result == 'success'" in retention_expr
+
+    assets_match = re.search(r"publish-release-assets:\n    if: \$\{\{ (?P<expr>.*?) \}\}", text)
+    assert assets_match is not None
+    assets_expr = assets_match.group("expr")
+    assert "needs.pypi-release-retention.result == 'success'" in assets_expr
+    assert "needs.pypi-release-retention.result == 'skipped'" in assets_expr
+    assert "needs.pypi-release-retention.result == 'failure'" not in assets_expr
     assert "      - pypi-release-retention" in text
 
 
