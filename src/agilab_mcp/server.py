@@ -23,6 +23,7 @@ TOOLS: dict[str, ToolFn] = {
     "agent_context": manifest_tools.agent_context,
     "agent_lineage": manifest_tools.agent_lineage,
     "compare_agent_runs": manifest_tools.compare_agent_runs,
+    "validate_agent_run": manifest_tools.validate_agent_run,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -155,6 +156,15 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "right_manifest": {"type": "string"},
                 },
                 "required": ["left_manifest", "right_manifest"],
+            },
+        },
+        {
+            "name": "validate_agent_run",
+            "description": "Validate an AGILAB agent-run manifest for safe read-side reuse.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
             },
         },
         {

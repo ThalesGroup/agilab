@@ -995,6 +995,50 @@ def test_agent_run_compare_highlights_followup_changes(tmp_path: Path, capsys) -
     assert "status_changed: True" in markdown
 
 
+def test_agent_run_validate_checks_artifact_presence_and_trace(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Validation smoke",
+            "--run-id",
+            "agent-validate",
+            "--output-dir",
+            str(tmp_path),
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('validation private output')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.validate_agent_run(tmp_path)
+    assert payload["schema"] == "agilab.agent_run_validation.v1"
+    assert payload["ok"] is True
+    assert payload["issue_count"] == 0
+    assert payload["run"]["run_id"] == "agent-validate"
+    assert "validation private output" not in json.dumps(payload)
+
+    assert module.main(["validate", str(tmp_path), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["ok"] is True
+
+    (tmp_path / module.STDOUT_FILENAME).unlink()
+    broken = module.validate_agent_run(tmp_path)
+    assert broken["ok"] is False
+    assert broken["issues"][0]["code"] == "stdout_exists"
+    assert module.main(["validate", str(tmp_path)]) == 1
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent-run validation" in markdown
+    assert "stdout artifact does not exist" in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

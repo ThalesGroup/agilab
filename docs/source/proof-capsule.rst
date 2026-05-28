@@ -138,7 +138,7 @@ Keep using the existing first-proof and adoption commands as the entry evidence:
 
 .. code-block:: bash
 
-   agilab first-proof --json --with-ui
+   agilab first-proof --json
    agilab adoption-report
    agilab security-check --profile shared --json
 

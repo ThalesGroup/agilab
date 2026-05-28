@@ -1259,7 +1259,7 @@ The dependency-light bridge MVP baseline now exposes these commands:
    `agilab mcp serve --read-only`, `agilab agent-run list`,
    `agilab agent-run handoff`, `agilab agent-run next`,
    `agilab agent-run context`, `agilab agent-run lineage`, and
-   `agilab agent-run compare`
+   `agilab agent-run compare`, plus `agilab agent-run validate`
 3. Hugging Face Docker Space exporter: `agilab export hf-space`
 4. MLflow JSON handoff: `agilab export mlflow` and `agilab import mlflow`
 5. VS Code / devcontainer onboarding: `agilab init vscode`

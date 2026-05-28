@@ -19,7 +19,12 @@ from uuid import uuid4
 
 from agilab.agent_config import load_agent_config, resolve_agent_provider
 from agilab.agent_tool_safety import evaluate_tool_permission, normalize_permission_level
-from agilab.agent_trace import AgentTraceStore, load_trace_events, trace_artifact_payload
+from agilab.agent_trace import (
+    AgentTraceStore,
+    load_trace_events,
+    trace_artifact_payload,
+    validate_event_sequence,
+)
 from agilab.secret_uri import redact_text
 
 
@@ -1733,6 +1738,99 @@ def render_compare_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Validate one agent-run manifest enough for safe read-side reuse."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    issues: list[dict[str, str]] = []
+    warnings: list[dict[str, str]] = []
+
+    def fail(code: str, message: str) -> None:
+        issues.append({"code": code, "message": message})
+
+    def warn(code: str, message: str) -> None:
+        warnings.append({"code": code, "message": message})
+
+    if manifest.get("kind") != TRACE_KIND:
+        fail("kind", f"unsupported manifest kind: {manifest.get('kind')!r}")
+    if summary.status not in {"planned", "pass", "fail", "timeout", "denied"}:
+        fail("status", f"unsupported status: {summary.status!r}")
+    if summary.manifest_path and not summary.manifest_path.exists():
+        fail("manifest_path", f"manifest artifact path is missing: {summary.manifest_path}")
+    if summary.status != "planned":
+        if not summary.stdout_path:
+            fail("stdout_path", "stdout artifact path is missing from manifest")
+        elif not summary.stdout_path.exists():
+            fail("stdout_exists", f"stdout artifact does not exist: {summary.stdout_path}")
+        if not summary.stderr_path:
+            fail("stderr_path", "stderr artifact path is missing from manifest")
+        elif not summary.stderr_path.exists():
+            fail("stderr_exists", f"stderr artifact does not exist: {summary.stderr_path}")
+
+    command = manifest.get("command", {})
+    command_map = command if isinstance(command, dict) else {}
+    if command_map.get("argv_redacted") is False:
+        warn("argv_redaction", "command arguments are stored in full; confirm they contain no prompt secrets")
+    if not command_map.get("argv_sha256"):
+        fail("argv_sha256", "command argv hash is missing")
+
+    if summary.trace_events_path:
+        if summary.trace_events_path.exists():
+            trace_events = load_trace_events(summary.trace_events_path.parent)
+            for issue in validate_event_sequence(trace_events):
+                fail("trace_sequence", issue)
+        else:
+            fail("trace_events_exists", f"trace events file does not exist: {summary.trace_events_path}")
+    else:
+        warn("trace_events_path", "trace events path is missing from manifest")
+
+    return {
+        "schema": "agilab.agent_run_validation.v1",
+        "run": _summary_payload(summary),
+        "ok": not issues,
+        "issue_count": len(issues),
+        "warning_count": len(warnings),
+        "issues": issues,
+        "warnings": warnings,
+        "artifact_policy": "Validation inspects manifest metadata and artifact presence; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_validation_markdown(payload: dict[str, object]) -> str:
+    """Render agent-run validation as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    issues = payload.get("issues", [])
+    warnings = payload.get("warnings", [])
+    issue_list = issues if isinstance(issues, list) else []
+    warning_list = warnings if isinstance(warnings, list) else []
+    lines = [
+        "# AGILAB agent-run validation",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- ok: {payload.get('ok', False)}",
+        f"- issue_count: {payload.get('issue_count', 0)}",
+        f"- warning_count: {payload.get('warning_count', 0)}",
+    ]
+    if issue_list:
+        lines.extend(["", "## Issues", ""])
+        for issue in issue_list:
+            if isinstance(issue, dict):
+                lines.append(f"- {issue.get('code', '')}: {issue.get('message', '')}")
+    if warning_list:
+        lines.extend(["", "## Warnings", ""])
+        for warning in warning_list:
+            if isinstance(warning, dict):
+                lines.append(f"- {warning.get('code', '')}: {warning.get('message', '')}")
+    return "\n".join(lines)
+
+
 def _build_handoff_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
@@ -1784,6 +1882,13 @@ def _build_compare_parser() -> argparse.ArgumentParser:
     parser.add_argument("left_manifest", help="Left agent-run manifest path or run directory.")
     parser.add_argument("right_manifest", help="Right agent-run manifest path or run directory.")
     parser.add_argument("--json", action="store_true", help="Print the comparison as JSON.")
+    return parser
+
+
+def _build_validate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate one AGILAB agent-run manifest.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print validation as JSON.")
     return parser
 
 
@@ -1859,6 +1964,17 @@ def _main_compare(argv: Sequence[str]) -> int:
     return 0
 
 
+def _main_validate(argv: Sequence[str]) -> int:
+    parser = _build_validate_parser()
+    args = parser.parse_args(list(argv))
+    payload = validate_agent_run(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_validation_markdown(payload))
+    return 0 if payload["ok"] else 1
+
+
 def _render_summary_table(summaries: Sequence[AgentRunSummary]) -> str:
     if not summaries:
         return "No AGILAB agent runs found."
@@ -1921,6 +2037,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main_lineage(raw_argv[1:])
     if raw_argv[:1] == ["compare"]:
         return _main_compare(raw_argv[1:])
+    if raw_argv[:1] in (["validate"], ["check"], ["audit"]):
+        return _main_validate(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:

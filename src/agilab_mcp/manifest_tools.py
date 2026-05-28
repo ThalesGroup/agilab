@@ -209,6 +209,15 @@ def compare_agent_runs(
     }
 
 
+def validate_agent_run(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.validate_agent_run.v1",
+        "manifest_path": str(path),
+        "validation": agent_run.validate_agent_run(path),
+    }
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = Path(manifest_path).expanduser().resolve(strict=False)
     payload = json.loads(path.read_text(encoding="utf-8"))

@@ -644,6 +644,9 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     agent_comparison = manifest_tools.compare_agent_runs(agent_dir, agent_dir)
     assert agent_comparison["comparison"]["status_changed"] is False
     assert agent_comparison["comparison"]["left"]["run_id"] == "agent-codex"
+    agent_validation = manifest_tools.validate_agent_run(agent_dir)
+    assert agent_validation["validation"]["ok"] is True
+    assert "agent ok" not in json.dumps(agent_validation)
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -787,6 +790,22 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert (
         "agilab.agent_compare.v1"
         in compare_agent_call_response["result"]["content"][0]["text"]
+    )
+    validate_agent_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {
+                "name": "validate_agent_run",
+                "arguments": {"manifest_path": str(agent_dir)},
+            },
+        }
+    )
+    assert validate_agent_call_response
+    assert (
+        "agilab.agent_run_validation.v1"
+        in validate_agent_call_response["result"]["content"][0]["text"]
     )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 
