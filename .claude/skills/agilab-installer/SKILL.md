@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-28
 ---
 
 # AGILAB Installer Skill
@@ -191,6 +191,12 @@ Use this skill when working on:
     - `_deploy_local_worker()` appending exact dependency pins into the worker copy
     - local core packages (`agi-env`, `agi-node`) being added one by one instead of together as local paths
     - missing `read_agilab_path()` causing a source checkout app to be treated like a generated install artifact
+  - If source-checkout worker builds fail while a packaged install path works, inspect the worker build
+    commands in `agi_cluster.agi_distributor.deployment_build_support` before changing app metadata.
+    Source-env build commands must keep the build-tool overlay (`--with setuptools --with cython`) and
+    add the local core projects as editable overlays (`--with-editable <agi-env>` and
+    `--with-editable <agi-node>`) so `uv run --no-sync` does not resolve stale index metadata while
+    building worker eggs or Cython extensions.
   - Typical symptom:
     - manager install and worker build succeed
     - failure appears later at `uv add agi-env` / `uv add agi-node` or worker `uv sync`
@@ -211,6 +217,21 @@ Use this skill when working on:
   - If the release publisher missed nested worker manifests, update `tools/pypi_publish.py`
     so `builtin_app_pyprojects()` includes both `*_project/pyproject.toml` and
     `*_project/src/*_worker/pyproject.toml`.
+
+- **Worker build fails because build tools are absent**
+  - Error shape: `agi_node.agi_dispatcher.build`, `bdist_egg`, or `build_ext`
+    fails in a manager/worker project even though the app runtime dependencies
+    are otherwise installed.
+  - Check local and remote worker build commands before adding dependencies to
+    app manifests. Build-time overlays should be explicit on the `uv run`
+    command:
+    `uv --project <app-or-worker> run --no-sync --with setuptools --with cython ...`
+  - Cover both quiet and verbose command variants, and cover remote deploy
+    command construction. Good focused regressions live in
+    `src/agilab/core/test/test_agi_distributor_deployment_build_support.py` and
+    `src/agilab/core/test/test_agi_distributor_deployment_remote_support.py`.
+  - For this shared deploy/build class, run the focused core tests first, then
+    the broader `src/agilab/core/test` slice if the branch will be pushed.
 
 - **Dataset extraction wipes seeded files**
   - Avoid mtime heuristics on extracted files; use a stamp file tied to the archive.

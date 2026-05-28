@@ -3,7 +3,7 @@ name: agilab-example-maturity
 description: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-26
+  updated: 2026-05-28
 ---
 
 # AGILAB Example Maturity
@@ -142,6 +142,10 @@ shared `agilab.notebook_demo` helpers for path resolution, local `RunRequest`
 defaults, worker-install checks, and log-root display. Do not duplicate
 `worker_env_ready` / `install_if_needed` boilerplate inside each notebook, and
 do not hide the flow behind a one-line `run_demo()` wrapper.
+`notebook_agi_core_context(...)` is the preferred compact first-cell helper when
+it reduces notebook boilerplate: expose `context.app_env`, `context.request`,
+and `context.log_root`, but keep the explicit `install_if_needed(...)` and
+`AGI.run(app_env, request=request)` cells visible for teaching and debugging.
 
 When a read-only preview script is teaching a contract owned by a built-in app,
 keep the JSON/TOML payload with that app rather than duplicating it under
