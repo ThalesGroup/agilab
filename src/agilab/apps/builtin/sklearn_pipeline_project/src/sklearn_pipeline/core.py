@@ -160,7 +160,10 @@ def build_sklearn_pipeline_artifacts(
         "promotion_hint": "candidate" if metrics["accuracy"] >= 0.85 and metrics["f1"] >= 0.85 else "review",
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    artifacts["manifest"] = _artifact(manifest_path, role="artifact hash manifest", output_dir=output_dir)
+    summary_artifacts = {
+        **artifacts,
+        "manifest": _artifact(manifest_path, role="artifact hash manifest", output_dir=output_dir),
+    }
 
     summary_path = output_dir / "sklearn_pipeline_summary.json"
     summary = {
@@ -168,9 +171,8 @@ def build_sklearn_pipeline_artifacts(
         "output_dir": str(output_dir),
         "metrics": metrics,
         "promotion_hint": manifest["promotion_hint"],
-        "artifacts": artifacts,
+        "artifacts": summary_artifacts,
         "manifest": str(manifest_path),
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    summary["artifacts"]["summary"] = _artifact(summary_path, role="worker summary", output_dir=output_dir)
     return summary
