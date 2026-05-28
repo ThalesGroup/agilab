@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB parallel runtime modes</title>
+  <desc id="desc">Diagram showing a parallel_stage contract flowing into preview, local, Dask, service, and library-internal runtime modes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef7f2"/>
+    </linearGradient>
+    <linearGradient id="contract" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#496579"/>
+    </marker>
+    <filter id="soft-shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1f2937" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .title { font: 700 34px Georgia, "Times New Roman", serif; fill: #102a43; }
+      .subtitle { font: 500 18px Georgia, "Times New Roman", serif; fill: #526879; }
+      .card-title { font: 700 19px Georgia, "Times New Roman", serif; fill: #102a43; }
+      .card-label { font: 700 14px "Trebuchet MS", Verdana, sans-serif; fill: #0f766e; letter-spacing: .04em; text-transform: uppercase; }
+      .body { font: 15px "Trebuchet MS", Verdana, sans-serif; fill: #2d3f50; }
+      .small { font: 13px "Trebuchet MS", Verdana, sans-serif; fill: #496579; }
+      .mono { font: 14px "Courier New", monospace; fill: #eaf6ff; }
+      .box { fill: #ffffff; stroke: #c8d7e1; stroke-width: 1.5; filter: url(#soft-shadow); }
+      .mode { fill: #ffffff; stroke: #c8d7e1; stroke-width: 1.5; }
+      .partition { fill: #dff6ef; stroke: #24a085; stroke-width: 1.2; }
+      .worker { fill: #e8f0ff; stroke: #4f7bd9; stroke-width: 1.2; }
+      .inner { fill: #fff4df; stroke: #d97706; stroke-width: 1.2; }
+      .arrow { stroke: #496579; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .rule { stroke: #c8d7e1; stroke-width: 1.2; stroke-dasharray: 5 5; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="820" fill="url(#bg)"/>
+
+  <text class="title" x="70" y="70">Parallelism is decided in two steps</text>
+  <text class="subtitle" x="70" y="102">First define partitions and the reducer. Then choose the runtime that consumes the contract.</text>
+
+  <rect x="80" y="140" width="1040" height="120" rx="24" fill="url(#contract)" filter="url(#soft-shadow)"/>
+  <text class="mono" x="120" y="183">
+    <tspan x="120" dy="0">parallel_stage.toml</tspan>
+    <tspan x="120" dy="26">function + split rule + reducer</tspan>
+    <tspan x="120" dy="26">workers = "auto" | partition_strategy = "file-chunks"</tspan>
+  </text>
+  <g transform="translate(815 164)">
+    <rect class="partition" x="0" y="0" width="54" height="34" rx="8"/>
+    <rect class="partition" x="68" y="0" width="54" height="34" rx="8"/>
+    <rect class="partition" x="136" y="0" width="54" height="34" rx="8"/>
+    <rect class="partition" x="204" y="0" width="54" height="34" rx="8"/>
+    <text class="small" x="0" y="66" fill="#eaf6ff">Scheduling unit: partitions, not raw files</text>
+  </g>
+
+  <path class="arrow" d="M 600 262 L 600 314"/>
+  <rect class="box" x="370" y="318" width="460" height="78" rx="18"/>
+  <text class="card-title" x="400" y="350">Runtime consumes the contract</text>
+  <text class="body" x="400" y="374">
+    <tspan x="400" dy="0">The selected runner decides what starts,</tspan>
+    <tspan x="400" dy="20">where partitions execute, and what evidence is written.</tspan>
+  </text>
+
+  <path class="arrow" d="M 600 398 C 600 428, 196 418, 196 458"/>
+  <path class="arrow" d="M 600 398 C 600 428, 398 418, 398 458"/>
+  <path class="arrow" d="M 600 398 L 600 458"/>
+  <path class="arrow" d="M 600 398 C 600 428, 802 418, 802 458"/>
+  <path class="arrow" d="M 600 398 C 600 428, 1004 418, 1004 458"/>
+
+  <g>
+    <rect class="mode" x="68" y="460" width="220" height="210" rx="20"/>
+    <text class="card-label" x="94" y="494">Preview</text>
+    <text class="card-title" x="94" y="524">Plan only</text>
+    <text class="body" x="94" y="554">
+      <tspan x="94" dy="0">No worker starts.</tspan>
+      <tspan x="94" dy="22">No scheduler starts.</tspan>
+      <tspan x="94" dy="22">The contract is checked</tspan>
+      <tspan x="94" dy="22">and partition counts</tspan>
+      <tspan x="94" dy="22">are estimated.</tspan>
+    </text>
+    <line class="rule" x1="94" y1="632" x2="262" y2="632"/>
+    <text class="small" x="94" y="654">Evidence: preview JSON</text>
+  </g>
+
+  <g>
+    <rect class="mode" x="290" y="460" width="220" height="210" rx="20"/>
+    <text class="card-label" x="316" y="494">Local</text>
+    <text class="card-title" x="316" y="524">One machine</text>
+    <text class="body" x="316" y="554">
+      <tspan x="316" dy="0">Single-run proves one</tspan>
+      <tspan x="316" dy="22">partition first.</tspan>
+      <tspan x="316" dy="22">Local parallel mode</tspan>
+      <tspan x="316" dy="22">uses dispatcher-owned</tspan>
+      <tspan x="316" dy="22">process or thread pools.</tspan>
+    </text>
+    <line class="rule" x1="316" y1="632" x2="484" y2="632"/>
+    <text class="small" x="316" y="654">No Dask dashboard</text>
+  </g>
+
+  <g>
+    <rect class="mode" x="512" y="460" width="220" height="210" rx="20"/>
+    <text class="card-label" x="538" y="494">Dask</text>
+    <text class="card-title" x="538" y="524">Outer scheduler</text>
+    <rect class="worker" x="538" y="548" width="72" height="38" rx="9"/>
+    <rect class="worker" x="622" y="548" width="72" height="38" rx="9"/>
+    <text class="small" x="552" y="572">task</text>
+    <text class="small" x="636" y="572">task</text>
+    <text class="body" x="538" y="616">
+      <tspan x="538" dy="0">AGILAB work-plan</tspan>
+      <tspan x="538" dy="22">tasks run across</tspan>
+      <tspan x="538" dy="22">configured worker slots.</tspan>
+    </text>
+    <text class="small" x="538" y="654">Dashboard sees coarse tasks</text>
+  </g>
+
+  <g>
+    <rect class="mode" x="734" y="460" width="220" height="210" rx="20"/>
+    <text class="card-label" x="760" y="494">Service</text>
+    <text class="card-title" x="760" y="524">Long-lived workers</text>
+    <text class="body" x="760" y="554">
+      <tspan x="760" dy="0">Persistent workers</tspan>
+      <tspan x="760" dy="22">pull the same kind</tspan>
+      <tspan x="760" dy="22">of partition tasks.</tspan>
+      <tspan x="760" dy="22">Health gates decide</tspan>
+      <tspan x="760" dy="22">whether runs proceed.</tspan>
+    </text>
+    <line class="rule" x1="760" y1="632" x2="928" y2="632"/>
+    <text class="small" x="760" y="654">Good for repeated runs</text>
+  </g>
+
+  <g>
+    <rect class="mode" x="956" y="460" width="220" height="210" rx="20"/>
+    <text class="card-label" x="982" y="494">Inside worker</text>
+    <text class="card-title" x="982" y="524">Library threads</text>
+    <rect class="inner" x="982" y="548" width="148" height="44" rx="10"/>
+    <text class="small" x="1000" y="574">Polars / NumPy</text>
+    <text class="body" x="982" y="616">
+      <tspan x="982" dy="0">Inner parallelism is</tspan>
+      <tspan x="982" dy="22">opaque to AGILAB.</tspan>
+      <tspan x="982" dy="22">Avoid piling on too</tspan>
+      <tspan x="982" dy="22">many outer workers.</tspan>
+    </text>
+  </g>
+
+  <rect x="120" y="712" width="960" height="62" rx="18" fill="#102a43" opacity="0.95"/>
+  <text x="152" y="748" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="700" fill="#ffffff">
+    Rule: create enough independent partitions, then pick the lightest runtime that can execute them.
+  </text>
+</svg>

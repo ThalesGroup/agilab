@@ -100,6 +100,67 @@ The checker fails when required fields are missing, when the function is not in
 ``module_or_path:function_name`` form, when the split rule is unknown, or when
 the worker/reducer/backend values are invalid.
 
+What actually happens at runtime
+--------------------------------
+
+``parallel_stage.toml`` is a contract. By itself it does not launch workers,
+start a scheduler, or execute partitions. Runtime parallelism appears only when
+an app, WORKFLOW stage, or runner consumes the contract and dispatches the
+partitions.
+
+.. figure:: diagrams/parallel_runtime_modes.svg
+   :alt: Diagram showing a parallel stage contract flowing into preview, local, Dask, service, and library-internal runtime modes.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   ``parallel_stage.toml`` records partition intent; the selected runtime
+   decides what actually starts and where partitions run.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 25 27 28
+
+   * - Mode
+     - What starts
+     - What runs in parallel
+     - What to expect
+   * - Contract / preview
+     - No workers and no scheduler.
+     - Nothing executes; AGILAB validates and plans partitions.
+     - Use this to check the function, split rule, reducer, and worker policy
+       before scaling.
+   * - Local single-run
+     - One Python process.
+     - No AGILAB worker fan-out.
+     - Use this as the first proof that one partition produces the expected
+       output and evidence.
+   * - Local parallel, Dask disabled
+     - ``agi_dispatcher`` owns local process or thread pools.
+     - Work-plan partitions can run concurrently on the same machine.
+     - There is no Dask dashboard. Useful parallelism is bounded by available
+       partitions and useful workers.
+   * - Dask / distributed
+     - AGILAB starts or connects to the outer scheduler and configured worker
+       slots.
+     - AGILAB work-plan tasks run across those slots.
+     - The Dask dashboard sees coarse AGILAB tasks. Hidden nested work inside a
+       single worker remains opaque to the outer scheduler.
+   * - Service mode
+     - Persistent workers stay alive and pull work.
+     - The same partition/task model runs through long-lived workers.
+     - Use this for repeated runs and health-gated workers, not for changing the
+       partition contract.
+   * - Library-internal parallelism
+     - Libraries such as Polars, NumPy, Cython, or OpenMP may use threads inside
+       one worker.
+     - AGILAB does not see those inner threads as separate work-plan tasks.
+     - Avoid stacking too many outer workers on top of kernels that already own
+       their internal parallelism.
+
+The contract records intent; the consuming runtime decides how that intent is
+executed. A good review therefore checks both the contract shape and the runtime
+mode that will consume it.
+
 Try the packaged example
 ------------------------
 
@@ -139,7 +200,7 @@ Use this order when turning sequential code into an AGILAB parallel stage:
 
 1. Extract the body into a function that handles one file, one table partition,
    or one parameter set.
-2. Write or generate ``parallel_stage.toml`` with ``backend = "local"``.
+2. Write or generate ``parallel_stage.toml`` as a reviewable planning artifact.
 3. Run one partition locally and inspect the artifact path and return value.
 4. Add or verify the reducer contract.
 5. Only then switch the backend to ``pool`` or ``dask``.
