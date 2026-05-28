@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import polars as pl
 
 from agi_node.reduction import ReduceArtifact
@@ -26,7 +27,14 @@ from execution_polars.reduction import (
     partial_from_result_frame,
     reduce_artifact_path,
 )
-from execution_polars_worker.execution_polars_worker import ExecutionPolarsWorker
+from execution_polars_worker import execution_polars_worker as worker_module
+from execution_polars_worker.execution_polars_worker import (
+    TAIL_KERNEL_RUNTIME_COLUMN,
+    ExecutionPolarsWorker,
+    _tail_checksum_from_columns,
+    _tail_checksum_numba_kernel_py,
+    _tail_checksum_scalar_py,
+)
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -70,7 +78,11 @@ def test_execution_polars_generates_dataset_and_distribution(tmp_path: Path) -> 
     assert "dir_path" not in manager.as_dict()
 
 
-def test_execution_polars_worker_processes_a_file(tmp_path: Path) -> None:
+def test_execution_polars_worker_processes_a_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(worker_module, "_get_tail_checksum_numba_kernel", lambda: None)
     env = _make_env(tmp_path)
     args = ExecutionPolarsArgs(n_partitions=1, nfile=1, rows_per_file=16, n_groups=4)
     manager = ExecutionPolars(env, args=args)
@@ -89,6 +101,101 @@ def test_execution_polars_worker_processes_a_file(tmp_path: Path) -> None:
     assert {"engine", "execution_model", "weighted_score", "python_tail_checksum", "source_file"} <= set(result.columns)
     assert set(result["engine"].to_list()) == {"polars"}
     assert set(result["execution_model"].to_list()) == {"threads"}
+    assert set(result[TAIL_KERNEL_RUNTIME_COLUMN].to_list()) == {"python"}
+
+
+def test_execution_polars_tail_checksum_matches_scalar_reference() -> None:
+    x_values = [1.5, 2.0, 3.5, 5.0, 8.0]
+    y_values = [0.2, 0.4, 0.6, 0.8, 1.0]
+    signal_values = [0.1, -0.2, 0.3, -0.4, 0.5]
+    weight_values = [1.0, 1.1, 1.2, 1.3, 1.4]
+    pass_count = 3
+    sample_stride = 2
+
+    expected = 0.0
+    for idx in range(0, len(x_values), sample_stride):
+        value = float(x_values[idx]) + float(y_values[idx]) * 0.01
+        signal = float(signal_values[idx])
+        weight = float(weight_values[idx])
+        for _ in range(pass_count * 8):
+            value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
+        expected += value
+
+    actual = _tail_checksum_scalar_py(
+        x_values,
+        y_values,
+        signal_values,
+        weight_values,
+        pass_count=pass_count,
+        sample_stride=sample_stride,
+    )
+
+    assert actual == expected
+
+
+def test_execution_polars_tail_checksum_uses_optional_numba_kernel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = pl.DataFrame(
+        {
+            "x": [1.5, 2.0, 3.5, 5.0, 8.0],
+            "y": [0.2, 0.4, 0.6, 0.8, 1.0],
+            "signal": [0.1, -0.2, 0.3, -0.4, 0.5],
+            "weight": [1.0, 1.1, 1.2, 1.3, 1.4],
+        }
+    )
+    calls = {"count": 0}
+
+    def fake_kernel(*args):
+        calls["count"] += 1
+        return _tail_checksum_numba_kernel_py(*args)
+
+    monkeypatch.setattr(worker_module, "_get_tail_checksum_numba_kernel", lambda: fake_kernel)
+
+    checksum, runtime_label = _tail_checksum_from_columns(df, pass_count=3, sample_stride=2)
+    expected = _tail_checksum_scalar_py(
+        df["x"].to_list(),
+        df["y"].to_list(),
+        df["signal"].to_list(),
+        df["weight"].to_list(),
+        pass_count=3,
+        sample_stride=2,
+    )
+
+    assert checksum == expected
+    assert runtime_label == "numba"
+    assert calls["count"] == 1
+
+
+def test_execution_polars_tail_checksum_falls_back_after_kernel_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = pl.DataFrame(
+        {
+            "x": [1.5, 2.0, 3.5],
+            "y": [0.2, 0.4, 0.6],
+            "signal": [0.1, -0.2, 0.3],
+            "weight": [1.0, 1.1, 1.2],
+        }
+    )
+
+    def broken_kernel(*_args):
+        raise RuntimeError("numba kernel failed")
+
+    monkeypatch.setattr(worker_module, "_get_tail_checksum_numba_kernel", lambda: broken_kernel)
+
+    checksum, runtime_label = _tail_checksum_from_columns(df, pass_count=2, sample_stride=1)
+    expected = _tail_checksum_scalar_py(
+        df["x"].to_list(),
+        df["y"].to_list(),
+        df["signal"].to_list(),
+        df["weight"].to_list(),
+        pass_count=2,
+        sample_stride=1,
+    )
+
+    assert checksum == expected
+    assert runtime_label == "python"
 
 
 def test_execution_polars_reduce_contract_merges_result_partials(tmp_path: Path) -> None:

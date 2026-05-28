@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 import time
 
 import polars as pl
@@ -12,6 +13,116 @@ from agi_node.polars_worker import PolarsWorker
 from execution_polars.reduction import write_reduce_artifact
 
 _runtime: dict[str, object] = {}
+_TAIL_CHECKSUM_NUMBA_KERNEL: Any | None = None
+_TAIL_CHECKSUM_NUMBA_KERNEL_ATTEMPTED = False
+TAIL_KERNEL_RUNTIME_COLUMN = "tail_kernel_runtime"
+
+
+def _tail_checksum_scalar_py(
+    x_values,
+    y_values,
+    signal_values,
+    weight_values,
+    *,
+    pass_count: int,
+    sample_stride: int = 64,
+) -> float:
+    loop_passes = max(int(pass_count), 1) * 8
+    if sample_stride <= 0 or len(x_values) == 0:
+        return 0.0
+
+    checksum = 0.0
+    for idx in range(0, len(x_values), sample_stride):
+        value = float(x_values[idx]) + float(y_values[idx]) * 0.01
+        signal = float(signal_values[idx])
+        weight = float(weight_values[idx])
+        for _ in range(loop_passes):
+            value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
+        checksum += value
+    return checksum
+
+
+def _tail_checksum_numba_kernel_py(
+    x_values,
+    y_values,
+    signal_values,
+    weight_values,
+    pass_count: int,
+    sample_stride: int,
+) -> float:
+    loop_passes = max(int(pass_count), 1) * 8
+    if sample_stride <= 0 or x_values.shape[0] == 0:
+        return 0.0
+
+    checksum = 0.0
+    for idx in range(0, x_values.shape[0], sample_stride):
+        value = float(x_values[idx]) + float(y_values[idx]) * 0.01
+        signal = float(signal_values[idx])
+        weight = float(weight_values[idx])
+        for _ in range(loop_passes):
+            value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
+        checksum += value
+    return checksum
+
+
+def _get_tail_checksum_numba_kernel() -> Any | None:
+    global _TAIL_CHECKSUM_NUMBA_KERNEL, _TAIL_CHECKSUM_NUMBA_KERNEL_ATTEMPTED
+
+    if _TAIL_CHECKSUM_NUMBA_KERNEL_ATTEMPTED:
+        return _TAIL_CHECKSUM_NUMBA_KERNEL
+
+    _TAIL_CHECKSUM_NUMBA_KERNEL_ATTEMPTED = True
+    try:
+        from numba import njit  # type: ignore[import-not-found]
+    except Exception:
+        _TAIL_CHECKSUM_NUMBA_KERNEL = None
+        return None
+
+    try:
+        _TAIL_CHECKSUM_NUMBA_KERNEL = njit(cache=False)(_tail_checksum_numba_kernel_py)
+    except Exception:
+        _TAIL_CHECKSUM_NUMBA_KERNEL = None
+    return _TAIL_CHECKSUM_NUMBA_KERNEL
+
+
+def _series_to_float64_array(series: pl.Series) -> Any:
+    import numpy as np
+
+    return np.ascontiguousarray(series.to_numpy(), dtype=np.float64)
+
+
+def _tail_checksum_from_columns(
+    df: pl.DataFrame,
+    *,
+    pass_count: int,
+    sample_stride: int = 64,
+) -> tuple[float, str]:
+    global _TAIL_CHECKSUM_NUMBA_KERNEL
+
+    kernel = _get_tail_checksum_numba_kernel()
+    if kernel is not None:
+        try:
+            checksum = kernel(
+                _series_to_float64_array(df["x"]),
+                _series_to_float64_array(df["y"]),
+                _series_to_float64_array(df["signal"]),
+                _series_to_float64_array(df["weight"]),
+                max(int(pass_count), 1),
+                int(sample_stride),
+            )
+            return float(checksum), "numba"
+        except Exception:
+            _TAIL_CHECKSUM_NUMBA_KERNEL = None
+
+    checksum = _tail_checksum_scalar_py(
+        df["x"].to_list(),
+        df["y"].to_list(),
+        df["signal"].to_list(),
+        df["weight"].to_list(),
+        pass_count=pass_count,
+        sample_stride=sample_stride,
+    )
+    return checksum, "python"
 
 
 class ExecutionPolarsWorker(PolarsWorker):
@@ -55,20 +166,10 @@ class ExecutionPolarsWorker(PolarsWorker):
     def _python_tail_checksum(self, df: pl.DataFrame) -> float:
         """Add a small GIL-bound scalar tail so execution modes separate more clearly."""
         args = self._current_args()
-        loop_passes = max(int(getattr(args, "compute_passes", 1)), 1) * 8
-        sample_stride = 64
-        checksum = 0.0
-        x_values = df["x"].to_list()
-        y_values = df["y"].to_list()
-        signal_values = df["signal"].to_list()
-        weight_values = df["weight"].to_list()
-        for idx in range(0, len(x_values), sample_stride):
-            value = float(x_values[idx]) + float(y_values[idx]) * 0.01
-            signal = float(signal_values[idx])
-            weight = float(weight_values[idx])
-            for _ in range(loop_passes):
-                value = abs((value * 1.0000007) + signal * 0.17 - weight * 0.03)
-            checksum += value
+        checksum, _runtime_label = _tail_checksum_from_columns(
+            df,
+            pass_count=max(int(getattr(args, "compute_passes", 1)), 1),
+        )
         return checksum
 
     def works(self, workers_plan, workers_plan_metadata) -> float:
@@ -122,12 +223,16 @@ class ExecutionPolarsWorker(PolarsWorker):
                 "segment_weight": [1.00, 1.08, 1.14, 1.22],
             }
         )
-        python_tail_checksum = self._python_tail_checksum(df)
+        python_tail_checksum, tail_kernel_runtime = _tail_checksum_from_columns(
+            df,
+            pass_count=passes,
+        )
         agg = (
             agg.join(segment_weights, on="segment", how="left")
             .with_columns(
                 (pl.col("score_mean") * pl.col("segment_weight") * pl.col("row_count")).alias("weighted_score"),
                 pl.lit(python_tail_checksum).alias("python_tail_checksum"),
+                pl.lit(tail_kernel_runtime).alias(TAIL_KERNEL_RUNTIME_COLUMN),
                 pl.lit(source.name).alias("source_file"),
                 pl.lit("polars").alias("engine"),
                 pl.lit("threads").alias("execution_model"),
