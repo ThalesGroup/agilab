@@ -1,5 +1,10 @@
 # Mission Decision Example
 
+## Example Class
+
+**Runnable app project.** Installed `AGI_install_*` and `AGI_run_*` helpers run `mission_decision_project` as a real AGILAB app project.
+
+
 ## Purpose
 
 Runs `mission_decision_project`, a deterministic public demo for autonomous

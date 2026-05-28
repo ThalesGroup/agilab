@@ -1,5 +1,10 @@
 # Train-Then-Serve Example
 
+## Example Class
+
+**Read-only preview.** The preview writes service-contract, prediction-sample, and health evidence. It does not train, serve, or install an AGILAB app project.
+
+
 ## Purpose
 
 Shows the product handoff after a policy has been trained: keep the training

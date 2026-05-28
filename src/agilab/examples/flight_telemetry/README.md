@@ -1,5 +1,10 @@
 # Flight Example
 
+## Example Class
+
+**Runnable app project.** Installed `AGI_install_*` and `AGI_run_*` helpers run `flight_telemetry_project` as a real AGILAB app project.
+
+
 ## Purpose
 
 Runs `flight_telemetry_project`, the default public AGILAB first-run app for file-based

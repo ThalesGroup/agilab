@@ -1,5 +1,10 @@
 # Scikit-Learn Pipeline Example
 
+## Example Class
+
+**Runnable app project.** Installed `AGI_install_*` and `AGI_run_*` helpers run `sklearn_pipeline_project` as a real AGILAB app project.
+
+
 ## Purpose
 
 Runs `sklearn_pipeline_project`, a compact app example that turns a normal

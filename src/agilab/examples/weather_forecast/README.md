@@ -1,5 +1,10 @@
 # Weather Forecast Example
 
+## Example Class
+
+**Runnable app project.** Installed `AGI_install_*` and `AGI_run_*` helpers run `weather_forecast_project` as a real AGILAB app project.
+
+
 ## Purpose
 
 Runs `weather_forecast_project`, a compact weather forecasting example migrated

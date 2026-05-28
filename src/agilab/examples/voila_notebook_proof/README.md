@@ -1,5 +1,10 @@
 # Voila Notebook Proof Preview
 
+## Example Class
+
+**Read-only preview.** The preview writes notebook-dashboard bridge artifacts and evidence. It does not start Voila or install an AGILAB app project.
+
+
 ## Purpose
 
 Show how a notebook dashboard can become an AGILAB app adoption bridge without

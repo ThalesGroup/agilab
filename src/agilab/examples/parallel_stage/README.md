@@ -1,5 +1,10 @@
 # Parallel Stage Example
 
+## Example Class
+
+**Read-only preview.** The preview validates a partition contract and writes planning evidence. It does not start workers or install an AGILAB app project.
+
+
 ## Purpose
 
 Shows the smallest AGILAB mental model for parallelizing code:
