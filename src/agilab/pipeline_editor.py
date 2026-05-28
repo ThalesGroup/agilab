@@ -647,6 +647,48 @@ def _render_notebook_import_write_preview(
         caption(preview_text)
 
 
+def _backup_notebook_import_targets(paths: Iterable[Path]) -> Dict[Path, bytes | None]:
+    backups: Dict[Path, bytes | None] = {}
+    for path in paths:
+        try:
+            backups[path] = path.read_bytes()
+        except FileNotFoundError:
+            backups[path] = None
+    return backups
+
+
+def _restore_notebook_import_targets(backups: Mapping[Path, bytes | None]) -> None:
+    for path, payload in backups.items():
+        try:
+            if payload is None:
+                path.unlink()
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payload)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.error(
+                "Unable to restore notebook import target %s after failed import commit: %s",
+                bound_log_value(path, LOG_PATH_LIMIT),
+                bound_log_value(exc, LOG_DETAIL_LIMIT),
+            )
+
+
+def _cleanup_notebook_import_temp_files(paths: Iterable[Path]) -> None:
+    for path in paths:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning(
+                "Unable to remove notebook import temporary file %s: %s",
+                bound_log_value(path, LOG_PATH_LIMIT),
+                bound_log_value(exc, LOG_DETAIL_LIMIT),
+            )
+
+
 def _notebook_import_blocking_detail(preflight: Any) -> str:
     if not isinstance(preflight, dict):
         return "Notebook preflight did not produce a valid report."
@@ -730,42 +772,59 @@ def write_notebook_import_preview(
     module = str(preview.get("module", "") or _notebook_import_module_name(module_dir))
     cell_count = int(preview.get("cell_count", 0) or 0)
 
+    module_dir.mkdir(parents=True, exist_ok=True)
     stages_file.parent.mkdir(parents=True, exist_ok=True)
-    temp_stages_file = stages_file.with_name(f".{stages_file.name}.{os.getpid()}.tmp")
-    try:
-        with open(temp_stages_file, "wb") as toml_file:
-            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
-        temp_stages_file.replace(stages_file)
-    except (OSError, TypeError, ValueError):
-        try:
-            temp_stages_file.unlink()
-        except OSError:
-            pass
-        raise
-
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
     view_plan_path = module_dir / "notebook_import_view_plan.json"
     view_manifest_path = discover_notebook_import_view_manifest(view_manifest_dir or module_dir)
-    write_notebook_import_contract(
-        contract_path,
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
+    temp_stages_file = stages_file.with_name(f".{stages_file.name}.{os.getpid()}.tmp")
+    temp_contract_path = contract_path.with_name(f".{contract_path.name}.{os.getpid()}.tmp")
+    temp_pipeline_view_path = pipeline_view_path.with_name(
+        f".{pipeline_view_path.name}.{os.getpid()}.tmp"
     )
-    write_notebook_import_pipeline_view(
-        pipeline_view_path,
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-    )
-    write_notebook_import_view_plan(
-        view_plan_path,
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-        manifest_path=view_manifest_path,
-    )
+    temp_view_plan_path = view_plan_path.with_name(f".{view_plan_path.name}.{os.getpid()}.tmp")
+    temp_targets = [
+        (temp_contract_path, contract_path),
+        (temp_pipeline_view_path, pipeline_view_path),
+        (temp_view_plan_path, view_plan_path),
+        (temp_stages_file, stages_file),
+    ]
+    backups: Dict[Path, bytes | None] | None = None
+    replaced_any = False
+    try:
+        with open(temp_stages_file, "wb") as toml_file:
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+        write_notebook_import_contract(
+            temp_contract_path,
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        )
+        write_notebook_import_pipeline_view(
+            temp_pipeline_view_path,
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        )
+        write_notebook_import_view_plan(
+            temp_view_plan_path,
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+            manifest_path=view_manifest_path,
+        )
+        backups = _backup_notebook_import_targets(target for _temp, target in temp_targets)
+        for temp_path, target_path in temp_targets:
+            temp_path.replace(target_path)
+            replaced_any = True
+    except (OSError, TypeError, ValueError):
+        if backups is not None and replaced_any:
+            _restore_notebook_import_targets(backups)
+        raise
+    finally:
+        _cleanup_notebook_import_temp_files(temp for temp, _target in temp_targets)
+
     _emit_notebook_preflight_result(preflight, contract_path, view_plan_path=view_plan_path)
     return cell_count
 
@@ -1717,8 +1776,9 @@ def on_import_notebook(
     module_dir: Path,
     stages_file: Path,
     index_page: str,
+    view_manifest_dir: Path | None = None,
 ) -> None:
-    """Handle notebook file import via sidebar uploader."""
+    """Compatibility handler for notebook imports via sidebar uploader."""
     uploaded_file = st.session_state.get(key)
     if not uploaded_file:
         _emit_streamlit_message("error", "No notebook file was uploaded.")
@@ -1726,21 +1786,16 @@ def on_import_notebook(
     if not _is_uploaded_notebook(uploaded_file):
         return
 
-    cell_count = notebook_to_toml(
-        uploaded_file,
-        stages_file.name,
-        module_dir,
-    )
-    if cell_count is None:
+    preview = build_notebook_import_preview(uploaded_file, module_dir)
+    if preview is None:
         return
-    if cell_count > 0:
-        _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
-    else:
-        _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
-
-    if index_page in st.session_state and isinstance(st.session_state[index_page], list):
-        st.session_state[index_page][-1] = cell_count
-    st.session_state.page_broken = True
+    st.session_state[_notebook_import_preview_key(index_page)] = preview
+    confirm_notebook_import_preview(
+        module_dir,
+        stages_file,
+        index_page,
+        view_manifest_dir=view_manifest_dir,
+    )
 
 def display_history_tab(stages_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for the stage contract."""

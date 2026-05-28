@@ -3846,6 +3846,21 @@ def _notebook_project_detail(clone_detail, preflight, cell_count: int) -> str:
     return " ".join(parts)
 
 
+def _cleanup_failed_notebook_project(dest_root: Path) -> tuple[bool, str]:
+    try:
+        if not dest_root.exists():
+            return True, ""
+        import shutil
+
+        shutil.rmtree(dest_root)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return (
+            False,
+            f"Incomplete project clone remains at {dest_root}: {exc}",
+        )
+    return True, f"Removed incomplete project clone at {dest_root}."
+
+
 def _create_project_from_notebook_action(
     env: AgiEnv,
     *,
@@ -3942,10 +3957,18 @@ def _create_project_from_notebook_action(
             preview, dest_root, stages_file
         )
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        cleanup_ok, cleanup_detail = _cleanup_failed_notebook_project(dest_root)
+        detail = str(exc)
+        if cleanup_detail:
+            detail = f"{detail}\n\n{cleanup_detail}"
         return ActionResult.error(
             f"Project '{new_name}' was created, but notebook import failed.",
-            detail=str(exc),
-            next_action="Open WORKFLOW for the project and retry notebook import.",
+            detail=detail,
+            next_action=(
+                "Fix the notebook import error, then retry project creation."
+                if cleanup_ok
+                else "Remove the incomplete project directory, then retry project creation."
+            ),
             data={
                 **dict(clone_result.data),
                 "new_name": new_name,
@@ -3954,6 +3977,7 @@ def _create_project_from_notebook_action(
                 "notebook_path": notebook_path,
                 "stages_file": stages_file,
                 "preflight": preflight,
+                "cleanup_ok": cleanup_ok,
             },
         )
 
