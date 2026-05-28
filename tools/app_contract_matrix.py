@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import importlib.util
@@ -18,8 +19,11 @@ from typing import Any, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.app_contract_matrix.v1"
 BUILTIN_APPS_REL = Path("src/agilab/apps/builtin")
+APPS_PAGES_REL = Path("src/agilab/apps-pages")
 PUBLIC_APP_CATALOG_REL = Path("docs/source/public-app-catalog.rst")
+APPS_PAGES_CATALOG_REL = Path("docs/source/apps-pages.rst")
 AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
+AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
 REDUCER_EXEMPT_PROJECTS = frozenset({"mycode_project", "global_dag_project"})
 OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
     {
@@ -112,6 +116,19 @@ def _has_dependency(dependencies: Sequence[str], package: str) -> bool:
 def discover_builtin_projects(repo_root: Path) -> tuple[Path, ...]:
     builtin_root = repo_root / BUILTIN_APPS_REL
     return tuple(sorted(path for path in builtin_root.glob("*_project") if path.is_dir()))
+
+
+def discover_page_bundle_projects(repo_root: Path) -> tuple[Path, ...]:
+    pages_root = repo_root / APPS_PAGES_REL
+    if not pages_root.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            path
+            for path in pages_root.iterdir()
+            if path.is_dir() and (path / "pyproject.toml").is_file()
+        )
+    )
 
 
 def _project_slug(project_name: str) -> str:
@@ -368,6 +385,34 @@ def _public_catalog_rows(repo_root: Path) -> dict[str, dict[str, str]]:
     return rows
 
 
+def _apps_pages_catalog_rows(repo_root: Path) -> dict[str, dict[str, str]]:
+    catalog_path = repo_root / APPS_PAGES_CATALOG_REL
+    lines = catalog_path.read_text(encoding="utf-8").splitlines()
+    rows: dict[str, dict[str, str]] = {}
+    current: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("* - "):
+            if len(current) >= 4 and current[0] != "Module":
+                rows[current[0]] = {
+                    "package": current[1],
+                    "purpose": current[2],
+                    "status": " ".join(current[3:]),
+                }
+            current = [stripped.removeprefix("* - ").strip("`")]
+        elif stripped.startswith("- ") and current:
+            current.append(stripped.removeprefix("- ").strip("`"))
+        elif current and len(current) >= 4 and stripped and not stripped.startswith((".. ", ":")):
+            current[-1] = f"{current[-1]} {stripped}".strip()
+    if len(current) >= 4 and current[0] != "Module":
+        rows[current[0]] = {
+            "package": current[1],
+            "purpose": current[2],
+            "status": " ".join(current[3:]),
+        }
+    return rows
+
+
 def _catalog_distribution_rows(repo_root: Path) -> dict[str, dict[str, str]]:
     payload = json.loads((repo_root / AGI_APPS_CATALOG_REL).read_text(encoding="utf-8"))
     rows: dict[str, dict[str, str]] = {}
@@ -376,6 +421,76 @@ def _catalog_distribution_rows(repo_root: Path) -> dict[str, dict[str, str]]:
             if isinstance(row, dict) and isinstance(row.get("distribution"), str):
                 rows[row["distribution"]] = {key: str(value) for key, value in row.items()}
     return rows
+
+
+def _literal_string_tuple_assignment(path: Path, name: str) -> tuple[str, ...]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            continue
+        value = ast.literal_eval(node.value)
+        if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
+            return value
+        raise RuntimeError(f"{path} assignment {name} is not a tuple of strings")
+    raise RuntimeError(f"{path} does not define {name}")
+
+
+def _agi_pages_public_modules(repo_root: Path) -> tuple[str, ...]:
+    return _literal_string_tuple_assignment(
+        repo_root / AGI_PAGES_PROVIDER_REL,
+        "PUBLIC_PAGE_MODULES",
+    )
+
+
+def _page_pyproject_contract_errors(
+    repo_root: Path,
+    package_to_module: Mapping[str, str],
+    package_specs: Mapping[str, str],
+) -> dict[str, dict[str, Any]]:
+    errors: dict[str, dict[str, Any]] = {}
+    for package, module in sorted(package_to_module.items()):
+        pyproject_path = repo_root / package_specs[package] / "pyproject.toml"
+        try:
+            pyproject = _read_toml(pyproject_path)
+        except Exception as exc:
+            errors[package] = {
+                "module": module,
+                "pyproject": _relative(repo_root, pyproject_path),
+                "error": str(exc),
+            }
+            continue
+        project = pyproject.get("project", {})
+        entry_points = project.get("entry-points", {})
+        agilab_pages = (
+            entry_points.get("agilab.pages", {})
+            if isinstance(entry_points, dict)
+            else {}
+        )
+        expected_entry_point = f"{module}:bundle_root"
+        mismatch: dict[str, Any] = {
+            "module": module,
+            "pyproject": _relative(repo_root, pyproject_path),
+        }
+        if project.get("name") != package:
+            mismatch["name"] = project.get("name")
+            mismatch["expected_name"] = package
+        if not project.get("version"):
+            mismatch["version"] = project.get("version")
+        if not isinstance(agilab_pages, dict) or agilab_pages.get(module) != expected_entry_point:
+            mismatch["entry_point"] = (
+                agilab_pages.get(module) if isinstance(agilab_pages, dict) else None
+            )
+            mismatch["expected_entry_point"] = expected_entry_point
+        if set(mismatch) != {"module", "pyproject"}:
+            errors[package] = mismatch
+    return errors
+
+
+def _status_includes_agi_pages(status: str) -> bool:
+    normalized = status.casefold()
+    return "included in" in normalized and "agi-pages" in normalized
 
 
 def _global_checks(
@@ -396,7 +511,9 @@ def _global_checks(
         "agilab_app_contract_pypi_app_packages",
     )
     builtin_projects = {path.name for path in discover_builtin_projects(repo_root)}
+    source_page_modules = {path.name for path in discover_page_bundle_projects(repo_root)}
     package_specs = dict(package_split.APP_PROJECT_PACKAGE_SPECS)
+    page_package_specs = dict(package_split.PAGE_BUNDLE_PACKAGE_SPECS)
     promoted_package_names = set(package_split.PROMOTED_APP_PROJECT_PACKAGE_NAMES)
     if pypi_promoted_packages is None:
         pypi_promoted = set(pypi_app_packages.PROMOTED_PYPI_APP_PACKAGES)
@@ -428,6 +545,126 @@ def _global_checks(
             details={"errors": package_mapping_errors, "package_to_project": package_to_project},
         )
     ]
+
+    page_package_to_module = {
+        package: Path(page_path).name for package, page_path in sorted(page_package_specs.items())
+    }
+    page_mapping_errors = {
+        package: {
+            "package_path": page_package_specs[package],
+            "module": module,
+            "source_exists": module in source_page_modules,
+            "pyproject_exists": (repo_root / page_package_specs[package] / "pyproject.toml").is_file(),
+        }
+        for package, module in page_package_to_module.items()
+        if module not in source_page_modules
+        or not (repo_root / page_package_specs[package] / "pyproject.toml").is_file()
+    }
+    checks.append(
+        _check(
+            "page_bundle_specs_point_to_source_bundles",
+            "Page-bundle package specs point to source bundles",
+            not page_mapping_errors,
+            "package split page specs resolve to checked-in apps-pages bundles",
+            evidence=("tools/package_split_contract.py", str(APPS_PAGES_REL)),
+            details={
+                "errors": page_mapping_errors,
+                "package_to_module": page_package_to_module,
+            },
+        )
+    )
+
+    page_pyproject_errors = _page_pyproject_contract_errors(
+        repo_root,
+        page_package_to_module,
+        page_package_specs,
+    )
+    checks.append(
+        _check(
+            "page_bundle_pyprojects_match_package_contract",
+            "Page-bundle pyprojects match package contract",
+            not page_pyproject_errors,
+            "page-bundle pyprojects expose the expected name, version, and entry point",
+            evidence=(str(APPS_PAGES_REL), "tools/package_split_contract.py"),
+            details={"errors": page_pyproject_errors},
+        )
+    )
+
+    page_catalog_rows = _apps_pages_catalog_rows(repo_root)
+    expected_page_catalog = {
+        module: package for package, module in page_package_to_module.items()
+    }
+    missing_page_rows = sorted(module for module in source_page_modules if module not in page_catalog_rows)
+    source_catalog_package_mismatches: dict[str, dict[str, Any]] = {}
+    for module in sorted(source_page_modules):
+        pyproject_path = repo_root / APPS_PAGES_REL / module / "pyproject.toml"
+        try:
+            expected_package = _read_toml(pyproject_path).get("project", {}).get("name")
+        except Exception as exc:
+            source_catalog_package_mismatches[module] = {"error": str(exc)}
+            continue
+        if page_catalog_rows.get(module, {}).get("package") != expected_package:
+            source_catalog_package_mismatches[module] = {
+                "expected_package": expected_package,
+                "catalog_package": page_catalog_rows.get(module, {}).get("package"),
+            }
+    page_package_mismatches = {
+        module: {
+            "expected_package": package,
+            "catalog_package": page_catalog_rows.get(module, {}).get("package"),
+        }
+        for module, package in sorted(expected_page_catalog.items())
+        if page_catalog_rows.get(module, {}).get("package") != package
+    }
+    included_rows_without_contract = {
+        module: {
+            "catalog_package": row.get("package"),
+            "status": row.get("status"),
+        }
+        for module, row in sorted(page_catalog_rows.items())
+        if _status_includes_agi_pages(row.get("status", ""))
+        and module not in expected_page_catalog
+    }
+    checks.append(
+        _check(
+            "apps_pages_catalog_matches_page_contract",
+            "Apps-pages docs catalog matches page contract",
+            not missing_page_rows
+            and not source_catalog_package_mismatches
+            and not page_package_mismatches
+            and not included_rows_without_contract,
+            "apps-pages docs list every source bundle and match package split status",
+            evidence=(str(APPS_PAGES_CATALOG_REL), "tools/package_split_contract.py"),
+            details={
+                "missing_source_rows": missing_page_rows,
+                "source_package_mismatches": source_catalog_package_mismatches,
+                "package_mismatches": page_package_mismatches,
+                "included_rows_without_package_contract": included_rows_without_contract,
+            },
+        )
+    )
+
+    try:
+        provider_modules = set(_agi_pages_public_modules(repo_root))
+        provider_error = ""
+    except Exception as exc:
+        provider_modules = set()
+        provider_error = str(exc)
+    expected_provider_modules = set(expected_page_catalog)
+    checks.append(
+        _check(
+            "agi_pages_provider_matches_page_bundle_contract",
+            "agi-pages provider matches page-bundle contract",
+            not provider_error and provider_modules == expected_provider_modules,
+            "agi-pages provider exposes exactly the lightweight page-bundle contract",
+            evidence=(str(AGI_PAGES_PROVIDER_REL), "tools/package_split_contract.py"),
+            details={
+                "error": provider_error,
+                "missing_from_provider": sorted(expected_provider_modules - provider_modules),
+                "extra_in_provider": sorted(provider_modules - expected_provider_modules),
+            },
+        )
+    )
 
     checks.append(
         _check(
