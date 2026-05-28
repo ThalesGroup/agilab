@@ -500,6 +500,44 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
     )
 
 
+def test_build_support_resolver_modes_for_offline_mirror_and_wheelhouse(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_EXTRA_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_FIND_LINKS", raising=False)
+
+    cache_only = SimpleNamespace(envars={"AGI_INTERNET_ON": "0"})
+    assert deployment_build_support._uv_resolver_mode(cache_only.envars) == "cache-only"
+    assert deployment_build_support._uv_offline_flag(cache_only) == "--offline "
+
+    mirror = SimpleNamespace(
+        envars={
+            "AGI_INTERNET_ON": "0",
+            "UV_EXTRA_INDEX_URL": "http://mirror.local/simple",
+        }
+    )
+    assert deployment_build_support._uv_resolver_mode(mirror.envars) == "mirror"
+    assert deployment_build_support._uv_offline_flag(mirror) == ""
+
+    wheelhouse = SimpleNamespace(
+        envars={
+            "AGI_INTERNET_ON": "0",
+            "UV_FIND_LINKS": "/mnt/wheelhouse",
+        }
+    )
+    assert deployment_build_support._uv_resolver_mode(wheelhouse.envars) == "wheelhouse"
+    assert deployment_build_support._uv_offline_flag(wheelhouse) == "--offline "
+
+    placeholder = SimpleNamespace(
+        envars={
+            "AGI_INTERNET_ON": "0",
+            "UV_INDEX_URL": "None",
+        }
+    )
+    assert deployment_build_support._uv_resolver_mode(placeholder.envars) == "cache-only"
+    assert deployment_build_support._uv_offline_flag(placeholder) == "--offline "
+
+
 @pytest.mark.asyncio
 async def test_build_lib_local_cython_copies_worker_lib(tmp_path):
     env = _build_env(tmp_path)

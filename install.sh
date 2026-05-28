@@ -57,6 +57,47 @@ configure_uv_link_mode() {
 
 configure_uv_link_mode
 
+redact_url_value() {
+    local raw="$1"
+    if [[ "$raw" =~ ^([^:/]+://)[^/@]+@(.+)$ ]]; then
+        printf '%s***@%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    else
+        printf '%s' "$raw"
+    fi
+}
+
+uv_resolver_mode() {
+    if [[ -n "${UV_INDEX_URL:-}" || -n "${UV_EXTRA_INDEX_URL:-}" ]]; then
+        echo "mirror"
+    elif [[ -n "${UV_FIND_LINKS:-}" ]]; then
+        echo "wheelhouse"
+    elif [[ "${AGI_INTERNET_ON:-1}" == "0" ]]; then
+        echo "cache-only"
+    else
+        echo "online"
+    fi
+}
+
+print_uv_resolver_mode() {
+    local mode offline
+    mode="$(uv_resolver_mode)"
+    case "$mode" in
+        cache-only|wheelhouse) offline="yes" ;;
+        *) offline="no" ;;
+    esac
+    echo -e "${BLUE}uv resolver mode: ${mode}${NC}"
+    echo -e "${BLUE}effective uv offline: ${offline}${NC}"
+    if [[ -n "${UV_INDEX_URL:-}" ]]; then
+        echo -e "${BLUE}UV_INDEX_URL: $(redact_url_value "$UV_INDEX_URL")${NC}"
+    fi
+    if [[ -n "${UV_EXTRA_INDEX_URL:-}" ]]; then
+        echo -e "${BLUE}UV_EXTRA_INDEX_URL: $(redact_url_value "$UV_EXTRA_INDEX_URL")${NC}"
+    fi
+    if [[ -n "${UV_FIND_LINKS:-}" ]]; then
+        echo -e "${BLUE}UV_FIND_LINKS: $UV_FIND_LINKS${NC}"
+    fi
+}
+
 run_remote_shell_installer() {
     local url="$1"
     local label="$2"
@@ -982,9 +1023,11 @@ update_environment() {
         echo "AGI_CLUSTER_SHARE=\"$AGI_CLUSTER_SHARE\""
         echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_SHARE\""
         echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
-        if [[ -n "${UV_INDEX_URL:-}" ]]; then
-            echo "UV_INDEX_URL=\"$UV_INDEX_URL\""
-        fi
+        for key in UV_INDEX_URL UV_EXTRA_INDEX_URL UV_FIND_LINKS SSL_CERT_FILE REQUESTS_CA_BUNDLE UV_NATIVE_TLS; do
+            if [[ -n "${!key:-}" ]]; then
+                echo "$key=\"${!key}\""
+            fi
+        done
         echo "IS_SOURCE_ENV=\"1\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
@@ -1490,6 +1533,7 @@ else
 fi
 
 check_internet
+print_uv_resolver_mode
 guard_ephemeral_validation_env
 ensure_share_dir "$AGI_CLUSTER_SHARE" "$AGI_LOCAL_SHARE"
 set_locale
