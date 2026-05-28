@@ -16,6 +16,7 @@ cores. It shows why AGILAB should parallelize partitions, not raw file count.
 - A file is not always the right scheduling unit.
 - Large files can be split into more partitions than the number of input files.
 - Small unsplittable files should cap useful worker count to file count.
+- `parallel_stage.toml` records intent; it does not launch workers by itself.
 - The reducer contract must be clear before switching from local preview to
   pool or Dask execution.
 
@@ -41,6 +42,23 @@ uv --preview-features extra-build-dependencies run python src/agilab/examples/pa
 
 The command reads `parallel_stage.toml` and writes a JSON preview. It does not
 start local workers, Dask, SSH, or a distributed scheduler.
+
+## Runtime Modes
+
+The same partition contract can be consumed by different runtimes:
+
+| Mode | What happens |
+| --- | --- |
+| Contract / preview | Validates and plans partitions only. No workers or scheduler start. |
+| Local single-run | Run one partition in one Python process to prove outputs and evidence. |
+| Local parallel, Dask disabled | `agi_dispatcher` owns local process or thread pools. Work-plan partitions can run concurrently on one machine. |
+| Dask / distributed | AGILAB uses the outer scheduler and configured worker slots. The Dask dashboard sees AGILAB work-plan tasks, not hidden nested threads inside one worker. |
+| Service mode | Persistent workers pull the same kind of partition tasks across repeated runs with health checks. |
+| Library-internal parallelism | Libraries such as Polars, NumPy, Cython, or OpenMP may use threads inside one worker. AGILAB does not count those inner threads as separate work-plan tasks. |
+
+The practical rule is: AGILAB parallelizes partitions, not files. If files are
+splittable, create more partitions than files. If files are unsplittable,
+useful worker count is capped by the number of independent files.
 
 ## Expected Input
 
