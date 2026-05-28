@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.architecture_scorecard.v1"
 HARDENING_GAPS_SCHEMA = "agilab.architecture_hardening_gaps.v1"
-SUPPORTED_SCORE = "4.6 / 5"
+SUPPORTED_SCORE = "4.7 / 5"
 SCORE_SCOPE = (
     "Excellent evidence-first workbench architecture; conditional for shared "
     "or multi-tenant production use."
@@ -192,19 +192,37 @@ def _check_capacity_model_trust_boundary(repo_root: Path) -> dict[str, Any]:
         check_id="architecture_capacity_model_trust_boundary",
         label="Capacity model trust boundary",
         pass_summary=(
-            "capacity predictor pickle loading is constrained to a trusted resource root "
-            "and rejects world-writable model files"
+            "capacity predictor pickle loading is constrained to a trusted resource root, "
+            "rejects world-writable files, and verifies a SHA-256 sidecar manifest"
         ),
         fail_summary="capacity predictor pickle trust boundary is incomplete",
         required={
             "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime_misc_support.py": [
                 "_capacity_model_trust_error",
+                "_capacity_model_manifest_error",
+                "write_capacity_model_manifest",
                 "trusted_root=env.resources_path",
                 "model file is world-writable",
-                "Refusing to load untrusted capacity model",
+                "Refusing to load unverified capacity model",
+            ],
+            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/capacity_support.py": [
+                "write_capacity_model_manifest",
+            ],
+            "src/agilab/core/agi-env/src/agi_env/resources/.agilab/balancer_model.pkl.sha256.json": [
+                "agilab.capacity_model_manifest.v1",
+                "digest_sha256",
+                "sha256",
             ],
             "test/test_architecture_scorecard.py": [
                 "test_capacity_predictor_refuses_untrusted_pickle_path",
+                "test_capacity_predictor_refuses_signature_mismatch",
+            ],
+            "src/agilab/core/test/test_agi_distributor_runtime_misc_support.py": [
+                "test_load_capacity_predictor_rejects_signature_mismatch",
+            ],
+            "src/agilab/core/test/test_agi_distributor_capacity_support.py": [
+                "test_train_capacity_missing_and_success",
+                "CAPACITY_MODEL_MANIFEST_SCHEMA",
             ],
         },
     )
@@ -270,6 +288,11 @@ def _check_hardening_gap_register(repo_root: Path) -> dict[str, Any]:
             "schema": payload.get("schema"),
             "supported_score": payload.get("supported_score"),
             "gap_ids": sorted(gap_ids),
+            "gap_statuses": {
+                str(gap.get("id")): gap.get("status")
+                for gap in gaps
+                if isinstance(gap, dict) and gap.get("id")
+            },
             "missing_ids": missing_ids,
             "invalid_gaps": invalid_gaps,
         }

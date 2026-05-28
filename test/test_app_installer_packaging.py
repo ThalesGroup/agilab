@@ -67,6 +67,14 @@ EXAMPLE_PREVIEWS = {
     "train_then_serve": ("preview_train_then_serve.py",),
     "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
+EXAMPLE_NOTEBOOK_ASSETS = {
+    "notebook_migrations/skforecast_meteo_fr": ("README.md",),
+}
+EXAMPLE_CLASS_LABELS = {
+    "Runnable app project",
+    "Read-only preview",
+    "Notebook import asset",
+}
 EXAMPLE_CATALOG_DOC = ROOT / "docs/source/packaged-examples.rst"
 DOCS_INDEX = ROOT / "docs/source/index.rst"
 DEPRECATED_EXAMPLE_DIR_NAMES = {
@@ -924,6 +932,7 @@ def test_packaged_example_catalog_is_documented() -> None:
             assert script_name in readme_text
         for heading in (
             "## Purpose",
+            "## Example Class",
             "## What You Learn",
             "## Install",
             "## Run",
@@ -951,6 +960,7 @@ def test_packaged_example_catalog_is_documented() -> None:
         )
         for heading in (
             "## Purpose",
+            "## Example Class",
             "## What You Learn",
             "## Install",
             "## Run",
@@ -961,6 +971,26 @@ def test_packaged_example_catalog_is_documented() -> None:
             "## Troubleshooting",
         ):
             assert heading in readme_text
+
+
+def test_packaged_example_readmes_have_explicit_execution_class() -> None:
+    expected_classes = {
+        **{example_name: "Runnable app project" for example_name in EXAMPLE_APPS},
+        **{example_name: "Read-only preview" for example_name in EXAMPLE_PREVIEWS},
+        **{example_name: "Notebook import asset" for example_name in EXAMPLE_NOTEBOOK_ASSETS},
+    }
+
+    for example_name in _packaged_example_dirs():
+        if example_name == "notebook_migrations":
+            continue
+        assert example_name in expected_classes
+
+    for example_name, expected_class in sorted(expected_classes.items()):
+        readme_text = (EXAMPLES_ROOT / example_name / "README.md").read_text(encoding="utf-8")
+        assert "## Example Class" in readme_text
+        assert f"**{expected_class}.**" in readme_text
+        for other_class in EXAMPLE_CLASS_LABELS - {expected_class}:
+            assert f"**{other_class}.**" not in readme_text
 
 
 def test_packaged_example_catalog_has_rendered_docs_page() -> None:

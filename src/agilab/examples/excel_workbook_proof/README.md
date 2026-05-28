@@ -1,5 +1,10 @@
 # Excel Workbook Proof Example
 
+## Example Class
+
+**Read-only preview.** The preview writes deterministic local workbook, CSV, and evidence artifacts. It does not install or run an AGILAB app project.
+
+
 ## Purpose
 
 Shows the smallest Excel-shaped AGILAB adoption bridge:

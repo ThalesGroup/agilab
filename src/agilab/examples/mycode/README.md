@@ -1,5 +1,10 @@
 # Mycode Example
 
+## Example Class
+
+**Runnable app project.** Installed `AGI_install_*` and `AGI_run_*` helpers run `mycode_project` as a real AGILAB app project.
+
+
 ## Purpose
 
 Runs `mycode_project`, the smallest built-in template for checking that AGILAB

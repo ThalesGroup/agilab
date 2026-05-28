@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agi_cluster.agi_distributor import AGI, RunRequest, capacity_support
+from agi_cluster.agi_distributor import AGI, RunRequest, capacity_support, runtime_misc_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
@@ -819,4 +819,10 @@ def test_train_capacity_missing_and_success(tmp_path):
 
     model_path = tmp_path / AGI._capacity_model_file
     assert model_path.exists()
+    manifest_path = runtime_misc_support.capacity_model_manifest_path(model_path)
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema"] == runtime_misc_support.CAPACITY_MODEL_MANIFEST_SCHEMA
+    assert manifest["model_file"] == model_path.name
+    assert manifest["algorithm"] == runtime_misc_support.CAPACITY_MODEL_HASH_ALGORITHM
     assert hasattr(AGI._capacity_predictor, "predict")

@@ -1,5 +1,10 @@
 # Notebook To Dask Migration Example
 
+## Example Class
+
+**Read-only preview.** The preview writes migration contracts and evidence for notebook-to-Dask planning. It does not install or run an AGILAB app project.
+
+
 ## Purpose
 
 Shows how a notebook-first data workflow can be imported into AGILAB as an

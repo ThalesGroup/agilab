@@ -1,5 +1,6 @@
 import asyncio
 import getpass
+import hashlib
 import humanize
 import importlib
 import inspect
@@ -16,6 +17,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, List, Optional, cast
 
+CAPACITY_MODEL_MANIFEST_SCHEMA = "agilab.capacity_model_manifest.v1"
+CAPACITY_MODEL_HASH_ALGORITHM = "sha256"
 _CAPACITY_LOAD_EXCEPTIONS = (
     AttributeError,
     EOFError,
@@ -210,6 +213,17 @@ def load_capacity_predictor(
             if retrain_fn is not None:
                 retrain_fn()
             return None
+        manifest_error = _capacity_model_manifest_error(path)
+        if manifest_error is not None:
+            if log is not None:
+                log.warning(
+                    "Refusing to load unverified capacity model from %s: %s",
+                    path,
+                    manifest_error,
+                )
+            if retrain_fn is not None:
+                retrain_fn()
+            return None
 
     try:
         with open(path.resolve(strict=False), "rb") as stream:
@@ -235,6 +249,70 @@ def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | N
 
     if mode & stat.S_IWOTH:
         return "model file is world-writable"
+    return None
+
+
+def capacity_model_manifest_path(model_path: Path) -> Path:
+    path = Path(model_path)
+    return path.with_name(f"{path.name}.sha256.json")
+
+
+def _capacity_model_sha256(model_path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(Path(model_path).resolve(strict=False), "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_capacity_model_manifest(model_path: Path) -> Path:
+    path = Path(model_path).resolve(strict=False)
+    stat_result = path.stat()
+    manifest_path = capacity_model_manifest_path(path)
+    payload = {
+        "schema": CAPACITY_MODEL_MANIFEST_SCHEMA,
+        "model_file": path.name,
+        "algorithm": CAPACITY_MODEL_HASH_ALGORITHM,
+        "digest_sha256": _capacity_model_sha256(path),
+        "size_bytes": stat_result.st_size,
+    }
+    manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
+def _capacity_model_manifest_error(model_path: Path) -> str | None:
+    path = Path(model_path).expanduser().resolve(strict=False)
+    manifest_path = capacity_model_manifest_path(path)
+    if not manifest_path.is_file():
+        return f"model manifest is missing: {manifest_path}"
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return f"model manifest is unreadable: {exc}"
+
+    if payload.get("schema") != CAPACITY_MODEL_MANIFEST_SCHEMA:
+        return "model manifest schema mismatch"
+    if payload.get("model_file") != path.name:
+        return "model manifest file mismatch"
+    if payload.get("algorithm") != CAPACITY_MODEL_HASH_ALGORITHM:
+        return "model manifest algorithm mismatch"
+
+    try:
+        size_bytes = path.stat().st_size
+    except OSError as exc:
+        return f"cannot stat model file for manifest verification: {exc}"
+    if payload.get("size_bytes") != size_bytes:
+        return "model manifest size mismatch"
+
+    expected_digest = payload.get("digest_sha256")
+    if not isinstance(expected_digest, str) or not expected_digest:
+        return "model manifest digest missing"
+    if _capacity_model_sha256(path) != expected_digest:
+        return "model manifest sha256 mismatch"
     return None
 
 

@@ -15,6 +15,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 from agi_env import AgiEnv
+from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor.run_request_support import RunRequest
 from agi_node.agi_dispatcher.base_worker import BaseWorker
 
@@ -574,6 +575,7 @@ def train_capacity(agi_cls: Any, train_home: Path, log: Any = logger) -> None:
     capacity_model = os.path.join(train_home, agi_cls._capacity_model_file)
     with open(capacity_model, "wb") as handle:
         pickle.dump(agi_cls._capacity_predictor, handle)
+    runtime_misc_support.write_capacity_model_manifest(Path(capacity_model))
 
 
 def update_capacity(agi_cls: Any) -> None:

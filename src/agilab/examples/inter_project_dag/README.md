@@ -1,5 +1,10 @@
 # Inter-Project DAG Example
 
+## Example Class
+
+**Read-only preview.** The preview writes deterministic runner-state evidence for a cross-project DAG contract. It does not install or run either app project.
+
+
 ## Purpose
 
 Shows how two AGILAB projects can be connected by a DAG contract without

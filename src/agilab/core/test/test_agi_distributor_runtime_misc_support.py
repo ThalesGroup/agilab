@@ -268,6 +268,75 @@ def test_load_capacity_predictor_returns_loaded_value(tmp_path):
     assert loaded == {"size": len(b"pickle-bytes")}
 
 
+def test_load_capacity_predictor_returns_signed_trusted_value(tmp_path):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda stream: {"size": len(stream.read())},
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded == {"size": len(b"pickle-bytes")}
+
+
+def test_load_capacity_predictor_rejects_missing_signature_manifest(tmp_path):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path, exc: calls["warnings"].append(
+            (message, path, str(exc))
+        )
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        log=log,
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert "model manifest is missing" in calls["warnings"][0][2]
+
+
+def test_load_capacity_predictor_rejects_signature_mismatch(tmp_path):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    manifest_path = runtime_misc_support.write_capacity_model_manifest(model_path)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["digest_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path, exc: calls["warnings"].append(
+            (message, path, str(exc))
+        )
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        log=log,
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert "sha256 mismatch" in calls["warnings"][0][2]
+
+
 def test_load_capacity_predictor_retrains_when_missing(tmp_path):
     calls = {"retrain": 0}
 

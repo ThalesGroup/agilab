@@ -1,5 +1,10 @@
 # Resilience Failure Injection Example
 
+## Example Class
+
+**Read-only preview.** The preview evaluates a deterministic failure scenario contract. It does not train, serve, or install an AGILAB app project.
+
+
 ## Purpose
 
 Shows how to compare routing strategies after a controlled degradation event.
