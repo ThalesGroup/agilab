@@ -49,6 +49,44 @@ def _site_packages_root(agi_space: Path) -> Path:
     raise FileNotFoundError(f"Could not locate site-packages under {agi_space / '.venv'}")
 
 
+def _has_streamlit(python_bin: Path, *, env: dict[str, str]) -> bool:
+    return (
+        subprocess.run(
+            [str(python_bin), "-c", "import streamlit"],
+            cwd=REPO_ROOT,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _ensure_ui_extra(python_bin: Path, *, env: dict[str, str]) -> None:
+    """Install the UI extra before running Streamlit-specific smoke checks."""
+
+    if _has_streamlit(python_bin, env=env):
+        print("fresh-install-ui-extra: already present")
+        return
+
+    result = _run(
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "pip",
+            "install",
+            "--python",
+            str(python_bin),
+            ".[ui]",
+        ],
+        env=env,
+        cwd=REPO_ROOT,
+    )
+    print(result.stdout)
+
+
 def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, str]) -> None:
     smoke_code = textwrap.dedent(
         f"""
@@ -146,6 +184,7 @@ def main() -> int:
         )
         print(import_check.stdout)
 
+        _ensure_ui_extra(python_bin, env=env)
         _streamlit_smoke(python_bin, site_packages, env=env)
         print(f"Fresh install regression passed. Scratch home: {home_dir}")
         return 0
