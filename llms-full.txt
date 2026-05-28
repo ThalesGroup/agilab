@@ -24,7 +24,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
 - agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-26
+  updated: 2026-05-28
   preview: # AGILAB Example Maturity ## Goal Raise AGILAB packaged examples from internal smoke snippets to external-beta examples: readable, deterministic, copy/paste safe, aligned with docs, and
 - agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -32,7 +32,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Hugging Face Spaces Skill (AGILAB) Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space. The current source of truth is the sibling apps/docs checkout, normally `../thales_agilab` relative to the public `agilab` checkout:
 - agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-19
+  updated: 2026-05-28
   preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
 - agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -60,7 +60,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-19
+  updated: 2026-05-28
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. ## Philosophy - For non-trivial diffs, start with
 - agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

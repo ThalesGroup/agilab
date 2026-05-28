@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-28
 ---
 
 # Testing Skill (AGILAB)
@@ -142,6 +142,10 @@ Use this skill when validating changes.
     - nested `uv` environment cleanup in `agi_env`
     - worker dependency-rewrite behavior in `agi_distributor`
     - local-source worker adds using consistent local core paths instead of package-index metadata
+    - source worker build command construction in
+      `src/agilab/core/test/test_agi_distributor_deployment_build_support.py`, especially the
+      `--with setuptools --with cython` build-tool overlay plus source-env
+      `--with-editable` overlays for local `agi-env` and `agi-node`
 - Generated AI content:
   - Test the schema boundary and the deterministic downstream artifacts, not just
     the model/client call.
@@ -213,6 +217,13 @@ Use this skill when validating changes.
   - `COVERAGE_FILE=.coverage.agi-env uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with sqlalchemy --with pytest --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_env --cov-report=xml:coverage-agi-env.xml src/agilab/core/agi-env/test`
 - Shared core isolated coverage step with CI parity:
   - `COVERAGE_FILE=.coverage.agi-node uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_node --cov-report=xml:coverage-agi-node.xml src/agilab/core/test`
+- Shared core dependency collection caveat:
+  - On Python 3.13, if collection fails before AGILAB tests run inside
+    `sklearn -> scipy.stats -> numpy` with `_CopyMode.IF_NEEDED is neither True
+    nor False`, do not patch AGILAB code for that collection error. Re-run the
+    same isolated validation with temporary dependency constraints such as
+    `--with 'numpy<2.3' --with 'scipy<1.16'` and report the dependency override
+    in the validation evidence.
 - Streamlit page regression (active-app aware):
   - Patch `sys.argv` with `["<page>.py", "--active-app", "<app_path>"]` before `streamlit.testing.v1.AppTest.from_file(...)`.
   - If an AppTest passes in isolation but times out in the full profile, first
