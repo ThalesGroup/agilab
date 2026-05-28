@@ -62,6 +62,7 @@ jobs:
             src/agilab/first_proof_cli.py \
             src/agilab/orchestrate_execute.py \
             src/agilab/pipeline_openai.py \
+            tools/agilab_audit.py \
             tools/agilab_web_robot.py \
             tools/newcomer_first_proof.py \
             tools/first_launch_robot.py \
@@ -69,6 +70,10 @@ jobs:
             tools/install_release_proof_package.py \
             tools/public_proof_scenarios.py \
             tools/release_proof_report.py \
+            tools/pypi_project_preflight.py \
+            tools/release_status.py \
+            tools/release_handoff.py \
+            tools/release_handoff_guard.py \
             tools/app_contract_matrix.py \
             tools/ui_robot_evidence.py \
             tools/ui_robot_matrix_aggregate.py \
@@ -78,6 +83,11 @@ jobs:
         run: |
           set -euo pipefail
           python tools/release_proof_report.py --check --compact
+
+      - name: Validate release handoff freshness
+        run: |
+          set -euo pipefail
+          python tools/release_handoff_guard.py --compact
 
       - name: Validate release proof GitHub run evidence
         env:
