@@ -1,12 +1,9 @@
 from agi_cluster.agi_distributor import AGI
-from agilab.notebook_demo import (
-    notebook_app_env,
-    notebook_local_request,
-    notebook_log_root,
-)
+from agilab.notebook_demo import notebook_agi_core_context
 
 APP = "mycode_project"  # built-in MyCode example app
-app_env = notebook_app_env(APP, verbose=1)
-request = notebook_local_request()
-print("App:", app_env.app)
-print("Log root:", notebook_log_root(app_env))
+context = notebook_agi_core_context(APP, verbose=1)
+app_env = context.app_env
+request = context.request
+print("App:", context.app)
+print("Log root:", context.log_root)
