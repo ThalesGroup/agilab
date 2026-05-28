@@ -1414,7 +1414,19 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_missing(monkeyp
     module = _load_module()
     fake_st = _FakeStreamlit()
     active_app = tmp_path / "demo_project"
+    old_app = tmp_path / "old_demo_project"
     active_app.mkdir()
+    old_app.mkdir()
+    fake_st.session_state[module.APP_SCOPE_KEY] = str(old_app.resolve())
+    fake_st.session_state[module.BASE_CHOICE_KEY] = "Custom"
+    fake_st.session_state[module.CUSTOM_BASE_KEY] = str(tmp_path / "old-base")
+    fake_st.session_state[module.SUBPATH_KEY] = "old/pipeline"
+    fake_st.session_state[module.GLOBS_KEY] = "old.json"
+    fake_st.session_state[module.FILES_KEY] = ["old-run"]
+    fake_st.session_state[module.AGGREGATION_KEY] = "sum"
+    fake_st.session_state[module.PROFILE_METRIC_KEY] = "old_metric"
+    fake_st.session_state[module.PROFILE_AXIS_KEY] = "old_axis"
+    fake_st.session_state[module.DETAIL_RUNS_KEY] = ["old-run"]
 
     class _FakeEnv:
         def __init__(self, **_kwargs):
@@ -1441,7 +1453,17 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_missing(monkeyp
     assert fake_st.headers[0] == "Data source"
     assert fake_st.infos == [f"Resolved dataset root: `{tmp_path / 'missing-root'}`"]
     assert fake_st.warnings == [f"Dataset root does not exist yet: {tmp_path / 'missing-root'}"]
+    assert fake_st.session_state[module.APP_SCOPE_KEY] == str(active_app.resolve())
     assert module.ENV_KEY in fake_st.session_state
+    assert fake_st.session_state[module.BASE_CHOICE_KEY] == "AGI_CLUSTER_SHARE"
+    assert fake_st.session_state[module.CUSTOM_BASE_KEY] == ""
+    assert fake_st.session_state[module.SUBPATH_KEY] == "demo/pipeline"
+    assert fake_st.session_state[module.GLOBS_KEY] == "**/allocations_steps.json"
+    assert fake_st.session_state[module.AGGREGATION_KEY] == "mean"
+    assert module.FILES_KEY not in fake_st.session_state
+    assert module.PROFILE_METRIC_KEY not in fake_st.session_state
+    assert module.PROFILE_AXIS_KEY not in fake_st.session_state
+    assert module.DETAIL_RUNS_KEY not in fake_st.session_state
 
 
 def test_view_inference_analysis_main_stops_when_dataset_root_is_unresolved(monkeypatch, tmp_path: Path) -> None:

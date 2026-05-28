@@ -57,6 +57,19 @@ PROFILE_METRIC_KEY = f"{PAGE_KEY}:profile_metric"
 PROFILE_AXIS_KEY = f"{PAGE_KEY}:profile_axis"
 DETAIL_RUNS_KEY = f"{PAGE_KEY}:detail_runs"
 ENV_KEY = f"{PAGE_KEY}:env"
+APP_SCOPE_KEY = f"{PAGE_KEY}:active_app_path"
+APP_SCOPED_SESSION_KEYS = (
+    ENV_KEY,
+    BASE_CHOICE_KEY,
+    CUSTOM_BASE_KEY,
+    SUBPATH_KEY,
+    GLOBS_KEY,
+    FILES_KEY,
+    AGGREGATION_KEY,
+    PROFILE_METRIC_KEY,
+    PROFILE_AXIS_KEY,
+    DETAIL_RUNS_KEY,
+)
 LOAD_CACHE_VERSION = 2
 HEATMAP_ANNOTATION_MAX_DIM = 12
 HEATMAP_MAX_COLUMNS = 2
@@ -142,6 +155,22 @@ def _resolve_active_app() -> Path:
         st.error(f"Provided --active-app path not found: {active_app_path}")
         st.stop()
     return active_app_path
+
+
+def _reset_state_for_active_app(active_app_path: Path) -> None:
+    active_app_key = str(active_app_path.resolve())
+    current_scope = st.session_state.get(APP_SCOPE_KEY)
+    if current_scope == active_app_key:
+        return
+    env = st.session_state.get(ENV_KEY)
+    if current_scope is None and isinstance(env, AgiEnv):
+        env_active_app = Path(getattr(env, "active_app", active_app_path)).resolve()
+        if str(env_active_app) == active_app_key:
+            st.session_state[APP_SCOPE_KEY] = active_app_key
+            return
+    for key in APP_SCOPED_SESSION_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = active_app_key
 
 
 def _load_app_settings(env: AgiEnv) -> dict[str, Any]:
@@ -1352,6 +1381,7 @@ def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, layout="wide")
 
     active_app_path = _resolve_active_app()
+    _reset_state_for_active_app(active_app_path)
     env = st.session_state.get(ENV_KEY)
     if not isinstance(env, AgiEnv) or Path(getattr(env, "active_app", active_app_path)).resolve() != active_app_path:
         env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
