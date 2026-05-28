@@ -160,7 +160,8 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "production-grade core technology",
         "AGILAB complements MLflow and production MLOps platforms.",
         "## Core Flow",
-        "### Local PyPI UI Proof",
+        "### Local PyPI Proof",
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"',
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"',
         "## Production Boundary",
         "## Security Reporting",
@@ -317,17 +318,18 @@ def test_readmes_expose_first_proof_evidence_badge() -> None:
 
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
-    local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
+    local_proof = readme.split("### Local PyPI Proof", 1)[1].split(
         "For a zero-install browser preview",
         1,
     )[0]
 
     assert (
-        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"'
         in local_proof
     )
-    assert "agilab first-proof" not in local_proof
-    assert "agilab first-proof --json --with-ui" in readme
+    assert "agilab first-proof --json" in local_proof
+    assert "agilab first-proof --json --with-ui" not in readme
+    assert "Add `--with-ui` only when" in readme
     assert "If startup fails, run a progressive fallback" in readme
     assert "agilab\n" in local_proof
     assert "python3 -m venv" not in local_proof
@@ -351,7 +353,7 @@ def test_quick_start_package_route_uses_tool_console_script_without_activation()
     )[1].split("Optional feature stacks", 1)[0]
 
     assert (
-        "uv --preview-features extra-build-dependencies tool install --upgrade agilab"
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"'
         in quick_start
     )
     assert (
@@ -360,7 +362,8 @@ def test_quick_start_package_route_uses_tool_console_script_without_activation()
     )
     assert "agilab first-proof --json --max-seconds 60" in quick_start
     assert "agilab first-proof --json --max-seconds 60" not in ui_route
-    assert "agilab first-proof --json --with-ui" in quick_start
+    assert "Add ``--with-ui``" in quick_start
+    assert "agilab first-proof --json --with-ui" not in quick_start
     assert "source .venv/bin/activate" not in quick_start
     assert "python -m agilab.lab_run" not in quick_start
 

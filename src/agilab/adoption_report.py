@@ -23,6 +23,7 @@ FIRST_PROOF_REQUIRED_VALIDATIONS = (
 )
 TROUBLESHOOTING_URL = "https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
+HEADLESS_FIRST_PROOF_COMMAND = "agilab first-proof --json"
 
 
 def _log_root() -> Path:
@@ -244,7 +245,7 @@ def _next_actions(
     compatibility_status: str,
     security_status: str,
 ) -> list[dict[str, str]]:
-    first_proof_command = "agilab first-proof --json --with-ui"
+    first_proof_command = HEADLESS_FIRST_PROOF_COMMAND
     actions: list[dict[str, str]] = []
 
     if first_proof_status == "missing":
