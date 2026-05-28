@@ -17,6 +17,12 @@ from agi_pages.runtime import relative_label, resolve_active_app_path
 
 
 PAGE_KEY = "view_live_artifacts"
+APP_SCOPE_KEY = f"{PAGE_KEY}__active_app_scope"
+APP_SCOPED_SESSION_KEY_PREFIXES = (f"{PAGE_KEY}__",)
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    f"{PAGE_KEY}_preview_artifact",
+)
 DEFAULT_PATTERNS = (
     "**/live_state.json",
     "**/analysis_manifest.json",
@@ -261,6 +267,24 @@ def _resolve_active_app() -> Path:
     return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
+def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
+    """Clear Live Artifacts state that belongs to a specific active app path."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in list(st.session_state.keys()):
+        if key == APP_SCOPE_KEY:
+            continue
+        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
+            isinstance(key, str) and key.startswith(prefix)
+            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _active_env(active_app_path: Path) -> AgiEnv:
     current = st.session_state.get("env")
     current_apps_path = getattr(current, "apps_path", None)
@@ -408,6 +432,7 @@ def _render_live_or_static_panel(root: Path, patterns: tuple[str, ...], max_file
 def main() -> None:
     st.set_page_config(layout="wide")
     active_app_path = _resolve_active_app()
+    _reset_app_scoped_session_state(active_app_path)
     env = _active_env(active_app_path)
 
     render_logo("Live Artifacts")
