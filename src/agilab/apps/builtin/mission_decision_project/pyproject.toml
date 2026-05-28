@@ -1,9 +1,9 @@
 [project]
 name = "mission_decision_project"
-version = "2026.05.26"
+version = "2026.05.28"
 description = "Built-in AGILAB Mission Decision autonomous demo"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.26", "agi-node>=2026.05.26", "agi-cluster>=2026.05.26", "pandas>=2.3.0,<4", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57"]
+dependencies = ["agi-env>=2026.05.28", "agi-node>=2026.05.28", "agi-cluster>=2026.05.28", "pandas>=2.3.0,<4", "pydantic>=2.11,<3", "streamlit>=1.56,<1.57"]
 
 [tool.agilab]
 runtime_target = "mission_decision"

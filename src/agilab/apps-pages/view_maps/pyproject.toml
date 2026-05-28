@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-geospatial-map"
-version = "2026.05.26"
+version = "2026.05.28"
 description = "AGILAB page bundle for 2D geospatial map exploration."
 readme = { text = "AGILAB page bundle for 2D geospatial map exploration.", content-type = "text/markdown" }
 requires-python = ">=3.11"

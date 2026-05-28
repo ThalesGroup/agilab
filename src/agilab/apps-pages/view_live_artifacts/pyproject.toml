@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-live-artifacts"
-version = "2026.05.26"
+version = "2026.05.28"
 description = "AGILAB page bundle for live artifact and evidence monitoring."
 readme = { text = "AGILAB page bundle for live artifact and evidence monitoring.", content-type = "text/markdown" }
 requires-python = ">=3.11"

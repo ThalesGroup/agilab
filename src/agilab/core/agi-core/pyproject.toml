@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.26"
+version = "2026.05.28"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
@@ -30,7 +30,7 @@ keywords = [
   "distributed-computing",
   "distributed-execution",
 ]
-dependencies = ["agi-env==2026.05.26", "agi-node==2026.05.26", "agi-cluster==2026.05.26"]
+dependencies = ["agi-env==2026.05.28", "agi-node==2026.05.28", "agi-cluster==2026.05.28"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"

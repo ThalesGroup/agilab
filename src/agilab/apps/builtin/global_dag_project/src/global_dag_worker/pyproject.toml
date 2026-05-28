@@ -1,8 +1,8 @@
 [project]
 name = "global_dag_worker"
-version = "2026.05.26"
+version = "2026.05.28"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.26", "agi-node>=2026.05.26", "polars>=1.35,<2"]
+dependencies = ["agi-env>=2026.05.28", "agi-node>=2026.05.28", "polars>=1.35,<2"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../../../core/agi-env", editable = true }
