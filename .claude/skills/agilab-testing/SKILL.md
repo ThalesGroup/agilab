@@ -146,6 +146,12 @@ Use this skill when validating changes.
       `src/agilab/core/test/test_agi_distributor_deployment_build_support.py`, especially the
       `--with setuptools --with cython` build-tool overlay plus source-env
       `--with-editable` overlays for local `agi-env` and `agi-node`
+  - When a full install reports `No module named 'setuptools'` or `No module named 'psutil'`
+    from `agi_node.agi_dispatcher.build`, treat it as shared worker-build command
+    construction first, not as an app dependency miss.
+  - Prove this class with one clean isolated `HOME` app install that failed before,
+    then rerun the failed-app slice or the full isolated installer validation when the
+    original run failed across several built-in apps.
 - Generated AI content:
   - Test the schema boundary and the deterministic downstream artifacts, not just
     the model/client call.
