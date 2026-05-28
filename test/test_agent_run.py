@@ -581,6 +581,59 @@ def test_agent_run_failure_returns_command_status_and_manifest(tmp_path: Path, c
     assert (tmp_path / "stderr.txt").read_text(encoding="utf-8").strip() == "bad"
 
 
+def test_agent_run_handoff_card_does_not_embed_output(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Handoff smoke",
+            "--run-id",
+            "agent-handoff",
+            "--output-dir",
+            str(tmp_path),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private output should stay in stdout artifact')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.agent_handoff_payload(tmp_path)
+    assert payload["schema"] == "agilab.agent_handoff.v1"
+    assert payload["run"]["run_id"] == "agent-handoff"
+    assert payload["run"]["tags"] == ["review"]
+    assert payload["protocols"]["adapters"] == ["mcp"]
+    assert payload["protocols"]["capabilities"] == ["evidence-review"]
+    assert payload["trace"]["event_count"] == 6
+    assert "private output" not in json.dumps(payload)
+    assert "Continue from AGILAB agent-run evidence" in payload["handoff"]["continue_prompt"]
+
+    assert module.main(["handoff", str(tmp_path), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["run"]["run_id"] == "agent-handoff"
+    assert "private output" not in json.dumps(cli_payload)
+
+    assert module.main(["handoff", str(tmp_path)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent handoff" in markdown
+    assert "agent-handoff" in markdown
+    assert "private output" not in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

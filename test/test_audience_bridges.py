@@ -620,6 +620,9 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     read_agent_payload = manifest_tools.read_agent_run(agent_dir)
     assert read_agent_payload["manifest"]["kind"] == agent_run.TRACE_KIND
     assert "agent ok" not in json.dumps(read_agent_payload)
+    handoff_payload = manifest_tools.agent_handoff(agent_dir)
+    assert handoff_payload["handoff"]["run"]["run_id"] == "agent-codex"
+    assert "agent ok" not in json.dumps(handoff_payload)
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -673,6 +676,22 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert (
         "agent-codex"
         in agent_call_response["result"]["content"][0]["text"]
+    )
+    handoff_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "agent_handoff",
+                "arguments": {"manifest_path": str(agent_dir)},
+            },
+        }
+    )
+    assert handoff_call_response
+    assert (
+        "Continue from AGILAB agent-run evidence"
+        in handoff_call_response["result"]["content"][0]["text"]
     )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 

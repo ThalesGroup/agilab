@@ -19,7 +19,7 @@ from uuid import uuid4
 
 from agilab.agent_config import load_agent_config, resolve_agent_provider
 from agilab.agent_tool_safety import evaluate_tool_permission, normalize_permission_level
-from agilab.agent_trace import AgentTraceStore, trace_artifact_payload
+from agilab.agent_trace import AgentTraceStore, load_trace_events, trace_artifact_payload
 from agilab.secret_uri import redact_text
 
 
@@ -1182,6 +1182,133 @@ def _summary_payload(summary: AgentRunSummary) -> dict[str, object]:
     }
 
 
+def _protocol_summary(manifest: dict[str, object]) -> dict[str, object]:
+    protocols = manifest.get("protocols", {})
+    protocols_map = protocols if isinstance(protocols, dict) else {}
+    return {
+        "adapters": list(protocols_map.get("adapters", []))
+        if isinstance(protocols_map.get("adapters"), list)
+        else [],
+        "capabilities": list(protocols_map.get("capabilities", []))
+        if isinstance(protocols_map.get("capabilities"), list)
+        else [],
+        "mode": str(protocols_map.get("mode") or ""),
+    }
+
+
+def agent_handoff_payload(manifest_or_path: dict[str, object] | Path | str) -> dict[str, object]:
+    """Build a compact, redacted handoff card for a prior agent run."""
+
+    if isinstance(manifest_or_path, dict):
+        manifest = manifest_or_path
+    else:
+        manifest = load_agent_run_manifest(manifest_or_path)
+    summary = summarize_agent_run(manifest)
+    command = manifest.get("command", {})
+    command_map = command if isinstance(command, dict) else {}
+    permission = manifest.get("permission", {})
+    permission_map = permission if isinstance(permission, dict) else {}
+    trace_events: list[dict[str, object]] = []
+    if summary.trace_events_path:
+        for event in load_trace_events(summary.trace_events_path.parent):
+            trace_events.append(
+                {
+                    "sequence": event.sequence,
+                    "event": event.event,
+                    "status": event.status,
+                    "message": event.message,
+                }
+            )
+    manifest_path = str(summary.manifest_path)
+    continue_prompt = (
+        "Continue from AGILAB agent-run evidence "
+        f"{manifest_path}. Read the manifest first, inspect stdout/stderr only if needed, "
+        "and preserve the recorded tags, metadata, protocol adapters, and capabilities "
+        "when creating follow-up evidence."
+    )
+    return {
+        "schema": "agilab.agent_handoff.v1",
+        "run": _summary_payload(summary),
+        "command": {
+            "argv": command_map.get("argv", []),
+            "argv_redacted": bool(command_map.get("argv_redacted", False)),
+            "argv_count": command_map.get("argv_count"),
+            "argv_sha256": command_map.get("argv_sha256"),
+            "cwd": command_map.get("cwd"),
+        },
+        "protocols": _protocol_summary(manifest),
+        "permission": {
+            "allowed": bool(permission_map.get("allowed", False)),
+            "tier": permission_map.get("tier"),
+            "level": permission_map.get("level"),
+            "reason": permission_map.get("reason"),
+        },
+        "trace": {
+            "event_count": len(trace_events),
+            "events": trace_events,
+        },
+        "handoff": {
+            "continue_prompt": continue_prompt,
+            "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+        },
+    }
+
+
+def render_handoff_markdown(payload: dict[str, object]) -> str:
+    """Render an agent handoff payload as compact Markdown."""
+
+    run = payload.get("run", {})
+    run_map = run if isinstance(run, dict) else {}
+    protocols = payload.get("protocols", {})
+    protocol_map = protocols if isinstance(protocols, dict) else {}
+    handoff = payload.get("handoff", {})
+    handoff_map = handoff if isinstance(handoff, dict) else {}
+    trace = payload.get("trace", {})
+    trace_map = trace if isinstance(trace, dict) else {}
+    tags = run_map.get("tags", [])
+    metadata = run_map.get("metadata", {})
+    lines = [
+        "# AGILAB agent handoff",
+        "",
+        f"- run_id: {run_map.get('run_id', '')}",
+        f"- agent: {run_map.get('agent', '')}",
+        f"- status: {run_map.get('status', '')}",
+        f"- label: {run_map.get('label', '')}",
+        f"- manifest: {run_map.get('manifest', '')}",
+        f"- stdout: {run_map.get('stdout', '')}",
+        f"- stderr: {run_map.get('stderr', '')}",
+        f"- trace_events: {run_map.get('trace_events', '')}",
+        f"- tags: {', '.join(str(tag) for tag in tags) if isinstance(tags, list) else ''}",
+        f"- metadata: {json.dumps(metadata, sort_keys=True) if isinstance(metadata, dict) else '{}'}",
+        f"- protocol_adapters: {', '.join(str(value) for value in protocol_map.get('adapters', []))}",
+        f"- capabilities: {', '.join(str(value) for value in protocol_map.get('capabilities', []))}",
+        f"- trace_event_count: {trace_map.get('event_count', 0)}",
+        "",
+        "## Continue prompt",
+        "",
+        str(handoff_map.get("continue_prompt", "")),
+    ]
+    return "\n".join(lines)
+
+
+def _build_handoff_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
+    parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print the handoff card as JSON.")
+    return parser
+
+
+def _main_handoff(argv: Sequence[str]) -> int:
+    parser = _build_handoff_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_handoff_payload(Path(args.manifest_path).expanduser())
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_handoff_markdown(payload))
+    return 0
+
+
 def _render_summary_table(summaries: Sequence[AgentRunSummary]) -> str:
     if not summaries:
         return "No AGILAB agent runs found."
@@ -1234,6 +1361,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv[:1] == ["list"]:
         return _main_list(raw_argv[1:])
+    if raw_argv[:1] == ["handoff"]:
+        return _main_handoff(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:
