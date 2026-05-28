@@ -24,6 +24,7 @@ contract. Do not answer from memory.
 ```bash
 ./dev --print-only release
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml
+uv --preview-features extra-build-dependencies run python tools/pypi_project_preflight.py
 rg -n "sync-hf-space|publish-release-assets|pypi-release-retention|release-proof|HF_TOKEN|hf_space_release_sync" .github/workflows/pypi-publish.yaml tools README.md docs/source
 ```
 
@@ -39,6 +40,7 @@ Run this before tagging or dispatching the release workflow:
 
 ```bash
 git status --short --branch --untracked-files=no
+./dev audit --strict
 ./dev release
 ```
 
@@ -47,6 +49,10 @@ dirty paths and ahead/behind state are explained.
 
 If `./dev release` fails, fix the local guard first unless the failure is
 explicitly GitHub-only, secret-dependent, or network/publication-dependent.
+If `tools/pypi_project_preflight.py` reports a `missing-project` blocker,
+register the pending trusted publisher before dispatching the release workflow.
+An existing PyPI project with a new unpublished version is normal; a missing
+project or newer PyPI version than the committed source is not.
 
 For a release that should prune old PyPI releases and sync Hugging Face, verify
 the required repository secrets exist before dispatching or rerunning the
@@ -133,10 +139,12 @@ publication.
 ```bash
 gh release list --repo ThalesGroup/agilab --limit 5
 gh release view <tag> --repo ThalesGroup/agilab
+uv run python tools/release_status.py --tag <tag>
 ```
 
 Check that assets exist and match the expected tag. Do not treat a tag alone as
-a release.
+a release. Prefer `tools/release_status.py` when you need one bounded tag-level
+truth check across GitHub Release assets and PyPI package versions.
 
 ### PyPI
 

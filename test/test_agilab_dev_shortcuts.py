@@ -201,6 +201,20 @@ def test_app_contracts_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_audit_shortcut_runs_agilab_audit():
+    assert agilab_dev.planned_commands(["audit", "--no-network"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/agilab_audit.py",
+            "--no-network",
+        ]
+    ]
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
     calls = []
 
@@ -307,6 +321,14 @@ def test_release_shortcut_runs_local_release_guards():
             "run",
             "python",
             "tools/pypi_release_version_policy.py",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_project_preflight.py",
         ],
         [
             "uv",

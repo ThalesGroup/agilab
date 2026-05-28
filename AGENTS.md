@@ -26,7 +26,8 @@ Use this runbook whenever you:
   GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
   `lint` for Ruff through the repo dev extra, `regress` for GA-selected fast regression subsets,
   `robust` for P0 fail-closed robustness scenarios, `app-contracts` for
-  built-in app/package/catalog/docs alignment,
+  built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
+  state,
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
@@ -38,6 +39,7 @@ Use this runbook whenever you:
   `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
   promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
   part of the release shortcut and targeted pre-push guards,
+  `audit` is the quick robustness check before handoff between machines,
   `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
   plan, trusted-publisher contract, Ruff availability, dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
