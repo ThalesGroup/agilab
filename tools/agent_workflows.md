@@ -90,6 +90,15 @@ Read previous run evidence from the CLI:
 agilab agent-run list --agent codex --json
 ```
 
+The read-only MCP bridge exposes the same agent-run evidence to external
+coding agents without enabling shell execution:
+
+```bash
+agilab-mcp list-tools --json
+agilab-mcp call-tool list_agent_runs --arguments '{"agent":"codex","limit":5}' --json
+agilab-mcp call-tool summarize_agent_run --arguments '{"manifest_path":"~/log/agents/codex/<run-id>/agent_run_manifest.json"}' --json
+```
+
 or from Python:
 
 ```python

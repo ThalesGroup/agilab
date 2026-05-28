@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agilab import bridge_cli, run_manifest
+from agilab import agent_run, bridge_cli, run_manifest
 from agilab_mcp import manifest_tools, server as mcp_server
 
 
@@ -581,12 +581,36 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     apps_root = tmp_path / "apps"
     (apps_root / "alpha_project").mkdir(parents=True)
+    agent_root = tmp_path / "agents"
+    agent_dir = agent_root / "codex-run"
+    agent_run.trace_agent_run(
+        [sys.executable, "-c", "print('agent ok')"],
+        agent="codex",
+        label="Review current diff",
+        cwd=ROOT,
+        output_dir=agent_dir,
+        run_id="agent-codex",
+        permission_level="standard",
+        tags=("review",),
+        metadata={"branch": "main"},
+    )
 
     assert (
         manifest_tools.list_projects(apps_root)["projects"][0]["name"]
         == "alpha_project"
     )
     assert manifest_tools.list_runs(tmp_path)["runs"]
+    agent_runs = manifest_tools.list_agent_runs(agent_root, agent="codex")["runs"]
+    assert agent_runs[0]["run_id"] == "agent-codex"
+    assert agent_runs[0]["tags"] == ["review"]
+    assert agent_runs[0]["metadata"] == {"branch": "main"}
+    assert (
+        manifest_tools.summarize_agent_run(agent_dir)["summary"]["status"]
+        == "pass"
+    )
+    read_agent_payload = manifest_tools.read_agent_run(agent_dir)
+    assert read_agent_payload["manifest"]["kind"] == agent_run.TRACE_KIND
+    assert "agent ok" not in json.dumps(read_agent_payload)
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -620,6 +644,22 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
         }
     )
     assert call_response and call_response["result"]["content"][0]["type"] == "text"
+    agent_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "list_agent_runs",
+                "arguments": {"log_root": str(agent_root), "agent": "codex"},
+            },
+        }
+    )
+    assert agent_call_response
+    assert (
+        "agent-codex"
+        in agent_call_response["result"]["content"][0]["text"]
+    )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 
 

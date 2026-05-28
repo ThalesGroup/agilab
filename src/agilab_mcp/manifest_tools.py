@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from agilab import bridge_cli, run_manifest
+from agilab import agent_run, bridge_cli, run_manifest
 from agilab.secret_uri import redact_mapping
 
 
@@ -42,6 +42,76 @@ def list_runs(log_root: str | Path) -> dict[str, Any]:
         "schema": "agilab.mcp.list_runs.v1",
         "log_root": str(root),
         "runs": runs,
+    }
+
+
+def _agent_run_summary_payload(summary: agent_run.AgentRunSummary) -> dict[str, Any]:
+    return {
+        "run_id": summary.run_id,
+        "agent": summary.agent,
+        "label": summary.label,
+        "status": summary.status,
+        "returncode": summary.returncode,
+        "manifest": str(summary.manifest_path),
+        "stdout": str(summary.stdout_path) if summary.stdout_path else None,
+        "stderr": str(summary.stderr_path) if summary.stderr_path else None,
+        "trace_events": str(summary.trace_events_path)
+        if summary.trace_events_path
+        else None,
+        "duration_seconds": summary.duration_seconds,
+        "tags": list(summary.tags),
+        "metadata": summary.metadata,
+    }
+
+
+def list_agent_runs(
+    log_root: str | Path | None = None,
+    *,
+    agent: str = "",
+    status: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    if limit < 0:
+        raise ValueError("limit must be >= 0")
+    root = (
+        Path(log_root).expanduser().resolve(strict=False)
+        if log_root not in (None, "")
+        else None
+    )
+    summaries = agent_run.list_agent_runs(
+        root,
+        agent=agent or None,
+        status=status or None,
+        limit=limit,
+    )
+    return {
+        "schema": "agilab.mcp.list_agent_runs.v1",
+        "log_root": str(root) if root is not None else "~/log/agents",
+        "agent": agent or None,
+        "status": status or None,
+        "runs": [_agent_run_summary_payload(summary) for summary in summaries],
+    }
+
+
+def read_agent_run(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    manifest = agent_run.load_agent_run_manifest(path)
+    summary = agent_run.summarize_agent_run(manifest)
+    resolved = summary.manifest_path if str(summary.manifest_path) else path
+    return {
+        "schema": "agilab.mcp.read_agent_run.v1",
+        "manifest_path": str(resolved),
+        "manifest": redact_mapping(manifest),
+    }
+
+
+def summarize_agent_run(manifest_path: str | Path) -> dict[str, Any]:
+    path = Path(manifest_path).expanduser().resolve(strict=False)
+    summary = agent_run.summarize_agent_run(path)
+    return {
+        "schema": "agilab.mcp.summarize_agent_run.v1",
+        "manifest_path": str(summary.manifest_path or path),
+        "summary": _agent_run_summary_payload(summary),
     }
 
 
