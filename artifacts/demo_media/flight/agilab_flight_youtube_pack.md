@@ -6,8 +6,8 @@
 - GIF preview: `artifacts/demo_media/flight/agilab_flight.gif`
 - Poster: `artifacts/demo_media/flight/agilab_flight_poster.png`
 - YouTube public URL: https://youtu.be/BsBjRSAXJZA
-- Previous audio upload: https://youtu.be/KsBe8lIahH4
-- Previous silent upload: https://youtu.be/c4aogHDh4do
+- Removed previous audio upload: https://youtu.be/KsBe8lIahH4
+- Removed previous silent upload: https://youtu.be/c4aogHDh4do
 - YouTube Studio URL: https://studio.youtube.com/video/BsBjRSAXJZA
 - Duration: 15.47 seconds
 - Format: 1920x1080, 30 fps, premium H.264 video + stereo AAC audio MP4
