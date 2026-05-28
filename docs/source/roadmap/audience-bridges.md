@@ -56,7 +56,7 @@ Rscript tests are skipped when R is not installed.
 | Priority | Bridge | Audience gained | Why it fits AGILAB |
 |---:|---|---|---|
 | 1 | Quarto / R bridge | R users, academics, statisticians, pharma, reproducible-research users | Turns AGILAB evidence into publishable reports. |
-| 2 | MCP bridge | AI-agent users, Claude, ChatGPT, VS Code, Cursor users | Lets agents inspect and summarize AGILAB evidence workflows. |
+| 2 | MCP and agent evidence bridge | AI-agent users, Claude, ChatGPT, VS Code, Cursor users | Lets agents inspect, summarize, continue, and link AGILAB evidence workflows without executing projects. |
 | 3 | Hugging Face bridge | ML demo builders and the open-source ML community | Makes AGILAB apps easier to try publicly. |
 | 4 | Deeper MLflow bridge | MLOps engineers | Positions AGILAB as reproducible execution around MLflow tracking. |
 | 5 | VS Code / devcontainer bridge | Python developers, data scientists, students | Reduces install and first-run friction. |
@@ -178,10 +178,11 @@ The adapter contract must stay narrow:
 Shared core changes should wait until this payload-plane proof remains useful
 across real examples.
 
-## 3. MCP bridge, read-first
+## 3. MCP and agent evidence bridge, read-first
 
-The second strongest audience bridge is MCP because it plugs AGILAB into the
-AI-agent ecosystem.
+The second strongest audience bridge is MCP plus agent-run evidence because it
+plugs AGILAB into the AI-agent ecosystem without weakening the execution
+boundary.
 
 Do not start with "agents can execute everything." Start with a safe read-first
 server:
@@ -191,11 +192,20 @@ agilab-mcp
   tools:
     list_projects
     list_runs
+    list_agent_runs
     read_manifest
+    read_agent_run
     list_artifacts
     summarize_run
+    summarize_agent_run
     compare_runs
     export_quarto_report
+    agent_handoff
+    agent_next_actions
+    agent_context
+    agent_lineage
+    compare_agent_runs
+    validate_agent_run
 
   dangerous tools, disabled by default:
     run_project
@@ -214,8 +224,22 @@ no shell commands
 no secret-bearing artifact output
 ```
 
-The value proposition is simple: ask an AI assistant why an experiment failed,
-and let it inspect AGILAB run evidence without weakening the execution boundary.
+The shipped agent-run read side adds the operational layer agents need to work
+across sessions:
+
+```bash
+agilab agent-run list --tag review --metadata branch=main --json
+agilab agent-run handoff ~/log/agents/codex/<run-id>
+agilab agent-run next ~/log/agents/codex/<run-id> --json
+agilab agent-run context --tag review --limit 5 --json
+agilab agent-run lineage <run-id> --json
+agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<follow-up-run> --json
+agilab agent-run validate ~/log/agents/codex/<run-id> --json
+```
+
+The value proposition is simple: ask an AI assistant why an experiment or agent
+task failed, let it inspect AGILAB evidence, hand it a safe continuation card,
+and preserve the follow-up chain without granting execution authority.
 
 ## 4. Hugging Face bridge
 

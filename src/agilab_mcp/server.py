@@ -18,6 +18,12 @@ TOOLS: dict[str, ToolFn] = {
     "list_agent_runs": manifest_tools.list_agent_runs,
     "read_agent_run": manifest_tools.read_agent_run,
     "summarize_agent_run": manifest_tools.summarize_agent_run,
+    "agent_handoff": manifest_tools.agent_handoff,
+    "agent_next_actions": manifest_tools.agent_next_actions,
+    "agent_context": manifest_tools.agent_context,
+    "agent_lineage": manifest_tools.agent_lineage,
+    "compare_agent_runs": manifest_tools.compare_agent_runs,
+    "validate_agent_run": manifest_tools.validate_agent_run,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -58,6 +64,13 @@ def tool_descriptors() -> list[dict[str, Any]]:
                         "type": "string",
                         "enum": ["", "planned", "pass", "fail", "timeout", "denied"],
                     },
+                    "tag": {"type": "string"},
+                    "metadata": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                    "protocol_adapter": {"type": "string"},
+                    "capability": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 0},
                 },
             },
@@ -74,6 +87,80 @@ def tool_descriptors() -> list[dict[str, Any]]:
         {
             "name": "summarize_agent_run",
             "description": "Summarize one AGILAB agent-run manifest.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "agent_handoff",
+            "description": "Render a compact AGILAB agent-run continuation card.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "agent_next_actions",
+            "description": "Render deterministic next-action guidance from AGILAB agent-run evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"manifest_path": {"type": "string"}},
+                "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "agent_context",
+            "description": "Build a safe AGILAB agent context pack from matching agent-run evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "log_root": {"type": "string"},
+                    "agent": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["", "planned", "pass", "fail", "timeout", "denied"],
+                    },
+                    "tag": {"type": "string"},
+                    "metadata": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                    "protocol_adapter": {"type": "string"},
+                    "capability": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 0},
+                },
+            },
+        },
+        {
+            "name": "agent_lineage",
+            "description": "Build a follow-up lineage graph from AGILAB agent-run evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "log_root": {"type": "string"},
+                    "run_id": {"type": "string"},
+                },
+                "required": ["run_id"],
+            },
+        },
+        {
+            "name": "compare_agent_runs",
+            "description": "Compare two AGILAB agent-run manifests without reading output contents.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "left_manifest": {"type": "string"},
+                    "right_manifest": {"type": "string"},
+                },
+                "required": ["left_manifest", "right_manifest"],
+            },
+        },
+        {
+            "name": "validate_agent_run",
+            "description": "Validate an AGILAB agent-run manifest for safe read-side reuse.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"manifest_path": {"type": "string"}},

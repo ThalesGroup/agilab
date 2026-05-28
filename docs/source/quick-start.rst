@@ -24,9 +24,9 @@ Fast adoption path:
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
        locally.
    * - 3. Record evidence
-     - Start the app with ``agilab`` and verify the built-in flow.
-       If startup fails, run ``agilab dry-run`` then
-       ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
+     - Run ``agilab first-proof --json``, then ``agilab adoption-report``.
+       Add ``--with-ui`` only when you intentionally want the proof to boot the
+       local Streamlit pages too.
      - ``~/log/execute/flight_telemetry/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
@@ -42,9 +42,9 @@ Prerequisites
 - macOS or Linux shell for the source-checkout installer. On native Windows,
   use the published package route for the CI-covered CLI first proof, or use
   WSL2 for the source checkout path until native installer parity is published.
-- PyCharm is optional. The first proof below uses only a shell and the web UI;
-  IDE run configurations are contributor conveniences, not an installation
-  requirement.
+- PyCharm and the local web UI are optional. The first proof below uses only a
+  shell by default; IDE run configurations and Streamlit pages are contributor
+  conveniences, not installation requirements.
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
 
@@ -65,7 +65,7 @@ If startup fails, run a local fallback first:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run agilab dry-run
-   uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+   uv --preview-features extra-build-dependencies run agilab first-proof --json
    uv --preview-features extra-build-dependencies run agilab adoption-report
 
 **Published package install or upgrade, CLI proof only**::
@@ -154,7 +154,7 @@ machine-readable proof record.
    .. code-block:: bash
 
       uv --preview-features extra-build-dependencies run agilab dry-run
-      uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+      uv --preview-features extra-build-dependencies run agilab first-proof --json
 
    Then rerun:
 
@@ -268,7 +268,7 @@ first-proof and compatibility-report commands to rerun.
 If you want the preflight to also check the built-in installer and seeded helper
 scripts::
 
-    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui --with-install
+    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-install
 
 ``agilab dry-run`` is the fast alias for ``agilab first-proof --dry-run`` and
 checks only CLI/core readiness.
@@ -308,7 +308,7 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
-    uv --preview-features extra-build-dependencies tool install --upgrade agilab
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
     agilab first-proof --json --max-seconds 60
 
 The base package install is intentionally CLI/core only. Install the UI profile
@@ -323,7 +323,10 @@ profile, run:
 .. code-block:: bash
 
    agilab dry-run
-   agilab first-proof --json --with-ui
+   agilab first-proof --json
+
+Add ``--with-ui`` to the first-proof command only when the proof should also
+boot the packaged Streamlit pages.
 
 Optional feature stacks stay out of the base package install. Add
 ``agilab[ui]`` for the local Streamlit app, ``agilab[pages]`` for analysis
