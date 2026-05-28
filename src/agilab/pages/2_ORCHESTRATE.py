@@ -134,6 +134,7 @@ import_agilab_symbols(
     {
         "is_dag_worker_base": "is_dag_worker_base",
         "render_page_context": "render_page_context",
+        "render_project_evidence_drawer": "render_project_evidence_drawer",
         "render_workflow_timeline": "render_workflow_timeline",
     },
     current_file=__file__,
@@ -1695,6 +1696,12 @@ def _render_orchestrate_action_rail(
                 "detail": run_caption if has_run else "open ANALYSIS after EXECUTE writes outputs",
             },
         ),
+    )
+    render_project_evidence_drawer(
+        st,
+        env=env,
+        key_prefix="orchestrate:evidence",
+        expanded=has_run,
     )
 
 
