@@ -9,6 +9,7 @@ from collections.abc import Mapping
 import hashlib
 import importlib.util
 import json
+import os
 import shlex
 import sys
 from datetime import datetime, UTC
@@ -106,9 +107,13 @@ manifest_summary = _run_manifest_module.manifest_summary
 
 def _resolve_active_app() -> Path:
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
+    parser.add_argument("--active-app", dest="active_app", type=str)
     args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser().resolve()
+    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+    if not active_app_value:
+        st.error("Missing --active-app argument.")
+        st.stop()
+    active_app_path = Path(active_app_value).expanduser().resolve()
     if not active_app_path.exists():
         st.error(f"Provided --active-app path not found: {active_app_path}")
         st.stop()
@@ -194,10 +199,12 @@ def _session_app_scope_key(env: AgiEnv) -> str:
 def _reset_app_scoped_session_defaults(streamlit: Any, env: AgiEnv) -> None:
     current_scope = _session_app_scope_key(env)
     scope_key = "release_decision_app_scope"
-    if streamlit.session_state.get(scope_key) == current_scope:
+    previous_scope = streamlit.session_state.get(scope_key)
+    if previous_scope == current_scope:
         return
-    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
-        streamlit.session_state.pop(key, None)
+    if previous_scope is not None:
+        for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+            streamlit.session_state.pop(key, None)
     streamlit.session_state[scope_key] = current_scope
 
 

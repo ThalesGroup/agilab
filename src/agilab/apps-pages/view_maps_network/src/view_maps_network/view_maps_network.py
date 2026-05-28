@@ -135,10 +135,13 @@ def _resolve_active_app() -> Path:
         "--active-app",
         dest="active_app",
         type=str,
-        required=True,
     )
     args, _ = parser.parse_known_args()
-    active_app_path = Path(args.active_app).expanduser()
+    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+    if not active_app_value:
+        st.error("Missing --active-app argument.")
+        st.stop()
+    active_app_path = Path(active_app_value).expanduser()
     if not active_app_path.exists():
         st.error(f"Provided --active-app path not found: {active_app_path}")
         st.stop()
@@ -4981,6 +4984,7 @@ def page():
             st.caption(f"Decision step: {t_sel}")
         else:
             t_sel = st.select_slider("Decision step", options=times, key=DECISION_STEP_KEY)
+            st.session_state["alloc_time_index"] = t_sel
             st.session_state["alloc_time_index"] = t_sel
         st.query_params["alloc_time_index"] = str(t_sel)
         alloc_step = (

@@ -572,9 +572,12 @@ def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = No
     """Render the compact project cockpit shared by Streamlit pages."""
     if env is None:
         return None
-    container_fn = getattr(streamlit, "container", None)
-    context = container_fn(border=True) if callable(container_fn) else streamlit
-    with context:
+    if not callable(getattr(streamlit, "markdown", None)) or not callable(
+        getattr(streamlit, "columns", None)
+    ):
+        return None
+
+    def _render_body() -> None:
         streamlit.markdown("### Project cockpit")
         cards = _project_cockpit_cards(page_label, env)
         for start in range(0, len(cards), 3):
@@ -588,6 +591,14 @@ def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = No
             env=env,
             key_prefix=f"project_cockpit:{_stable_key_part(page_label)}",
         )
+
+    container_fn = getattr(streamlit, "container", None)
+    context = container_fn(border=True) if callable(container_fn) else streamlit
+    if hasattr(context, "__enter__") and hasattr(context, "__exit__"):
+        with context:
+            _render_body()
+    else:
+        _render_body()
     return None
 
 

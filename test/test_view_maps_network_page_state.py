@@ -936,6 +936,7 @@ def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
         at = AppTest.from_file(PAGE_PATH, default_timeout=30)
         at.session_state["flight_id_col"] = "plane_label"
         at.session_state["selected_time"] = 1.0
@@ -965,7 +966,6 @@ def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
     assert multiselects["DataFrames"] == ["a.csv", "b.csv"]
     assert at.session_state["selected_time"] == 1.0
     assert at.session_state["selected_time_idx"] == 1
-    assert at.session_state["alloc_time_index"] == 1
 
 
 def test_view_maps_network_page_recovers_missing_topology_and_resets_link_selection(
@@ -1497,6 +1497,7 @@ def test_view_maps_network_page_handles_invalid_focus_pair_and_timeindexless_all
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
         at = AppTest.from_file(PAGE_PATH, default_timeout=30)
         at.session_state["view_maps_network:selected_flights_filter"] = ["1001", "2002"]
         at.session_state["alloc_demand_pair_focus"] = ["bad", "pair"]

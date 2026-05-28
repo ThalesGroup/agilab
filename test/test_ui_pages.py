@@ -1540,8 +1540,8 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text
     assert "Recommended" not in markdown_text
-    assert "Project</div>" not in markdown_text
-    assert "Artifacts" not in markdown_text
+    assert "Project</div>" in markdown_text
+    assert "Artifact formats" not in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Active project" not in sidebar_markdown
     assert all(
@@ -2067,7 +2067,7 @@ def test_edit_page_load(mock_ui_env):
     assert "Settings" in markdown_text
     assert "Cluster share" in markdown_text
     assert "API keys" in markdown_text
-    assert "Project</div>" not in markdown_text
+    assert "Project</div>" in markdown_text
     assert "Project workspace" not in markdown_text
     assert "README" not in markdown_text
     assert all(

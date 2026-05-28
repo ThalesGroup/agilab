@@ -12,6 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import os
 from pathlib import Path
 import re
 import sys
@@ -951,11 +952,15 @@ def main():
             dest="active_app",
             type=str,
             help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
-            required=True,
         )
         args, _ = parser.parse_known_args()
 
-        active_app = Path(args.active_app).expanduser()
+        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+        if not active_app_value:
+            st.error("Error: missing --active-app argument.")
+            st.stop()
+
+        active_app = Path(active_app_value).expanduser()
         if not active_app.exists():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)

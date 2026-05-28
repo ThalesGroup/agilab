@@ -1357,11 +1357,15 @@ def main():
             dest="active_app",
             type=str,
             help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
-            required=True,
         )
         args, _ = parser.parse_known_args()
 
-        active_app = Path(args.active_app).expanduser()
+        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+        if not active_app_value:
+            st.error("Error: missing --active-app argument.")
+            st.stop()
+
+        active_app = Path(active_app_value).expanduser()
         if not active_app.exists():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
