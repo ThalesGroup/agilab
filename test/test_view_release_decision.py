@@ -903,6 +903,40 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert cockpit_summary["export_ready"] is False
     assert "Fix failing" in cockpit_summary["next_action"]
 
+    comparison_status, comparison_summary = module._decision_status(
+        baseline_path=Path("/tmp/baseline.json"),
+        candidate_path=Path("/tmp/candidate.json"),
+        artifact_rows=[{"status": "pass"}],
+        metric_rows=[{"status": "pass"}],
+        manifest_rows=[],
+        evidence_bundle_comparison_summary={"blocking_count": 2},
+    )
+    assert comparison_status == "blocked"
+    assert "Cross-run evidence comparison" in comparison_summary
+    comparison_cockpit_summary = module._build_evidence_cockpit_summary(
+        decision_status="promotable",
+        decision_summary="All explicit gates passed against the selected baseline.",
+        artifact_root=tmp_path / "artifact_root",
+        baseline_path=tmp_path / "artifact_root" / "run_a" / "metrics.json",
+        candidate_path=tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        metrics_files=[
+            tmp_path / "artifact_root" / "run_a" / "metrics.json",
+            tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        ],
+        artifact_rows=[{"status": "pass"}],
+        metric_rows=[{"status": "pass"}],
+        run_manifest_rows=[],
+        run_manifest_summary={"loaded": True, "path": str(bad_manifest)},
+        imported_manifest_summary={"loaded_manifest_count": 0, "validated_manifest_count": 0},
+        ci_artifact_harvest_summary={"gate_status": "not_configured"},
+        manifest_index_summary={"release_count": 0, "manifest_count": 0},
+        evidence_bundle_comparison_summary={"blocking_count": 2},
+        reduce_artifact_rows=[{"status": "pass"}],
+    )
+    assert comparison_cockpit_summary["status_label"] == "Blocked"
+    assert comparison_cockpit_summary["comparison_blocking_count"] == 2
+    assert comparison_cockpit_summary["export_ready"] is False
+
     import_args = (
         f"uv run python tools/compatibility_report.py --manifest {bad_manifest} "
         f"--manifest-dir {bad_manifest.parent.parent.parent}"
@@ -1133,6 +1167,20 @@ def test_view_release_decision_helper_error_edges(tmp_path, monkeypatch) -> None
         "unverifiable"
     )
     monkeypatch.setattr(module, "_file_metadata", original_file_metadata)
+
+    streamlit = SimpleNamespace(
+        session_state={
+            "release_decision_app_scope": "app-a:/tmp/app-a",
+            **{key: "stale" for key in module.APP_SCOPED_SESSION_DEFAULT_KEYS},
+        }
+    )
+    module._reset_app_scoped_session_defaults(
+        streamlit,
+        SimpleNamespace(app="app-b", active_app="/tmp/app-b"),
+    )
+    for key in module.APP_SCOPED_SESSION_DEFAULT_KEYS:
+        assert key not in streamlit.session_state
+    assert streamlit.session_state["release_decision_app_scope"] == "app-b:/tmp/app-b"
 
     ci_paths, ci_errors = module._parse_ci_artifact_harvest_import_args(
         "--ci-artifact-harvest --harvest=/tmp/ci_artifact_harvest.json ci_artifact_harvest.json"
