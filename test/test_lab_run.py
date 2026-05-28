@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -264,6 +267,70 @@ def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch
 
     assert rc == 39
     assert captured == [["--json", "--strict"]]
+
+
+def test_public_headless_cli_imports_and_help_do_not_require_streamlit() -> None:
+    script = """
+        import builtins
+        import contextlib
+        import importlib
+        import io
+
+        real_import = builtins.__import__
+
+        def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "streamlit" or name.startswith("streamlit."):
+                raise ModuleNotFoundError("blocked streamlit", name="streamlit")
+            return real_import(name, globals, locals, fromlist, level)
+
+        builtins.__import__ = blocked_import
+
+        for module_name in (
+            "agilab",
+            "agilab.lab_run",
+            "agilab.first_proof_cli",
+            "agilab.adoption_report",
+            "agilab.bridge_cli",
+            "agilab_mcp.server",
+        ):
+            importlib.import_module(module_name)
+
+        from agilab import lab_run
+
+        lab_run._guard_against_uvx_in_source_tree = lambda: None
+
+        for argv in (
+            ["--help"],
+            ["first-proof", "--help"],
+            ["adoption-report", "--help"],
+        ):
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                try:
+                    code = lab_run.main(list(argv))
+                except SystemExit as exc:
+                    code = exc.code
+            if code not in (0, None):
+                raise SystemExit(f"help path failed for {argv}: {code}")
+    """
+    env = os.environ.copy()
+    src_path = str(ROOT / "src")
+    env["PYTHONPATH"] = (
+        src_path
+        if not env.get("PYTHONPATH")
+        else os.pathsep.join([src_path, env["PYTHONPATH"]])
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(script)],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(monkeypatch):

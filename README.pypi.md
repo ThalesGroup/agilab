@@ -115,7 +115,15 @@ haversine distance kernel reports `speed_kernel_runtime`,
 [![AGILAB Space](https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge)](https://huggingface.co/spaces/jpmorard/agilab)
 [![agi-core notebook](https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
 
-### Local PyPI UI Proof
+### Local PyPI Proof
+
+```bash
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
+agilab first-proof --json
+agilab adoption-report
+```
+
+Use the UI profile only when you also want the local Streamlit pages:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
@@ -137,13 +145,15 @@ If startup fails, run a progressive fallback:
 
 ```bash
 agilab dry-run
-agilab first-proof --json --with-ui
+agilab first-proof --json
+agilab adoption-report
 ```
 
 `agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
 checks only CLI/core readiness.
-`agilab first-proof --json --with-ui` runs the full onboarding contract and
-writes `run_manifest.json` for the local UI path.
+`agilab first-proof --json` runs the onboarding contract and writes
+`run_manifest.json` without requiring Streamlit. Add `--with-ui` only when you
+intentionally want the proof to boot the packaged Streamlit pages too.
 
 ### Maturity snapshot
 

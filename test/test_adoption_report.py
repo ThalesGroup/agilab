@@ -119,7 +119,8 @@ def test_build_report_explains_missing_manifest(tmp_path: Path) -> None:
     assert report["summary"]["first_proof_status"] == "missing"
     assert report["summary"]["safe_to_expand"] is False
     assert report["evidence"][0]["status"] == "missing"
-    assert report["next_actions"][0]["command"] == "agilab first-proof --json --with-ui"
+    assert report["next_actions"][0]["command"] == adoption_report.HEADLESS_FIRST_PROOF_COMMAND
+    assert "--with-ui" not in report["next_actions"][0]["command"]
 
 
 def test_build_report_rejects_dry_run_as_expansion_baseline(tmp_path: Path) -> None:

@@ -147,7 +147,15 @@ install.
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
-### Local PyPI UI Proof
+### Local PyPI Proof
+
+```bash
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
+agilab first-proof --json
+agilab adoption-report
+```
+
+Use the UI profile only when you also want the local Streamlit pages:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
@@ -171,14 +179,15 @@ If startup fails, run a progressive fallback:
 
 ```bash
 agilab dry-run
-agilab first-proof --json --with-ui
+agilab first-proof --json
 agilab adoption-report
 ```
 
 `agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
 verifies CLI/core readiness only.
-`agilab first-proof --json --with-ui` does the local onboarding contract
-including manifest generation for the UI path.
+`agilab first-proof --json` does the local onboarding contract and writes the
+manifest without requiring Streamlit. Add `--with-ui` only when you intentionally
+want the proof to boot the packaged Streamlit pages too.
 `agilab adoption-report` reads the manifest and tells you whether the first
 proof is a safe baseline before trying notebooks, private apps, or cluster work.
 
