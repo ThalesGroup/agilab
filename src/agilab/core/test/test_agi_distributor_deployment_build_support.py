@@ -422,6 +422,7 @@ async def test_build_lib_local_uses_free_threading_uv_prefix(monkeypatch, tmp_pa
 @pytest.mark.asyncio
 async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeypatch, tmp_path):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
     env = _build_env(tmp_path)
     env.is_source_env = True
     env.envars = {"AGI_INTERNET_ON": "0"}
@@ -448,6 +449,50 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
     assert any(
         (
             f'--offline --project "{env.active_app}" pip install --upgrade --no-deps '
+            f"-e '{env.agi_env}' -e '{env.agi_node}'"
+        )
+        in cmd
+        for cmd, _ in commands
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
+    env = _build_env(tmp_path)
+    env.is_source_env = True
+    env.envars = {
+        "AGI_INTERNET_ON": "0",
+        "UV_INDEX_URL": "http://mirror.local/simple",
+    }
+    (env.wenv_abs / "dist" / "demo.egg").write_text("egg", encoding="utf-8")
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    AGI.env = env
+    AGI._mode = AGI.PYTHON_MODE
+    AGI._dask_client = None
+    AGI.agi_workers = {"pandas": "pandas-worker"}
+
+    await deployment_build_support.build_lib_local(
+        AGI,
+        ensure_optional_extras_fn=uv_source_support.ensure_optional_extras,
+        stage_uv_sources_fn=uv_source_support.stage_uv_sources_for_copied_pyproject,
+        validate_worker_uv_sources_fn=uv_source_support.validate_worker_uv_sources,
+        run_fn=_fake_run,
+    )
+
+    assert commands
+    assert not any("--offline" in cmd for cmd, _ in commands)
+    assert any(
+        (
+            f'--project "{env.active_app}" pip install --upgrade --no-deps '
             f"-e '{env.agi_env}' -e '{env.agi_node}'"
         )
         in cmd

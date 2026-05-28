@@ -1505,14 +1505,28 @@ def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) 
     return "".join(f"{key}={quote(value)} " for key, value in env_overrides.items())
 
 
-def _uv_offline_flag(envars: Any) -> str:
-    raw = os.environ.get("AGI_INTERNET_ON")
+def _envar_value(envars: Any, key: str) -> Any:
+    raw = os.environ.get(key)
     if raw is None:
         try:
-            raw = envars.get("AGI_INTERNET_ON")
+            raw = envars.get(key)
         except (AttributeError, RuntimeError, TypeError):
             raw = None
+    return raw
+
+
+def _envar_nonempty(envars: Any, key: str) -> bool:
+    raw = _envar_value(envars, key)
     if raw is None:
+        return False
+    return bool(str(raw).strip().strip("\"'").strip())
+
+
+def _uv_offline_flag(envars: Any) -> str:
+    raw = _envar_value(envars, "AGI_INTERNET_ON")
+    if raw is None:
+        return ""
+    if _envar_nonempty(envars, "UV_INDEX_URL"):
         return ""
     if isinstance(raw, bool):
         return "" if raw else "--offline "

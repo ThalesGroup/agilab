@@ -59,15 +59,29 @@ def _python_site_version(pyvers_worker: str) -> str:
     return python_dirs[0] + "." + python_dirs[1]
 
 
-def _uv_offline_flag(env: Any) -> str:
-    envars = getattr(env, "envars", {})
-    raw = os.environ.get("AGI_INTERNET_ON")
+def _envar_value(envars: Any, key: str) -> Any:
+    raw = os.environ.get(key)
     if raw is None:
         try:
-            raw = envars.get("AGI_INTERNET_ON")
+            raw = envars.get(key)
         except (AttributeError, RuntimeError, TypeError):
             raw = None
+    return raw
+
+
+def _envar_nonempty(envars: Any, key: str) -> bool:
+    raw = _envar_value(envars, key)
     if raw is None:
+        return False
+    return bool(str(raw).strip().strip("\"'").strip())
+
+
+def _uv_offline_flag(env: Any) -> str:
+    envars = getattr(env, "envars", {})
+    raw = _envar_value(envars, "AGI_INTERNET_ON")
+    if raw is None:
+        return ""
+    if _envar_nonempty(envars, "UV_INDEX_URL"):
         return ""
     if isinstance(raw, bool):
         return "" if raw else "--offline "

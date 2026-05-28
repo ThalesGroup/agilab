@@ -982,6 +982,9 @@ update_environment() {
         echo "AGI_CLUSTER_SHARE=\"$AGI_CLUSTER_SHARE\""
         echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_SHARE\""
         echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
+        if [[ -n "${UV_INDEX_URL:-}" ]]; then
+            echo "UV_INDEX_URL=\"$UV_INDEX_URL\""
+        fi
         echo "IS_SOURCE_ENV=\"1\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
