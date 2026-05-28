@@ -627,6 +627,17 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert next_payload["next_actions"]["run"]["run_id"] == "agent-codex"
     assert next_payload["next_actions"]["next_actions"][0]["priority"] == "P1"
     assert "agent ok" not in json.dumps(next_payload)
+    context_payload = manifest_tools.agent_context(
+        agent_root,
+        agent="codex",
+        tag="review",
+        metadata={"branch": "main"},
+        protocol_adapter="mcp",
+        capability="evidence-review",
+    )
+    assert context_payload["context"]["match_count"] == 1
+    assert context_payload["context"]["latest"]["handoff"]["run"]["run_id"] == "agent-codex"
+    assert "agent ok" not in json.dumps(context_payload)
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -712,6 +723,26 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert (
         "agilab.agent_next_actions.v1"
         in next_call_response["result"]["content"][0]["text"]
+    )
+    context_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "agent_context",
+                "arguments": {
+                    "log_root": str(agent_root),
+                    "agent": "codex",
+                    "tag": "review",
+                },
+            },
+        }
+    )
+    assert context_call_response
+    assert (
+        "agilab.agent_context.v1"
+        in context_call_response["result"]["content"][0]["text"]
     )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 

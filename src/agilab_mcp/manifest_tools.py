@@ -145,6 +145,40 @@ def agent_next_actions(manifest_path: str | Path) -> dict[str, Any]:
     }
 
 
+def agent_context(
+    log_root: str | Path | None = None,
+    *,
+    agent: str = "",
+    status: str = "",
+    tag: str = "",
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapter: str = "",
+    capability: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    if limit < 0:
+        raise ValueError("limit must be >= 0")
+    root = (
+        Path(log_root).expanduser().resolve(strict=False)
+        if log_root not in (None, "")
+        else None
+    )
+    return {
+        "schema": "agilab.mcp.agent_context.v1",
+        "log_root": str(root) if root is not None else "~/log/agents",
+        "context": agent_run.agent_context_payload(
+            root,
+            agent=agent or None,
+            status=status or None,
+            tags=(tag,) if tag else (),
+            metadata=metadata,
+            protocol_adapters=(protocol_adapter,) if protocol_adapter else (),
+            capabilities=(capability,) if capability else (),
+            limit=limit,
+        ),
+    }
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = Path(manifest_path).expanduser().resolve(strict=False)
     payload = json.loads(path.read_text(encoding="utf-8"))

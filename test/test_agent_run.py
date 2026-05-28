@@ -702,6 +702,114 @@ def test_agent_run_next_actions_are_status_aware(tmp_path: Path, capsys) -> None
     assert "agent-denied-next" in markdown
 
 
+def test_agent_run_context_pack_summarizes_matching_runs(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    run_root = tmp_path / "runs"
+    first_dir = run_root / "first"
+    second_dir = run_root / "second"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "First pass",
+            "--run-id",
+            "agent-context-pass",
+            "--output-dir",
+            str(first_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('context private output')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Second fail",
+            "--run-id",
+            "agent-context-fail",
+            "--output-dir",
+            str(second_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "raise SystemExit(3)",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.agent_context_payload(
+        run_root,
+        agent="codex",
+        tags=("review",),
+        metadata={"branch": "main"},
+        protocol_adapters=("mcp",),
+        capabilities=("evidence-review",),
+    )
+    assert payload["schema"] == "agilab.agent_context.v1"
+    assert payload["match_count"] == 2
+    assert payload["status_counts"] == {"fail": 1, "pass": 1}
+    assert [item["run_id"] for item in payload["runs"]] == [
+        "agent-context-fail",
+        "agent-context-pass",
+    ]
+    assert payload["latest"]["handoff"]["run"]["run_id"] == "agent-context-fail"
+    assert payload["latest"]["next_actions"]["run"]["status"] == "fail"
+    assert "context private output" not in json.dumps(payload)
+
+    assert module.main(
+        [
+            "context",
+            "--root",
+            str(run_root),
+            "--agent",
+            "codex",
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--json",
+        ]
+    ) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["match_count"] == 2
+    assert "context private output" not in json.dumps(cli_payload)
+
+    assert module.main(["context", "--root", str(run_root)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent context pack" in markdown
+    assert "agent-context-fail" in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

@@ -1419,6 +1419,108 @@ def render_next_actions_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def agent_context_payload(
+    root: Path | str | None = None,
+    *,
+    agent: str | None = None,
+    status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
+    limit: int = 20,
+) -> dict[str, object]:
+    """Build a safe context pack from matching agent-run evidence."""
+
+    summaries = list_agent_runs(
+        root,
+        agent=agent,
+        status=status,
+        tags=tags,
+        metadata=metadata,
+        protocol_adapters=protocol_adapters,
+        capabilities=capabilities,
+        limit=limit,
+    )
+    status_counts: dict[str, int] = {}
+    for summary in summaries:
+        key = summary.status or "unknown"
+        status_counts[key] = status_counts.get(key, 0) + 1
+    latest_handoff: dict[str, object] | None = None
+    latest_next_actions: dict[str, object] | None = None
+    if summaries and str(summaries[0].manifest_path):
+        try:
+            latest_handoff = agent_handoff_payload(summaries[0].manifest_path)
+            latest_next_actions = agent_next_actions_payload(summaries[0].manifest_path)
+        except (OSError, json.JSONDecodeError, ValueError):
+            latest_handoff = None
+            latest_next_actions = None
+    return {
+        "schema": "agilab.agent_context.v1",
+        "query": {
+            "root": str(Path(root).expanduser()) if root is not None else "~/log/agents",
+            "agent": agent,
+            "status": status,
+            "tags": list(_normalize_tags(tags)),
+            "metadata": dict(metadata or {}),
+            "protocol_adapters": list(_normalize_slug_values(protocol_adapters)),
+            "capabilities": list(_normalize_slug_values(capabilities)),
+            "limit": limit,
+        },
+        "match_count": len(summaries),
+        "status_counts": status_counts,
+        "runs": [_summary_payload(summary) for summary in summaries],
+        "latest": {
+            "handoff": latest_handoff,
+            "next_actions": latest_next_actions,
+        },
+        "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_context_markdown(payload: dict[str, object]) -> str:
+    """Render an agent context pack as compact Markdown."""
+
+    runs = payload.get("runs", [])
+    run_list = runs if isinstance(runs, list) else []
+    status_counts = payload.get("status_counts", {})
+    status_map = status_counts if isinstance(status_counts, dict) else {}
+    latest = payload.get("latest", {})
+    latest_map = latest if isinstance(latest, dict) else {}
+    latest_next = latest_map.get("next_actions", {})
+    latest_next_map = latest_next if isinstance(latest_next, dict) else {}
+    actions = latest_next_map.get("next_actions", [])
+    action_list = actions if isinstance(actions, list) else []
+    lines = [
+        "# AGILAB agent context pack",
+        "",
+        f"- match_count: {payload.get('match_count', 0)}",
+        f"- status_counts: {json.dumps(status_map, sort_keys=True)}",
+        "",
+        "## Matching runs",
+        "",
+    ]
+    if not run_list:
+        lines.append("- No matching agent runs found.")
+    for item in run_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('status', '-')}: {item.get('agent', '-')} "
+            f"{item.get('run_id', '-')} - {item.get('label', '')}"
+        )
+    if action_list:
+        lines.extend(["", "## Latest run next actions", ""])
+        for item in action_list:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('priority', 'P?')}: {item.get('action', '')} "
+                f"Reason: {item.get('reason', '')}"
+            )
+    return "\n".join(lines)
+
+
 def _build_handoff_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
@@ -1430,6 +1532,30 @@ def _build_next_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render AGILAB agent-run next-action guidance.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
     parser.add_argument("--json", action="store_true", help="Print next-action guidance as JSON.")
+    return parser
+
+
+def _build_context_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run context pack.")
+    parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
+    parser.add_argument("--agent", default="", help="Only include runs for this agent.")
+    parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout", "denied"], help="Only include runs with this status.")
+    parser.add_argument("--tag", action="append", default=[], help="Only include runs containing this tag. May be repeated.")
+    parser.add_argument("--metadata", action="append", default=[], help="Only include runs with this metadata KEY=VALUE. May be repeated.")
+    parser.add_argument(
+        "--protocol-adapter",
+        action="append",
+        default=[],
+        help="Only include runs containing this protocol adapter label. May be repeated.",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Only include runs containing this capability label. May be repeated.",
+    )
+    parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to include.")
+    parser.add_argument("--json", action="store_true", help="Print the context pack as JSON.")
     return parser
 
 
@@ -1452,6 +1578,28 @@ def _main_next(argv: Sequence[str]) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(render_next_actions_markdown(payload))
+    return 0
+
+
+def _main_context(argv: Sequence[str]) -> int:
+    parser = _build_context_parser()
+    args = parser.parse_args(list(argv))
+    if args.limit < 0:
+        parser.error("--limit must be >= 0")
+    payload = agent_context_payload(
+        Path(args.root).expanduser() if args.root else None,
+        agent=args.agent or None,
+        status=args.status or None,
+        tags=args.tag,
+        metadata=_parse_metadata(args.metadata),
+        protocol_adapters=args.protocol_adapter,
+        capabilities=args.capability,
+        limit=args.limit,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_context_markdown(payload))
     return 0
 
 
@@ -1511,6 +1659,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main_handoff(raw_argv[1:])
     if raw_argv[:1] in (["next"], ["next-actions"], ["next_actions"]):
         return _main_next(raw_argv[1:])
+    if raw_argv[:1] == ["context"]:
+        return _main_context(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:

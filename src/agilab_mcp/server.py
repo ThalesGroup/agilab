@@ -20,6 +20,7 @@ TOOLS: dict[str, ToolFn] = {
     "summarize_agent_run": manifest_tools.summarize_agent_run,
     "agent_handoff": manifest_tools.agent_handoff,
     "agent_next_actions": manifest_tools.agent_next_actions,
+    "agent_context": manifest_tools.agent_context,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -105,6 +106,29 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {"manifest_path": {"type": "string"}},
                 "required": ["manifest_path"],
+            },
+        },
+        {
+            "name": "agent_context",
+            "description": "Build a safe AGILAB agent context pack from matching agent-run evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "log_root": {"type": "string"},
+                    "agent": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["", "planned", "pass", "fail", "timeout", "denied"],
+                    },
+                    "tag": {"type": "string"},
+                    "metadata": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                    "protocol_adapter": {"type": "string"},
+                    "capability": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 0},
+                },
             },
         },
         {
