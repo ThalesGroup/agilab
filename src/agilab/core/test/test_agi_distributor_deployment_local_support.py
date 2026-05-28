@@ -1491,6 +1491,8 @@ def test_uv_offline_flag_keeps_quoted_false_values_offline(monkeypatch):
 def test_uv_offline_flag_uses_uv_index_url_mirror_when_internet_disabled(monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     monkeypatch.delenv("UV_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_EXTRA_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_FIND_LINKS", raising=False)
 
     assert (
         deployment_local_support._uv_offline_flag(
@@ -1509,6 +1511,62 @@ def test_uv_offline_flag_uses_uv_index_url_mirror_when_internet_disabled(monkeyp
     assert (
         deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "0"})
         == "--offline "
+    )
+
+
+def test_uv_resolver_mode_covers_extra_index_wheelhouse_and_placeholders(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_EXTRA_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_FIND_LINKS", raising=False)
+
+    assert (
+        deployment_local_support._uv_resolver_mode(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_EXTRA_INDEX_URL": "http://mirror.local/simple",
+            }
+        )
+        == "mirror"
+    )
+    assert (
+        deployment_local_support._uv_offline_flag(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_EXTRA_INDEX_URL": "http://mirror.local/simple",
+            }
+        )
+        == ""
+    )
+
+    assert (
+        deployment_local_support._uv_resolver_mode(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_FIND_LINKS": "/mnt/wheelhouse",
+            }
+        )
+        == "wheelhouse"
+    )
+    assert (
+        deployment_local_support._uv_offline_flag(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_FIND_LINKS": "/mnt/wheelhouse",
+            }
+        )
+        == "--offline "
+    )
+
+    assert (
+        deployment_local_support._uv_resolver_mode(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_INDEX_URL": "None",
+                "UV_EXTRA_INDEX_URL": "null",
+            }
+        )
+        == "cache-only"
     )
 
 

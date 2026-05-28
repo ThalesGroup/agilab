@@ -43,6 +43,16 @@ DEPLOY_TIMING_TRACE_SCHEMA = "agilab-deploy-timing-v1"
 DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
 DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
+UV_INDEX_RESOLVER_ENV_VARS = ("UV_INDEX_URL", "UV_EXTRA_INDEX_URL")
+UV_WHEELHOUSE_RESOLVER_ENV_VARS = ("UV_FIND_LINKS",)
+UV_RESOLVER_PROPAGATED_ENV_VARS = (
+    "UV_INDEX_URL",
+    "UV_EXTRA_INDEX_URL",
+    "UV_FIND_LINKS",
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
+    "UV_NATIVE_TLS",
+)
 EDITABLE_INSTALL_CACHE_SCHEMA = "agilab-editable-install-cache-v1"
 EDITABLE_SHADOW_IMPORTS: dict[str, tuple[str, ...]] = {
     "agi-cluster": ("agi_cluster",),
@@ -1519,15 +1529,44 @@ def _envar_nonempty(envars: Any, key: str) -> bool:
     raw = _envar_value(envars, key)
     if raw is None:
         return False
-    return bool(str(raw).strip().strip("\"'").strip())
+    normalized = str(raw).strip().strip("\"'").strip()
+    return bool(normalized) and normalized.casefold() not in {"none", "null"}
+
+
+def _uv_resolver_mode(envars: Any) -> str:
+    if any(_envar_nonempty(envars, key) for key in UV_INDEX_RESOLVER_ENV_VARS):
+        return "mirror"
+    if any(_envar_nonempty(envars, key) for key in UV_WHEELHOUSE_RESOLVER_ENV_VARS):
+        return "wheelhouse"
+    raw = _envar_value(envars, "AGI_INTERNET_ON")
+    if raw is None:
+        return "online"
+    if isinstance(raw, bool):
+        return "online" if raw else "cache-only"
+    if isinstance(raw, (int, float)):
+        try:
+            return "online" if int(raw) == 1 else "cache-only"
+        except (TypeError, ValueError):
+            return "cache-only"
+    normalized = str(raw).strip().strip("\"'").strip().lower()
+    return "online" if normalized in {"1", "true", "yes", "on"} else "cache-only"
+
+
+def _uv_resolver_env_prefix(envars: Any, *, os_name: str = os.name) -> str:
+    values: dict[str, str] = {}
+    for key in UV_RESOLVER_PROPAGATED_ENV_VARS:
+        if _envar_nonempty(envars, key):
+            values[key] = str(_envar_value(envars, key)).strip().strip("\"'").strip()
+    return _shell_env_prefix(values, os_name=os_name)
 
 
 def _uv_offline_flag(envars: Any) -> str:
+    mode = _uv_resolver_mode(envars)
+    if mode in {"online", "mirror"}:
+        return ""
+    if mode == "wheelhouse":
+        return "--offline "
     raw = _envar_value(envars, "AGI_INTERNET_ON")
-    if raw is None:
-        return ""
-    if _envar_nonempty(envars, "UV_INDEX_URL"):
-        return ""
     if isinstance(raw, bool):
         return "" if raw else "--offline "
     if isinstance(raw, (int, float)):
@@ -1859,8 +1898,10 @@ async def deploy_local_worker(
 
     wenv_abs = env.wenv_abs
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-    uv = cmd_prefix + env.uv
-    offline_flag = _uv_offline_flag(getattr(env, "envars", {}))
+    envars = getattr(env, "envars", {})
+    resolver_env_prefix = _uv_resolver_env_prefix(envars)
+    uv = resolver_env_prefix + cmd_prefix + env.uv
+    offline_flag = _uv_offline_flag(envars)
     pyvers = env.python_version
     stage_cache_enabled = _deploy_stage_cache_enabled(getattr(env, "envars", {}))
     stage_cache_path = _deploy_stage_cache_path(wenv_abs)
@@ -2095,7 +2136,7 @@ async def deploy_local_worker(
         time.perf_counter() - started_at,
     )
 
-    uv_worker = cmd_prefix + env.uv_worker
+    uv_worker = resolver_env_prefix + cmd_prefix + env.uv_worker
     pyvers_worker = env.pyvers_worker
 
     worker_extra_indexes = ""
@@ -2145,7 +2186,8 @@ async def deploy_local_worker(
         worker_venv_project.mkdir(parents=True, exist_ok=True)
         _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
         uv_worker = (
-            cmd_prefix
+            resolver_env_prefix
+            + cmd_prefix
             + _shell_env_prefix(
                 {"UV_PROJECT_ENVIRONMENT": str(_project_venv_root(worker_venv_project))}
             )

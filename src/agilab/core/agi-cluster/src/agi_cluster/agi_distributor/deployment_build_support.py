@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from shlex import quote
 from typing import Any, Callable, cast
 
 from agi_env import AgiEnv
@@ -16,6 +17,16 @@ BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v1"
 DISABLE_BUILD_CACHE_ENV = "AGILAB_DISABLE_WORKER_BUILD_CACHE"
 BUILD_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 GIT_FINGERPRINT_TIMEOUT_SECONDS = 2.0
+UV_INDEX_RESOLVER_ENV_VARS = ("UV_INDEX_URL", "UV_EXTRA_INDEX_URL")
+UV_WHEELHOUSE_RESOLVER_ENV_VARS = ("UV_FIND_LINKS",)
+UV_RESOLVER_PROPAGATED_ENV_VARS = (
+    "UV_INDEX_URL",
+    "UV_EXTRA_INDEX_URL",
+    "UV_FIND_LINKS",
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
+    "UV_NATIVE_TLS",
+)
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
@@ -73,16 +84,45 @@ def _envar_nonempty(envars: Any, key: str) -> bool:
     raw = _envar_value(envars, key)
     if raw is None:
         return False
-    return bool(str(raw).strip().strip("\"'").strip())
+    normalized = str(raw).strip().strip("\"'").strip()
+    return bool(normalized) and normalized.casefold() not in {"none", "null"}
+
+
+def _uv_resolver_mode(envars: Any) -> str:
+    if any(_envar_nonempty(envars, key) for key in UV_INDEX_RESOLVER_ENV_VARS):
+        return "mirror"
+    if any(_envar_nonempty(envars, key) for key in UV_WHEELHOUSE_RESOLVER_ENV_VARS):
+        return "wheelhouse"
+    raw = _envar_value(envars, "AGI_INTERNET_ON")
+    if raw is None:
+        return "online"
+    if isinstance(raw, bool):
+        return "online" if raw else "cache-only"
+    if isinstance(raw, (int, float)):
+        try:
+            return "online" if int(raw) == 1 else "cache-only"
+        except (TypeError, ValueError):
+            return "cache-only"
+    normalized = str(raw).strip().strip("\"'").strip().lower()
+    return "online" if normalized in {"1", "true", "yes", "on"} else "cache-only"
+
+
+def _uv_resolver_env_prefix(envars: Any) -> str:
+    values: dict[str, str] = {}
+    for key in UV_RESOLVER_PROPAGATED_ENV_VARS:
+        if _envar_nonempty(envars, key):
+            values[key] = str(_envar_value(envars, key)).strip().strip("\"'").strip()
+    return "".join(f"{key}={quote(value)} " for key, value in values.items())
 
 
 def _uv_offline_flag(env: Any) -> str:
     envars = getattr(env, "envars", {})
+    mode = _uv_resolver_mode(envars)
+    if mode in {"online", "mirror"}:
+        return ""
+    if mode == "wheelhouse":
+        return "--offline "
     raw = _envar_value(envars, "AGI_INTERNET_ON")
-    if raw is None:
-        return ""
-    if _envar_nonempty(envars, "UV_INDEX_URL"):
-        return ""
     if isinstance(raw, bool):
         return "" if raw else "--offline "
     if isinstance(raw, (int, float)):
@@ -94,10 +134,11 @@ def _uv_offline_flag(env: Any) -> str:
 
 
 def _project_uv(env: Any) -> str:
+    resolver_prefix = _uv_resolver_env_prefix(getattr(env, "envars", {}))
     if not env.is_free_threading_available or not python_supports_free_threading():
-        return str(env.uv)
+        return f"{resolver_prefix}{env.uv}"
     cmd_prefix = str(env.envars.get("127.0.0.1_CMD_PREFIX", "")).strip()
-    return " ".join(part for part in (cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
+    return " ".join(part for part in (resolver_prefix + cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
 
 
 def _env_truthy(envars: Any, key: str) -> bool:
