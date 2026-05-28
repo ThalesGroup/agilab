@@ -1148,3 +1148,20 @@ def test_agent_run_human_rendering_and_allow_failure(tmp_path: Path, capsys) -> 
     output = capsys.readouterr().out
     assert "status: fail" in output
     assert f"manifest: {tmp_path / 'agent_run_manifest.json'}" in output
+
+
+def test_agent_run_read_helpers_reject_negative_limit(tmp_path):
+    import pytest
+
+    from agilab.agent_run import (
+        agent_context_payload,
+        find_agent_run_manifests,
+        list_agent_runs,
+    )
+
+    with pytest.raises(ValueError, match="limit must be non-negative"):
+        find_agent_run_manifests(tmp_path, limit=-1)
+    with pytest.raises(ValueError, match="limit must be non-negative"):
+        list_agent_runs(tmp_path, limit=-1)
+    with pytest.raises(ValueError, match="limit must be non-negative"):
+        agent_context_payload(tmp_path, limit=-1)
