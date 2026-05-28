@@ -1441,6 +1441,7 @@ def test_shell_env_prefix_returns_empty_for_no_overrides():
 
 def test_uv_offline_flag_handles_failing_lookup_false_and_nan(monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
 
     class _BrokenEnvars:
         def get(self, _key):
@@ -1475,6 +1476,7 @@ def test_uv_offline_flag_accepts_quoted_truthy_envar_values(monkeypatch):
 
 def test_uv_offline_flag_keeps_quoted_false_values_offline(monkeypatch):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
 
     assert (
         deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": '"0"'})
@@ -1482,6 +1484,30 @@ def test_uv_offline_flag_keeps_quoted_false_values_offline(monkeypatch):
     )
     assert (
         deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "'false'"})
+        == "--offline "
+    )
+
+
+def test_uv_offline_flag_uses_uv_index_url_mirror_when_internet_disabled(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
+
+    assert (
+        deployment_local_support._uv_offline_flag(
+            {
+                "AGI_INTERNET_ON": "0",
+                "UV_INDEX_URL": "http://mirror.local/simple",
+            }
+        )
+        == ""
+    )
+
+    monkeypatch.setenv("UV_INDEX_URL", "http://mirror.local/simple")
+    assert deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "0"}) == ""
+
+    monkeypatch.setenv("UV_INDEX_URL", "")
+    assert (
+        deployment_local_support._uv_offline_flag({"AGI_INTERNET_ON": "0"})
         == "--offline "
     )
 
