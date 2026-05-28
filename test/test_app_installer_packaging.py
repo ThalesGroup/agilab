@@ -55,6 +55,10 @@ EXAMPLE_PREVIEWS = {
         "lab_stages.toml",
         "pipeline_view.json",
     ),
+    "parallel_stage": (
+        "preview_parallel_stage.py",
+        "parallel_stage.toml",
+    ),
     "resilience_failure_injection": (
         "preview_resilience_failure_injection.py",
     ),
@@ -1577,6 +1581,30 @@ def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> N
     assert summary["lab_stages_preview"]["matches_generated"] is True
     assert summary["pipeline_view"]["node_count"] == 4
     assert (tmp_path / "notebook_to_dask_preview.json").is_file()
+
+
+def test_parallel_stage_preview_handles_low_file_count_partitioning(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "parallel_stage" / "preview_parallel_stage.py"
+    module_name = "agilab_parallel_stage_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(
+        output_path=tmp_path / "parallel_stage_preview.json",
+        available_cores=8,
+        file_count=3,
+    )
+
+    assert summary["contract_valid"] is True
+    assert summary["low_file_count_policy"]["splittable_large_files"]["effective_workers"] == 8
+    assert summary["low_file_count_policy"]["splittable_large_files"]["planned_partitions"] == 64
+    assert summary["low_file_count_policy"]["unsplittable_small_files"]["effective_workers"] == 3
+    assert summary["low_file_count_policy"]["unsplittable_small_files"]["planned_partitions"] == 3
+    assert (tmp_path / "parallel_stage_preview.json").is_file()
 
 
 def test_service_mode_health_gate_rejects_non_running_service() -> None:

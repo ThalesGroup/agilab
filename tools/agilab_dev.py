@@ -71,6 +71,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"robust", "robustness"}:
         return [_uv_python("tools/robustness_matrix.py", *args)]
 
+    if command in {"parallel-stage", "parallel"}:
+        return [_uv_python("tools/parallel_stage.py", *args)]
+
     if command in {"app-contracts", "apps-contracts"}:
         return [_uv_python("tools/app_contract_matrix.py", *args)]
 
@@ -153,6 +156,7 @@ def _usage() -> str:
   ./dev [--print-only] lint|ruff [ruff args]
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] robust [robustness_matrix args]
+  ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
   ./dev [--print-only] audit [agilab_audit args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
@@ -169,6 +173,7 @@ High-frequency mappings:
   lint      -> Run Ruff through the repo dev extra; defaults to `ruff check`.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
+  parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.

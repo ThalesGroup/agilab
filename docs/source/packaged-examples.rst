@@ -1,117 +1,109 @@
 Packaged Examples
 =================
 
-This page is the rendered public catalog for examples shipped under
-``src/agilab/examples``. Use it when you need the full list in one place. Use
-:doc:`demos` when you need a shorter route chooser.
+AGILAB ships small public examples that teach one workflow at a time. Some
+examples install and run a built-in app through ``AGI_*`` helper scripts. Other
+examples are read-only previews that write deterministic evidence without
+starting workers, services, or private integrations.
 
-The examples are split into executable app helpers, deterministic read-only
-previews, and notebook migration assets. The read-only previews intentionally
-avoid hidden services, private data, and long-lived workers.
+This page is the Packaged example catalog for public examples.
 
-Catalog
--------
+Use the source catalog as the executable index:
 
-.. list-table:: Packaged example catalog
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m py_compile $(find src/agilab/examples -name '*.py' -print)
+
+Learning path
+-------------
+
+.. list-table::
    :header-rows: 1
-   :widths: 24 24 52
+   :widths: 24 32 44
 
    * - Example
-     - Route
-     - What it proves
+     - Class
+     - Main lesson
    * - ``flight_telemetry``
-     - Executable app helper
-     - First proof for ``flight_telemetry_project``: install, run, and inspect
-       map-ready telemetry output.
+     - Installed app helper
+     - First proof: install one app, run one file, inspect map-ready output.
    * - ``mycode``
-     - Executable app helper
-     - Smallest worker template and local execution smoke.
+     - Installed app helper
+     - Smallest worker template and execution smoke.
    * - ``weather_forecast``
-     - Executable app helper
-     - Notebook-style forecast turned into a reproducible AGILAB app run.
-   * - ``mission_decision``
-     - Executable app helper
-     - Deterministic mission-data decision run with richer artifacts.
-   * - ``sklearn_pipeline``
-     - Executable app helper
-     - Classic ML proof with dataset generation, fitted pipeline, predictions,
-       metrics, model artifact, and hash manifest.
-   * - ``notebook_quickstart``
-     - Notebook route
-     - Colab, Kaggle, and local agi-core notebooks for the smallest runtime
-       surface.
+     - Installed app helper
+     - Turn a notebook-style forecast into a reproducible app run.
    * - ``notebook_migrations``
-     - Notebook migration assets
-     - Packaged migration source material such as notebooks, analysis
-       artifacts, ``lab_stages.toml``, and pipeline views.
+     - Migration source assets
+     - Notebooks, artifacts, lab stages, and conceptual pipeline view, including ``notebook_migrations/skforecast_meteo_fr``.
+   * - ``notebook_quickstart``
+     - Notebook examples
+     - First-run, Colab, Kaggle, benchmark, and worker-path notebook samples.
    * - ``notebook_to_dask``
      - Read-only preview
-     - Notebook cells, artifact contracts, and Dask pipeline view before a real
-       app conversion.
+     - Notebook cells, artifact contracts, and a Dask pipeline view.
+   * - ``parallel_stage``
+     - Read-only preview
+     - Plan parallelism from function, split rule, reducer, and partition count.
    * - ``excel_workbook_proof``
      - Read-only preview
-     - Excel-shaped workbook output, Power Query-friendly CSVs, and evidence
-       hashes.
+     - Workbook output, refreshable CSVs, and evidence hashes.
    * - ``sqlite_connector_proof``
      - Read-only preview
-     - Local SQLite schema, parameterized read-only query, CSV output, and
-       database evidence.
+     - Local database query, CSV result, and evidence hashes.
    * - ``voila_notebook_proof``
      - Read-only preview
-     - Voila-shaped notebook dashboard proof with widget-to-args migration hints
-       and app-view plan.
+     - Notebook dashboard handoff with widget-to-args hints.
+   * - ``sklearn_pipeline``
+     - Installed app helper
+     - Deterministic ML pipeline, metrics, model artifact, and hashes.
+   * - ``mission_decision``
+     - Installed app helper
+     - Deterministic mission-data decision run with richer artifacts.
    * - ``inter_project_dag``
      - Read-only preview
-     - Cross-project DAG compatibility route using explicit artifact handoff.
+     - Cross-project DAG artifact handoff and runner-state preview.
    * - ``service_mode``
      - Read-only preview
-     - Service lifecycle contract: start, status, health, and stop semantics
-       without launching a persistent worker.
+     - Service lifecycle and health-gate planning.
    * - ``mlflow_auto_tracking``
      - Read-only preview
-     - Optional MLflow tracking around AGILAB execution evidence, not a parallel
-       model registry.
+     - Optional MLflow memory around AGILAB evidence.
    * - ``resilience_failure_injection``
      - Read-only preview
-     - Controlled relay-failure scenario comparing fixed, replanned, search, and
-       policy responses.
+     - Compare fixed, replanned, search, and policy responses.
    * - ``train_then_serve``
      - Read-only preview
-     - Handoff from trained policy artifact to service contract, prediction
-       sample, and health gate.
+     - Freeze a trained policy before serving.
    * - ``native_rust_worker``
      - Read-only preview
-     - PyO3/maturin native-worker skeleton for moving only a measured hot kernel
-       to Rust while orchestration stays in Python.
+     - Keep AGILAB orchestration in Python while moving a typed hot kernel to Rust.
 
-Execution Map
--------------
+Parallel-stage example
+----------------------
 
-Use installed ``AGI_*.py`` helpers when you want to run a real built-in app from
-``~/log/execute/<app>/`` after AGILAB has seeded the scripts. Use preview
-scripts when you want deterministic evidence without starting services or
-distributed workers.
+Use ``parallel_stage`` before enabling pool or Dask execution when file count is
+lower than core count. It teaches the rule used by :doc:`parallel-stages`:
 
-.. code-block:: bash
+.. code-block:: text
 
-   python ~/log/execute/flight_telemetry/AGI_install_flight_telemetry.py
-   python ~/log/execute/flight_telemetry/AGI_run_flight_telemetry.py
+   if files are large and splittable:
+       create chunk partitions until workers have enough work
+   else:
+       cap useful workers to file_count
 
-Preview scripts are run from a source checkout through ``uv`` so dependencies
-come from the checkout environment:
+Run it from a source checkout:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py --output-dir /tmp/agilab-sqlite-proof
-   uv --preview-features extra-build-dependencies run python src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py --output /tmp/notebook_to_dask_preview.json
+   uv --preview-features extra-build-dependencies run python src/agilab/examples/parallel_stage/preview_parallel_stage.py
 
-Related Pages
+The preview writes ``~/log/execute/parallel_stage/parallel_stage_preview.json``
+and does not start workers.
+
+Where to edit
 -------------
 
-- :doc:`quick-start` for the shortest local first proof.
-- :doc:`demos` for a compact demo route chooser.
-- :doc:`advanced-proof-pack` for the deeper proof routes.
-- :doc:`notebook-quickstart` and :doc:`notebook-advanced` for notebook-first
-  examples.
-- :doc:`excel-users`, :doc:`voila-users`, and :doc:`data-connectors` for
-  stakeholder-specific bridge examples.
+The source README at ``src/agilab/examples/README.md`` is the detailed catalog.
+Each example directory also has its own ``README.md`` with purpose, input,
+output, safe adaptation, and troubleshooting notes.
