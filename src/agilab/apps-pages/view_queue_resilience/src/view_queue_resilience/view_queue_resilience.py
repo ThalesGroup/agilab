@@ -30,6 +30,15 @@ from agi_env import AgiEnv
 from agi_gui.pagelib import render_logo
 
 
+DATA_DIR_KEY = "queue_resilience_datadir"
+SUMMARY_GLOB_KEY = "queue_resilience_summary_glob"
+APP_SCOPE_KEY = "queue_resilience_active_app_scope"
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    DATA_DIR_KEY,
+    SUMMARY_GLOB_KEY,
+)
+
+
 def _load_page_meta() -> tuple[str, str]:
     if __package__:
         from .page_meta import PAGE_LOGO, PAGE_TITLE
@@ -60,6 +69,18 @@ def _discover_files(base: Path, pattern: str) -> list[Path]:
     return _page_discover_files(base, pattern)
 
 
+def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
+    """Clear persisted Queue Resilience defaults when the active app changes."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -75,8 +96,9 @@ def _safe_metric(value: Any) -> str:
 
 st.set_page_config(layout="wide")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
+if "env" not in st.session_state or app_scope_changed:
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
@@ -96,17 +118,17 @@ st.info(
 )
 
 default_root = _default_artifact_root(env)
-st.session_state.setdefault("queue_resilience_datadir", str(default_root))
+st.session_state.setdefault(DATA_DIR_KEY, str(default_root))
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    key="queue_resilience_datadir",
+    key=DATA_DIR_KEY,
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
-st.session_state.setdefault("queue_resilience_summary_glob", "**/*_summary_metrics.json")
+st.session_state.setdefault(SUMMARY_GLOB_KEY, "**/*_summary_metrics.json")
 metrics_pattern = st.sidebar.text_input(
     "Summary glob",
-    key="queue_resilience_summary_glob",
+    key=SUMMARY_GLOB_KEY,
 )
 
 summary_files = _discover_files(artifact_root, metrics_pattern) if artifact_root.exists() else []
