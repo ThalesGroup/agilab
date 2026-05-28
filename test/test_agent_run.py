@@ -810,6 +810,111 @@ def test_agent_run_context_pack_summarizes_matching_runs(tmp_path: Path, capsys)
     assert "agent-context-fail" in markdown
 
 
+def test_agent_run_lineage_links_followups(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    run_root = tmp_path / "lineage"
+    root_dir = run_root / "root"
+    child_dir = run_root / "child"
+    grandchild_dir = run_root / "grandchild"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Root review",
+            "--run-id",
+            "agent-root",
+            "--output-dir",
+            str(root_dir),
+            "--tag",
+            "review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('lineage private root output')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Child fix",
+            "--run-id",
+            "agent-child",
+            "--output-dir",
+            str(child_dir),
+            "--metadata",
+            "followup_of=agent-root",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('child')",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Grandchild verify",
+            "--run-id",
+            "agent-grandchild",
+            "--output-dir",
+            str(grandchild_dir),
+            "--metadata",
+            "followup_of=agent-child",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('grandchild')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    root_payload = module.agent_lineage_payload(run_root, run_id="agent-root")
+    assert root_payload["schema"] == "agilab.agent_lineage.v1"
+    assert root_payload["found"] is True
+    assert [item["run_id"] for item in root_payload["descendants"]] == [
+        "agent-child",
+        "agent-grandchild",
+    ]
+    assert [item["run_id"] for item in root_payload["chain"]] == [
+        "agent-root",
+        "agent-child",
+        "agent-grandchild",
+    ]
+    assert {"from": "agent-root", "to": "agent-child"} in root_payload["edges"]
+    assert "lineage private root output" not in json.dumps(root_payload)
+
+    grandchild_payload = module.agent_lineage_payload(run_root, run_id="agent-grandchild")
+    assert [item["run_id"] for item in grandchild_payload["ancestors"]] == [
+        "agent-root",
+        "agent-child",
+    ]
+    assert [item["run_id"] for item in grandchild_payload["chain"]] == [
+        "agent-root",
+        "agent-child",
+        "agent-grandchild",
+    ]
+
+    assert module.main(["lineage", "agent-grandchild", "--root", str(run_root), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["target"]["run_id"] == "agent-grandchild"
+
+    assert module.main(["lineage", "agent-root", "--root", str(run_root)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent lineage" in markdown
+    assert "agent-root -> agent-child" in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

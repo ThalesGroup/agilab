@@ -179,6 +179,23 @@ def agent_context(
     }
 
 
+def agent_lineage(
+    log_root: str | Path | None = None,
+    *,
+    run_id: str,
+) -> dict[str, Any]:
+    root = (
+        Path(log_root).expanduser().resolve(strict=False)
+        if log_root not in (None, "")
+        else None
+    )
+    return {
+        "schema": "agilab.mcp.agent_lineage.v1",
+        "log_root": str(root) if root is not None else "~/log/agents",
+        "lineage": agent_run.agent_lineage_payload(root, run_id=run_id),
+    }
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = Path(manifest_path).expanduser().resolve(strict=False)
     payload = json.loads(path.read_text(encoding="utf-8"))

@@ -21,6 +21,7 @@ TOOLS: dict[str, ToolFn] = {
     "agent_handoff": manifest_tools.agent_handoff,
     "agent_next_actions": manifest_tools.agent_next_actions,
     "agent_context": manifest_tools.agent_context,
+    "agent_lineage": manifest_tools.agent_lineage,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -129,6 +130,18 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "capability": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 0},
                 },
+            },
+        },
+        {
+            "name": "agent_lineage",
+            "description": "Build a follow-up lineage graph from AGILAB agent-run evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "log_root": {"type": "string"},
+                    "run_id": {"type": "string"},
+                },
+                "required": ["run_id"],
             },
         },
         {

@@ -1521,6 +1521,107 @@ def render_context_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def agent_lineage_payload(
+    root: Path | str | None = None,
+    *,
+    run_id: str,
+) -> dict[str, object]:
+    """Build a follow-up lineage graph from agent-run metadata."""
+
+    summaries = list_agent_runs(root, limit=None)
+    by_run_id = {summary.run_id: summary for summary in summaries if summary.run_id}
+    children_by_parent: dict[str, list[AgentRunSummary]] = {}
+    parent_by_child: dict[str, str] = {}
+    for summary in summaries:
+        parent = summary.metadata.get("followup_of")
+        if not isinstance(parent, str) or not parent:
+            continue
+        parent_by_child[summary.run_id] = parent
+        children_by_parent.setdefault(parent, []).append(summary)
+
+    target = by_run_id.get(run_id)
+    ancestors: list[AgentRunSummary] = []
+    seen = {run_id}
+    cursor = run_id
+    while cursor in parent_by_child:
+        parent_id = parent_by_child[cursor]
+        if parent_id in seen:
+            break
+        seen.add(parent_id)
+        parent = by_run_id.get(parent_id)
+        if parent is None:
+            break
+        ancestors.append(parent)
+        cursor = parent_id
+    ancestors.reverse()
+
+    descendants: list[AgentRunSummary] = []
+
+    def visit(parent_id: str, seen_ids: set[str]) -> None:
+        for child in children_by_parent.get(parent_id, []):
+            if child.run_id in seen_ids:
+                continue
+            seen_ids.add(child.run_id)
+            descendants.append(child)
+            visit(child.run_id, seen_ids)
+
+    visit(run_id, {run_id})
+    chain = [*ancestors, *([target] if target is not None else []), *descendants]
+    edges = [
+        {"from": parent, "to": child}
+        for child, parent in sorted(parent_by_child.items())
+        if child in by_run_id and parent in by_run_id
+    ]
+    return {
+        "schema": "agilab.agent_lineage.v1",
+        "query": {
+            "root": str(Path(root).expanduser()) if root is not None else "~/log/agents",
+            "run_id": run_id,
+        },
+        "found": target is not None,
+        "target": _summary_payload(target) if target is not None else None,
+        "ancestors": [_summary_payload(summary) for summary in ancestors],
+        "descendants": [_summary_payload(summary) for summary in descendants],
+        "chain": [_summary_payload(summary) for summary in chain],
+        "edges": edges,
+        "artifact_policy": "Manifest paths and metadata links only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_lineage_markdown(payload: dict[str, object]) -> str:
+    """Render an agent lineage graph as compact Markdown."""
+
+    chain = payload.get("chain", [])
+    chain_list = chain if isinstance(chain, list) else []
+    edges = payload.get("edges", [])
+    edge_list = edges if isinstance(edges, list) else []
+    lines = [
+        "# AGILAB agent lineage",
+        "",
+        f"- run_id: {payload.get('query', {}).get('run_id', '') if isinstance(payload.get('query'), dict) else ''}",
+        f"- found: {payload.get('found', False)}",
+        "",
+        "## Chain",
+        "",
+    ]
+    if not chain_list:
+        lines.append("- No linked agent runs found.")
+    for item in chain_list:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- {item.get('status', '-')}: {item.get('run_id', '-')} "
+            f"({item.get('agent', '-')}) - {item.get('label', '')}"
+        )
+    if edge_list:
+        lines.extend(["", "## Links", ""])
+        for edge in edge_list:
+            if not isinstance(edge, dict):
+                continue
+            lines.append(f"- {edge.get('from', '')} -> {edge.get('to', '')}")
+    return "\n".join(lines)
+
+
 def _build_handoff_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
@@ -1556,6 +1657,14 @@ def _build_context_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to include.")
     parser.add_argument("--json", action="store_true", help="Print the context pack as JSON.")
+    return parser
+
+
+def _build_lineage_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Render an AGILAB agent-run follow-up lineage.")
+    parser.add_argument("run_id", help="Target agent-run id to explain.")
+    parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
+    parser.add_argument("--json", action="store_true", help="Print the lineage graph as JSON.")
     return parser
 
 
@@ -1600,6 +1709,20 @@ def _main_context(argv: Sequence[str]) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(render_context_markdown(payload))
+    return 0
+
+
+def _main_lineage(argv: Sequence[str]) -> int:
+    parser = _build_lineage_parser()
+    args = parser.parse_args(list(argv))
+    payload = agent_lineage_payload(
+        Path(args.root).expanduser() if args.root else None,
+        run_id=args.run_id,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_lineage_markdown(payload))
     return 0
 
 
@@ -1661,6 +1784,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main_next(raw_argv[1:])
     if raw_argv[:1] == ["context"]:
         return _main_context(raw_argv[1:])
+    if raw_argv[:1] == ["lineage"]:
+        return _main_lineage(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:

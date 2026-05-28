@@ -638,6 +638,9 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert context_payload["context"]["match_count"] == 1
     assert context_payload["context"]["latest"]["handoff"]["run"]["run_id"] == "agent-codex"
     assert "agent ok" not in json.dumps(context_payload)
+    lineage_payload = manifest_tools.agent_lineage(agent_root, run_id="agent-codex")
+    assert lineage_payload["lineage"]["found"] is True
+    assert lineage_payload["lineage"]["target"]["run_id"] == "agent-codex"
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -743,6 +746,25 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert (
         "agilab.agent_context.v1"
         in context_call_response["result"]["content"][0]["text"]
+    )
+    lineage_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+                "name": "agent_lineage",
+                "arguments": {
+                    "log_root": str(agent_root),
+                    "run_id": "agent-codex",
+                },
+            },
+        }
+    )
+    assert lineage_call_response
+    assert (
+        "agilab.agent_lineage.v1"
+        in lineage_call_response["result"]["content"][0]["text"]
     )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 
