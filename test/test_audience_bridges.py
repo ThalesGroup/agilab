@@ -641,6 +641,9 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     lineage_payload = manifest_tools.agent_lineage(agent_root, run_id="agent-codex")
     assert lineage_payload["lineage"]["found"] is True
     assert lineage_payload["lineage"]["target"]["run_id"] == "agent-codex"
+    agent_comparison = manifest_tools.compare_agent_runs(agent_dir, agent_dir)
+    assert agent_comparison["comparison"]["status_changed"] is False
+    assert agent_comparison["comparison"]["left"]["run_id"] == "agent-codex"
     assert manifest_tools.summarize_run(manifest_path)["summary"]["status"] == "pass"
     assert (
         manifest_tools.list_artifacts(manifest_path)["artifacts"][0]["exists"] is True
@@ -765,6 +768,25 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
     assert (
         "agilab.agent_lineage.v1"
         in lineage_call_response["result"]["content"][0]["text"]
+    )
+    compare_agent_call_response = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "tools/call",
+            "params": {
+                "name": "compare_agent_runs",
+                "arguments": {
+                    "left_manifest": str(agent_dir),
+                    "right_manifest": str(agent_dir),
+                },
+            },
+        }
+    )
+    assert compare_agent_call_response
+    assert (
+        "agilab.agent_compare.v1"
+        in compare_agent_call_response["result"]["content"][0]["text"]
     )
     assert mcp_server.server_manifest()["policy"]["read_only"] is True
 

@@ -196,6 +196,19 @@ def agent_lineage(
     }
 
 
+def compare_agent_runs(
+    left_manifest: str | Path, right_manifest: str | Path
+) -> dict[str, Any]:
+    left = Path(left_manifest).expanduser().resolve(strict=False)
+    right = Path(right_manifest).expanduser().resolve(strict=False)
+    return {
+        "schema": "agilab.mcp.compare_agent_runs.v1",
+        "left_manifest": str(left),
+        "right_manifest": str(right),
+        "comparison": agent_run.compare_agent_runs(left, right),
+    }
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = Path(manifest_path).expanduser().resolve(strict=False)
     payload = json.loads(path.read_text(encoding="utf-8"))

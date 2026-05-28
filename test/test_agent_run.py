@@ -915,6 +915,86 @@ def test_agent_run_lineage_links_followups(tmp_path: Path, capsys) -> None:
     assert "agent-root -> agent-child" in markdown
 
 
+def test_agent_run_compare_highlights_followup_changes(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    left_dir = tmp_path / "left"
+    right_dir = tmp_path / "right"
+
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Failed review",
+            "--run-id",
+            "agent-compare-fail",
+            "--output-dir",
+            str(left_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--allow-failure",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private failed output'); raise SystemExit(5)",
+        ]
+    ) == 0
+    assert module.main(
+        [
+            "--agent",
+            "codex",
+            "--label",
+            "Fixed review",
+            "--run-id",
+            "agent-compare-pass",
+            "--output-dir",
+            str(right_dir),
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--metadata",
+            "followup_of=agent-compare-fail",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--permission-level",
+            "standard",
+            "--",
+            sys.executable,
+            "-c",
+            "print('private fixed output')",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    payload = module.compare_agent_runs(left_dir, right_dir)
+    assert payload["schema"] == "agilab.agent_compare.v1"
+    assert payload["left"]["run_id"] == "agent-compare-fail"
+    assert payload["right"]["run_id"] == "agent-compare-pass"
+    assert payload["status_changed"] is True
+    assert payload["returncode_changed"] is True
+    assert payload["metadata"]["added"] == {"followup_of": "agent-compare-fail"}
+    assert payload["protocol_adapters"]["added"] == ["mcp"]
+    assert payload["capabilities"]["added"] == ["evidence-review"]
+    assert "private failed output" not in json.dumps(payload)
+    assert "private fixed output" not in json.dumps(payload)
+
+    assert module.main(["compare", str(left_dir), str(right_dir), "--json"]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["right"]["run_id"] == "agent-compare-pass"
+
+    assert module.main(["compare", str(left_dir), str(right_dir)]) == 0
+    markdown = capsys.readouterr().out
+    assert "# AGILAB agent-run comparison" in markdown
+    assert "status_changed: True" in markdown
+
+
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:
     module = _load_module()
     config = module.AgentRunConfig(

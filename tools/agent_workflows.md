@@ -93,6 +93,7 @@ agilab agent-run handoff ~/log/agents/codex/<run-id>
 agilab agent-run next ~/log/agents/codex/<run-id> --json
 agilab agent-run context --tag review --metadata branch=main --limit 5 --json
 agilab agent-run lineage <run-id> --json
+agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<follow-up-run> --json
 ```
 
 The read-only MCP bridge exposes the same agent-run evidence to external
@@ -106,6 +107,7 @@ agilab-mcp call-tool agent_handoff --arguments '{"manifest_path":"~/log/agents/c
 agilab-mcp call-tool agent_next_actions --arguments '{"manifest_path":"~/log/agents/codex/<run-id>"}' --json
 agilab-mcp call-tool agent_context --arguments '{"agent":"codex","tag":"review","metadata":{"branch":"main"},"limit":5}' --json
 agilab-mcp call-tool agent_lineage --arguments '{"run_id":"<run-id>"}' --json
+agilab-mcp call-tool compare_agent_runs --arguments '{"left_manifest":"~/log/agents/codex/<failed-run>","right_manifest":"~/log/agents/codex/<follow-up-run>"}' --json
 ```
 
 or from Python:

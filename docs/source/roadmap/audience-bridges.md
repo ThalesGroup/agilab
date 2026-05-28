@@ -204,6 +204,7 @@ agilab-mcp
     agent_next_actions
     agent_context
     agent_lineage
+    compare_agent_runs
 
   dangerous tools, disabled by default:
     run_project
@@ -231,6 +232,7 @@ agilab agent-run handoff ~/log/agents/codex/<run-id>
 agilab agent-run next ~/log/agents/codex/<run-id> --json
 agilab agent-run context --tag review --limit 5 --json
 agilab agent-run lineage <run-id> --json
+agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<follow-up-run> --json
 ```
 
 The value proposition is simple: ask an AI assistant why an experiment or agent

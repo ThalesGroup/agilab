@@ -22,6 +22,7 @@ TOOLS: dict[str, ToolFn] = {
     "agent_next_actions": manifest_tools.agent_next_actions,
     "agent_context": manifest_tools.agent_context,
     "agent_lineage": manifest_tools.agent_lineage,
+    "compare_agent_runs": manifest_tools.compare_agent_runs,
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
@@ -142,6 +143,18 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "run_id": {"type": "string"},
                 },
                 "required": ["run_id"],
+            },
+        },
+        {
+            "name": "compare_agent_runs",
+            "description": "Compare two AGILAB agent-run manifests without reading output contents.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "left_manifest": {"type": "string"},
+                    "right_manifest": {"type": "string"},
+                },
+                "required": ["left_manifest", "right_manifest"],
             },
         },
         {

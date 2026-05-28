@@ -1622,6 +1622,117 @@ def render_lineage_markdown(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _string_set_delta(left: Sequence[object], right: Sequence[object]) -> dict[str, list[str]]:
+    left_set = {str(value) for value in left}
+    right_set = {str(value) for value in right}
+    return {
+        "added": sorted(right_set - left_set),
+        "removed": sorted(left_set - right_set),
+    }
+
+
+def _metadata_delta(
+    left: Mapping[str, object], right: Mapping[str, object]
+) -> dict[str, object]:
+    left_keys = set(left)
+    right_keys = set(right)
+    shared = left_keys & right_keys
+    return {
+        "added": {key: right[key] for key in sorted(right_keys - left_keys)},
+        "removed": {key: left[key] for key in sorted(left_keys - right_keys)},
+        "changed": {
+            key: {"left": left[key], "right": right[key]}
+            for key in sorted(shared)
+            if left[key] != right[key]
+        },
+    }
+
+
+def _trace_event_count(summary: AgentRunSummary) -> int:
+    if not summary.trace_events_path:
+        return 0
+    try:
+        return len(load_trace_events(summary.trace_events_path.parent))
+    except OSError:
+        return 0
+
+
+def compare_agent_runs(
+    left_manifest_or_path: dict[str, object] | Path | str,
+    right_manifest_or_path: dict[str, object] | Path | str,
+) -> dict[str, object]:
+    """Compare two agent-run manifests without embedding stdout/stderr contents."""
+
+    left_manifest = (
+        left_manifest_or_path
+        if isinstance(left_manifest_or_path, dict)
+        else load_agent_run_manifest(left_manifest_or_path)
+    )
+    right_manifest = (
+        right_manifest_or_path
+        if isinstance(right_manifest_or_path, dict)
+        else load_agent_run_manifest(right_manifest_or_path)
+    )
+    left = summarize_agent_run(left_manifest)
+    right = summarize_agent_run(right_manifest)
+    left_command = left_manifest.get("command", {})
+    right_command = right_manifest.get("command", {})
+    left_command_map = left_command if isinstance(left_command, dict) else {}
+    right_command_map = right_command if isinstance(right_command, dict) else {}
+    left_protocols = _protocol_summary(left_manifest)
+    right_protocols = _protocol_summary(right_manifest)
+    left_trace_count = _trace_event_count(left)
+    right_trace_count = _trace_event_count(right)
+    return {
+        "schema": "agilab.agent_compare.v1",
+        "left": _summary_payload(left),
+        "right": _summary_payload(right),
+        "status_changed": left.status != right.status,
+        "returncode_changed": left.returncode != right.returncode,
+        "duration_delta_seconds": right.duration_seconds - left.duration_seconds,
+        "command": {
+            "argv_sha256_changed": left_command_map.get("argv_sha256")
+            != right_command_map.get("argv_sha256"),
+            "argv_count_delta": int(right_command_map.get("argv_count") or 0)
+            - int(left_command_map.get("argv_count") or 0),
+            "cwd_changed": left_command_map.get("cwd") != right_command_map.get("cwd"),
+        },
+        "tags": _string_set_delta(left.tags, right.tags),
+        "metadata": _metadata_delta(left.metadata, right.metadata),
+        "protocol_adapters": _string_set_delta(
+            left_protocols["adapters"], right_protocols["adapters"]
+        ),
+        "capabilities": _string_set_delta(
+            left_protocols["capabilities"], right_protocols["capabilities"]
+        ),
+        "trace_event_count_delta": right_trace_count - left_trace_count,
+        "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",
+    }
+
+
+def render_compare_markdown(payload: dict[str, object]) -> str:
+    """Render an agent-run comparison as compact Markdown."""
+
+    left = payload.get("left", {})
+    right = payload.get("right", {})
+    left_map = left if isinstance(left, dict) else {}
+    right_map = right if isinstance(right, dict) else {}
+    lines = [
+        "# AGILAB agent-run comparison",
+        "",
+        f"- left: {left_map.get('run_id', '')} ({left_map.get('status', '')})",
+        f"- right: {right_map.get('run_id', '')} ({right_map.get('status', '')})",
+        f"- status_changed: {payload.get('status_changed', False)}",
+        f"- returncode_changed: {payload.get('returncode_changed', False)}",
+        f"- duration_delta_seconds: {payload.get('duration_delta_seconds', 0.0)}",
+        f"- trace_event_count_delta: {payload.get('trace_event_count_delta', 0)}",
+    ]
+    metadata = payload.get("metadata", {})
+    if isinstance(metadata, dict) and any(metadata.get(key) for key in ("added", "removed", "changed")):
+        lines.extend(["", "## Metadata delta", "", json.dumps(metadata, sort_keys=True)])
+    return "\n".join(lines)
+
+
 def _build_handoff_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render an AGILAB agent-run handoff card.")
     parser.add_argument("manifest_path", help="Agent-run manifest path or run directory.")
@@ -1665,6 +1776,14 @@ def _build_lineage_parser() -> argparse.ArgumentParser:
     parser.add_argument("run_id", help="Target agent-run id to explain.")
     parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
     parser.add_argument("--json", action="store_true", help="Print the lineage graph as JSON.")
+    return parser
+
+
+def _build_compare_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Compare two AGILAB agent-run manifests.")
+    parser.add_argument("left_manifest", help="Left agent-run manifest path or run directory.")
+    parser.add_argument("right_manifest", help="Right agent-run manifest path or run directory.")
+    parser.add_argument("--json", action="store_true", help="Print the comparison as JSON.")
     return parser
 
 
@@ -1723,6 +1842,20 @@ def _main_lineage(argv: Sequence[str]) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(render_lineage_markdown(payload))
+    return 0
+
+
+def _main_compare(argv: Sequence[str]) -> int:
+    parser = _build_compare_parser()
+    args = parser.parse_args(list(argv))
+    payload = compare_agent_runs(
+        Path(args.left_manifest).expanduser(),
+        Path(args.right_manifest).expanduser(),
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(render_compare_markdown(payload))
     return 0
 
 
@@ -1786,6 +1919,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main_context(raw_argv[1:])
     if raw_argv[:1] == ["lineage"]:
         return _main_lineage(raw_argv[1:])
+    if raw_argv[:1] == ["compare"]:
+        return _main_compare(raw_argv[1:])
 
     config = parse_args(raw_argv)
     if config.print_only:
