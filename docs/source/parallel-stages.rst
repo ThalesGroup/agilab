@@ -117,6 +117,21 @@ compares two policies on three files and eight available cores:
   partitions.
 - unsplittable small files cap useful workers to three.
 
+The important part of the preview is small enough to scan in a terminal:
+
+.. code-block:: text
+
+   input_files: 3
+   available_cores: 8
+   splittable_large_files:
+     effective_workers: 8
+     planned_partitions: 64
+   unsplittable_small_files:
+     effective_workers: 3
+     planned_partitions: 3
+
+That is the core rule: parallelize partitions, not raw file count.
+
 Recommended sequence
 --------------------
 
