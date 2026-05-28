@@ -93,6 +93,7 @@ import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
+        "render_project_evidence_drawer": "render_project_evidence_drawer",
         "render_page_context": "render_page_context",
     },
     current_file=__file__,
@@ -2917,6 +2918,12 @@ async def main():
         available_view_count=len(view_names),
         selected_notebook_count=len(selected_notebooks),
         available_notebook_count=len(notebook_names),
+    )
+    render_project_evidence_drawer(
+        st,
+        env=env,
+        key_prefix="analysis:evidence",
+        expanded=not selected_views and not selected_notebooks,
     )
 
     with st.expander("Choose analysis views", expanded=False):

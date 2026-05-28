@@ -9,6 +9,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from urllib.parse import urlencode
 
 MAX_INLINE_DOWNLOAD_BYTES = 5 * 1024 * 1024
 MAX_INLINE_PREVIEW_BYTES = 256 * 1024
@@ -47,6 +48,7 @@ _COCKPIT_ARTIFACT_SUFFIXES = {
     ".txt",
 }
 _COCKPIT_SCAN_LIMIT = 200
+_COCKPIT_MAX_DRAWER_ARTIFACTS = 12
 
 
 def _as_text(value: Any) -> str:
@@ -80,6 +82,11 @@ def workflow_state_scope(page_label: str, env: Any | None = None) -> str:
 def project_widget_key(page_label: str, env: Any | None, key: Any) -> str:
     """Return a widget key scoped to one page and one active project."""
     return f"{workflow_state_scope(page_label, env)}::{_stable_key_part(key)}"
+
+
+def project_state_key(page_label: str, env: Any | None, key: Any) -> str:
+    """Return a non-widget session key scoped to one page and one active project."""
+    return f"{workflow_state_scope(page_label, env)}::state::{_stable_key_part(key)}"
 
 
 def _identity_tokens(value: Any) -> set[str]:
@@ -210,11 +217,42 @@ def _latest_timestamp_label(timestamp: float | None) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
 
 
+def _artifact_label(path: Path) -> str:
+    if path.name == "run_manifest.json":
+        return "Run manifest"
+    suffix = path.suffix.lower()
+    if suffix == ".log":
+        return "Runtime log"
+    if suffix in {".csv", ".parquet"}:
+        return "Table"
+    if suffix in {".png", ".svg"}:
+        return "Figure"
+    if suffix == ".ipynb":
+        return "Notebook"
+    if suffix == ".json":
+        return "JSON evidence"
+    return path.name
+
+
+def _artifact_kind_label(path: Path) -> str:
+    if path.name == "run_manifest.json":
+        return "manifest"
+    return path.suffix.lower().lstrip(".") or "file"
+
+
+def _artifact_description(path: Path, root: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
     count = 0
     latest: float | None = None
     manifest: Path | None = None
     examples: list[str] = []
+    artifact_rows: list[tuple[float, Path, Path]] = []
     truncated = False
     ignored_dirs = {
         ".git",
@@ -256,7 +294,9 @@ def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
                 if len(examples) < 3:
                     examples.append(path.name)
                 try:
-                    latest = max(latest or path.stat().st_mtime, path.stat().st_mtime)
+                    mtime = path.stat().st_mtime
+                    artifact_rows.append((mtime, path, root))
+                    latest = max(latest or mtime, mtime)
                 except OSError:
                     pass
                 if count >= _COCKPIT_SCAN_LIMIT:
@@ -271,6 +311,20 @@ def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
         "latest": latest,
         "manifest": manifest,
         "examples": examples,
+        "artifacts": [
+            {
+                "label": _artifact_label(path),
+                "path": path,
+                "kind": _artifact_kind_label(path),
+                "description": _artifact_description(path, root),
+                "preview": path.suffix.lower()
+                in (_TEXT_PREVIEW_SUFFIXES | _IMAGE_PREVIEW_SUFFIXES),
+            }
+            for _mtime, path, root in sorted(
+                artifact_rows,
+                key=lambda row: (-row[0], row[1].as_posix()),
+            )[:_COCKPIT_MAX_DRAWER_ARTIFACTS]
+        ],
         "truncated": truncated,
     }
 
@@ -307,6 +361,64 @@ def _run_history(env: Any | None) -> tuple[str, str, str]:
         count, caption = "0", "run log status unavailable"
     state = "ready" if count not in {"", "0"} else "incomplete"
     return count, caption, state
+
+
+def _project_page_url(page_name: str, env: Any | None) -> str:
+    params: dict[str, str] = {}
+    active_app = _as_text(getattr(env, "app", "") if env is not None else "")
+    if active_app:
+        params["active_app"] = active_app
+    query = urlencode(params)
+    return f"/{page_name}?{query}" if query else f"/{page_name}"
+
+
+def _project_next_action(
+    env: Any | None,
+    *,
+    project_ready: bool,
+    install_value: str,
+    run_value: str,
+    artifact_count: int,
+) -> dict[str, str]:
+    if not project_ready:
+        return {
+            "id": "project",
+            "label": "Create or select project",
+            "detail": "Choose a project before installing, executing, or reviewing evidence.",
+            "url": _project_page_url("PROJECT", env),
+            "type": "primary",
+        }
+    if artifact_count:
+        return {
+            "id": "analysis",
+            "label": "Review evidence",
+            "detail": "Open ANALYSIS on the selected project outputs.",
+            "url": _project_page_url("ANALYSIS", env),
+            "type": "primary",
+        }
+    if install_value != "Ready":
+        return {
+            "id": "install",
+            "label": "Install project",
+            "detail": "Prepare the manager and worker environments before execution.",
+            "url": _project_page_url("ORCHESTRATE", env),
+            "type": "primary",
+        }
+    if run_value in {"", "0"}:
+        return {
+            "id": "execute",
+            "label": "Execute project",
+            "detail": "Run the project once to create logs, manifests, and artifacts.",
+            "url": _project_page_url("ORCHESTRATE", env),
+            "type": "primary",
+        }
+    return {
+        "id": "execute",
+        "label": "Create evidence",
+        "detail": "Run ORCHESTRATE -> EXECUTE so ANALYSIS has outputs to inspect.",
+        "url": _project_page_url("ORCHESTRATE", env),
+        "type": "primary",
+    }
 
 
 def _render_cockpit_card(streamlit: Any, *, label: str, value: str, caption: str, state: str) -> None:
@@ -383,6 +495,79 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
     ]
 
 
+def project_next_action(env: Any | None) -> dict[str, str]:
+    """Return the next user-facing action implied by current project state."""
+    project_root = _project_path(env)
+    project_ready = bool(project_root and (project_root.exists() or project_root.is_symlink()))
+    install_value, _install_caption, _install_state = _project_install_status(env)
+    run_value, _run_caption, _run_state = _run_history(env)
+    evidence = _scan_project_evidence(env)
+    return _project_next_action(
+        env,
+        project_ready=project_ready,
+        install_value=install_value,
+        run_value=run_value,
+        artifact_count=int(evidence["count"]),
+    )
+
+
+def render_next_best_action(
+    streamlit: Any,
+    *,
+    env: Any | None,
+    key_prefix: str,
+    title: str = "Next best action",
+) -> dict[str, str]:
+    """Render one navigation CTA derived from project readiness."""
+    action = project_next_action(env)
+    streamlit.caption(f"{title}: {action['detail']}")
+    link_button = getattr(streamlit, "link_button", None)
+    if callable(link_button):
+        link_button(
+            action["label"],
+            action["url"],
+            key=f"{key_prefix}:next:{_stable_key_part(action['id'])}",
+            type=action.get("type", "primary"),
+            width="content",
+        )
+    else:
+        streamlit.markdown(f"[{action['label']}]({action['url']})")
+    return action
+
+
+def project_evidence_artifacts(env: Any | None) -> list[dict[str, Any]]:
+    """Return latest evidence artifacts for the selected project."""
+    return list(_scan_project_evidence(env).get("artifacts", []))
+
+
+def render_project_evidence_drawer(
+    streamlit: Any,
+    *,
+    env: Any | None,
+    key_prefix: str,
+    title: str = "Evidence drawer",
+    expanded: bool = False,
+) -> None:
+    """Render latest project evidence in one reusable drawer."""
+    artifacts = project_evidence_artifacts(env)
+    if not artifacts:
+        expander = streamlit.expander(title, expanded=expanded)
+        with expander:
+            _call_container_method(
+                expander,
+                "caption",
+                "No evidence files found yet. Run ORCHESTRATE -> EXECUTE first.",
+            )
+        return
+    render_artifact_drawer(
+        streamlit,
+        artifacts=artifacts,
+        key_prefix=key_prefix,
+        title=title,
+        expanded=expanded,
+    )
+
+
 def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = None) -> None:
     """Render the compact project cockpit shared by Streamlit pages."""
     if env is None:
@@ -398,6 +583,11 @@ def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = No
             for column, card in zip(columns, row):
                 with column:
                     _render_cockpit_card(streamlit, **card)
+        render_next_best_action(
+            streamlit,
+            env=env,
+            key_prefix=f"project_cockpit:{_stable_key_part(page_label)}",
+        )
     return None
 
 

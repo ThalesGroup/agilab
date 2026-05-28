@@ -52,6 +52,9 @@ class _FakeContainer:
     def markdown(self, body: object, **kwargs):
         self._streamlit.events.append(("markdown", str(body)))
 
+    def link_button(self, label: str, url: str, key: str | None = None, **kwargs):
+        self._streamlit.link_button(label, url, key=key, **kwargs)
+
 
 class _FakeSidebar:
     def __init__(self, streamlit):
@@ -105,6 +108,9 @@ class _FakeStreamlit:
     def image(self, body: object, **kwargs):
         self.events.append(("image", str(body)))
 
+    def link_button(self, label: str, url: str, key: str | None = None, **kwargs):
+        self.events.append(("link_button", f"{label}:{url}:{key or ''}:{kwargs.get('type', '')}"))
+
 
 def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
     streamlit = _FakeStreamlit()
@@ -147,6 +153,10 @@ def test_render_page_context_renders_project_cockpit(tmp_path) -> None:
     assert "flight_telemetry_project" in markdown
     assert "run_manifest.json" in markdown
     assert "agilab-header-card" in markdown
+    assert (
+        "link_button",
+        "Review evidence:/ANALYSIS?active_app=flight_telemetry_project:project_cockpit:ORCHESTRATE:next:analysis:primary",
+    ) in fake_st.events
 
 
 def test_project_widget_key_is_scoped_by_page_and_project() -> None:
@@ -156,6 +166,58 @@ def test_project_widget_key_is_scoped_by_page_and_project() -> None:
         workflow_ui.project_widget_key("ORCHESTRATE", env, "cluster enabled")
         == "ORCHESTRATE::flight_telemetry_project::flight_telemetry_worker::cluster_enabled"
     )
+    assert (
+        workflow_ui.project_state_key("ORCHESTRATE", env, "drawer open")
+        == "ORCHESTRATE::flight_telemetry_project::flight_telemetry_worker::state::drawer_open"
+    )
+
+
+def test_next_best_action_guides_install_execute_and_analysis(tmp_path, monkeypatch) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    env = SimpleNamespace(app="demo_project", target="demo", active_app=project)
+
+    monkeypatch.setattr(
+        workflow_ui,
+        "_project_install_status",
+        lambda _env: ("Not installed", "run ORCHESTRATE -> INSTALL", "incomplete"),
+    )
+    assert workflow_ui.project_next_action(env)["id"] == "install"
+
+    monkeypatch.setattr(
+        workflow_ui,
+        "_project_install_status",
+        lambda _env: ("Ready", "manager and worker ready", "ready"),
+    )
+    assert workflow_ui.project_next_action(env)["id"] == "execute"
+
+    runenv = tmp_path / "run"
+    runenv.mkdir()
+    (runenv / "run_001.log").write_text("ok\n", encoding="utf-8")
+    (runenv / "run_manifest.json").write_text("{}", encoding="utf-8")
+    env.runenv = runenv
+
+    assert workflow_ui.project_next_action(env)["id"] == "analysis"
+
+
+def test_project_evidence_drawer_lists_latest_artifacts(tmp_path) -> None:
+    runenv = tmp_path / "run"
+    runenv.mkdir()
+    (runenv / "run_manifest.json").write_text("{}", encoding="utf-8")
+    (runenv / "metrics.csv").write_text("x\n1\n", encoding="utf-8")
+    env = SimpleNamespace(app="demo_project", target="demo", active_app=tmp_path, runenv=runenv)
+    fake_st = _FakeStreamlit()
+
+    workflow_ui.render_project_evidence_drawer(
+        fake_st,
+        env=env,
+        key_prefix="demo:evidence",
+        expanded=True,
+    )
+
+    assert ("expander", "Evidence drawer:True") in fake_st.events
+    assert ("caption", "Run manifest: Ready (manifest)") in fake_st.events
+    assert ("caption", "Table: Ready (csv)") in fake_st.events
 
 
 def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
