@@ -2,14 +2,9 @@
 
 ## Video
 
-- Public video: https://youtu.be/BsBjRSAXJZA
-- Local MP4 output: `artifacts/demo_media/flight/agilab_flight.mp4` (generated locally; not stored in Git)
-- Local GIF preview output: `artifacts/demo_media/flight/agilab_flight.gif` (generated locally; not stored in Git)
-- Local poster output: `artifacts/demo_media/flight/agilab_flight_poster.png` (generated locally; not stored in Git)
-- YouTube public URL: https://youtu.be/BsBjRSAXJZA
-- Removed previous audio upload: https://youtu.be/KsBe8lIahH4
-- Removed previous silent upload: https://youtu.be/c4aogHDh4do
+- Latest public video: https://youtu.be/BsBjRSAXJZA
 - YouTube Studio URL: https://studio.youtube.com/video/BsBjRSAXJZA
+- Repository policy: keep only this lightweight upload pack in Git. Generated MP4, GIF, and poster outputs under `artifacts/demo_media/flight/` are local artifacts and are not stored in Git.
 - Duration: 15.47 seconds
 - Format: 1920x1080, 30 fps, premium H.264 video + stereo AAC audio MP4
 - Video master: regenerated from source frames at CRF 12

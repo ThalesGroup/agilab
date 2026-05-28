@@ -137,7 +137,11 @@ src/agilab/apps/builtin/*/src/**/*.pyx
 !src/agilab/apps/builtin/data_io_2026_project/**
 _fcas_work
 .vscode/
-artifacts/demo_media/
+# Generated demo media: keep only lightweight upload metadata in Git.
+artifacts/demo_media/**
+!artifacts/demo_media/
+!artifacts/demo_media/flight/
+!artifacts/demo_media/flight/agilab_flight_youtube_pack.md
 exported_notebooks/
 src/agilab/apps/builtin/*/notebooks/lab_*.ipynb
 src/agilab/apps/builtin/*/notebooks/sitecustomize.py
