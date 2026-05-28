@@ -731,6 +731,44 @@ def test_view_maps_main_initializes_env_and_invokes_page(tmp_path, monkeypatch) 
     assert str(active_app) in fake_st.calls["code"]
 
 
+def test_view_maps_resets_app_scoped_state_on_active_app_change(tmp_path, monkeypatch) -> None:
+    module = _load_view_maps_module()
+    fake_st = _FakeStreamlit()
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    fake_st.session_state = _State(
+        {
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            "env": object(),
+            "datadir": "/tmp/old-data",
+            "dataset_files": ["old.csv"],
+            "loaded_df": object(),
+            "view_maps:df_files_selected": ["old.csv"],
+            "_view_maps_last_target": "old-target",
+            "unrelated": "keep",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._reset_app_scoped_session_state(first_app) is False
+    assert "datadir" in fake_st.session_state
+
+    assert module._reset_app_scoped_session_state(second_app) is True
+    assert fake_st.session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    assert fake_st.session_state["unrelated"] == "keep"
+    for key in (
+        "env",
+        "datadir",
+        "dataset_files",
+        "loaded_df",
+        "view_maps:df_files_selected",
+        "_view_maps_last_target",
+    ):
+        assert key not in fake_st.session_state
+
+
 def test_view_maps_bootstrap_keeps_absolute_app_path_out_of_main_status() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
 

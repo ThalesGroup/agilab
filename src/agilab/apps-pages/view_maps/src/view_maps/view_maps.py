@@ -109,6 +109,51 @@ def _vm_key(name: str) -> str:
     return f"{PAGE_KEY_PREFIX}:{name}"
 
 
+APP_SCOPE_KEY = _vm_key("active_app_scope")
+APP_SCOPED_SESSION_KEY_PREFIXES = (f"{PAGE_KEY_PREFIX}:", "_view_maps_")
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "datadir",
+    "datadir_str",
+    "dataset_files",
+    "file_ext_choice",
+    "df_select_mode",
+    "df_files_selected",
+    "df_file",
+    "df_file_regex",
+    "loaded_df",
+    "coltype",
+    "discrete",
+    "continuous",
+    "lat",
+    "long",
+)
+
+
+def _reset_app_scoped_session_state(active_app: Path) -> bool:
+    """Clear View Maps state that belongs to a specific active app."""
+
+    app_scope = str(active_app.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in list(st.session_state.keys()):
+        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
+            isinstance(key, str) and key.startswith(prefix)
+            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _discover_dataset_files(datadir: Path, ext_choice: str) -> list[Path]:
     files: list[Path] = []
     extensions = DATASET_EXTENSIONS if ext_choice == "all" else (f".{ext_choice}",)
@@ -915,6 +960,7 @@ def main():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
 
+        _reset_app_scoped_session_state(active_app)
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
