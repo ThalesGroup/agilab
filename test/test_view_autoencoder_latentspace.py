@@ -128,6 +128,8 @@ def test_update_datadir_clears_selected_file_state(monkeypatch) -> None:
     session_state = {
         "df_file": "obsolete.csv",
         "csv_files": ["obsolete.csv"],
+        "data": pd.DataFrame({"x": [1]}),
+        "df_cols": ["x"],
         "input_datadir": "/tmp/new-data",
     }
     initialize_calls: list[str] = []
@@ -139,6 +141,8 @@ def test_update_datadir_clears_selected_file_state(monkeypatch) -> None:
 
     assert "df_file" not in session_state
     assert "csv_files" not in session_state
+    assert "data" not in session_state
+    assert "df_cols" not in session_state
     assert session_state["datadir"] == "/tmp/new-data"
     assert initialize_calls == ["called"]
 
@@ -600,6 +604,75 @@ def test_main_missing_active_app_sets_error(monkeypatch, tmp_path: Path) -> None
             module.main()
 
     assert any("provided --active-app path not found" in message for message in errors)
+
+
+def test_main_resets_page_state_when_active_app_changes(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    old_app = tmp_path / "apps" / "old_autoencoder_project"
+    new_app = tmp_path / "apps" / "new_autoencoder_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir(parents=True)
+    page_calls: list[object] = []
+
+    class FakeEnv:
+        def __init__(self, apps_path, app, verbose):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.is_source_env = True
+            self.is_worker_env = False
+            self.TABLE_MAX_ROWS = 250
+            self.GUI_SAMPLING = 25
+            self.AGILAB_EXPORT_ABS = str(tmp_path / "new-export")
+            self.target = "new_autoencoder"
+            self.projects = ["new_autoencoder_project"]
+            self.app_settings_file = tmp_path / "new_settings.toml"
+            self.init_done = False
+
+    session_state = _State(
+        {
+            module.APP_SCOPE_KEY: str(old_app.resolve()),
+            "apps_path": str(old_app.parent),
+            "app": old_app.name,
+            "env": object(),
+            "IS_SOURCE_ENV": False,
+            "IS_WORKER_ENV": True,
+            "TABLE_MAX_ROWS": 999,
+            "GUI_SAMPLING": 999,
+            "project": "old_autoencoder",
+            "projects": ["old_autoencoder_project"],
+            "datadir": str(tmp_path / "old-data"),
+            "input_datadir": str(tmp_path / "old-data"),
+            "df_file": "old.csv",
+            "csv_files": ["old.csv"],
+            "data": pd.DataFrame({"old": [1]}),
+            "df_cols": ["old"],
+            "coltype": "continuous",
+        }
+    )
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state, error=lambda *args: None))
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(module, "page", lambda env: page_calls.append(env))
+
+    with patch("sys.argv", [MODULE_PATH.name, "--active-app", str(new_app)]):
+        module.main()
+
+    assert session_state[module.APP_SCOPE_KEY] == str(new_app.resolve())
+    assert session_state["apps_path"] == str(new_app.parent)
+    assert session_state["app"] == "new_autoencoder_project"
+    assert session_state["env"].app == "new_autoencoder_project"
+    assert session_state["env"].init_done is True
+    assert session_state["IS_SOURCE_ENV"] is True
+    assert session_state["IS_WORKER_ENV"] is False
+    assert session_state["TABLE_MAX_ROWS"] == 250
+    assert session_state["GUI_SAMPLING"] == 25
+    assert session_state["datadir"] == str(tmp_path / "new-export")
+    assert session_state["coltype"] == module.var[0]
+    assert "df_file" not in session_state
+    assert "csv_files" not in session_state
+    assert "data" not in session_state
+    assert "df_cols" not in session_state
+    assert page_calls == [session_state["env"]]
 
 
 def test_view_autoencoder_latentspace_smoke_renders(
