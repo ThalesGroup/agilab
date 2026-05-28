@@ -323,6 +323,32 @@ def test_view_relay_resilience_discover_exception(monkeypatch, tmp_path) -> None
     assert module._discover_files(broken_base, "*.json") == []
 
 
+def test_view_relay_resilience_resets_app_scoped_state_on_active_app_change(tmp_path) -> None:
+    module = _load_relay_helpers()
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    module.st = SimpleNamespace(
+        session_state={
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            module.RUN_SELECTION_KEY: ["old-run"],
+            module.DETAIL_RUN_KEY: "old-detail",
+            module.REFERENCE_RUN_KEY: "old-reference",
+            module.DATA_DIR_KEY: "/tmp/old-artifacts",
+            module.SUMMARY_GLOB_KEY: "*old.json",
+        }
+    )
+
+    assert module._reset_app_scoped_session_defaults(first_app) is False
+    assert module.RUN_SELECTION_KEY in module.st.session_state
+
+    assert module._reset_app_scoped_session_defaults(second_app) is True
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    for key in module.APP_SCOPED_SESSION_DEFAULT_KEYS:
+        assert key not in module.st.session_state
+
+
 def test_view_relay_resilience_warns_when_summary_glob_is_empty(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
