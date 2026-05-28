@@ -82,7 +82,7 @@ Assets & Tests
 API Reference
 -------------
 
-.. figure:: diagrams/packages_flight.svg
+.. figure:: diagrams/packages_flight_telemetry.svg
    :alt: flight-telemetry project manager package dependencies
    :align: center
    :class: diagram-panel diagram-standard
@@ -91,7 +91,7 @@ API Reference
    :members:
    :show-inheritance:
 
-.. figure:: diagrams/classes_flight.svg
+.. figure:: diagrams/classes_flight_telemetry.svg
    :alt: flight-telemetry project manager class diagram
    :align: center
    :class: diagram-panel diagram-standard
@@ -100,12 +100,12 @@ API Reference
    :members:
    :show-inheritance:
 
-.. figure:: diagrams/classes_flight_args.svg
+.. figure:: diagrams/classes_flight_telemetry_args.svg
    :alt: flight-telemetry project args class diagram
    :align: center
    :class: diagram-panel diagram-standard
 
-.. figure:: diagrams/packages_flight_worker.svg
+.. figure:: diagrams/packages_flight_telemetry_worker.svg
    :alt: flight-telemetry project worker package diagram
    :align: center
    :class: diagram-panel diagram-standard
@@ -114,7 +114,7 @@ API Reference
    :members:
    :show-inheritance:
 
-.. figure:: diagrams/classes_flight_worker.svg
+.. figure:: diagrams/classes_flight_telemetry_worker.svg
    :alt: flight-telemetry project worker class diagram
    :align: center
    :class: diagram-panel diagram-standard

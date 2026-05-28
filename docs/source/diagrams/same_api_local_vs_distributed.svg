@@ -1,56 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="320" viewBox="0 0 1040 320" role="img" aria-labelledby="title desc">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="360" viewBox="0 0 1040 360" role="img" aria-labelledby="title desc">
   <title id="title">Same AGI.run API from local to distributed</title>
-  <desc id="desc">A compact comparison showing that a local AGI.run call and a distributed AGI.run call use the same API shape, with scheduler and workers added for distributed execution.</desc>
+  <desc id="desc">Comparison showing that local and distributed AGILAB runs share the same AGI.run call shape while distributed execution adds scheduler and worker fields.</desc>
   <defs>
-    <style>
-      .bg { fill: #f7f5ef; }
-      .frame { fill: #ffffff; stroke: #d8dfeb; stroke-width: 2; }
-      .title { font: 700 24px Arial, Helvetica, sans-serif; fill: #17324f; }
-      .subtitle { font: 400 14px Arial, Helvetica, sans-serif; fill: #51677b; }
-      .card-title { font: 700 18px Arial, Helvetica, sans-serif; fill: #17324f; }
-      .card-note { font: 400 13px Arial, Helvetica, sans-serif; fill: #5c7289; }
-      .code { font: 400 16px 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; fill: #14324d; }
-      .chip { font: 700 14px Arial, Helvetica, sans-serif; fill: #1f5277; }
-      .bottom-note { font: 400 14px Arial, Helvetica, sans-serif; fill: #6a5531; }
-    </style>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M0,0 L12,6 L0,12 z" fill="#2f6fa3"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="0.58" stop-color="#f4f8f1"/>
+      <stop offset="1" stop-color="#fff5e8"/>
+    </linearGradient>
+    <linearGradient id="localGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#edf6ff"/>
+      <stop offset="1" stop-color="#dceeff"/>
+    </linearGradient>
+    <linearGradient id="distGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff2df"/>
+      <stop offset="1" stop-color="#e8fbf1"/>
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-12%" width="124%" height="134%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M 1 1 L 11 6 L 1 11 Z" fill="#315c7a"/>
     </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #14283f; }
+      .title { font-size: 26px; font-weight: 800; letter-spacing: -0.015em; fill: #10243d; }
+      .subtitle { font-size: 14px; font-weight: 400; fill: #51677b; }
+      .label { font-size: 12px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; fill: #0f766e; }
+      .card-title { font-size: 20px; font-weight: 800; fill: #10243d; }
+      .body { font-size: 13.5px; font-weight: 400; fill: #52677d; }
+      .code { font-size: 13.5px; font-family: "Courier New", Consolas, monospace; fill: #15324b; }
+      .chip { font-size: 12.5px; font-weight: 800; fill: #ffffff; }
+      .note-title { font-size: 15px; font-weight: 800; fill: #ffffff; }
+      .note-body { font-size: 13.5px; font-weight: 400; fill: #dcecff; }
+      .frame { fill: #ffffff; stroke: #c8d8e7; stroke-width: 1.5; filter: url(#shadow); }
+      .codebox { fill: #ffffff; stroke: #c3d5e5; stroke-width: 1.2; }
+      .pill-blue { fill: #315c7a; }
+      .pill-orange { fill: #bf5a24; }
+      .connector { stroke: #315c7a; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .ghost { fill: #ffffff; stroke: #d8e4ef; stroke-width: 1.1; }
+    </style>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1040" height="320" rx="24"/>
-  <text class="title" x="48" y="46">One API, then more fields when you distribute</text>
-  <text class="subtitle" x="48" y="72">Start with the local mental model first. The distributed variant keeps the same AGI.run(...) shape and adds cluster-specific fields.</text>
+  <rect class="bg" x="0" y="0" width="1040" height="360" rx="26"/>
+  <circle cx="930" cy="38" r="112" fill="#dbeafe" opacity="0.45"/>
+  <circle cx="90" cy="330" r="92" fill="#fde6c8" opacity="0.45"/>
 
-  <rect class="frame" x="48" y="100" width="364" height="164" rx="22"/>
-  <text class="card-title" x="230" y="128" text-anchor="middle">Local run</text>
-  <text class="card-note" x="230" y="148" text-anchor="middle">No scheduler, no worker map</text>
-  <rect x="78" y="162" width="304" height="78" rx="16" fill="#eef5fb" stroke="#c5d8eb" stroke-width="2"/>
-  <text class="code" x="102" y="188">
-    <tspan x="102" dy="0">AGI.run(</tspan>
-    <tspan x="102" dy="20">    app_env,</tspan>
-    <tspan x="102" dy="20">    mode=0,</tspan>
-    <tspan x="102" dy="20">)</tspan>
-  </text>
+  <text class="title" x="46" y="44">Same API, local first, distributed when needed</text>
+  <text class="subtitle" x="46" y="68">Read distributed snippets as the same AGI.run(...) shape with scheduler and workers added.</text>
 
-  <rect class="frame" x="628" y="100" width="364" height="164" rx="22"/>
-  <text class="card-title" x="810" y="128" text-anchor="middle">Distributed run</text>
-  <text class="card-note" x="810" y="148" text-anchor="middle">Same API, plus cluster fields</text>
-  <rect x="658" y="162" width="304" height="78" rx="16" fill="#efe8d9" stroke="#dbc296" stroke-width="2"/>
-  <text class="code" x="680" y="188">
-    <tspan x="680" dy="0">AGI.run(</tspan>
-    <tspan x="680" dy="20">    app_env,</tspan>
-    <tspan x="680" dy="20">    scheduler="192.168.1.10",</tspan>
-    <tspan x="680" dy="20">    workers={...}, mode=4,</tspan>
-    <tspan x="680" dy="20">)</tspan>
-  </text>
+  <g transform="translate(46 96)">
+    <rect class="frame" x="0" y="0" width="380" height="186" rx="24" fill="url(#localGrad)"/>
+    <text class="label" x="28" y="34">Local mental model</text>
+    <text class="card-title" x="28" y="62">Run on one machine</text>
+    <text class="body" x="28" y="86">No scheduler. No worker map. Prove the app path first.</text>
+    <rect class="codebox" x="28" y="104" width="324" height="58" rx="14"/>
+    <text class="code" x="48" y="127">
+      <tspan x="48" dy="0">result = await AGI.run(</tspan>
+      <tspan x="48" dy="18">    app_env, request=request</tspan>
+      <tspan x="48" dy="18">)</tspan>
+    </text>
+  </g>
 
-  <path d="M428 184 H612" fill="none" stroke="#2f6fa3" stroke-width="5" marker-end="url(#arrow)"/>
-  <rect x="455" y="146" width="130" height="30" rx="15" fill="#d8ebf9" stroke="#2f6fa3" stroke-width="2"/>
-  <text class="chip" x="520" y="166" text-anchor="middle">same AGI.run API</text>
-  <text class="card-note" x="520" y="204" text-anchor="middle">add scheduler + workers</text>
-  <text class="card-note" x="520" y="222" text-anchor="middle">then choose a distributed mode</text>
+  <g transform="translate(614 96)">
+    <rect class="frame" x="0" y="0" width="380" height="186" rx="24" fill="url(#distGrad)"/>
+    <text class="label" x="28" y="34">Distributed variant</text>
+    <text class="card-title" x="28" y="62">Same call, cluster fields</text>
+    <text class="body" x="28" y="86">Add scheduler and workers, then choose a distributed mode.</text>
+    <rect class="codebox" x="28" y="104" width="324" height="58" rx="14"/>
+    <text class="code" x="48" y="127">
+      <tspan x="48" dy="0">request = RunRequest(</tspan>
+      <tspan x="48" dy="18">    scheduler=host, workers=workers</tspan>
+      <tspan x="48" dy="18">)</tspan>
+    </text>
+  </g>
 
-  <rect x="48" y="278" width="944" height="22" rx="11" fill="#fff0c7" stroke="#d6a93d" stroke-width="2"/>
-  <text class="bottom-note" x="66" y="293">Friendly rule: first understand mode 0 locally, then read distributed snippets as the same call with extra cluster fields.</text>
+  <path class="connector" d="M 434 171 L 593 171"/>
+  <rect class="pill-blue" x="455" y="125" width="122" height="34" rx="17"/>
+  <text class="chip" x="516" y="147" text-anchor="middle">same AGI.run</text>
+  <rect class="pill-orange" x="442" y="190" width="148" height="34" rx="17"/>
+  <text class="chip" x="516" y="212" text-anchor="middle">add cluster fields</text>
+
+  <g transform="translate(442 244)">
+    <rect class="ghost" x="0" y="0" width="148" height="36" rx="18"/>
+    <circle cx="27" cy="18" r="8" fill="#315c7a"/>
+    <circle cx="61" cy="18" r="8" fill="#0f766e"/>
+    <circle cx="95" cy="18" r="8" fill="#bf5a24"/>
+    <text class="body" x="122" y="23" text-anchor="middle">tasks</text>
+  </g>
+
+  <rect x="46" y="302" width="948" height="42" rx="21" fill="#10243d" filter="url(#shadow)"/>
+  <text class="note-title" x="76" y="328">Rule:</text>
+  <text class="note-body" x="126" y="328">start local to verify behavior, then distribute by adding cluster fields without changing the API shape.</text>
 </svg>
