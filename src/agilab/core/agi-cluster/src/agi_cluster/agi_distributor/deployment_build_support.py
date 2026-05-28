@@ -469,7 +469,7 @@ def _stage_worker_build_project(
 def _bdist_egg_command(*, uv: str, module_cmd: str, app_path_arg: str, packages: str, wenv_arg: str, verbose: int) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
     return (
-        f"{uv} --project {app_path_arg} run --no-sync "
+        f"{uv} --project {app_path_arg} run --no-sync --with setuptools --with cython "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}"
         f"bdist_egg --packages \"{packages}\" -d {wenv_arg}"
     )
@@ -478,7 +478,7 @@ def _bdist_egg_command(*, uv: str, module_cmd: str, app_path_arg: str, packages:
 def _build_ext_command(*, uv: str, module_cmd: str, app_path_arg: str, wenv_arg: str, verbose: int) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
     return (
-        f"{uv} --project {app_path_arg} run --no-sync "
+        f"{uv} --project {app_path_arg} run --no-sync --with setuptools --with cython "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}build_ext -b {wenv_arg}"
     )
 
