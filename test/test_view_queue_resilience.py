@@ -269,6 +269,29 @@ def test_view_queue_resilience_package_meta_and_discover_exception(monkeypatch, 
     assert module._discover_files(broken_base, "*.json") == []
 
 
+def test_view_queue_resilience_resets_app_scoped_state_on_active_app_change(tmp_path) -> None:
+    module = _load_queue_helpers()
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    module.st = SimpleNamespace(
+        session_state={
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            module.DATA_DIR_KEY: "/tmp/old-artifacts",
+            module.SUMMARY_GLOB_KEY: "*old.json",
+        }
+    )
+
+    assert module._reset_app_scoped_session_defaults(first_app) is False
+    assert module.DATA_DIR_KEY in module.st.session_state
+
+    assert module._reset_app_scoped_session_defaults(second_app) is True
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    for key in module.APP_SCOPED_SESSION_DEFAULT_KEYS:
+        assert key not in module.st.session_state
+
+
 def test_view_queue_resilience_reuses_existing_session_env(tmp_path, create_temp_app_project, monkeypatch) -> None:
     project_dir = create_temp_app_project(
         "uav_queue_project",
@@ -308,6 +331,7 @@ def test_view_queue_resilience_reuses_existing_session_env(tmp_path, create_temp
             target="uav_queue",
             st_resources=tmp_path / "resources",
         )
+        at.session_state["queue_resilience_active_app_scope"] = str(project_dir.resolve())
         at.run()
 
     assert not at.exception
