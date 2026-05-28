@@ -193,10 +193,17 @@ Use this skill when working on:
     - missing `read_agilab_path()` causing a source checkout app to be treated like a generated install artifact
   - If source-checkout worker builds fail while a packaged install path works, inspect the worker build
     commands in `agi_cluster.agi_distributor.deployment_build_support` before changing app metadata.
+    Typical import failures here include `No module named 'setuptools'` from the build backend and
+    `No module named 'psutil'` from `agi_node` runtime imports during `agi_node.agi_dispatcher.build`.
     Source-env build commands must keep the build-tool overlay (`--with setuptools --with cython`) and
     add the local core projects as editable overlays (`--with-editable <agi-env>` and
     `--with-editable <agi-node>`) so `uv run --no-sync` does not resolve stale index metadata while
     building worker eggs or Cython extensions.
+    Do not paper over this by adding `setuptools`, `cython`, or `psutil` to every app manifest unless the
+    app itself imports them at runtime.
+  - After fixing source worker build command construction, validate at least one clean isolated failing app
+    install with an isolated `HOME`, then rerun the full failed-app slice or a full isolated installer
+    validation when multiple built-in apps failed.
   - Typical symptom:
     - manager install and worker build succeed
     - failure appears later at `uv add agi-env` / `uv add agi-node` or worker `uv sync`
@@ -221,11 +228,14 @@ Use this skill when working on:
 - **Worker build fails because build tools are absent**
   - Error shape: `agi_node.agi_dispatcher.build`, `bdist_egg`, or `build_ext`
     fails in a manager/worker project even though the app runtime dependencies
-    are otherwise installed.
+    are otherwise installed. Common messages are `No module named 'setuptools'`
+    or `No module named 'psutil'`.
   - Check local and remote worker build commands before adding dependencies to
     app manifests. Build-time overlays should be explicit on the `uv run`
     command:
     `uv --project <app-or-worker> run --no-sync --with setuptools --with cython ...`
+    Source-checkout builds must also overlay editable core projects:
+    `--with-editable <agi-env> --with-editable <agi-node>`.
   - Cover both quiet and verbose command variants, and cover remote deploy
     command construction. Good focused regressions live in
     `src/agilab/core/test/test_agi_distributor_deployment_build_support.py` and
