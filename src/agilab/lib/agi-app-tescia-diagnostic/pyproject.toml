@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.26"
+version = "2026.05.28"
 name = "agi-app-tescia-diagnostic"
 description = "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
 requires-python = ">=3.13"
