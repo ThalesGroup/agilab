@@ -593,6 +593,8 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
         permission_level="standard",
         tags=("review",),
         metadata={"branch": "main"},
+        protocol_adapters=("mcp",),
+        capabilities=("evidence-review",),
     )
 
     assert (
@@ -600,7 +602,14 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
         == "alpha_project"
     )
     assert manifest_tools.list_runs(tmp_path)["runs"]
-    agent_runs = manifest_tools.list_agent_runs(agent_root, agent="codex")["runs"]
+    agent_runs = manifest_tools.list_agent_runs(
+        agent_root,
+        agent="codex",
+        tag="review",
+        metadata={"branch": "main"},
+        protocol_adapter="mcp",
+        capability="evidence-review",
+    )["runs"]
     assert agent_runs[0]["run_id"] == "agent-codex"
     assert agent_runs[0]["tags"] == ["review"]
     assert agent_runs[0]["metadata"] == {"branch": "main"}
@@ -651,7 +660,12 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
             "method": "tools/call",
             "params": {
                 "name": "list_agent_runs",
-                "arguments": {"log_root": str(agent_root), "agent": "codex"},
+                "arguments": {
+                    "log_root": str(agent_root),
+                    "agent": "codex",
+                    "tag": "review",
+                    "metadata": {"branch": "main"},
+                },
             },
         }
     )

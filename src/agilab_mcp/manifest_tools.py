@@ -69,6 +69,10 @@ def list_agent_runs(
     *,
     agent: str = "",
     status: str = "",
+    tag: str = "",
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapter: str = "",
+    capability: str = "",
     limit: int = 20,
 ) -> dict[str, Any]:
     if limit < 0:
@@ -82,6 +86,10 @@ def list_agent_runs(
         root,
         agent=agent or None,
         status=status or None,
+        tags=(tag,) if tag else (),
+        metadata=metadata,
+        protocol_adapters=(protocol_adapter,) if protocol_adapter else (),
+        capabilities=(capability,) if capability else (),
         limit=limit,
     )
     return {
@@ -89,6 +97,10 @@ def list_agent_runs(
         "log_root": str(root) if root is not None else "~/log/agents",
         "agent": agent or None,
         "status": status or None,
+        "tag": tag or None,
+        "metadata": dict(metadata or {}),
+        "protocol_adapter": protocol_adapter or None,
+        "capability": capability or None,
         "runs": [_agent_run_summary_payload(summary) for summary in summaries],
     }
 

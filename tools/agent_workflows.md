@@ -88,6 +88,7 @@ Read previous run evidence from the CLI:
 
 ```bash
 agilab agent-run list --agent codex --json
+agilab agent-run list --tag review --metadata branch=main --protocol-adapter mcp --capability evidence-review --json
 ```
 
 The read-only MCP bridge exposes the same agent-run evidence to external
@@ -95,7 +96,7 @@ coding agents without enabling shell execution:
 
 ```bash
 agilab-mcp list-tools --json
-agilab-mcp call-tool list_agent_runs --arguments '{"agent":"codex","limit":5}' --json
+agilab-mcp call-tool list_agent_runs --arguments '{"agent":"codex","tag":"review","metadata":{"branch":"main"},"limit":5}' --json
 agilab-mcp call-tool summarize_agent_run --arguments '{"manifest_path":"~/log/agents/codex/<run-id>/agent_run_manifest.json"}' --json
 ```
 

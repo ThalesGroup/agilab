@@ -468,6 +468,10 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
             "review",
             "--metadata",
             "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence review",
             "--permission-level",
             "standard",
             "--",
@@ -513,8 +517,36 @@ def test_agent_run_read_side_helpers_and_list_command(tmp_path: Path, capsys) ->
 
     assert [path.parent.name for path in module.find_agent_run_manifests(run_root, status="fail")] == ["aider-run"]
     assert [item.run_id for item in module.list_agent_runs(run_root, agent="codex")] == ["agent-codex"]
+    assert [
+        item.run_id
+        for item in module.list_agent_runs(
+            run_root,
+            tags=("review",),
+            metadata={"branch": "main"},
+            protocol_adapters=("MCP",),
+            capabilities=("evidence review",),
+        )
+    ] == ["agent-codex"]
+    assert module.list_agent_runs(run_root, metadata={"branch": "other"}) == []
 
-    assert module.main(["list", "--root", str(run_root), "--agent", "codex", "--json"]) == 0
+    assert module.main(
+        [
+            "list",
+            "--root",
+            str(run_root),
+            "--agent",
+            "codex",
+            "--tag",
+            "review",
+            "--metadata",
+            "branch=main",
+            "--protocol-adapter",
+            "mcp",
+            "--capability",
+            "evidence-review",
+            "--json",
+        ]
+    ) == 0
     listed = json.loads(capsys.readouterr().out)
     assert [item["run_id"] for item in listed] == ["agent-codex"]
     assert listed[0]["metadata"] == {"branch": "main"}

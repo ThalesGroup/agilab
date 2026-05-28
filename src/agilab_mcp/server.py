@@ -58,6 +58,13 @@ def tool_descriptors() -> list[dict[str, Any]]:
                         "type": "string",
                         "enum": ["", "planned", "pass", "fail", "timeout", "denied"],
                     },
+                    "tag": {"type": "string"},
+                    "metadata": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                    "protocol_adapter": {"type": "string"},
+                    "capability": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 0},
                 },
             },

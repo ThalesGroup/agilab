@@ -929,6 +929,10 @@ def find_agent_run_manifests(
     *,
     agent: str | None = None,
     status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
     limit: int | None = None,
 ) -> list[Path]:
     """Find agent-run manifest files, newest first."""
@@ -937,6 +941,10 @@ def find_agent_run_manifests(
     search_root = Path(root).expanduser() if explicit_root else _default_log_root() / "agents"
     if agent and not explicit_root:
         search_root = search_root / _slug(agent, "agent")
+    required_tags = set(_normalize_tags(tags))
+    required_metadata = dict(metadata or {})
+    required_protocol_adapters = set(_normalize_slug_values(protocol_adapters))
+    required_capabilities = set(_normalize_slug_values(capabilities))
     if not search_root.exists():
         return []
     candidates = [
@@ -945,7 +953,14 @@ def find_agent_run_manifests(
         if path.is_file()
     ]
     candidates.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
-    if agent or status:
+    if (
+        agent
+        or status
+        or required_tags
+        or required_metadata
+        or required_protocol_adapters
+        or required_capabilities
+    ):
         filtered: list[Path] = []
         for path in candidates:
             try:
@@ -955,9 +970,41 @@ def find_agent_run_manifests(
             if agent and manifest.get("agent") != agent:
                 continue
             if manifest.get("status") == status:
-                filtered.append(path)
-            elif not status:
-                filtered.append(path)
+                pass
+            elif status:
+                continue
+            context = manifest.get("context", {})
+            context_map = context if isinstance(context, dict) else {}
+            raw_tags = context_map.get("tags", [])
+            manifest_tags = set(str(tag) for tag in raw_tags) if isinstance(raw_tags, list) else set()
+            if required_tags and not required_tags.issubset(manifest_tags):
+                continue
+            raw_metadata = context_map.get("metadata", {})
+            manifest_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            if required_metadata and any(
+                str(manifest_metadata.get(key, "")) != value
+                for key, value in required_metadata.items()
+            ):
+                continue
+            protocols = manifest.get("protocols", {})
+            protocols_map = protocols if isinstance(protocols, dict) else {}
+            raw_adapters = protocols_map.get("adapters", [])
+            manifest_adapters = (
+                set(str(value) for value in raw_adapters)
+                if isinstance(raw_adapters, list)
+                else set()
+            )
+            if required_protocol_adapters and not required_protocol_adapters.issubset(manifest_adapters):
+                continue
+            raw_capabilities = protocols_map.get("capabilities", [])
+            manifest_capabilities = (
+                set(str(value) for value in raw_capabilities)
+                if isinstance(raw_capabilities, list)
+                else set()
+            )
+            if required_capabilities and not required_capabilities.issubset(manifest_capabilities):
+                continue
+            filtered.append(path)
         candidates = filtered
     return candidates[:limit] if limit is not None else candidates
 
@@ -967,12 +1014,25 @@ def list_agent_runs(
     *,
     agent: str | None = None,
     status: str | None = None,
+    tags: Sequence[str] = (),
+    metadata: Mapping[str, str] | None = None,
+    protocol_adapters: Sequence[str] = (),
+    capabilities: Sequence[str] = (),
     limit: int | None = None,
 ) -> list[AgentRunSummary]:
     """Return compact summaries for agent-run manifests, newest first."""
 
     summaries: list[AgentRunSummary] = []
-    for path in find_agent_run_manifests(root, agent=agent, status=status, limit=limit):
+    for path in find_agent_run_manifests(
+        root,
+        agent=agent,
+        status=status,
+        tags=tags,
+        metadata=metadata,
+        protocol_adapters=protocol_adapters,
+        capabilities=capabilities,
+        limit=limit,
+    ):
         try:
             summaries.append(summarize_agent_run(load_agent_run_manifest(path)))
         except (OSError, json.JSONDecodeError, ValueError):
@@ -1086,6 +1146,20 @@ def _build_list_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", default="", help="Root directory to scan. Defaults to ~/log/agents.")
     parser.add_argument("--agent", default="", help="Only list runs for this agent.")
     parser.add_argument("--status", default="", choices=["", "planned", "pass", "fail", "timeout", "denied"], help="Only list runs with this status.")
+    parser.add_argument("--tag", action="append", default=[], help="Only list runs containing this tag. May be repeated.")
+    parser.add_argument("--metadata", action="append", default=[], help="Only list runs with this metadata KEY=VALUE. May be repeated.")
+    parser.add_argument(
+        "--protocol-adapter",
+        action="append",
+        default=[],
+        help="Only list runs containing this protocol adapter label. May be repeated.",
+    )
+    parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Only list runs containing this capability label. May be repeated.",
+    )
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of runs to list.")
     parser.add_argument("--json", action="store_true", help="Print summaries as JSON.")
     return parser
@@ -1128,6 +1202,10 @@ def _main_list(argv: Sequence[str]) -> int:
         Path(args.root).expanduser() if args.root else None,
         agent=args.agent or None,
         status=args.status or None,
+        tags=args.tag,
+        metadata=_parse_metadata(args.metadata),
+        protocol_adapters=args.protocol_adapter,
+        capabilities=args.capability,
         limit=args.limit,
     )
     if args.json:
