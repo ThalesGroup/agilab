@@ -73,6 +73,9 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
     "release_decision_metrics_glob",
     "release_decision_required_patterns",
     "release_decision_run_manifest_path",
+    "release_decision_tolerance_pct",
+    "release_decision_manifest_import_args",
+    "release_decision_ci_artifact_harvest_args",
 )
 
 
@@ -1482,21 +1485,26 @@ def _build_evidence_cockpit_summary(
     comparison_blocking_count = int(
         evidence_bundle_comparison_summary.get("blocking_count", 0) or 0
     )
+    summary_status = decision_status
+    summary_text = decision_summary
+    if comparison_blocking_count > 0 and decision_status != "blocked":
+        summary_status = "blocked"
+        summary_text = "Cross-run evidence comparison has blocking regressions or missing evidence."
     status_label = {
         "promotable": "Ready to export",
         "blocked": "Blocked",
         "needs_review": "Needs review",
-    }.get(decision_status, decision_status or "Unknown")
+    }.get(summary_status, summary_status or "Unknown")
     next_action = {
         "promotable": "Export promotion_decision.json, then hand off through notebook, MLflow, Quarto, or your production stack.",
         "blocked": "Fix failing manifest, artifact, KPI, or CI evidence gates before sharing this run.",
         "needs_review": "Select distinct baseline/candidate runs or add standardized KPI evidence before promotion.",
-    }.get(decision_status, "Review the evidence tables and export only after the decision is understood.")
+    }.get(summary_status, "Review the evidence tables and export only after the decision is understood.")
     return {
         "schema": "agilab.evidence_cockpit_summary.v1",
-        "status": decision_status,
+        "status": summary_status,
         "status_label": status_label,
-        "summary": decision_summary,
+        "summary": summary_text,
         "next_action": next_action,
         "artifact_root": str(artifact_root),
         "baseline_bundle_root": str(baseline_path.parent),
@@ -1527,7 +1535,7 @@ def _build_evidence_cockpit_summary(
         "valid_reduce_artifact_count": sum(1 for row in reduce_artifact_rows if row.get("status") == "pass"),
         "explicit_blocking_gate_count": explicit_blocking_count,
         "comparison_blocking_count": comparison_blocking_count,
-        "export_ready": decision_status == "promotable",
+        "export_ready": summary_status == "promotable",
     }
 
 
@@ -1929,6 +1937,7 @@ def _decision_status(
     metric_rows: list[dict[str, Any]],
     manifest_rows: list[dict[str, Any]] | None = None,
     ci_artifact_harvest_summary: dict[str, Any] | None = None,
+    evidence_bundle_comparison_summary: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     if baseline_path == candidate_path:
         return "needs_review", "Baseline and candidate point to the same metrics file."
@@ -1936,6 +1945,14 @@ def _decision_status(
         return "blocked", "First-proof run manifest gate is failing or missing."
     if (ci_artifact_harvest_summary or {}).get("gate_status") == "fail":
         return "blocked", "CI artifact harvest gate is failing or incomplete."
+    try:
+        comparison_blocking_count = int(
+            (evidence_bundle_comparison_summary or {}).get("blocking_count", 0) or 0
+        )
+    except (TypeError, ValueError):
+        comparison_blocking_count = 0
+    if comparison_blocking_count > 0:
+        return "blocked", "Cross-run evidence comparison has blocking regressions or missing evidence."
     if any(row["status"] == "fail" for row in artifact_rows):
         return "blocked", "Required evidence artifacts are missing from the candidate bundle."
     if any(row["status"] == "fail" for row in metric_rows):
@@ -2273,6 +2290,7 @@ decision_status, decision_summary = _decision_status(
     metric_rows=metric_rows,
     manifest_rows=run_manifest_rows,
     ci_artifact_harvest_summary=ci_artifact_harvest_summary,
+    evidence_bundle_comparison_summary=evidence_bundle_comparison_summary,
 )
 evidence_cockpit_summary = _build_evidence_cockpit_summary(
     decision_status=decision_status,
