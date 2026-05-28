@@ -394,6 +394,17 @@ def render_execute_notice(streamlit_api, session_state) -> None:
     renderer(message)
 
 
+def run_log_view_body(log_text: str, max_lines: int) -> tuple[str, int]:
+    """Return the run-log body to render and the number of omitted older lines."""
+
+    if max_lines <= 0:
+        return log_text, 0
+    lines = log_text.splitlines()
+    if len(lines) <= max_lines:
+        return log_text, 0
+    return "\n".join(lines[-max_lines:]), len(lines) - max_lines
+
+
 def _render_graph_preview(graph_preview: "nx.Graph", source_preview_name: Optional[str]) -> None:
     nx_module = _require_networkx()
     plt_module = _require_matplotlib()
@@ -460,12 +471,23 @@ async def render_execute_section(
         return f"ORCHESTRATE {log_path}" if log_path else "ORCHESTRATE"
 
     def _render_run_log_viewer(log_text: str, *, key: str) -> None:
+        visible_log_text, omitted_log_lines = run_log_view_body(
+            log_text,
+            deps.log_display_max_lines,
+        )
+        if omitted_log_lines:
+            st.caption(
+                "Showing the latest "
+                f"{deps.log_display_max_lines} run-log lines "
+                f"({omitted_log_lines} older lines omitted from the viewer). "
+                "Use the download action for the full log."
+            )
         render_pinnable_code_editor(
             st,
             code_editor,
             RUN_LOGS_PIN_ID,
             title=_run_log_pin_title(),
-            body=log_text,
+            body=visible_log_text,
             key=key,
             body_format="code",
             language="text",

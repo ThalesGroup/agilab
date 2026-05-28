@@ -786,6 +786,23 @@ def _make_execute_deps(message_log: list[tuple[str, str]], state: _State):
     )
 
 
+def test_run_log_view_body_keeps_short_logs_unchanged():
+    body, omitted = orchestrate_execute.run_log_view_body("line 1\nline 2", max_lines=5)
+
+    assert body == "line 1\nline 2"
+    assert omitted == 0
+
+
+def test_run_log_view_body_tails_long_logs():
+    body, omitted = orchestrate_execute.run_log_view_body(
+        "\n".join(f"line {index}" for index in range(1, 8)),
+        max_lines=3,
+    )
+
+    assert body == "line 5\nline 6\nline 7"
+    assert omitted == 4
+
+
 @pytest.mark.asyncio
 async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch, tmp_path):
     data_root = tmp_path / "data"
