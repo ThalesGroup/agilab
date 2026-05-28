@@ -184,6 +184,37 @@ def test_live_artifacts_resolve_active_app_delegates_to_runtime(monkeypatch, tmp
     assert module._resolve_active_app() == tmp_path / "apps" / "demo_project"
 
 
+def test_live_artifacts_resets_path_scoped_state_on_active_app_change(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    first_app = tmp_path / "apps_a" / "demo_project"
+    second_app = tmp_path / "apps_b" / "demo_project"
+    first_app.mkdir(parents=True)
+    second_app.mkdir(parents=True)
+    state = {
+        module.APP_SCOPE_KEY: str(first_app.resolve()),
+        "env": object(),
+        module._state_key("demo_project", "root_choice"): "Custom path",
+        module._state_key("demo_project", "patterns"): "*.json",
+        f"{module.PAGE_KEY}_preview_artifact": "old.json",
+        "unrelated": "keep",
+    }
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+
+    assert module._reset_app_scoped_session_state(first_app) is False
+    assert module._state_key("demo_project", "root_choice") in state
+
+    assert module._reset_app_scoped_session_state(second_app) is True
+    assert state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    assert state["unrelated"] == "keep"
+    for key in (
+        "env",
+        module._state_key("demo_project", "root_choice"),
+        module._state_key("demo_project", "patterns"),
+        f"{module.PAGE_KEY}_preview_artifact",
+    ):
+        assert key not in state
+
+
 def test_live_artifacts_rebuilds_env_when_session_env_points_to_another_apps_root(
     monkeypatch,
     tmp_path: Path,
