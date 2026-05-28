@@ -68,8 +68,8 @@ EXAMPLE_PREVIEWS = {
     "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
 EXAMPLE_NOTEBOOK_ASSETS = {
-    "notebook_quickstart": ("README.md",),
     "notebook_migrations/skforecast_meteo_fr": ("README.md",),
+    "notebook_quickstart": ("README.md", "agi_core_first_run.ipynb"),
 }
 EXAMPLE_CLASS_LABELS = {
     "Runnable app project",
@@ -972,6 +972,32 @@ def test_packaged_example_catalog_is_documented() -> None:
             "## Troubleshooting",
         ):
             assert heading in readme_text
+
+    for example_name, file_names in EXAMPLE_NOTEBOOK_ASSETS.items():
+        example_dir = EXAMPLES_ROOT / example_name
+        readme = example_dir / "README.md"
+        assert readme.is_file()
+        readme_text = readme.read_text(encoding="utf-8")
+        assert example_name in catalog_text
+        for file_name in file_names:
+            assert (example_dir / file_name).is_file()
+        for heading in (
+            "## Purpose",
+            "## Example Class",
+            "## What You Learn",
+            "## Install",
+            "## Run",
+            "## Expected Input",
+            "## Expected Output",
+            "## Read The Notebook",
+            "## Change One Thing",
+            "## Troubleshooting",
+        ):
+            assert heading in readme_text
+
+    learning_path = catalog_text.split("## Learning Path", 1)[1].split("## Execution Map", 1)[0]
+    assert "`global_dag_project`" not in learning_path
+    assert "Built-in app-owned demo templates" in catalog_text
 
 
 def test_packaged_example_readmes_have_explicit_execution_class() -> None:

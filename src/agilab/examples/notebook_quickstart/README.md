@@ -2,63 +2,83 @@
 
 ## Example Class
 
-**Notebook import asset.** This directory packages notebook-first onboarding
-material. It is not seeded as an `AGI_*.py` execution helper.
+**Notebook import asset.** This directory packages notebook-first AGILAB runtime
+routes and onboarding material. It is not seeded as an `AGI_*.py` execution
+helper and it does not install an AGILAB app project by itself.
 
 ## Purpose
 
-Use these notebooks when a user wants to stay in a notebook while learning the
-first AGILAB proof, worker paths, simple data DAGs, Colab, Kaggle, and benchmark
-variants.
+Shows the smallest notebook-first AGILAB proof:
+
+```text
+notebook -> AgiEnv -> RunRequest -> AGI.run -> run manifest
+```
+
+Use these notebooks when you want to stay in a notebook while still showing the
+same AGILAB concepts that the UI and app helpers use. The folder also includes
+worker-path, simple data-DAG, Colab, Kaggle, source-checkout, PyPI-package, and
+benchmark variants for the same notebook-first route.
 
 ## What You Learn
 
-- How the notebook-first path maps to AGILAB proof and evidence concepts.
-- How local, Colab, and Kaggle notebooks differ without changing the core app
-  boundary.
+- How to create an `AgiEnv` in a notebook.
+- How to build a `RunRequest` with explicit inputs, outputs, and run mode.
+- How to call `AGI.run(...)` without hiding the flow behind a one-line wrapper.
+- How local, Colab, Kaggle, source-checkout, and PyPI-package variants differ.
 - How worker paths and data DAG notebooks introduce execution structure before a
   full app migration.
 
 ## Install
 
-Install AGILAB normally, then open the notebook from the packaged examples tree
-or copy it into a working notebook environment. The notebooks are source assets,
-not installer-seeded run scripts.
+Choose the notebook variant that matches the environment:
+
+- `agi_core_first_run.ipynb` for a local source or installed environment.
+- `agi_core_colab_first_run.ipynb` for Google Colab.
+- `agi_core_kaggle_first_run.ipynb` for Kaggle.
+- `*_source.ipynb` variants when the notebook should point at a source checkout.
+- `*_pypi.ipynb` variants when the notebook should use the published package.
+The notebooks are source assets, not installer-seeded run scripts.
 
 ## Run
 
-Open one notebook and run its cells in order. Start with
-`agi_core_first_run.ipynb` for a local source checkout, or the matching Colab or
-Kaggle first-run notebook for hosted notebook environments.
+Open the notebook in the matching environment and run cells from top to bottom.
+The notebooks keep the important AGILAB steps visible: create `app_env`, create
+a `RunRequest`, optionally check worker readiness, then call `AGI.run(...)`.
 
 ## Expected Input
 
-The notebooks use public, deterministic first-run inputs and AGILAB-managed
-paths. No private dataset, API key, or cluster credential is required for the
-first-run path.
+The first-run notebooks use deterministic public sample inputs or generate the
+smallest local files needed for the proof. They do not require private data,
+cluster credentials, or a hosted AGILAB UI.
 
 ## Expected Output
 
-The first-run notebooks produce AGILAB proof/evidence artifacts in the configured
-notebook or AGILAB output path. Worker-path and data-DAG notebooks show the
-paths and execution contracts used by later app migration steps.
+The notebook run should produce a local run manifest and visible output paths
+under the configured AGILAB log/share location. The exact output depends on the
+selected notebook route, but the proof should always make the run request,
+execution result, and artifact path visible in notebook cells.
 
-## Read The Script
+## Read The Notebook
 
-Read the cells that create the app environment, construct the run request, and
-call AGILAB execution helpers. Those cells are the notebook equivalent of the
-seeded `AGI_run_*.py` examples.
+Start with `agi_core_first_run.ipynb` for the local path. Look for these cells:
+
+- environment setup and import checks
+- `AgiEnv` creation
+- `RunRequest` creation
+- optional install or worker-readiness check
+- `AGI.run(...)`
+- manifest or log-root inspection
 
 ## Change One Thing
 
-After the default notebook works, change only the output label or one small
-sample parameter. Keep the runtime local and deterministic until you have
-compared the new evidence with the previous run.
+After the default notebook runs once, change only the output directory or one
+small request parameter. Rerun the notebook and compare the new manifest path
+with the previous run.
 
 ## Troubleshooting
 
-- If imports fail, confirm AGILAB is installed in the notebook kernel.
-- If output paths are confusing, run the worker-path notebook before changing
-  any directories.
-- If hosted notebooks cannot access local files, use the Colab or Kaggle
-  variant instead of a source-checkout notebook.
+- If the notebook cannot import AGILAB, use the matching source or PyPI variant.
+- If a worker-readiness cell reports a missing environment, run the install cell
+  shown by the notebook before executing `AGI.run(...)`.
+- If a path is confusing, print the log root and share root cells before
+  changing the request.
