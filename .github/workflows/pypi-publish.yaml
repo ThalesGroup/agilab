@@ -585,7 +585,7 @@ jobs:
           retention-days: 90
 
   publish-release-assets:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && needs.pypi-release-retention.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.pypi-release-retention.result == 'success' || needs.pypi-release-retention.result == 'skipped') && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
       - release-plan
       - publish-library-packages
@@ -663,7 +663,7 @@ jobs:
           gh release upload "$release_tag" github-release-assets/* --clobber
 
   pypi-release-retention:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && (github.event.inputs.include_existing_pypi || 'false') != 'true' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
       - release-plan
       - publish-library-packages
