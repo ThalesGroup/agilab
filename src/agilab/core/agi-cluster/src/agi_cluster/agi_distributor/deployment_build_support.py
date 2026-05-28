@@ -429,6 +429,15 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
     return commands
 
 
+def _build_run_overlay_args(env: Any) -> str:
+    args = ["--with setuptools", "--with cython"]
+    if getattr(env, "is_source_env", False):
+        for source_path in (getattr(env, "agi_env", None), getattr(env, "agi_node", None)):
+            if source_path:
+                args.append(f"--with-editable {quote(str(source_path))}")
+    return " ".join(args)
+
+
 def _build_module_command(env: Any) -> str:
     if getattr(env, "is_source_env", False):
         agi_node_root = getattr(env, "agi_node", None)
@@ -466,19 +475,36 @@ def _stage_worker_build_project(
     validate_worker_uv_sources_fn(worker_pyproject_dest)
 
 
-def _bdist_egg_command(*, uv: str, module_cmd: str, app_path_arg: str, packages: str, wenv_arg: str, verbose: int) -> str:
+def _bdist_egg_command(
+    *,
+    uv: str,
+    module_cmd: str,
+    app_path_arg: str,
+    packages: str,
+    wenv_arg: str,
+    verbose: int,
+    build_overlay_args: str = "--with setuptools --with cython",
+) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
     return (
-        f"{uv} --project {app_path_arg} run --no-sync --with setuptools --with cython "
+        f"{uv} --project {app_path_arg} run --no-sync {build_overlay_args} "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}"
         f"bdist_egg --packages \"{packages}\" -d {wenv_arg}"
     )
 
 
-def _build_ext_command(*, uv: str, module_cmd: str, app_path_arg: str, wenv_arg: str, verbose: int) -> str:
+def _build_ext_command(
+    *,
+    uv: str,
+    module_cmd: str,
+    app_path_arg: str,
+    wenv_arg: str,
+    verbose: int,
+    build_overlay_args: str = "--with setuptools --with cython",
+) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
     return (
-        f"{uv} --project {app_path_arg} run --no-sync --with setuptools --with cython "
+        f"{uv} --project {app_path_arg} run --no-sync {build_overlay_args} "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}build_ext -b {wenv_arg}"
     )
 
@@ -532,6 +558,7 @@ async def build_lib_local(
     app_path_arg = f"\"{app_path}\""
     wenv_arg = f"\"{wenv_abs}\""
     core_install_commands = _core_install_commands(env=env, uv=uv, app_path_arg=app_path_arg)
+    build_overlay_args = _build_run_overlay_args(env)
 
     _stage_worker_build_project(
         agi_cls,
@@ -575,6 +602,7 @@ async def build_lib_local(
         packages=packages,
         wenv_arg=wenv_arg,
         verbose=env.verbose,
+        build_overlay_args=build_overlay_args,
     )
     await run_fn(cmd, app_path)
 
@@ -587,6 +615,7 @@ async def build_lib_local(
             app_path_arg=app_path_arg,
             wenv_arg=wenv_arg,
             verbose=env.verbose,
+            build_overlay_args=build_overlay_args,
         )
         res = await run_fn(cmd, app_path)
         _copy_cython_worker_lib(

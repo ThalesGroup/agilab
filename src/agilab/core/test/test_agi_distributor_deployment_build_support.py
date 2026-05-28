@@ -158,6 +158,21 @@ def test_worker_build_commands_keep_overlay_without_quiet_flag_when_verbose():
     assert " -q " not in f" {build_ext_cmd} "
 
 
+def test_source_worker_build_overlay_includes_editable_core_projects(tmp_path):
+    env = SimpleNamespace(
+        is_source_env=True,
+        agi_env=tmp_path / "core" / "agi-env",
+        agi_node=tmp_path / "core" / "agi-node",
+    )
+
+    overlay = deployment_build_support._build_run_overlay_args(env)
+
+    assert "--with setuptools" in overlay
+    assert "--with cython" in overlay
+    assert f"--with-editable {env.agi_env}" in overlay
+    assert f"--with-editable {env.agi_node}" in overlay
+
+
 def test_worker_pyproject_source_missing_raises(tmp_path):
     env = SimpleNamespace(
         worker_pyproject=tmp_path / "missing_worker.toml",
@@ -500,6 +515,10 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
         in cmd
         for cmd, _ in commands
     )
+    assert any(
+        f"--with-editable {env.agi_env}" in cmd and f"--with-editable {env.agi_node}" in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio
@@ -542,6 +561,10 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
             f"-e '{env.agi_env}' -e '{env.agi_node}'"
         )
         in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f"--with-editable {env.agi_env}" in cmd and f"--with-editable {env.agi_node}" in cmd
         for cmd, _ in commands
     )
 
