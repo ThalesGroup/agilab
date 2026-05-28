@@ -2,9 +2,10 @@
 
 ## Video
 
-- MP4: `artifacts/demo_media/flight/agilab_flight.mp4`
-- GIF preview: `artifacts/demo_media/flight/agilab_flight.gif`
-- Poster: `artifacts/demo_media/flight/agilab_flight_poster.png`
+- Public video: https://youtu.be/BsBjRSAXJZA
+- Local MP4 output: `artifacts/demo_media/flight/agilab_flight.mp4` (generated locally; not stored in Git)
+- Local GIF preview output: `artifacts/demo_media/flight/agilab_flight.gif` (generated locally; not stored in Git)
+- Local poster output: `artifacts/demo_media/flight/agilab_flight_poster.png` (generated locally; not stored in Git)
 - YouTube public URL: https://youtu.be/BsBjRSAXJZA
 - Removed previous audio upload: https://youtu.be/KsBe8lIahH4
 - Removed previous silent upload: https://youtu.be/c4aogHDh4do
