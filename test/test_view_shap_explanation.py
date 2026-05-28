@@ -104,6 +104,47 @@ def test_view_shap_explanation_warns_when_artifact_directory_is_missing(
     assert any("Artifact directory does not exist yet" in warning.value for warning in at.warning)
 
 
+def test_view_shap_explanation_resets_stale_app_scoped_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_shap_helpers()
+    project_dir = _create_demo_project(tmp_path)
+    old_project = project_dir.parent / "old_mycode_project"
+    old_project.mkdir()
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at.session_state[module.APP_SCOPE_KEY] = str(old_project.resolve())
+        at.session_state["env"] = SimpleNamespace(
+            apps_path=old_project.parent,
+            app=old_project.name,
+            AGILAB_EXPORT_ABS=str(tmp_path / "old-export"),
+            target="old_mycode",
+        )
+        at.session_state["shap_explanation_datadir"] = str(tmp_path / "old-export" / "old_mycode")
+        at.session_state["shap_values_glob"] = "old_values.csv"
+        at.session_state["shap_feature_values_glob"] = "old_features.csv"
+        at.session_state["shap_metadata_glob"] = "old_metadata.json"
+        at.run()
+
+    assert not at.exception
+    assert at.session_state[module.APP_SCOPE_KEY] == str(project_dir.resolve())
+    assert at.session_state["shap_explanation_datadir"] == str(
+        tmp_path / "export" / "mycode" / "shap_explanation"
+    )
+    assert at.session_state["shap_values_glob"] == "**/shap_values.*"
+    assert at.session_state["shap_feature_values_glob"] == "**/feature_values.*"
+    assert at.session_state["shap_metadata_glob"] == "**/explanation_summary.json"
+    assert any("Artifact directory does not exist yet" in warning.value for warning in at.warning)
+
+
 def test_view_shap_explanation_warns_when_shap_values_are_missing(
     tmp_path: Path,
     monkeypatch,
