@@ -164,6 +164,40 @@ def test_notebook_app_env_resolves_apps_path_and_returns_agi_env(monkeypatch, tm
     assert calls == [{"apps_path": builtin_root, "app": "mycode_project", "verbose": 1}]
 
 
+def test_notebook_agi_core_context_keeps_run_inputs_visible(monkeypatch, tmp_path: Path) -> None:
+    builtin_root = tmp_path / "apps" / "builtin"
+    _make_app(builtin_root)
+    monkeypatch.setattr(notebook_demo.Path, "home", staticmethod(lambda: tmp_path))
+
+    class FakeAgiEnv:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+            self.target = self.app.removesuffix("_project")
+
+    class FakeRunRequest:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    monkeypatch.setattr(notebook_demo, "_import_agi_env", lambda: FakeAgiEnv)
+    monkeypatch.setattr(notebook_demo, "_import_run_request", lambda: FakeRunRequest)
+
+    context = notebook_demo.notebook_agi_core_context(
+        "mycode",
+        apps_path=builtin_root,
+        verbose=1,
+        dataset="demo",
+    )
+
+    assert context.app == "mycode_project"
+    assert context.app_env.app == "mycode_project"
+    assert context.app_env.apps_path == builtin_root
+    assert context.request.scheduler == "127.0.0.1"
+    assert context.request.workers == {"127.0.0.1": 1}
+    assert context.request.mode == 0
+    assert context.request.params == {"dataset": "demo"}
+    assert context.log_root == tmp_path / "log" / "execute" / "mycode"
+
+
 @pytest.mark.asyncio
 async def test_install_if_needed_uses_request_defaults_without_hiding_agi_run(monkeypatch) -> None:
     calls = []
