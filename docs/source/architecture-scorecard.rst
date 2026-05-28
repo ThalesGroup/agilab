@@ -8,7 +8,7 @@ certification, and not a multi-tenant production platform score.
 Current supported score
 -----------------------
 
-``4.5 / 5`` for the evidence-first workbench architecture.
+``4.6 / 5`` for the evidence-first workbench architecture.
 
 The scope is deliberately narrow: AGILAB has an excellent architecture for
 turning AI/ML experiments, notebooks, app runs, and agent-assisted workflows
@@ -62,10 +62,28 @@ What must stay true
      - The optional pickle capacity predictor is loaded only from the trusted
        resources root and world-writable files are refused.
      - ``architecture_capacity_model_trust_boundary``
+   * - Hardening gap register
+     - The remaining reasons the architecture is not scored as a general
+       multi-tenant production platform are recorded in a machine-readable
+       register with evidence requirements.
+     - ``architecture_hardening_gap_register``
    * - Claim boundary
      - Public wording says exactly what the architecture proves and does not
        promote roadmap or production-platform claims as shipped features.
      - ``architecture_claim_boundary``
+
+Remaining hardening register
+----------------------------
+
+The score is intentionally below ``5 / 5``. The checked gap register is stored
+in ``docs/source/data/architecture_hardening_gaps.json`` and covers the
+remaining production-hardening surfaces: tenant isolation, enterprise auth and
+RBAC, rollback semantics, regulated serving, and stronger capacity-model
+signature controls.
+
+This makes the score harder to inflate accidentally. A future score increase
+requires moving one of those entries from conditional evidence to shipped,
+tested evidence and updating the register in the same change.
 
 Score movement rule
 -------------------
