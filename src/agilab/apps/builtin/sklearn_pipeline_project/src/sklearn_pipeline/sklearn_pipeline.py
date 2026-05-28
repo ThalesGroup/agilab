@@ -16,8 +16,11 @@ from .app_args import (
     SklearnPipelineArgs,
     dump_args,
     ensure_defaults,
+    filter_arg_overrides,
     load_args,
     merge_args,
+    safe_reset_path,
+    share_root_from_env,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,20 +40,23 @@ class SklearnPipeline(BaseWorker):
         self.env = env
         self._ensure_managed_pc_share_dir(env)
         self.verbose = int(kwargs.pop("verbose", getattr(env, "verbose", 0) or 0))
+        arg_overrides = filter_arg_overrides(kwargs)
 
         if args is None:
             try:
-                args = SklearnPipelineArgs(**kwargs)
+                args = SklearnPipelineArgs(**arg_overrides)
             except ValidationError as exc:
                 raise ValueError(f"Invalid SklearnPipeline arguments: {exc}") from exc
+        elif arg_overrides:
+            args = merge_args(args, arg_overrides)
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
-        self.data_out = self.args.data_out
+        self.data_out = env.resolve_share_path(self.args.data_out)
 
         if self.args.reset_target and self.data_out.exists():
-            shutil.rmtree(self.data_out, ignore_errors=True, onerror=WorkDispatcher._onerror)
+            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(env), label="data_out")
+            shutil.rmtree(reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)
 

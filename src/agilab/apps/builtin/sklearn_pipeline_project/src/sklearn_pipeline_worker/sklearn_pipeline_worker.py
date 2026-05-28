@@ -13,7 +13,12 @@ import pandas as pd
 
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
-from sklearn_pipeline import SklearnPipelineArgs, build_sklearn_pipeline_artifacts
+from sklearn_pipeline import (
+    SklearnPipelineArgs,
+    build_sklearn_pipeline_artifacts,
+    safe_reset_path,
+    share_root_from_env,
+)
 from sklearn_pipeline.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
@@ -30,6 +35,12 @@ def _artifact_dir(env: object, leaf: str) -> Path:
     if callable(resolve_share_path):
         return Path(resolve_share_path(relative))
     return Path.home() / "export" / relative
+
+
+def _artifact_reset_root(env: object) -> Path:
+    export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+    target = str(getattr(env, "target", "") or "")
+    return export_root / target if target else export_root
 
 
 def _args_with_defaults(value: Any) -> SklearnPipelineArgs:
@@ -68,11 +79,17 @@ class SklearnPipelineWorker(PandasWorker):
         self.args.data_out = data_out
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
-            shutil.rmtree(self.data_out, ignore_errors=True)
+            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(self.env), label="data_out")
+            shutil.rmtree(reset_path, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.artifact_dir = _artifact_dir(self.env, "sklearn_pipeline")
         if self.args.reset_target and self.artifact_dir.exists():
-            shutil.rmtree(self.artifact_dir, ignore_errors=True)
+            reset_path = safe_reset_path(
+                self.artifact_dir,
+                share_root=_artifact_reset_root(self.env),
+                label="artifact_dir",
+            )
+            shutil.rmtree(reset_path, ignore_errors=True)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.pool_vars = {"args": self.args}
         _runtime = self.pool_vars
