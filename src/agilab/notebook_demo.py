@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,16 @@ DEFAULT_NOTEBOOK_APP = "mycode_project"
 DEFAULT_LOCAL_SCHEDULER = "127.0.0.1"
 DEFAULT_LOCAL_WORKERS = {DEFAULT_LOCAL_SCHEDULER: 1}
 DEFAULT_LOCAL_MODE = 0
+
+
+@dataclass(frozen=True)
+class NotebookAgiCoreContext:
+    """Visible notebook context for an ``AGI.run(...)`` core handoff."""
+
+    app: str
+    app_env: Any
+    request: Any
+    log_root: Path
 
 
 def _normalise_project_app(app: str | None) -> str:
@@ -214,6 +225,44 @@ def notebook_local_request(
     )
 
 
+def notebook_agi_core_context(
+    app: str | None = DEFAULT_NOTEBOOK_APP,
+    *,
+    apps_path: str | Path | None = None,
+    verbose: int = 0,
+    start: str | Path | None = None,
+    env_kwargs: Mapping[str, Any] | None = None,
+    scheduler: str = DEFAULT_LOCAL_SCHEDULER,
+    workers: Mapping[str, int] | None = None,
+    mode: int | list[int] | str | None = DEFAULT_LOCAL_MODE,
+    params: Mapping[str, Any] | None = None,
+    **app_params: Any,
+) -> NotebookAgiCoreContext:
+    """Create the compact notebook context while keeping ``AGI.run`` visible."""
+
+    project_app = _normalise_project_app(app)
+    app_env = notebook_app_env(
+        project_app,
+        apps_path=apps_path,
+        verbose=verbose,
+        start=start,
+        **dict(env_kwargs or {}),
+    )
+    request = notebook_local_request(
+        scheduler=scheduler,
+        workers=workers,
+        mode=mode,
+        params=params,
+        **app_params,
+    )
+    return NotebookAgiCoreContext(
+        app=project_app,
+        app_env=app_env,
+        request=request,
+        log_root=notebook_log_root(app_env),
+    )
+
+
 def _scheduler_from_request(request: Any | None, fallback: str | None) -> str:
     return str(fallback or getattr(request, "scheduler", None) or DEFAULT_LOCAL_SCHEDULER)
 
@@ -277,7 +326,9 @@ __all__ = [
     "DEFAULT_LOCAL_SCHEDULER",
     "DEFAULT_LOCAL_WORKERS",
     "DEFAULT_NOTEBOOK_APP",
+    "NotebookAgiCoreContext",
     "install_if_needed",
+    "notebook_agi_core_context",
     "notebook_app_env",
     "notebook_local_request",
     "notebook_log_root",
