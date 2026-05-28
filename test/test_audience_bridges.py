@@ -838,3 +838,24 @@ def test_tool_wrappers_forward_sys_argv(monkeypatch: pytest.MonkeyPatch) -> None
         ["export", "quarto", "--help"],
         ["export", "hf-space", "--project", "demo", "--output", "hf"],
     ]
+
+
+def test_mcp_stdio_reports_parse_errors_without_crashing():
+    import io
+    import json
+
+    from agilab_mcp.server import serve_stdio
+
+    stdout = io.StringIO()
+    assert serve_stdio(stdin=io.StringIO("{bad json}\n"), stdout=stdout) == 0
+    response = json.loads(stdout.getvalue())
+    assert response["id"] is None
+    assert response["error"]["code"] == -32700
+
+
+def test_mcp_jsonrpc_notifications_are_silent():
+    from agilab_mcp.server import handle_jsonrpc
+
+    assert handle_jsonrpc(
+        {"jsonrpc": "2.0", "method": "unsupported/notification"}
+    ) is None

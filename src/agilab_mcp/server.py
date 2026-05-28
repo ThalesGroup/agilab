@@ -244,11 +244,11 @@ def call_tool(name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _jsonrpc_response(
-    request_id: Any, result: Any = None, error: Any = None
+    request_id: Any, result: Any = None, error: Any = None, error_code: int = -32000
 ) -> dict[str, Any]:
     response = {"jsonrpc": "2.0", "id": request_id}
     if error is not None:
-        response["error"] = {"code": -32000, "message": str(error)}
+        response["error"] = {"code": error_code, "message": str(error)}
     else:
         response["result"] = result
     return response
@@ -256,6 +256,10 @@ def _jsonrpc_response(
 
 def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
     method = payload.get("method")
+    if "id" not in payload:
+        # JSON-RPC notifications never receive responses. The server currently
+        # has no notification side effects to perform.
+        return None
     request_id = payload.get("id")
     try:
         if method == "initialize":
@@ -295,7 +299,23 @@ def serve_stdio(stdin: Any = sys.stdin, stdout: Any = sys.stdout) -> int:
     for line in stdin:
         if not line.strip():
             continue
-        response = handle_jsonrpc(json.loads(line))
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            response = _jsonrpc_response(
+                None,
+                error=f"Parse error: {exc.msg}",
+                error_code=-32700,
+            )
+        else:
+            if not isinstance(payload, Mapping):
+                response = _jsonrpc_response(
+                    None,
+                    error="Invalid request",
+                    error_code=-32600,
+                )
+            else:
+                response = handle_jsonrpc(payload)
         if response is not None:
             stdout.write(json.dumps(response, sort_keys=True) + "\n")
             stdout.flush()

@@ -942,6 +942,9 @@ def find_agent_run_manifests(
 ) -> list[Path]:
     """Find agent-run manifest files, newest first."""
 
+    if limit is not None and limit < 0:
+        raise ValueError("limit must be non-negative")
+
     explicit_root = root is not None
     search_root = Path(root).expanduser() if explicit_root else _default_log_root() / "agents"
     if agent and not explicit_root:
