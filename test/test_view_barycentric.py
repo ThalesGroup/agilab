@@ -778,6 +778,45 @@ def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, 
     assert any("page boom" in message for message in errors)
 
 
+def test_view_barycentric_resets_app_scoped_state_on_active_app_change(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    session_state = _State(
+        {
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            "env": object(),
+            "datadir": "/tmp/old-data",
+            "csv_files": ["old.csv"],
+            "df_file": "old.csv",
+            "loaded_df": object(),
+            "variables": ["old-x", "old-y", "old-color"],
+            "view_barycentric:future_widget": "old",
+            "unrelated": "keep",
+        }
+    )
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    assert module._reset_app_scoped_session_state(first_app) is False
+    assert "datadir" in session_state
+
+    assert module._reset_app_scoped_session_state(second_app) is True
+    assert session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    assert session_state["unrelated"] == "keep"
+    for key in (
+        "env",
+        "datadir",
+        "csv_files",
+        "df_file",
+        "loaded_df",
+        "variables",
+        "view_barycentric:future_widget",
+    ):
+        assert key not in session_state
+
+
 def test_view_barycentric_repo_path_and_visible_file_helpers(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     repo_root = tmp_path / "repo"

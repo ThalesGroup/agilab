@@ -65,6 +65,50 @@ var_default = [0, None]
 st.title(":chart_with_upwards_trend: Barycentric Graph")
 
 
+PAGE_KEY_PREFIX = "view_barycentric"
+APP_SCOPE_KEY = f"{PAGE_KEY_PREFIX}:active_app_scope"
+APP_SCOPED_SESSION_KEY_PREFIXES = (f"{PAGE_KEY_PREFIX}:",)
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "datadir",
+    "input_datadir",
+    "csv_files",
+    "df_file",
+    "loaded_df",
+    "variables",
+    "df_cols",
+    "coltype",
+    "discrete",
+    "continuous",
+    "lat",
+    "long",
+)
+
+
+def _reset_app_scoped_session_state(active_app: Path) -> bool:
+    """Clear Barycentric page state that belongs to a specific active app."""
+
+    app_scope = str(active_app.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in list(st.session_state.keys()):
+        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
+            isinstance(key, str) and key.startswith(prefix)
+            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 class ModifiedScrawler(Scrawler):
     """
     A class representing a modified version of a scrawler.
@@ -651,6 +695,7 @@ def main():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
 
+        _reset_app_scoped_session_state(active_app)
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
