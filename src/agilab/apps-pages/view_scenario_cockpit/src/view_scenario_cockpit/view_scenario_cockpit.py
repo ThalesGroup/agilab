@@ -33,6 +33,14 @@ BASELINE_RUN_KEY = "scenario_cockpit_baseline_run"
 CANDIDATE_RUN_KEY = "scenario_cockpit_candidate_run"
 DATA_DIR_KEY = "scenario_cockpit_datadir"
 SUMMARY_GLOB_KEY = "scenario_cockpit_summary_glob"
+APP_SCOPE_KEY = "scenario_cockpit_active_app_scope"
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    RUN_SELECTION_KEY,
+    BASELINE_RUN_KEY,
+    CANDIDATE_RUN_KEY,
+    DATA_DIR_KEY,
+    SUMMARY_GLOB_KEY,
+)
 
 def _load_page_meta() -> tuple[str, str]:
     if __package__:
@@ -78,6 +86,18 @@ def _default_artifact_root(env: AgiEnv) -> Path:
     return _page_artifact_root(env, "queue_analysis")
 
 
+def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
+    """Clear persisted widget defaults when Scenario Cockpit switches apps."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _coerce_selection(saved_value: Any, options: list[str], *, fallback: list[str] | None = None) -> list[str]:
     if isinstance(saved_value, str):
         candidates = [saved_value]
@@ -121,8 +141,9 @@ _build_evidence_bundle = _evidence_helpers.build_evidence_bundle
 
 st.set_page_config(layout="wide")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
+if "env" not in st.session_state or app_scope_changed:
     env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
