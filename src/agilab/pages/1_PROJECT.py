@@ -28,6 +28,7 @@ import re
 import importlib.util
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 os.environ.setdefault(
     "STREAMLIT_CONFIG_FILE",
@@ -1356,6 +1357,43 @@ def read_gitignore(gitignore_path):
         patterns = []
 
     return GitIgnoreSpec.from_lines(patterns)
+
+
+_PROJECT_EDITOR_RESOURCE_FILES = (
+    "custom_buttons.json",
+    "info_bar.json",
+    "code_editor.scss",
+)
+
+
+def _project_editor_resource_fingerprint(
+    resources_path: str | Path,
+) -> tuple[tuple[str, int, int], ...]:
+    """Return a lightweight invalidation key for static PROJECT editor resources."""
+
+    resources_root = Path(resources_path)
+    fingerprints: list[tuple[str, int, int]] = []
+    for filename in _PROJECT_EDITOR_RESOURCE_FILES:
+        stat = (resources_root / filename).stat()
+        fingerprints.append((filename, stat.st_mtime_ns, stat.st_size))
+    return tuple(fingerprints)
+
+
+@st.cache_data(show_spinner=False)
+def _load_project_editor_resources(
+    resources_path: str,
+    resource_fingerprint: tuple[tuple[str, int, int], ...],
+) -> tuple[list[Any], Any, str]:
+    """Load static PROJECT editor resources once per file version."""
+
+    del resource_fingerprint
+    resources_root = Path(resources_path)
+    with (resources_root / "custom_buttons.json").open(encoding="utf-8") as f:
+        custom_buttons = normalize_custom_buttons(json.load(f))
+    with (resources_root / "info_bar.json").open(encoding="utf-8") as f:
+        info_bar = json.load(f)
+    css_text = (resources_root / "code_editor.scss").read_text(encoding="utf-8")
+    return custom_buttons, info_bar, css_text
 
 
 # -------------------- Project Cleaner -------------------- #
@@ -4616,12 +4654,10 @@ def page():
     # Load .agi_resources
 
     try:
-        with open(env.st_resources / "custom_buttons.json") as f:
-            CUSTOM_BUTTONS = normalize_custom_buttons(json.load(f))
-        with open(env.st_resources / "info_bar.json") as f:
-            INFO_BAR = json.load(f)
-        with open(env.st_resources / "code_editor.scss") as f:
-            CSS_TEXT = f.read()
+        CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT = _load_project_editor_resources(
+            str(env.st_resources),
+            _project_editor_resource_fingerprint(env.st_resources),
+        )
     except FileNotFoundError as e:
         st.error(f"Resource file not found: {e}")
         return
