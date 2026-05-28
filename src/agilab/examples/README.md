@@ -13,19 +13,19 @@ the command shape stable.
 
 | Order | Example | App | Main lesson |
 |---:|---|---|---|
-| 1 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
-| 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
-| 3 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
-| 4 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
-| 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
-| 6 | `parallel_stage` | function + split rule + reducer | Read-only parallelization preview: fewer files than cores, chunk partitions, worker capping, and reducer-first planning. |
-| 7 | `excel_workbook_proof` | spreadsheet bridge preview | Read-only Excel-shaped proof: workbook, Power Query-friendly CSVs, and evidence hashes. |
-| 8 | `sqlite_connector_proof` | database connector preview | Read-only SQLite proof: schema, parameterized query, CSV result, and evidence hashes. |
-| 9 | `voila_notebook_proof` | notebook dashboard bridge preview | Read-only notebook-dashboard proof: Voila-shaped notebook, widget-to-args hints, app-view plan, and evidence hashes. |
-| 10 | `sklearn_pipeline` | `sklearn_pipeline_project` | Classic ML app proof: deterministic dataset, fitted pipeline, predictions, model artifact, metrics, and hash manifest. |
-| 11 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
-| 12 | `global_dag_project` | `flight_telemetry_project` -> `weather_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 13 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
+| 1 | `notebook_quickstart` | `agi-core` notebook route | Notebook-first runtime proof for local, Colab, and Kaggle users. |
+| 2 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
+| 3 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
+| 4 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
+| 5 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
+| 6 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
+| 7 | `parallel_stage` | function + split rule + reducer | Read-only parallelization preview: fewer files than cores, chunk partitions, worker capping, and reducer-first planning. |
+| 8 | `excel_workbook_proof` | spreadsheet bridge preview | Read-only Excel-shaped proof: workbook, Power Query-friendly CSVs, and evidence hashes. |
+| 9 | `sqlite_connector_proof` | database connector preview | Read-only SQLite proof: schema, parameterized query, CSV result, and evidence hashes. |
+| 10 | `voila_notebook_proof` | notebook dashboard bridge preview | Read-only notebook-dashboard proof: Voila-shaped notebook, widget-to-args hints, app-view plan, and evidence hashes. |
+| 11 | `sklearn_pipeline` | `sklearn_pipeline_project` | Classic ML app proof: deterministic dataset, fitted pipeline, predictions, model artifact, metrics, and hash manifest. |
+| 12 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
+| 13 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the app-owned global DAG contract. |
 | 14 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 | 15 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
 | 16 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
@@ -39,9 +39,11 @@ app execution from read-only contract previews.
 
 | Class | Examples | What actually runs | Primary output |
 |---|---|---|---|
+| Notebook route assets | `notebook_quickstart` | Jupyter notebooks for local, Colab, Kaggle, source, and PyPI `agi-core` first runs. | Notebook-visible `AgiEnv` / `RunRequest` proof, without installing a full AGILAB app helper. |
 | Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `sklearn_pipeline`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
 | Source/package read-only previews | `notebook_to_dask`, `parallel_stage`, `excel_workbook_proof`, `sqlite_connector_proof`, `voila_notebook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, SQLite database, notebook, dashboard-plan, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
 | Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
+| Built-in app-owned demo templates | `global_dag_project` | Select the built-in project in WORKFLOW or let `inter_project_dag` read its DAG template. | App-owned contract files under `src/agilab/apps/builtin/global_dag_project/`; no `src/agilab/examples/global_dag_project` directory is expected. |
 
 Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
 so dependencies resolve through the checkout environment. Commands under
@@ -72,6 +74,8 @@ From an installed package, locate one with
 
 - `AGI_install_*.py` prepares the app environment and worker runtime.
 - `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
+- `notebook_quickstart` contains the notebook-first route for users who want
+  the smaller `agi-core` surface before the web UI or installed app helpers.
 - `global_dag_project` owns the packaged global DAG template under
   `src/agilab/apps/builtin/global_dag_project/dag_templates/`.
 - `inter_project_dag/preview_inter_project_dag.py` remains as the standalone
@@ -153,11 +157,13 @@ uv --preview-features extra-build-dependencies run pytest -q test/test_app_insta
 ## When To Use These Scripts
 
 Run `agilab first-proof --json` when you want the shortest packaged product
-proof. Use these scripts when you want to inspect or adapt the generated
-programmatic calls. Select `global_dag_project` in WORKFLOW when you want to
-understand how project-level app runs can be connected by explicit artifact
-contracts, and use `inter_project_dag` only when you need the standalone
-compatibility preview path. Use
+proof. Use `notebook_quickstart` when you want the notebook-first `agi-core`
+route before any UI or app-helper run. Use the installed scripts when you want
+to inspect or adapt the generated programmatic calls. Select
+`global_dag_project` in WORKFLOW when you want to understand how project-level
+app runs can be connected by explicit artifact contracts, and use
+`inter_project_dag` only when you need the standalone compatibility preview
+path. Use
 `notebook_to_dask` when you want to evaluate a notebook migration before
 creating an app or running Dask. Use `sklearn_pipeline` when you want a minimal
 classic ML app proof that writes predictions, metrics, a serialized model, and
