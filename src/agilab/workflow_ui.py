@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +31,22 @@ _TEXT_PREVIEW_SUFFIXES = {
     ".yml",
 }
 _IMAGE_PREVIEW_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
+_COCKPIT_ARTIFACT_SUFFIXES = {
+    ".csv",
+    ".html",
+    ".ipynb",
+    ".json",
+    ".jsonl",
+    ".log",
+    ".md",
+    ".npz",
+    ".parquet",
+    ".png",
+    ".svg",
+    ".toml",
+    ".txt",
+}
+_COCKPIT_SCAN_LIMIT = 200
 
 
 def _as_text(value: Any) -> str:
@@ -57,6 +75,11 @@ def workflow_state_scope(page_label: str, env: Any | None = None) -> str:
     if target_name and target_name != app_name:
         parts.append(target_name)
     return "::".join(parts)
+
+
+def project_widget_key(page_label: str, env: Any | None, key: Any) -> str:
+    """Return a widget key scoped to one page and one active project."""
+    return f"{workflow_state_scope(page_label, env)}::{_stable_key_part(key)}"
 
 
 def _identity_tokens(value: Any) -> set[str]:
@@ -127,8 +150,254 @@ def restore_project_ui_state(
     return dict(bucket) if isinstance(bucket, dict) else {}
 
 
+def _project_display_name(env: Any | None) -> str:
+    if env is None:
+        return "No project"
+    for attr in ("app", "target", "active_app"):
+        value = _as_text(getattr(env, attr, ""))
+        if value:
+            return Path(value).name
+    return "No project"
+
+
+def _project_path(env: Any | None) -> Path | None:
+    if env is None:
+        return None
+    for attr in ("active_app", "app_path"):
+        path = _path_from(getattr(env, attr, None))
+        if path is not None:
+            return path
+    apps_path = _path_from(getattr(env, "apps_path", None))
+    app_name = _as_text(getattr(env, "app", ""))
+    if apps_path is not None and app_name:
+        return apps_path / app_name
+    return None
+
+
+def _runtime_roots(env: Any | None) -> list[Path]:
+    if env is None:
+        return []
+    roots: list[Path] = []
+    seen: set[str] = set()
+
+    def append(path: Any) -> None:
+        candidate = _path_from(path)
+        if candidate is None:
+            return
+        key = candidate.expanduser().as_posix()
+        if key not in seen:
+            seen.add(key)
+            roots.append(candidate)
+
+    append(getattr(env, "runenv", None))
+    append(getattr(env, "app_data_rel", None))
+    export_root = _path_from(getattr(env, "AGILAB_EXPORT_ABS", None))
+    if export_root is not None:
+        append(export_root)
+        target_name = _as_text(getattr(env, "target", ""))
+        if target_name:
+            append(export_root / target_name)
+    project_root = _project_path(env)
+    if project_root is not None:
+        append(project_root / "notebooks")
+        append(project_root / "artifacts")
+    return roots
+
+
+def _latest_timestamp_label(timestamp: float | None) -> str:
+    if timestamp is None:
+        return "no file timestamp"
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
+
+
+def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
+    count = 0
+    latest: float | None = None
+    manifest: Path | None = None
+    examples: list[str] = []
+    truncated = False
+    ignored_dirs = {
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "venv",
+    }
+    for root in _runtime_roots(env):
+        try:
+            if not root.exists():
+                continue
+            if root.is_file():
+                paths = [root]
+            else:
+                paths = []
+                for current_root, dirs, files in os.walk(root):
+                    dirs[:] = sorted(
+                        dirname
+                        for dirname in dirs
+                        if dirname not in ignored_dirs and not dirname.startswith(".")
+                    )
+                    for filename in sorted(files):
+                        paths.append(Path(current_root) / filename)
+                    if count + len(paths) >= _COCKPIT_SCAN_LIMIT:
+                        truncated = True
+                        break
+            for path in paths:
+                suffix = path.suffix.lower()
+                if path.name == "run_manifest.json" and manifest is None:
+                    manifest = path
+                if suffix not in _COCKPIT_ARTIFACT_SUFFIXES and path.name != "run_manifest.json":
+                    continue
+                count += 1
+                if len(examples) < 3:
+                    examples.append(path.name)
+                try:
+                    latest = max(latest or path.stat().st_mtime, path.stat().st_mtime)
+                except OSError:
+                    pass
+                if count >= _COCKPIT_SCAN_LIMIT:
+                    truncated = True
+                    break
+            if count >= _COCKPIT_SCAN_LIMIT:
+                break
+        except OSError:
+            continue
+    return {
+        "count": count,
+        "latest": latest,
+        "manifest": manifest,
+        "examples": examples,
+        "truncated": truncated,
+    }
+
+
+def _project_install_status(env: Any | None) -> tuple[str, str, str]:
+    if env is None:
+        return "Unknown", "environment not loaded", "incomplete"
+    try:
+        from agilab.environment_health import _default_install_status
+
+        status = _default_install_status(env)
+    except Exception:
+        return "Check", "install status unavailable", "incomplete"
+    workerless = bool(status.get("workerless"))
+    manager_ready = bool(status.get("manager_ready"))
+    worker_ready = bool(status.get("worker_ready"))
+    manager_exists = bool(status.get("manager_exists"))
+    worker_exists = bool(status.get("worker_exists"))
+    if manager_ready and (workerless or worker_ready):
+        return "Ready", "manager and worker ready" if not workerless else "manager ready", "ready"
+    if manager_exists or worker_exists:
+        return "Incomplete", "rerun INSTALL before EXECUTE", "incomplete"
+    return "Not installed", "run ORCHESTRATE -> INSTALL", "incomplete"
+
+
+def _run_history(env: Any | None) -> tuple[str, str, str]:
+    if env is None:
+        return "0", "environment not loaded", "incomplete"
+    try:
+        from agilab.environment_health import run_history_summary
+
+        count, caption = run_history_summary(env)
+    except Exception:
+        count, caption = "0", "run log status unavailable"
+    state = "ready" if count not in {"", "0"} else "incomplete"
+    return count, caption, state
+
+
+def _render_cockpit_card(streamlit: Any, *, label: str, value: str, caption: str, state: str) -> None:
+    streamlit.markdown(
+        (
+            f"<div class='agilab-header-card agilab-header-card--{html.escape(state)}'>"
+            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
+            f"<div class='agilab-header-value agilab-header-value--{html.escape(state)}'>{html.escape(value)}</div>"
+            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, str]]:
+    project_name = _project_display_name(env)
+    project_root = _project_path(env)
+    project_ready = bool(project_root and (project_root.exists() or project_root.is_symlink()))
+    install_value, install_caption, install_state = _project_install_status(env)
+    run_value, run_caption, run_state = _run_history(env)
+    evidence = _scan_project_evidence(env)
+    artifact_count = int(evidence["count"])
+    artifact_suffix = "+" if evidence["truncated"] else ""
+    if evidence["manifest"] is not None:
+        evidence_value = "Manifest"
+        evidence_caption = Path(evidence["manifest"]).name
+        evidence_state = "ready"
+    elif artifact_count:
+        evidence_value = "Outputs"
+        evidence_caption = ", ".join(evidence["examples"]) or "artifact files detected"
+        evidence_state = "ready"
+    else:
+        evidence_value = "No evidence"
+        evidence_caption = "run ORCHESTRATE -> EXECUTE"
+        evidence_state = "incomplete"
+    return [
+        {
+            "label": "Page",
+            "value": _as_text(page_label) or "AGILAB",
+            "caption": "current workspace",
+            "state": "neutral",
+        },
+        {
+            "label": "Project",
+            "value": project_name,
+            "caption": "selected" if project_ready else "select or create a project",
+            "state": "ready" if project_ready else "incomplete",
+        },
+        {
+            "label": "Install",
+            "value": install_value,
+            "caption": install_caption,
+            "state": install_state,
+        },
+        {
+            "label": "Last run",
+            "value": run_value,
+            "caption": run_caption,
+            "state": run_state,
+        },
+        {
+            "label": "Evidence",
+            "value": evidence_value,
+            "caption": evidence_caption,
+            "state": evidence_state,
+        },
+        {
+            "label": "Artifacts",
+            "value": f"{artifact_count}{artifact_suffix}",
+            "caption": _latest_timestamp_label(evidence["latest"]),
+            "state": "ready" if artifact_count else "incomplete",
+        },
+    ]
+
+
 def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = None) -> None:
-    """Compatibility hook; page context is intentionally not rendered."""
+    """Render the compact project cockpit shared by Streamlit pages."""
+    if env is None:
+        return None
+    container_fn = getattr(streamlit, "container", None)
+    context = container_fn(border=True) if callable(container_fn) else streamlit
+    with context:
+        streamlit.markdown("### Project cockpit")
+        cards = _project_cockpit_cards(page_label, env)
+        for start in range(0, len(cards), 3):
+            row = cards[start : start + 3]
+            columns = streamlit.columns(len(row))
+            for column, card in zip(columns, row):
+                with column:
+                    _render_cockpit_card(streamlit, **card)
     return None
 
 

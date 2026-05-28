@@ -49,6 +49,9 @@ class _FakeContainer:
     def image(self, body: object, **kwargs):
         self._streamlit.events.append(("image", str(body)))
 
+    def markdown(self, body: object, **kwargs):
+        self._streamlit.events.append(("markdown", str(body)))
+
 
 class _FakeSidebar:
     def __init__(self, streamlit):
@@ -69,9 +72,16 @@ class _FakeStreamlit:
         self.events.append(("expander", f"{title}:{expanded}"))
         return _FakeContainer(self)
 
+    def container(self, **kwargs):
+        self.events.append(("container", str(bool(kwargs.get("border", False)))))
+        return _FakeContainer(self)
+
     def columns(self, specs):
         count = len(specs) if isinstance(specs, (list, tuple)) else int(specs)
         return [_FakeContainer(self) for _ in range(count)]
+
+    def markdown(self, body: object, **kwargs):
+        self.events.append(("markdown", str(body)))
 
     def caption(self, body: object):
         self.events.append(("caption", str(body)))
@@ -116,14 +126,36 @@ def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
     assert graph().number_of_edges() == 1
 
 
-def test_render_page_context_is_silent() -> None:
+def test_render_page_context_renders_project_cockpit(tmp_path) -> None:
     fake_st = _FakeStreamlit()
-    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker", mode="Run now")
+    runenv = tmp_path / "run"
+    runenv.mkdir()
+    (runenv / "run_001.log").write_text("ok\n", encoding="utf-8")
+    (runenv / "run_manifest.json").write_text("{}", encoding="utf-8")
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        target="flight_telemetry_worker",
+        active_app=tmp_path,
+        runenv=runenv,
+        app_data_rel=tmp_path / "data",
+    )
 
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
-    assert ("sidebar.expander", "Context:False") not in fake_st.events
-    assert fake_st.events == []
+    markdown = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
+    assert "Project cockpit" in markdown
+    assert "flight_telemetry_project" in markdown
+    assert "run_manifest.json" in markdown
+    assert "agilab-header-card" in markdown
+
+
+def test_project_widget_key_is_scoped_by_page_and_project() -> None:
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker")
+
+    assert (
+        workflow_ui.project_widget_key("ORCHESTRATE", env, "cluster enabled")
+        == "ORCHESTRATE::flight_telemetry_project::flight_telemetry_worker::cluster_enabled"
+    )
 
 
 def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
