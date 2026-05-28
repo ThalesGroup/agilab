@@ -48,6 +48,26 @@ logger = logging.getLogger(__name__)
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
+PAGE_KEY = "view_autoencoder_latentspace"
+APP_SCOPE_KEY = f"{PAGE_KEY}_active_app_path"
+APP_SCOPED_SESSION_KEYS = (
+    "env",
+    "apps_path",
+    "app",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "project",
+    "projects",
+    "datadir",
+    "input_datadir",
+    "df_file",
+    "csv_files",
+    "data",
+    "df_cols",
+    "coltype",
+)
 
 st.title(":chart_with_downwards_trend: Dimension Reduction")
 
@@ -429,8 +449,30 @@ def update_datadir(var_key, widget_key):
         del st.session_state["df_file"]
     if "csv_files" in st.session_state:
         del st.session_state["csv_files"]
+    if "data" in st.session_state:
+        del st.session_state["data"]
+    if "df_cols" in st.session_state:
+        del st.session_state["df_cols"]
     update_var(var_key, widget_key)
     initialize_csv_files()
+
+
+def _reset_state_for_active_app(active_app: Path) -> None:
+    active_app_key = str(active_app.resolve())
+    current_scope = st.session_state.get(APP_SCOPE_KEY)
+    if current_scope == active_app_key:
+        return
+    if current_scope is None:
+        apps_path = st.session_state.get("apps_path")
+        app = st.session_state.get("app")
+        if apps_path and app:
+            existing_app_key = str((Path(apps_path) / str(app)).resolve())
+            if existing_app_key == active_app_key:
+                st.session_state[APP_SCOPE_KEY] = active_app_key
+                return
+    for key in APP_SCOPED_SESSION_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = active_app_key
 
 
 def page(env):
@@ -589,6 +631,8 @@ def main():
         if not active_app.exists():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
+
+        _reset_state_for_active_app(active_app.resolve())
 
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
