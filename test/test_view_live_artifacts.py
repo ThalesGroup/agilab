@@ -458,6 +458,9 @@ def test_live_artifacts_main_wires_page_controls_and_panel(monkeypatch, tmp_path
     calls: list[tuple[str, object]] = []
 
     class FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state = {}
+
         def set_page_config(self, *, layout: str) -> None:
             calls.append(("set_page_config", layout))
 

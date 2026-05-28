@@ -1636,7 +1636,7 @@ default_metric = "missing_metric"
     assert fake_st.session_state[module.PROFILE_METRIC_KEY] == "reward"
     assert fake_st.warnings == ["Some files were parsed but produced no rows: empty"]
     assert "The selected files do not expose this metric on the requested step axis." in fake_st.infos
-    assert fake_st.infos[-1] == "Select at least one detailed run to compare."
+    assert "No data available for run_a." in fake_st.infos
 
 
 def test_view_inference_analysis_main_renders_no_axis_detail_state(

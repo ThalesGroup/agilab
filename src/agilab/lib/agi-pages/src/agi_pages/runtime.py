@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -34,9 +35,17 @@ def resolve_active_app_path(
     """Resolve ``--active-app`` from page CLI arguments."""
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str, required=True)
+    parser.add_argument("--active-app", dest="active_app", type=str)
     args, _ = parser.parse_known_args(argv)
-    active_app_path = Path(args.active_app).expanduser().resolve()
+    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+    if not active_app_value:
+        message = "Missing --active-app argument."
+        if error_fn is not None:
+            error_fn(message)
+        if stop_fn is not None:
+            stop_fn()
+        raise ValueError(message)
+    active_app_path = Path(active_app_value).expanduser().resolve()
     if active_app_path.exists():
         return active_app_path
 

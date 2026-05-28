@@ -366,6 +366,7 @@ def _run_release_page(
         monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "log"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
         if manifest_import_args:
             at.session_state["release_decision_manifest_import_args"] = manifest_import_args

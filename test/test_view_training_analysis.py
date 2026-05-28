@@ -710,7 +710,14 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
     assert module.st.session_state[module.APP_SCOPE_KEY] == str(new_app.resolve())
     assert module.st.session_state["env"].app == "new_trainer_project"
     assert module.st.session_state["env"].init_done is True
-    assert module.st.session_state["app_settings"] == {"view_training_analysis": {}}
+    assert module.st.session_state["app_settings"] == {
+        "view_training_analysis": {
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "",
+            "input_datadir": "",
+            "x_axis": "step",
+        }
+    }
     assert module.st.session_state["input_datadir"] == ""
     assert module.st.session_state["datadir_rel"] == ""
     assert module.st.session_state[module.X_AXIS_KEY] == "step"

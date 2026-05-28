@@ -17,7 +17,7 @@ PAGE_PATH = (
 
 def _create_forecast_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
-    apps_dir.mkdir()
+    apps_dir.mkdir(exist_ok=True)
     project_dir = apps_dir / "weather_forecast_project"
     (project_dir / "src" / "weather_forecast").mkdir(parents=True)
     (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
@@ -40,6 +40,7 @@ def _run_forecast_page(
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
         at = AppTest.from_file(PAGE_PATH, default_timeout=default_timeout)
         at.run()
     return at
@@ -172,6 +173,7 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
         at.session_state["env"] = env
         at.session_state[module.APP_SCOPE_KEY] = str(old_project_dir.resolve())

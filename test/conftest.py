@@ -191,6 +191,7 @@ def run_page_app_test(monkeypatch, tmp_path):
             monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
             monkeypatch.setenv("OPENAI_API_KEY", "dummy")
             monkeypatch.setenv("IS_SOURCE_ENV", "1")
+            monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
             app_test = AppTest.from_file(page_path, default_timeout=timeout)
             app_test.run()
         return app_test
