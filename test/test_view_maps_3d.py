@@ -637,6 +637,46 @@ def test_view_maps_3d_page_bootstrap_reuses_active_app_argument(monkeypatch, tmp
     assert fake_state["GUI_SAMPLING"] == 4
 
 
+def test_view_maps_3d_resets_app_scoped_state_on_active_app_change(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    fake_st = _FakeStreamlit()
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    fake_st.session_state = _State(
+        {
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            "env": object(),
+            "datadir": "/tmp/old-data",
+            "beamdir": "/tmp/old-beams",
+            "dataset_files": ["old.csv"],
+            "loaded_df": object(),
+            "view_maps_3d:df_files_selected": ["old.csv"],
+            "view_maps_3d:last_datadir": "/tmp/old-data",
+            "unrelated": "keep",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._reset_app_scoped_session_state(first_app) is False
+    assert "datadir" in fake_st.session_state
+
+    assert module._reset_app_scoped_session_state(second_app) is True
+    assert fake_st.session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    assert fake_st.session_state["unrelated"] == "keep"
+    for key in (
+        "env",
+        "datadir",
+        "beamdir",
+        "dataset_files",
+        "loaded_df",
+        "view_maps_3d:df_files_selected",
+        "view_maps_3d:last_datadir",
+    ):
+        assert key not in fake_st.session_state
+
+
 def test_view_maps_3d_page_rejects_invalid_datadir(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_3d_module()
     settings_file = tmp_path / "app_settings.toml"

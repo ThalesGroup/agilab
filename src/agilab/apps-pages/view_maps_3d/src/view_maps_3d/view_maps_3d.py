@@ -91,6 +91,57 @@ def _vm3d_key(name: str) -> str:
     return f"{PAGE_KEY_PREFIX}:{name}"
 
 
+APP_SCOPE_KEY = _vm3d_key("active_app_scope")
+APP_SCOPED_SESSION_KEY_PREFIXES = (f"{PAGE_KEY_PREFIX}:",)
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "datadir",
+    "beamdir",
+    "dataset_files",
+    "csv_files",
+    "beam_csv_files",
+    "df_file",
+    "df_files_selected",
+    "df_file_regex",
+    "df_select_mode",
+    "loaded_df",
+    "beam_file",
+    "beam_files",
+    "dfs_beams",
+    "file_ext_choice",
+    "coltype",
+    "discrete",
+    "continuous",
+    "lat",
+    "long",
+    "alt",
+)
+
+
+def _reset_app_scoped_session_state(active_app: Path) -> bool:
+    """Clear View Maps 3D state that belongs to a specific active app."""
+
+    app_scope = str(active_app.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in list(st.session_state.keys()):
+        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
+            isinstance(key, str) and key.startswith(prefix)
+            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     candidates: list[tuple[int, Path]] = []
     extensions = DATASET_EXTENSIONS if ext_choice == "all" else (f".{ext_choice}",)
@@ -174,6 +225,7 @@ def _bootstrap_env_from_active_app() -> bool:
         candidate = Path(candidate_expr).expanduser()
         if not candidate.exists() or not candidate.is_dir():
             continue
+        _reset_app_scoped_session_state(candidate)
         try:
             env = AgiEnv(
                 apps_path=candidate.parent,
@@ -1314,6 +1366,7 @@ def main():
             st.error(f"Error: provided --active-app path not found: {active_app}")
             sys.exit(1)
 
+        _reset_app_scoped_session_state(active_app)
         # Short app name
         app = active_app.name
         st.session_state["apps_path"] = str(active_app.parent)
