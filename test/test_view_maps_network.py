@@ -1433,6 +1433,30 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
 
     assert any("Provided --active-app path not found" in message for message in errors)
 
+    first_app = tmp_path / "first_app"
+    second_app = tmp_path / "second_app"
+    first_app.mkdir()
+    second_app.mkdir()
+    module.st = SimpleNamespace(
+        session_state={
+            module.APP_SCOPE_KEY: str(first_app.resolve()),
+            "env": object(),
+            "app_settings": {"view_maps_network": {"df_file": "stale.csv"}},
+            "base_dir_choice": "Custom",
+            "datadir": "/tmp/old-data",
+            "view_maps_network:selected_flights_filter": ["old-flight"],
+            "unrelated": "keep",
+        }
+    )
+    assert module._reset_app_scoped_session_state(first_app) is False
+    assert "app_settings" in module.st.session_state
+
+    assert module._reset_app_scoped_session_state(second_app) is True
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(second_app.resolve())
+    assert module.st.session_state["unrelated"] == "keep"
+    for key in ("env", "app_settings", "base_dir_choice", "datadir", "view_maps_network:selected_flights_filter"):
+        assert key not in module.st.session_state
+
     invalid_settings = tmp_path / "invalid.toml"
     invalid_settings.write_text("[broken", encoding="utf-8")
     module.st = SimpleNamespace(session_state={})

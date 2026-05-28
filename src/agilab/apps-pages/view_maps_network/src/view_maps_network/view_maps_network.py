@@ -160,6 +160,96 @@ def _active_app_context_from_env(env: Any) -> tuple[str, Path]:
     return app_name, Path(app_name)
 
 
+APP_SCOPE_KEY = "view_maps_network:active_app_scope"
+APP_SCOPED_SESSION_KEY_PREFIXES = ("view_maps_network:",)
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "app_settings",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "base_dir_choice",
+    "input_datadir",
+    "datadir_rel",
+    "datadir_rel_select",
+    "datadir_rel_custom",
+    "datadir",
+    "file_ext_choice",
+    "csv_files",
+    "_prev_csv_files_rel",
+    "df_file",
+    "df_files",
+    "df_select_mode",
+    "df_file_regex",
+    "loaded_df",
+    "id_col",
+    "flight_id_col",
+    "time_col",
+    "df_cols",
+    "_prev_df_selection_sig",
+    "edges_file",
+    "edges_file_input",
+    "edges_file_choice",
+    "edges_file_custom",
+    "link_multiselect",
+    "show_map",
+    "show_graph",
+    "show_topology_links",
+    "show_terrain",
+    "show_trajectory_traces",
+    "show_cloud_heatmap",
+    "cloud_heatmap_sat_path",
+    "cloud_heatmap_ivdl_path",
+    "cloud_heatmap_stride",
+    "cloud_heatmap_min_weight",
+    "jitter_overlap",
+    "show_metrics",
+    "map_marker_style",
+    "allocations_file",
+    "alloc_path_input",
+    "allocations_file_choice",
+    "allocations_file_custom",
+    "baseline_allocations_file",
+    "baseline_alloc_path_input",
+    "baseline_alloc_file_choice",
+    "baseline_alloc_file_custom",
+    "traj_glob",
+    "traj_glob_input",
+    "traj_glob_choice",
+    "traj_glob_custom",
+    "layout_type_select",
+    "metric_type_select",
+    "selected_time",
+    "selected_time_idx",
+    "alloc_time_index",
+    "_alloc_time_index_qp",
+    "_alloc_pair_qp",
+    "alloc_demand_pair_focus",
+    "color_map",
+    "color_map_key",
+)
+
+
+def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
+    """Clear Maps Network state that belongs to a specific active app."""
+
+    app_scope = str(active_app_path.resolve())
+    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
+        return False
+    for key in list(st.session_state.keys()):
+        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
+            key.startswith(prefix) for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(key, None)
+    st.session_state[APP_SCOPE_KEY] = app_scope
+    return True
+
+
 def _render_app_page_context(app: str, active_app: Path) -> None:
     columns = st.columns(2)
     with columns[0]:
@@ -263,8 +353,9 @@ def _list_subdirectories(base: Path) -> list[str]:
 
 st.title(":world_map: Maps Network Graph")
 
-if 'env' not in st.session_state:
-    active_app_path = _resolve_active_app()
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_state(active_app_path)
+if 'env' not in st.session_state or app_scope_changed:
     app_name = active_app_path.name
     env = AgiEnv(apps_path=active_app_path.parent, app=app_name, verbose=0)
     env.init_done = True
