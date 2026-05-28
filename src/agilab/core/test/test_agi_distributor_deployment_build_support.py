@@ -112,6 +112,52 @@ def test_project_uv_adds_free_threading_prefix(monkeypatch):
     assert deployment_build_support._project_uv(env) == "env TEST=1 PYTHON_GIL=0 uv"
 
 
+def test_worker_build_commands_request_build_tool_overlay():
+    bdist_cmd = deployment_build_support._bdist_egg_command(
+        uv="uv",
+        module_cmd="python -m agi_node.agi_dispatcher.build",
+        app_path_arg='"/apps/demo_project"',
+        packages="agi_dispatcher,pandas_worker",
+        wenv_arg='"/wenv/demo_worker"',
+        verbose=0,
+    )
+    build_ext_cmd = deployment_build_support._build_ext_command(
+        uv="uv",
+        module_cmd="python -m agi_node.agi_dispatcher.build",
+        app_path_arg='"/apps/demo_project"',
+        wenv_arg='"/wenv/demo_worker"',
+        verbose=0,
+    )
+
+    assert "run --no-sync --with setuptools --with cython" in bdist_cmd
+    assert "run --no-sync --with setuptools --with cython" in build_ext_cmd
+    assert " -q " in f" {bdist_cmd} "
+    assert " -q " in f" {build_ext_cmd} "
+
+
+def test_worker_build_commands_keep_overlay_without_quiet_flag_when_verbose():
+    bdist_cmd = deployment_build_support._bdist_egg_command(
+        uv="uv",
+        module_cmd="python -m agi_node.agi_dispatcher.build",
+        app_path_arg='"/apps/demo_project"',
+        packages="agi_dispatcher,pandas_worker",
+        wenv_arg='"/wenv/demo_worker"',
+        verbose=2,
+    )
+    build_ext_cmd = deployment_build_support._build_ext_command(
+        uv="uv",
+        module_cmd="python -m agi_node.agi_dispatcher.build",
+        app_path_arg='"/apps/demo_project"',
+        wenv_arg='"/wenv/demo_worker"',
+        verbose=2,
+    )
+
+    assert "run --no-sync --with setuptools --with cython" in bdist_cmd
+    assert "run --no-sync --with setuptools --with cython" in build_ext_cmd
+    assert " -q " not in f" {bdist_cmd} "
+    assert " -q " not in f" {build_ext_cmd} "
+
+
 def test_worker_pyproject_source_missing_raises(tmp_path):
     env = SimpleNamespace(
         worker_pyproject=tmp_path / "missing_worker.toml",
