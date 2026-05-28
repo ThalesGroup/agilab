@@ -34,6 +34,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
         "docs_mirror_stamp",
         "docs_workflow_parity_profile",
         "production_readiness_workflow_profile",
+        "architecture_scorecard",
         "compatibility_matrix_validated_paths",
         "service_health_json_prometheus",
         "controlled_pilot_readiness_gate",
@@ -59,6 +60,7 @@ def test_build_report_includes_shared_adoption_hardening_controls() -> None:
         "public_ui_bind_guard",
         "cluster_share_fail_fast",
         "controlled_pilot_readiness_gate",
+        "architecture_scorecard",
         "production_boundary_docs",
     }:
         check = checks[check_id]
@@ -85,6 +87,25 @@ def test_controlled_pilot_readiness_gate_supports_score_movement() -> None:
         "persisted_artifact_contract",
         "public_bind_and_secret_boundary",
         "compatibility_matrix_entry",
+    }
+
+
+def test_architecture_scorecard_is_scoped_and_evidence_backed() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(check for check in report["checks"] if check["id"] == "architecture_scorecard")
+
+    assert check["status"] == "pass"
+    assert check["details"]["supported_score"] == "4.5 / 5"
+    assert "multi-tenant production" in check["details"]["score_scope"]
+    assert set(check["details"]["check_ids"]) >= {
+        "architecture_plane_boundaries",
+        "architecture_runtime_guardrails",
+        "architecture_supply_chain_release_proof",
+        "architecture_remote_execution_hardening",
+        "architecture_capacity_model_trust_boundary",
+        "architecture_claim_boundary",
     }
 
 
