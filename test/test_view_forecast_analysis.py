@@ -156,6 +156,8 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []
 
+    old_project_dir = tmp_path / "apps" / "old_weather_project"
+    old_project_dir.mkdir(parents=True)
     project_dir = _create_forecast_project(tmp_path)
     env = SimpleNamespace(
         app="weather_forecast_project",
@@ -172,9 +174,19 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
         at.session_state["env"] = env
+        at.session_state[module.APP_SCOPE_KEY] = str(old_project_dir.resolve())
+        at.session_state["forecast_analysis_datadir"] = str(tmp_path / "old-export" / "forecast_analysis")
+        at.session_state["forecast_metrics_glob"] = "old_metrics.json"
+        at.session_state["forecast_predictions_glob"] = "old_predictions.csv"
         at.run()
 
     assert not at.exception
+    assert at.session_state[module.APP_SCOPE_KEY] == str(project_dir.resolve())
+    assert at.session_state["forecast_analysis_datadir"] == str(
+        tmp_path / "export" / "weather_forecast" / "forecast_analysis"
+    )
+    assert at.session_state["forecast_metrics_glob"] == "**/forecast_metrics.json"
+    assert at.session_state["forecast_predictions_glob"] == "**/forecast_predictions.csv"
 
 
 def test_view_forecast_analysis_warns_when_metrics_are_missing(tmp_path, monkeypatch) -> None:
