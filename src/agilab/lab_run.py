@@ -12,53 +12,38 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-import importlib.util
 import os
 import sys
 import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-try:
-    from agilab.streamlit_theme_env import (
-        apply_streamlit_theme_environment,
-        packaged_streamlit_config_path,
-    )
+try:  # Prefer package import when AGILAB is importable as a normal package.
+    from agilab.import_guard import import_agilab_module
 except ModuleNotFoundError:
-    _streamlit_theme_env_path = (
-        Path(__file__).resolve().parent / "streamlit_theme_env.py"
-    )
-    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
-        "agilab_streamlit_theme_env_local",
-        _streamlit_theme_env_path,
-    )
-    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
-        raise ModuleNotFoundError(
-            f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}"
-        )
-    _streamlit_theme_env_module = importlib.util.module_from_spec(
-        _streamlit_theme_env_spec
-    )
-    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
-    apply_streamlit_theme_environment = (
-        _streamlit_theme_env_module.apply_streamlit_theme_environment
-    )
-    packaged_streamlit_config_path = (
-        _streamlit_theme_env_module.packaged_streamlit_config_path
-    )
+    from import_guard import import_agilab_module
+
+_PACKAGE_DIR = Path(__file__).resolve().parent
+_STREAMLIT_THEME_ENV_MODULE = import_agilab_module(
+    "agilab.streamlit_theme_env",
+    current_file=__file__,
+    fallback_path=_PACKAGE_DIR / "streamlit_theme_env.py",
+    fallback_name="agilab_streamlit_theme_env_local",
+)
+apply_streamlit_theme_environment = (
+    _STREAMLIT_THEME_ENV_MODULE.apply_streamlit_theme_environment
+)
+packaged_streamlit_config_path = (
+    _STREAMLIT_THEME_ENV_MODULE.packaged_streamlit_config_path
+)
 
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
-_PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
-_PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
-    "agilab_ui_public_bind_guard_local",
-    _PUBLIC_BIND_GUARD_PATH,
+_PUBLIC_BIND_GUARD_MODULE = import_agilab_module(
+    "agilab.ui_public_bind_guard",
+    current_file=__file__,
+    fallback_path=_PACKAGE_DIR / "ui_public_bind_guard.py",
+    fallback_name="agilab_ui_public_bind_guard_local",
 )
-if _PUBLIC_BIND_GUARD_SPEC is None or _PUBLIC_BIND_GUARD_SPEC.loader is None:
-    raise ModuleNotFoundError(
-        f"Unable to load ui_public_bind_guard.py from {_PUBLIC_BIND_GUARD_PATH}"
-    )
-_PUBLIC_BIND_GUARD_MODULE = importlib.util.module_from_spec(_PUBLIC_BIND_GUARD_SPEC)
-_PUBLIC_BIND_GUARD_SPEC.loader.exec_module(_PUBLIC_BIND_GUARD_MODULE)
 PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
 enforce_public_bind_policy = _PUBLIC_BIND_GUARD_MODULE.enforce_public_bind_policy
 
