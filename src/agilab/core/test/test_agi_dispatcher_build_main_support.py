@@ -80,6 +80,40 @@ def test_bootstrap_core_source_paths_moves_existing_editable_sources_before_site
     assert bootstrap_mod.sys.path.count(str(env_src)) == 1
 
 
+def test_resolve_node_source_path_prefers_runtime_prefix_layout(tmp_path):
+    node_src = tmp_path / "env" / "agi-node" / "src"
+    node_src.mkdir(parents=True)
+
+    assert bootstrap_mod.resolve_node_source_path(
+        sys_prefix=tmp_path / "env",
+        source_file=tmp_path / "pkg" / "build.py",
+    ) == node_src
+
+
+def test_resolve_node_source_path_finds_source_checkout_layout(tmp_path):
+    node_src = tmp_path / "repo" / "src" / "agilab" / "core" / "agi-node" / "src"
+    source_file = (
+        tmp_path
+        / "repo"
+        / "src"
+        / "agilab"
+        / "core"
+        / "agi-cluster"
+        / "src"
+        / "agi_cluster"
+        / "agi_distributor"
+        / "agi_distributor.py"
+    )
+    node_src.mkdir(parents=True)
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("", encoding="utf-8")
+
+    assert bootstrap_mod.resolve_node_source_path(
+        sys_prefix=tmp_path / "venv",
+        source_file=source_file,
+    ) == node_src
+
+
 def test_append_shared_site_packages_appends_legacy_candidates_once(tmp_path):
     fake_home = tmp_path / "home"
     sys_path: list[str] = []

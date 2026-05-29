@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
@@ -15,6 +16,46 @@ def resolve_core_source_root(*, source_file: str | Path | None = None) -> Path |
     for parent in source_path.parents:
         if parent.name == "core" and parent.parent.name == "agilab":
             return parent
+    return None
+
+
+def package_source_path_candidates(
+    package_dir_name: str,
+    *,
+    sys_prefix: str | os.PathLike[str] | None = None,
+    source_file: str | os.PathLike[str] | None = None,
+) -> tuple[Path, ...]:
+    """Return likely source roots for an AGILAB core package directory."""
+    prefix_root = Path(sys_prefix or sys.prefix)
+    try:
+        source_root = Path(source_file or __file__).resolve()
+    except (OSError, RuntimeError):
+        source_root = Path(source_file or __file__)
+    candidates: list[Path] = []
+    for root in (prefix_root, *prefix_root.parents, source_root, *source_root.parents):
+        candidates.extend(
+            [
+                root / package_dir_name / "src",
+                root / "src" / package_dir_name / "src",
+                root / "src" / "agilab" / "core" / package_dir_name / "src",
+            ]
+        )
+    return tuple(dict.fromkeys(candidates))
+
+
+def resolve_node_source_path(
+    *,
+    sys_prefix: str | os.PathLike[str] | None = None,
+    source_file: str | os.PathLike[str] | None = None,
+) -> Path | None:
+    """Return the best repo-local ``agi-node/src`` path for the runtime layout."""
+    for candidate in package_source_path_candidates(
+        "agi-node",
+        sys_prefix=sys_prefix,
+        source_file=source_file,
+    ):
+        if candidate.is_dir():
+            return candidate
     return None
 
 
