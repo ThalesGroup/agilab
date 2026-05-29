@@ -8,6 +8,8 @@ from shlex import quote
 from tempfile import gettempdir
 from typing import Any, Callable, Union
 
+from asyncssh.process import ProcessError
+
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_env import AgiEnv
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
 _REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
 _REMOTE_COMMAND_EXCEPTIONS = (OSError, RuntimeError)
-_REMOTE_PIP_PROBE_EXCEPTIONS = (OSError, RuntimeError)
+_REMOTE_PIP_PROBE_EXCEPTIONS = _REMOTE_COMMAND_EXCEPTIONS + (ProcessError,)
 _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
 _SSHFS_INSTALL_HINT = (
     "sshfs is required to mount AGI_CLUSTER_SHARE on this worker. "

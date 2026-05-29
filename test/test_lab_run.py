@@ -19,6 +19,13 @@ sys.modules.setdefault("agilab.lab_run", lab_run)
 SPEC.loader.exec_module(lab_run)
 
 
+def test_lab_run_uses_shared_import_guard_for_local_helpers():
+    source = LAB_RUN_PATH.read_text(encoding="utf-8")
+
+    assert "spec_from_file_location" not in source
+    assert "import_agilab_module(" in source
+
+
 def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_detect_cli_version", lambda: "2026.4.9")

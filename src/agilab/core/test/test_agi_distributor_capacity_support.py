@@ -792,6 +792,47 @@ def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
     assert train_calls["count"] == 1
 
 
+def test_update_capacity_writes_utf8_capacity_csv_for_polars(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        }
+    }
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda _path: None))
+    open_calls: list[dict[str, object]] = []
+    original_open = open
+
+    def _tracking_open(file, mode="r", *args, **kwargs):
+        if Path(file) == Path(AGI._capacity_data_file) and "a" in mode:
+            open_calls.append(
+                {
+                    "encoding": kwargs.get("encoding"),
+                    "newline": kwargs.get("newline"),
+                }
+            )
+        return original_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setitem(
+        capacity_support.update_capacity.__globals__,
+        "open",
+        _tracking_open,
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert open_calls == [{"encoding": "utf-8", "newline": ""}]
+
+
 def test_train_capacity_missing_and_success(tmp_path):
     AGI._capacity_data_file = "capacity_data.csv"
     AGI._capacity_model_file = "capacity_model.pkl"

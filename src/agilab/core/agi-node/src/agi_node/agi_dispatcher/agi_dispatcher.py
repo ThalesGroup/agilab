@@ -30,7 +30,6 @@ import numpy as np
 import datetime
 import logging
 import socket
-from copy import deepcopy
 
 from agi_env import AgiEnv
 
@@ -282,7 +281,12 @@ class WorkDispatcher:
     chunks: Optional[List[Any]] = None,
     chunks_sizes: Optional[Any] = None
 ) -> Any:
-        """Partitions subsets in nchk non-weighted chunks, in a slower but optimal recursive way
+        """Partitions subsets in nchk non-weighted chunks, in a slower but optimal recursive way.
+
+        The search is exponential, so callers should keep using ``make_chunks``'
+        threshold gate for larger work plans.  This implementation mutates one
+        working assignment in place and undoes each recursive branch instead of
+        deep-copying every candidate tree.
 
         Args:
           subsets: list of tuples ('label', size)
@@ -294,61 +298,75 @@ class WorkDispatcher:
           : list of chunks weighted
 
         """
-        racine = False
-        best_chunks = None
-
         nchk = len(chkweights)
-        if chunks is None:  # 1ere execution
-            chunks = [[] for _ in range(nchk)]
-            chunks_sizes = np.zeros(nchk, dtype=float)
-            subsets.sort(reverse=True, key=lambda i: i[1])
-            racine = True
+        capacities = np.array(chkweights, dtype=float)
+        root_call = chunks is None
+        working_chunks = [[] for _ in range(nchk)] if chunks is None else chunks
+        working_sizes = (
+            np.zeros(nchk, dtype=float)
+            if chunks_sizes is None
+            else np.array(chunks_sizes, dtype=float)
+        )
+        ordered_subsets = list(subsets)
+        if root_call:
+            ordered_subsets.sort(reverse=True, key=lambda i: i[1])
 
-        if not subsets:  # finished when all subsets are partitioned
-            return [chunks, max(chunks_sizes)]  # ty: ignore[invalid-argument-type]
+        def _snapshot() -> tuple[list[list[Any]], float]:
+            return [list(chunk) for chunk in working_chunks], float(max(working_sizes))
 
-        # Optimisation: We check if the weighted difference between the biggest and the smalest chunk
-        # is more than the weighted sum of the remaining subsets
-        if max(chunks_sizes) > min(  # ty: ignore[invalid-argument-type]
-                np.array(chunks_sizes + sum([i[1] for i in subsets])) / chkweights
-        ):
-            # If yes, we won't make the biggest chunk bigger by filling the smallest chunk
-            smallest_chunk_index = np.argmin(
-                chunks_sizes + sum([i[1] for i in subsets]) / chkweights
-            )
-            chunks[smallest_chunk_index] += subsets
-            chunks_sizes[smallest_chunk_index] += (
-                    sum([i[1] for i in subsets]) / chkweights[smallest_chunk_index]
-            )
-            return [chunks, max(chunks_sizes)]  # ty: ignore[invalid-argument-type]
+        def _search(start: int) -> tuple[list[list[Any]], float]:
+            if start >= len(ordered_subsets):
+                return _snapshot()
 
-        chunks_choices = []
-        chunks_choices_max_size = np.array([])
-        inserted_chunk_sizes = []
-        for i in range(nchk):
-            # We add the next subset to the ith chunk if we haven't already tried a similar chunk
-            if (chunks_sizes[i], chkweights[i]) not in inserted_chunk_sizes:  # ty: ignore[not-subscriptable]
-                inserted_chunk_sizes.append((chunks_sizes[i], chkweights[i]))  # ty: ignore[not-subscriptable]
-                subsets2 = deepcopy(subsets)[1:]
-                chunk_pool = deepcopy(chunks)
-                chunk_pool[i].append(subsets[0])
-                chunks_sizes2 = deepcopy(chunks_sizes)
-                chunks_sizes2[i] += subsets[0][1] / chkweights[i]
-                chunks_choices.append(
-                    WorkDispatcher._make_chunks_optimal(
-                        subsets2, chkweights, chunk_pool, chunks_sizes2
-                    )
+            remaining = ordered_subsets[start:]
+            remaining_weight = sum(item[1] for item in remaining)
+
+            # Optimisation: if even putting all remaining work on the least-loaded
+            # worker cannot improve the current maximum load, finish this branch.
+            if max(working_sizes) > min(np.array(working_sizes + remaining_weight) / capacities):
+                smallest_chunk_index = int(
+                    np.argmin(working_sizes + remaining_weight / capacities)
                 )
-                chunks_choices_max_size = np.append(
-                    chunks_choices_max_size, chunks_choices[-1][1]
+                previous_size = float(working_sizes[smallest_chunk_index])
+                previous_len = len(working_chunks[smallest_chunk_index])
+                working_chunks[smallest_chunk_index].extend(remaining)
+                working_sizes[smallest_chunk_index] = (
+                    previous_size + remaining_weight / capacities[smallest_chunk_index]
                 )
+                result = _snapshot()
+                del working_chunks[smallest_chunk_index][previous_len:]
+                working_sizes[smallest_chunk_index] = previous_size
+                return result
 
-        best_chunks = chunks_choices[np.argmin(chunks_choices_max_size)]
+            subset = ordered_subsets[start]
+            best: tuple[list[list[Any]], float] | None = None
+            inserted_chunk_sizes = set()
+            for i in range(nchk):
+                # Add the next subset to the ith chunk if we have not already
+                # tried an equivalent chunk/capacity state.
+                state_key = (float(working_sizes[i]), float(capacities[i]))
+                if state_key in inserted_chunk_sizes:
+                    continue
+                inserted_chunk_sizes.add(state_key)
 
-        if racine:
-            return best_chunks[0]
-        else:
+                normalized_weight = subset[1] / capacities[i]
+                working_chunks[i].append(subset)
+                working_sizes[i] += normalized_weight
+                candidate = _search(start + 1)
+                working_chunks[i].pop()
+                working_sizes[i] -= normalized_weight
+
+                if best is None or candidate[1] < best[1]:
+                    best = candidate
+
+            if best is None:  # pragma: no cover - defensive guard
+                return _snapshot()
+            return best
+
+        best_chunks, best_size = _search(0)
+        if root_call:
             return best_chunks
+        return [best_chunks, best_size]
 
     @staticmethod
     def _make_chunks_fastest(subsets: List[Any], chk_weights: List[Any]) -> List[List[Any]]:

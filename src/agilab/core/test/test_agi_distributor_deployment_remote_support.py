@@ -366,11 +366,13 @@ async def test_remote_project_has_pip_reports_missing_when_probe_fails():
 @pytest.mark.asyncio
 async def test_remote_project_has_pip_propagates_unexpected_probe_bug():
     async def _fake_exec_ssh(_ip, _cmd):
-        raise ValueError("unexpected pip probe bug")
+        raise ValueError("broken probe wiring")
 
-    with pytest.raises(ValueError, match="unexpected pip probe bug"):
+    agi_cls = SimpleNamespace(exec_ssh=_fake_exec_ssh)
+
+    with pytest.raises(ValueError, match="broken probe wiring"):
         await deployment_remote_support._remote_project_has_pip(
-            SimpleNamespace(exec_ssh=_fake_exec_ssh),
+            agi_cls,
             "10.0.0.2",
             uv="uv",
             wenv_rel=Path("worker_env"),
