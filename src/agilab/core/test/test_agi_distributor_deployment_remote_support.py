@@ -364,6 +364,23 @@ async def test_remote_project_has_pip_reports_missing_when_probe_fails():
 
 
 @pytest.mark.asyncio
+async def test_remote_project_has_pip_propagates_unexpected_probe_bug():
+    async def _fake_exec_ssh(_ip, _cmd):
+        raise ValueError("broken probe wiring")
+
+    agi_cls = SimpleNamespace(exec_ssh=_fake_exec_ssh)
+
+    with pytest.raises(ValueError, match="broken probe wiring"):
+        await deployment_remote_support._remote_project_has_pip(
+            agi_cls,
+            "10.0.0.2",
+            uv="uv",
+            wenv_rel=Path("worker_env"),
+            pyvers="3.13",
+        )
+
+
+@pytest.mark.asyncio
 async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled(
     tmp_path,
 ):
