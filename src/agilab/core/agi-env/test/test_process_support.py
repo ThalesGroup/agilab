@@ -306,9 +306,11 @@ def test_apply_inline_path_export_returns_input_for_non_string_or_non_matching_c
 
 def test_inject_uv_preview_flag_handles_regex_failure(monkeypatch):
     monkeypatch.setattr(
-        process_support.re,
-        "sub",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(re.error("regex failure")),
+        process_support,
+        "re",
+        SimpleNamespace(
+            sub=lambda *_args, **_kwargs: (_ for _ in ()).throw(re.error("regex failure"))
+        ),
     )
 
     assert process_support.inject_uv_preview_flag("uv pip install demo") == "uv pip install demo"
@@ -316,9 +318,11 @@ def test_inject_uv_preview_flag_handles_regex_failure(monkeypatch):
 
 def test_inject_uv_preview_flag_propagates_unexpected_runtime_bug(monkeypatch):
     monkeypatch.setattr(
-        process_support.re,
-        "sub",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("regex bug")),
+        process_support,
+        "re",
+        SimpleNamespace(
+            sub=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("regex bug"))
+        ),
     )
 
     with pytest.raises(RuntimeError, match="regex bug"):
