@@ -1,8 +1,12 @@
 # Windows Core Test Failures — Fix Guide (updated)
 
-**Date:** 2026-05-22 — **2nd pass after developer fixes**  
+**Last Windows validation:** 2026-05-22 — **2nd pass after developer fixes**  
 **Machine:** TOUR-JULIEN (Windows 11, Python 3.13.13, PowerShell 5.1)  
-**Previous count:** 97 · **Fixed:** 43 · **Remaining:** 54 · **New regression:** 1
+**Last verified count:** 97 previous · 43 fixed · 54 remaining · 1 new regression
+**Current repo note (2026-05-29):** Category 1 environment isolation has since
+landed in the root, core, and agi-env test fixtures. The total remaining count
+below still reflects the last Windows run until the command below is rerun on
+Windows.
 
 Reproduce remaining failures:
 ```powershell
@@ -29,15 +33,28 @@ The following test categories were resolved by the dev team:
 
 ---
 
-## ❌ Remaining failures (54 tests)
+## ❌ Remaining failures from last Windows run (54 tests)
 
 ---
 
 ### Category 1 — Env isolation: real `~/.agilab/.env` leaks (15 tests)
 
+**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
+these failures from the verified count.
+
 `AgiEnv` reads the real `C:\Users\julie\.agilab\.env`, real `.agilab-path`, and real `Path.home()` instead of the monkeypatched test values.
 
-**Fix — add `autouse` isolation fixture to both `conftest.py` files:**
+**Implemented fix:** autouse isolation fixtures now seed fake `HOME`,
+`USERPROFILE`, `%LOCALAPPDATA%\agilab\.agilab-path`, posix `.agilab-path`, and
+blank AGILAB env values in:
+
+- `test/conftest.py`
+- `src/agilab/core/test/conftest.py`
+- `src/agilab/core/agi-env/test/conftest.py`
+
+The root regression coverage is `test/test_root_test_environment_isolation.py`.
+
+Original fix sketch:
 ```python
 # src/agilab/core/agi-env/test/conftest.py
 # src/agilab/core/test/conftest.py
@@ -430,7 +447,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 | # | Category | Count | Status | Primary fix location |
 |---|---|---|---|---|
-| 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ❌ Open | `conftest.py` autouse fixture |
+| 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Fixed in current repo; rerun Windows to verify count | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
 | 2 | `.venv/bin` vs `.venv/Scripts` (remaining) | 7 | ❌ Open | `deployment_local_support.py`, `process_support.py` |
 | 3 | uv TOML paths with `\` (remaining) | 8 | ❌ Open | `uv_source_support.py` → `.as_posix()` |
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ❌ Open | Test fixtures — use `sys.executable -c sys.exit(N)` |
@@ -441,4 +458,6 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 9 | `sshpass` not on Windows | 1 | ❌ Open | Skip marker |
 | — | Needs `pytest -vv` | 10 | ❓ Unknown | Run targeted to diagnose |
 
-**Recommended priority:** Cat 1 (env isolation) unblocks the most tests with a single `conftest.py` change. Cat 7 (Polars encoding) is a new Windows-specific bug that should be easy to fix. Cat 8 regression should be investigated immediately.
+**Recommended priority:** rerun the Windows command above to refresh the verified
+remaining count after the environment-isolation fixtures, then prioritize Cat 7
+(Polars encoding) and Cat 8 (prepare_local_env self-update regression).
