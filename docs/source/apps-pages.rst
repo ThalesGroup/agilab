@@ -145,6 +145,10 @@ pulled by the umbrella dependency graph.
      - ``agi-page-network-map``
      - Network-aware geospatial topology and route inspection.
      - Included in ``agi-pages``.
+   * - ``view_routing_model_comparison``
+     - ``agi-page-routing-model-comparison``
+     - Routing-model allocation comparison for candidate/baseline decisions.
+     - Included in ``agi-pages``.
    * - ``view_queue_resilience``
      - ``agi-page-queue-health``
      - Queue occupancy, delay, drop, route, and run-metadata evidence.
@@ -209,6 +213,16 @@ Network topology viewer synchronised with geographic views.
 - UI convention: the resolved data path is kept under ``Resolved data path`` so
   the normal sidebar stays focused on choices rather than long filesystem
   strings.
+
+view_routing_model_comparison
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Routing-model comparison dashboard for allocation-decision evidence.
+
+- Input: baseline and candidate routing exports from queue-analysis runs.
+- Output: allocation deltas, decision summaries, and model-comparison charts.
+- UI convention: the page focuses on side-by-side evidence so candidate routing
+  behavior can be reviewed before promotion or handoff.
 
 view_queue_resilience
 ^^^^^^^^^^^^^^^^^^^^^

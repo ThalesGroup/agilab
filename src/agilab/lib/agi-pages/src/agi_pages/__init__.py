@@ -44,6 +44,7 @@ PUBLIC_PAGE_MODULES = (
     "view_maps",
     "view_maps_3d",
     "view_maps_network",
+    "view_routing_model_comparison",
     "view_queue_resilience",
     "view_relay_resilience",
     "view_scenario_cockpit",
