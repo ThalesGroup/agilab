@@ -426,6 +426,11 @@ Was passing in the previous run. This is a regression introduced by the recent f
 
 ### Category 9 — `sshpass` not on Windows (1 test)
 
+**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
+this failure from the verified count. The transport test now has a Windows
+skip marker and accepts the production `scp` fallback on Windows. Focused local
+validation passes for `test_send_file_remote_success_and_command_construction`.
+
 #### `test_send_file_remote_success_and_command_construction`
 ```
 AssertionError: assert 'scp' == 'sshpass'
@@ -467,10 +472,10 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
-| 9 | `sshpass` not on Windows | 1 | ❌ Open | Skip marker |
+| 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
 | — | Needs `pytest -vv` | 10 | ❓ Unknown | Run targeted to diagnose |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation, capacity CSV encoding, and
-prepare_local_env self-update fixes. Then prioritize any still-failing Windows
-categories from the refreshed run.
+remaining count after the environment-isolation, capacity CSV encoding,
+prepare_local_env self-update, and sshpass test fixes. Then prioritize any
+still-failing Windows categories from the refreshed run.
