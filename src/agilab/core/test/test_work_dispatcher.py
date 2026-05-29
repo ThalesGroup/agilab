@@ -420,6 +420,18 @@ def test_make_chunks_optimal_and_fastest_real_paths():
     assert sum(len(chunk) for chunk in fastest) == 3
 
 
+def test_make_chunks_optimal_backtracks_without_deepcopy_or_input_mutation():
+    subsets = [("small", 1), ("large", 4), ("mid", 3), ("other", 2)]
+    original = list(subsets)
+
+    chunks = WorkDispatcher._make_chunks_optimal(subsets, np.array([1, 1]))
+
+    assert "deepcopy" not in WorkDispatcher._make_chunks_optimal.__code__.co_names
+    assert subsets == original
+    assert sorted(item for chunk in chunks for item in chunk) == sorted(original)
+    assert sorted(sum(weight for _name, weight in chunk) for chunk in chunks) == [5, 5]
+
+
 @pytest.mark.asyncio
 async def test_load_module_refuses_runtime_auto_install_by_default(monkeypatch, tmp_path):
     def fake_import(_name):
