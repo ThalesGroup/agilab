@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import shlex
 import uuid
 from pathlib import Path, PurePosixPath
 from shlex import quote
@@ -64,8 +65,15 @@ def _operator_command_prefix(value: Any) -> str:
     return f"{prefix} " if prefix else ""
 
 
+def _shell_words(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return " ".join(quote(part) for part in shlex.split(text, posix=True))
+
+
 def _remote_tool(prefix: Any, executable: Any) -> str:
-    return _operator_command_prefix(prefix) + quote(str(executable))
+    return _operator_command_prefix(prefix) + _shell_words(executable)
 
 
 def _remote_arg(value: Any) -> str:
@@ -356,7 +364,7 @@ async def _remote_project_has_pip(
         )
     except ConnectionError:
         raise
-    except _REMOTE_COMMAND_EXCEPTIONS:
+    except Exception:
         return False
     return True
 

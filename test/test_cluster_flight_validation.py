@@ -534,6 +534,8 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     script = "\n".join(cfv.share_setup_script_lines(plan, "sshfs", local_user="agi"))
 
     assert "sshfs" in script
+    assert 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; ' in script
+    assert "command -v sshfs" in script
     assert "agi@192.168.3.103:/Users/agi/clustershare/agilab-two-node" in script
     assert "jpm@192.168.3.35" in script
     assert "-o reconnect" in script
@@ -610,10 +612,12 @@ def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monke
     ]
     assert summaries[2].path == "/Users/jpm/.agilab/.env"
     assert commands[0][:4] == ["ssh", "-o", "BatchMode=yes", "jpm@192.168.3.35"]
+    assert commands[0][-1].startswith('export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; ')
     assert "command -v sshfs" in commands[0][-1]
     assert "AGI_CLUSTER_SHARE" in commands[1][-1]
     assert "mkdir -p \"$REMOTE_CLUSTER_SHARE\"" in commands[2][-1]
     assert "SCHEDULER_CLUSTER_SHARE=agi@192.168.3.103:" in commands[3][-1]
+    assert commands[3][-1].startswith('export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; ')
     assert "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in commands[3][-1]
     assert "-o reconnect" in commands[3][-1]
     assert "-o ServerAliveInterval=15" in commands[3][-1]
