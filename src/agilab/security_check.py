@@ -22,6 +22,7 @@ HEX_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 LOCAL_HOSTS = {"", "127.0.0.1", "localhost", "::1"}
 EXPOSED_HOSTS = {"0.0.0.0", "::"}
 PUBLIC_BIND_OK_ENV = "AGILAB_PUBLIC_BIND_OK"
+PUBLIC_BIND_EVIDENCE_ENV = "AGILAB_PUBLIC_BIND_EVIDENCE"
 APPS_ALLOWLIST_ENV = "AGILAB_APPS_REPOSITORY_ALLOWLIST"
 APPS_ALLOWLIST_FILE_ENV = "AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE"
 PLACEHOLDER_SECRET_VALUES = {
@@ -431,7 +432,40 @@ def _streamlit_config_address(home: Path) -> str | None:
     return str(value).strip() if value is not None else None
 
 
-def _check_ui_exposure(config: Mapping[str, str], *, home: Path, profile: str = "local") -> Check:
+def _public_bind_evidence_state(
+    config: Mapping[str, str],
+    *,
+    cwd: Path,
+) -> dict[str, Any]:
+    raw_path = str(config.get(PUBLIC_BIND_EVIDENCE_ENV) or "").strip()
+    if not raw_path:
+        return {
+            "configured": False,
+            "path": None,
+            "exists": False,
+            "non_empty": False,
+            "valid": False,
+        }
+    path = _resolve_path(raw_path, cwd=cwd)
+    exists = bool(path and path.is_file())
+    size_bytes = path.stat().st_size if exists and path else 0
+    return {
+        "configured": True,
+        "path": str(path) if path else raw_path,
+        "exists": exists,
+        "non_empty": size_bytes > 0,
+        "valid": exists and size_bytes > 0,
+        "size_bytes": size_bytes if exists else None,
+    }
+
+
+def _check_ui_exposure(
+    config: Mapping[str, str],
+    *,
+    home: Path,
+    cwd: Path | None = None,
+    profile: str = "local",
+) -> Check:
     host = (
         config.get("STREAMLIT_SERVER_ADDRESS")
         or config.get("AGILAB_UI_HOST")
@@ -459,13 +493,33 @@ def _check_ui_exposure(config: Mapping[str, str], *, home: Path, profile: str = 
         )
     )
     if public_bind_ok and auth_or_tls:
+        evidence = _public_bind_evidence_state(config, cwd=cwd or home)
+        details = {
+            "host": host,
+            "public_bind_ok": True,
+            "auth_or_tls_indicator": True,
+            "public_bind_evidence": evidence,
+        }
+        if _is_hardening_profile(profile) and not evidence["valid"]:
+            return Check(
+                "ui_network_exposure",
+                "UI network exposure",
+                "fail",
+                "UI public-bind controls are declared without a reviewed evidence artifact.",
+                (
+                    "Keep public binds behind verified auth/TLS/network controls, then set "
+                    f"{PUBLIC_BIND_EVIDENCE_ENV} to a non-empty evidence file before passing "
+                    "the shared/public adoption gate."
+                ),
+                details,
+            )
         return Check(
             "ui_network_exposure",
             "UI network exposure",
             "pass",
             "UI binds publicly with explicit public-bind acknowledgement and auth/TLS indicator.",
-            "Verify the front-end control is actually enforced before exposing sensitive data.",
-            {"host": host, "public_bind_ok": True, "auth_or_tls_indicator": True},
+            "Keep the front-end control evidence current before exposing sensitive data.",
+            details,
         )
     return Check(
         "ui_network_exposure",
@@ -652,7 +706,7 @@ def build_report(
         _check_apps_repository(config, cwd=cwd, profile=profile),
         _check_persisted_secrets(env_file, env_file_values, profile=profile),
         _check_cluster_share(config, cwd=cwd, profile=profile),
-        _check_ui_exposure(config, home=home, profile=profile),
+        _check_ui_exposure(config, home=home, cwd=cwd, profile=profile),
         _check_generated_code_execution(config, profile=profile),
         _check_optional_profiles(config, profile=profile),
         _check_supply_chain_artifacts(

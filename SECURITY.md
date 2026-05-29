@@ -83,21 +83,24 @@ distributed runs, and optionally start UI, tracking, or local-model tooling. Tre
 notebook, generated snippet, and external apps repository as executable code until it has been
 reviewed.
 
-Recommended use without additional platform hardening:
+Go for controlled local use without additional platform hardening:
 
 - Local research sandbox, notebook-to-app migration, reproducible experiment replay, and internal
   demonstrations with non-sensitive data.
 - Single-operator or controlled lab environments where the operator owns the apps, dependencies,
   datasets, secrets, and worker machines.
 
-Conditional use only after hardening:
+Go for hardened shared/team use when the hardening gate passes:
 
 - Shared team deployments, internal clusters, local/remote LLM use, or external apps repositories.
-- Minimum controls: per-user isolation, a dedicated OS user or equivalent workspace boundary,
-  restricted outbound network access where appropriate, bounded CPU/RAM, reviewed app code,
-  scanned dependencies, controlled logs, and secrets supplied outside repository or command-line
-  arguments. Reserve container/VM boundaries for untrusted apps, shared sensitive deployments, or
-  advanced raw-Python execution paths that need stronger isolation.
+- Minimum controls: a clean strict ``agilab security-check`` report for the target profile,
+  profile-specific SBOM and ``pip-audit`` evidence, per-user isolation, a dedicated OS user
+  or equivalent workspace boundary, restricted outbound network access where appropriate,
+  bounded CPU/RAM, reviewed app code, pinned and allowlisted external apps, controlled logs,
+  and secrets supplied outside repository or command-line arguments. Reserve container/VM
+  boundaries for untrusted apps, shared sensitive deployments, or advanced raw-Python execution
+  paths that need stronger isolation. For public UI binds, archive a reviewed
+  ``AGILAB_PUBLIC_BIND_EVIDENCE`` artifact proving the external auth/TLS/network control.
 
 Not recommended as-is:
 
@@ -117,6 +120,8 @@ organization's security requirements in mind. At minimum:
   workspace, dedicated UID, no default access to personal secrets, CPU/RAM quotas, and restricted
   network egress.
 - Run behind HTTPS and limit inbound network access to trusted operators.
+- For public Streamlit binds, set ``AGILAB_PUBLIC_BIND_EVIDENCE`` to a non-empty reviewed
+  artifact that records the reverse proxy, SSO/auth, TLS termination, and network ACL evidence.
 - Store API keys, model weights, and datasets outside of the repository, using a dedicated secrets
   manager where possible.
 - Rotate credentials regularly and prefer short-lived access tokens to static passwords.

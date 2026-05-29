@@ -36,18 +36,20 @@ repositories as executable code until they have been reviewed.
    * - Decision
      - Fit
      - Minimum controls
-   * - Go for controlled evaluation
+   * - Go for controlled local use
      - Local research sandbox, internal demo, notebook-to-app migration, and
        reproducible validation with non-sensitive data.
      - Normal repository hygiene, one local first proof, and evidence under
        ``~/log/execute``.
-   * - Go conditionally for shared teams
+   * - Go for hardened shared/team use
      - Shared workstation, internal cluster, external apps repository, LLM
-       connector, or sensitive business data.
-     - Per-user isolation, explicit secrets management, TLS/auth for exposed
+       connector, local/offline LLM, or sensitive internal data when the
+       hardening gate passes.
+     - Clean strict ``agilab security-check`` report for the target profile,
+       per-user isolation, explicit secrets management, TLS/auth for exposed
        services, app-repository allowlist and immutable pinning, SBOM plus
-       vulnerability scan evidence, bounded resources, and a deployment threat
-       model.
+       vulnerability scan evidence for the deployed install profile, bounded
+       resources, and a deployment threat model.
    * - No-go as a standalone production platform
      - Public Streamlit exposure, open multi-tenant service, regulated
        production model serving, enterprise governance, online monitoring,
@@ -59,7 +61,9 @@ Operational checks
 ------------------
 
 Before moving beyond a single-user proof, archive the profile-specific security
-and supply-chain evidence for the environment you will actually deploy:
+and supply-chain evidence for the environment you will actually deploy. Treat a
+clean strict report plus profile-specific SBOM and vulnerability evidence as
+the documented go gate for hardened shared/team use:
 
 .. code-block:: bash
 

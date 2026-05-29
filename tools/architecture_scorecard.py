@@ -14,8 +14,8 @@ SCHEMA = "agilab.architecture_scorecard.v1"
 HARDENING_GAPS_SCHEMA = "agilab.architecture_hardening_gaps.v1"
 SUPPORTED_SCORE = "4.7 / 5"
 SCORE_SCOPE = (
-    "Excellent evidence-first workbench architecture; conditional for shared "
-    "or multi-tenant production use."
+    "Excellent evidence-first workbench architecture; hardened shared/team use is go "
+    "when explicit gates pass; multi-tenant production use remains outside the current score."
 )
 
 
@@ -243,8 +243,8 @@ def _check_claim_boundary(repo_root: Path) -> dict[str, Any]:
                 "self-assessment",
                 "not a production MLOps certification",
                 "not a multi-tenant production platform score",
-                "conditional for shared or",
-                "multi-tenant production use",
+                "hardened shared/team use is go",
+                "use remains outside this score",
             ],
             "docs/source/agilab-mlops-positioning.rst": [
                 "not as a production MLOps platform",

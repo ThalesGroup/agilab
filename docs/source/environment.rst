@@ -181,6 +181,12 @@ rather than shown as one of the workflow pages.
        ``AGILAB_AUTH_REQUIRED``, ``AGILAB_PUBLIC_AUTH``,
        ``AGILAB_TLS_TERMINATED``, or ``STREAMLIT_AUTH_REQUIRED`` so accidental
        public exposure fails closed.
+   * - ``AGILAB_PUBLIC_BIND_EVIDENCE``
+     - unset
+     - Optional path to a non-empty reviewed public-bind evidence artifact.
+       Shared/public security-check profiles require this when the UI binds to
+       ``0.0.0.0`` or ``::`` with public-bind controls declared. Record the
+       reverse proxy, SSO/auth, TLS termination, network ACL, reviewer, and date.
    * - ``AGILAB_GENERATED_CODE_SANDBOX``
      - unset
      - Required only for the advanced raw-Python WORKFLOW auto-fix path.

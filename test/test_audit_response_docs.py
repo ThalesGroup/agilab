@@ -119,8 +119,9 @@ def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     security = Path("SECURITY.md").read_text(encoding="utf-8")
 
     assert "trusted-operator experimentation workbench" in security
-    assert "Recommended use without additional platform hardening" in security
-    assert "Conditional use only after hardening" in security
+    assert "Go for controlled local use without additional platform hardening" in security
+    assert "Go for hardened shared/team use when the hardening gate passes" in security
+    assert "clean strict ``agilab security-check`` report" in security
     assert "Not recommended as-is" in security
     assert "public exposure without authentication, TLS, and sandboxing" in security
     assert "Multi-tenant service use" in security
@@ -191,6 +192,18 @@ def test_quick_start_documents_security_adoption_checkpoint() -> None:
     assert "security-check.json" in security_adoption
     assert "security-check --profile shared" in security_adoption
     assert "AGILAB_SECURITY_CHECK_STRICT=1" in security_adoption
+
+
+def test_trusted_shared_deployment_page_documents_go_gate_artifacts() -> None:
+    page = (DOCS_SOURCE / "trusted-shared-deployment.rst").read_text(encoding="utf-8")
+    index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
+
+    assert "Trusted shared deployment" in page
+    assert "shared_go_gate.json" in page
+    assert "tools/shared_go_gate.py" in page
+    assert "AGILAB_PUBLIC_BIND_EVIDENCE" in page
+    assert "cluster_flight_validation.py --discover-lan" in page
+    assert "trusted-shared-deployment" in index
 
 
 def test_readme_uses_recommended_workbench_positioning() -> None:

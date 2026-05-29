@@ -553,8 +553,8 @@ Why now:
 
 ### Priority 5. Security and shared-use hardening
 
-Keep controlled local R&D easy, but make shared-team use conditional on explicit
-controls.
+Keep controlled local R&D easy, but make hardened shared-team use a clear go
+path when explicit controls pass.
 
 Acceptance gate:
 

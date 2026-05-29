@@ -9,6 +9,7 @@ from typing import Callable, Mapping
 EXPOSED_UI_HOSTS = {"0.0.0.0", "::"}
 DEFAULT_STREAMLIT_HOST = "127.0.0.1"
 PUBLIC_BIND_OK_ENV = "AGILAB_PUBLIC_BIND_OK"
+PUBLIC_BIND_EVIDENCE_ENV = "AGILAB_PUBLIC_BIND_EVIDENCE"
 PUBLIC_BIND_CONTROL_ENVS = (
     "AGILAB_AUTH_REQUIRED",
     "AGILAB_PUBLIC_AUTH",
@@ -59,7 +60,8 @@ def public_bind_error_message(host: str) -> str:
     return (
         f"AGILAB refuses to bind the Streamlit UI publicly on {host!r} without explicit protection. "
         "Use the default 127.0.0.1 bind, or set AGILAB_PUBLIC_BIND_OK=1 together with "
-        "an auth/TLS indicator such as AGILAB_TLS_TERMINATED=1."
+        "an auth/TLS indicator such as AGILAB_TLS_TERMINATED=1. For shared/public deployments, "
+        "also archive AGILAB_PUBLIC_BIND_EVIDENCE for the security-check gate."
     )
 
 

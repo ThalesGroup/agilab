@@ -116,6 +116,7 @@ def test_public_bind_guard_or_stop_reports_error_before_stopping():
 
     assert FakeStreamlit.errors
     assert "AGILAB refuses to bind" in FakeStreamlit.errors[0]
+    assert "AGILAB_PUBLIC_BIND_EVIDENCE" in FakeStreamlit.errors[0]
     assert FakeStreamlit.stopped is True
 
 

@@ -35,6 +35,11 @@ SSHFS_INSTALL_HINT = (
     "Install sshfs first: Debian/Ubuntu: sudo apt-get install -y sshfs; "
     "macOS: install macFUSE/FUSE-T SSHFS and ensure sshfs is visible to non-interactive SSH."
 )
+SCHEDULER_SSH_HINT = (
+    "Scheduler SSH is not reachable from the worker. Enable SSH on the scheduler/manager, "
+    "install the worker public key on the scheduler, and verify ssh <scheduler> from the worker "
+    "before mounting AGI_CLUSTER_SHARE with SSHFS."
+)
 SSHFS_OPTIONS = (
     "reconnect",
     "ServerAliveInterval=15",
@@ -43,7 +48,7 @@ SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
-REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
+REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 
 
 @dataclass(frozen=True)
@@ -767,8 +772,11 @@ def _remote_share_setup_commands(
     )
     mount_command = (
         REMOTE_PATH_PREFIX
+        + f"SCHEDULER_SSH_TARGET={shlex.quote(scheduler_target)}; "
         + f"SCHEDULER_CLUSTER_SHARE={shlex.quote(source)}; REMOTE_CLUSTER_SHARE="
         + remote_assignment
+        + '; if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
+        + f"printf '%s\\n' {shlex.quote(SCHEDULER_SSH_HINT)} >&2; exit 71; fi"
         + '; MOUNT_LINE=$(mount | grep -F -- "$REMOTE_CLUSTER_SHARE" || true); '
         + 'if [ -n "$MOUNT_LINE" ]; then '
         + 'if printf \'%s\\n\' "$MOUNT_LINE" | grep -F -- "$SCHEDULER_CLUSTER_SHARE" >/dev/null 2>&1 '

@@ -233,6 +233,39 @@ def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     assert exposure_check.details["auth_or_tls_indicator"] is True
 
 
+def test_shared_public_bind_requires_reviewed_evidence_artifact(tmp_path: Path):
+    streamlit_config = tmp_path / ".streamlit" / "config.toml"
+    streamlit_config.parent.mkdir()
+    streamlit_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
+
+    missing_evidence = security_check._check_ui_exposure(
+        {"AGILAB_PUBLIC_BIND_OK": "1", "AGILAB_AUTH_REQUIRED": "yes"},
+        home=tmp_path,
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert missing_evidence.status == "fail"
+    assert "evidence artifact" in missing_evidence.summary
+    assert missing_evidence.details["public_bind_evidence"]["valid"] is False
+
+    evidence = tmp_path / "public-bind-evidence.json"
+    evidence.write_text('{"reverse_proxy": "reviewed"}\n', encoding="utf-8")
+    with_evidence = security_check._check_ui_exposure(
+        {
+            "AGILAB_PUBLIC_BIND_OK": "1",
+            "AGILAB_AUTH_REQUIRED": "yes",
+            "AGILAB_PUBLIC_BIND_EVIDENCE": str(evidence),
+        },
+        home=tmp_path,
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert with_evidence.status == "pass"
+    assert with_evidence.details["public_bind_evidence"]["valid"] is True
+
+
 def test_cluster_share_reports_missing_unusable_and_world_writable_paths(tmp_path: Path):
     missing = security_check._check_cluster_share(
         {"AGI_WORKERS": "worker1"},
