@@ -2,8 +2,8 @@
 
 ## Video
 
-- Latest public video: https://youtu.be/BsBjRSAXJZA
-- YouTube Studio URL: https://studio.youtube.com/video/BsBjRSAXJZA
+- Latest public video: https://youtu.be/RQE0S6Wqt94
+- YouTube Studio URL: https://studio.youtube.com/video/RQE0S6Wqt94
 - Repository policy: keep only this lightweight upload pack in Git. Generated MP4, GIF, and poster outputs under `artifacts/demo_media/flight/` are local artifacts and are not stored in Git.
 - Duration: 19.87 seconds
 - Format: 1920x1080, 30 fps, premium H.264 video plus stereo AAC audio MP4
