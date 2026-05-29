@@ -526,14 +526,14 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     assert mount_cmd.startswith(
         'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
     )
-    assert 'ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in mount_cmd
+    assert 'ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in mount_cmd
     assert "Scheduler SSH is not reachable from the worker" in mount_cmd
     assert any(
-        'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE"' in cmd
+        'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE"' in cmd
         for cmd in ssh_calls
     )
     mount_cmd = next(
-        cmd for cmd in ssh_calls if 'sshfs "$SCHEDULER_CLUSTER_SHARE"' in cmd
+        cmd for cmd in ssh_calls if 'sshfs -p "$SCHEDULER_SSH_PORT"' in cmd
     )
     assert (
         'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; set -e;'
@@ -553,6 +553,65 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
         "agi@192.168.20.111:" in cmd and str(scheduler_share) in cmd
         for cmd in ssh_calls
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_honors_custom_scheduler_ssh_port(tmp_path):
+    scheduler_share = tmp_path / "scheduler-share"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={"AGILAB_SCHEDULER_SSH_PORT": "2222"},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.111"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _Agi(), "192.168.20.15", env, "clustershare"
+    )
+
+    mount_cmd = next(cmd for cmd in ssh_calls if "SCHEDULER_CLUSTER_SHARE" in cmd)
+    assert "SCHEDULER_SSH_PORT=2222" in mount_cmd
+    assert 'ssh -p "$SCHEDULER_SSH_PORT"' in mount_cmd
+    assert 'sshfs -p "$SCHEDULER_SSH_PORT"' in mount_cmd
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_accepts_premounted_remote_share_without_scheduler(tmp_path):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        envars={"AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED": "1"},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _AgiNoScheduler:
+        _scheduler_ip = ""
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _AgiNoScheduler(), "192.168.20.15", env, "clustershare"
+    )
+
+    assert len(ssh_calls) == 2
+    assert "AGI_CLUSTER_SHARE=" in ssh_calls[0]
+    assert "clustershare" in ssh_calls[0]
+    assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+    assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
+    assert "sshfs" not in "\n".join(ssh_calls)
 
 
 @pytest.mark.asyncio

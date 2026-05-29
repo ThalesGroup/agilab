@@ -31,6 +31,8 @@ def _args(**overrides):
         "scheduler": "192.168.3.103",
         "workers": "jpm@192.168.3.35:2",
         "remote_user": "",
+        "scheduler_ssh_port": 22,
+        "remote_cluster_share_premounted": False,
         "local_share": "localshare",
         "cluster_share": "",
         "remote_cluster_share": "clustershare",
@@ -102,6 +104,19 @@ def test_parse_args_requires_cluster_and_positive_rows():
                 "--workers",
                 "127.0.0.1",
                 "--rows-per-aircraft",
+                "0",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--scheduler-ssh-port",
                 "0",
             ]
         )
@@ -225,6 +240,8 @@ def test_build_validation_plan_makes_flight_paths_home_relative(tmp_path: Path):
     )
 
     assert plan.remote_user == "jpm"
+    assert plan.scheduler_ssh_port == 22
+    assert plan.remote_cluster_share_premounted is False
     assert plan.workers == {"192.168.3.35": 2}
     assert plan.local_dataset_dir == tmp_path / "localshare/flight_cluster_validation/dataset/csv"
     assert plan.dataset_rel_to_home == Path("localshare/flight_cluster_validation/dataset/csv")
@@ -536,7 +553,8 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     assert "sshfs" in script
     assert 'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; ' in script
     assert "command -v sshfs" in script
-    assert 'ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in script
+    assert 'ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in script
+    assert 'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE"' in script
     assert "Scheduler SSH is not reachable from the worker" in script
     assert "agi@192.168.3.103:/Users/agi/clustershare/agilab-two-node" in script
     assert "jpm@192.168.3.35" in script
@@ -620,13 +638,81 @@ def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monke
     assert "mkdir -p \"$REMOTE_CLUSTER_SHARE\"" in commands[2][-1]
     assert "SCHEDULER_CLUSTER_SHARE=agi@192.168.3.103:" in commands[3][-1]
     assert commands[3][-1].startswith('export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; ')
-    assert 'ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in commands[3][-1]
+    assert 'ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in commands[3][-1]
     assert "Scheduler SSH is not reachable from the worker" in commands[3][-1]
-    assert "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in commands[3][-1]
+    assert "sshfs -p \"$SCHEDULER_SSH_PORT\" \"$SCHEDULER_CLUSTER_SHARE\"" in commands[3][-1]
     assert "-o reconnect" in commands[3][-1]
     assert "-o ServerAliveInterval=15" in commands[3][-1]
     assert "-o StrictHostKeyChecking=yes" in commands[3][-1]
     assert "fusermount3 -u" in commands[3][-1]
+
+
+def test_share_setup_supports_custom_scheduler_port(tmp_path: Path):
+    plan = cfv.build_validation_plan(
+        _args(
+            scheduler="192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share="clustershare/agilab-two-node",
+            scheduler_ssh_port=2222,
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+
+    script = "\n".join(cfv.share_setup_script_lines(plan, "sshfs", local_user="agi"))
+
+    assert "SCHEDULER_SSH_PORT=2222" in script
+    assert 'ssh -p "$SCHEDULER_SSH_PORT"' in script
+    assert 'sshfs -p "$SCHEDULER_SSH_PORT"' in script
+    assert "--scheduler-ssh-port 2222" in script
+
+
+def test_apply_share_setup_verifies_premounted_share_without_sshfs(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    plan = cfv.build_validation_plan(
+        _args(
+            scheduler="192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share="clustershare/agilab-two-node",
+            remote_cluster_share="/mnt/agilab/shared",
+            remote_cluster_share_premounted=True,
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+    commands: list[list[str]] = []
+    responses = iter(
+        [
+            subprocess.CompletedProcess([], 0, stdout="/Users/jpm/.agilab/.env\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="/mnt/agilab/shared\n", stderr=""),
+        ]
+    )
+
+    def fake_run(argv, *, timeout=None):
+        commands.append(list(argv))
+        assert timeout == 17
+        return next(responses)
+
+    monkeypatch.setattr(cfv, "_run_command", fake_run)
+
+    summaries = cfv.apply_share_setup(plan, "sshfs", timeout=17, local_user="agi")
+    script = "\n".join(cfv.share_setup_script_lines(plan, "sshfs", local_user="agi"))
+
+    assert [summary.action for summary in summaries] == [
+        "mkdir",
+        "write-env",
+        "check-premounted",
+    ]
+    assert summaries[-1].path == "/mnt/agilab/shared"
+    assert all("sshfs" not in command[-1] for command in commands)
+    assert "Pre-mounted AGILAB cluster share" in commands[1][-1]
+    assert "AGILAB cluster-share verification using pre-mounted remote shares" in script
+    assert "command -v sshfs" not in script
+    assert "SCHEDULER_CLUSTER_SHARE" not in script
+    assert "--remote-cluster-share-premounted" in script
 
 
 def test_validation_success_requires_local_visibility_for_remote_runs():

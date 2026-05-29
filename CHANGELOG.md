@@ -23,6 +23,12 @@ publication, or evidence refreshes on an already published date version.
   external app users, and contributors.
 - Expanded app template READMEs so new projects have concrete copy, rename,
   first-run, and validation guidance instead of placeholder titles.
+- Added cluster validation support for pre-mounted remote worker shares and
+  custom scheduler SSH ports, so site-managed mounts and non-default SSH
+  daemons no longer block official cluster checks.
+- Constrained `py7zr` and `pydantic` below newly incompatible package surfaces
+  that broke dataset extraction and worker validation imports during cluster
+  install validation.
 
 ### Changed
 

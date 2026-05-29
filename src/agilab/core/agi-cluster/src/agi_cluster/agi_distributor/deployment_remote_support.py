@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import shlex
 import uuid
@@ -62,6 +63,53 @@ def _remote_share_assignment(value: str) -> str:
     if PurePosixPath(cleaned).is_absolute():
         return quote(cleaned)
     return '"$HOME"/' + quote(cleaned)
+
+
+def _env_lookup(env: Any, *names: str) -> str | None:
+    for name in names:
+        value = getattr(env, name, None)
+        if value not in (None, ""):
+            return str(value)
+    envars = getattr(env, "envars", None)
+    if isinstance(envars, dict):
+        for name in names:
+            value = envars.get(name)
+            if value not in (None, ""):
+                return str(value)
+    for name in names:
+        value = os.environ.get(name)
+        if value not in (None, ""):
+            return str(value)
+    return None
+
+
+def _truthy_env(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _scheduler_ssh_port(env: Any) -> int:
+    raw = _env_lookup(env, "AGILAB_SCHEDULER_SSH_PORT", "SCHEDULER_SSH_PORT", "scheduler_ssh_port")
+    if raw in (None, ""):
+        return 22
+    try:
+        port = int(str(raw).strip())
+    except ValueError as exc:
+        raise ValueError(f"Invalid scheduler SSH port: {raw!r}") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError(f"Invalid scheduler SSH port: {port!r}")
+    return port
+
+
+def _remote_cluster_share_premounted(env: Any) -> bool:
+    return _truthy_env(
+        _env_lookup(
+            env,
+            "AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED",
+            "AGILAB_PREMOUNTED_REMOTE_CLUSTER_SHARE",
+            "AGILAB_CLUSTER_SHARE_PREMOUNTED",
+            "remote_cluster_share_premounted",
+        )
+    )
 
 
 def _sshfs_options_args() -> str:
@@ -161,6 +209,7 @@ def _remote_env_update_command(remote_share: str) -> str:
 def _remote_share_mount_command(
     *,
     scheduler_target: str,
+    scheduler_ssh_port: int,
     local_share: Path,
     remote_share: str,
 ) -> str:
@@ -174,7 +223,8 @@ def _remote_share_mount_command(
         f"printf '%s\\n' {quote(_SSHFS_INSTALL_HINT)} >&2; exit 70; "
         "fi; "
         f"SCHEDULER_SSH_TARGET={quote(scheduler_target)}; "
-        'if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
+        f"SCHEDULER_SSH_PORT={quote(str(scheduler_ssh_port))}; "
+        'if ! ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
         f"printf '%s\\n' {quote(_SCHEDULER_SSH_HINT)} >&2; exit 71; "
         "fi; "
         "REMOTE_CLUSTER_SHARE=" + _remote_share_assignment(remote_share) + "; "
@@ -189,12 +239,25 @@ def _remote_share_mount_command(
         'echo "stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting" >&2; '
         + unmount_snippet
         + "; "
-        f'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
+        f'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
         "fi; "
         "else "
-        f'sshfs "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
+        f'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE" "$REMOTE_CLUSTER_SHARE" {sshfs_options}; '
         "fi; "
         'test -d "$REMOTE_CLUSTER_SHARE" && test -w "$REMOTE_CLUSTER_SHARE"'
+    )
+
+
+def _remote_share_premounted_check_command(remote_share: str) -> str:
+    return (
+        _REMOTE_PATH_PREFIX
+        + "set -e; "
+        + "REMOTE_CLUSTER_SHARE=" + _remote_share_assignment(remote_share) + "; "
+        + "if [ ! -d \"$REMOTE_CLUSTER_SHARE\" ] || [ ! -w \"$REMOTE_CLUSTER_SHARE\" ]; then "
+        + "printf '%s\\n' 'Pre-mounted AGILAB cluster share is not visible or writable on the remote worker.' >&2; "
+        + "exit 72; "
+        + "fi; "
+        + 'printf "%s\\n" "$REMOTE_CLUSTER_SHARE"'
     )
 
 
@@ -218,16 +281,27 @@ async def _prepare_remote_cluster_share(
     local_share = _resolve_local_share_path(local_share_raw, env)
     local_share.mkdir(parents=True, exist_ok=True)
 
+    remote_share_setting = _home_relative_share_setting(remote_share, env)
+    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
+    if _remote_cluster_share_premounted(env):
+        if getattr(env, "verbose", 0) > 0:
+            log.info(
+                "Using pre-mounted AGILAB cluster share on remote worker %s at %s",
+                ip,
+                remote_share_setting,
+            )
+        await agi_cls.exec_ssh(ip, _remote_share_premounted_check_command(remote_share_setting))
+        return
+
     scheduler_target = _scheduler_ssh_target(agi_cls, env)
     if not scheduler_target:
         raise RuntimeError(
             "Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown."
         )
 
-    remote_share_setting = _home_relative_share_setting(remote_share, env)
-    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
     mount_cmd = _remote_share_mount_command(
         scheduler_target=scheduler_target,
+        scheduler_ssh_port=_scheduler_ssh_port(env),
         local_share=local_share,
         remote_share=remote_share_setting,
     )

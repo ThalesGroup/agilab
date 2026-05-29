@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-28
+  updated: 2026-05-29
 ---
 
 # Testing Skill (AGILAB)
@@ -82,8 +82,23 @@ Use this skill when validating changes.
     `uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py --discover-lan --remote-user <user> --json --no-discovery-cache`.
     If discovery reports a remembered host as `no-ssh-port`, treat that host as
     stale and pick the current ready node instead.
+  - When scheduler SSH on port 22 is closed but a managed scheduler SSH daemon is
+    available on another port, validate the official path with
+    `--scheduler-ssh-port <port>`. The share setup and full cluster doctor should
+    both use the same port so worker-to-scheduler SSHFS is tested exactly as
+    runtime uses it.
+  - When using `--remote-cluster-share-premounted`, do not accept “remote path is
+    writable” as proof of a cluster share. The sentinel check must pass: a marker
+    written under the scheduler cluster share must be visible from every worker
+    through its configured remote cluster share.
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
+  - If cluster validation reaches worker attach but then fails inside local or
+    remote worker imports, inspect generated worker environments before changing
+    app logic. A zero-byte or partially installed dependency module in `~/wenv`
+    is an environment corruption/dependency-drift signal; clear the generated
+    worker venv and rerun from the refreshed lock before treating it as a code
+    regression.
   - For scheduler/worker inventory UI, cover mixed-node summaries: local scheduler
     values, reachable remote worker values, and unreachable-node counters should be
     derived from the same probe result model instead of hand-built display strings.

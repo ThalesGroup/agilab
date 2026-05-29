@@ -70,6 +70,8 @@ class ValidationPlan:
     workers: dict[str, int]
     worker_specs: tuple[WorkerSpec, ...]
     remote_user: str
+    scheduler_ssh_port: int
+    remote_cluster_share_premounted: bool
     local_share_setting: str
     local_cluster_share_setting: str
     remote_cluster_share_setting: str
@@ -145,6 +147,21 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--remote-user", default="", help="SSH user when not embedded in --workers.")
+    parser.add_argument(
+        "--scheduler-ssh-port",
+        type=int,
+        default=22,
+        help="SSH port workers use to reach the scheduler/manager for SSHFS share mounts.",
+    )
+    parser.add_argument(
+        "--remote-cluster-share-premounted",
+        "--pre-mounted-remote-cluster-share",
+        action="store_true",
+        help=(
+            "Assume AGI_CLUSTER_SHARE is already mounted on remote workers; verify visibility "
+            "instead of mounting with SSHFS."
+        ),
+    )
     parser.add_argument("--ssh-key", default="", help="Optional SSH private key path for AGI.")
     parser.add_argument("--app", default=DEFAULT_APP, help=f"App name. Default: {DEFAULT_APP}.")
     parser.add_argument(
@@ -294,6 +311,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("--workers is required unless --discover-lan is used")
     if args.rows_per_aircraft <= 0:
         parser.error("--rows-per-aircraft must be positive")
+    if not 1 <= int(args.scheduler_ssh_port) <= 65535:
+        parser.error("--scheduler-ssh-port must be between 1 and 65535")
     if args.discovery_limit <= 0:
         parser.error("--discovery-limit must be positive")
     if args.discovery_timeout <= 0:
@@ -490,6 +509,8 @@ def build_validation_plan(
         workers=build_workers_map(args.scheduler, specs),
         worker_specs=tuple(specs),
         remote_user=remote_user,
+        scheduler_ssh_port=int(args.scheduler_ssh_port),
+        remote_cluster_share_premounted=bool(args.remote_cluster_share_premounted),
         local_share_setting=local_share_setting,
         local_cluster_share_setting=local_cluster_share_setting,
         remote_cluster_share_setting=str(args.remote_cluster_share or "clustershare"),
@@ -706,6 +727,10 @@ def _share_check_command(plan: ValidationPlan) -> str:
         plan.remote_cluster_share_setting,
         "--share-check-only",
     ]
+    if plan.scheduler_ssh_port != 22:
+        parts.extend(["--scheduler-ssh-port", str(plan.scheduler_ssh_port)])
+    if plan.remote_cluster_share_premounted:
+        parts.append("--remote-cluster-share-premounted")
     return " ".join(shlex.quote(part) for part in parts)
 
 
@@ -747,6 +772,18 @@ def _remote_share_unmount_snippet() -> str:
     )
 
 
+def _remote_share_premounted_check_command(plan: ValidationPlan) -> str:
+    return (
+        REMOTE_PATH_PREFIX
+        + "REMOTE_CLUSTER_SHARE="
+        + _remote_share_assignment(plan.remote_cluster_share_setting)
+        + '; if [ ! -d "$REMOTE_CLUSTER_SHARE" ] || [ ! -w "$REMOTE_CLUSTER_SHARE" ]; then '
+        + "printf '%s\\n' 'Pre-mounted AGILAB cluster share is not visible or writable on the remote worker.' >&2; "
+        + "exit 72; fi; "
+        + 'printf "%s\\n" "$REMOTE_CLUSTER_SHARE"'
+    )
+
+
 def _remote_share_setup_commands(
     plan: ValidationPlan,
     *,
@@ -773,9 +810,10 @@ def _remote_share_setup_commands(
     mount_command = (
         REMOTE_PATH_PREFIX
         + f"SCHEDULER_SSH_TARGET={shlex.quote(scheduler_target)}; "
+        + f"SCHEDULER_SSH_PORT={shlex.quote(str(plan.scheduler_ssh_port))}; "
         + f"SCHEDULER_CLUSTER_SHARE={shlex.quote(source)}; REMOTE_CLUSTER_SHARE="
         + remote_assignment
-        + '; if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
+        + '; if ! ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
         + f"printf '%s\\n' {shlex.quote(SCHEDULER_SSH_HINT)} >&2; exit 71; fi"
         + '; MOUNT_LINE=$(mount | grep -F -- "$REMOTE_CLUSTER_SHARE" || true); '
         + 'if [ -n "$MOUNT_LINE" ]; then '
@@ -785,9 +823,9 @@ def _remote_share_setup_commands(
         + 'echo "stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting" >&2; '
         + unmount_snippet
         + "; "
-        + 'sshfs "$SCHEDULER_CLUSTER_SHARE" '
+        + 'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE" '
         + f'"$REMOTE_CLUSTER_SHARE" {sshfs_options}; fi; else '
-        + 'sshfs "$SCHEDULER_CLUSTER_SHARE" '
+        + 'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE" '
         + f'"$REMOTE_CLUSTER_SHARE" {sshfs_options}; fi'
     )
     return sshfs_check_command, mkdir_command, mount_command
@@ -810,6 +848,26 @@ def share_setup_script_lines(
         "set -euo pipefail",
         f"mkdir -p {shlex.quote(str(local_root))}",
     ]
+    if plan.remote_cluster_share_premounted:
+        lines[0] = "# AGILAB cluster-share verification using pre-mounted remote shares"
+        lines[2] = "# Remote workers must already expose the same shared storage at AGI_CLUSTER_SHARE."
+        for spec in remote_worker_specs(plan):
+            target = _ssh_target(spec, plan)
+            lines.extend(
+                [
+                    f"# Worker {target}",
+                    f"ssh {shlex.quote(target)} {shlex.quote(_remote_env_update_command(plan))}",
+                    f"ssh {shlex.quote(target)} {shlex.quote(_remote_share_premounted_check_command(plan))}",
+                ]
+            )
+        lines.extend(
+            [
+                "# Validate without running Flight install/compute:",
+                _share_check_command(plan),
+            ]
+        )
+        return tuple(lines)
+
     for spec in remote_worker_specs(plan):
         target = _ssh_target(spec, plan)
         sshfs_check_command, mkdir_command, mount_command = _remote_share_setup_commands(
@@ -850,6 +908,22 @@ def apply_share_setup(
     summaries = [
         ShareSetupSummary(location="local", action="mkdir", path=str(local_root)),
     ]
+    if plan.remote_cluster_share_premounted:
+        for spec in remote_worker_specs(plan):
+            target = _ssh_target(spec, plan)
+            completed = _run_command(_ssh_argv(target, _remote_env_update_command(plan)), timeout=timeout)
+            env_path = (completed.stdout.strip().splitlines() or [""])[-1]
+            summaries.append(ShareSetupSummary(location=target, action="write-env", path=env_path))
+            completed = _run_command(
+                _ssh_argv(target, _remote_share_premounted_check_command(plan)),
+                timeout=timeout,
+            )
+            share_path = (completed.stdout.strip().splitlines() or [plan.remote_cluster_share_setting])[-1]
+            summaries.append(
+                ShareSetupSummary(location=target, action="check-premounted", path=share_path)
+            )
+        return tuple(summaries)
+
     for spec in remote_worker_specs(plan):
         target = _ssh_target(spec, plan)
         sshfs_check_command, mkdir_command, mount_command = _remote_share_setup_commands(
@@ -1110,6 +1184,11 @@ def _configure_process_env(plan: ValidationPlan) -> None:
     os.environ["AGI_CLUSTER_ENABLED"] = "1"
     os.environ["AGI_LOCAL_SHARE"] = plan.local_share_setting
     os.environ["AGI_CLUSTER_SHARE"] = plan.local_cluster_share_setting
+    os.environ["AGILAB_SCHEDULER_SSH_PORT"] = str(plan.scheduler_ssh_port)
+    if plan.remote_cluster_share_premounted:
+        os.environ["AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED"] = "1"
+    else:
+        os.environ.pop("AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED", None)
 
 
 def _reset_agi_state(agi_cls: Any) -> None:
@@ -1150,6 +1229,13 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     env = AgiEnv(apps_path=plan.apps_path, app=plan.app, verbose=args.verbose)
     env.user = plan.remote_user
     env.password = None
+    env.scheduler_ssh_port = plan.scheduler_ssh_port
+    env.remote_cluster_share_premounted = plan.remote_cluster_share_premounted
+    if not isinstance(getattr(env, "envars", None), dict):
+        env.envars = {}
+    env.envars["AGILAB_SCHEDULER_SSH_PORT"] = str(plan.scheduler_ssh_port)
+    if plan.remote_cluster_share_premounted:
+        env.envars["AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED"] = "1"
     if args.ssh_key:
         env.ssh_key_path = str(Path(args.ssh_key).expanduser())
 
@@ -1196,10 +1282,12 @@ def _print_plan(plan: ValidationPlan, files: Sequence[Path]) -> None:
     print(f"  scheduler: {plan.scheduler}")
     print(f"  workers: {plan.workers}")
     print(f"  ssh user: {plan.remote_user}")
+    print(f"  scheduler ssh port: {plan.scheduler_ssh_port}")
     print(f"  local input: {plan.local_dataset_dir}")
     print(f"  remote input: $HOME/{plan.dataset_rel_to_home.as_posix()}")
     print(f"  local cluster share: {plan.local_cluster_share_setting}")
     print(f"  remote cluster share: {plan.remote_cluster_share_setting}")
+    print(f"  remote cluster share pre-mounted: {plan.remote_cluster_share_premounted}")
     print(f"  output rel: {plan.output_rel.as_posix()}")
     print("  cluster share contract: remote workers must see the local sentinel and local must see outputs")
     if files:

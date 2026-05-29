@@ -36,7 +36,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Hugging Face Spaces Skill (AGILAB) Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space. The current source of truth is the sibling apps/docs checkout, normally `../thales_agilab` relative to the public `agilab` checkout:
 - agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-28
+  updated: 2026-05-29
   preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
 - agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -68,7 +68,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-28
+  updated: 2026-05-29
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. ## Philosophy - For non-trivial diffs, start with
 - agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
