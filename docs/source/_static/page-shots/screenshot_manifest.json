@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-05-29T09:20:15Z",
+  "created_at": "2026-05-29T09:30:49Z",
   "kind": "agilab.screenshot_manifest",
   "root": "../thales_agilab/docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -8,13 +8,13 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 910,
       "image_path": "analysis-page.png",
       "page": "analysis",
       "project": "",
-      "sha256": "59b75ee8cd208bbd3a432f4045a67ab7b4e99cced4b565651dfea53afc973be4",
-      "size_bytes": 229088,
+      "sha256": "b13d0613f5428ab4661a9b5115dd4c8d6819c43c813e3a4868b625c0a93bc0c6",
+      "size_bytes": 216711,
       "source_command": [
         "python",
         "tools/generate_screenshot_manifest.py",
@@ -29,13 +29,13 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 1310,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
       "project": "",
-      "sha256": "0bc004234fac7e3916eef918edc4cdee05438fb028ad6426c306d019ca36168a",
-      "size_bytes": 643024,
+      "sha256": "14b1fe74e05d0db03ed897906e413f965fb1cf42463ad41209ec369036eb1415",
+      "size_bytes": 589930,
       "source_command": [
         "python",
         "tools/generate_screenshot_manifest.py",
@@ -50,13 +50,13 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 910,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
       "project": "",
-      "sha256": "521513f15ffe13e616f2fbf843e9ab391aaabf2a09d74b13d9b72277d0608ce6",
-      "size_bytes": 385945,
+      "sha256": "a34091eee6ecfb059e3d5dc33235f415a9718dc9f808d01beeb3c48b9df7ee27",
+      "size_bytes": 365616,
       "source_command": [
         "python",
         "tools/generate_screenshot_manifest.py",
@@ -71,7 +71,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 1100,
       "image_path": "project-create-page.png",
       "page": "project-create",
@@ -92,13 +92,13 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 910,
       "image_path": "project-page.png",
       "page": "project",
       "project": "",
-      "sha256": "4e2ffbbc02cc614d6e3f80825c45152eaa303019501082ffafb01c857f997f0d",
-      "size_bytes": 274996,
+      "sha256": "5e224490d92c51c207e266c508ee8e0302667ed6eca6f31b3a286614904b2e08",
+      "size_bytes": 263258,
       "source_command": [
         "python",
         "tools/generate_screenshot_manifest.py",
@@ -113,7 +113,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-29T09:20:15Z",
+      "created_at": "2026-05-29T09:30:49Z",
       "height_px": 910,
       "image_path": "workflow-page.png",
       "page": "workflow",
