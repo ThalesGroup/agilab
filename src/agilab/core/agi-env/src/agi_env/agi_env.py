@@ -353,7 +353,26 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                  python_variante: str = '',
                  **kwargs):
 
+        allow_reinitialize = bool(kwargs.pop("_agilab_reinitialize", False))
         app, active_app_override = coerce_active_app_request(app, kwargs, path_cls=Path)
+        init_signature = self._init_signature(
+            apps_path=apps_path,
+            app=app,
+            active_app_override=active_app_override,
+            verbose=0 if verbose is None else verbose,
+            debug=debug,
+            python_variante=python_variante,
+            kwargs=kwargs,
+        )
+
+        if getattr(self, "_agilab_initialized", False) and not allow_reinitialize:
+            current_signature = getattr(self, "_agilab_init_signature", None)
+            if current_signature == init_signature:
+                return
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+            )
 
         self.skip_repo_links = False
         self.AGILAB_SHARE_HINT = None
@@ -697,6 +716,40 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
         # export_local_bin available via singleton delegation if accessed as AgiEnv.export_local_bin
 
+        self._agilab_init_signature = init_signature
+        self._agilab_initialized = True
+
+    @staticmethod
+    def _init_signature(
+        *,
+        apps_path: Path | None,
+        app: str | None,
+        active_app_override,
+        verbose: int,
+        debug: bool,
+        python_variante: str,
+        kwargs: dict,
+    ) -> tuple:
+        return (
+            AgiEnv._signature_value(apps_path),
+            AgiEnv._signature_value(app),
+            AgiEnv._signature_value(active_app_override),
+            int(verbose),
+            bool(debug),
+            str(python_variante),
+            tuple(sorted((str(key), AgiEnv._signature_value(value)) for key, value in kwargs.items())),
+        )
+
+    @staticmethod
+    def _signature_value(value):
+        if isinstance(value, Path):
+            try:
+                return ("path", str(value.expanduser().resolve(strict=False)))
+            except (OSError, RuntimeError):
+                return ("path", str(value))
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return value
+        return repr(value)
 
     @staticmethod
     def _resolve_package(root: Path) -> Path:
@@ -1411,6 +1464,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 apps_path=active_app.parent,
                 app=requested_name,
                 verbose=AgiEnv.verbose,
+                _agilab_reinitialize=True,
             )
         finally:
             if sys.exc_info()[0] is not None and active_app.exists():

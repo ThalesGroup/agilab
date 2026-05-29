@@ -903,6 +903,37 @@ def test_agienv_meta_handles_missing_instance_slot_and_current_returns_cached_in
         AgiEnv.reset()
 
 
+def test_agienv_constructor_is_idempotent_for_same_configuration(env, monkeypatch):
+    def _fail_load(*_args, **_kwargs):  # pragma: no cover - must not run
+        raise AssertionError("AgiEnv reloaded dotenv on an idempotent construction")
+
+    monkeypatch.setattr(agi_env_module, "_load_dotenv_values", _fail_load)
+
+    same_env = AgiEnv(apps_path=env.apps_path, app=env.app, verbose=env.verbose)
+
+    assert same_env is env
+    assert same_env.active_app == env.active_app
+
+
+def test_agienv_constructor_rejects_conflicting_reinitialization(env):
+    with pytest.raises(RuntimeError, match="already initialised with a different configuration"):
+        AgiEnv(apps_path=env.apps_path, app="other_project", verbose=env.verbose)
+
+
+def test_change_app_marks_reinitialization_as_intentional(monkeypatch, env):
+    called = {"kwargs": None}
+
+    def fake_init(self, *a, **k):
+        called["kwargs"] = k
+
+    apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
+    env.app = apps_path / "mycode_project"
+    with mock.patch.object(AgiEnv, "__init__", fake_init, create=True):
+        env.change_app("mycode_path")
+
+    assert called["kwargs"]["_agilab_reinitialize"] is True
+
+
 def test_init_worker_env_flag_requires_app_and_sets_skip_repo_links(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "worker-home"
     fake_home.mkdir()

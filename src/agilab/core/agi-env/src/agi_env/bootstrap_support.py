@@ -123,7 +123,7 @@ def resolve_requested_apps_path(
         apps_path = path_cls(explicit_apps_path).expanduser()
         try:
             apps_path = apps_path.resolve()
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError, RuntimeError):
             pass
         return apps_path, None
 
