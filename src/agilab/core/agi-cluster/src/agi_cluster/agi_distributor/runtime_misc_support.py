@@ -5,6 +5,7 @@ import humanize
 import importlib
 import inspect
 import json
+import os
 import pickle
 import re
 import stat
@@ -247,7 +248,7 @@ def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | N
     except OSError as exc:
         return f"cannot stat model file: {exc}"
 
-    if mode & stat.S_IWOTH:
+    if os.name != "nt" and mode & stat.S_IWOTH:
         return "model file is world-writable"
     return None
 

@@ -1,0 +1,87 @@
+name: windows-core-tests
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/windows-core-tests.yml"
+      - "WINDOWS_TEST_FAILURES.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/agilab/core/**"
+      - "test/**"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/windows-core-tests.yml"
+      - "WINDOWS_TEST_FAILURES.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/agilab/core/**"
+      - "test/**"
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  windows-core-tests:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
+
+      - name: Run Windows core test tracker command
+        shell: pwsh
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-windows-core-000000000000"
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          & uv --preview-features extra-build-dependencies run --no-project `
+            --with-editable ./src/agilab/core/agi-env `
+            --with-editable ./src/agilab/core/agi-node `
+            --with-editable ./src/agilab/core/agi-cluster `
+            --with-editable ./src/agilab/core/agi-core `
+            --with sqlalchemy `
+            --with streamlit `
+            --with fastparquet `
+            --with pytest `
+            --with pytest-asyncio `
+            --with pytest-cov `
+            python -m pytest -q --disable-warnings -o addopts='' `
+            --junitxml test-results/windows-core-tests.xml `
+            src/agilab/core/test src/agilab/core/agi-env/test `
+            2>&1 | Tee-Object -FilePath test-results/windows-core-tests.txt
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            exit $exitCode
+          }
+
+      - name: Upload Windows core test artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: windows-core-tests-${{ github.run_attempt }}
+          path: |
+            test-results/windows-core-tests.txt
+            test-results/windows-core-tests.xml
+          if-no-files-found: ignore

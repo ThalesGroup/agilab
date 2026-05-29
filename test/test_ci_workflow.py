@@ -12,6 +12,7 @@ DOCS_SOURCE_GUARD_WORKFLOW_PATH = Path(".github/workflows/docs-source-guard.yaml
 DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
 ENSURE_ROADMAP_LABEL_WORKFLOW_PATH = Path(".github/workflows/ensure-roadmap-label.yaml")
 UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
+WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
 
@@ -20,6 +21,7 @@ VALIDATION_WORKFLOW_PATHS = (
     COVERAGE_WORKFLOW_PATH,
     DOCS_SOURCE_GUARD_WORKFLOW_PATH,
     ENSURE_ROADMAP_LABEL_WORKFLOW_PATH,
+    WINDOWS_CORE_TESTS_WORKFLOW_PATH,
 )
 
 VALIDATION_CONCURRENCY_GROUP = (
@@ -182,6 +184,24 @@ def test_validation_workflows_cancel_superseded_branch_runs() -> None:
 def test_maintenance_workflows_do_not_run_twice_for_pr_branch_pushes() -> None:
     assert 'branches: ["main"]' in WORKFLOW_PATH.read_text(encoding="utf-8")
     assert 'branches: ["main"]' in ENSURE_ROADMAP_LABEL_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
+    text = WINDOWS_CORE_TESTS_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "name: windows-core-tests" in text
+    assert "runs-on: windows-latest" in text
+    assert "workflow_dispatch:" in text
+    assert "schedule:" in text
+    assert 'branches: ["main"]' in text
+    assert 'branches: ["**"]' in text
+    assert "src/agilab/core/test src/agilab/core/agi-env/test" in text
+    assert "test-results/windows-core-tests.txt" in text
+    assert "test-results/windows-core-tests.xml" in text
+    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2" in text
+    assert "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6" in text
+    assert "astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0" in text
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
 
 
 def test_docs_workflows_block_stale_release_proof_github_runs() -> None:

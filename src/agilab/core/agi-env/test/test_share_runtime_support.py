@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import agi_env.share_runtime_support as share_runtime_module
@@ -14,7 +15,12 @@ def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_pat
 
     assert share_runtime_module.resolve_share_path(None, share_root) == share_root
     assert share_runtime_module.resolve_share_path("demo/data", share_root) == share_root / "demo" / "data"
-    assert share_runtime_module.resolve_share_path("/tmp/absolute", share_root) == Path("/tmp/absolute").resolve(strict=False)
+    absolute_share_path = share_runtime_module.resolve_share_path("/tmp/absolute", share_root)
+    if os.name == "nt":
+        assert absolute_share_path.is_absolute()
+        assert absolute_share_path.parts[-2:] == ("tmp", "absolute")
+    else:
+        assert absolute_share_path == Path("/tmp/absolute").resolve(strict=False)
 
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=False) == "_dcp"
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=True) == "rdcp"

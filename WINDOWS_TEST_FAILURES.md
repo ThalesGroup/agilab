@@ -5,7 +5,8 @@
 **Last verified count:** 97 previous · 43 fixed · 54 remaining · 1 new regression
 **Current repo note (2026-05-29):** all named buckets in this tracker now have
 focused local pass evidence in the current repository. The count above remains
-the last live Windows-run count until the command below is rerun on Windows.
+the last live Windows-run count until the command below, or the repository
+`windows-core-tests` workflow, is rerun on Windows.
 
 Reproduce live Windows validation:
 ```powershell
@@ -13,6 +14,17 @@ cd C:\Users\julie\agilab
 uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytest `
   src/agilab/core/test src/agilab/core/agi-env/test -q 2>&1 | Tee-Object test_results.txt
 ```
+
+Automated GitHub validation:
+
+- Workflow: `.github/workflows/windows-core-tests.yml`
+- Triggers: pull requests that touch core/test inputs, pushes to `main` for the
+  same inputs, weekly schedule, and manual `workflow_dispatch`
+- Artifact: `windows-core-tests-<run_attempt>` containing
+  `test-results/windows-core-tests.txt` and
+  `test-results/windows-core-tests.xml`
+- Scope: the same Windows core test directories tracked here,
+  `src/agilab/core/test src/agilab/core/agi-env/test`
 
 ---
 
@@ -396,9 +408,10 @@ Result: `7 passed`.
 | 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
 | — | Needs `pytest -vv` | 0 | ✅ Resolved in current repo; rerun Windows to verify count | Targeted bucket now passes |
 
-**Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation, virtualenv layout, uv TOML path,
-Python subprocess exit fixture, Linux-only guard, mlflow backend reset, capacity
-CSV encoding, prepare_local_env self-update, and sshpass test fixes. Then
-prioritize any still-failing Windows categories from the refreshed run. There
-are no named local regression buckets left open in this tracker.
+**Recommended priority:** use the `windows-core-tests` workflow, or rerun the
+Windows command above, to refresh the verified remaining count after the
+environment-isolation, virtualenv layout, uv TOML path, Python subprocess exit
+fixture, Linux-only guard, mlflow backend reset, capacity CSV encoding,
+prepare_local_env self-update, and sshpass test fixes. Then prioritize any
+still-failing Windows categories from the refreshed run. There are no named
+local regression buckets left open in this tracker.
