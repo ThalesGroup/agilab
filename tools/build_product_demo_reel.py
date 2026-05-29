@@ -109,7 +109,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "orchestrate-page.png",
         stage="ORCHESTRATE",
         title="Fan out the work. Reduce to proof.",
-        body="Map files across workers, then reduce outputs into one evidence trail.",
+        body="The run-mode optimizer chooses the fast path, then map/reduce turns outputs into evidence.",
         seconds=3.0,
         active_step=1,
         focus=(0.60, 0.44),
@@ -154,7 +154,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
         title="Replayable AI/ML evidence.",
-        body="From notebook drift to proof capsules your team can inspect.",
+        body="Optimized execution, replayable workflow, and proof capsules your team can inspect.",
         seconds=2.1,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -518,7 +518,7 @@ NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
     "flight": (
         NarrationCue(0.0, 2.0, "AGILAB turns agent runs into proof capsules."),
         NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifact intent before execution."),
-        NarrationCue(4.4, 7.4, "Map files across workers. Reduce outputs into one evidence trail."),
+        NarrationCue(4.4, 7.4, "Run mode optimizer: up to a thousand times faster on suitable projects."),
         NarrationCue(7.4, 10.2, "Replay exactly what ran as inspectable workflow code."),
         NarrationCue(10.2, 12.9, "Verify maps, hashes, artifacts, and run metadata."),
         NarrationCue(12.9, 15.0, "AGILAB: replayable AI and ML evidence."),
@@ -893,14 +893,18 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
     pdraw.text((36, 26), "Map -> Reduce", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.rounded_rectangle((214, 16, box_w - 18, 54), radius=16, fill=(17, 40, 62, 255))
     pdraw.text((236, 26), "flight files -> verifiable evidence", font=FONT_HIGHLIGHT, fill=WHITE)
+    pdraw.rounded_rectangle((30, 62, 252, 96), radius=15, fill=(18, 56, 44, 255), outline=GREEN, width=2)
+    pdraw.text((52, 72), "run-mode optimizer", font=FONT_STEP, fill=WHITE)
+    pdraw.rounded_rectangle((266, 62, box_w - 30, 96), radius=15, fill=(72, 48, 18, 255), outline=ACCENT_WARM, width=2)
+    pdraw.text((326, 72), "up to 1000x", font=FONT_STEP, fill=WHITE)
 
-    source_y = 76
+    source_y = 112
     for idx, label in enumerate(("CSV 01", "CSV 02", "CSV 03", "CSV 04")):
         fx = 28 + idx * 126
         pdraw.rounded_rectangle((fx, source_y, fx + 100, source_y + 42), radius=13, fill=(248, 251, 255), outline=(114, 157, 205), width=2)
         pdraw.text((fx + 20, source_y + 13), label, font=FONT_STEP, fill=SURFACE)
 
-    mapper_y = 154
+    mapper_y = 184
     mapper_specs = [
         ("map 0", "parse + enrich", ACCENT),
         ("map 1", "split frames", GREEN),
@@ -920,22 +924,22 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
         pdraw.line((sx, source_y + 42, tx, ty - 30), fill=(145, 179, 218), width=3)
     pdraw.line((456, source_y + 42, mapper_centers[2][0], mapper_centers[2][1] - 30), fill=(145, 179, 218), width=3)
 
-    shuffle_y = 248
+    shuffle_y = 274
     pdraw.rounded_rectangle((30, shuffle_y, box_w - 30, shuffle_y + 36), radius=16, fill=(19, 43, 64, 255), outline=(92, 160, 255), width=2)
     pdraw.text((52, shuffle_y + 10), "shared shuffle: manifests + artifact hashes", font=FONT_HIGHLIGHT, fill=INK)
     for tx, ty in mapper_centers:
         pdraw.line((tx, ty + 30, tx, shuffle_y), fill=(121, 192, 155), width=3)
 
-    reducer = (168, 316, 360, 366)
+    reducer = (168, 322, 360, 372)
     rx0, ry0, rx1, ry1 = reducer
     pdraw.line(((rx0 + rx1) // 2, shuffle_y + 36, (rx0 + rx1) // 2, ry0), fill=ACCENT_WARM + (255,), width=4)
     pdraw.rounded_rectangle(reducer, radius=16, fill=(16, 56, 44, 255), outline=GREEN, width=3)
     pdraw.text((rx0 + 18, ry0 + 8), "reduce", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.text((rx0 + 18, ry0 + 30), "summary artifact", font=FONT_STEP, fill=(206, 238, 222))
 
-    pdraw.rounded_rectangle((382, 316, box_w - 24, 366), radius=16, fill=(10, 18, 28, 255), outline=(255, 255, 255, 28), width=1)
-    pdraw.text((400, 326), "16 map tasks", font=FONT_STEP, fill=MUTED)
-    pdraw.text((400, 344), "1 reduce proof", font=FONT_HIGHLIGHT, fill=INK)
+    pdraw.rounded_rectangle((382, 322, box_w - 24, 372), radius=16, fill=(10, 18, 28, 255), outline=(255, 255, 255, 28), width=1)
+    pdraw.text((400, 332), "16 map tasks", font=FONT_STEP, fill=MUTED)
+    pdraw.text((400, 350), "1 reduce proof", font=FONT_HIGHLIGHT, fill=INK)
     canvas.alpha_composite(panel, (x, y))
 
 
@@ -1015,9 +1019,10 @@ def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: i
         draw.polygon([(x1, y_mid - 7), (x1, y_mid + 7), (x1 + 14, y_mid)], fill=(148, 177, 212))
 
     chips = [
+        ("run-mode optimizer", (71, 146, 107, 255)),
+        ("up to 1000x", (211, 126, 57, 255)),
         ("manifest", (18, 56, 44, 255)),
         ("artifact hashes", (17, 40, 62, 255)),
-        ("run metadata", (79, 115, 168, 255)),
     ]
     x = 42
     for label, fill in chips:
