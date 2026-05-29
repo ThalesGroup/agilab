@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (62 tests)
+## ✅ Fixed since last pass (68 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -32,6 +32,7 @@ The following test categories were resolved by the dev team:
 | Virtualenv Windows layout (`.venv/Scripts`) | 7 |
 | uv TOML paths with `\` (remaining) | 8 |
 | Python subprocess exit-code fixtures | 4 |
+| Linux-only feature guards | 6 |
 | Miscellaneous | 10 |
 
 ---
@@ -236,58 +237,27 @@ Result: `4 passed, 1 warning`.
 
 ---
 
-### Category 5 — Linux-only features not guarded (6 tests)
+### Category 5 — Linux-only features not guarded — fixed in current repo (6 tests)
 
-#### `test_fstab_bind_source_for_target_handles_oserror_and_parses_bind`
-```
-AssertionError: assert None == '/src'
- + where None = _fstab_bind_source_for_target('/target')
-```
-`/proc/mounts` does not exist on Windows.
+Status: fixed in current repository; pending live Windows rerun.
 
-**Fix:**
-```python
-@pytest.mark.skipif(sys.platform == "win32", reason="fstab/procfs not available on Windows")
-def test_fstab_bind_source_for_target_handles_oserror_and_parses_bind(): ...
-```
-Also guard in `share_mount_support.py`: `if sys.platform == "win32": return None`.
+The procfs/fstab, POSIX mount-helper, SQLite URI, Windows link-helper, and
+remote `sshfs` cases now have current regression coverage. The remote `sshfs`
+test is guarded for Windows because the mount path depends on POSIX shell tools.
 
-#### `test_share_mount_support_path_and_mount_helpers`
-```
-AssertionError: assert None == 'relative/source'
- + where None = _fstab_bind_source_for_target('/target')
+Validation evidence from macOS:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/agi-env/test/test_share_mount_support.py::test_fstab_bind_source_for_target_handles_oserror_and_parses_bind \
+  src/agilab/core/agi-env/test/test_share_mount_support.py::test_share_mount_support_path_and_mount_helpers \
+  src/agilab/core/agi-env/test/test_pagelib.py::test_mount_helpers_cover_proc_fstab_and_shell_fallbacks \
+  src/agilab/core/agi-env/test/test_pagelib.py::test_sqlite_uri_for_path_covers_posix_and_windows_formats \
+  src/agilab/core/agi-env/test/test_agi_env.py::test_create_symlink_and_windows_link_helpers_log_expected_paths \
+  src/agilab/core/test/test_agi_distributor_deployment_remote_support.py::test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs
 ```
 
-#### `test_mount_helpers_cover_proc_fstab_and_shell_fallbacks`
-```
-KeyError: WindowsPath('/mnt/share')
-```
-The mount-helper dict uses POSIX path objects as keys; Windows creates `WindowsPath` which doesn't match.
-
-#### `test_sqlite_uri_for_path_covers_posix_and_windows_formats`
-```
-pathlib._abc.UnsupportedOperation: cannot instantiate 'PosixPath' on your system
-  at: mlflow_store.py:129 in sqlite_uri_for_path
-      pagelib.py:166 in _sqlite_uri_for_path
-```
-**Fix in `mlflow_store.py`:**
-```python
-# Replace: PosixPath(path).as_uri()
-uri = "file:///" + str(path).replace("\\", "/")
-```
-
-#### `test_create_symlink_and_windows_link_helpers_log_expected_paths`
-```
-AssertionError: assert False
- + where False = mock.error.called
-```
-The Windows symlink helper logs no error when it should — likely the symlink succeeded silently via a different code path (junction vs symlink). Needs investigation with `pytest -vv`.
-
-#### `test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs`
-```
-# sshfs is a Linux tool — no output captured, run with -vv to diagnose
-```
-**Fix:** `@pytest.mark.skipif(sys.platform == "win32", reason="sshfs not available on Windows")`
+Result: `6 passed`.
 
 ---
 
@@ -415,7 +385,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_local_support.py`, `process_support.py` |
 | 3 | uv TOML paths with `\` | 8 | ✅ Fixed in current repo; rerun Windows to verify count | `uv_source_support.py` |
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ✅ Fixed in current repo; rerun Windows to verify count | `src/agilab/core/agi-env/test/test_agi_env.py` |
-| 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
+| 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ✅ Fixed in current repo; rerun Windows to verify count | `share_mount_support.py`, `test_pagelib.py`, `test_agi_env.py`, `test_agi_distributor_deployment_remote_support.py` |
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
@@ -424,6 +394,6 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
 remaining count after the environment-isolation, virtualenv layout, uv TOML path,
-Python subprocess exit fixture, capacity CSV encoding, prepare_local_env
-self-update, and sshpass test fixes. Then prioritize any still-failing Windows
-categories from the refreshed run.
+Python subprocess exit fixture, Linux-only guard, capacity CSV encoding,
+prepare_local_env self-update, and sshpass test fixes. Then prioritize any
+still-failing Windows categories from the refreshed run.
