@@ -6,14 +6,21 @@ from pathlib import Path
 import sys
 
 
-def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tuple[Path, ...]:
-    """Insert repo-local AGI core source roots into ``sys.path`` when available."""
-    source_path = Path(source_file or __file__).resolve()
-    core_root = None
+def resolve_core_source_root(*, source_file: str | Path | None = None) -> Path | None:
+    """Return the repository ``src/agilab/core`` root for a dispatcher source file."""
+    try:
+        source_path = Path(source_file or __file__).resolve()
+    except (OSError, RuntimeError):
+        return None
     for parent in source_path.parents:
         if parent.name == "core" and parent.parent.name == "agilab":
-            core_root = parent
-            break
+            return parent
+    return None
+
+
+def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tuple[Path, ...]:
+    """Insert repo-local AGI core source roots into ``sys.path`` when available."""
+    core_root = resolve_core_source_root(source_file=source_file)
     if core_root is None:
         return ()
 
@@ -31,3 +38,72 @@ def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tup
             sys.path.insert(0, candidate_str)
             added.append(candidate)
     return tuple(reversed(added))
+
+
+def resolve_source_checkout_root(source_file: str | Path) -> Path | None:
+    """Return the AGILAB source checkout root that owns ``source_file``."""
+    try:
+        source_path = Path(source_file).resolve()
+    except (OSError, RuntimeError):
+        return None
+    for parent in (source_path.parent, *source_path.parents):
+        if (parent / "src" / "agilab" / "main_page.py").exists():
+            return parent
+    return None
+
+
+def resolve_checkout_root_for_site_packages(candidate: Path) -> Path | None:
+    """Return the checkout root that owns a managed ``site-packages`` path."""
+    try:
+        candidate_path = candidate.resolve()
+    except (OSError, RuntimeError):
+        candidate_path = candidate
+    for parent in candidate_path.parents:
+        if parent.name != ".venv":
+            continue
+        checkout_root = parent.parent
+        if (checkout_root / "src" / "agilab" / "main_page.py").exists():
+            return checkout_root.resolve()
+        return None
+    return None
+
+
+def shared_site_package_candidates(
+    *,
+    home: str | Path | None = None,
+    version_info=None,
+) -> tuple[Path, ...]:
+    """Return legacy shared AGILAB virtualenv site-packages candidates."""
+    selected_home = Path.home() if home is None else Path(home).expanduser()
+    selected_version = sys.version_info if version_info is None else version_info
+    version = f"python{selected_version.major}.{selected_version.minor}"
+    return (
+        selected_home / "agilab/.venv/lib" / version / "site-packages",
+        selected_home / ".agilab/.venv/lib" / version / "site-packages",
+    )
+
+
+def append_shared_site_packages(
+    *,
+    source_file: str | Path = __file__,
+    sys_path: list[str] | None = None,
+    home: str | Path | None = None,
+    version_info=None,
+) -> tuple[Path, ...]:
+    """Append compatible shared AGILAB site-packages candidates to ``sys.path``."""
+    target_sys_path = sys.path if sys_path is None else sys_path
+    current_checkout_root = resolve_source_checkout_root(source_file)
+    added: list[Path] = []
+    for candidate in shared_site_package_candidates(home=home, version_info=version_info):
+        candidate_checkout_root = resolve_checkout_root_for_site_packages(candidate)
+        if (
+            current_checkout_root is not None
+            and candidate_checkout_root is not None
+            and candidate_checkout_root != current_checkout_root
+        ):
+            continue
+        path_str = str(candidate)
+        if path_str not in target_sys_path:
+            target_sys_path.append(path_str)
+            added.append(candidate)
+    return tuple(added)
