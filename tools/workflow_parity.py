@@ -1335,7 +1335,25 @@ def _security_adoption_profile() -> list[CommandSpec]:
             timeout_seconds=2 * 60,
             ensure_dirs=["test-results"],
             remove_paths=["test-results/security-check.json"],
-        )
+        ),
+        CommandSpec(
+            label="shared-use go gate artifact",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/shared_go_gate.py",
+                "--security-check-json",
+                "test-results/security-check.json",
+                "--output",
+                "test-results/shared_go_gate.json",
+            ],
+            timeout_seconds=2 * 60,
+            ensure_dirs=["test-results"],
+            remove_paths=["test-results/shared_go_gate.json"],
+        ),
     ]
 
 

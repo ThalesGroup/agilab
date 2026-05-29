@@ -216,8 +216,8 @@ Use this boundary before deploying it in sensitive environments:
 
 | Boundary | Status | Required controls |
 |---|---|---|
-| Safe for production-like use | Local research sandboxes, internal demos, notebook-to-app migration, reproducible validation with non-sensitive data. | Normal repository hygiene and local proof evidence. |
-| Conditional use only | Shared team workspaces, SSH/Dask clusters, external apps, LLM connectors, or sensitive datasets. | Per-user isolation, explicit secrets management, TLS/auth for exposed services, SBOM plus vulnerability scan evidence, and a deployment threat model. |
+| Go for controlled local use | Local research sandboxes, internal demos, notebook-to-app migration, reproducible validation with non-sensitive data. | Normal repository hygiene and local proof evidence. |
+| Go for hardened shared use | Shared team workspaces, SSH/Dask clusters, reviewed external apps, LLM connectors, local/offline LLMs, or sensitive internal datasets when the hardening gate passes. | Per-user isolation, strict `agilab security-check` gate, explicit secrets management, TLS/auth for exposed services, pinned/allowlisted external apps, SBOM plus vulnerability scan evidence for deployed install profiles, bounded resources, and a deployment threat model. |
 | Not safe as-is | Sole production MLOps control plane, public Streamlit exposure, regulated production model serving, enterprise governance, online monitoring, drift detection, or audit-trail ownership. | Pair AGILAB with a hardened production stack such as MLflow/Kubeflow/SageMaker/Dagster/Airflow or an internal platform. |
 
 For shared adoption, run `agilab security-check --profile shared --json` and
@@ -225,6 +225,16 @@ use `--strict` or `AGILAB_SECURITY_CHECK_STRICT=1` when missing controls should
 block the gate. The stricter profiles check app-repository allowlists, public UI
 bind controls, cluster-share isolation, generated-code execution boundaries,
 plaintext local secrets, and profile-specific SBOM / `pip-audit` evidence.
+Treat a clean strict report plus profile-specific SBOM / `pip-audit` evidence
+as the documented go gate for hardened shared/team use. To persist the combined
+decision, write the gate artifact:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/shared_go_gate.py \
+  --security-check-json test-results/security-check.json \
+  --supply-chain-dir test-results/supply-chain \
+  --output test-results/shared_go_gate.json
+```
 
 ## Security Reporting
 

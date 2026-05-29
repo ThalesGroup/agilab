@@ -76,8 +76,9 @@ def test_readmes_explain_production_dependency_and_evidence_boundaries() -> None
         text = path.read_text(encoding="utf-8")
         for fragment in (
             "## Production Boundary",
-            "Safe for production-like use",
-            "Conditional use only",
+            "Go for controlled local use",
+            "Go for hardened shared use",
+            "documented go gate for hardened shared/team use",
             "Not safe as-is",
             "Sole production MLOps control plane",
             "## Security Reporting",

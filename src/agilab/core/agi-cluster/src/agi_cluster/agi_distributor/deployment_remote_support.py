@@ -23,6 +23,11 @@ _SSHFS_INSTALL_HINT = (
     "Install sshfs first: Debian/Ubuntu: sudo apt-get install -y sshfs; "
     "macOS: install macFUSE/FUSE-T SSHFS and ensure sshfs is visible to non-interactive SSH."
 )
+_SCHEDULER_SSH_HINT = (
+    "Scheduler SSH is not reachable from the worker. Enable SSH on the scheduler/manager, "
+    "install the worker public key on the scheduler, and verify ssh <scheduler> from the worker "
+    "before mounting AGI_CLUSTER_SHARE with SSHFS."
+)
 _SSHFS_OPTIONS = (
     "reconnect",
     "ServerAliveInterval=15",
@@ -32,7 +37,7 @@ _SSHFS_OPTIONS = (
     "noexec",
 )
 _REMOTE_PATH_PREFIX = (
-    'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
+    'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 )
 
 
@@ -164,6 +169,10 @@ def _remote_share_mount_command(
         'mkdir -p "$HOME/.agilab"; '
         "if ! command -v sshfs >/dev/null 2>&1; then "
         f"printf '%s\\n' {quote(_SSHFS_INSTALL_HINT)} >&2; exit 70; "
+        "fi; "
+        f"SCHEDULER_SSH_TARGET={quote(scheduler_target)}; "
+        'if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true; then '
+        f"printf '%s\\n' {quote(_SCHEDULER_SSH_HINT)} >&2; exit 71; "
         "fi; "
         "REMOTE_CLUSTER_SHARE=" + _remote_share_assignment(remote_share) + "; "
         f"SCHEDULER_CLUSTER_SHARE={quote(source)}; "

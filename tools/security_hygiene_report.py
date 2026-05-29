@@ -301,8 +301,9 @@ def _release_evidence_scope_check(repo_root: Path, security_text: str) -> dict[s
 def _adoption_profile_check(security_text: str) -> dict[str, Any]:
     required_tokens = [
         "trusted-operator experimentation workbench",
-        "Recommended use without additional platform hardening",
-        "Conditional use only after hardening",
+        "Go for controlled local use without additional platform hardening",
+        "Go for hardened shared/team use when the hardening gate passes",
+        "clean strict ``agilab security-check`` report",
         "Not recommended as-is",
         "public exposure without authentication, TLS, and sandboxing",
         "Multi-tenant service use",
@@ -313,7 +314,7 @@ def _adoption_profile_check(security_text: str) -> dict[str, Any]:
         "adoption_profile_go_no_go_documented",
         "Security adoption profile is documented",
         not missing,
-        "SECURITY.md separates recommended sandbox use, conditional shared use, and no-go production/multi-tenant use",
+        "SECURITY.md separates controlled local use, hardened shared/team go gates, and no-go production/multi-tenant use",
         evidence=["SECURITY.md"],
         details={"missing_tokens": missing},
     )

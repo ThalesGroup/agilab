@@ -12,8 +12,11 @@ Current supported score
 
 The scope is deliberately narrow: AGILAB has an excellent architecture for
 turning AI/ML experiments, notebooks, app runs, and agent-assisted workflows
-into replayable evidence. The same score is conditional for shared or
-multi-tenant production use because tenant isolation, enterprise auth, RBAC,
+into replayable evidence. For this score, hardened shared/team use is go when
+explicit gates pass: strict security-check evidence, per-profile SBOM and
+vulnerability scans, reviewed external apps, bounded resources, and
+deployment-specific secrets, network, and UI controls. Multi-tenant production
+use remains outside this score because tenant isolation, enterprise auth, RBAC,
 production rollback, and regulated serving remain deployment responsibilities
 outside the current AGILAB core.
 

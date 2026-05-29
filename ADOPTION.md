@@ -75,6 +75,17 @@ uv --preview-features extra-build-dependencies run agilab security-check --profi
 uv --preview-features extra-build-dependencies run python tools/profile_supply_chain_scan.py --profile all --run
 ```
 
+A clean strict security check plus profile-specific SBOM and vulnerability
+evidence is the documented go gate for hardened shared/team use. Persist the
+combined decision before handoff:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/shared_go_gate.py \
+  --security-check-json security-check.json \
+  --supply-chain-dir test-results/supply-chain \
+  --output shared_go_gate.json
+```
+
 Use strict mode only when missing controls must block the gate:
 
 ```bash

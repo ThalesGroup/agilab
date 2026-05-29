@@ -101,6 +101,7 @@ references, and example projects.
    :caption: Operations
 
    Cluster setup <cluster>
+   Trusted shared deployment <trusted-shared-deployment>
    Kubernetes Job preview <kubernetes-job>
    Parallel stages <parallel-stages>
    Distributed workers <distributed-workers>
