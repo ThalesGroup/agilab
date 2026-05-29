@@ -1,6 +1,6 @@
 ---
 name: agilab-deep-audit
-description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
+description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   updated: 2026-05-29
@@ -17,6 +17,10 @@ explicitly asks to patch findings.
 - Start in review mode, not implementation mode.
 - Inspect current repository state before making claims; do not rely on memory
   for branch, version, workflow, or public-posture facts.
+- Load `references/ARCHITECTURE_FOUNDATIONS.md` before a deep audit unless the
+  user explicitly requests a narrow file-only review. If the session cannot
+  explain the foundations in that reference from current repository evidence,
+  pause the final audit and perform an architecture read pass first.
 - State scope and limits explicitly. If the repo is too large for exhaustive
   reading, say which central modules were read and which periphery was sampled.
 - Build a thesis, not a checklist. Identify the dominant root cause or design
@@ -25,6 +29,30 @@ explicitly asks to patch findings.
   executive summary first, then detailed evidence.
 - Do not overclaim. If a module or workflow was not inspected, label the point
   as an inference or residual risk.
+
+## Architecture readiness gate
+
+Before producing a final deep audit, confirm the session has current evidence
+for AGILAB's founding principles:
+
+- Trusted-operator reproducibility workbench, not a standalone production MLOps
+  control plane.
+- Three-plane model: control plane, payload plane, evidence plane.
+- Lean base package plus optional extras and split packages for heavier
+  capabilities.
+- Built-in apps can own project-specific dependencies; generic apps-pages and
+  the `agi-pages` umbrella must remain app-agnostic and avoid project-specific
+  runtime dependencies.
+- Linux, macOS, and Windows support is part of the public posture unless a
+  feature states a narrower boundary.
+- Generated code, notebooks, external apps, workers, page bundles, and cluster
+  execution are executable-code trust boundaries.
+- Docs, release proof, package split, and public claims must agree before a
+  feature is described as shipped.
+
+If any point is unclear, do not guess. Read the relevant package manifests,
+provider registries, docs, release proof, tests, and workflow files first, then
+state what remains unverified.
 
 ## Default AGILAB audit scope
 

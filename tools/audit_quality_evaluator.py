@@ -141,8 +141,23 @@ def _mechanism_score(text: str) -> tuple[float, tuple[str, ...]]:
 
 def _architecture_score(text: str) -> tuple[float, tuple[str, ...]]:
     architecture = _has_heading(text, "architecture", "topology", "module")
-    package_terms = _count_patterns(text, (r"\bpackage\b", r"\bmodule\b", r"\bcontrol plane\b", r"\bevidence plane\b"))
+    package_terms = _count_patterns(text, (r"\bpackage\b", r"\bmodule\b", r"\bcontrol plane\b", r"\bpayload plane\b", r"\bevidence plane\b"))
     boundary_terms = _count_patterns(text, (r"\bboundar", r"\bhandoff\b", r"\bruntime\b", r"\bworkflow\b"))
+    founding_terms = _count_patterns(
+        text,
+        (
+            r"\bapps-pages\b",
+            r"\bagi-pages\b",
+            r"\bapp-agnostic\b",
+            r"\bproject-specific dependenc",
+            r"\bLinux\b",
+            r"\bmacOS\b",
+            r"\bWindows\b",
+            r"\btrusted-operator\b",
+            r"\breproducibility workbench\b",
+        ),
+        flags=0,
+    )
     evidence = []
     if architecture:
         evidence.append("architecture/topology section found")
@@ -150,7 +165,9 @@ def _architecture_score(text: str) -> tuple[float, tuple[str, ...]]:
         evidence.append(f"{package_terms} package/module/plane terms")
     if boundary_terms:
         evidence.append(f"{boundary_terms} boundary/runtime terms")
-    return _score_from_booleans(architecture, package_terms >= 3, boundary_terms >= 3), tuple(evidence)
+    if founding_terms:
+        evidence.append(f"{founding_terms} architecture-foundation terms")
+    return _score_from_booleans(architecture, package_terms >= 3, boundary_terms >= 3, founding_terms >= 4), tuple(evidence)
 
 
 def _security_release_score(text: str) -> tuple[float, tuple[str, ...]]:
@@ -226,7 +243,7 @@ RUBRIC: tuple[RubricItem, ...] = (
     RubricItem("evidence", "Concrete evidence and references", 15, _evidence_score, "Cite files, lines, commands, logs, or public evidence."),
     RubricItem("severity", "Severity and prioritization", 10, _severity_score, "Use severity labels and a prioritized finding/action structure."),
     RubricItem("mechanism", "Mechanism, impact, and blast radius", 12, _mechanism_score, "Explain how the issue works, impact, affected surfaces, and fix."),
-    RubricItem("architecture", "Architecture and topology context", 10, _architecture_score, "Explain package/module topology and runtime boundaries."),
+    RubricItem("architecture", "Architecture and founding principles", 10, _architecture_score, "Explain package/module topology, runtime boundaries, app/page dependency boundaries, and cross-platform assumptions."),
     RubricItem("security_release", "Security, packaging, and release posture", 10, _security_release_score, "Cover security boundaries plus packaging/release evidence."),
     RubricItem("validation", "Testing and regression posture", 10, _validation_score, "Name validation commands, missing tests, and residual risks."),
     RubricItem("recommendations", "Prioritized recommendations", 9, _recommendation_score, "Provide concrete next actions and validation per action."),
