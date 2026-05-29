@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (43 tests)
+## ✅ Fixed since last pass (50 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -29,6 +29,7 @@ The following test categories were resolved by the dev team:
 | `sshpass` not on Windows (one of two) | 1 |
 | uv TOML paths with `\` (partial) | 4 |
 | `deploy_local_worker` path issues (partial) | 7 |
+| Virtualenv Windows layout (`.venv/Scripts`) | 7 |
 | Miscellaneous | 10 |
 
 ---
@@ -160,54 +161,30 @@ AssertionError: assert {} == {'last_active_app': 'C:\\...\\test_tmp\\demo_projec
 
 ---
 
-### Category 2 — `.venv/bin` vs `.venv/Scripts` — remaining (7 tests)
+### Category 2 — `.venv/bin` vs `.venv/Scripts` — fixed in current repo (7 tests)
 
-The first pass fixed the obvious `bin`→`Scripts` substitutions, but tests that check the **exact command sequence** (e.g. "skip install if editable metadata cache is fresh") still fail because the cache-validity logic uses `.venv/bin/python` to probe the interpreter and gets the wrong path on Windows.
+Status: fixed in current repository; pending live Windows rerun.
 
-**Root:** wherever `_project_venv_python_path(venv_root)` or equivalent constructs the python path, it must use `Scripts` on Windows.
+The project-venv install path now uses the platform-aware virtualenv helpers
+instead of hard-coding the POSIX `.venv/bin/python` layout. The regression slice
+also includes a simulated Windows assertion that resolves
+`.venv/Scripts/python.exe`.
 
-#### `test_install_into_project_venv_skips_cached_editable_metadata`
-```
-AssertionError:
-  assert [('uv venv --allow-existing --python 3.13 "...\.venv"', ...)]   # produced
-      == [('uv pip install --python "...\.venv\bin\python" ...', ...)]    # expected
-At index 0 diff: venv re-created instead of pip-installing
-```
-The cache probe finds no valid python at `.venv/bin/python` → assumes stale → recreates venv instead of reusing.
+Validation evidence from macOS with Windows-path simulation:
 
-#### `test_install_into_project_venv_invalidates_editable_metadata_cache`
-```
-# Same mismatch — uv venv called instead of uv pip install
-At index 0 diff: ('uv venv --allow-existing --python 3.13 "...\.venv"', ...)
-```
-
-#### `test_install_many_into_project_venv_skips_cached_editables`
-#### `test_install_many_into_project_venv_reinstalls_only_missing_editable_proofs`
-```
-# Same: multi-package variant of cache probe failure
-At index 0 diff: uv venv called instead of uv pip install
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_install_into_project_venv_skips_cached_editable_metadata \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_install_into_project_venv_invalidates_editable_metadata_cache \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_install_many_into_project_venv_skips_cached_editables \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_install_many_into_project_venv_reinstalls_only_missing_editable_proofs \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_project_venv_python_uses_windows_layout \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and_free_threaded_python \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localhost_ssh
 ```
 
-#### `test_build_subprocess_env_keeps_pythonpath_entries_for_current_venv`
-```
-AssertionError: assert 'C:\Users\julie\agilab\.venv\Scripts' == 'C:\Users\julie\agilab\.venv\bin'
-  - C:\Users\julie\agilab\.venv\bin
-  + C:\Users\julie\agilab\.venv\Scripts
-```
-
-#### `test_build_subprocess_env_strips_uv_run_recursion_depth`
-```
-AssertionError: assert 'PYTHONPATH' not in {env_dict}
-```
-PYTHONPATH is unexpectedly present — likely because the `Scripts` dir lookup failed and a fallback PYTHONPATH was injected.
-
-#### `test_normalize_path_and_windows_drive_fix`
-```
-AssertionError: assert 'C:\\Users\\julie\\agilab\\relative\\path' == 'relative/path'
-  - relative/path
-  + C:\Users\julie\agilab\relative\path
-```
-`normalize_path("relative/path")` resolves to an absolute path on Windows. Expected to return the input unchanged.
+Result: `8 passed`.
 
 ---
 
@@ -443,13 +420,10 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 ---
 
-### Tests needing `pytest -vv` (no assertion captured)
+### Tests needing `pytest -vv` (no assertion captured, 7 remaining)
 
 | Test | File | Probable category |
 |---|---|---|
-| `test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow` | `test_agi_distributor_deployment_local_support.py` | Cat 2 (`.venv/Scripts`) |
-| `test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and_free_threaded_python` | same | Cat 2 |
-| `test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localhost_ssh` | same | Cat 2 |
 | `test_baseworker_setup_data_directories_falls_back_when_output_unavailable` | `test_base_worker.py` | Cat 1 (path sep) |
 | `test_baseworker_setup_data_directories_without_env_falls_back_to_home` | same | Cat 1 |
 | `test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion` | `test_base_worker_execution_support.py` | Cat 1 |
@@ -465,7 +439,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | # | Category | Count | Status | Primary fix location |
 |---|---|---|---|---|
 | 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Fixed in current repo; rerun Windows to verify count | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
-| 2 | `.venv/bin` vs `.venv/Scripts` (remaining) | 7 | ❌ Open | `deployment_local_support.py`, `process_support.py` |
+| 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_local_support.py`, `process_support.py` |
 | 3 | uv TOML paths with `\` (remaining) | 8 | ❌ Open | `uv_source_support.py` → `.as_posix()` |
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ❌ Open | Test fixtures — use `sys.executable -c sys.exit(N)` |
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
@@ -473,9 +447,9 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
 | 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
-| — | Needs `pytest -vv` | 10 | ❓ Unknown | Run targeted to diagnose |
+| — | Needs `pytest -vv` | 7 | ❓ Unknown | Run targeted to diagnose |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation, capacity CSV encoding,
-prepare_local_env self-update, and sshpass test fixes. Then prioritize any
-still-failing Windows categories from the refreshed run.
+remaining count after the environment-isolation, virtualenv layout, capacity CSV
+encoding, prepare_local_env self-update, and sshpass test fixes. Then prioritize
+any still-failing Windows categories from the refreshed run.
