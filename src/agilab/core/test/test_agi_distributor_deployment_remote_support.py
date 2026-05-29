@@ -135,8 +135,9 @@ def test_remote_command_helpers_quote_dynamic_arguments():
     )
     assert (
         deployment_remote_support._remote_tool("source ~/.profile &&", "uv tool")
-        == "source ~/.profile && 'uv tool'"
+        == "source ~/.profile && uv tool"
     )
+    assert deployment_remote_support._remote_tool("", "uv --quiet") == "uv --quiet"
 
 
 @pytest.mark.asyncio
@@ -209,7 +210,7 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
         dist_abs=dist_abs,
         pyvers_worker="3.13",
         envars={},
-        uv_worker="uv",
+        uv_worker="uv --quiet",
         is_source_env=False,
         app="demo_app",
         target_worker="demo_worker",
@@ -255,6 +256,8 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
     assert any("python -c 'import pip'" in cmd for cmd in ssh_calls)
+    assert any("uv --quiet run -p 3.13" in cmd for cmd in ssh_calls)
+    assert not any("'uv --quiet'" in cmd for cmd in ssh_calls)
     assert not any("ensurepip" in cmd for cmd in ssh_calls)
     assert not any("dask[distributed]" in cmd for cmd in ssh_calls)
     assert not any("numba==0.62.1" in cmd for cmd in ssh_calls)

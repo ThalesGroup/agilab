@@ -43,6 +43,7 @@ SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
+REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 
 
 @dataclass(frozen=True)
@@ -753,7 +754,8 @@ def _remote_share_setup_commands(
     sshfs_options = _sshfs_options_args()
     unmount_snippet = _remote_share_unmount_snippet()
     sshfs_check_command = (
-        'mkdir -p "$HOME"/.agilab && '
+        REMOTE_PATH_PREFIX
+        + 'mkdir -p "$HOME"/.agilab && '
         "if ! command -v sshfs >/dev/null 2>&1; then "
         f"printf '%s\\n' {shlex.quote(SSHFS_INSTALL_HINT)} >&2; exit 70; "
         "fi"
@@ -764,7 +766,8 @@ def _remote_share_setup_commands(
         + '; mkdir -p "$REMOTE_CLUSTER_SHARE"'
     )
     mount_command = (
-        f"SCHEDULER_CLUSTER_SHARE={shlex.quote(source)}; REMOTE_CLUSTER_SHARE="
+        REMOTE_PATH_PREFIX
+        + f"SCHEDULER_CLUSTER_SHARE={shlex.quote(source)}; REMOTE_CLUSTER_SHARE="
         + remote_assignment
         + '; MOUNT_LINE=$(mount | grep -F -- "$REMOTE_CLUSTER_SHARE" || true); '
         + 'if [ -n "$MOUNT_LINE" ]; then '
