@@ -1,6 +1,6 @@
 ---
 name: agilab-deep-audit
-description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user asks for an AGILAB audit, architecture review, security/posture review, deep code review, review document, or comparison-quality critique rather than a quick fix.
+description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   updated: 2026-05-29

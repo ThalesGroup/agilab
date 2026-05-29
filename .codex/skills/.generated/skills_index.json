@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-05-29T12:51:09Z",
+  "generated_at_utc": "2026-05-29T13:04:32Z",
   "tool": "tools/codex_skills.py",
-  "count": 29,
+  "count": 30,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -21,7 +21,7 @@
     },
     {
       "name": "agilab-deep-audit",
-      "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user asks for an AGILAB audit, architecture review, security/posture review, deep code review, review document, or comparison-quality critique rather than a quick fix.",
+      "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": "2026-05-29",
       "path": ".codex/skills/agilab-deep-audit/SKILL.md",
@@ -58,6 +58,14 @@
       "updated": "2026-05-28",
       "path": ".codex/skills/agilab-installer/SKILL.md",
       "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
+    },
+    {
+      "name": "agilab-intent-router",
+      "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-29",
+      "path": ".codex/skills/agilab-intent-router/SKILL.md",
+      "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },
     {
       "name": "agilab-local-llm",

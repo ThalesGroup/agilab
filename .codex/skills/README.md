@@ -35,6 +35,7 @@ canonical source can serve both agents.
 - `agilab-release-verification`: Verify release readiness and post-release alignment across PyPI, GitHub, docs, badges, and Hugging Face.
 - `agilab-pypi-release-maintenance`: Guarded workflow for inspecting and deleting old AGILAB PyPI releases without touching the protected current release.
 - `agilab-huggingface-spaces`: Maintain and deploy the official AGILAB Docker Space from the public checkout and sibling Hugging Face bundle.
+- `agilab-intent-router`: Route terse AGILAB operator requests into the right skill, safety mode, validation depth, and output contract.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.

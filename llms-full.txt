@@ -18,7 +18,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-04-29
   preview: # AGILAB Code Statistics Use this skill to answer code-statistics questions quickly and reproducibly. Default to tracked files only, so ignored caches, virtualenvs, local datasets, generated docs output, and untracked scratch files do not distort the numbers.
-- agilab-deep-audit: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user asks for an AGILAB audit, architecture review, security/posture review, deep code review, review document, or comparison-quality critique rather than a quick fix. (.claude/skills/agilab-deep-audit/SKILL.md)
+- agilab-deep-audit: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix. (.claude/skills/agilab-deep-audit/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-29
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
@@ -38,6 +38,10 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-28
   preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
+- agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-29
+  preview: # AGILAB Intent Router Use this skill first when a user request is short, ambiguous, or operational. The goal is to classify the request before acting, so terse commands map to the right AGILAB workflow instead of defaulting to a shallow answer or wrong repo
 - agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-09
