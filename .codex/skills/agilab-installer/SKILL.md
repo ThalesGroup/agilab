@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-28
+  updated: 2026-05-29
 ---
 
 # AGILAB Installer Skill
@@ -121,6 +121,38 @@ Use this skill when working on:
   - The env file must be updated before `--test-root`, `--test-core`, app
     installs, and app tests. A late write can make validation exercise an old
     share directory while the final env file looks correct.
+
+- **Cluster share setup with custom scheduler SSH or pre-mounted storage**
+  - If workers can SSH but cannot see scheduler-written sentinels, distinguish
+    three cases before changing app code:
+    - scheduler SSH is closed on port 22 but available on a custom managed port
+    - remote workers already have a site-managed pre-mounted share
+    - remote workers only have a writable local directory that is not shared
+  - For custom scheduler SSH, use `agilab doctor --cluster ... --scheduler-ssh-port <port>`
+    consistently for `--setup-share sshfs --apply`, `--share-check-only`, and full
+    cluster validation.
+  - For site-managed storage, use `--remote-cluster-share-premounted` and prove
+    the sentinel path is visible from every worker. A writable worker directory
+    without the scheduler sentinel is not a valid cluster share.
+  - Keep worker IP discovery fresh. If a remembered node reports `no-ssh-port`,
+    treat that node as stale and rerun no-cache LAN discovery instead of forcing
+    validation against it.
+
+- **Dependency resolver drift in generated worker environments**
+  - If post-install fails with an archive API error such as
+    `module 'py7zr' has no attribute 'SevenZipFile'`, compare the resolved
+    dependency surface against the committed app/core constraints before editing
+    extraction logic. Pin or constrain the dependency when a new package release
+    removed the API used by AGILAB.
+  - If runtime import fails with an apparently impossible import from an installed
+    package, inspect the generated worker venv for zero-byte or partial package
+    files and verify the package in a clean `uv --no-project --with ...` probe.
+    Clear the generated `~/wenv/<app>_worker/.venv` and refresh the lock when the
+    worker venv is polluted.
+  - When constraining a dependency for an installer regression, update every
+    relevant source of truth together: core package metadata, built-in app
+    metadata, promoted app metadata, templates when they carry the dependency,
+    and the lockfiles used by the failing install path.
 
 - **Empty list options under `set -u`**
   - For root shell installers, treat empty comma/list options as a first-class

@@ -519,6 +519,30 @@ sentinel check on a macOS worker.
      --share-check-only
    ```
 
+### 4c. Cluster share variants: pre-mounted shares and custom scheduler SSH ports
+
+Use this when workers already see shared storage through NFS, SMB, site-managed
+SSHFS, Kubernetes volumes, or another external mount, or when the scheduler SSH
+daemon is reachable on a non-default port.
+
+1. For a custom scheduler SSH port, pass `--scheduler-ssh-port <port>` to
+   `agilab doctor --cluster ... --setup-share sshfs --apply`,
+   `--print-share-setup`, `--share-check-only`, and full cluster validation
+   commands. AGILAB propagates the port into remote SSHFS setup through
+   `AGILAB_SCHEDULER_SSH_PORT`.
+2. For pre-mounted worker shares, pass `--remote-cluster-share-premounted` and
+   set `--remote-cluster-share` to the path visible on every worker. AGILAB
+   writes the worker `AGI_CLUSTER_SHARE` setting and verifies that the path is
+   visible and writable, but it does not require worker-to-scheduler SSH or run
+   `sshfs`.
+3. Pre-mounted mode still requires the scheduler local cluster share and every
+   worker remote cluster share to point to the same underlying storage. The
+   share check proves this by writing a scheduler sentinel and reading it from
+   every remote worker before compute runs.
+4. Do not fall back to `localshare` when cluster mode is requested. If the
+   sentinel is not visible from workers, fix the site mount or pass the correct
+   `--remote-cluster-share`; do not silently degrade to local execution.
+
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
 
