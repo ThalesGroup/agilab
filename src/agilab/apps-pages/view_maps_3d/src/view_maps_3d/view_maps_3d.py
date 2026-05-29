@@ -376,6 +376,13 @@ def discrete():
     st.session_state["coltype"] = "discrete"
 
 
+_COLTYPE_CALLBACKS = {
+    "continuous": continuous,
+    "continious": continious,
+    "discrete": discrete,
+}
+
+
 def update_var(var_key, widget_key):
     """
 
@@ -1134,7 +1141,7 @@ def page():
                             colsn,
                             index=var_default[i],
                             key=var[i],
-                            on_change=eval(var[i]),
+                            on_change=_COLTYPE_CALLBACKS[var[i]],
                         )
                         if i == 0:
                             # Select color palette from the list
@@ -1157,7 +1164,7 @@ def page():
                             [],
                             index=var_default[i],
                             key=var[i],
-                            on_change=eval(var[i]),
+                            on_change=_COLTYPE_CALLBACKS[var[i]],
                         )
 
             for i in range(2, 5):

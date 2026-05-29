@@ -2902,7 +2902,12 @@ def test_maybe_autofix_generated_code_paths(monkeypatch):
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
     push_run_log = lambda *_args: logs.append(_args[1])
     get_run_placeholder = lambda _page: "placeholder"
-    env = SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"})
+    env = SimpleNamespace(
+        envars={
+            pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+            pipeline_ai.GENERATED_CODE_PROCESS_LIMITS_ENV: "1",
+        }
+    )
 
     code, model, detail = pipeline_ai._maybe_autofix_generated_code(
         original_request="q",
@@ -2977,6 +2982,7 @@ def test_maybe_autofix_promotes_validated_recipe_memory(monkeypatch, tmp_path):
         envars={
             pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(memory_path),
             pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+            pipeline_ai.GENERATED_CODE_PROCESS_LIMITS_ENV: "1",
         }
     )
 
@@ -3012,7 +3018,12 @@ def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_d
         }
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
-    env = SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"})
+    env = SimpleNamespace(
+        envars={
+            pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+            pipeline_ai.GENERATED_CODE_PROCESS_LIMITS_ENV: "1",
+        }
+    )
 
     unchanged = pipeline_ai._maybe_autofix_generated_code(
         original_request="q",
@@ -3104,6 +3115,23 @@ def test_maybe_autofix_generated_code_requires_sandbox_boundary(monkeypatch):
 
     assert (code, model, detail) == ("df['y'] = df['x'] + 1", "m", "detail")
     assert any("generated-code execution requires" in entry for entry in logs)
+
+    logs.clear()
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"}),
+        merged_code="df['y'] = df['x'] + 1",
+        model_label="m",
+        detail="detail",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=lambda *_args: logs.append(_args[1]),
+        get_run_placeholder=lambda _page: "placeholder",
+    )
+
+    assert (code, model, detail) == ("df['y'] = df['x'] + 1", "m", "detail")
+    assert any("process generated-code execution requires" in entry for entry in logs)
 
 
 def test_chat_ollama_local_covers_missing_model_and_generation_failure(monkeypatch):
@@ -3591,6 +3619,7 @@ def test_ask_gpt_and_autofix_cover_empty_and_failed_repair_paths(monkeypatch):
     fake_st.session_state[pipeline_ai.UOAIC_AUTOFIX_STATE_KEY] = False
     env.envars[pipeline_ai.UOAIC_AUTOFIX_ENV] = "1"
     env.envars[pipeline_ai.GENERATED_CODE_SANDBOX_ENV] = "process"
+    env.envars[pipeline_ai.GENERATED_CODE_PROCESS_LIMITS_ENV] = "1"
     logs: list[str] = []
     monkeypatch.setattr(
         pipeline_ai,
@@ -3697,7 +3726,12 @@ def test_autofix_and_provider_switch_cover_remaining_error_paths(monkeypatch):
         original_request="q",
         df_path=Path("df.csv"),
         index_page="page",
-        env=SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"}),
+        env=SimpleNamespace(
+            envars={
+                pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+                pipeline_ai.GENERATED_CODE_PROCESS_LIMITS_ENV: "1",
+            }
+        ),
         merged_code="raise ValueError('boom')",
         model_label="model-a",
         detail="detail-a",

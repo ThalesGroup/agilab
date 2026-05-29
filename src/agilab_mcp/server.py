@@ -28,7 +28,6 @@ TOOLS: dict[str, ToolFn] = {
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
     "compare_runs": manifest_tools.compare_runs,
-    "export_quarto_report": manifest_tools.export_quarto_report,
 }
 
 
@@ -204,18 +203,6 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "right_manifest": {"type": "string"},
                 },
                 "required": ["left_manifest", "right_manifest"],
-            },
-        },
-        {
-            "name": "export_quarto_report",
-            "description": "Export a Quarto report from one AGILAB run manifest.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "manifest_path": {"type": "string"},
-                    "output_path": {"type": "string"},
-                },
-                "required": ["manifest_path", "output_path"],
             },
         },
     ]
