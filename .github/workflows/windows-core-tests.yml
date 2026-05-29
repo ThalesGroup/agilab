@@ -67,7 +67,7 @@ jobs:
             --with pytest `
             --with pytest-asyncio `
             --with pytest-cov `
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' `
+            python -m pytest -q --disable-warnings -o addopts='' `
             --junitxml test-results/windows-core-tests.xml `
             src/agilab/core/test src/agilab/core/agi-env/test `
             2>&1 | Tee-Object -FilePath test-results/windows-core-tests.txt

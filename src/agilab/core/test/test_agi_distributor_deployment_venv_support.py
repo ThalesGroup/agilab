@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from agi_cluster.agi_distributor import deployment_venv_support
@@ -8,7 +9,7 @@ from agi_cluster.agi_distributor import deployment_venv_support
 def _write_venv_python(
     project: Path,
     *,
-    os_name: str = "posix",
+    os_name: str = os.name,
     python_version: str | None = None,
 ) -> Path:
     python_path = deployment_venv_support.project_venv_python(project, os_name=os_name)
