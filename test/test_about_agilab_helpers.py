@@ -1758,6 +1758,138 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     assert fake_st.warnings == []
 
 
+def test_bootstrap_page_environment_reuses_warm_env_singleton(tmp_path, monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    app_path = apps_path / "sb3_trainer_project"
+    app_path.mkdir(parents=True)
+    requested_apps: list[str | None] = []
+    set_env_calls: list[tuple[str, str]] = []
+    refreshed_envs: list[object] = []
+
+    existing_env = SimpleNamespace(
+        apps_path=apps_path,
+        app="sb3_trainer_project",
+        active_app=app_path,
+        projects={"sb3_trainer_project"},
+        is_source_env=True,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=False,
+    )
+
+    class WarmAgiEnv:
+        @classmethod
+        def current(cls):
+            return existing_env
+
+        @staticmethod
+        def set_env_var(key: str, value: str) -> None:
+            set_env_calls.append((key, value))
+
+        def __init__(self, *, apps_path: Path, verbose: int):
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+            )
+
+    def apply_request(env, requested):
+        requested_apps.append(requested)
+        return False
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, port_calls = _make_bootstrap_ports(WarmAgiEnv, environ={})
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        logger=None,
+        apply_active_app_request=apply_request,
+        handle_data_root_failure=lambda _exc, **_kwargs: False,
+        refresh_env_from_file=refreshed_envs.append,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        ports=ports,
+    )
+
+    assert result.env is existing_env
+    assert fake_st.session_state["env"] is existing_env
+    assert fake_st.session_state["first_run"] is False
+    assert existing_env.init_done is True
+    assert requested_apps == [None]
+    assert refreshed_envs == [existing_env]
+    assert port_calls.activated == []
+
+
+def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    app_path = apps_path / "sb3_trainer_project"
+    stale_apps_path = tmp_path / "agi-space" / "apps"
+    app_path.mkdir(parents=True)
+    stale_apps_path.mkdir(parents=True)
+
+    existing_env = SimpleNamespace(
+        apps_path=stale_apps_path,
+        app="sb3_trainer_project",
+        active_app=app_path,
+        projects={"sb3_trainer_project"},
+        is_source_env=True,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=False,
+    )
+
+    class WarmAgiEnv:
+        @classmethod
+        def current(cls):
+            return existing_env
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+        def __init__(self, *, apps_path: Path, verbose: int):
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+            )
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, _port_calls = _make_bootstrap_ports(WarmAgiEnv, environ={})
+
+    with pytest.raises(RuntimeError, match="already initialised"):
+        bootstrap.bootstrap_page_environment(
+            streamlit=fake_st,
+            env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+            logger=None,
+            apply_active_app_request=lambda *_args: False,
+            handle_data_root_failure=lambda _exc, **_kwargs: False,
+            refresh_env_from_file=lambda _env: None,
+            clean_openai_key=lambda value: value,
+            store_cluster_credentials=lambda *_args, **_kwargs: True,
+            ports=ports,
+        )
+
+
 def test_bootstrap_resolve_apps_path_rejects_empty_or_malformed_marker(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     marker = tmp_path / ".agilab-path"

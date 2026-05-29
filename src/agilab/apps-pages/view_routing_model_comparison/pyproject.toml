@@ -1,0 +1,41 @@
+[project]
+name = "agi-page-routing-model-comparison"
+version = "2026.05.29"
+description = "AGILAB page bundle for comparing routing model allocation decisions."
+readme = { text = "AGILAB page bundle for comparing routing model allocation decisions.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "routing",
+    "page-bundle",
+]
+dependencies = [
+    "agi-pages>=2026.05.25,<2027.0",
+    "agi-env>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "numpy>=2.3.0,<3",
+    "pandas>=2.3.0,<4",
+    "plotly>=6.3.0,<7",
+]
+
+[project.entry-points."agilab.pages"]
+view_routing_model_comparison = "view_routing_model_comparison:bundle_root"
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_routing_model_comparison"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[tool.uv.sources]
+agi-pages = { path = "../../lib/agi-pages", editable = true }
+agi-gui = { path = "../../lib/agi-gui", editable = true }
+agi-env = { path = "../../core/agi-env", editable = true }
+agi-node = { path = "../../core/agi-node", editable = true }
