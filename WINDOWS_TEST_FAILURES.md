@@ -398,6 +398,13 @@ polars.exceptions.InvalidOperationError: file encoding is not UTF-8
 
 ### Category 8 — `prepare_local_env` / self-update path (3 tests + 1 regression)
 
+**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
+these failures from the verified count. The focused local validation passes for:
+
+- `test_prepare_local_env_online_ignores_uv_self_update_failure`
+- `test_prepare_local_env_windows_skips_self_update_when_standalone_uv_missing`
+- `test_prepare_local_env_windows_handles_empty_uv_and_self_update_failure`
+
 #### ⚠️ NEW REGRESSION: `test_prepare_local_env_online_ignores_uv_self_update_failure`
 ```
 AssertionError  (no E-line captured — run pytest -vv to see full diff)
@@ -459,10 +466,11 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
-| 8 | `prepare_local_env` self-update | 3 | ❌ Open (1 regression) | `deployment_prepare_support.py` |
+| 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
 | 9 | `sshpass` not on Windows | 1 | ❌ Open | Skip marker |
 | — | Needs `pytest -vv` | 10 | ❓ Unknown | Run targeted to diagnose |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation and capacity CSV encoding
-fixtures, then prioritize Cat 8 (prepare_local_env self-update regression).
+remaining count after the environment-isolation, capacity CSV encoding, and
+prepare_local_env self-update fixes. Then prioritize any still-failing Windows
+categories from the refreshed run.
