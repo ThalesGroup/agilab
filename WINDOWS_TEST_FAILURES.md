@@ -367,6 +367,11 @@ car ce fichier est utilisé par un autre processus:
 
 ### Category 7 — Polars CSV read fails: non-UTF-8 encoding (2 tests)
 
+**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
+these failures from the verified count. `capacity_support.update_capacity` now
+opens the capacity CSV with `encoding="utf-8"` and `newline=""`, with regression
+coverage in `test_update_capacity_writes_utf8_capacity_csv_for_polars`.
+
 On Windows, the system default encoding for file writes can be CP1252 (French locale). When capacity data is written as CSV and read back by polars, the non-UTF-8 content triggers an error.
 
 **Fix in the CSV write path in `capacity_support.py`:** always write UTF-8:
@@ -453,11 +458,11 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ❌ Open | Test fixtures — use `sys.executable -c sys.exit(N)` |
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
-| 7 | Polars CSV non-UTF-8 encoding | 2 | ❌ Open | `capacity_support.py` — write with `encoding="utf-8"` |
+| 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ❌ Open (1 regression) | `deployment_prepare_support.py` |
 | 9 | `sshpass` not on Windows | 1 | ❌ Open | Skip marker |
 | — | Needs `pytest -vv` | 10 | ❓ Unknown | Run targeted to diagnose |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation fixtures, then prioritize Cat 7
-(Polars encoding) and Cat 8 (prepare_local_env self-update regression).
+remaining count after the environment-isolation and capacity CSV encoding
+fixtures, then prioritize Cat 8 (prepare_local_env self-update regression).
