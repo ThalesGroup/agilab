@@ -47,7 +47,6 @@ PUBLIC_PAGE_MODULES = (
     "view_routing_model_comparison",
     "view_queue_resilience",
     "view_relay_resilience",
-    "view_routing_model_comparison",
     "view_scenario_cockpit",
     "view_release_decision",
     "view_shap_explanation",
