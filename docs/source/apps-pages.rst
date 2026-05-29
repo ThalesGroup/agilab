@@ -214,6 +214,16 @@ Network topology viewer synchronised with geographic views.
   the normal sidebar stays focused on choices rather than long filesystem
   strings.
 
+view_routing_model_comparison
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Routing-model comparison dashboard for allocation-decision evidence.
+
+- Input: baseline and candidate routing exports from queue-analysis runs.
+- Output: allocation deltas, decision summaries, and model-comparison charts.
+- UI convention: the page focuses on side-by-side evidence so candidate routing
+  behavior can be reviewed before promotion or handoff.
+
 view_queue_resilience
 ^^^^^^^^^^^^^^^^^^^^^
 

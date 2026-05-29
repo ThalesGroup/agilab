@@ -5,7 +5,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 ## Badges
 
-- Skills: 28 skills
+- Skills: 30 skills
 - Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references
 - Works with: Codex, Claude Code, Aider, OpenCode
 - Catalog-compatible: Continue
@@ -21,10 +21,12 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 - advanced-svg-system-design: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure. (.claude/skills/advanced-svg-system-design/SKILL.md)
 - agilab-code-statistics: Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds. (.claude/skills/agilab-code-statistics/SKILL.md)
+- agilab-deep-audit: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix. (.claude/skills/agilab-deep-audit/SKILL.md)
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
 - agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
 - agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
 - agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
+- agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
 - agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
 - agilab-product-reels: Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging. (.claude/skills/agilab-product-reels/SKILL.md)
 - agilab-pypi-release-maintenance: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item. (.claude/skills/agilab-pypi-release-maintenance/SKILL.md)

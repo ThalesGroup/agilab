@@ -28,12 +28,14 @@ canonical source can serve both agents.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
+- `agilab-deep-audit`: Produce evidence-backed AGILAB audit/code-review artifacts with architecture context, blast-radius tracing, and prioritized recommendations.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
 - `agilab-release-verification`: Verify release readiness and post-release alignment across PyPI, GitHub, docs, badges, and Hugging Face.
 - `agilab-pypi-release-maintenance`: Guarded workflow for inspecting and deleting old AGILAB PyPI releases without touching the protected current release.
 - `agilab-huggingface-spaces`: Maintain and deploy the official AGILAB Docker Space from the public checkout and sibling Hugging Face bundle.
+- `agilab-intent-router`: Route terse AGILAB operator requests into the right skill, safety mode, validation depth, and output contract.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.

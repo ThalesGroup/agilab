@@ -49,7 +49,8 @@ def test_flight_reel_finale_targets_proof_capsule_outro() -> None:
     assert finale.image.name == "core-pages-overview.png"
     assert finale.stage == "AGILAB"
     assert finale.title == "Replayable AI/ML evidence."
-    assert "proof capsules" in finale.body
+    assert "headless core" in finale.body
+    assert "notebooks" in finale.body
 
 
 def test_view_maps_overlay_draws_visible_panel() -> None:
@@ -71,18 +72,18 @@ def test_flight_reel_narration_sidecars_are_youtube_ready(tmp_path: Path) -> Non
 
     assert transcript_path.name == "agilab_flight_voiceover.txt"
     assert srt_path.name == "agilab_flight_voiceover.srt"
-    assert transcript_path.read_text(encoding="utf-8").startswith("AGILAB turns agent runs into proof capsules.")
+    assert transcript_path.read_text(encoding="utf-8").startswith("AGILAB turns runs into proof capsules.")
     srt_text = srt_path.read_text(encoding="utf-8")
     assert "00:00:00,000 --> 00:00:02,000" in srt_text
-    assert "AGILAB: replayable AI and ML evidence." in srt_text
+    assert "Replayable AI and ML evidence." in srt_text
 
 
 def test_flight_reel_caption_helpers_use_active_time_window() -> None:
     module = _load_module()
     cues = module.NARRATION_CUES["flight"]
 
-    assert module.caption_at(cues, 0.0) == "AGILAB turns agent runs into proof capsules."
-    assert module.caption_at(cues, 2.5) == "Lock inputs, runtime, and artifact intent before execution."
+    assert module.caption_at(cues, 0.0) == "AGILAB turns runs into proof capsules."
+    assert module.caption_at(cues, 2.5) == "Lock inputs, runtime, and artifacts."
     assert module.caption_at(cues, 15.6) is None
     assert module.srt_timestamp(65.432) == "00:01:05,432"
 
