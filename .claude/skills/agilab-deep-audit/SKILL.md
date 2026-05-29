@@ -101,7 +101,9 @@ design issue appears in several places.
 
 ## Output template
 
-For a review document, write this structure:
+For a review document, use
+`templates/CODE_REVIEW_TEMPLATE.md` as the canonical file structure. If the
+template file is unavailable, write this structure:
 
 ```markdown
 # AGILAB — Detailed Code Review
@@ -151,6 +153,19 @@ For a review document, write this structure:
 
 For a shorter audit response, keep the same logic but compress it:
 verdict, scope, top strengths, top findings, prioritized actions, bottom line.
+
+## Quality gate
+
+When the audit is written to a Markdown file, run the deterministic quality
+evaluator before handoff unless the user explicitly asks not to validate:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/audit_quality_evaluator.py <audit.md> --min-score 80
+```
+
+Use `--json --output <report.json>` when the score should become evidence. A
+score below 80 means the artifact is not yet comparison-quality; improve the
+missing rubric areas before presenting it as a final audit.
 
 ## Validation and follow-up
 
