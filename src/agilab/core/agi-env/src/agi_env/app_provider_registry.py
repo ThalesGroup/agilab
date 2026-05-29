@@ -142,12 +142,16 @@ def is_app_project_root(path: Path) -> bool:
 def _entry_points(entry_points_fn: Callable[[], Any]) -> Iterable[Any]:
     try:
         entry_points = entry_points_fn()
+    # Best-effort provider discovery boundary: broken entry-point backends must
+    # not prevent AGILAB from using source checkout app discovery.
     except Exception:
         return ()
     select = getattr(entry_points, "select", None)
     if callable(select):
         try:
             return tuple(select(group=APP_PROVIDER_ENTRYPOINT_GROUP))
+        # Best-effort provider discovery boundary: ignore malformed third-party
+        # entry-point selectors and fall back to source checkout app discovery.
         except Exception:
             return ()
     if isinstance(entry_points, Mapping):
@@ -163,6 +167,8 @@ def _coerce_project_root(value: Any) -> Path | None:
     if callable(value):
         try:
             value = value()
+        # Best-effort provider discovery boundary: provider callbacks execute
+        # third-party package code, so broken providers are ignored.
         except Exception:
             return None
     try:
@@ -183,6 +189,8 @@ def discover_installed_app_projects(
     for entry_point in sorted(_entry_points(entry_points_fn), key=lambda item: str(getattr(item, "name", ""))):
         try:
             loaded = entry_point.load()
+        # Best-effort provider discovery boundary: one broken installed
+        # provider must not hide the rest of the installed app catalog.
         except Exception:
             continue
         root = _coerce_project_root(loaded)

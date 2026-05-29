@@ -220,6 +220,30 @@ def test_src_layout_packages_do_not_publish_top_level_init_modules() -> None:
     assert leaking_src_roots == []
 
 
+def test_root_wheel_excludes_local_artifacts_and_unbundled_sources() -> None:
+    root_pyproject = REPO_ROOT / "pyproject.toml"
+    setuptools_config = _load_toml(root_pyproject)["tool"]["setuptools"]
+    finder = setuptools_config["packages"]["find"]
+    package_data = setuptools_config.get("package-data", {}).get("agilab", [])
+
+    assert finder["where"] == ["src"]
+    assert {
+        ".venv*",
+        "agilab.apps.*",
+        "agilab.core*",
+        "build*",
+        "test*",
+    } <= set(finder["exclude"])
+    assert not {
+        ".coverage*",
+        "*.pid",
+        "apps/*",
+        "build/*",
+        "core/*",
+        "coverage-*.xml",
+    } & set(package_data)
+
+
 def test_workflow_and_docs_cover_the_same_package_split() -> None:
     workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")

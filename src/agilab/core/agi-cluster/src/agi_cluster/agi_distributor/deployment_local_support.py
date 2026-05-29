@@ -25,25 +25,60 @@ import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_cluster.agi_distributor import deployment_dask_support
+from agi_cluster.agi_distributor.deployment_editable_install_support import (
+    EDITABLE_INSTALL_CACHE_SCHEMA as EDITABLE_INSTALL_CACHE_SCHEMA,
+    _editable_install_cache_hit as _editable_install_cache_hit,
+    _editable_install_cache_path as _editable_install_cache_path,
+    _editable_install_digest as _editable_install_digest,
+    _editable_install_metadata_inputs as _editable_install_metadata_inputs,
+    _editable_install_project as _editable_install_project,
+    _editable_install_proof_exists as _editable_install_proof_exists,
+    _load_editable_install_cache as _load_editable_install_cache,
+    _record_editable_install_cache as _record_editable_install_cache,
+    _write_editable_install_cache as _write_editable_install_cache,
+)
+from agi_cluster.agi_distributor.deployment_stage_cache_support import (
+    DEPLOY_COPY_STAMP_FILENAME as DEPLOY_COPY_STAMP_FILENAME,
+    DEPLOY_COPY_STAMP_SCHEMA as DEPLOY_COPY_STAMP_SCHEMA,
+    DEPLOY_STAGE_CACHE_SCHEMA as DEPLOY_STAGE_CACHE_SCHEMA,
+    DEPLOY_TIMING_TRACE_SCHEMA as DEPLOY_TIMING_TRACE_SCHEMA,
+    DISABLE_DEPLOY_STAGE_CACHE_ENV as DISABLE_DEPLOY_STAGE_CACHE_ENV,
+    REFRESH_LOCKS_ENV as REFRESH_LOCKS_ENV,
+    _deploy_copy_stamp_matches as _deploy_copy_stamp_matches,
+    _deploy_copy_stamp_path as _deploy_copy_stamp_path,
+    _deploy_copy_stamp_payload as _deploy_copy_stamp_payload,
+    _deploy_path_key as _deploy_path_key,
+    _deploy_stage_cache_enabled as _deploy_stage_cache_enabled,
+    _deploy_stage_cache_path as _deploy_stage_cache_path,
+    _deploy_stage_directory_fingerprint as _deploy_stage_directory_fingerprint,
+    _deploy_stage_file_fingerprint as _deploy_stage_file_fingerprint,
+    _deploy_stage_project_inputs as _deploy_stage_project_inputs,
+    _deploy_timing_trace_path as _deploy_timing_trace_path,
+    _env_truthy as _env_truthy,
+    _env_value as _env_value,
+    _load_deploy_stage_cache as _load_deploy_stage_cache,
+    _write_deploy_copy_stamp as _write_deploy_copy_stamp,
+    _write_deploy_stage_cache as _write_deploy_stage_cache,
+    _write_deploy_timing_trace as _write_deploy_timing_trace,
+)
+from agi_cluster.agi_distributor.deployment_venv_support import (
+    project_site_packages_dir as _project_site_packages_dir,
+    project_venv_cfg_version as _project_venv_cfg_version,
+    project_venv_matches as _project_venv_matches,
+    project_venv_python as _project_venv_python,
+    project_venv_root as _project_venv_root,
+    python_version_tuple as _python_version_tuple,
+)
 from agi_env import AgiEnv
-from agi_env.process_support import project_virtualenv_root, project_virtualenv_script_path
 
 
 logger = logging.getLogger(__name__)
 FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)  # ty: ignore[possibly-missing-submodule]
-PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
-REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
-DISABLE_DEPLOY_STAGE_CACHE_ENV = "AGILAB_DISABLE_DEPLOY_STAGE_CACHE"
 PERF_TRACE_ENV = "AGILAB_PERF_TRACE"
-DEPLOY_STAGE_CACHE_SCHEMA = "agilab-deploy-stage-cache-v1"
-DEPLOY_TIMING_TRACE_SCHEMA = "agilab-deploy-timing-v1"
-DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
-DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
-DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
 UV_INDEX_RESOLVER_ENV_VARS = ("UV_INDEX_URL", "UV_EXTRA_INDEX_URL")
 UV_WHEELHOUSE_RESOLVER_ENV_VARS = ("UV_FIND_LINKS",)
 UV_RESOLVER_PROPAGATED_ENV_VARS = (
@@ -54,7 +89,6 @@ UV_RESOLVER_PROPAGATED_ENV_VARS = (
     "REQUESTS_CA_BUNDLE",
     "UV_NATIVE_TLS",
 )
-EDITABLE_INSTALL_CACHE_SCHEMA = "agilab-editable-install-cache-v1"
 EDITABLE_SHADOW_IMPORTS: dict[str, tuple[str, ...]] = {
     "agi-cluster": ("agi_cluster",),
     "agi-core": ("agi_core",),
@@ -265,61 +299,6 @@ def _build_worker_core_add_commands(
     return commands
 
 
-def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
-    return cast(Path, project_virtualenv_script_path(project, "python", os_name=os_name))
-
-
-def _project_venv_root(project: Path) -> Path:
-    return cast(Path, project_virtualenv_root(project))
-
-
-def _python_version_tuple(value: str | None) -> tuple[int, ...] | None:
-    if not value:
-        return None
-    match = PYTHON_VERSION_RE.search(value)
-    if not match:
-        return None
-    return tuple(int(part) for part in match.groups() if part is not None)
-
-
-def _project_venv_cfg_version(project: Path) -> tuple[int, ...] | None:
-    cfg = project / ".venv" / "pyvenv.cfg"
-    try:
-        lines = cfg.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return None
-
-    for line in lines:
-        key, separator, raw_value = line.partition("=")
-        if not separator:
-            continue
-        if key.strip().lower() not in {"version", "version_info"}:
-            continue
-        parsed = _python_version_tuple(raw_value.strip())
-        if parsed:
-            return parsed
-    return None
-
-
-def _project_venv_matches(
-    project: Path,
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> bool:
-    if not _project_venv_python(project, os_name=os_name).exists():
-        return False
-
-    requested = _python_version_tuple(python_version)
-    if not requested:
-        return True
-
-    actual = _project_venv_cfg_version(project)
-    if not actual:
-        return False
-    return actual[: len(requested)] == requested
-
-
 def _remove_project_venv_if_mismatched(
     project: Path,
     *,
@@ -335,260 +314,6 @@ def _remove_project_venv_if_mismatched(
         _force_remove(venv_root, env_logger=env_logger)
         return True
     return False
-
-
-def _env_value(envars: Any, key: str) -> str | None:
-    raw = os.environ.get(key)
-    if raw is None:
-        try:
-            raw = envars.get(key)
-        except (AttributeError, RuntimeError, TypeError):
-            raw = None
-    if raw is None:
-        return None
-    value = str(raw).strip().strip("\"'").strip()
-    return value or None
-
-
-def _env_truthy(envars: Any, key: str) -> bool:
-    raw = _env_value(envars, key)
-    if raw is None:
-        return False
-    return raw.lower() in {"1", "true", "yes", "on"}
-
-
-def _deploy_stage_cache_enabled(envars: Any) -> bool:
-    if _env_truthy(envars, REFRESH_LOCKS_ENV):
-        return False
-    return not _env_truthy(envars, DISABLE_DEPLOY_STAGE_CACHE_ENV)
-
-
-def _deploy_stage_cache_path(wenv_abs: Path) -> Path:
-    return wenv_abs / ".agilab-stage-cache.json"
-
-
-def _load_deploy_stage_cache(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    stages = data.get("stages")
-    if data.get("schema") != DEPLOY_STAGE_CACHE_SCHEMA or not isinstance(stages, dict):
-        return {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": {}}
-    return {"schema": DEPLOY_STAGE_CACHE_SCHEMA, "stages": stages}
-
-
-def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
-    payload: dict[str, Any] = {
-        "schema": DEPLOY_STAGE_CACHE_SCHEMA,
-        "stages": state.get("stages") if isinstance(state.get("stages"), dict) else {},
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
-    except OSError:
-        return
-
-
-def _deploy_timing_trace_path(wenv_abs: Path) -> Path:
-    return wenv_abs / ".agilab-deploy-timing.json"
-
-
-def _write_deploy_timing_trace(
-    path: Path,
-    *,
-    stages: list[dict[str, Any]],
-    results: dict[str, str],
-    app_path: Path,
-    worker_project: Path,
-) -> None:
-    payload = {
-        "schema": DEPLOY_TIMING_TRACE_SCHEMA,
-        "app_path": _deploy_path_key(app_path),
-        "worker_project": _deploy_path_key(worker_project),
-        "stages": stages,
-        "results": results,
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
-    except OSError:
-        return
-
-
-def _deploy_path_key(path: Path) -> str:
-    try:
-        return path.expanduser().resolve(strict=False).as_posix()
-    except (OSError, RuntimeError, ValueError):
-        return path.expanduser().as_posix()
-
-
-def _deploy_stage_file_fingerprint(path: Path) -> dict[str, Any]:
-    try:
-        resolved = path.expanduser().resolve(strict=False)
-    except (OSError, RuntimeError, ValueError):
-        return {"path": _deploy_path_key(path), "missing": True}
-    fingerprint: dict[str, Any] = {"path": resolved.as_posix()}
-    try:
-        stat_result = resolved.stat()
-    except OSError:
-        fingerprint["missing"] = True
-        return fingerprint
-
-    fingerprint["size"] = stat_result.st_size
-    if not resolved.is_file():
-        fingerprint["kind"] = "directory" if resolved.is_dir() else "other"
-        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
-        return fingerprint
-
-    if stat_result.st_size > DEPLOY_STAGE_CACHE_HASH_LIMIT:
-        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
-        return fingerprint
-
-    try:
-        fingerprint["sha256"] = hashlib.sha256(resolved.read_bytes()).hexdigest()
-    except OSError:
-        fingerprint["mtime_ns"] = stat_result.st_mtime_ns
-    return fingerprint
-
-
-def _deploy_stage_directory_fingerprint(root: Path) -> dict[str, Any]:
-    try:
-        resolved = root.expanduser().resolve(strict=False)
-    except (OSError, RuntimeError, ValueError):
-        return {"path": _deploy_path_key(root), "missing": True}
-
-    fingerprint: dict[str, Any] = {"path": resolved.as_posix()}
-    try:
-        stat_result = resolved.stat()
-    except OSError:
-        fingerprint["missing"] = True
-        return fingerprint
-
-    if not resolved.is_dir():
-        return _deploy_stage_file_fingerprint(resolved)
-
-    fingerprint["kind"] = "directory"
-    fingerprint["mtime_ns"] = stat_result.st_mtime_ns
-    entries: list[dict[str, Any]] = []
-    try:
-        children = sorted(
-            resolved.rglob("*"), key=lambda candidate: candidate.as_posix()
-        )
-    except OSError:
-        fingerprint["unreadable"] = True
-        return fingerprint
-
-    for child in children:
-        try:
-            relative_path = child.relative_to(resolved).as_posix()
-        except ValueError:
-            relative_path = child.name
-        try:
-            if child.is_dir():
-                entries.append({"path": relative_path, "kind": "directory"})
-            elif child.is_file():
-                entries.append(
-                    {
-                        "path": relative_path,
-                        "kind": "file",
-                        "fingerprint": _deploy_stage_file_fingerprint(child),
-                    }
-                )
-            else:
-                entries.append(
-                    {
-                        "path": relative_path,
-                        "kind": "other",
-                        "fingerprint": _deploy_stage_file_fingerprint(child),
-                    }
-                )
-        except OSError:
-            entries.append({"path": relative_path, "unreadable": True})
-    fingerprint["entries"] = entries
-    return fingerprint
-
-
-def _deploy_copy_stamp_path(output_path: Path, *, directory: bool) -> Path:
-    if directory:
-        return output_path / DEPLOY_COPY_STAMP_FILENAME
-    return output_path.with_name(f".{output_path.name}.agilab-copy-stamp.json")
-
-
-def _deploy_copy_stamp_payload(
-    *,
-    kind: str,
-    source: Path,
-    destination: Path,
-    source_fingerprint: dict[str, Any],
-) -> dict[str, Any]:
-    return {
-        "schema": DEPLOY_COPY_STAMP_SCHEMA,
-        "kind": kind,
-        "source": _deploy_path_key(source),
-        "destination": _deploy_path_key(destination),
-        "source_fingerprint": source_fingerprint,
-    }
-
-
-def _deploy_copy_stamp_matches(
-    stamp_path: Path,
-    payload: dict[str, Any],
-    *,
-    output_probe: Callable[[], bool],
-) -> bool:
-    try:
-        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-    if stamp != payload:
-        return False
-    try:
-        return output_probe()
-    except OSError:
-        return False
-
-
-def _write_deploy_copy_stamp(stamp_path: Path, payload: dict[str, Any]) -> None:
-    try:
-        stamp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = stamp_path.with_name(f"{stamp_path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(stamp_path)
-    except OSError:
-        return
-
-
-def _deploy_stage_project_inputs(*projects: Path | None) -> list[Path]:
-    inputs: list[Path] = []
-    for project in projects:
-        if not isinstance(project, Path):
-            continue
-        inputs.extend(
-            [
-                project / "pyproject.toml",
-                project / "uv.lock",
-                project / "uv_config.toml",
-                project / "setup.py",
-                project / "setup.cfg",
-            ]
-        )
-    return inputs
 
 
 def _deploy_stage_inputs_for_specs(specs: list[str]) -> list[Path]:
@@ -741,294 +466,6 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
         }
     except OSError:
         return {"path": path.name, "missing": True}
-
-
-def _editable_install_cache_path(venv_project: Path) -> Path:
-    resolved_project = venv_project.expanduser().resolve(strict=False)
-    cache_key = hashlib.sha256(
-        json.dumps(
-            {
-                "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
-                "venv_project": resolved_project.as_posix(),
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()
-    return (
-        resolved_project.parent
-        / ".agilab-editable-install-cache"
-        / f"{resolved_project.name}-{cache_key}.json"
-    )
-
-
-def _load_editable_install_cache(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    installs = data.get("installs")
-    if data.get("schema") != EDITABLE_INSTALL_CACHE_SCHEMA or not isinstance(
-        installs, dict
-    ):
-        return {"schema": EDITABLE_INSTALL_CACHE_SCHEMA, "installs": {}}
-    return {"schema": EDITABLE_INSTALL_CACHE_SCHEMA, "installs": installs}
-
-
-def _write_editable_install_cache(path: Path, state: dict[str, Any]) -> None:
-    payload: dict[str, Any] = {
-        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
-        "installs": state.get("installs")
-        if isinstance(state.get("installs"), dict)
-        else {},
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
-    except OSError:
-        return
-
-
-def _editable_install_project(package_ref: str | Path) -> Path | None:
-    try:
-        package_path = Path(package_ref).expanduser()
-    except (OSError, TypeError, ValueError):
-        return None
-    return package_path if _is_python_project(package_path) else None
-
-
-def _project_site_packages_dir(
-    project: Path,
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> Path:
-    venv_root = _project_venv_root(project)
-    if os_name == "nt":
-        return venv_root / "Lib" / "site-packages"
-
-    if python_version:
-        python_parts = str(python_version).split(".")
-        if len(python_parts) >= 2 and python_parts[-1].endswith("t"):
-            python_dir = f"{python_parts[0]}.{python_parts[1].removesuffix('t')}t"
-            return venv_root / "lib" / f"python{python_dir}" / "site-packages"
-
-    requested = _python_version_tuple(python_version)
-    version = requested or _project_venv_cfg_version(project)
-    if version and len(version) >= 2:
-        return venv_root / "lib" / f"python{version[0]}.{version[1]}" / "site-packages"
-
-    lib_root = venv_root / "lib"
-    try:
-        candidates = sorted(lib_root.glob("python*/site-packages"))
-    except OSError:
-        candidates = []
-    if candidates:
-        return candidates[0]
-
-    fallback = _python_version_tuple(platform.python_version()) or (3, 13)
-    return venv_root / "lib" / f"python{fallback[0]}.{fallback[1]}" / "site-packages"
-
-
-def _editable_install_proof_exists(
-    venv_project: Path,
-    package_project: Path,
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> bool:
-    site_packages = _project_site_packages_dir(
-        venv_project,
-        os_name=os_name,
-        python_version=python_version,
-    )
-    if not site_packages.exists():
-        return False
-
-    expected_path = package_project.expanduser().resolve(strict=False)
-    try:
-        direct_url_files = sorted(site_packages.glob("*.dist-info/direct_url.json"))
-    except OSError:
-        return False
-
-    for direct_url_file in direct_url_files:
-        try:
-            data = json.loads(direct_url_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        dir_info = data.get("dir_info")
-        if not isinstance(dir_info, dict) or dir_info.get("editable") is not True:
-            continue
-        raw_url = data.get("url")
-        if not isinstance(raw_url, str):
-            continue
-        parsed = urlparse(raw_url)
-        if parsed.scheme != "file":
-            continue
-        if parsed.netloc and parsed.netloc not in {"localhost", "127.0.0.1"}:
-            continue
-        raw_path = unquote(parsed.path)
-        # On Windows ``file:///C:/...`` urlparses to ``/C:/...``; the leading
-        # slash breaks ``Path()`` so we strip it when a drive letter follows.
-        if (
-            os_name == "nt"
-            and len(raw_path) >= 3
-            and raw_path[0] == "/"
-            and raw_path[2] == ":"
-        ):
-            raw_path = raw_path[1:]
-        installed_path = Path(raw_path).resolve(strict=False)
-        if installed_path == expected_path:
-            return True
-    return False
-
-
-def _editable_install_metadata_inputs(package_project: Path) -> list[Path]:
-    return [
-        package_project / "pyproject.toml",
-        package_project / "setup.py",
-        package_project / "setup.cfg",
-    ]
-
-
-def _editable_install_cache_key(
-    *,
-    package_project: Path,
-    venv_project: Path,
-) -> str:
-    payload = {
-        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
-        "package_project": package_project.expanduser()
-        .resolve(strict=False)
-        .as_posix(),
-        "venv": _project_venv_root(venv_project).resolve(strict=False).as_posix(),
-    }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")
-    ).hexdigest()
-
-
-def _editable_install_digest(
-    *,
-    uv_cmd: str,
-    package_project: Path,
-    venv_project: Path,
-    editable: bool,
-    no_deps: bool,
-    python_version: str | None,
-    os_name: str,
-) -> str:
-    payload = {
-        "schema": EDITABLE_INSTALL_CACHE_SCHEMA,
-        "uv_cmd": uv_cmd.strip(),
-        "package_project": package_project.expanduser()
-        .resolve(strict=False)
-        .as_posix(),
-        "venv": _project_venv_root(venv_project).resolve(strict=False).as_posix(),
-        "venv_python": _project_venv_python(venv_project, os_name=os_name)
-        .resolve(strict=False)
-        .as_posix(),
-        "python_version": str(python_version or ""),
-        "venv_cfg_version": _project_venv_cfg_version(venv_project),
-        "editable": bool(editable),
-        "no_deps": bool(no_deps),
-        "os_name": os_name,
-        "metadata": [
-            _deploy_stage_file_fingerprint(path)
-            for path in _editable_install_metadata_inputs(package_project)
-        ],
-    }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")
-    ).hexdigest()
-
-
-def _editable_install_cache_hit(
-    *,
-    uv_cmd: str,
-    package_project: Path,
-    venv_project: Path,
-    editable: bool,
-    no_deps: bool,
-    python_version: str | None,
-    os_name: str,
-) -> bool:
-    cache_path = _editable_install_cache_path(venv_project)
-    state = _load_editable_install_cache(cache_path)
-    installs = state.get("installs")
-    if not isinstance(installs, dict):
-        return False
-
-    key = _editable_install_cache_key(
-        package_project=package_project,
-        venv_project=venv_project,
-    )
-    cached = installs.get(key)
-    if not isinstance(cached, dict):
-        return False
-    digest = _editable_install_digest(
-        uv_cmd=uv_cmd,
-        package_project=package_project,
-        venv_project=venv_project,
-        editable=editable,
-        no_deps=no_deps,
-        python_version=python_version,
-        os_name=os_name,
-    )
-    return cached.get("digest") == digest and _editable_install_proof_exists(
-        venv_project,
-        package_project,
-        os_name=os_name,
-        python_version=python_version,
-    )
-
-
-def _record_editable_install_cache(
-    *,
-    uv_cmd: str,
-    package_project: Path,
-    venv_project: Path,
-    editable: bool,
-    no_deps: bool,
-    python_version: str | None,
-    os_name: str,
-) -> None:
-    if not _editable_install_proof_exists(
-        venv_project,
-        package_project,
-        os_name=os_name,
-        python_version=python_version,
-    ):
-        return
-    cache_path = _editable_install_cache_path(venv_project)
-    state = _load_editable_install_cache(cache_path)
-    installs = state.setdefault("installs", {})
-    if not isinstance(installs, dict):
-        return
-    key = _editable_install_cache_key(
-        package_project=package_project,
-        venv_project=venv_project,
-    )
-    installs[key] = {
-        "digest": _editable_install_digest(
-            uv_cmd=uv_cmd,
-            package_project=package_project,
-            venv_project=venv_project,
-            editable=editable,
-            no_deps=no_deps,
-            python_version=python_version,
-            os_name=os_name,
-        )
-    }
-    _write_editable_install_cache(cache_path, state)
 
 
 def _shared_worker_venv_cache_key(
