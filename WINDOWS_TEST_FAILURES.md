@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (50 tests)
+## ✅ Fixed since last pass (58 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -30,6 +30,7 @@ The following test categories were resolved by the dev team:
 | uv TOML paths with `\` (partial) | 4 |
 | `deploy_local_worker` path issues (partial) | 7 |
 | Virtualenv Windows layout (`.venv/Scripts`) | 7 |
+| uv TOML paths with `\` (remaining) | 8 |
 | Miscellaneous | 10 |
 
 ---
@@ -188,35 +189,28 @@ Result: `8 passed`.
 
 ---
 
-### Category 3 — uv TOML source paths written with `\` (8 tests)
+### Category 3 — uv TOML source paths written with `\` — fixed in current repo (8 tests)
 
-`os.path.relpath()` on Windows returns `\` separators. When written into `pyproject.toml`, uv requires POSIX `/` paths.
+Status: fixed in current repository; pending live Windows rerun.
 
-**Fix in `uv_source_support.py`:**
-```python
-import pathlib
-relative = pathlib.PurePosixPath(
-    pathlib.Path(os.path.relpath(abs_path, base)).as_posix()
-)
+The worker pyproject rewrite and manager sync overlay paths now keep `uv` source
+paths TOML-safe by normalizing local relative source paths to POSIX separators.
+
+Validation evidence from macOS with Windows-path simulation:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_and_keeps_valid_ones \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and_relpath_failures \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_rewrite_uv_sources_paths_handles_non_table_sources_and_noop_rewrites \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_iter_local_uv_source_paths_handles_missing_invalid_and_absolute_entries \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_missing_uv_source_paths_skips_blank_non_dict_and_absolute_existing_entries \
+  src/agilab/core/test/test_agi_distributor_uv_source_support.py::test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails \
+  src/agilab/core/test/test_agi_distributor_deployment_local_support.py::test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries
 ```
 
-#### `test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs`
-```
-AssertionError:
-assert 'foo = { path = "..\\..\\src\\deps\\foo" }' in toml
-# expected: 'foo = { path = "../../src/deps/foo" }'
-```
-
-#### `test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_and_keeps_valid_ones`
-#### `test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and_relpath_failures`
-#### `test_rewrite_uv_sources_paths_handles_non_table_sources_and_noop_rewrites`
-#### `test_iter_local_uv_source_paths_handles_missing_invalid_and_absolute_entries`
-#### `test_missing_uv_source_paths_skips_blank_non_dict_and_absolute_existing_entries`
-#### `test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails`
-#### `test_write_manager_sync_overlay_normalizes_paths_and_skips_invalid_entries`
-```
-# All: backslashes in TOML path values where forward slashes are expected
-```
+Result: `8 passed`.
 
 ---
 
@@ -440,7 +434,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 |---|---|---|---|---|
 | 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Fixed in current repo; rerun Windows to verify count | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
 | 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_local_support.py`, `process_support.py` |
-| 3 | uv TOML paths with `\` (remaining) | 8 | ❌ Open | `uv_source_support.py` → `.as_posix()` |
+| 3 | uv TOML paths with `\` | 8 | ✅ Fixed in current repo; rerun Windows to verify count | `uv_source_support.py` |
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ❌ Open | Test fixtures — use `sys.executable -c sys.exit(N)` |
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
@@ -450,6 +444,6 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | — | Needs `pytest -vv` | 7 | ❓ Unknown | Run targeted to diagnose |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
-remaining count after the environment-isolation, virtualenv layout, capacity CSV
-encoding, prepare_local_env self-update, and sshpass test fixes. Then prioritize
-any still-failing Windows categories from the refreshed run.
+remaining count after the environment-isolation, virtualenv layout, uv TOML path,
+capacity CSV encoding, prepare_local_env self-update, and sshpass test fixes.
+Then prioritize any still-failing Windows categories from the refreshed run.
