@@ -65,3 +65,10 @@ def test_retired_environment_aliases_do_not_reappear() -> None:
                     findings.append(f"{path.relative_to(REPO_ROOT)}: contains {retired}")
 
     assert findings == []
+
+
+def test_agents_cluster_recovery_does_not_pin_lan_worker_ip() -> None:
+    agents_text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "tools/cluster_flight_validation.py" in agents_text
+    assert "--discover-lan" in agents_text
+    assert re.search(r"\b192\.168\.20\.\d+\b", agents_text) is None

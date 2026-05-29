@@ -383,20 +383,40 @@ Use this runbook whenever you:
 
 ### 4. Cluster SSH recovery after node reinstall or host-key rotation
 
-Use this when a cluster node such as `192.168.20.130` was reinstalled, got a new SSH host key,
-or lost its `~/.ssh` state.
+Use this when a cluster node was reinstalled, got a new SSH host key, or lost
+its `~/.ssh` state.
+
+Before touching SSH state, rediscover the worker. Do not reuse a remembered
+worker IP from a previous session:
+
+```bash
+uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py \
+  --discover-lan \
+  --remote-user "<worker-user>" \
+  --json \
+  --no-discovery-cache
+```
+
+Pick a node whose discovery status is `ready` or whose SSH port is open, then
+set the concrete values for the rest of the recovery:
+
+```bash
+worker_user="<worker-user>"
+worker_ip="<discovered-worker-ip>"
+manager_user="<manager-user>"
+manager_ip="<manager-ip>"
+```
 
 1. Verify the new host key fingerprint out of band before trusting it.
 2. Remove the stale host key locally, then register the new one:
    ```bash
-   ssh-keygen -R 192.168.20.130
-   ssh-keyscan -H -t ed25519 192.168.20.130 >> ~/.ssh/known_hosts
-   ssh-keygen -F 192.168.20.130 -f ~/.ssh/known_hosts
+   ssh-keygen -R "$worker_ip"
+   ssh-keyscan -H -t ed25519 "$worker_ip" >> ~/.ssh/known_hosts
+   ssh-keygen -F "$worker_ip" -f ~/.ssh/known_hosts
    ```
 3. Re-bootstrap user auth on the remote node. Preferred path: copy the manager public key:
    ```bash
-   worker_user="<worker-user>"
-   ssh-copy-id "$worker_user@192.168.20.130"
+   ssh-copy-id "$worker_user@$worker_ip"
    ```
    If `ssh-copy-id` is unavailable, append the public key manually on the remote:
    ```bash
@@ -412,12 +432,10 @@ or lost its `~/.ssh` state.
    Expected: `PubkeyAuthentication yes`. Password auth can stay enabled as a bootstrap fallback only.
 5. Verify access before rerunning AGILAB:
    ```bash
-   worker_user="<worker-user>"
-   ssh "$worker_user@192.168.20.130" 'echo ok'
+   ssh "$worker_user@$worker_ip" 'echo ok'
    ```
 6. Recreate cluster-share prerequisites on the reinstalled Linux node:
    ```bash
-   worker_user="<worker-user>"
    worker_home="/home/$worker_user"
    mkdir -p "$worker_home/.agilab" "$worker_home/clustershare" "$worker_home/localshare"
    cat > "$worker_home/.agilab/.env" <<EOF
@@ -425,22 +443,18 @@ or lost its `~/.ssh` state.
    AGI_LOCAL_SHARE=$worker_home/localshare
    EOF
    ```
-7. Remount shared cluster storage if this cluster uses SSHFS from `.111` to `.130`:
+7. Remount shared cluster storage if this cluster uses SSHFS from the manager to the worker:
    ```bash
-   worker_user="<worker-user>"
-   manager_user="<manager-user>"
    worker_home="/home/$worker_user"
    manager_share="/path/to/manager/clustershare"
    sudo apt-get update && sudo apt-get install -y sshfs
    mkdir -p "$worker_home/clustershare"
-   sshfs "$manager_user@192.168.20.111:$manager_share" "$worker_home/clustershare"
+   sshfs "$manager_user@$manager_ip:$manager_share" "$worker_home/clustershare"
    mount | grep clustershare
    ```
 8. Verify the node can still reach the scheduler/manager peer non-interactively:
    ```bash
-   worker_user="<worker-user>"
-   manager_user="<manager-user>"
-   ssh "$worker_user@192.168.20.130" "ssh -o BatchMode=yes $manager_user@192.168.20.111 hostname"
+   ssh "$worker_user@$worker_ip" "ssh -o BatchMode=yes $manager_user@$manager_ip hostname"
    ```
 9. Only after these SSH and share checks pass, rerun `AGI.install(...)` / cluster pipelines.
 

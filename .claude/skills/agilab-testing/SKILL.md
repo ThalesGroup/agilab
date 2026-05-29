@@ -76,6 +76,12 @@ Use this skill when validating changes.
     tests that stub `AgiEnv.logger` must not leak that stub into later tests that expect the full
     logger API.
 - Cluster/share regressions:
+  - For live cluster validation, never assume a worker IP from memory or a prior
+    run. Run the official no-cache LAN discovery first and use only a fresh
+    `ready`/SSH-open worker candidate:
+    `uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py --discover-lan --remote-user <user> --json --no-discovery-cache`.
+    If discovery reports a remembered host as `no-ssh-port`, treat that host as
+    stale and pick the current ready node instead.
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
   - For scheduler/worker inventory UI, cover mixed-node summaries: local scheduler
