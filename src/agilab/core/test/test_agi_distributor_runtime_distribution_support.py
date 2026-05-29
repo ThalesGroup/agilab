@@ -135,6 +135,24 @@ def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tm
     assert "--no-sync" not in command
 
 
+def test_local_dask_worker_command_can_target_windows_layout(tmp_path):
+    wenv_abs = tmp_path / "wenv"
+    dask_exe = wenv_abs / ".venv" / "Scripts" / "dask.exe"
+    dask_exe.parent.mkdir(parents=True, exist_ok=True)
+    dask_exe.write_text("", encoding="utf-8")
+
+    command = runtime_distribution_support._local_dask_worker_command(
+        "uv",
+        wenv_abs,
+        "127.0.0.1:8786",
+        "worker.pid",
+        os_name="nt",
+    )
+
+    assert command[:3] == [str(dask_exe), "worker", "tcp://127.0.0.1:8786"]
+    assert "--no-sync" not in command
+
+
 @pytest.mark.asyncio
 async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "worker_env"

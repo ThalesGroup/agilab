@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Optional
 from zipfile import BadZipFile, ZipFile
 
 from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
+from agi_env.process_support import project_virtualenv_script_path
 
 
 logger = logging.getLogger(__name__)
@@ -36,11 +37,15 @@ def _sync_poll_delay(attempt: int) -> float:
     return _SYNC_POLL_DELAYS_SECONDS[attempt]
 
 
-def _local_dask_worker_command(uv_cmd: str, wenv_abs: Path, scheduler: str, pid_file: str) -> list[str]:
-    if os.name == "nt":
-        dask_exe = wenv_abs / ".venv" / "Scripts" / "dask.exe"
-    else:
-        dask_exe = wenv_abs / ".venv" / "bin" / "dask"
+def _local_dask_worker_command(
+    uv_cmd: str,
+    wenv_abs: Path,
+    scheduler: str,
+    pid_file: str,
+    *,
+    os_name: str = os.name,
+) -> list[str]:
+    dask_exe = project_virtualenv_script_path(wenv_abs, "dask", os_name=os_name)
     if dask_exe.exists():
         return [
             str(dask_exe),
@@ -51,7 +56,7 @@ def _local_dask_worker_command(uv_cmd: str, wenv_abs: Path, scheduler: str, pid_
             str(wenv_abs / pid_file),
         ]
     return [
-        *shlex.split(str(uv_cmd), posix=os.name != "nt"),
+        *shlex.split(str(uv_cmd), posix=os_name != "nt"),
         "--project",
         str(wenv_abs),
         "run",

@@ -1,14 +1,14 @@
 {
-  "created_at": "2026-05-07T00:00:00Z",
+  "created_at": "2026-05-29T09:20:15Z",
   "kind": "agilab.screenshot_manifest",
-  "root": "docs/source/_static/page-shots",
+  "root": "../thales_agilab/docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
   "schema_version": 1,
   "screenshots": [
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-06T00:00:00Z",
+      "created_at": "2026-05-29T09:20:15Z",
       "height_px": 910,
       "image_path": "analysis-page.png",
       "page": "analysis",
@@ -16,14 +16,12 @@
       "sha256": "59b75ee8cd208bbd3a432f4045a67ab7b4e99cced4b565651dfea53afc973be4",
       "size_bytes": 229088,
       "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "current",
-        "Streamlit",
-        "UI",
-        "via",
-        "src/agilab/main_page.py"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
       "width_px": 1600
@@ -31,7 +29,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-06T00:00:00Z",
+      "created_at": "2026-05-29T09:20:15Z",
       "height_px": 1310,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
@@ -39,14 +37,12 @@
       "sha256": "0bc004234fac7e3916eef918edc4cdee05438fb028ad6426c306d019ca36168a",
       "size_bytes": 643024,
       "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "current",
-        "Streamlit",
-        "UI",
-        "via",
-        "src/agilab/main_page.py"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
       "width_px": 2086
@@ -54,7 +50,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-06T00:00:00Z",
+      "created_at": "2026-05-29T09:20:15Z",
       "height_px": 910,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
@@ -62,14 +58,12 @@
       "sha256": "521513f15ffe13e616f2fbf843e9ab391aaabf2a09d74b13d9b72277d0608ce6",
       "size_bytes": 385945,
       "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "current",
-        "Streamlit",
-        "UI",
-        "via",
-        "src/agilab/main_page.py"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
       "width_px": 1600
@@ -77,30 +71,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-06T00:00:00Z",
-      "height_px": 910,
-      "image_path": "workflow-page.png",
-      "page": "pipeline",
-      "project": "",
-      "sha256": "1ee9c8a1ba29c7a2088b28dd0c03f5dbe041d486f6da5b9296f1505e5a30a113",
-      "size_bytes": 379292,
-      "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "current",
-        "Streamlit",
-        "UI",
-        "via",
-        "src/agilab/main_page.py"
-      ],
-      "url": "",
-      "width_px": 1600
-    },
-    {
-      "alt": "",
-      "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-29T09:20:15Z",
       "height_px": 1100,
       "image_path": "project-create-page.png",
       "page": "project-create",
@@ -108,13 +79,12 @@
       "sha256": "3b417b2532fda437fa76280ba6b505781b635dc02dca1479aa92d5c4b1e37721",
       "size_bytes": 76623,
       "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "PROJECT",
-        "Create",
-        "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
       "width_px": 1600
@@ -122,7 +92,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-06T00:00:00Z",
+      "created_at": "2026-05-29T09:20:15Z",
       "height_px": 910,
       "image_path": "project-page.png",
       "page": "project",
@@ -130,27 +100,44 @@
       "sha256": "4e2ffbbc02cc614d6e3f80825c45152eaa303019501082ffafb01c857f997f0d",
       "size_bytes": 274996,
       "source_command": [
-        "playwright",
-        "page-shot",
-        "capture",
-        "current",
-        "Streamlit",
-        "UI",
-        "via",
-        "src/agilab/main_page.py"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 1600
+    },
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-05-29T09:20:15Z",
+      "height_px": 910,
+      "image_path": "workflow-page.png",
+      "page": "workflow",
+      "project": "",
+      "sha256": "5272c2dac44ea838a2bfe1cd4da306db7e2a4013b261a5c9c5b7772db6b5c3e3",
+      "size_bytes": 351517,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
       "width_px": 1600
     }
   ],
   "source_command": [
-    "playwright",
-    "page-shot",
-    "capture",
-    "current",
-    "Streamlit",
-    "UI",
-    "via",
-    "src/agilab/main_page.py"
+    "python",
+    "tools/generate_screenshot_manifest.py",
+    "--root",
+    "../thales_agilab/docs/source/_static/page-shots",
+    "--output",
+    "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
   ]
 }

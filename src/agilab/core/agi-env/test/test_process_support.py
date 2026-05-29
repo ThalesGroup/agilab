@@ -217,6 +217,27 @@ def test_build_subprocess_env_can_target_windows_venv_layout(tmp_path: Path):
     assert env["PATH"].split(os.pathsep)[0] == str(windows_venv / "Scripts")
 
 
+def test_virtualenv_script_paths_are_target_platform_aware(tmp_path: Path):
+    project_dir = tmp_path / "project"
+
+    assert process_support.project_virtualenv_root(project_dir) == project_dir / ".venv"
+    assert process_support.project_virtualenv_script_path(
+        project_dir,
+        "python",
+        os_name="posix",
+    ) == project_dir / ".venv" / "bin" / "python"
+    assert process_support.project_virtualenv_script_path(
+        project_dir,
+        "python",
+        os_name="nt",
+    ) == project_dir / ".venv" / "Scripts" / "python.exe"
+    assert process_support.virtualenv_script_path(
+        project_dir / ".venv",
+        "dask.exe",
+        os_name="nt",
+    ) == project_dir / ".venv" / "Scripts" / "dask.exe"
+
+
 def test_last_non_empty_output_line_skips_blank_entries():
     lines = [None, "   ", "\n", " useful detail  "]
 

@@ -46,6 +46,42 @@ def virtualenv_bin_dir_name(*, os_name: str | None = None) -> str:
     return "Scripts" if platform_name == "nt" else "bin"
 
 
+def virtualenv_script_path(
+    venv_root: str | Path,
+    command: str,
+    *,
+    os_name: str | None = None,
+) -> Path:
+    """Return an executable/script path inside a virtualenv for ``os_name``."""
+
+    platform_name = os.name if os_name is None else os_name
+    executable = str(command)
+    if platform_name == "nt" and not executable.lower().endswith((".exe", ".bat", ".cmd")):
+        executable = f"{executable}.exe"
+    return Path(venv_root) / virtualenv_bin_dir_name(os_name=platform_name) / executable
+
+
+def project_virtualenv_root(project: str | Path) -> Path:
+    """Return the managed ``.venv`` root for a project directory."""
+
+    return Path(project) / ".venv"
+
+
+def project_virtualenv_script_path(
+    project: str | Path,
+    command: str,
+    *,
+    os_name: str | None = None,
+) -> Path:
+    """Return an executable/script path inside a project's managed ``.venv``."""
+
+    return virtualenv_script_path(
+        project_virtualenv_root(project),
+        command,
+        os_name=os_name,
+    )
+
+
 def _is_virtualenv_path(path: Path) -> bool:
     # Accept the legacy ``bin`` directory in addition to the platform default so
     # tests and tools that stage cross-platform virtualenv shapes still work.
