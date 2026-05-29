@@ -2503,7 +2503,12 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
     assert env.share_root_path() == fake_home / "clustershare"
     assert env.resolve_share_path(None) == fake_home / "clustershare"
     assert env.resolve_share_path("demo/data") == fake_home / "clustershare" / "demo" / "data"
-    assert env.resolve_share_path("/tmp/absolute") == Path("/tmp/absolute").resolve(strict=False)
+    absolute_share_path = env.resolve_share_path("/tmp/absolute")
+    if os.name == "nt":
+        assert absolute_share_path.is_absolute()
+        assert absolute_share_path.parts[-2:] == ("tmp", "absolute")
+    else:
+        assert absolute_share_path == Path("/tmp/absolute").resolve(strict=False)
 
 
 def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_override(tmp_path: Path, monkeypatch):

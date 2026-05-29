@@ -68,7 +68,7 @@ def test_project_site_packages_dir_handles_windows_and_free_threaded_versions(tm
     assert deployment_venv_support.project_site_packages_dir(tmp_path, os_name="nt") == (
         tmp_path / ".venv" / "Lib" / "site-packages"
     )
-    assert deployment_venv_support.project_site_packages_dir(tmp_path, python_version="3.13t") == (
+    assert deployment_venv_support.project_site_packages_dir(tmp_path, os_name="posix", python_version="3.13t") == (
         tmp_path / ".venv" / "lib" / "python3.13t" / "site-packages"
     )
 
@@ -77,4 +77,4 @@ def test_project_site_packages_dir_prefers_existing_python_site_packages(tmp_pat
     expected = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages"
     expected.mkdir(parents=True)
 
-    assert deployment_venv_support.project_site_packages_dir(tmp_path) == expected
+    assert deployment_venv_support.project_site_packages_dir(tmp_path, os_name="posix") == expected
