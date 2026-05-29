@@ -23,43 +23,8 @@ No unreleased changes.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30
 
-### Added
-
-- Added `ADOPTION.md` as a single-page route map for evaluators, newcomers,
-  external app users, and contributors.
-- Expanded app template READMEs so new projects have concrete copy, rename,
-  first-run, and validation guidance instead of placeholder titles.
-- Added cluster validation support for pre-mounted remote worker shares and
-  custom scheduler SSH ports, so site-managed mounts and non-default SSH
-  daemons no longer block official cluster checks.
-- Constrained `py7zr` and `pydantic` below newly incompatible package surfaces
-  that broke dataset extraction and worker validation imports during cluster
-  install validation.
-
 ### Changed
 
-- Added a changelog accuracy guardrail so release notes are checked against Git
-  history, unreleased work, and public release evidence before claiming shipped
-  changes.
-- Added route-selection tables to the GitHub and PyPI READMEs so adopters can
-  choose between hosted preview, source-checkout proof, package install,
-  external app updates, and contribution paths.
-- Reworked `CONTRIBUTING.md` around a contributor first-run baseline,
-  focused validation commands, and repository hygiene.
-- Fixed Docker README badges and stop command formatting, clarified the Codex
-  skills README mirror, and tightened app/page README routing guidance.
-- Normalized standalone analysis-page README commands to the repository `uv`
-  invocation used by the rest of the onboarding docs.
-- Collapsed the coverage workflow's duplicate `agi-node` and `agi-cluster`
-  core test executions into one combined run that still emits both component
-  coverage XML files.
-- Reordered the landing-page first-proof wizard around the immediate next
-  action and progress summary before diagnostics.
-- Split `agi-env` runtime dependencies so headless worker installs no longer pull
-  Streamlit; UI consumers now depend on the separate `agi-gui` package under
-  `src/agilab/lib/agi-gui`.
-- Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
-  ask users to clean up and regenerate after core API changes.
 - Published AGILAB `2026.05.30` to PyPI for `agi-env`, `agi-gui`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
