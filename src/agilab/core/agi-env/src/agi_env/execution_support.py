@@ -21,6 +21,7 @@ from agi_env.process_support import (
     format_command_failure_message,
     inject_uv_preview_flag,
     strip_time_level_prefix,
+    virtualenv_script_path,
 )
 
 PROCESS_WRAP_EXCEPTIONS = (RuntimeError, ValueError, OSError, subprocess.SubprocessError)
@@ -459,7 +460,7 @@ async def run_agi(
         return "", message
 
     if project_venv:
-        python_bin = project_venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        python_bin = virtualenv_script_path(project_venv, "python")
         cmd = f"{shlex.quote(str(python_bin))} {shlex.quote(str(snippet_file))}"
         result = await run_bg_fn(
             cmd,

@@ -26,6 +26,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_env import AgiEnv
+from agi_env.process_support import project_virtualenv_root, project_virtualenv_script_path
 
 
 logger = logging.getLogger(__name__)
@@ -265,13 +266,11 @@ def _build_worker_core_add_commands(
 
 
 def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
-    if os_name == "nt":
-        return project / ".venv" / "Scripts" / "python.exe"
-    return project / ".venv" / "bin" / "python"
+    return cast(Path, project_virtualenv_script_path(project, "python", os_name=os_name))
 
 
 def _project_venv_root(project: Path) -> Path:
-    return project / ".venv"
+    return cast(Path, project_virtualenv_root(project))
 
 
 def _python_version_tuple(value: str | None) -> tuple[int, ...] | None:
