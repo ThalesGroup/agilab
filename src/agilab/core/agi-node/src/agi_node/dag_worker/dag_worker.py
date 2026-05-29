@@ -230,6 +230,8 @@ class DagWorker(BaseWorker):
             try:
                 results[fn] = future.result()
                 logging.info(f"Method {fn} for partition {pname} completed.")
+            # Worker code boundary: DAG partitions execute app methods; log each
+            # failed partition and continue collecting sibling partition results.
             except Exception as exc:
                 logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
 
