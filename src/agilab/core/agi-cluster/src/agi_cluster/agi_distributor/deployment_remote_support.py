@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
 _REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
 _REMOTE_COMMAND_EXCEPTIONS = (OSError, RuntimeError)
+_REMOTE_PIP_PROBE_EXCEPTIONS = (OSError, RuntimeError)
 _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
 _SSHFS_INSTALL_HINT = (
     "sshfs is required to mount AGI_CLUSTER_SHARE on this worker. "
@@ -373,7 +374,7 @@ async def _remote_project_has_pip(
         )
     except ConnectionError:
         raise
-    except Exception:
+    except _REMOTE_PIP_PROBE_EXCEPTIONS:
         return False
     return True
 
