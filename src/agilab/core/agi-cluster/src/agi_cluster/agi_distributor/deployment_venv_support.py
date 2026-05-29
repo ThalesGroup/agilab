@@ -6,7 +6,6 @@ import os
 import platform
 import re
 from pathlib import Path
-from typing import cast
 
 from agi_env.process_support import project_virtualenv_root, project_virtualenv_script_path
 
@@ -17,13 +16,13 @@ PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 def project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     """Return the Python executable path for a project's managed virtualenv."""
 
-    return cast(Path, project_virtualenv_script_path(project, "python", os_name=os_name))
+    return project_virtualenv_script_path(project, "python", os_name=os_name)
 
 
 def project_venv_root(project: Path) -> Path:
     """Return the managed virtualenv root for a project."""
 
-    return cast(Path, project_virtualenv_root(project))
+    return project_virtualenv_root(project)
 
 
 def python_version_tuple(value: str | None) -> tuple[int, ...] | None:
