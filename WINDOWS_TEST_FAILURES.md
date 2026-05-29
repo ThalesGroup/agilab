@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (58 tests)
+## ✅ Fixed since last pass (62 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -31,6 +31,7 @@ The following test categories were resolved by the dev team:
 | `deploy_local_worker` path issues (partial) | 7 |
 | Virtualenv Windows layout (`.venv/Scripts`) | 7 |
 | uv TOML paths with `\` (remaining) | 8 |
+| Python subprocess exit-code fixtures | 4 |
 | Miscellaneous | 10 |
 
 ---
@@ -214,46 +215,24 @@ Result: `8 passed`.
 
 ---
 
-### Category 4 — `cmd /c exit N` unreliable exit code (4 tests)
+### Category 4 — `cmd /c exit N` unreliable exit code — fixed in current repo (4 tests)
 
-`cmd /c exit 3` on Windows can return exit code 1 with a system error message instead of the requested code, particularly under pytest subprocess capture.
+Status: fixed in current repository; pending live Windows rerun.
 
-**Fix — replace with Python one-liner:**
-```python
-import sys
-# Before
-["cmd", "/c", "exit", "3"]
-# After
-[sys.executable, "-c", "import sys; sys.exit(3)"]
-```
+The affected `agi-env` execution-support tests now use deterministic Python
+one-liners for nonzero subprocess exits instead of relying on `cmd /c exit N`.
 
-#### `test_run_nonzero_command_does_not_log_traceback_for_runtime_error`
-```
-Expected regex: 'Command failed with exit code 3'
-Actual message: 'Command failed with exit code 1: La syntaxe du nom de fichier,
-                 de répertoire ou de volume est incorrecte.'
-  at: execution_support.py:255 in run
+Validation evidence from macOS:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/agi-env/test/test_agi_env.py::test_run_nonzero_command_does_not_log_traceback_for_runtime_error \
+  src/agilab/core/agi-env/test/test_agi_env.py::test_run_nonzero_command_prefers_last_subprocess_line_in_runtime_error \
+  src/agilab/core/agi-env/test/test_agi_env.py::test_run_async_and_run_bg_cover_success_and_nonzero_paths \
+  src/agilab/core/agi-env/test/test_agi_env.py::test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error
 ```
 
-#### `test_run_nonzero_command_prefers_last_subprocess_line_in_runtime_error`
-```
-AssertionError:
-  - Command failed with exit code 5: concise failure    (expected)
-  + Command failed with exit code 1: La syntaxe...      (actual)
-```
-
-#### `test_run_async_and_run_bg_cover_success_and_nonzero_paths`
-```
-RuntimeError: Command failed with exit code 1: La syntaxe du nom de fichier...
-  at: execution_support.py:393 in run_async
-```
-
-#### `test_run_async_nonzero_command_prefers_last_subprocess_line_in_runtime_error`
-```
-AssertionError:
-  - Command failed with exit code 6: missing artifact   (expected)
-  + Command failed with exit code 1: La syntaxe...      (actual)
-```
+Result: `4 passed, 1 warning`.
 
 ---
 
@@ -435,7 +414,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Fixed in current repo; rerun Windows to verify count | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
 | 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_local_support.py`, `process_support.py` |
 | 3 | uv TOML paths with `\` | 8 | ✅ Fixed in current repo; rerun Windows to verify count | `uv_source_support.py` |
-| 4 | `cmd /c exit N` unreliable exit code | 4 | ❌ Open | Test fixtures — use `sys.executable -c sys.exit(N)` |
+| 4 | `cmd /c exit N` unreliable exit code | 4 | ✅ Fixed in current repo; rerun Windows to verify count | `src/agilab/core/agi-env/test/test_agi_env.py` |
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ❌ Open | Skip markers + production guards |
 | 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
@@ -445,5 +424,6 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
 remaining count after the environment-isolation, virtualenv layout, uv TOML path,
-capacity CSV encoding, prepare_local_env self-update, and sshpass test fixes.
-Then prioritize any still-failing Windows categories from the refreshed run.
+Python subprocess exit fixture, capacity CSV encoding, prepare_local_env
+self-update, and sshpass test fixes. Then prioritize any still-failing Windows
+categories from the refreshed run.
