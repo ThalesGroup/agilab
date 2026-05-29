@@ -1,9 +1,9 @@
 [project]
 name = "sklearn_pipeline_worker"
-version = "2026.05.29"
+version = "2026.05.30"
 description = "Worker package for the AGILAB scikit-learn pipeline app"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.29", "agi-node>=2026.05.29", "joblib>=1.5,<2", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "scikit-learn>=1.7.2,<2"]
+dependencies = ["agi-env>=2026.05.30", "agi-node>=2026.05.30", "joblib>=1.5,<2", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "scikit-learn>=1.7.2,<2"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../../../core/agi-env", editable = true }

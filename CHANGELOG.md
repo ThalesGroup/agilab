@@ -17,6 +17,12 @@ publication, or evidence refreshes on an already published date version.
 
 ## Unreleased
 
+No unreleased changes.
+
+## [2026.05.30] - 2026-05-30
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30
+
 ### Added
 
 - Added `ADOPTION.md` as a single-page route map for evaluators, newcomers,
@@ -54,6 +60,9 @@ publication, or evidence refreshes on an already published date version.
   `src/agilab/lib/agi-gui`.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
+- Published AGILAB `2026.05.30` to PyPI for `agi-env`, `agi-gui`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.05.29] - 2026-05-29
 
@@ -772,3 +781,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.26]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.26
 [2026.05.28]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.28-1
 [2026.05.29]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.29
+[2026.05.30]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30

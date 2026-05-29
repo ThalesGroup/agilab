@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-network-map"
-version = "2026.05.29"
+version = "2026.05.30"
 description = "AGILAB page bundle for network-aware geospatial analysis."
 readme = { text = "AGILAB page bundle for network-aware geospatial analysis.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -43,6 +43,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 
 
 
