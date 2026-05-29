@@ -27,14 +27,19 @@ from packaging.requirements import InvalidRequirement, Requirement
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_cluster.agi_distributor.deployment_editable_install_support import (
     EDITABLE_INSTALL_CACHE_SCHEMA as EDITABLE_INSTALL_CACHE_SCHEMA,
+    EDITABLE_SHADOW_IMPORTS as EDITABLE_SHADOW_IMPORTS,
+    _cleanup_editable as _cleanup_editable,
+    _cleanup_editable_shadow_packages as _cleanup_editable_shadow_packages,
     _editable_install_cache_hit as _editable_install_cache_hit,
     _editable_install_cache_path as _editable_install_cache_path,
     _editable_install_digest as _editable_install_digest,
     _editable_install_metadata_inputs as _editable_install_metadata_inputs,
     _editable_install_project as _editable_install_project,
     _editable_install_proof_exists as _editable_install_proof_exists,
+    _editable_shadow_import_names as _editable_shadow_import_names,
     _load_editable_install_cache as _load_editable_install_cache,
     _record_editable_install_cache as _record_editable_install_cache,
+    _remove_site_package_shadow as _remove_site_package_shadow,
     _write_editable_install_cache as _write_editable_install_cache,
 )
 from agi_cluster.agi_distributor.deployment_stage_cache_support import (
@@ -94,13 +99,6 @@ UV_RESOLVER_PROPAGATED_ENV_VARS = (
     "REQUESTS_CA_BUNDLE",
     "UV_NATIVE_TLS",
 )
-EDITABLE_SHADOW_IMPORTS: dict[str, tuple[str, ...]] = {
-    "agi-cluster": ("agi_cluster",),
-    "agi-core": ("agi_core",),
-    "agi-env": ("agi_env",),
-    "agi-node": ("agi_node",),
-    "agilab": ("agilab",),
-}
 DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "pillow": ("PIL",),
     "python-dotenv": ("dotenv",),
@@ -148,65 +146,6 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
                 "Path {} still exists, using subprocess cmd to delete it.".format(path)
             )
         subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], check=False)
-
-
-def _cleanup_editable(site_packages: Path) -> None:
-    patterns = (
-        "__editable__.agi_env*.pth",
-        "__editable__.agi_node*.pth",
-        "__editable__.agi_core*.pth",
-        "__editable__.agi_cluster*.pth",
-        "__editable__.agilab*.pth",
-    )
-    for pattern in patterns:
-        for editable in site_packages.glob(pattern):
-            try:
-                editable.unlink()
-            except FileNotFoundError:
-                pass
-
-
-def _editable_shadow_import_names(package_project: Path) -> tuple[str, ...]:
-    distribution_name = package_project.name.replace("_", "-").lower()
-    return EDITABLE_SHADOW_IMPORTS.get(distribution_name, ())
-
-
-def _remove_site_package_shadow(path: Path) -> bool:
-    try:
-        if path.is_dir() and not path.is_symlink():
-            shutil.rmtree(path)
-            return True
-        if path.exists() or path.is_symlink():
-            path.unlink()
-            return True
-    except FileNotFoundError:
-        return False
-    return False
-
-
-def _cleanup_editable_shadow_packages(
-    venv_project: Path,
-    package_projects: list[Path],
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> list[Path]:
-    """Remove stale package dirs that shadow editable source installs."""
-    site_packages = _project_site_packages_dir(
-        venv_project,
-        os_name=os_name,
-        python_version=python_version,
-    )
-    if not site_packages.exists():
-        return []
-
-    removed: list[Path] = []
-    for package_project in package_projects:
-        for import_name in _editable_shadow_import_names(package_project):
-            for candidate in (site_packages / import_name, site_packages / f"{import_name}.py"):
-                if _remove_site_package_shadow(candidate):
-                    removed.append(candidate)
-    return removed
 
 
 def _is_python_project(path: Path) -> bool:
