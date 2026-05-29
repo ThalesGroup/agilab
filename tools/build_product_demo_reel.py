@@ -79,8 +79,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="intro",
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
-        title="Turn agent runs into proof capsules.",
-        body="One path from experiment intent to replayable evidence.",
+        title="Stop losing AI/ML evidence.",
+        body="One run becomes a replayable proof capsule.",
         seconds=2.0,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -153,8 +153,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="outro",
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
-        title="Replayable AI/ML evidence.",
-        body="UI for review. Headless core for automation. Notebooks stay portable.",
+        title="Replay. Verify. Share.",
+        body="AGILAB keeps the UI, notebooks, and headless core aligned.",
         seconds=2.1,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -516,12 +516,12 @@ VARIANTS: dict[str, Variant] = {
 
 NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
     "flight": (
-        NarrationCue(0.0, 2.0, "AGILAB turns runs into proof capsules."),
+        NarrationCue(0.0, 2.0, "Stop losing evidence in notebooks and logs."),
         NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifacts first."),
         NarrationCue(4.4, 7.4, "Optimizer: up to a thousand times faster."),
         NarrationCue(7.4, 10.2, "Export notebooks, or execute with headless agi-core."),
         NarrationCue(10.2, 12.9, "Verify maps, hashes, and metadata."),
-        NarrationCue(12.9, 15.0, "Replayable AI and ML evidence."),
+        NarrationCue(12.9, 15.0, "Replay, verify, and share the evidence."),
     ),
 }
 
@@ -1029,7 +1029,7 @@ def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: i
 
     hero_font = load_font(54, bold=True)
     sub_font = load_font(29, bold=True)
-    draw.text((36, 112), "Replayable AI/ML evidence", font=hero_font, fill=INK)
+    draw.text((36, 112), "Replay. Verify. Share.", font=hero_font, fill=INK)
     draw.text((38, 178), "portable from UI to notebooks to headless agi-core", font=FONT_BODY, fill=MUTED)
 
     flow_y = 250
