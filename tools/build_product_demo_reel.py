@@ -516,12 +516,12 @@ VARIANTS: dict[str, Variant] = {
 
 NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
     "flight": (
-        NarrationCue(0.0, 2.0, "AGILAB turns runs into proof capsules."),
-        NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifacts."),
-        NarrationCue(4.4, 7.4, "Optimizer: up to a thousand times faster."),
-        NarrationCue(7.4, 10.2, "Export notebooks, or run headless agi-core."),
-        NarrationCue(10.2, 12.9, "Verify maps, hashes, and metadata."),
-        NarrationCue(12.9, 15.0, "Replayable AI and ML evidence."),
+        NarrationCue(0.0, 2.0, "AGILAB turns agent runs into proof capsules."),
+        NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifact intent before execution."),
+        NarrationCue(4.4, 7.4, "Run mode optimizer: up to a thousand times faster on suitable projects."),
+        NarrationCue(7.4, 10.2, "Export back to notebooks, or run headless agi-core with no UI lock-in."),
+        NarrationCue(10.2, 12.9, "Verify maps, hashes, artifacts, and run metadata."),
+        NarrationCue(12.9, 15.0, "AGILAB: replayable AI and ML evidence."),
     ),
 }
 
@@ -646,44 +646,6 @@ def synthesize_voiceover(script_path: Path, audio_path: Path, *, voice: str, rat
         if voice in names:
             cmd[1:1] = ["-v", voice]
     subprocess.run(cmd, check=True)
-
-
-def probe_media_duration(path: Path) -> float | None:
-    ffprobe = shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
-    try:
-        result = subprocess.run(
-            [
-                ffprobe,
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                str(path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    try:
-        return float(result.stdout.strip())
-    except ValueError:
-        return None
-
-
-def extend_frames_to_duration(frames_dir: Path, frame_count: int, fps: int, target_duration: float) -> int:
-    target_count = max(frame_count, int(math.ceil(target_duration * fps)))
-    if target_count <= frame_count:
-        return frame_count
-    if frame_count <= 0:
-        raise ValueError("cannot extend an empty frame set")
-    last_frame = frames_dir / f"frame_{frame_count - 1:04d}.png"
-    for idx in range(frame_count, target_count):
-        shutil.copyfile(last_frame, frames_dir / f"frame_{idx:04d}.png")
-    return target_count
 
 
 def background() -> Image.Image:
@@ -2263,10 +2225,6 @@ def build(
             transcript_path, srt_path = write_narration_sidecars(out_mp4, cues)
             audio_path = out_mp4.with_name(f"{out_mp4.stem}_voiceover.aiff")
             synthesize_voiceover(transcript_path, audio_path, voice=voice, rate=voice_rate)
-            audio_duration = probe_media_duration(audio_path)
-            if audio_duration is not None and audio_duration > duration:
-                frame_no = extend_frames_to_duration(frames_dir, frame_no, FPS, audio_duration + 0.35)
-                duration = frame_no / FPS
 
         save_video_from_frames(frames_dir, out_mp4, out_gif, FPS, audio_path=audio_path, duration=duration)
     return transcript_path, srt_path, audio_path
