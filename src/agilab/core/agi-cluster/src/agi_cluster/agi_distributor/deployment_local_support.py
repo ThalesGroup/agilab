@@ -25,15 +25,21 @@ import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_cluster.agi_distributor import deployment_dask_support
+from agi_cluster.agi_distributor.deployment_venv_support import (
+    project_site_packages_dir as _project_site_packages_dir,
+    project_venv_cfg_version as _project_venv_cfg_version,
+    project_venv_matches as _project_venv_matches,
+    project_venv_python as _project_venv_python,
+    project_venv_root as _project_venv_root,
+    python_version_tuple as _python_version_tuple,
+)
 from agi_env import AgiEnv
-from agi_env.process_support import project_virtualenv_root, project_virtualenv_script_path
 
 
 logger = logging.getLogger(__name__)
 FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)  # ty: ignore[possibly-missing-submodule]
-PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
 SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
 REFRESH_LOCKS_ENV = "AGILAB_REFRESH_LOCKS"
@@ -263,61 +269,6 @@ def _build_worker_core_add_commands(
         )
 
     return commands
-
-
-def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
-    return cast(Path, project_virtualenv_script_path(project, "python", os_name=os_name))
-
-
-def _project_venv_root(project: Path) -> Path:
-    return cast(Path, project_virtualenv_root(project))
-
-
-def _python_version_tuple(value: str | None) -> tuple[int, ...] | None:
-    if not value:
-        return None
-    match = PYTHON_VERSION_RE.search(value)
-    if not match:
-        return None
-    return tuple(int(part) for part in match.groups() if part is not None)
-
-
-def _project_venv_cfg_version(project: Path) -> tuple[int, ...] | None:
-    cfg = project / ".venv" / "pyvenv.cfg"
-    try:
-        lines = cfg.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return None
-
-    for line in lines:
-        key, separator, raw_value = line.partition("=")
-        if not separator:
-            continue
-        if key.strip().lower() not in {"version", "version_info"}:
-            continue
-        parsed = _python_version_tuple(raw_value.strip())
-        if parsed:
-            return parsed
-    return None
-
-
-def _project_venv_matches(
-    project: Path,
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> bool:
-    if not _project_venv_python(project, os_name=os_name).exists():
-        return False
-
-    requested = _python_version_tuple(python_version)
-    if not requested:
-        return True
-
-    actual = _project_venv_cfg_version(project)
-    if not actual:
-        return False
-    return actual[: len(requested)] == requested
 
 
 def _remove_project_venv_if_mismatched(
@@ -801,39 +752,6 @@ def _editable_install_project(package_ref: str | Path) -> Path | None:
     except (OSError, TypeError, ValueError):
         return None
     return package_path if _is_python_project(package_path) else None
-
-
-def _project_site_packages_dir(
-    project: Path,
-    *,
-    os_name: str = os.name,
-    python_version: str | None = None,
-) -> Path:
-    venv_root = _project_venv_root(project)
-    if os_name == "nt":
-        return venv_root / "Lib" / "site-packages"
-
-    if python_version:
-        python_parts = str(python_version).split(".")
-        if len(python_parts) >= 2 and python_parts[-1].endswith("t"):
-            python_dir = f"{python_parts[0]}.{python_parts[1].removesuffix('t')}t"
-            return venv_root / "lib" / f"python{python_dir}" / "site-packages"
-
-    requested = _python_version_tuple(python_version)
-    version = requested or _project_venv_cfg_version(project)
-    if version and len(version) >= 2:
-        return venv_root / "lib" / f"python{version[0]}.{version[1]}" / "site-packages"
-
-    lib_root = venv_root / "lib"
-    try:
-        candidates = sorted(lib_root.glob("python*/site-packages"))
-    except OSError:
-        candidates = []
-    if candidates:
-        return candidates[0]
-
-    fallback = _python_version_tuple(platform.python_version()) or (3, 13)
-    return venv_root / "lib" / f"python{fallback[0]}.{fallback[1]}" / "site-packages"
 
 
 def _editable_install_proof_exists(
