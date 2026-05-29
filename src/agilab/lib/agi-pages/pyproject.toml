@@ -110,6 +110,10 @@ dev = [
     path = "../../apps-pages/view_maps_network"
     editable = true
 
+[tool.uv.sources.agi-page-routing-model-comparison]
+    path = "../../apps-pages/view_routing_model_comparison"
+    editable = true
+
 [tool.uv.sources.agi-page-queue-health]
     path = "../../apps-pages/view_queue_resilience"
     editable = true

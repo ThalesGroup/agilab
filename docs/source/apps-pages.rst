@@ -145,6 +145,10 @@ pulled by the umbrella dependency graph.
      - ``agi-page-network-map``
      - Network-aware geospatial topology and route inspection.
      - Included in ``agi-pages``.
+   * - ``view_routing_model_comparison``
+     - ``agi-page-routing-model-comparison``
+     - Routing-model allocation comparison for candidate/baseline decisions.
+     - Included in ``agi-pages``.
    * - ``view_queue_resilience``
      - ``agi-page-queue-health``
      - Queue occupancy, delay, drop, route, and run-metadata evidence.

@@ -61,6 +61,7 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-page-geospatial-map", "src/agilab/apps-pages/view_maps"),
     ("agi-page-geospatial-3d", "src/agilab/apps-pages/view_maps_3d"),
     ("agi-page-network-map", "src/agilab/apps-pages/view_maps_network"),
+    ("agi-page-routing-model-comparison", "src/agilab/apps-pages/view_routing_model_comparison"),
     ("agi-page-queue-health", "src/agilab/apps-pages/view_queue_resilience"),
     ("agi-page-relay-health", "src/agilab/apps-pages/view_relay_resilience"),
     ("agi-page-scenario-cockpit", "src/agilab/apps-pages/view_scenario_cockpit"),
