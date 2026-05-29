@@ -38,6 +38,10 @@ good for local research but need stronger guardrails for shared cluster use.
 
 The package topology separates control plane, payload plane, and evidence plane.
 The handoff runtime boundary is clear, but workflow ownership crosses modules.
+AGILAB is a trusted-operator reproducibility workbench. The `agi-pages`
+umbrella and apps-pages stay app-agnostic, so project-specific dependencies
+belong in app/page packages instead of generic providers. Linux, macOS, and
+Windows assumptions are part of the audit boundary.
 
 ## Findings
 

@@ -21,8 +21,19 @@ for the intended use.
 
 ## Architecture and module topology
 
-Describe the package graph, control/data/evidence planes, boundary ownership,
-and the design pressure behind any recurring issues.
+Describe the package graph, control/payload/evidence planes, boundary
+ownership, app/page dependency boundaries, Linux/macOS/Windows assumptions, and
+the design pressure behind any recurring issues.
+
+Architecture-readiness check:
+
+- AGILAB role: trusted-operator reproducibility workbench, not standalone
+  production MLOps.
+- Planes involved: control plane, payload plane, evidence plane.
+- Dependency boundary: app-specific dependencies stay in app/page packages;
+  generic apps-pages and `agi-pages` stay app-agnostic.
+- Cross-platform boundary: Linux/macOS/Windows assumptions checked or listed as
+  residual risk.
 
 ## Findings
 
