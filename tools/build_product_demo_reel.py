@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -66,13 +67,20 @@ class Variant:
     scenes: tuple[Scene, ...]
 
 
+@dataclass(frozen=True)
+class NarrationCue:
+    start: float
+    end: float
+    text: str
+
+
 FLIGHT_SCENES: tuple[Scene, ...] = (
     Scene(
         name="intro",
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
-        title="From project to evidence.",
-        body="One workspace keeps setup, execution, replay, and analysis aligned.",
+        title="Replayable evidence, not notebook drift.",
+        body="One workspace ties project context, run orchestration, workflow capture, and analysis evidence together.",
         seconds=2.2,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -85,8 +93,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="project",
         image=PAGE_SHOTS / "project-page.png",
         stage="PROJECT",
-        title="Select the app once.",
-        body="Keep project files, arguments, and code context in one place.",
+        title="Pin the project context.",
+        body="Keep the app, arguments, data paths, and source context explicit before anything runs.",
         seconds=2.8,
         active_step=0,
         focus=(0.54, 0.46),
@@ -99,8 +107,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="orchestrate",
         image=PAGE_SHOTS / "orchestrate-page.png",
         stage="ORCHESTRATE",
-        title="Generate the run path.",
-        body="Produce the runnable deployment snippet, then keep the same flow tractable as data volume grows.",
+        title="Generate the run contract.",
+        body="Produce one runnable path for local or distributed execution without hiding operational choices.",
         seconds=3.2,
         active_step=1,
         focus=(0.60, 0.44),
@@ -114,8 +122,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="pipeline",
         image=PAGE_SHOTS / "workflow-page.png",
         stage="WORKFLOW",
-        title="Replay the same flow.",
-        body="Turn the execution into an explicit, inspectable, and reusable step.",
+        title="Capture the replay step.",
+        body="Promote the generated action into inspectable stage code that can be rerun and reviewed.",
         seconds=3.2,
         active_step=2,
         focus=(0.60, 0.48),
@@ -129,8 +137,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="finale",
         image=PAGE_SHOTS / "analysis-page.png",
         stage="ANALYSIS",
-        title="Finish on view_maps.",
-        body="Land on an operator-facing map view instead of a raw infrastructure endpoint.",
+        title="Evidence reviewers can inspect.",
+        body="Finish on view_maps: visible routes, data context, and artifacts.",
         seconds=3.0,
         active_step=3,
         focus=(0.54, 0.42),
@@ -490,6 +498,16 @@ VARIANTS: dict[str, Variant] = {
     ),
 }
 
+NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
+    "flight": (
+        NarrationCue(0.0, 2.5, "AGILAB turns experiments into evidence."),
+        NarrationCue(2.5, 5.4, "Select one project and keep context explicit."),
+        NarrationCue(5.4, 8.7, "Generate the run path without losing intent."),
+        NarrationCue(8.7, 11.9, "Replay the workflow as inspectable steps."),
+        NarrationCue(11.9, 15.5, "Finish on analysis your team can verify."),
+    ),
+}
+
 
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
@@ -538,6 +556,7 @@ FONT_STEP = load_font(18, bold=True)
 FONT_STEP_LABEL = load_font(22, bold=True)
 FONT_HIGHLIGHT = load_font(21, bold=True)
 FONT_FOOTER = load_font(26, bold=True)
+FONT_CAPTION = load_font(31, bold=True)
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
@@ -557,6 +576,59 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, m
     if current:
         lines.append(" ".join(current))
     return "\n".join(lines)
+
+
+def narration_text(cues: tuple[NarrationCue, ...]) -> str:
+    return " ".join(cue.text for cue in cues)
+
+
+def caption_at(cues: tuple[NarrationCue, ...], elapsed: float) -> str | None:
+    for cue in cues:
+        if cue.start <= elapsed < cue.end:
+            return cue.text
+    return None
+
+
+def srt_timestamp(seconds: float) -> str:
+    total_ms = max(0, int(round(seconds * 1000)))
+    ms = total_ms % 1000
+    total_seconds = total_ms // 1000
+    sec = total_seconds % 60
+    total_minutes = total_seconds // 60
+    minute = total_minutes % 60
+    hour = total_minutes // 60
+    return f"{hour:02d}:{minute:02d}:{sec:02d},{ms:03d}"
+
+
+def write_narration_sidecars(out_mp4: Path, cues: tuple[NarrationCue, ...]) -> tuple[Path, Path]:
+    transcript_path = out_mp4.with_name(f"{out_mp4.stem}_voiceover.txt")
+    srt_path = out_mp4.with_name(f"{out_mp4.stem}_voiceover.srt")
+    transcript_path.write_text(narration_text(cues) + "\n", encoding="utf-8")
+    srt_lines: list[str] = []
+    for idx, cue in enumerate(cues, start=1):
+        srt_lines.extend(
+            [
+                str(idx),
+                f"{srt_timestamp(cue.start)} --> {srt_timestamp(cue.end)}",
+                cue.text,
+                "",
+            ]
+        )
+    srt_path.write_text("\n".join(srt_lines), encoding="utf-8")
+    return transcript_path, srt_path
+
+
+def synthesize_voiceover(script_path: Path, audio_path: Path, *, voice: str, rate: int) -> None:
+    say = shutil.which("say")
+    if not say:
+        raise RuntimeError("voiceover requested, but the macOS `say` command is not available")
+    cmd = [say, "-r", str(rate), "-o", str(audio_path), "-f", str(script_path)]
+    if voice:
+        available = subprocess.run([say, "-v", "?"], check=False, capture_output=True, text=True)
+        names = {line.split()[0] for line in available.stdout.splitlines() if line.split()}
+        if voice in names:
+            cmd[1:1] = ["-v", voice]
+    subprocess.run(cmd, check=True)
 
 
 def background() -> Image.Image:
@@ -665,8 +737,10 @@ def draw_text_column(canvas: Image.Image, scene: Scene, t: float, variant: Varia
     draw.multiline_text((title_x, body_y), body, font=FONT_BODY, fill=MUTED + (alpha,), spacing=8)
     body_bbox = draw.multiline_textbbox((title_x, body_y), body, font=FONT_BODY, spacing=8)
 
-    draw.text((96 + x_offset, 900), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED + (alpha,))
-    draw_stepper(draw, scene.active_step, reveal, top=max(456, body_bbox[3] + 92))
+    stepper_top = max(456, body_bbox[3] + 92)
+    draw_stepper(draw, scene.active_step, reveal, top=stepper_top)
+    url_y = min(H - 48, stepper_top + 96 * 3 + 48)
+    draw.text((96 + x_offset, url_y), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED + (alpha,))
 
 
 def draw_screenshot_card(canvas: Image.Image, scene: Scene, t: float, variant: Variant) -> None:
@@ -799,18 +873,18 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
     pdraw = ImageDraw.Draw(panel)
     pdraw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=SURFACE_2 + (244,), outline=(255, 255, 255, 46), width=2)
     pdraw.rounded_rectangle((18, 16, 208, 54), radius=16, fill=ACCENT_WARM + (236,))
-    pdraw.text((34, 26), "Distribution tree", font=FONT_HIGHLIGHT, fill=WHITE)
+    pdraw.text((34, 26), "Run contract", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.rounded_rectangle((238, 16, box_w - 18, 54), radius=16, fill=(17, 40, 62, 255))
-    pdraw.text((274, 26), "data scale", font=FONT_HIGHLIGHT, fill=WHITE)
+    pdraw.text((270, 26), "evidence path", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.rounded_rectangle((16, 68, box_w - 16, 220), radius=20, fill=(255, 255, 255, 245))
     fitted = fit_contain(tree, box_w - 48, 136)
     panel.alpha_composite(fitted, (24, 76))
 
     stats_y = 236
     stat_specs = [
-        ("Rows", "10M+"),
-        ("Chunks", "24"),
-        ("Artifacts", "batched"),
+        ("Mode", "cluster"),
+        ("Share", "checked"),
+        ("Artifacts", "hashed"),
     ]
     stat_x = 18
     for label, value in stat_specs:
@@ -821,7 +895,7 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
         stat_x += card_w + 10
 
     pdraw.rounded_rectangle((box_w - 146, stats_y, box_w - 18, stats_y + 52), radius=16, fill=(16, 56, 44, 255))
-    pdraw.text((box_w - 132, stats_y + 10), "Big-data", font=FONT_STEP, fill=(187, 229, 208))
+    pdraw.text((box_w - 132, stats_y + 10), "Replay", font=FONT_STEP, fill=(187, 229, 208))
     pdraw.text((box_w - 132, stats_y + 28), "ready", font=FONT_HIGHLIGHT, fill=WHITE)
     canvas.alpha_composite(panel, (x, y))
 
@@ -1788,11 +1862,48 @@ def draw_footer(canvas: Image.Image, scene: Scene, t: float) -> None:
     draw.text((x + 22, y + 13), footer, font=FONT_FOOTER, fill=INK + (alpha,))
 
 
-def draw_scene(scene: Scene, t: float, variant: Variant) -> Image.Image:
+def draw_caption(canvas: Image.Image, caption: str | None) -> None:
+    if not caption:
+        return
+    draw = ImageDraw.Draw(canvas)
+    text = wrap_text(draw, caption, FONT_CAPTION, 1180)
+    bbox = draw.multiline_textbbox((0, 0), text, font=FONT_CAPTION, spacing=5)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    pad_x = 34
+    pad_y = 19
+    panel_w = text_w + pad_x * 2
+    panel_h = text_h + pad_y * 2
+    x = (W - panel_w) // 2
+    y = H - panel_h - 48
+    draw.rounded_rectangle(
+        (x - 8, y - 8, x + panel_w + 8, y + panel_h + 8),
+        radius=28,
+        fill=(0, 0, 0, 96),
+    )
+    draw.rounded_rectangle(
+        (x, y, x + panel_w, y + panel_h),
+        radius=24,
+        fill=(9, 18, 30, 228),
+        outline=ACCENT + (140,),
+        width=2,
+    )
+    draw.multiline_text(
+        (x + pad_x, y + pad_y - 2),
+        text,
+        font=FONT_CAPTION,
+        fill=WHITE,
+        spacing=5,
+        align="center",
+    )
+
+
+def draw_scene(scene: Scene, t: float, variant: Variant, caption: str | None = None) -> Image.Image:
     canvas = background()
     draw_text_column(canvas, scene, t, variant)
     draw_screenshot_card(canvas, scene, t, variant)
     draw_footer(canvas, scene, t)
+    draw_caption(canvas, caption)
     return canvas.convert("RGB")
 
 
@@ -1802,10 +1913,22 @@ def crossfade(a: Image.Image, b: Image.Image, frames: int) -> Iterable[Image.Ima
         yield Image.blend(a, b, alpha)
 
 
-def save_video_from_frames(frames_dir: Path, mp4_path: Path, gif_path: Path, fps: int) -> None:
+def save_video_from_frames(
+    frames_dir: Path,
+    mp4_path: Path,
+    gif_path: Path,
+    fps: int,
+    *,
+    audio_path: Path | None = None,
+    duration: float | None = None,
+) -> None:
     ffmpeg = "/opt/homebrew/bin/ffmpeg"
     mp4_path.parent.mkdir(parents=True, exist_ok=True)
     gif_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_count = sum(1 for _ in frames_dir.glob("frame_*.png"))
+    duration = max(frame_count / fps, 1.0) if duration is None else duration
+    fade_out_start = max(duration - 1.2, 0.0)
+    video_only_path = frames_dir / "video_only.mp4" if audio_path else mp4_path
 
     mp4_cmd = [
         ffmpeg,
@@ -1814,19 +1937,76 @@ def save_video_from_frames(frames_dir: Path, mp4_path: Path, gif_path: Path, fps
         str(fps),
         "-i",
         str(frames_dir / "frame_%04d.png"),
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=146.83:sample_rate=48000:duration={duration:.3f}",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=220.00:sample_rate=48000:duration={duration:.3f}",
+        "-filter_complex",
+        (
+            "[1:a]volume=0.030[a1];"
+            "[2:a]volume=0.012[a2];"
+            "[a1][a2]amix=inputs=2:duration=shortest,"
+            "pan=stereo|c0=c0|c1=0.78*c0,"
+            "afade=t=in:st=0:d=0.8,"
+            f"afade=t=out:st={fade_out_start:.3f}:d=1.0,"
+            "alimiter=limit=0.18[a]"
+        ),
+        "-map",
+        "0:v:0",
+        "-map",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
         "slow",
         "-crf",
-        "15",
+        "12",
         "-pix_fmt",
         "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-shortest",
         "-movflags",
         "+faststart",
-        str(mp4_path),
+        str(video_only_path),
     ]
     subprocess.run(mp4_cmd, check=True)
+
+    if audio_path:
+        if duration is None:
+            raise ValueError("duration is required when audio_path is provided")
+        audio_cmd = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(video_only_path),
+            "-i",
+            str(audio_path),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-af",
+            f"volume=1.18,apad,atrim=0:{duration:.3f},loudnorm=I=-18:TP=-2:LRA=11",
+            "-t",
+            f"{duration:.3f}",
+            "-movflags",
+            "+faststart",
+            str(mp4_path),
+        ]
+        subprocess.run(audio_cmd, check=True)
 
     gif_cmd = [
         ffmpeg,
@@ -1840,9 +2020,22 @@ def save_video_from_frames(frames_dir: Path, mp4_path: Path, gif_path: Path, fps
     subprocess.run(gif_cmd, check=True)
 
 
-def build(out_mp4: Path, out_gif: Path, out_poster: Path, *, variant_key: str = "flight") -> None:
+def build(
+    out_mp4: Path,
+    out_gif: Path,
+    out_poster: Path,
+    *,
+    variant_key: str = "flight",
+    voiceover: bool = True,
+    voice: str = "Alex",
+    voice_rate: int = 172,
+) -> tuple[Path | None, Path | None, Path | None]:
     variant = VARIANTS[variant_key]
     scenes = variant.scenes
+    cues = NARRATION_CUES.get(variant_key, ()) if voiceover else ()
+    transcript_path: Path | None = None
+    srt_path: Path | None = None
+    audio_path: Path | None = None
     transition_frames = 8
     with tempfile.TemporaryDirectory(prefix="agilab_product_reel_") as tmp:
         frames_dir = Path(tmp)
@@ -1853,17 +2046,23 @@ def build(out_mp4: Path, out_gif: Path, out_poster: Path, *, variant_key: str = 
             scene_frames: list[Image.Image] = []
             for i in range(count):
                 t = 0.0 if count <= 1 else i / (count - 1)
-                frame = draw_scene(scene, t, variant)
+                elapsed = frame_no / FPS
+                frame = draw_scene(scene, t, variant, caption_at(cues, elapsed))
                 scene_frames.append(frame)
                 frame.save(frames_dir / f"frame_{frame_no:04d}.png")
-                if scene.name == "orchestrate" and not poster_written and i >= count // 2:
+                if scene.name == "finale" and not poster_written and i >= count // 2:
                     out_poster.parent.mkdir(parents=True, exist_ok=True)
                     frame.save(out_poster)
                     poster_written = True
                 frame_no += 1
             if idx < len(scenes) - 1:
                 current_end = scene_frames[-1]
-                next_start = draw_scene(scenes[idx + 1], 0.10, variant)
+                next_start = draw_scene(
+                    scenes[idx + 1],
+                    0.10,
+                    variant,
+                    caption_at(cues, frame_no / FPS),
+                )
                 for frame in crossfade(current_end, next_start, transition_frames):
                     frame.save(frames_dir / f"frame_{frame_no:04d}.png")
                     frame_no += 1
@@ -1871,7 +2070,15 @@ def build(out_mp4: Path, out_gif: Path, out_poster: Path, *, variant_key: str = 
         if not poster_written:
             Image.open(frames_dir / "frame_0000.png").save(out_poster)
 
-        save_video_from_frames(frames_dir, out_mp4, out_gif, FPS)
+        duration = frame_no / FPS
+        if cues:
+            out_mp4.parent.mkdir(parents=True, exist_ok=True)
+            transcript_path, srt_path = write_narration_sidecars(out_mp4, cues)
+            audio_path = out_mp4.with_name(f"{out_mp4.stem}_voiceover.aiff")
+            synthesize_voiceover(transcript_path, audio_path, voice=voice, rate=voice_rate)
+
+        save_video_from_frames(frames_dir, out_mp4, out_gif, FPS, audio_path=audio_path, duration=duration)
+    return transcript_path, srt_path, audio_path
 
 
 def main() -> int:
@@ -1880,11 +2087,28 @@ def main() -> int:
     parser.add_argument("--mp4", default="artifacts/demo_media/flight/agilab_flight.mp4")
     parser.add_argument("--gif", default="artifacts/demo_media/flight/agilab_flight.gif")
     parser.add_argument("--poster", default="artifacts/demo_media/flight/agilab_flight_poster.png")
+    parser.add_argument("--voiceover", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--voice", default="Alex")
+    parser.add_argument("--voice-rate", type=int, default=172)
     args = parser.parse_args()
-    build(Path(args.mp4), Path(args.gif), Path(args.poster), variant_key=args.variant)
+    transcript_path, srt_path, audio_path = build(
+        Path(args.mp4),
+        Path(args.gif),
+        Path(args.poster),
+        variant_key=args.variant,
+        voiceover=args.voiceover,
+        voice=args.voice,
+        voice_rate=args.voice_rate,
+    )
     print(Path(args.mp4).resolve())
     print(Path(args.gif).resolve())
     print(Path(args.poster).resolve())
+    if transcript_path:
+        print(transcript_path.resolve())
+    if srt_path:
+        print(srt_path.resolve())
+    if audio_path:
+        print(audio_path.resolve())
     return 0
 
 
