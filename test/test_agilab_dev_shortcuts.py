@@ -468,6 +468,33 @@ def test_docs_shortcut_syncs_and_verifies_mirror():
     ]
 
 
+def test_clean_shortcut_runs_local_artifact_cleaner_dry_run_by_default():
+    assert agilab_dev.planned_commands(["clean"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/clean_local_artifacts.py",
+        ]
+    ]
+
+
+def test_clean_shortcut_keeps_apply_flag():
+    assert agilab_dev.planned_commands(["clean", "--apply"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/clean_local_artifacts.py",
+            "--apply",
+        ]
+    ]
+
+
 def test_skills_shortcut_syncs_then_validates_and_generates():
     assert agilab_dev.planned_commands(["skills", "agilab-runbook"]) == [
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],

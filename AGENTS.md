@@ -32,7 +32,8 @@ Use this runbook whenever you:
   state,
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
-  coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
+  coverage-badge guard, `docs` for docs mirror sync plus stamp verification, and
+  `clean` for stale local build/lib duplicate-source cleanup. `impact` tells you what must be validated, `test` runs the
   narrow pytest slice, `lint` provisions Ruff through `uv --extra dev` so it does not depend
   on an already-synced local venv, `bugfix` is the default low-load pre-push loop for normal code fixes,
   `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
@@ -46,8 +47,9 @@ Use this runbook whenever you:
   `audit` is the quick robustness check before handoff between machines,
   `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
   plan, trusted-publisher contract, Ruff availability, dependency policy, strict typing, docs, and badges before a tag,
-  `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
-  aligned. Use `--print-only` to audit the expanded commands.
+  `badge` checks badge freshness when intentionally requested, `docs` keeps the public mirror
+  aligned, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
+  is passed. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching

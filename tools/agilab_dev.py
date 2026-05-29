@@ -134,6 +134,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             _uv_python("tools/sync_docs_source.py", "--verify-stamp"),
         ]
 
+    if command == "clean":
+        return [_uv_python("tools/clean_local_artifacts.py", *args)]
+
     if command == "skills":
         skills, extras = _split_leading_values(args, command_name=command)
         return [
@@ -164,6 +167,7 @@ def _usage() -> str:
   ./dev [--print-only] release [impact_validate args]
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
+  ./dev [--print-only] clean [--apply]
   ./dev [--print-only] skills <skill> [skill...]
 
 High-frequency mappings:
@@ -181,6 +185,7 @@ High-frequency mappings:
   release   -> Run local release guards: impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
+  clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
   skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
 """
 
