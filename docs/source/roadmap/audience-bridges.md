@@ -199,7 +199,6 @@ agilab-mcp
     summarize_run
     summarize_agent_run
     compare_runs
-    export_quarto_report
     agent_handoff
     agent_next_actions
     agent_context
@@ -212,6 +211,9 @@ agilab-mcp
     install_app
     execute_stage
 ```
+
+Quarto export stays on the explicit `agilab export quarto` CLI/export bridge,
+not on the read-only MCP server, because it writes report files.
 
 Default policy:
 
