@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 
 from agi_node.agi_dispatcher import build as build_mod
@@ -77,6 +78,55 @@ def test_bootstrap_core_source_paths_moves_existing_editable_sources_before_site
     assert bootstrap_mod.sys.path[:3] == [str(env_src), str(node_src), str(cluster_src)]
     assert bootstrap_mod.sys.path[3] == str(site_packages)
     assert bootstrap_mod.sys.path.count(str(env_src)) == 1
+
+
+def test_append_shared_site_packages_appends_legacy_candidates_once(tmp_path):
+    fake_home = tmp_path / "home"
+    sys_path: list[str] = []
+
+    bootstrap_mod.append_shared_site_packages(
+        source_file=tmp_path / "standalone" / "build.py",
+        sys_path=sys_path,
+        home=fake_home,
+        version_info=SimpleNamespace(major=3, minor=13),
+    )
+    bootstrap_mod.append_shared_site_packages(
+        source_file=tmp_path / "standalone" / "build.py",
+        sys_path=sys_path,
+        home=fake_home,
+        version_info=SimpleNamespace(major=3, minor=13),
+    )
+
+    assert sys_path == [
+        str(fake_home / "agilab/.venv/lib/python3.13/site-packages"),
+        str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
+    ]
+
+
+def test_append_shared_site_packages_skips_foreign_home_checkout(tmp_path):
+    fake_home = tmp_path / "home"
+    foreign_checkout = fake_home / "agilab"
+    current_checkout = tmp_path / "current"
+    source_file = current_checkout / "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
+    (foreign_checkout / "src/agilab").mkdir(parents=True)
+    (foreign_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    (current_checkout / "src/agilab").mkdir(parents=True)
+    (current_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("", encoding="utf-8")
+    sys_path: list[str] = []
+
+    added = bootstrap_mod.append_shared_site_packages(
+        source_file=source_file,
+        sys_path=sys_path,
+        home=fake_home,
+        version_info=SimpleNamespace(major=3, minor=13),
+    )
+
+    assert added == (fake_home / ".agilab/.venv/lib/python3.13/site-packages",)
+    assert sys_path == [
+        str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
+    ]
 
 
 def test_resolve_main_inputs_uses_explicit_app_path_and_normalizes_windows_style_outdirs(tmp_path):
