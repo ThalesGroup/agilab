@@ -123,8 +123,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="pipeline",
         image=PAGE_SHOTS / "workflow-page.png",
         stage="WORKFLOW",
-        title="Replay what actually ran.",
-        body="The generated run becomes inspectable workflow code.",
+        title="Keep notebooks in the loop.",
+        body="Export project context back to notebooks, or run headless agi-core without UI lock-in.",
         seconds=2.8,
         active_step=2,
         focus=(0.60, 0.48),
@@ -154,7 +154,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
         title="Replayable AI/ML evidence.",
-        body="Optimized execution, replayable workflow, and proof capsules your team can inspect.",
+        body="Use the UI when it helps. Keep the headless core and notebooks when they fit better.",
         seconds=2.1,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -519,7 +519,7 @@ NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
         NarrationCue(0.0, 2.0, "AGILAB turns agent runs into proof capsules."),
         NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifact intent before execution."),
         NarrationCue(4.4, 7.4, "Run mode optimizer: up to a thousand times faster on suitable projects."),
-        NarrationCue(7.4, 10.2, "Replay exactly what ran as inspectable workflow code."),
+        NarrationCue(7.4, 10.2, "Export back to notebooks, or run headless agi-core with no UI lock-in."),
         NarrationCue(10.2, 12.9, "Verify maps, hashes, artifacts, and run metadata."),
         NarrationCue(12.9, 15.0, "AGILAB: replayable AI and ML evidence."),
     ),
@@ -992,7 +992,7 @@ def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: i
     hero_font = load_font(54, bold=True)
     sub_font = load_font(29, bold=True)
     draw.text((36, 112), "Replayable AI/ML evidence", font=hero_font, fill=INK)
-    draw.text((38, 178), "from notebook, agent, or cluster run", font=FONT_BODY, fill=MUTED)
+    draw.text((38, 178), "from notebook, agent, or headless agi-core run", font=FONT_BODY, fill=MUTED)
 
     flow_y = 250
     nodes = [
@@ -1018,20 +1018,25 @@ def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: i
         draw.line((x0, y_mid, x1, y_mid), fill=(148, 177, 212), width=4)
         draw.polygon([(x1, y_mid - 7), (x1, y_mid + 7), (x1 + 14, y_mid)], fill=(148, 177, 212))
 
-    chips = [
-        ("run-mode optimizer", (71, 146, 107, 255)),
-        ("up to 1000x", (211, 126, 57, 255)),
-        ("manifest", (18, 56, 44, 255)),
-        ("artifact hashes", (17, 40, 62, 255)),
+    chip_rows = [
+        [
+            ("run-mode optimizer", (71, 146, 107, 255)),
+            ("notebook export", (17, 40, 62, 255)),
+        ],
+        [
+            ("headless agi-core", (18, 56, 44, 255)),
+            ("no UI lock-in", (79, 115, 168, 255)),
+        ],
     ]
-    x = 42
-    for label, fill in chips:
-        pill_w = draw.textbbox((0, 0), label, font=FONT_HIGHLIGHT)[2] + 42
-        draw.rounded_rectangle((x, 354, x + pill_w, 394), radius=18, fill=fill)
-        draw.text((x + 21, 365), label, font=FONT_HIGHLIGHT, fill=WHITE)
-        x += pill_w + 16
-
-    draw.text((box_w - 280, box_h - 58), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED)
+    y = 346
+    for row in chip_rows:
+        x = 42
+        for label, fill in row:
+            pill_w = draw.textbbox((0, 0), label, font=FONT_HIGHLIGHT)[2] + 42
+            draw.rounded_rectangle((x, y, x + pill_w, y + 36), radius=18, fill=fill)
+            draw.text((x + 21, y + 10), label, font=FONT_HIGHLIGHT, fill=WHITE)
+            x += pill_w + 16
+        y += 42
     canvas.alpha_composite(panel, (box_x, box_y))
 
 
@@ -1158,8 +1163,8 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         "APP = \"flight_telemetry_project\"",
         "request = RunRequest(mode=15, data_in=\"flight_batches\")",
         "result = await AGI.run(env, request=request)",
-        "save_stage(\"run_flight\", result.manifest)",
-        "# manifest + artifact hashes stay attached",
+        "# export: notebooks/lab_stages.ipynb",
+        "# same contract runs through headless agi-core",
     ]
     line_y = 92
     code_font = load_font(22)
@@ -1171,9 +1176,9 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         line_y += 28
     x = 30
     for label, fill in [
-        ("lab_stages", (18, 39, 60, 255)),
-        ("manifest.json", (18, 56, 44, 255)),
-        ("artifact hashes", (79, 115, 168, 255)),
+        ("notebook export", (18, 39, 60, 255)),
+        ("headless agi-core", (18, 56, 44, 255)),
+        ("no UI lock-in", (79, 115, 168, 255)),
     ]:
         pill_w = draw.textbbox((0, 0), label, font=FONT_STEP)[2] + 34
         draw.rounded_rectangle((x, box_h - 56, x + pill_w, box_h - 24), radius=14, fill=fill)
