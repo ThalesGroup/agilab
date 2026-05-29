@@ -109,7 +109,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "orchestrate-page.png",
         stage="ORCHESTRATE",
         title="Fan out the work. Reduce to proof.",
-        body="The run-mode optimizer chooses the fast path, then map/reduce turns outputs into evidence.",
+        body="The optimizer selects the fast path; map/reduce turns outputs into evidence.",
         seconds=3.0,
         active_step=1,
         focus=(0.60, 0.44),
@@ -123,8 +123,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="pipeline",
         image=PAGE_SHOTS / "workflow-page.png",
         stage="WORKFLOW",
-        title="Keep notebooks in the loop.",
-        body="Export project context back to notebooks, or run headless agi-core without UI lock-in.",
+        title="Keep notebooks portable.",
+        body="Export the run contract to notebooks, or execute it with headless agi-core.",
         seconds=2.8,
         active_step=2,
         focus=(0.60, 0.48),
@@ -154,7 +154,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
         title="Replayable AI/ML evidence.",
-        body="Use the UI when it helps. Keep the headless core and notebooks when they fit better.",
+        body="Use the UI for review. Keep notebooks and headless agi-core for automation.",
         seconds=2.1,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -519,7 +519,7 @@ NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
         NarrationCue(0.0, 2.0, "AGILAB turns runs into proof capsules."),
         NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifacts."),
         NarrationCue(4.4, 7.4, "Optimizer: up to a thousand times faster."),
-        NarrationCue(7.4, 10.2, "Export notebooks, or run headless agi-core."),
+        NarrationCue(7.4, 10.2, "Export notebooks, or execute with headless agi-core."),
         NarrationCue(10.2, 12.9, "Verify maps, hashes, and metadata."),
         NarrationCue(12.9, 15.0, "Replayable AI and ML evidence."),
     ),
@@ -1030,7 +1030,7 @@ def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: i
     hero_font = load_font(54, bold=True)
     sub_font = load_font(29, bold=True)
     draw.text((36, 112), "Replayable AI/ML evidence", font=hero_font, fill=INK)
-    draw.text((38, 178), "from notebook, agent, or headless agi-core run", font=FONT_BODY, fill=MUTED)
+    draw.text((38, 178), "from notebook, agent, or headless agi-core runtime", font=FONT_BODY, fill=MUTED)
 
     flow_y = 250
     nodes = [
@@ -1202,7 +1202,7 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         "request = RunRequest(mode=15, data_in=\"flight_batches\")",
         "result = await AGI.run(env, request=request)",
         "# export: notebooks/lab_stages.ipynb",
-        "# same contract runs through headless agi-core",
+        "# same contract executes via headless agi-core",
     ]
     line_y = 92
     code_font = load_font(22)
