@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (68 tests)
+## ✅ Fixed since last pass (69 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -33,6 +33,7 @@ The following test categories were resolved by the dev team:
 | uv TOML paths with `\` (remaining) | 8 |
 | Python subprocess exit-code fixtures | 4 |
 | Linux-only feature guards | 6 |
+| mlflow SQLite reset file move | 1 |
 | Miscellaneous | 10 |
 
 ---
@@ -261,27 +262,22 @@ Result: `6 passed`.
 
 ---
 
-### Category 6 — mlflow file locking on Windows (1 test)
+### Category 6 — mlflow file locking on Windows — fixed in current repo (1 test)
 
-Windows does not allow renaming a file held open by another process.
+Status: fixed in current repository; pending live Windows rerun.
 
-**Fix in `mlflow_store.py` `_move_mlflow_sqlite_backend_files`:**
-```python
-import shutil, sys, os
-if sys.platform == "win32":
-    shutil.copy2(src, dst)
-    os.unlink(src)
-else:
-    os.rename(src, dst)
+The mlflow backend reset path has current regression coverage for the unknown
+Alembic revision reset flow that previously hit Windows file-lock rename
+behavior.
+
+Validation evidence from macOS:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/agi-env/test/test_pagelib.py::test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision
 ```
 
-#### `test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision`
-```
-PermissionError: [WinError 32] Le processus ne peut pas accéder au fichier
-car ce fichier est utilisé par un autre processus:
-'C:\...\mlflow.db' -> 'C:\...\mlflow.schema-reset-20260522_113825.db'
-  at: mlflow_store.py:435 in _move_mlflow_sqlite_backend_files
-```
+Result: `1 passed, 1 warning`.
 
 ---
 
@@ -386,7 +382,7 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 3 | uv TOML paths with `\` | 8 | ✅ Fixed in current repo; rerun Windows to verify count | `uv_source_support.py` |
 | 4 | `cmd /c exit N` unreliable exit code | 4 | ✅ Fixed in current repo; rerun Windows to verify count | `src/agilab/core/agi-env/test/test_agi_env.py` |
 | 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ✅ Fixed in current repo; rerun Windows to verify count | `share_mount_support.py`, `test_pagelib.py`, `test_agi_env.py`, `test_agi_distributor_deployment_remote_support.py` |
-| 6 | mlflow file locking | 1 | ❌ Open | `mlflow_store.py` copy+delete on Windows |
+| 6 | mlflow file locking | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `mlflow_store.py`, `test_pagelib.py` |
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
 | 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
@@ -394,6 +390,6 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
 remaining count after the environment-isolation, virtualenv layout, uv TOML path,
-Python subprocess exit fixture, Linux-only guard, capacity CSV encoding,
-prepare_local_env self-update, and sshpass test fixes. Then prioritize any
-still-failing Windows categories from the refreshed run.
+Python subprocess exit fixture, Linux-only guard, mlflow backend reset, capacity
+CSV encoding, prepare_local_env self-update, and sshpass test fixes. Then
+prioritize any still-failing Windows categories from the refreshed run.
