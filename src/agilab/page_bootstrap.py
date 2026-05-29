@@ -7,6 +7,8 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Callable
 
+PAGE_ENV_REALIGNED_STATE_KEY = "_agilab_page_env_realigned"
+
 
 def _safe_resolved_path(value: Any) -> Path | None:
     try:
@@ -129,6 +131,7 @@ def realign_session_env_with_page_root(
                 apps_path=expected_apps_path,
                 app=page_app.name,
                 verbose=getattr(env, "verbose", None),
+                _agilab_reinitialize=True,
             )
         if previous_init_done is not None:
             env.init_done = previous_init_done
@@ -183,7 +186,10 @@ def ensure_page_env(
         streamlit.session_state,
         init_done_default=init_done_default,
     ):
-        realign_session_env_with_page_root(streamlit.session_state, current_file)
+        if realign_session_env_with_page_root(streamlit.session_state, current_file):
+            streamlit.session_state[PAGE_ENV_REALIGNED_STATE_KEY] = True
+        else:
+            streamlit.session_state.pop(PAGE_ENV_REALIGNED_STATE_KEY, None)
         return streamlit.session_state["env"]
 
     about_page = load_about_page_module(current_file, load_module=load_module)

@@ -111,6 +111,7 @@ import_agilab_symbols(
     globals(),
     "agilab.page_bootstrap",
     {
+        "PAGE_ENV_REALIGNED_STATE_KEY": "_PAGE_ENV_REALIGNED_STATE_KEY",
         "ensure_page_env": "_ensure_page_env",
         "realign_session_env_with_page_root": "_realign_session_env_with_page_root",
     },
@@ -2382,10 +2383,12 @@ async def page() -> None:
     if env is None:
         return
 
+    realigned_with_page_root = bool(st.session_state.pop(_PAGE_ENV_REALIGNED_STATE_KEY, False))
     current_app, changed_from_query = resolve_active_app(env)
     if _realign_session_env_with_page_root(st.session_state, __file__):
+        realigned_with_page_root = True
+    if realigned_with_page_root:
         current_app = env.app
-        changed_from_query = True
     if changed_from_query:
         st.session_state["project_changed"] = True
 
