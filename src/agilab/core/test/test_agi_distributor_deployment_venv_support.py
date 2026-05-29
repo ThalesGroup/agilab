@@ -33,12 +33,35 @@ def test_project_venv_python_uses_target_platform_layouts(tmp_path: Path) -> Non
 
 
 def test_project_venv_matches_checks_executable_and_requested_version(tmp_path: Path) -> None:
-    assert deployment_venv_support.project_venv_matches(tmp_path, python_version="3.13") is False
+    for os_name in ("posix", "nt"):
+        project = tmp_path / os_name
+        assert (
+            deployment_venv_support.project_venv_matches(
+                project,
+                os_name=os_name,
+                python_version="3.13",
+            )
+            is False
+        )
 
-    _write_venv_python(tmp_path, python_version="3.13.2")
+        _write_venv_python(project, os_name=os_name, python_version="3.13.2")
 
-    assert deployment_venv_support.project_venv_matches(tmp_path, python_version="3.13") is True
-    assert deployment_venv_support.project_venv_matches(tmp_path, python_version="3.12") is False
+        assert (
+            deployment_venv_support.project_venv_matches(
+                project,
+                os_name=os_name,
+                python_version="3.13",
+            )
+            is True
+        )
+        assert (
+            deployment_venv_support.project_venv_matches(
+                project,
+                os_name=os_name,
+                python_version="3.12",
+            )
+            is False
+        )
 
 
 def test_project_site_packages_dir_handles_windows_and_free_threaded_versions(tmp_path: Path) -> None:
