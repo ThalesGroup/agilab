@@ -709,7 +709,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        env = AgiEnv(
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

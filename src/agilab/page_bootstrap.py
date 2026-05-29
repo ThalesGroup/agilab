@@ -115,12 +115,21 @@ def realign_session_env_with_page_root(
 
     previous_init_done = getattr(env, "init_done", None)
     try:
-        type(env).__init__(
-            env,
-            apps_path=expected_apps_path,
-            app=page_app.name,
-            verbose=getattr(env, "verbose", None),
-        )
+        for_app = getattr(type(env), "for_app", None)
+        if callable(for_app):
+            env = for_app(
+                apps_path=expected_apps_path,
+                app=page_app.name,
+                verbose=getattr(env, "verbose", None),
+            )
+            session_state[env_key] = env
+        else:
+            type(env).__init__(
+                env,
+                apps_path=expected_apps_path,
+                app=page_app.name,
+                verbose=getattr(env, "verbose", None),
+            )
         if previous_init_done is not None:
             env.init_done = previous_init_done
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):

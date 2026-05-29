@@ -915,9 +915,81 @@ def test_agienv_constructor_is_idempotent_for_same_configuration(env, monkeypatc
     assert same_env.active_app == env.active_app
 
 
+def test_agienv_constructor_treats_verbose_debug_as_cosmetic(env, monkeypatch):
+    def _fail_load(*_args, **_kwargs):  # pragma: no cover - must not run
+        raise AssertionError("AgiEnv reloaded dotenv for a cosmetic-only change")
+
+    monkeypatch.setattr(agi_env_module, "_load_dotenv_values", _fail_load)
+
+    same_env = AgiEnv(
+        apps_path=env.apps_path,
+        app=env.app,
+        verbose=0 if env.verbose else 1,
+        debug=not bool(env.debug),
+    )
+
+    assert same_env is env
+    assert same_env.active_app == env.active_app
+
+
 def test_agienv_constructor_rejects_conflicting_reinitialization(env):
     with pytest.raises(RuntimeError, match="already initialised with a different configuration"):
         AgiEnv(apps_path=env.apps_path, app="other_project", verbose=env.verbose)
+
+
+def test_agienv_for_app_reuses_matching_singleton(env, monkeypatch):
+    def _fail_init(*_args, **_kwargs):  # pragma: no cover - must not run
+        raise AssertionError("for_app should not reinitialize matching app state")
+
+    monkeypatch.setattr(AgiEnv, "__init__", _fail_init, raising=True)
+
+    same_env = AgiEnv.for_app(apps_path=env.apps_path, app=Path(env.app).name, verbose=env.verbose)
+
+    assert same_env is env
+
+
+def test_agienv_for_app_reinitializes_stale_active_app(monkeypatch, env, tmp_path):
+    called = {"kwargs": None}
+    app_name = Path(env.app).name
+    env.active_app = tmp_path / "agi-space" / "apps" / "builtin" / app_name
+
+    def fake_init(self, *a, **k):
+        called["kwargs"] = k
+        self.apps_path = k["apps_path"]
+        self.app = k["app"]
+        self.active_app = k["apps_path"] / "builtin" / k["app"]
+
+    with mock.patch.object(AgiEnv, "__init__", fake_init, create=True):
+        same_env = AgiEnv.for_app(apps_path=env.apps_path, app=app_name, verbose=0)
+
+    assert same_env is env
+    assert called["kwargs"]["apps_path"] == env.apps_path
+    assert called["kwargs"]["app"] == app_name
+    assert called["kwargs"]["_agilab_reinitialize"] is True
+
+
+def test_agienv_for_app_reinitializes_conflicting_singleton(monkeypatch, env):
+    called = {"kwargs": None}
+    apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
+
+    def fake_init(self, *a, **k):
+        called["kwargs"] = k
+        self.apps_path = k["apps_path"]
+        self.app = k["app"]
+
+    with mock.patch.object(AgiEnv, "__init__", fake_init, create=True):
+        same_env = AgiEnv.for_app(apps_path=apps_path, app="flight_telemetry_project", verbose=0)
+
+    assert same_env is env
+    assert called["kwargs"]["apps_path"] == apps_path
+    assert called["kwargs"]["app"] == "flight_telemetry_project"
+    assert called["kwargs"]["verbose"] == 0
+    assert called["kwargs"]["_agilab_reinitialize"] is True
+
+
+def test_agienv_for_app_rejects_empty_app_name(env):
+    with pytest.raises(ValueError, match="app name must be non-empty"):
+        AgiEnv.for_app(apps_path=env.apps_path, app="")
 
 
 def test_change_app_marks_reinitialization_as_intentional(monkeypatch, env):

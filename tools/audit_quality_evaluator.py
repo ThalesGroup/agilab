@@ -105,7 +105,7 @@ PREFLIGHT_LINES = (
     "- git status --short --branch --untracked-files=no",
     "- git log --oneline -5",
     "- find src/agilab/core -maxdepth 3 -name pyproject.toml -print",
-    "- rg -n \"AGILAB_PUBLIC_BIND|pickle\\\\.load|subprocess|create_subprocess|shell=True|apps-pages|agi-pages|release proof|package split|Windows|macOS|Linux\" src/agilab tools docs test",
+    "- rg -n \"AGILAB_PUBLIC_BIND|pickle\\\\.load|subprocess|create_subprocess|shell[=]True|apps-pages|agi-pages|release proof|package split|Windows|macOS|Linux\" src/agilab tools docs test",
 )
 
 
