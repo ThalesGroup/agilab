@@ -3,12 +3,11 @@
 **Last Windows validation:** 2026-05-22 — **2nd pass after developer fixes**  
 **Machine:** TOUR-JULIEN (Windows 11, Python 3.13.13, PowerShell 5.1)  
 **Last verified count:** 97 previous · 43 fixed · 54 remaining · 1 new regression
-**Current repo note (2026-05-29):** Category 1 environment isolation has since
-landed in the root, core, and agi-env test fixtures. The total remaining count
-below still reflects the last Windows run until the command below is rerun on
-Windows.
+**Current repo note (2026-05-29):** all named buckets in this tracker now have
+focused local pass evidence in the current repository. The count above remains
+the last live Windows-run count until the command below is rerun on Windows.
 
-Reproduce remaining failures:
+Reproduce live Windows validation:
 ```powershell
 cd C:\Users\julie\agilab
 uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytest `
@@ -30,7 +29,7 @@ The following test categories were resolved by the dev team:
 | uv TOML paths with `\` (partial) | 4 |
 | `deploy_local_worker` path issues (partial) | 7 |
 | Virtualenv Windows layout (`.venv/Scripts`) | 7 |
-| uv TOML paths with `\` (remaining) | 8 |
+| uv TOML paths with `\` | 8 |
 | Python subprocess exit-code fixtures | 4 |
 | Linux-only feature guards | 6 |
 | mlflow SQLite reset file move | 1 |
@@ -39,7 +38,7 @@ The following test categories were resolved by the dev team:
 
 ---
 
-## ❌ Remaining failures from last Windows run (54 tests)
+## Historical failures from last Windows run (54 tests, pending rerun)
 
 ---
 
