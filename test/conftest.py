@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import importlib.util
 import shutil
@@ -27,9 +28,19 @@ if TYPE_CHECKING:
     from streamlit.testing.v1 import AppTest
 
 
+_ORIGINAL_PATH_HOME = Path.home
 REAL_HOME = Path.home().resolve()
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AGILAB_PACKAGE_ROOT = REPO_ROOT / "src" / "agilab"
+
+
+def _home_from_env() -> Path:
+    """Resolve Path.home() from HOME inside tests, including on Windows."""
+
+    home = os.environ.get("HOME")
+    if home:
+        return Path(home)
+    return _ORIGINAL_PATH_HOME()
 
 
 def _ensure_agilab_package_spec() -> None:
@@ -68,11 +79,29 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
     """Keep runner-local ~/.agilab state from leaking into root test imports."""
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
+    fake_localappdata = fake_home / "AppData" / "Local"
+    fake_roaming_appdata = fake_home / "AppData" / "Roaming"
+    fake_agilab = fake_home / ".agilab"
+    fake_localappdata.mkdir(parents=True)
+    fake_roaming_appdata.mkdir(parents=True)
+    fake_agilab.mkdir(parents=True)
+    (fake_agilab / ".env").write_text(
+        "AGI_CLUSTER_SHARE=\nAGI_LOCAL_SHARE=\nAPPS_REPOSITORY=\nOPENAI_API_KEY=\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", staticmethod(_home_from_env))
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("HOMEDRIVE", str(fake_home.drive) if fake_home.drive else "")
+    monkeypatch.setenv("HOMEPATH", str(fake_home)[len(fake_home.drive):] if fake_home.drive else str(fake_home))
+    monkeypatch.setenv("LOCALAPPDATA", str(fake_localappdata))
+    monkeypatch.setenv("APPDATA", str(fake_roaming_appdata))
     monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
-    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", "")
+    monkeypatch.setenv("AGI_LOCAL_SHARE", "")
     monkeypatch.delenv("APPS_REPOSITORY", raising=False)
     monkeypatch.delenv("APP_DEFAULT", raising=False)
+    monkeypatch.delenv("AGILAB_LOG_ABS", raising=False)
     # Root tests must not inherit developer-shell secrets. Individual tests that
     # need these values should opt in explicitly with monkeypatch/setenv.
     monkeypatch.delenv("CLUSTER_CREDENTIALS", raising=False)
@@ -93,6 +122,9 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
 
     repo_agilab_dir = (Path(__file__).resolve().parents[1] / "src" / "agilab").resolve()
     (share_dir / ".agilab-path").write_text(str(repo_agilab_dir) + "\n", encoding="utf-8")
+    localappdata_agilab = fake_localappdata / "agilab"
+    localappdata_agilab.mkdir(parents=True, exist_ok=True)
+    (localappdata_agilab / ".agilab-path").write_text(str(repo_agilab_dir) + "\n", encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
