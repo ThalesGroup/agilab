@@ -42,12 +42,11 @@ RUN_STAGES_KEY = "_agilab_run_stages"
 class WorkDispatcher:
     """Builds and runs distribution plans for target applications."""
 
-    args = {}
     verbose = None
 
     def __init__(self, args=None):
         """Store ``args`` for later use when evaluating distribution plans."""
-        WorkDispatcher.args = args  # ty: ignore[invalid-assignment]
+        self.args = args or {}
 
     @staticmethod
     def _split_dispatch_args(args):
@@ -75,9 +74,6 @@ class WorkDispatcher:
             setattr(args_obj, "args", run_stages)
         else:
             raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.stages")
-
-        if isinstance(WorkDispatcher.args, dict):
-            WorkDispatcher.args["args"] = run_stages
 
     @staticmethod
     def _convert_functions_to_names(workers_plan):
@@ -205,9 +201,13 @@ class WorkDispatcher:
             os.chmod(path, stat.S_IWUSR)
             # Try the operation again
             func(path)
-        # else:
-        # Reraise the error if it's not a permission issue
-        # raise
+            return
+
+        exc_value = exc_info[1] if len(exc_info) > 1 else None
+        if isinstance(exc_value, BaseException):
+            traceback_obj = exc_info[2] if len(exc_info) > 2 else None
+            raise exc_value.with_traceback(traceback_obj)
+        raise RuntimeError(f"failed to remove {path!r}")
 
     @staticmethod
     def make_chunks(
@@ -431,13 +431,23 @@ class WorkDispatcher:
                 return importlib.import_module(module)
 
         except ModuleNotFoundError as e:
-            module_to_install = (str(e).replace("No module named ", "").lower().replace("'", ""))
             # Only attempt install if an environment is provided
             if env is None or attempted_install:
                 raise
+            if not WorkDispatcher._runtime_auto_install_enabled(env):
+                logger.error(
+                    "runtime dependency auto-install refused for missing module %s; "
+                    "declare the dependency in the app or set AGILAB_RUNTIME_AUTO_INSTALL=1",
+                    getattr(e, "name", None) or str(e),
+                )
+                raise
+            module_to_install = WorkDispatcher._missing_module_name(e)
+            if not module_to_install:
+                raise
             app_path = env.active_app
             cmd = f"{env.uv} add --upgrade {module_to_install}"
-            logging.info(f"{cmd} from {app_path}")
+            await WorkDispatcher._record_runtime_auto_install_event(env, module_to_install, cmd, app_path)
+            logger.warning("runtime dependency auto-install: %s from %s", cmd, app_path)
             await AgiEnv.run(cmd, app_path)
             return await WorkDispatcher._load_module(
                 module,
@@ -446,3 +456,32 @@ class WorkDispatcher:
                 env=env,
                 attempted_install=True,
             )
+
+    @staticmethod
+    def _runtime_auto_install_enabled(env) -> bool:
+        value = getattr(env, "runtime_auto_install", None)
+        if value is None:
+            value = os.environ.get("AGILAB_RUNTIME_AUTO_INSTALL", "")
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _missing_module_name(exc: ModuleNotFoundError) -> str:
+        name = getattr(exc, "name", None)
+        if name:
+            return str(name).strip().lower()
+        return str(exc).replace("No module named ", "").lower().replace("'", "").strip()
+
+    @staticmethod
+    async def _record_runtime_auto_install_event(env, module_name: str, cmd: str, app_path: Path) -> None:
+        event = {
+            "event": "runtime_dependency_auto_install",
+            "module": module_name,
+            "command": cmd,
+            "app_path": str(app_path),
+        }
+        recorder = getattr(env, "record_provenance_event", None)
+        if not callable(recorder):
+            return
+        result = recorder(event)
+        if hasattr(result, "__await__"):
+            await result

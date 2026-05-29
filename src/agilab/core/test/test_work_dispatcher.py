@@ -31,10 +31,14 @@ def test_convert_functions_to_names_handles_nested_callables():
     assert converted["root"][1][1]["cb"] == "<lambda>"
 
 
-def test_dispatcher_init_sets_class_args():
+def test_dispatcher_init_sets_instance_args_without_class_state():
     payload = {"x": 1}
-    WorkDispatcher(payload)
-    assert WorkDispatcher.args == payload
+    first = WorkDispatcher(payload)
+    second = WorkDispatcher({"x": 2})
+
+    assert first.args == payload
+    assert second.args == {"x": 2}
+    assert "args" not in WorkDispatcher.__dict__
 
 
 @pytest.mark.asyncio
@@ -58,12 +62,10 @@ async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_
         def __init__(self, env, **kwargs):
             constructor_args.append(kwargs)
             self.args = SimpleNamespace(data_in=kwargs["data_in"], args=[])
-            WorkDispatcher.args = {"data_in": kwargs["data_in"], "args": []}
 
         def build_distribution(self, assigned_workers):
             assert assigned_workers == {"127.0.0.1": 1}
             assert self.args.args == stage_payload
-            assert WorkDispatcher.args["args"] == stage_payload
             return [["chunk"]], [{"meta": 1}], "partition", 1, 1.0
 
     monkeypatch.setattr(
@@ -337,6 +339,16 @@ def test_onerror_handles_permission_issue(monkeypatch):
     assert captured["path"] == "dummy_path"
 
 
+def test_onerror_reraises_non_permission_issue(monkeypatch):
+    monkeypatch.setattr("os.access", lambda path, mode: True)
+    original = RuntimeError("remove failed")
+
+    with pytest.raises(RuntimeError, match="remove failed") as caught:
+        WorkDispatcher._onerror(lambda _: None, "dummy_path", (RuntimeError, original, None))
+
+    assert caught.value is original
+
+
 def test_make_chunks_selects_optimal_or_fastest(monkeypatch):
     monkeypatch.setattr(WorkDispatcher, "_make_chunks_optimal", lambda *_args, **_kwargs: [["optimal"]])
     monkeypatch.setattr(WorkDispatcher, "_make_chunks_fastest", lambda *_args, **_kwargs: [["fastest"]])
@@ -409,32 +421,64 @@ def test_make_chunks_optimal_and_fastest_real_paths():
 
 
 @pytest.mark.asyncio
-async def test_load_module_requests_install(monkeypatch, tmp_path):
-    import_calls = []
+async def test_load_module_refuses_runtime_auto_install_by_default(monkeypatch, tmp_path):
+    def fake_import(_name):
+        raise ModuleNotFoundError("No module named 'missing_pkg'", name="missing_pkg")
 
-    def fake_import(name):
-        import_calls.append(name)
-        if len(import_calls) == 1:
-            raise ModuleNotFoundError("No module named 'missing_pkg'")
-        return "module"
-
-    recorded: list[tuple[str, Path]] = []
-
-    async def fake_run(cmd, app_path):
-        recorded.append((cmd, app_path))
+    async def fake_run(_cmd, _app_path):  # pragma: no cover - must not run
+        raise AssertionError("runtime auto-install should be opt-in")
 
     monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
     monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+    monkeypatch.delenv("AGILAB_RUNTIME_AUTO_INSTALL", raising=False)
 
     env = SimpleNamespace(
         uv="uv",
         active_app=tmp_path,
     )
 
+    with pytest.raises(ModuleNotFoundError):
+        await WorkDispatcher._load_module("demo", env=env)
+
+
+@pytest.mark.asyncio
+async def test_load_module_requests_install_when_explicitly_enabled(monkeypatch, tmp_path):
+    import_calls = []
+
+    def fake_import(name):
+        import_calls.append(name)
+        if len(import_calls) == 1:
+            raise ModuleNotFoundError("No module named 'missing_pkg'", name="missing_pkg")
+        return "module"
+
+    recorded: list[tuple[str, Path]] = []
+    events: list[dict[str, str]] = []
+
+    async def fake_run(cmd, app_path):
+        recorded.append((cmd, app_path))
+
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+    monkeypatch.setenv("AGILAB_RUNTIME_AUTO_INSTALL", "1")
+
+    env = SimpleNamespace(
+        uv="uv",
+        active_app=tmp_path,
+        record_provenance_event=events.append,
+    )
+
     result = await WorkDispatcher._load_module("demo", env=env)
 
     assert result == "module"
     assert recorded == [("uv add --upgrade missing_pkg", tmp_path)]
+    assert events == [
+        {
+            "event": "runtime_dependency_auto_install",
+            "module": "missing_pkg",
+            "command": "uv add --upgrade missing_pkg",
+            "app_path": str(tmp_path),
+        }
+    ]
     assert len(import_calls) == 2
 
 
