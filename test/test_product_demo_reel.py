@@ -64,6 +64,41 @@ def test_view_maps_overlay_draws_visible_panel() -> None:
     assert canvas.getbbox() is not None
 
 
+def test_flight_reel_narration_sidecars_are_youtube_ready(tmp_path: Path) -> None:
+    module = _load_module()
+    cues = module.NARRATION_CUES["flight"]
+
+    transcript_path, srt_path = module.write_narration_sidecars(tmp_path / "agilab_flight.mp4", cues)
+
+    assert transcript_path.name == "agilab_flight_voiceover.txt"
+    assert srt_path.name == "agilab_flight_voiceover.srt"
+    assert transcript_path.read_text(encoding="utf-8").startswith("AGILAB turns experiments into evidence.")
+    srt_text = srt_path.read_text(encoding="utf-8")
+    assert "00:00:00,000 --> 00:00:02,500" in srt_text
+    assert "Finish on analysis your team can verify." in srt_text
+
+
+def test_flight_reel_caption_helpers_use_active_time_window() -> None:
+    module = _load_module()
+    cues = module.NARRATION_CUES["flight"]
+
+    assert module.caption_at(cues, 0.0) == "AGILAB turns experiments into evidence."
+    assert module.caption_at(cues, 2.5) == "Select one project and keep context explicit."
+    assert module.caption_at(cues, 15.6) is None
+    assert module.srt_timestamp(65.432) == "00:01:05,432"
+
+
+def test_draw_caption_adds_visible_overlay() -> None:
+    module = _load_module()
+    canvas = Image.new("RGBA", (module.W, module.H), (0, 0, 0, 0))
+
+    before = canvas.getbbox()
+    module.draw_caption(canvas, "Replay the workflow as inspectable steps.")
+
+    assert before is None
+    assert canvas.getbbox() is not None
+
+
 def test_flight_view_maps_seed_defaults_are_portable() -> None:
     settings = tomllib.loads(FLIGHT_SETTINGS.read_text(encoding="utf-8"))
     view_maps = settings["view_maps"]
