@@ -71,8 +71,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="intro",
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
-        title="From project to evidence.",
-        body="One workspace keeps setup, execution, replay, and analysis aligned.",
+        title="Replayable evidence, not notebook drift.",
+        body="One workspace ties project context, run orchestration, workflow capture, and analysis evidence together.",
         seconds=2.2,
         active_step=-1,
         focus=(0.56, 0.52),
@@ -85,8 +85,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="project",
         image=PAGE_SHOTS / "project-page.png",
         stage="PROJECT",
-        title="Select the app once.",
-        body="Keep project files, arguments, and code context in one place.",
+        title="Pin the project context.",
+        body="Keep the app, arguments, data paths, and source context explicit before anything runs.",
         seconds=2.8,
         active_step=0,
         focus=(0.54, 0.46),
@@ -99,8 +99,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="orchestrate",
         image=PAGE_SHOTS / "orchestrate-page.png",
         stage="ORCHESTRATE",
-        title="Generate the run path.",
-        body="Produce the runnable deployment snippet, then keep the same flow tractable as data volume grows.",
+        title="Generate the run contract.",
+        body="Produce one runnable path for local or distributed execution without hiding operational choices.",
         seconds=3.2,
         active_step=1,
         focus=(0.60, 0.44),
@@ -114,8 +114,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="pipeline",
         image=PAGE_SHOTS / "workflow-page.png",
         stage="WORKFLOW",
-        title="Replay the same flow.",
-        body="Turn the execution into an explicit, inspectable, and reusable step.",
+        title="Capture the replay step.",
+        body="Promote the generated action into inspectable stage code that can be rerun and reviewed.",
         seconds=3.2,
         active_step=2,
         focus=(0.60, 0.48),
@@ -129,8 +129,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         name="finale",
         image=PAGE_SHOTS / "analysis-page.png",
         stage="ANALYSIS",
-        title="Finish on view_maps.",
-        body="Land on an operator-facing map view instead of a raw infrastructure endpoint.",
+        title="Evidence reviewers can inspect.",
+        body="Finish on view_maps: visible routes, data context, and artifacts.",
         seconds=3.0,
         active_step=3,
         focus=(0.54, 0.42),
@@ -665,8 +665,10 @@ def draw_text_column(canvas: Image.Image, scene: Scene, t: float, variant: Varia
     draw.multiline_text((title_x, body_y), body, font=FONT_BODY, fill=MUTED + (alpha,), spacing=8)
     body_bbox = draw.multiline_textbbox((title_x, body_y), body, font=FONT_BODY, spacing=8)
 
-    draw.text((96 + x_offset, 900), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED + (alpha,))
-    draw_stepper(draw, scene.active_step, reveal, top=max(456, body_bbox[3] + 92))
+    stepper_top = max(456, body_bbox[3] + 92)
+    draw_stepper(draw, scene.active_step, reveal, top=stepper_top)
+    url_y = min(H - 48, stepper_top + 96 * 3 + 48)
+    draw.text((96 + x_offset, url_y), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED + (alpha,))
 
 
 def draw_screenshot_card(canvas: Image.Image, scene: Scene, t: float, variant: Variant) -> None:
@@ -799,18 +801,18 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
     pdraw = ImageDraw.Draw(panel)
     pdraw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=26, fill=SURFACE_2 + (244,), outline=(255, 255, 255, 46), width=2)
     pdraw.rounded_rectangle((18, 16, 208, 54), radius=16, fill=ACCENT_WARM + (236,))
-    pdraw.text((34, 26), "Distribution tree", font=FONT_HIGHLIGHT, fill=WHITE)
+    pdraw.text((34, 26), "Run contract", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.rounded_rectangle((238, 16, box_w - 18, 54), radius=16, fill=(17, 40, 62, 255))
-    pdraw.text((274, 26), "data scale", font=FONT_HIGHLIGHT, fill=WHITE)
+    pdraw.text((270, 26), "evidence path", font=FONT_HIGHLIGHT, fill=WHITE)
     pdraw.rounded_rectangle((16, 68, box_w - 16, 220), radius=20, fill=(255, 255, 255, 245))
     fitted = fit_contain(tree, box_w - 48, 136)
     panel.alpha_composite(fitted, (24, 76))
 
     stats_y = 236
     stat_specs = [
-        ("Rows", "10M+"),
-        ("Chunks", "24"),
-        ("Artifacts", "batched"),
+        ("Mode", "cluster"),
+        ("Share", "checked"),
+        ("Artifacts", "hashed"),
     ]
     stat_x = 18
     for label, value in stat_specs:
@@ -821,7 +823,7 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
         stat_x += card_w + 10
 
     pdraw.rounded_rectangle((box_w - 146, stats_y, box_w - 18, stats_y + 52), radius=16, fill=(16, 56, 44, 255))
-    pdraw.text((box_w - 132, stats_y + 10), "Big-data", font=FONT_STEP, fill=(187, 229, 208))
+    pdraw.text((box_w - 132, stats_y + 10), "Replay", font=FONT_STEP, fill=(187, 229, 208))
     pdraw.text((box_w - 132, stats_y + 28), "ready", font=FONT_HIGHLIGHT, fill=WHITE)
     canvas.alpha_composite(panel, (x, y))
 
@@ -1806,6 +1808,9 @@ def save_video_from_frames(frames_dir: Path, mp4_path: Path, gif_path: Path, fps
     ffmpeg = "/opt/homebrew/bin/ffmpeg"
     mp4_path.parent.mkdir(parents=True, exist_ok=True)
     gif_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_count = sum(1 for _ in frames_dir.glob("frame_*.png"))
+    duration = max(frame_count / fps, 1.0)
+    fade_out_start = max(duration - 1.2, 0.0)
 
     mp4_cmd = [
         ffmpeg,
@@ -1814,14 +1819,41 @@ def save_video_from_frames(frames_dir: Path, mp4_path: Path, gif_path: Path, fps
         str(fps),
         "-i",
         str(frames_dir / "frame_%04d.png"),
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=146.83:sample_rate=48000:duration={duration:.3f}",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=220.00:sample_rate=48000:duration={duration:.3f}",
+        "-filter_complex",
+        (
+            "[1:a]volume=0.030[a1];"
+            "[2:a]volume=0.012[a2];"
+            "[a1][a2]amix=inputs=2:duration=shortest,"
+            "pan=stereo|c0=c0|c1=0.78*c0,"
+            "afade=t=in:st=0:d=0.8,"
+            f"afade=t=out:st={fade_out_start:.3f}:d=1.0,"
+            "alimiter=limit=0.18[a]"
+        ),
+        "-map",
+        "0:v:0",
+        "-map",
+        "[a]",
         "-c:v",
         "libx264",
         "-preset",
         "slow",
         "-crf",
-        "15",
+        "12",
         "-pix_fmt",
         "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-shortest",
         "-movflags",
         "+faststart",
         str(mp4_path),
@@ -1856,7 +1888,7 @@ def build(out_mp4: Path, out_gif: Path, out_poster: Path, *, variant_key: str = 
                 frame = draw_scene(scene, t, variant)
                 scene_frames.append(frame)
                 frame.save(frames_dir / f"frame_{frame_no:04d}.png")
-                if scene.name == "orchestrate" and not poster_written and i >= count // 2:
+                if scene.name == "finale" and not poster_written and i >= count // 2:
                     out_poster.parent.mkdir(parents=True, exist_ok=True)
                     frame.save(out_poster)
                     poster_written = True

@@ -50,7 +50,7 @@ def test_flight_reel_finale_targets_view_maps_not_network_view() -> None:
     assert finale.stage == "ANALYSIS"
     assert finale.overlay == "view_maps"
     assert finale.highlight_label == "view_maps"
-    assert "view_maps" in finale.title
+    assert "view_maps" in finale.body
 
 
 def test_view_maps_overlay_draws_visible_panel() -> None:

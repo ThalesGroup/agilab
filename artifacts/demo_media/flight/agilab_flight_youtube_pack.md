@@ -6,17 +6,17 @@
 - YouTube Studio URL: https://studio.youtube.com/video/BsBjRSAXJZA
 - Repository policy: keep only this lightweight upload pack in Git. Generated MP4, GIF, and poster outputs under `artifacts/demo_media/flight/` are local artifacts and are not stored in Git.
 - Duration: 15.47 seconds
-- Format: 1920x1080, 30 fps, premium H.264 video + stereo AAC audio MP4
+- Format: 1920x1080, 30 fps, premium H.264 video plus stereo AAC audio MP4
 - Video master: regenerated from source frames at CRF 12
-- Audio: original generated voiceover with a low-volume stereo synthetic sound bed, loudness-normalized with safe peak headroom
+- Audio: low-volume stereo synthetic sound bed, encoded as AAC with safe peak headroom
 
 ## Core claim
 
-AGILAB turns an AI/ML project into a replayable path from setup to run orchestration, workflow capture, and operator-facing evidence.
+AGILAB turns one AI/ML app run into replayable evidence: project context, run contract, workflow capture, and operator-facing analysis.
 
 ## Suggested title
 
-AGILAB teaser: from project to replayable evidence in 15 seconds
+AGILAB teaser: replayable AI/ML evidence in 15 seconds
 
 ## Suggested description
 
@@ -25,26 +25,26 @@ AGILAB is an open-source workbench for turning AI/ML experiments, notebooks, and
 This short teaser follows one flight-telemetry scenario through the core AGILAB loop:
 PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS.
 
-The point is not a feature tour. It is one claim: keep setup, execution, replay, and analysis aligned in one workspace.
+The point is not a feature tour. It is one claim: keep project context, the run contract, the replay step, and reviewer-facing analysis aligned in one workspace.
 
 Repo: https://github.com/ThalesGroup/agilab
 
 ## Chapters
 
-00:00 From project to evidence
-00:02 PROJECT: select the app once
-00:05 ORCHESTRATE: generate the run path
-00:08 WORKFLOW: replay the same flow
-00:12 ANALYSIS: finish on view_maps
+00:00 AGILAB: replayable evidence, not notebook drift
+00:02 PROJECT: pin the project context
+00:05 ORCHESTRATE: generate the run contract
+00:08 WORKFLOW: capture the replay step
+00:12 ANALYSIS: evidence reviewers can inspect
 
 ## Pinned comment
 
-AGILAB is built for evidence-first AI/ML workflows: configure the project, generate the run path, preserve the replayable workflow, and finish with analysis an operator can inspect.
+AGILAB is built for evidence-first AI/ML workflows: pin the project context, generate the run contract, preserve the replay step, and finish with analysis a reviewer can inspect.
 
 ## Thumbnail text
 
-From project to evidence
+Replayable evidence
 
 ## Short social caption
 
-A 15-second look at AGILAB: one workspace for setup, orchestration, replay, and analysis evidence.
+A 15-second look at AGILAB: one workspace for project context, run orchestration, replay, and analysis evidence.
