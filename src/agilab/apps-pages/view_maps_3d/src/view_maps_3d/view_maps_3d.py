@@ -227,7 +227,7 @@ def _bootstrap_env_from_active_app() -> bool:
             continue
         _reset_app_scoped_session_state(candidate)
         try:
-            env = AgiEnv(
+            env = getattr(AgiEnv, "for_app", AgiEnv)(
                 apps_path=candidate.parent,
                 app=candidate.name,
                 verbose=1,
@@ -1383,7 +1383,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        env = AgiEnv(
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

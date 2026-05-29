@@ -72,7 +72,7 @@ def _ensure_app_scoped_env() -> AgiEnv:
         st.session_state[APP_SCOPE_KEY] = active_app_key
 
     if "env" not in st.session_state:
-        env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
         env.init_done = True
         st.session_state["env"] = env
     return st.session_state["env"]

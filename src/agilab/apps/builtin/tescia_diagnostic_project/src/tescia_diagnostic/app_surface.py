@@ -109,7 +109,7 @@ def _load_runtime_env_and_args(active_app_path: Path):
     from agi_env import AgiEnv
     from tescia_diagnostic import app_args
 
-    env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     args_model = app_args.ensure_defaults(app_args.load_args(env.app_settings_file), env=env)
     return env, args_model
 

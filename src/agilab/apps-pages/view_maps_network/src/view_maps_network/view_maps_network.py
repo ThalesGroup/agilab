@@ -360,7 +360,7 @@ active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_state(active_app_path)
 if 'env' not in st.session_state or app_scope_changed:
     app_name = active_app_path.name
-    env = AgiEnv(apps_path=active_app_path.parent, app=app_name, verbose=0)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=app_name, verbose=0)
     env.init_done = True
     st.session_state['env'] = env
     st.session_state['IS_SOURCE_ENV'] = env.is_source_env

@@ -308,6 +308,49 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return cls._instance
 
     @classmethod
+    def for_app(
+        cls,
+        *,
+        apps_path: Path,
+        app: str,
+        verbose: int | None = None,
+        **kwargs,
+    ) -> "AgiEnv":
+        """Return an environment for an app, reinitialising the singleton only when needed."""
+
+        app_name = Path(str(app)).name
+        if not app_name:
+            raise ValueError("app name must be non-empty")
+        requested_apps_path = Path(apps_path).expanduser().resolve(strict=False)
+
+        if cls._instance is None:
+            return cls(apps_path=requested_apps_path, app=app_name, verbose=verbose, **kwargs)
+
+        env = cls.current()
+        current_apps_path = Path(getattr(env, "apps_path", "") or "").expanduser().resolve(strict=False)
+        current_app = Path(str(getattr(env, "app", "") or "")).name
+        current_active_app = Path(getattr(env, "active_app", "") or "").expanduser().resolve(strict=False)
+        requested_active_app = (requested_apps_path / app_name).resolve(strict=False)
+        requested_builtin_app = (requested_apps_path / "builtin" / app_name).resolve(strict=False)
+
+        if (
+            current_apps_path == requested_apps_path
+            and current_app == app_name
+            and current_active_app in {requested_active_app, requested_builtin_app}
+        ):
+            return env
+
+        type(env).__init__(
+            env,
+            apps_path=requested_apps_path,
+            app=app_name,
+            verbose=verbose,
+            _agilab_reinitialize=True,
+            **kwargs,
+        )
+        return env
+
+    @classmethod
     def reset(cls) -> None:
         """Drop the cached singleton so a fresh environment can be bootstrapped."""
 
@@ -734,8 +777,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             AgiEnv._signature_value(apps_path),
             AgiEnv._signature_value(app),
             AgiEnv._signature_value(active_app_override),
-            int(verbose),
-            bool(debug),
             str(python_variante),
             tuple(sorted((str(key), AgiEnv._signature_value(value)) for key, value in kwargs.items())),
         )
