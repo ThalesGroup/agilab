@@ -39,6 +39,13 @@ UV_LINK_MODE_VALUES = {"clone", "copy", "hardlink", "symlink"}
 DEFAULT_UV_LINK_MODE = "hardlink"
 
 
+def virtualenv_bin_dir_name(*, os_name: str | None = None) -> str:
+    """Return the virtualenv executable directory name for ``os_name``."""
+
+    platform_name = os.name if os_name is None else os_name
+    return "Scripts" if platform_name == "nt" else "bin"
+
+
 def _is_virtualenv_path(path: Path) -> bool:
     # Accept the legacy ``bin`` directory in addition to the platform default so
     # tests and tools that stage cross-platform virtualenv shapes still work.
@@ -124,6 +131,7 @@ def build_subprocess_env(
     venv=None,
     pythonpath_entries: Sequence[str] | None = None,
     sys_prefix: str | Path | None = None,
+    os_name: str | None = None,
 ) -> dict[str, str]:
     """Build an isolated subprocess environment for a target virtualenv."""
 
@@ -134,7 +142,7 @@ def build_subprocess_env(
     venv_path = None
     if venv is not None:
         venv_path = Path(venv)
-        bin_dir = "Scripts" if os.name == "nt" else "bin"
+        bin_dir = virtualenv_bin_dir_name(os_name=os_name)
         if (
             not (venv_path / bin_dir).exists()
             and not (venv_path / "bin").exists()

@@ -200,6 +200,23 @@ def test_build_subprocess_env_keeps_pythonpath_entries_for_current_venv(tmp_path
     assert "PYTHONHOME" not in env
 
 
+def test_build_subprocess_env_can_target_windows_venv_layout(tmp_path: Path):
+    base_env = {"PATH": "/usr/bin"}
+    project_dir = tmp_path / "project"
+    windows_venv = project_dir / ".venv"
+    (windows_venv / "Scripts").mkdir(parents=True)
+
+    env = process_support.build_subprocess_env(
+        base_env=base_env,
+        venv=project_dir,
+        os_name="nt",
+        sys_prefix=sys.prefix,
+    )
+
+    assert env["VIRTUAL_ENV"] == str(windows_venv)
+    assert env["PATH"].split(os.pathsep)[0] == str(windows_venv / "Scripts")
+
+
 def test_last_non_empty_output_line_skips_blank_entries():
     lines = [None, "   ", "\n", " useful detail  "]
 
