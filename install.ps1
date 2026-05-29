@@ -52,14 +52,31 @@ Set-UvLinkMode
 
 function Check-Internet {
     Write-Info "Checking internet connectivity..."
-    try {
-        $null = Invoke-WebRequest -Uri "https://www.google.com" -TimeoutSec 3 -UseBasicParsing
-        Write-Success "Internet connection is OK."
-        $global:AGI_INTERNET_ON = 1
-    } catch {
-        Write-Warn "No internet connection detected."
-        $global:AGI_INTERNET_ON = 0
+    $probeUrls = @(
+        "https://pypi.org/simple/pip/",
+        "https://files.pythonhosted.org/",
+        "https://api.github.com/zen",
+        "https://www.google.com"
+    )
+    foreach ($probeUrl in $probeUrls) {
+        try {
+            $null = Invoke-WebRequest -Method Head -Uri $probeUrl -TimeoutSec 8 -UseBasicParsing -ErrorAction Stop
+            Write-Success "Internet connection is OK."
+            $global:AGI_INTERNET_ON = 1
+            return
+        } catch {
+            try {
+                $null = Invoke-WebRequest -Uri $probeUrl -Headers @{ Range = "bytes=0-0" } -TimeoutSec 8 -UseBasicParsing -ErrorAction Stop
+                Write-Success "Internet connection is OK."
+                $global:AGI_INTERNET_ON = 1
+                return
+            } catch {
+                continue
+            }
+        }
     }
+    Write-Warn "No internet connection detected."
+    $global:AGI_INTERNET_ON = 0
 }
 
 function Prompt-YesNo {

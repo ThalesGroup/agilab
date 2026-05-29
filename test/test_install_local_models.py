@@ -108,6 +108,75 @@ def test_root_installer_propagates_env_before_core_and_app_installs() -> None:
     assert update_pos < write_pos < install_core_pos < core_tests_pos < app_install_pos
 
 
+def test_root_installer_internet_check_does_not_depend_on_single_endpoint() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    function_body = _extract_function(script_text, "check_internet")
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+BLUE=''
+GREEN=''
+RED=''
+NC=''
+declare -a curl_calls=()
+curl() {{
+  curl_calls+=("$*")
+  case "$*" in
+    *"https://files.pythonhosted.org/"*) return 0 ;;
+    *) return 22 ;;
+  esac
+}}
+{function_body}
+check_internet
+printf 'AGI_INTERNET_ON=%s\\n' "$AGI_INTERNET_ON"
+printf 'curl_calls=%s\\n' "${{#curl_calls[@]}}"
+printf '%s\\n' "${{curl_calls[@]}}"
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "AGI_INTERNET_ON=1" in completed.stdout
+    assert "https://pypi.org/simple/pip/" in completed.stdout
+    assert "https://files.pythonhosted.org/" in completed.stdout
+
+
+def test_root_installer_internet_check_preserves_restricted_mode() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    function_body = _extract_function(script_text, "check_internet")
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+BLUE=''
+GREEN=''
+RED=''
+NC=''
+curl() {{
+  return 22
+}}
+{function_body}
+check_internet
+printf 'AGI_INTERNET_ON=%s\\n' "$AGI_INTERNET_ON"
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "AGI_INTERNET_ON=0" in completed.stdout
+
+
+def test_windows_installer_internet_check_uses_packaging_endpoints() -> None:
+    ps1_text = INSTALL_PS1.read_text(encoding="utf-8")
+
+    assert "https://pypi.org/simple/pip/" in ps1_text
+    assert "https://files.pythonhosted.org/" in ps1_text
+    assert "https://api.github.com/zen" in ps1_text
+
+
 def test_root_installer_default_share_dir_is_user_scoped() -> None:
     script_text = INSTALL_SH.read_text(encoding="utf-8")
     function_body = "\n".join(

@@ -780,13 +780,27 @@ restore_deleted_runconfig_assets() {
 
 check_internet() {
     echo -e "${BLUE}Checking internet connectivity...${NC}"
-    if curl -Is --connect-timeout 3 https://www.google.com &>/dev/null; then
-        echo -e "${GREEN}Internet connection is OK.${NC}"
-        AGI_INTERNET_ON=1
-    else
-        echo -e "${RED}No internet connection detected. Going into network restricted mode.${NC}"
-        AGI_INTERNET_ON=0
-    fi
+    local -a probe_urls=(
+        "https://pypi.org/simple/pip/"
+        "https://files.pythonhosted.org/"
+        "https://api.github.com/zen"
+        "https://www.google.com"
+    )
+    local probe_url
+    for probe_url in "${probe_urls[@]}"; do
+        if curl -fsSI --connect-timeout 3 --max-time 8 "$probe_url" &>/dev/null; then
+            echo -e "${GREEN}Internet connection is OK.${NC}"
+            AGI_INTERNET_ON=1
+            return 0
+        fi
+        if curl -fsSL --connect-timeout 3 --max-time 8 --range 0-0 -o /dev/null "$probe_url" &>/dev/null; then
+            echo -e "${GREEN}Internet connection is OK.${NC}"
+            AGI_INTERNET_ON=1
+            return 0
+        fi
+    done
+    echo -e "${RED}No internet connection detected. Going into network restricted mode.${NC}"
+    AGI_INTERNET_ON=0
 }
 
 set_locale() {
