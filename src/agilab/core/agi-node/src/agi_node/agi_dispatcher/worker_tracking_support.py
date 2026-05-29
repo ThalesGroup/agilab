@@ -124,6 +124,8 @@ def worker_tracking_run(
         _log_tracking_metadata(mlflow, tags=tags, params=params, logger_obj=logger_obj)
         try:
             yield worker_run
+        # Worker code boundary: record failure metadata, then re-raise the
+        # original worker exception without converting it into tracking success.
         except Exception as exc:
             exit_exc_info = sys.exc_info()
             _log_tracking_metadata(
@@ -144,6 +146,8 @@ def worker_tracking_run(
                 metrics={"agilab.worker.runtime_seconds": max(time_fn() - started_at, 0.0)},
                 logger_obj=logger_obj,
             )
+    # Defensive tracking boundary: MLflow startup is optional; if no worker run
+    # was entered yet, disable tracking and let the worker continue.
     except Exception as exc:
         if worker_run is None:
             _log_debug(logger_obj, "worker tracking disabled: failed to start MLflow run: %s", exc)
