@@ -88,6 +88,15 @@ Use this runbook whenever you:
   run manifests, notebook export manifests, artifact hashes, UI robot evidence,
   SBOM / `pip-audit` / provenance, release proof, and verifier/replay contracts.
   Keep claims honest; do not present roadmap items as shipped features.
+- **Changelog accuracy**: Treat `CHANGELOG.md` as release evidence, not a
+  release-script dumping ground. Before a release or any changelog edit, compare
+  `## Unreleased`, the target release section, `git log <previous-tag>..HEAD`,
+  and the public evidence state for PyPI, GitHub Releases, docs, and Hugging Face.
+  Move only shipped, user-visible changes into the dated release section, keep
+  unfinished or unverified work under `Unreleased`, and do not claim publication
+  until the public evidence exists. If a release workflow fails and is recovered,
+  record the final successful workflow or repair evidence, not the failed attempt,
+  then rerun the release-proof check before closing the task.
 - **Current-code planning guardrail**: Before answering "next move", "ready for release",
   "release it", "sync HF", or any operational sequencing question, inspect the current
   repository state and the authoritative workflow/tooling files instead of relying on memory.
