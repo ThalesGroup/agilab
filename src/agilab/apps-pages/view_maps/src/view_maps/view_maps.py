@@ -975,7 +975,7 @@ def main():
         st.session_state["app"] = app
 
         _render_app_page_context(app, active_app)
-        env = AgiEnv(
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

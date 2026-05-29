@@ -1384,7 +1384,7 @@ def main() -> None:
     _reset_state_for_active_app(active_app_path)
     env = st.session_state.get(ENV_KEY)
     if not isinstance(env, AgiEnv) or Path(getattr(env, "active_app", active_app_path)).resolve() != active_app_path:
-        env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
         env.init_done = True
         st.session_state[ENV_KEY] = env
 

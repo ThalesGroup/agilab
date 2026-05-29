@@ -59,7 +59,7 @@ def _load_project_env(active_app: str) -> Any:
         st.error(f"Provided active project path does not exist: {active_app_path}")
         st.stop()
 
-    return AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    return getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
 
 
 def _dataset_root(env: Any) -> Path | None:

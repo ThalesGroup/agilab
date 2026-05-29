@@ -79,7 +79,7 @@ def _ensure_app_scoped_env() -> AgiEnv:
     try:
         env = AgiEnv.current()
     except RuntimeError:
-        env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
     return env

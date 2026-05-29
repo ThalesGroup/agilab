@@ -2099,7 +2099,7 @@ st.set_page_config(layout="wide")
 
 if "env" not in st.session_state:
     active_app_path = _resolve_active_app()
-    env = AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
 else:
