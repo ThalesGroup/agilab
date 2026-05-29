@@ -80,8 +80,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "core-pages-overview.png",
         stage="AGILAB",
         title="Turn agent runs into proof capsules.",
-        body="Project context, distributed run contracts, replayable workflow code, and evidence manifests stay tied together.",
-        seconds=2.2,
+        body="One path from experiment intent to replayable evidence.",
+        seconds=2.0,
         active_step=-1,
         focus=(0.56, 0.52),
         zoom_start=1.0,
@@ -94,8 +94,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "project-page.png",
         stage="PROJECT",
         title="Lock the experiment contract.",
-        body="Pin the app, inputs, parameters, environment, and artifact intent before execution.",
-        seconds=2.8,
+        body="Inputs, runtime, and expected artifacts are explicit before the run starts.",
+        seconds=2.4,
         active_step=0,
         focus=(0.54, 0.46),
         zoom_start=1.0,
@@ -109,8 +109,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "orchestrate-page.png",
         stage="ORCHESTRATE",
         title="Fan out the work. Reduce to proof.",
-        body="Run locally or on workers: map files into artifacts, reduce hashes and manifests into one verifiable evidence trail.",
-        seconds=3.6,
+        body="Map files across workers, then reduce outputs into one evidence trail.",
+        seconds=3.0,
         active_step=1,
         focus=(0.60, 0.44),
         zoom_start=1.0,
@@ -124,8 +124,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "workflow-page.png",
         stage="WORKFLOW",
         title="Replay what actually ran.",
-        body="Saved workflow steps carry the executable call, artifact contract, and rerun context.",
-        seconds=3.4,
+        body="The generated run becomes inspectable workflow code.",
+        seconds=2.8,
         active_step=2,
         focus=(0.60, 0.48),
         zoom_start=1.0,
@@ -139,8 +139,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         image=PAGE_SHOTS / "analysis-page.png",
         stage="ANALYSIS",
         title="Ship evidence, not screenshots.",
-        body="Review maps, artifacts, hashes, and run metadata without depending on the original notebook session.",
-        seconds=3.0,
+        body="Review artifacts, hashes, maps, and run metadata after the notebook is gone.",
+        seconds=2.7,
         active_step=3,
         focus=(0.54, 0.42),
         zoom_start=1.0,
@@ -148,6 +148,21 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         highlight=(0.22, 0.30, 0.95, 0.93),
         highlight_label="view_maps",
         overlay="view_maps",
+    ),
+    Scene(
+        name="outro",
+        image=PAGE_SHOTS / "core-pages-overview.png",
+        stage="AGILAB",
+        title="Replayable AI/ML evidence.",
+        body="From notebook drift to proof capsules your team can inspect.",
+        seconds=2.1,
+        active_step=-1,
+        focus=(0.56, 0.52),
+        zoom_start=1.03,
+        zoom_end=1.08,
+        highlight=None,
+        highlight_label=None,
+        overlay="flight_hero_outro",
     ),
 )
 
@@ -501,11 +516,12 @@ VARIANTS: dict[str, Variant] = {
 
 NARRATION_CUES: dict[str, tuple[NarrationCue, ...]] = {
     "flight": (
-        NarrationCue(0.0, 2.4, "AGILAB turns agent runs into proof capsules."),
-        NarrationCue(2.4, 5.2, "Lock the project, inputs, environment, and artifact intent before execution."),
-        NarrationCue(5.2, 9.0, "Map files across workers, then reduce manifests and hashes into one evidence trail."),
-        NarrationCue(9.0, 12.4, "Replay exactly what ran as inspectable workflow steps."),
-        NarrationCue(12.4, 15.0, "Finish with analysis, artifacts, and metadata your team can verify."),
+        NarrationCue(0.0, 2.0, "AGILAB turns agent runs into proof capsules."),
+        NarrationCue(2.0, 4.4, "Lock inputs, runtime, and artifact intent before execution."),
+        NarrationCue(4.4, 7.4, "Map files across workers. Reduce outputs into one evidence trail."),
+        NarrationCue(7.4, 10.2, "Replay exactly what ran as inspectable workflow code."),
+        NarrationCue(10.2, 12.9, "Verify maps, hashes, artifacts, and run metadata."),
+        NarrationCue(12.9, 15.0, "AGILAB: replayable AI and ML evidence."),
     ),
 }
 
@@ -805,6 +821,8 @@ def draw_screenshot_card(canvas: Image.Image, scene: Scene, t: float, variant: V
         draw_distribution_tree_overlay(canvas, scene, slide_x, slide_y)
     elif scene.overlay == "flight_project_contract":
         draw_flight_project_contract_overlay(canvas, scene, slide_x, slide_y)
+    elif scene.overlay == "flight_hero_outro":
+        draw_flight_hero_outro_overlay(canvas, scene, slide_x, slide_y)
     elif scene.overlay == "pipeline_snippet":
         draw_pipeline_snippet_overlay(canvas, scene, slide_x, slide_y)
     elif scene.overlay == "view_maps":
@@ -922,44 +940,93 @@ def draw_distribution_tree_overlay(canvas: Image.Image, scene: Scene, slide_x: i
 
 
 def draw_flight_project_contract_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
-    box_x = CARD_X + 130 + slide_x
-    box_y = CARD_Y + 214 + slide_y
-    box_w = 690
-    box_h = 274
+    box_x = CARD_X + 164 + slide_x
+    box_y = CARD_Y + 224 + slide_y
+    box_w = 612
+    box_h = 226
 
     panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(panel)
     draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=24, fill=(11, 22, 34, 246), outline=(255, 255, 255, 38), width=2)
-    draw.rounded_rectangle((18, 16, 246, 52), radius=14, fill=ACCENT_WARM + (236,))
-    draw.text((34, 24), "Experiment contract", font=FONT_HIGHLIGHT, fill=WHITE)
-    draw.rounded_rectangle((268, 16, box_w - 18, 52), radius=14, fill=(17, 40, 62, 255))
-    draw.text((286, 24), "before execution", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.rounded_rectangle((20, 18, 258, 58), radius=16, fill=ACCENT_WARM + (236,))
+    draw.text((38, 29), "Contract before run", font=FONT_HIGHLIGHT, fill=WHITE)
+    draw.text((286, 29), "flight_telemetry_project", font=FONT_HIGHLIGHT, fill=INK)
 
     specs = [
-        ("App", "flight_telemetry_project"),
-        ("Inputs", "CSV flight batches"),
-        ("Runtime", "local or cluster worker"),
-        ("Outputs", "maps, manifest, artifact hashes"),
+        ("1", "Inputs locked", "CSV batches"),
+        ("2", "Runtime declared", "local or worker"),
+        ("3", "Artifacts named", "maps + hashes"),
     ]
-    row_y = 78
-    for label, value in specs:
-        draw.rounded_rectangle((24, row_y, box_w - 24, row_y + 36), radius=12, fill=(17, 34, 52, 255))
-        draw.text((40, row_y + 9), label, font=FONT_STEP, fill=MUTED)
-        value_bbox = draw.textbbox((0, 0), value, font=FONT_HIGHLIGHT)
-        vw = value_bbox[2] - value_bbox[0]
-        draw.text((box_w - vw - 42, row_y + 8), value, font=FONT_HIGHLIGHT, fill=INK)
-        row_y += 42
-
     x = 24
-    for label, fill in [
-        ("parameter lock", (17, 40, 62, 255)),
-        ("artifact contract", (18, 56, 44, 255)),
-        ("reviewer-ready", (79, 115, 168, 255)),
-    ]:
-        pill_w = draw.textbbox((0, 0), label, font=FONT_STEP)[2] + 34
-        draw.rounded_rectangle((x, box_h - 52, x + pill_w, box_h - 18), radius=14, fill=fill)
-        draw.text((x + 17, box_h - 43), label, font=FONT_STEP, fill=WHITE)
-        x += pill_w + 12
+    for idx, title, detail in specs:
+        draw.rounded_rectangle((x, 86, x + 176, 168), radius=18, fill=(17, 34, 52, 255), outline=(92, 160, 255), width=2)
+        draw.ellipse((x + 18, 104, x + 48, 134), fill=ACCENT, outline=WHITE, width=2)
+        draw.text((x + 29, 110), idx, font=FONT_STEP, fill=WHITE)
+        draw.text((x + 62, 103), title, font=FONT_HIGHLIGHT, fill=INK)
+        draw.text((x + 62, 130), detail, font=FONT_STEP, fill=MUTED)
+        x += 194
+
+    draw.rounded_rectangle((24, box_h - 44, box_w - 24, box_h - 14), radius=14, fill=(18, 56, 44, 255))
+    draw.text((44, box_h - 36), "No hidden notebook state. No ambiguous rerun.", font=FONT_STEP, fill=WHITE)
+    canvas.alpha_composite(panel, (box_x, box_y))
+
+
+def draw_flight_hero_outro_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
+    box_x = CARD_X + 88 + slide_x
+    box_y = CARD_Y + 148 + slide_y
+    box_w = 856
+    box_h = 438
+
+    panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(panel)
+    draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=34, fill=(7, 17, 29, 246), outline=(255, 255, 255, 54), width=2)
+    draw.rounded_rectangle((30, 28, 192, 72), radius=20, fill=ACCENT + (235,))
+    draw.text((54, 40), "AGILAB", font=FONT_BADGE, fill=WHITE)
+    draw.rounded_rectangle((210, 28, 454, 72), radius=20, fill=ACCENT_WARM + (235,))
+    draw.text((234, 40), "Proof capsules", font=FONT_BADGE, fill=WHITE)
+
+    hero_font = load_font(54, bold=True)
+    sub_font = load_font(29, bold=True)
+    draw.text((36, 112), "Replayable AI/ML evidence", font=hero_font, fill=INK)
+    draw.text((38, 178), "from notebook, agent, or cluster run", font=FONT_BODY, fill=MUTED)
+
+    flow_y = 250
+    nodes = [
+        ("intent", ACCENT),
+        ("map", GREEN),
+        ("reduce", ACCENT_WARM),
+        ("replay", ACCENT),
+        ("verify", GREEN),
+    ]
+    x = 42
+    boxes: list[tuple[int, int, int, int]] = []
+    for label, color in nodes:
+        w = 118 if label != "reduce" else 138
+        draw.rounded_rectangle((x, flow_y, x + w, flow_y + 58), radius=20, fill=(14, 31, 48, 255), outline=color, width=3)
+        bbox = draw.textbbox((0, 0), label, font=sub_font)
+        draw.text((x + (w - (bbox[2] - bbox[0])) / 2, flow_y + 14), label, font=sub_font, fill=WHITE)
+        boxes.append((x, flow_y, x + w, flow_y + 58))
+        x += w + 40
+    for left, right in zip(boxes, boxes[1:]):
+        y_mid = flow_y + 29
+        x0 = left[2] + 8
+        x1 = right[0] - 8
+        draw.line((x0, y_mid, x1, y_mid), fill=(148, 177, 212), width=4)
+        draw.polygon([(x1, y_mid - 7), (x1, y_mid + 7), (x1 + 14, y_mid)], fill=(148, 177, 212))
+
+    chips = [
+        ("manifest", (18, 56, 44, 255)),
+        ("artifact hashes", (17, 40, 62, 255)),
+        ("run metadata", (79, 115, 168, 255)),
+    ]
+    x = 42
+    for label, fill in chips:
+        pill_w = draw.textbbox((0, 0), label, font=FONT_HIGHLIGHT)[2] + 42
+        draw.rounded_rectangle((x, 354, x + pill_w, 394), radius=18, fill=fill)
+        draw.text((x + 21, 365), label, font=FONT_HIGHLIGHT, fill=WHITE)
+        x += pill_w + 16
+
+    draw.text((box_w - 280, box_h - 58), "github.com/ThalesGroup/agilab", font=FONT_URL, fill=MUTED)
     canvas.alpha_composite(panel, (box_x, box_y))
 
 
@@ -1071,8 +1138,8 @@ def draw_view_maps_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slid
 def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slide_y: int) -> None:
     box_x = CARD_X + 146 + slide_x
     box_y = CARD_Y + 188 + slide_y
-    box_w = 690
-    box_h = 268
+    box_w = 710
+    box_h = 292
 
     panel = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(panel)
@@ -1082,24 +1149,21 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
     draw.rounded_rectangle((20, 70, box_w - 20, box_h - 20), radius=18, fill=(9, 15, 24, 255), outline=(92, 160, 255), width=2)
 
     code_lines = [
-        "import asyncio",
-        "from agi_cluster.agi_distributor import AGI, RunRequest",
-        "from agi_env import AgiEnv",
-        "",
+        "from agi_cluster import AGI, RunRequest",
         "APP = \"flight_telemetry_project\"",
-        "app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)",
-        "request = RunRequest(mode=15, data_in=\"flight_telemetry/dataset\")",
-        "res = await AGI.run(app_env, request=request)",
-        "# evidence: manifest + artifact hashes",
+        "request = RunRequest(mode=15, data_in=\"flight_batches\")",
+        "result = await AGI.run(env, request=request)",
+        "save_stage(\"run_flight\", result.manifest)",
+        "# manifest + artifact hashes stay attached",
     ]
     line_y = 92
-    code_font = load_font(19)
+    code_font = load_font(22)
     for line in code_lines:
         fill = INK if line and not line.startswith("APP") else (164, 194, 230)
         if "AGI.run" in line:
             fill = ACCENT_WARM
         draw.text((38, line_y), line, font=code_font, fill=fill)
-        line_y += 24
+        line_y += 28
     x = 30
     for label, fill in [
         ("lab_stages", (18, 39, 60, 255)),
