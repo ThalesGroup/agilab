@@ -116,6 +116,7 @@ import_agilab_symbols(
 )
 
 GENERATED_CODE_SANDBOX_ENV = "AGILAB_GENERATED_CODE_SANDBOX"
+GENERATED_CODE_PROCESS_LIMITS_ENV = "AGILAB_GENERATED_CODE_PROCESS_LIMITS"
 GENERATED_CODE_SANDBOX_MODES = frozenset({"process", "container", "vm"})
 
 import_agilab_symbols(
@@ -980,6 +981,24 @@ def _maybe_autofix_generated_code(
             get_run_placeholder(index_page),
         )
         return merged_code, model_label, detail
+    if sandbox == "process":
+        process_limits = (
+            str(
+                env.envars.get(GENERATED_CODE_PROCESS_LIMITS_ENV)
+                or os.getenv(GENERATED_CODE_PROCESS_LIMITS_ENV)
+                or ""
+            )
+            .strip()
+            .lower()
+        )
+        if process_limits not in {"1", "true", "yes", "on"}:
+            push_run_log(
+                index_page,
+                "Auto-fix skipped: process generated-code execution requires "
+                f"{GENERATED_CODE_PROCESS_LIMITS_ENV}=1.",
+                get_run_placeholder(index_page),
+            )
+            return merged_code, model_label, detail
 
     df: Any = st.session_state.get("loaded_df")
     if not isinstance(df, pd.DataFrame) or df.empty:

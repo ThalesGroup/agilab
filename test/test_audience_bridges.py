@@ -807,7 +807,16 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
         "agilab.agent_run_validation.v1"
         in validate_agent_call_response["result"]["content"][0]["text"]
     )
-    assert mcp_server.server_manifest()["policy"]["read_only"] is True
+    server_manifest = mcp_server.server_manifest()
+    assert server_manifest["policy"]["read_only"] is True
+    assert server_manifest["dangerous_tools"] == []
+    tool_names = {tool["name"] for tool in server_manifest["tools"]}
+    assert "export_quarto_report" not in tool_names
+    with pytest.raises(ValueError, match="Unknown AGILAB MCP tool"):
+        mcp_server.call_tool(
+            "export_quarto_report",
+            {"manifest_path": str(manifest_path), "output_path": str(tmp_path / "mcp.qmd")},
+        )
 
 
 def test_lab_run_routes_bridge_commands(monkeypatch: pytest.MonkeyPatch) -> None:
