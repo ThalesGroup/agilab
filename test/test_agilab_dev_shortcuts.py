@@ -245,6 +245,50 @@ def test_audit_shortcut_runs_agilab_audit():
     ]
 
 
+def test_audit_quality_shortcut_scores_markdown_audit():
+    assert agilab_dev.planned_commands(["audit-quality", "CODE_REVIEW.md", "--min-score", "90"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/audit_quality_evaluator.py",
+            "CODE_REVIEW.md",
+            "--min-score",
+            "90",
+        ]
+    ]
+
+
+def test_audit_quality_shortcut_defaults_to_preflight_without_file():
+    assert agilab_dev.planned_commands(["audit-quality"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/audit_quality_evaluator.py",
+            "--preflight",
+        ]
+    ]
+
+
+def test_audit_preflight_shortcut_prints_architecture_preflight():
+    assert agilab_dev.planned_commands(["audit-preflight"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/audit_quality_evaluator.py",
+            "--preflight",
+        ]
+    ]
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
     calls = []
 

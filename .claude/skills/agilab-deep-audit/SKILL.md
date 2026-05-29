@@ -191,6 +191,10 @@ evaluator before handoff unless the user explicitly asks not to validate:
 uv --preview-features extra-build-dependencies run python tools/audit_quality_evaluator.py <audit.md> --min-score 80
 ```
 
+Use `./dev audit-preflight` before writing a long audit when the architecture
+context is not fresh. Use `./dev audit-quality <audit.md>` as the short local
+gate after writing the audit.
+
 Use `--json --output <report.json>` when the score should become evidence. A
 score below 80 means the artifact is not yet comparison-quality; improve the
 missing rubric areas before presenting it as a final audit.
