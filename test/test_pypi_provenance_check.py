@@ -136,3 +136,40 @@ def test_check_target_with_retries_waits_for_pypi_release_visibility() -> None:
     assert check["previous_failures"] == [
         {"attempt": 1, "reason": "release_missing", "status": "fail"}
     ]
+
+
+def test_check_target_with_retries_waits_for_pypi_json_404_after_upload() -> None:
+    module = _load_module()
+    target = module.ReleaseTarget("agi-apps", "2026.05.15", "src/agilab/lib/agi-apps")
+    calls = {"json": 0}
+
+    def fake_urlopen(request, *, timeout):
+        url = request.full_url
+        if url.endswith("/pypi/agi-apps/json"):
+            calls["json"] += 1
+            if calls["json"] == 1:
+                raise HTTPError(url, 404, "not found", hdrs=None, fp=None)
+            return _json_response(
+                {
+                    "releases": {
+                        "2026.5.15": [
+                            {"filename": "agi_apps-2026.5.15-py3-none-any.whl"},
+                        ]
+                    }
+                }
+            )
+        return _json_response({"attestation_bundles": [{"attestations": [{}]}]})
+
+    check = module.check_target_with_retries(
+        target,
+        attempts=2,
+        retry_delay=0,
+        sleep=lambda _seconds: None,
+        urlopen=fake_urlopen,
+    )
+
+    assert check["status"] == "pass"
+    assert check["attempt"] == 2
+    assert check["previous_failures"] == [
+        {"attempt": 1, "reason": "pypi_json_http_404", "status": "fail"}
+    ]
