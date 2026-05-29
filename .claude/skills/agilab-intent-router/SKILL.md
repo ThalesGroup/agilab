@@ -53,7 +53,7 @@ Route these patterns before choosing tools:
 
 | User phrase family | Intent | Mode | Skills |
 |---|---|---|---|
-| `review AGILAB`, `audit AGILAB`, `deep review`, `address this audit` | deep audit | report-first unless `fix it` follows | `agilab-deep-audit`, then `agilab-testing` if patching |
+| `review AGILAB`, `audit AGILAB`, `deep review`, `address this audit` | deep audit | report-first; architecture-readiness gate before final audit; patch only if `fix it` follows | `agilab-deep-audit`, then `agilab-testing` if patching |
 | `do it`, `go on`, `fix it`, `next move` | continue current objective | inherit previous scope | previous active skill plus `plan-before-code` for code changes |
 | `update repos`, `sync repos` | safe repo sync | show command plan first | `agilab-runbook` |
 | `update skill`, `sync skills`, `make future agents do X` | repo skill update | edit `.claude`, sync `.codex`, regenerate index | `skill-creator`, `repo-skill-maintenance` |
@@ -65,7 +65,9 @@ Route these patterns before choosing tools:
 ## Behavior Contract
 
 - For `review AGILAB`, always load `agilab-deep-audit` and define a review
-  scope before reading code.
+  scope before reading code. If architecture context is not crystal clear, load
+  `ARCHITECTURE_FOUNDATIONS.md` and run the deep-audit preflight before writing
+  final findings.
 - For `fix it` after an audit, convert prioritized findings into a patch plan;
   do not silently patch unrelated findings.
 - For `update repos`, never touch repos outside the current allowlist unless

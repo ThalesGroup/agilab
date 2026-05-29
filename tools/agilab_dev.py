@@ -80,6 +80,12 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "audit":
         return [_uv_python("tools/agilab_audit.py", *args)]
 
+    if command in {"audit-quality", "audit-preflight"}:
+        forwarded = ["--preflight"] if command == "audit-preflight" and not args else args
+        if command == "audit-quality" and not forwarded:
+            forwarded = ["--preflight"]
+        return [_uv_python("tools/audit_quality_evaluator.py", *forwarded)]
+
     if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
@@ -162,6 +168,8 @@ def _usage() -> str:
   ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
   ./dev [--print-only] audit [agilab_audit args]
+  ./dev [--print-only] audit-quality [audit_quality_evaluator args|audit.md]
+  ./dev [--print-only] audit-preflight
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] typing [workflow-parity options]
   ./dev [--print-only] release [impact_validate args]
@@ -180,6 +188,8 @@ High-frequency mappings:
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
+  audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
+  audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
   release   -> Run local release guards: impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.

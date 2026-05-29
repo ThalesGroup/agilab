@@ -35,6 +35,80 @@ class RubricItem:
     guidance: str
 
 
+@dataclass(frozen=True)
+class ArchitectureCheck:
+    id: str
+    label: str
+    patterns: tuple[str, ...]
+    guidance: str
+
+
+ARCHITECTURE_CHECKS: tuple[ArchitectureCheck, ...] = (
+    ArchitectureCheck(
+        "product_boundary",
+        "Product boundary",
+        (r"\btrusted-operator\b", r"\breproducibility workbench\b", r"\bproduction MLOps\b"),
+        "State AGILAB's trusted-operator workbench role and non-production-MLOps boundary.",
+    ),
+    ArchitectureCheck(
+        "architecture_planes",
+        "Architecture planes",
+        (r"\bcontrol plane\b", r"\bpayload plane\b", r"\bevidence plane\b"),
+        "Name the control, payload, and evidence planes involved.",
+    ),
+    ArchitectureCheck(
+        "app_page_dependency_boundary",
+        "App/page dependency boundary",
+        (r"\bapps-pages\b", r"\bagi-pages\b", r"\bapp-agnostic\b", r"\bproject-specific dependenc"),
+        "Explain that app-specific dependencies belong in app/page packages, not generic apps-pages or agi-pages.",
+    ),
+    ArchitectureCheck(
+        "cross_platform_boundary",
+        "Cross-platform boundary",
+        (r"\bLinux\b", r"\bmacOS\b", r"\bWindows\b"),
+        "State which Linux/macOS/Windows assumptions were checked or remain residual risk.",
+    ),
+    ArchitectureCheck(
+        "release_truth_boundary",
+        "Release truth boundary",
+        (r"\brelease proof\b", r"\bpackage split\b", r"\bdocs mirror\b", r"\bpublic claims?\b"),
+        "Tie shipped claims to release proof, package split, docs mirror, and public evidence.",
+    ),
+)
+
+
+PREFLIGHT_LINES = (
+    "AGILAB deep-audit preflight",
+    "",
+    "Before writing a final audit, inspect enough current evidence to explain:",
+    "- product boundary: trusted-operator reproducibility workbench, not standalone production MLOps",
+    "- architecture planes: control plane, payload plane, evidence plane",
+    "- package boundary: lean base, optional extras, split apps/pages",
+    "- app/page dependency boundary: project-specific dependencies stay out of generic apps-pages and agi-pages",
+    "- cross-platform boundary: Linux, macOS, and Windows assumptions",
+    "- execution trust boundary: generated code, notebooks, external apps, workers, page bundles, cluster execution",
+    "- release truth: docs mirror, package split, changelog, release proof, PyPI/GitHub/HF evidence",
+    "",
+    "Useful first-read anchors:",
+    "- pyproject.toml",
+    "- tools/package_split_contract.py",
+    "- src/agilab/lib/agi-pages/src/agi_pages/__init__.py",
+    "- src/agilab/apps-pages/README.md",
+    "- README.md",
+    "- SECURITY.md",
+    "- ADOPTION.md",
+    "- CHANGELOG.md",
+    "- docs/source/release-proof.rst",
+    "- .github/workflows/pypi-publish.yaml",
+    "",
+    "Useful commands:",
+    "- git status --short --branch --untracked-files=no",
+    "- git log --oneline -5",
+    "- find src/agilab/core -maxdepth 3 -name pyproject.toml -print",
+    "- rg -n \"AGILAB_PUBLIC_BIND|pickle\\\\.load|subprocess|create_subprocess|shell=True|apps-pages|agi-pages|release proof|package split|Windows|macOS|Linux\" src/agilab tools docs test",
+)
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -62,6 +136,29 @@ def _score_from_booleans(*values: bool) -> float:
     if not values:
         return 0.0
     return sum(1 for value in values if value) / len(values)
+
+
+def architecture_evidence(text: str) -> dict[str, object]:
+    checks: list[dict[str, object]] = []
+    for check in ARCHITECTURE_CHECKS:
+        matched = [pattern for pattern in check.patterns if re.search(pattern, text, re.IGNORECASE)]
+        checks.append(
+            {
+                "id": check.id,
+                "label": check.label,
+                "status": "pass" if len(matched) == len(check.patterns) else "fail",
+                "matched": len(matched),
+                "required": len(check.patterns),
+                "guidance": check.guidance,
+            }
+        )
+    passed = sum(1 for check in checks if check["status"] == "pass")
+    return {
+        "passed": passed,
+        "required": len(checks),
+        "status": "pass" if passed == len(checks) else "fail",
+        "checks": checks,
+    }
 
 
 def _scope_score(text: str) -> tuple[float, tuple[str, ...]]:
@@ -143,21 +240,7 @@ def _architecture_score(text: str) -> tuple[float, tuple[str, ...]]:
     architecture = _has_heading(text, "architecture", "topology", "module")
     package_terms = _count_patterns(text, (r"\bpackage\b", r"\bmodule\b", r"\bcontrol plane\b", r"\bpayload plane\b", r"\bevidence plane\b"))
     boundary_terms = _count_patterns(text, (r"\bboundar", r"\bhandoff\b", r"\bruntime\b", r"\bworkflow\b"))
-    founding_terms = _count_patterns(
-        text,
-        (
-            r"\bapps-pages\b",
-            r"\bagi-pages\b",
-            r"\bapp-agnostic\b",
-            r"\bproject-specific dependenc",
-            r"\bLinux\b",
-            r"\bmacOS\b",
-            r"\bWindows\b",
-            r"\btrusted-operator\b",
-            r"\breproducibility workbench\b",
-        ),
-        flags=0,
-    )
+    foundation = architecture_evidence(text)
     evidence = []
     if architecture:
         evidence.append("architecture/topology section found")
@@ -165,9 +248,13 @@ def _architecture_score(text: str) -> tuple[float, tuple[str, ...]]:
         evidence.append(f"{package_terms} package/module/plane terms")
     if boundary_terms:
         evidence.append(f"{boundary_terms} boundary/runtime terms")
-    if founding_terms:
-        evidence.append(f"{founding_terms} architecture-foundation terms")
-    return _score_from_booleans(architecture, package_terms >= 3, boundary_terms >= 3, founding_terms >= 4), tuple(evidence)
+    evidence.append(f"{foundation['passed']}/{foundation['required']} architecture-foundation checks")
+    return _score_from_booleans(
+        architecture,
+        package_terms >= 3,
+        boundary_terms >= 3,
+        foundation["status"] == "pass",
+    ), tuple(evidence)
 
 
 def _security_release_score(text: str) -> tuple[float, tuple[str, ...]]:
@@ -279,6 +366,7 @@ def evaluate_text(text: str) -> dict[str, object]:
         for result in results
         if result.score < result.weight
     ]
+    architecture = architecture_evidence(text)
     return {
         "schema": SCHEMA,
         "generated_at": _utc_now(),
@@ -298,6 +386,7 @@ def evaluate_text(text: str) -> dict[str, object]:
             for result in results
         ],
         "missing_or_partial": missing,
+        "architecture_evidence": architecture,
     }
 
 
@@ -326,20 +415,39 @@ def _text_report(payload: dict[str, object], *, min_score: int) -> str:
             lines.append(f"  evidence: {', '.join(evidence)}")
         if row["score"] < row["weight"]:
             lines.append(f"  improve: {row['guidance']}")
+    architecture = payload.get("architecture_evidence", {})
+    if isinstance(architecture, dict):
+        lines.append(
+            f"Architecture evidence: {architecture.get('passed')}/{architecture.get('required')} "
+            f"({architecture.get('status')})"
+        )
+        for check in architecture.get("checks", []):
+            if isinstance(check, dict) and check.get("status") != "pass":
+                lines.append(f"  missing: {check.get('label')} - {check.get('guidance')}")
     return "\n".join(lines)
+
+
+def _preflight_report() -> str:
+    return "\n".join(PREFLIGHT_LINES)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("audit_markdown", type=Path, help="Markdown audit/review document to score.")
+    parser.add_argument("audit_markdown", type=Path, nargs="?", help="Markdown audit/review document to score.")
     parser.add_argument("--min-score", type=int, default=DEFAULT_MIN_SCORE, help="Fail when score is below this value.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of a text report.")
     parser.add_argument("--output", type=Path, help="Optional path to write the JSON report.")
+    parser.add_argument("--preflight", action="store_true", help="Print the AGILAB deep-audit architecture preflight checklist.")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.preflight:
+        print(_preflight_report())
+        return 0
+    if args.audit_markdown is None:
+        raise SystemExit("audit_markdown is required unless --preflight is used")
     text = args.audit_markdown.read_text(encoding="utf-8")
     payload = evaluate_text(text)
     payload["source"] = str(args.audit_markdown)
