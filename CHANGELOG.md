@@ -26,6 +26,9 @@ publication, or evidence refreshes on an already published date version.
 
 ### Changed
 
+- Added a changelog accuracy guardrail so release notes are checked against Git
+  history, unreleased work, and public release evidence before claiming shipped
+  changes.
 - Added route-selection tables to the GitHub and PyPI READMEs so adopters can
   choose between hosted preview, source-checkout proof, package install,
   external app updates, and contribution paths.
