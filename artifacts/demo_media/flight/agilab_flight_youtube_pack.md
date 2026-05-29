@@ -5,7 +5,7 @@
 - Latest public video: https://youtu.be/BsBjRSAXJZA
 - YouTube Studio URL: https://studio.youtube.com/video/BsBjRSAXJZA
 - Repository policy: keep only this lightweight upload pack in Git. Generated MP4, GIF, and poster outputs under `artifacts/demo_media/flight/` are local artifacts and are not stored in Git.
-- Duration: 18.80 seconds
+- Duration: 19.07 seconds
 - Format: 1920x1080, 30 fps, premium H.264 video plus stereo AAC audio MP4
 - Video master: regenerated from source frames at CRF 12
 - Audio: low-volume stereo synthetic sound bed, encoded as AAC with safe peak headroom
@@ -27,7 +27,7 @@ PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS.
 
 The point is not a feature tour. It is one claim: keep project context, the run contract, the replay step, and reviewer-facing analysis aligned in one workspace.
 
-The headless `agi-core` line is intentional: AGILAB can hand a runnable contract back to notebooks or automation, so teams can benefit from the core runtime without locking every review or replay step into the UI.
+The headless `agi-core` line is intentional: AGILAB can hand a runnable contract back to notebooks or automation, so teams can benefit from the core runtime without forcing every replay step through the UI.
 
 Repo: https://github.com/ThalesGroup/agilab
 
@@ -42,7 +42,7 @@ Repo: https://github.com/ThalesGroup/agilab
 
 ## Pinned comment
 
-AGILAB is built for evidence-first AI/ML workflows: pin the project context, generate the run contract, preserve the replay step, and finish with analysis a reviewer can inspect. Use the UI when it helps; keep notebooks and headless `agi-core` when automation or portability matters.
+AGILAB is built for evidence-first AI/ML workflows: pin the project context, generate the run contract, preserve the replay step, and finish with analysis a reviewer can inspect. Use the UI for review; keep notebooks and headless `agi-core` for automation and portability.
 
 ## Thumbnail text
 
@@ -50,4 +50,4 @@ Replayable evidence
 
 ## Short social caption
 
-A 19-second look at AGILAB: one workspace for project context, run orchestration, replay, portable notebook handoff, and analysis evidence.
+A 19-second look at AGILAB: one workspace for project context, run orchestration, replay, portable notebook/headless handoff, and analysis evidence.
