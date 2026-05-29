@@ -328,6 +328,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
 - Cluster inventory/status mismatch:
+  - Start with fresh discovery, not remembered LAN addresses:
+    `uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py --discover-lan --remote-user <user> --json --no-discovery-cache`.
+    Treat nodes with `status="no-ssh-port"` or missing ARP as stale candidates;
+    do not use them for validation until a fresh SSH probe succeeds.
   - If the UI shows a worker as unreachable but `ssh <user>@<ip> 'echo ok'` works,
     reproduce the exact non-interactive probe path used by AGILAB before changing UI
     display code.
@@ -339,6 +343,8 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - Treat a display of "+ 1 worker unreachable" as an inventory/probe failure until the
     exact probe command succeeds; a bare SSH success only proves authentication.
 - For a reinstalled cluster node, separate host-key repair from auth repair:
+  - rediscover the worker IP first; examples must use `<ip>` placeholders, not
+    LAN addresses remembered from an earlier session
   - host key changed:
     - `ssh-keygen -R <ip>`
     - `ssh-keyscan -H -t ed25519 <ip> >> ~/.ssh/known_hosts`
