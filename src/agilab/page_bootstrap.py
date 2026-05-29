@@ -126,13 +126,19 @@ def realign_session_env_with_page_root(
             )
             session_state[env_key] = env
         else:
-            type(env).__init__(
-                env,
-                apps_path=expected_apps_path,
-                app=page_app.name,
-                verbose=getattr(env, "verbose", None),
-                _agilab_reinitialize=True,
-            )
+            init_kwargs = {
+                "apps_path": expected_apps_path,
+                "app": page_app.name,
+                "verbose": getattr(env, "verbose", None),
+            }
+            try:
+                type(env).__init__(
+                    env,
+                    **init_kwargs,
+                    _agilab_reinitialize=True,
+                )
+            except TypeError:
+                type(env).__init__(env, **init_kwargs)
         if previous_init_done is not None:
             env.init_done = previous_init_done
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
