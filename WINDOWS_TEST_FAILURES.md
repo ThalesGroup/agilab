@@ -1,12 +1,13 @@
 # Windows Core Test Failures — Fix Guide (updated)
 
-**Last Windows validation:** 2026-05-22 — **2nd pass after developer fixes**  
-**Machine:** TOUR-JULIEN (Windows 11, Python 3.13.13, PowerShell 5.1)  
-**Last verified count:** 97 previous · 43 fixed · 54 remaining · 1 new regression
-**Current repo note (2026-05-29):** all named buckets in this tracker now have
-focused local pass evidence in the current repository. The count above remains
-the last live Windows-run count until the command below, or the repository
-`windows-core-tests` workflow, is rerun on Windows.
+**Last Windows validation:** 2026-05-29 - GitHub Actions `windows-core-tests`
+run 26650203561
+**Machine:** GitHub Actions `windows-latest` (Windows Server 2025, Python
+3.13.13)
+**Last verified count:** 0 failed · 1676 passed · 7 skipped · 57 warnings
+**Current repo note (2026-05-29):** all named historical buckets in this tracker
+are now covered by a live Windows CI pass. The historical details below are
+retained as a fix guide and regression index, not as open failures.
 
 Reproduce live Windows validation:
 ```powershell
@@ -25,6 +26,8 @@ Automated GitHub validation:
   `test-results/windows-core-tests.xml`
 - Scope: the same Windows core test directories tracked here,
   `src/agilab/core/test src/agilab/core/agi-env/test`
+- Last passing run: GitHub Actions run 26650203561, job 78546276328, completed
+  2026-05-29 with `1676 passed, 7 skipped, 57 warnings`
 
 ---
 
@@ -50,14 +53,14 @@ The following test categories were resolved by the dev team:
 
 ---
 
-## Historical failures from last Windows run (54 tests, pending rerun)
+## Historical failures from 2026-05-22 Windows run (verified fixed)
 
 ---
 
 ### Category 1 — Env isolation: real `~/.agilab/.env` leaks (15 tests)
 
-**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
-these failures from the verified count.
+**Current repo status:** fixed in code and verified by GitHub Actions
+`windows-core-tests` run 26650203561 on 2026-05-29.
 
 `AgiEnv` reads the real `C:\Users\julie\.agilab\.env`, real `.agilab-path`, and real `Path.home()` instead of the monkeypatched test values.
 
@@ -179,7 +182,7 @@ AssertionError: assert {} == {'last_active_app': 'C:\\...\\test_tmp\\demo_projec
 
 ### Category 2 — `.venv/bin` vs `.venv/Scripts` — fixed in current repo (7 tests)
 
-Status: fixed in current repository; pending live Windows rerun.
+Status: fixed in current repository and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29.
 
 The project-venv install path now uses the platform-aware virtualenv helpers
 instead of hard-coding the POSIX `.venv/bin/python` layout. The regression slice
@@ -206,7 +209,7 @@ Result: `8 passed`.
 
 ### Category 3 — uv TOML source paths written with `\` — fixed in current repo (8 tests)
 
-Status: fixed in current repository; pending live Windows rerun.
+Status: fixed in current repository and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29.
 
 The worker pyproject rewrite and manager sync overlay paths now keep `uv` source
 paths TOML-safe by normalizing local relative source paths to POSIX separators.
@@ -231,7 +234,7 @@ Result: `8 passed`.
 
 ### Category 4 — `cmd /c exit N` unreliable exit code — fixed in current repo (4 tests)
 
-Status: fixed in current repository; pending live Windows rerun.
+Status: fixed in current repository and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29.
 
 The affected `agi-env` execution-support tests now use deterministic Python
 one-liners for nonzero subprocess exits instead of relying on `cmd /c exit N`.
@@ -252,7 +255,7 @@ Result: `4 passed, 1 warning`.
 
 ### Category 5 — Linux-only features not guarded — fixed in current repo (6 tests)
 
-Status: fixed in current repository; pending live Windows rerun.
+Status: fixed in current repository and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29.
 
 The procfs/fstab, POSIX mount-helper, SQLite URI, Windows link-helper, and
 remote `sshfs` cases now have current regression coverage. The remote `sshfs`
@@ -276,7 +279,7 @@ Result: `6 passed`.
 
 ### Category 6 — mlflow file locking on Windows — fixed in current repo (1 test)
 
-Status: fixed in current repository; pending live Windows rerun.
+Status: fixed in current repository and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29.
 
 The mlflow backend reset path has current regression coverage for the unknown
 Alembic revision reset flow that previously hit Windows file-lock rename
@@ -295,8 +298,7 @@ Result: `1 passed, 1 warning`.
 
 ### Category 7 — Polars CSV read fails: non-UTF-8 encoding (2 tests)
 
-**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
-these failures from the verified count. `capacity_support.update_capacity` now
+**Current repo status:** fixed in code and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29. `capacity_support.update_capacity` now
 opens the capacity CSV with `encoding="utf-8"` and `newline=""`, with regression
 coverage in `test_update_capacity_writes_utf8_capacity_csv_for_polars`.
 
@@ -326,8 +328,7 @@ polars.exceptions.InvalidOperationError: file encoding is not UTF-8
 
 ### Category 8 — `prepare_local_env` / self-update path (3 tests + 1 regression)
 
-**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
-these failures from the verified count. The focused local validation passes for:
+**Current repo status:** fixed in code and verified by GitHub Actions windows-core-tests run 26650203561 on 2026-05-29. The focused local validation passes for:
 
 - `test_prepare_local_env_online_ignores_uv_self_update_failure`
 - `test_prepare_local_env_windows_skips_self_update_when_standalone_uv_missing`
@@ -354,10 +355,11 @@ Was passing in the previous run. This is a regression introduced by the recent f
 
 ### Category 9 — `sshpass` not on Windows (1 test)
 
-**Current repo status:** fixed in code, pending a fresh Windows rerun to remove
-this failure from the verified count. The transport test now has a Windows
-skip marker and accepts the production `scp` fallback on Windows. Focused local
-validation passes for `test_send_file_remote_success_and_command_construction`.
+**Current repo status:** fixed in code and verified by GitHub Actions
+windows-core-tests run 26650203561 on 2026-05-29. The transport test now has a
+Windows skip marker and accepts the production `scp` fallback on Windows.
+Focused local validation passes for
+`test_send_file_remote_success_and_command_construction`.
 
 #### `test_send_file_remote_success_and_command_construction`
 ```
@@ -373,8 +375,8 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 ### Tests needing `pytest -vv` — resolved in current repo (0 remaining)
 
-Status: all previously uncaptured named tests pass locally; pending live Windows
-rerun.
+Status: all previously uncaptured named tests pass locally and are covered by
+live Windows validation run 26650203561.
 
 Validation evidence from macOS:
 
