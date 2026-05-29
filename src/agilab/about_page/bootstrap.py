@@ -140,6 +140,57 @@ def source_launch_env_updates(apps_path: Path | None) -> dict[str, str]:
     }
 
 
+def _is_already_initialised_env_error(exc: RuntimeError) -> bool:
+    return "AgiEnv is already initialised with a different configuration" in str(exc)
+
+
+def _normalize_path(value: Any) -> Path | None:
+    try:
+        return Path(value).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _existing_env_matches_apps_path(env: Any, apps_path: Path) -> bool:
+    expected = _normalize_path(apps_path)
+    if expected is None:
+        return False
+
+    env_apps_path = _normalize_path(getattr(env, "apps_path", None))
+    if env_apps_path is not None:
+        return env_apps_path == expected
+
+    active_app_path = _normalize_path(getattr(env, "active_app", None))
+    if active_app_path is not None and active_app_path.parent == expected:
+        return True
+
+    app_value = getattr(env, "app", None)
+    try:
+        explicit_app_path = Path(app_value).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        explicit_app_path = None
+    if (
+        explicit_app_path is not None
+        and (explicit_app_path.is_absolute() or explicit_app_path.parent != Path("."))
+    ):
+        app_path = _normalize_path(app_value)
+        if app_path is not None and app_path.parent == expected:
+            return True
+
+    return False
+
+
+def _recover_existing_env_for_apps_path(agi_env_cls: Any, apps_path: Path) -> Any | None:
+    current = getattr(agi_env_cls, "current", None)
+    if not callable(current):
+        return None
+    try:
+        env = current()
+    except RuntimeError:
+        return None
+    return env if _existing_env_matches_apps_path(env, apps_path) else None
+
+
 def persist_preinit_launch_env(
     agi_env_cls: Any,
     updates: Mapping[str, str],
@@ -631,18 +682,25 @@ def bootstrap_page_environment(
     try:
         env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
     except RuntimeError as exc:
-        if handle_data_root_failure(exc, agi_env_cls=ports.agi_env_cls):
-            return BootstrapResult(env=None, handled_recovery=True)
-        if is_cluster_share_startup_error(exc):
-            handle_cluster_share_startup_error(
-                streamlit=streamlit,
-                exc=exc,
-                env_file_path=env_file_path,
-                args=args,
-                ports=ports,
-            )
-            return BootstrapResult(env=None, handled_recovery=True)
-        raise
+        if _is_already_initialised_env_error(exc):
+            env = _recover_existing_env_for_apps_path(ports.agi_env_cls, apps_path)
+            if env is not None:
+                streamlit.session_state["env"] = env
+            else:
+                raise
+        else:
+            if handle_data_root_failure(exc, agi_env_cls=ports.agi_env_cls):
+                return BootstrapResult(env=None, handled_recovery=True)
+            if is_cluster_share_startup_error(exc):
+                handle_cluster_share_startup_error(
+                    streamlit=streamlit,
+                    exc=exc,
+                    env_file_path=env_file_path,
+                    args=args,
+                    ports=ports,
+                )
+                return BootstrapResult(env=None, handled_recovery=True)
+            raise
 
     requested_app = args.active_app
     if not requested_app:
