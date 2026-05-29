@@ -8,7 +8,7 @@ dependencies = [
     "agi-node>=2026.05.22,<2027.0",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
-    "pydantic>=2.11,<3",
+    "pydantic>=2.11,<2.13",
     "torch>=2.8.0,<3",
 ]
 
