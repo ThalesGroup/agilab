@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-05-28T16:59:02Z",
+  "generated_at_utc": "2026-05-29T12:51:09Z",
   "tool": "tools/codex_skills.py",
-  "count": 28,
+  "count": 29,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -18,6 +18,14 @@
       "updated": "2026-04-29",
       "path": ".codex/skills/agilab-code-statistics/SKILL.md",
       "body_preview": "# AGILAB Code Statistics\nUse this skill to answer code-statistics questions quickly and reproducibly.\nDefault to tracked files only, so ignored caches, virtualenvs, local datasets,\ngenerated docs output, and untracked scratch files do not distort the numbers."
+    },
+    {
+      "name": "agilab-deep-audit",
+      "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, architecture context, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user asks for an AGILAB audit, architecture review, security/posture review, deep code review, review document, or comparison-quality critique rather than a quick fix.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-29",
+      "path": ".codex/skills/agilab-deep-audit/SKILL.md",
+      "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
     },
     {
       "name": "agilab-docs",
