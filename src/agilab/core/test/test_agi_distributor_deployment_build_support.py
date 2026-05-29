@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from shlex import quote
 from types import SimpleNamespace
 
 import pytest
@@ -35,6 +36,10 @@ def _reset_agi_build_state():
         AGI.agi_workers = snapshot["agi_workers"]
         AGI.install_worker_group = snapshot["install_worker_group"]
         AGI.verbose = snapshot["verbose"]
+
+
+def _editable_overlay_arg(path: Path) -> str:
+    return f"--with-editable {quote(str(path))}"
 
 
 @pytest.mark.parametrize(
@@ -169,8 +174,8 @@ def test_source_worker_build_overlay_includes_editable_core_projects(tmp_path):
 
     assert "--with setuptools" in overlay
     assert "--with cython" in overlay
-    assert f"--with-editable {env.agi_env}" in overlay
-    assert f"--with-editable {env.agi_node}" in overlay
+    assert _editable_overlay_arg(env.agi_env) in overlay
+    assert _editable_overlay_arg(env.agi_node) in overlay
 
 
 def test_worker_pyproject_source_missing_raises(tmp_path):
@@ -516,7 +521,7 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
         for cmd, _ in commands
     )
     assert any(
-        f"--with-editable {env.agi_env}" in cmd and f"--with-editable {env.agi_node}" in cmd
+        _editable_overlay_arg(env.agi_env) in cmd and _editable_overlay_arg(env.agi_node) in cmd
         for cmd, _ in commands
     )
 
@@ -564,7 +569,7 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
         for cmd, _ in commands
     )
     assert any(
-        f"--with-editable {env.agi_env}" in cmd and f"--with-editable {env.agi_node}" in cmd
+        _editable_overlay_arg(env.agi_env) in cmd and _editable_overlay_arg(env.agi_node) in cmd
         for cmd, _ in commands
     )
 
