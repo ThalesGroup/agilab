@@ -200,9 +200,16 @@ def check_target(
 
 def _is_transient_failure(check: dict[str, Any]) -> bool:
     reason = str(check.get("reason", ""))
+    transient_http_reasons = {
+        "pypi_json_http_404",
+        "pypi_json_http_408",
+        "pypi_json_http_409",
+        "pypi_json_http_425",
+        "pypi_json_http_429",
+    }
     return reason in {"release_missing", "missing_attestation"} or reason.startswith(
         "pypi_json_http_5"
-    )
+    ) or reason in transient_http_reasons
 
 
 def check_target_with_retries(
