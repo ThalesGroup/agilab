@@ -17,7 +17,7 @@ uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytes
 
 ---
 
-## ✅ Fixed since last pass (69 tests)
+## ✅ Fixed since last pass (76 tests)
 
 The following test categories were resolved by the dev team:
 
@@ -34,6 +34,7 @@ The following test categories were resolved by the dev team:
 | Python subprocess exit-code fixtures | 4 |
 | Linux-only feature guards | 6 |
 | mlflow SQLite reset file move | 1 |
+| Previously uncaptured pytest-vv bucket | 7 |
 | Miscellaneous | 10 |
 
 ---
@@ -359,17 +360,25 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 
 ---
 
-### Tests needing `pytest -vv` (no assertion captured, 7 remaining)
+### Tests needing `pytest -vv` — resolved in current repo (0 remaining)
 
-| Test | File | Probable category |
-|---|---|---|
-| `test_baseworker_setup_data_directories_falls_back_when_output_unavailable` | `test_base_worker.py` | Cat 1 (path sep) |
-| `test_baseworker_setup_data_directories_without_env_falls_back_to_home` | same | Cat 1 |
-| `test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion` | `test_base_worker_execution_support.py` | Cat 1 |
-| `test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count` | same | Cat 1 |
-| `test_measure_worker_write_speed_writes_probe_file_and_removes_it` | same | Cat 1 |
-| `test_run_local_covers_debug_and_script_execution_paths` | `test_agi_distributor_runtime_distribution_support.py` | Unknown |
-| `test_post_try_link_dir_returns_false_on_setup_and_symlink_failures` | `test_agi_dispatcher_scripts.py` | Symlink |
+Status: all previously uncaptured named tests pass locally; pending live Windows
+rerun.
+
+Validation evidence from macOS:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q -o addopts='' \
+  src/agilab/core/test/test_base_worker.py::test_baseworker_setup_data_directories_falls_back_when_output_unavailable \
+  src/agilab/core/test/test_base_worker.py::test_baseworker_setup_data_directories_without_env_falls_back_to_home \
+  src/agilab/core/test/test_base_worker_execution_support.py::test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion \
+  src/agilab/core/test/test_base_worker_execution_support.py::test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count \
+  src/agilab/core/test/test_base_worker_execution_support.py::test_measure_worker_write_speed_writes_probe_file_and_removes_it \
+  src/agilab/core/test/test_agi_distributor_runtime_distribution_support.py::test_run_local_covers_debug_and_script_execution_paths \
+  src/agilab/core/test/test_agi_dispatcher_scripts.py::test_post_try_link_dir_returns_false_on_setup_and_symlink_failures
+```
+
+Result: `7 passed`.
 
 ---
 
@@ -386,10 +395,11 @@ On Windows, `sshpass` is unavailable; production code correctly falls back to `s
 | 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
 | 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
 | 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
-| — | Needs `pytest -vv` | 7 | ❓ Unknown | Run targeted to diagnose |
+| — | Needs `pytest -vv` | 0 | ✅ Resolved in current repo; rerun Windows to verify count | Targeted bucket now passes |
 
 **Recommended priority:** rerun the Windows command above to refresh the verified
 remaining count after the environment-isolation, virtualenv layout, uv TOML path,
 Python subprocess exit fixture, Linux-only guard, mlflow backend reset, capacity
 CSV encoding, prepare_local_env self-update, and sshpass test fixes. Then
-prioritize any still-failing Windows categories from the refreshed run.
+prioritize any still-failing Windows categories from the refreshed run. There
+are no named local regression buckets left open in this tracker.
