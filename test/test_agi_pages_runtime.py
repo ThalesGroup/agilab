@@ -32,8 +32,29 @@ def test_agi_pages_runtime_resolves_active_app_and_reports_missing(tmp_path: Pat
     assert stops == 1
     assert errors and "Provided --active-app path not found" in errors[0]
 
+    errors.clear()
+    stops = 0
+    with pytest.raises(ValueError, match="Missing --active-app argument"):
+        runtime.resolve_active_app_path(
+            [],
+            error_fn=errors.append,
+            stop_fn=stop,
+        )
+    assert stops == 1
+    assert errors == ["Missing --active-app argument."]
+
     with pytest.raises(FileNotFoundError, match="Provided --active-app path not found"):
         runtime.resolve_active_app_path(["--active-app", str(tmp_path / "missing_without_callbacks")])
+
+
+def test_agi_pages_runtime_scope_helpers_cover_env_fallbacks(tmp_path: Path) -> None:
+    app_path = tmp_path / "apps" / "demo_project"
+    app_path.mkdir(parents=True)
+
+    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app_path)) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app_path)) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(apps_path=app_path.parent, app=app_path.name)) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace()) is None
 
 
 def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> None:
@@ -109,6 +130,16 @@ def test_agi_pages_runtime_configures_and_renders_streamlit_page_header() -> Non
         ("title", "Evidence cockpit"),
         ("caption", "Review baseline versus candidate evidence."),
     ]
+
+    events.clear()
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title="Logo without label",
+        logo_title=None,
+        show_title=False,
+        render_logo_fn=lambda *args: events.append(("logo", args)),
+    )
+    assert events == [("logo", ())]
 
 
 def test_agi_pages_runtime_header_can_skip_logo_and_caption() -> None:

@@ -3576,6 +3576,17 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
     )
     assert layout._physical_cpu_count() == 12
 
+    monkeypatch.setattr(layout, "_hardware_probes_disabled", lambda: False)
+    monkeypatch.setattr(layout, "system_information_summary", lambda: ("", "Test CPU"))
+    monkeypatch.setattr(layout, "accelerator_information_summary", lambda: ("Test GPU", "Test NPU"))
+    monkeypatch.setattr(layout, "_memory_summary", lambda: "8 GB")
+    assert layout._local_hardware_summary() == {
+        "CPU": "Test CPU",
+        "RAM": "8 GB",
+        "GPU": "Test GPU",
+        "NPU": "Test NPU",
+    }
+
 
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     import agi_gui.pagelib as pagelib

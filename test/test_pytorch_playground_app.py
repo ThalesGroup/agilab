@@ -1470,6 +1470,25 @@ def test_pytorch_playground_live_training_controls_advance_and_pause(monkeypatch
     assert state["playing"] is False
     assert keep_playing is False
 
+    fake_st.session_state[module.LIVE_TRAINING_STATE_KEY] = {
+        "status": "ok",
+        "signature": signature,
+        "config": config,
+        "epoch": config.epochs,
+        "playing": False,
+    }
+    restarted, restarted_result, keep_playing = module._run_live_training_controls(
+        config,
+        reset_requested=False,
+        step_requested=False,
+        play_requested=True,
+        pause_requested=False,
+        epochs_per_tick=1,
+    )
+    assert restarted["epoch"] == 1
+    assert restarted_result["summary"]["epoch"] == 1
+    assert keep_playing is True
+
 
 def test_pytorch_playground_live_training_result_reports_missing_torch(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
