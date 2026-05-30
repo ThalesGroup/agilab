@@ -274,6 +274,25 @@ that is distinct from the local share. It should fail fast instead of silently
 falling back to ``localshare``. Validate a cluster share before a full run with
 the doctor share check documented in :doc:`distributed-workers`.
 
+What limits AGILAB when scaling compute?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The limit is not that AGILAB cannot run distributed work. It can run local,
+pool, Dask, and SSH-backed worker flows. The current scale boundary is the
+production-grade orchestration layer around those workers.
+
+Today, AGILAB is a controlled distributed workbench: it packages worker
+environments, starts or connects workers, validates shared storage, and records
+evidence. It is not yet a full compute platform with automatic worker
+provisioning, elastic scale-up and scale-down, per-project quotas, GPU/CPU/memory
+scheduling, queue priorities, retry and resume policies, node-failure recovery,
+data-locality planning, and centralized logs or metrics.
+
+Use AGILAB cluster mode when you need repeatable distributed experiments and
+reviewable evidence. Pair it with Kubernetes, HPC, cloud batch, or an internal
+platform when you need production-grade fleet orchestration across many users,
+many jobs, or changing resource pools.
+
 Can I run Dask again inside one AGILAB worker and see it in the outer dashboard?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
