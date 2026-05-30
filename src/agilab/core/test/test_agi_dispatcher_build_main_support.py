@@ -38,6 +38,60 @@ def test_bootstrap_core_source_paths_prefers_repo_layout(tmp_path, monkeypatch):
     assert bootstrap_mod.sys.path[:3] == [str(env_src), str(node_src), str(cluster_src)]
 
 
+def test_bootstrap_source_root_handles_unresolvable_and_foreign_paths(monkeypatch, tmp_path):
+    original_resolve = bootstrap_mod.Path.resolve
+
+    def _raise_for_broken(self, *args, **kwargs):
+        if self.name == "broken.py":
+            raise OSError("cannot resolve")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(bootstrap_mod.Path, "resolve", _raise_for_broken, raising=False)
+
+    assert bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "broken.py") is None
+    assert bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "standalone.py") is None
+    assert bootstrap_mod.bootstrap_core_source_paths(source_file=tmp_path / "standalone.py") == ()
+    assert bootstrap_mod.resolve_source_checkout_root(tmp_path / "broken.py") is None
+
+
+def test_package_source_path_candidates_handles_unresolvable_source(monkeypatch, tmp_path):
+    original_resolve = bootstrap_mod.Path.resolve
+
+    def _raise_for_source(self, *args, **kwargs):
+        if self.name == "source.py":
+            raise RuntimeError("cannot resolve")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(bootstrap_mod.Path, "resolve", _raise_for_source, raising=False)
+
+    candidates = bootstrap_mod.package_source_path_candidates(
+        "agi-node",
+        sys_prefix=tmp_path / "venv",
+        source_file=tmp_path / "source.py",
+    )
+
+    assert tmp_path / "source.py" / "agi-node" / "src" in candidates
+
+
+def test_resolve_checkout_root_for_site_packages_handles_unresolvable_and_non_venv(
+    monkeypatch,
+    tmp_path,
+):
+    original_resolve = bootstrap_mod.Path.resolve
+
+    def _raise_for_candidate(self, *args, **kwargs):
+        if self.name == "site-packages":
+            raise OSError("cannot resolve")
+        return original_resolve(self, *args, **kwargs)
+
+    candidate = tmp_path / "checkout" / ".venv" / "lib" / "python3.13" / "site-packages"
+    candidate.mkdir(parents=True)
+    monkeypatch.setattr(bootstrap_mod.Path, "resolve", _raise_for_candidate, raising=False)
+
+    assert bootstrap_mod.resolve_checkout_root_for_site_packages(candidate) is None
+    assert bootstrap_mod.resolve_checkout_root_for_site_packages(tmp_path / "plain") is None
+
+
 def test_bootstrap_core_source_paths_moves_existing_editable_sources_before_site_packages(
     tmp_path,
     monkeypatch,

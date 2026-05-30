@@ -45,6 +45,27 @@ def test_app_name_aliases_cover_slug_and_project_suffix() -> None:
     )
 
 
+def test_app_name_aliases_cover_public_runtime_aliases(monkeypatch) -> None:
+    monkeypatch.setattr(
+        app_provider_registry,
+        "PUBLIC_RUNTIME_TARGET_ALIASES",
+        {"public_demo": "internal_demo"},
+    )
+
+    assert app_provider_registry.aliased_app_runtime_target("public-demo-project") == "internal_demo"
+    assert app_name_aliases("public-demo") == (
+        "public_demo",
+        "public_demo_project",
+        "internal_demo",
+    )
+    assert app_name_aliases("internal-demo") == (
+        "internal_demo",
+        "internal_demo_project",
+        "public_demo",
+        "public_demo_project",
+    )
+
+
 def test_resolve_app_runtime_target_uses_explicit_project_metadata(tmp_path: Path) -> None:
     project = tmp_path / "flight_telemetry_project"
     project.mkdir()
@@ -77,6 +98,14 @@ def test_resolve_app_runtime_target_uses_explicit_project_metadata(tmp_path: Pat
         encoding="utf-8",
     )
     assert resolve_app_runtime_target(conventional_project, "weather_forecast_project") == "weather_forecast"
+
+    named_project = tmp_path / "named_project"
+    named_project.mkdir()
+    (named_project / "pyproject.toml").write_text(
+        "[project]\nname='named-public-project'\n",
+        encoding="utf-8",
+    )
+    assert resolve_app_runtime_target(named_project, "fallback_project") == "named_public"
 
 
 def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path) -> None:
@@ -116,6 +145,7 @@ def test_app_provider_registry_defensive_edges(tmp_path: Path) -> None:
 
     assert app_provider_registry._entry_points(lambda: _BrokenSelectable()) == ()
     assert app_provider_registry._entry_points(lambda: {APP_PROVIDER_ENTRYPOINT_GROUP: ["entry"]}) == ("entry",)
+    assert app_provider_registry._entry_points(lambda: ["entry"]) == ()
 
     class _BrokenPath:
         def is_dir(self):
@@ -128,6 +158,7 @@ def test_app_provider_registry_defensive_edges(tmp_path: Path) -> None:
     (project / "src").mkdir()
     (project / "src" / "app_settings.toml").write_text("", encoding="utf-8")
     assert app_provider_registry._coerce_project_root({"path": project}) == project.resolve()
+    assert app_provider_registry._coerce_project_root(None) is None
     assert app_provider_registry._coerce_project_root(lambda: project) == project.resolve()
     assert app_provider_registry._coerce_project_root(lambda: (_ for _ in ()).throw(RuntimeError("load"))) is None
     assert app_provider_registry._coerce_project_root(object()) is None

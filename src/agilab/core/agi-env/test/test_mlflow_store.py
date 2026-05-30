@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+from pathlib import PosixPath
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -110,6 +111,34 @@ def test_mlflow_path_helpers_and_legacy_detection(tmp_path: Path):
     ) is False
 
     assert mlflow_store.sqlite_identifier('bad"name') == '"bad""name"'
+
+
+def test_run_mlflow_cli_reraises_typeerror_unrelated_to_env():
+    def _raise_typeerror(_argv, **_kwargs):
+        raise TypeError("other keyword failed")
+
+    with pytest.raises(TypeError, match="other keyword failed"):
+        mlflow_store._run_mlflow_cli(_raise_typeerror, ["mlflow", "server"])
+
+
+def test_sqlite_uri_for_path_falls_back_when_path_resolution_is_unsupported(tmp_path: Path):
+    class _UnsupportedPath:
+        def __init__(self, value):
+            self.value = value
+
+        def expanduser(self):
+            return self
+
+        def resolve(self):
+            raise mlflow_store.UnsupportedOperation("unsupported platform path")
+
+    db_path = tmp_path / "mlflow.db"
+
+    assert mlflow_store.sqlite_uri_for_path(
+        db_path,
+        os_name="posix",
+        path_cls=_UnsupportedPath,
+    ).endswith(str(db_path).replace("\\", "/"))
 
 
 def test_repair_mlflow_default_experiment_db_updates_default_experiment_and_artifacts(tmp_path: Path):
@@ -539,6 +568,57 @@ def test_move_mlflow_sqlite_backend_files_moves_present_files_only(tmp_path: Pat
     assert Path(f"{backup_path}-wal").exists()
     assert not Path(f"{backup_path}-shm").exists()
     assert not Path(f"{backup_path}-journal").exists()
+
+
+def test_move_mlflow_sqlite_backend_files_uses_windows_copy_unlink_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(mlflow_store.os, "name", "nt")
+    monkeypatch.setattr(mlflow_store, "Path", PosixPath)
+    monkeypatch.setattr("time.sleep", lambda _delay: None)
+
+    db_path = tmp_path / "mlflow.db"
+    backup_path = tmp_path / "mlflow.schema-reset.db"
+    db_path.write_text("x", encoding="utf-8")
+    calls = {"unlink": 0}
+    original_unlink = PosixPath.unlink
+
+    def _flaky_unlink(path, *args, **kwargs):
+        if path == db_path and calls["unlink"] == 0:
+            calls["unlink"] += 1
+            raise PermissionError("busy")
+        calls["unlink"] += 1
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(PosixPath, "unlink", _flaky_unlink)
+
+    mlflow_store._move_mlflow_sqlite_backend_files(db_path, backup_path=backup_path)
+
+    assert backup_path.read_text(encoding="utf-8") == "x"
+    assert not db_path.exists()
+    assert calls["unlink"] == 2
+
+
+def test_move_mlflow_sqlite_backend_files_raises_after_windows_retry_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(mlflow_store.os, "name", "nt")
+    monkeypatch.setattr(mlflow_store, "Path", PosixPath)
+    monkeypatch.setattr("time.sleep", lambda _delay: None)
+
+    db_path = tmp_path / "mlflow.db"
+    backup_path = tmp_path / "mlflow.schema-reset.db"
+    db_path.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(
+        PosixPath,
+        "unlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("busy")),
+    )
+
+    with pytest.raises(PermissionError, match="busy"):
+        mlflow_store._move_mlflow_sqlite_backend_files(db_path, backup_path=backup_path)
 
 
 def test_resolve_mlflow_artifact_uri_delegates_to_artifact_dir_resolver(tmp_path: Path):

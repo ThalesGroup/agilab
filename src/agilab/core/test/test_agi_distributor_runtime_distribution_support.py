@@ -118,6 +118,74 @@ def test_sanitize_worker_upload_artifacts_removes_top_level_ui_modules(tmp_path)
     assert top_level == "demo_worker\n"
 
 
+def test_runtime_distribution_edge_helpers_cover_fallback_branches(tmp_path):
+    assert runtime_distribution_support._sync_poll_delay(-3) == 0.2
+    assert runtime_distribution_support._sync_poll_delay(99) == 3.0
+    assert runtime_distribution_support._remote_prefix("source ~/.profile") == "source ~/.profile "
+    assert runtime_distribution_support._remote_prefix("") == ""
+
+    agi = SimpleNamespace(_phase_timings="not-a-list")
+    runtime_distribution_support._record_phase_timing(agi, "start", 1.23456789)
+    assert agi._phase_timings == [{"phase": "start", "seconds": 1.234568}]
+
+    src_dir = tmp_path / "src"
+    pycache_dir = src_dir / "__pycache__"
+    pycache_dir.mkdir(parents=True)
+    (pycache_dir / "demo_args_form.cpython-313.pyc").write_bytes(b"")
+    (pycache_dir / "keep.cpython-313.pyc").write_bytes(b"")
+    log = SimpleNamespace(messages=[], info=lambda *args: log.messages.append(args))
+    removed = runtime_distribution_support._clean_top_level_ui_source_artifacts(src_dir, log=log)
+    assert removed == [pycache_dir / "demo_args_form.cpython-313.pyc"]
+    assert pycache_dir.exists()
+    assert log.messages
+
+    bad_egg = tmp_path / "bad.egg"
+    bad_egg.write_text("not a zip", encoding="utf-8")
+    assert runtime_distribution_support._sanitize_worker_upload_egg(bad_egg) == []
+
+    clean_egg = tmp_path / "clean.egg"
+    with ZipFile(clean_egg, "w") as zf:
+        zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("EGG-INFO/top_level.txt", "demo_worker\n")
+    assert runtime_distribution_support._sanitize_worker_upload_egg(clean_egg) == []
+    assert not (tmp_path / ".clean.egg.tmp").exists()
+
+    assert runtime_distribution_support._manager_apps_path(SimpleNamespace()) is None
+    assert runtime_distribution_support._manager_apps_path(
+        SimpleNamespace(active_app=tmp_path / "apps" / "demo_project")
+    ) == tmp_path / "apps"
+    assert (
+        runtime_distribution_support._manager_app_name(SimpleNamespace(target="demo"))
+        == "demo_project"
+    )
+    assert (
+        runtime_distribution_support._manager_app_name(SimpleNamespace(target_worker="demo_worker"))
+        == "demo_project"
+    )
+    assert (
+        runtime_distribution_support._manager_app_name(SimpleNamespace())
+        == "flight_telemetry_project"
+    )
+
+    calls = []
+
+    class _Jobs:
+        def new(self, cmd, *, cwd, env=None):
+            calls.append((cmd, cwd, env))
+            return SimpleNamespace(num=7)
+
+        def result(self, job_id):
+            return job_id == 7
+
+    runtime_distribution_support.exec_bg(
+        SimpleNamespace(_jobs=_Jobs()),
+        ["python", "-m", "demo"],
+        str(tmp_path),
+        env={"PATH": "/tmp/bin"},
+    )
+    assert calls == [(["python", "-m", "demo"], str(tmp_path), {"PATH": "/tmp/bin"})]
+
+
 def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tmp_path):
     wenv_abs = tmp_path / "wenv"
     dask_exe = wenv_abs / ".venv" / ("Scripts/dask.exe" if os.name == "nt" else "bin/dask")

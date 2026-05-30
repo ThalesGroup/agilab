@@ -140,6 +140,31 @@ def test_remote_command_helpers_quote_dynamic_arguments():
     assert deployment_remote_support._remote_tool("", "uv --quiet") == "uv --quiet"
 
 
+def test_remote_environment_and_scheduler_port_edge_helpers(monkeypatch):
+    assert deployment_remote_support._env_lookup(SimpleNamespace(FIRST="attr"), "FIRST") == "attr"
+    assert (
+        deployment_remote_support._env_lookup(
+            SimpleNamespace(envars={"SECOND": "from-env-map"}),
+            "FIRST",
+            "SECOND",
+        )
+        == "from-env-map"
+    )
+    monkeypatch.setenv("FALLBACK_PORT", "2222")
+    assert deployment_remote_support._env_lookup(SimpleNamespace(envars={}), "FALLBACK_PORT") == "2222"
+    assert deployment_remote_support._shell_words("") == ""
+    assert deployment_remote_support._scheduler_ssh_port(SimpleNamespace(envars={})) == 22
+
+    with pytest.raises(ValueError, match="Invalid scheduler SSH port"):
+        deployment_remote_support._scheduler_ssh_port(
+            SimpleNamespace(envars={"AGILAB_SCHEDULER_SSH_PORT": "abc"})
+        )
+    with pytest.raises(ValueError, match="Invalid scheduler SSH port"):
+        deployment_remote_support._scheduler_ssh_port(
+            SimpleNamespace(envars={"AGILAB_SCHEDULER_SSH_PORT": "70000"})
+        )
+
+
 @pytest.mark.asyncio
 async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
     class _AgiNoScheduler:
@@ -172,6 +197,52 @@ async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
         == ()
     )
     assert calls == [deployment_remote_support._remote_platform_probe_command()]
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_logs_premounted_verbose_path(tmp_path):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        envars={"AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED": "1"},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=1,
+    )
+    ssh_calls: list[str] = []
+    log = mock.Mock()
+
+    class _AgiNoScheduler:
+        _scheduler_ip = ""
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _AgiNoScheduler(), "192.168.20.15", env, "clustershare", log=log
+    )
+
+    log.info.assert_called_once()
+    assert len(ssh_calls) == 2
+    assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+
+
+@pytest.mark.asyncio
+async def test_remote_probe_connection_errors_are_not_downgraded():
+    class _Agi:
+        async def exec_ssh(self, *_args):
+            raise ConnectionError("network down")
+
+    with pytest.raises(ConnectionError, match="network down"):
+        await deployment_remote_support._legacy_intel_macos_dependency_specs(_Agi(), "10.0.0.2")
+    with pytest.raises(ConnectionError, match="network down"):
+        await deployment_remote_support._remote_project_has_pip(
+            _Agi(),
+            "10.0.0.2",
+            uv="uv",
+            wenv_rel=Path("worker_env"),
+            pyvers="3.13",
+        )
 
 
 async def _call_deploy_remote_worker(

@@ -116,6 +116,17 @@ def test_exec_command_rejects_shell_metacharacters(tmp_path):
     assert calls == []
 
 
+def test_runtime_command_helpers_cover_sequence_and_empty_inputs():
+    assert runtime_support._command_argv(["python", "-m", "demo"]) == [
+        "python",
+        "-m",
+        "demo",
+    ]
+    assert runtime_support._format_command(["python", "-m", "demo"]) == "python -m demo"
+    with pytest.raises(ValueError, match="must not be empty"):
+        runtime_support._command_argv("")
+
+
 def test_load_module_and_is_cython_installed(monkeypatch):
     fake_module = types.ModuleType("demo.module")
     fake_module.Target = "loaded"
