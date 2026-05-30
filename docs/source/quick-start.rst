@@ -101,6 +101,17 @@ before changing install route. ``agilab adoption-report`` reads that manifest
 and turns the checkpoint into a short report with missing handoff evidence and
 the exact next command.
 
+After that first proof passes, use an app-owned UI surface when you want a
+richer interactive app without changing the evidence contract. The PyTorch
+Playground is the public example::
+
+   agilab app surface pytorch_playground_project --list
+   agilab app surface pytorch_playground_project --ui streamlit
+   agilab app surface pytorch_playground_project --ui hf --no-browser
+
+The generic launcher is the pattern to reuse for future Streamlit, hosted, or
+alternate UI adapters; the app still owns the runtime and evidence files.
+
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

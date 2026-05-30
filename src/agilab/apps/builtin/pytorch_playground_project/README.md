@@ -14,6 +14,9 @@ without leaving the AGILAB app model.
 - How Streamlit controls map to persisted ORCHESTRATE arguments.
 - How an app-owned ANALYSIS surface can show training curves, learning snapshots,
   neuron views, regularization effects, and loss landscape evidence.
+- How the `[app_surface]` contract separates the app runtime/evidence files
+  from the UI backend, so the same project can open locally or through a hosted
+  surface.
 - How live play/pause training differs from a deterministic full evidence run:
   live mode mutates one in-session model, while `Train / refresh` rebuilds the
   full reproducible artifact.
@@ -28,17 +31,21 @@ Use the app-managed environment so PyTorch, Plotly, and Streamlit are installed
 in the right place:
 
 ```bash
-agilab pytorch-playground
+agilab app surface pytorch_playground_project --list
+agilab app surface pytorch_playground_project --ui streamlit
 ```
 
 To open the hosted backend instead of a local app venv:
 
 ```bash
-agilab pytorch-playground --backend hf
+agilab app surface pytorch_playground_project --ui hf
 ```
 
-Set `AGILAB_PYTORCH_PLAYGROUND_HF_URL` or pass `--hf-space owner/agilab` when
-you maintain a different Hugging Face Space.
+`agilab pytorch-playground` and `agilab pytorch-playground --backend hf` are
+convenience shortcuts for the same app. The generic `agilab app surface ...`
+command is the reusable pattern for any app that declares `[app_surface]`. Set
+`AGILAB_PYTORCH_PLAYGROUND_HF_URL` or pass `--hf-space owner/agilab` when you
+maintain a different Hugging Face Space.
 
 ## Run In AGILAB
 

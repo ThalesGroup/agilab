@@ -101,7 +101,7 @@ Start with the route that matches the proof you want to show:
 | Gate candidate data | [Data Quality Gate](src/agilab/apps/builtin/data_quality_gate_project) | Contract, drift, leakage, and promotion decision evidence before training. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
-| Explore an opt-in app | [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with live play/pause training and loss-landscape analysis. |
+| Explore an opt-in app | [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with live play/pause training, multi-UI surface declarations, generic `agilab app surface ...` launch, and loss-landscape analysis. |
 | Go deeper after first proof | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decision, execution playground, UAV queue, service, MLflow, and release-proof routes. |
 
 Use the [local quick start](#quick-start) when you want to run the product
@@ -130,13 +130,14 @@ install.
 - [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project)
   is the opt-in classifier playground app for
   synthetic datasets, real play/pause training, hidden-layer activation maps,
-  network diagnostics, and the **Loss landscape** view. Launch it directly with
-  `agilab pytorch-playground` or open the hosted backend with
-  `agilab pytorch-playground --backend hf`. The generic surface launcher also
-  works: `agilab app surface pytorch_playground_project --ui streamlit` or
-  `agilab app surface pytorch_playground_project --ui hf`. It is a reproducible
-  app project, not a generic app-agnostic analysis page, and loss landscape is
-  part of that project.
+  network diagnostics, and the **Loss landscape** view. It demonstrates the
+  reusable app-surface contract: inspect backends with
+  `agilab app surface pytorch_playground_project --list`, open the local UI with
+  `agilab app surface pytorch_playground_project --ui streamlit`, or open the
+  hosted backend with `agilab app surface pytorch_playground_project --ui hf`.
+  The shortcut `agilab pytorch-playground` remains for convenience. It is a
+  reproducible app project, not a generic app-agnostic analysis page, and loss
+  landscape is part of that project.
 
 ## Featured Performance Demo
 
