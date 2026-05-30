@@ -22,7 +22,11 @@ DEMOS_DOC_PATH = REPO_ROOT / "docs" / "source" / "demos.rst"
 SCHEMA = "agilab.ui_robot_coverage_contract.v1"
 REQUIRED_CORE_PAGES = ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS", "SETTINGS")
 REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
-REQUIRED_HF_FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
+REQUIRED_HF_FIRST_PROOF_APPS = (
+    "flight_telemetry_project",
+    "pytorch_playground_project",
+    "weather_forecast_project",
+)
 REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "weather_forecast_legacy_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"

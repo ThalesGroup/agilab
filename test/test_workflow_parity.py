@@ -555,7 +555,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
     assert "tools/agilab_widget_robot_matrix.py" in hf_install_robot.argv
     assert "hf-first-proof-install" in hf_install_robot.argv
-    assert "flight_telemetry_project,weather_forecast_project" in hf_install_robot.argv
+    assert "flight_telemetry_project,pytorch_playground_project,weather_forecast_project" in hf_install_robot.argv
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_install_robot.argv
     assert "--active-app" not in hf_install_robot.argv
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
@@ -567,7 +567,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
     assert "hf-first-proof-app-pages-visual-smoke" in hf_visual_smoke_robot.argv
     assert hf_visual_smoke_robot.argv.count("--scenario") == 2
-    assert "flight_telemetry_project,weather_forecast_project" in hf_visual_smoke_robot.argv
+    assert "flight_telemetry_project,pytorch_playground_project,weather_forecast_project" in hf_visual_smoke_robot.argv
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_visual_smoke_robot.argv
     assert "--active-app" not in hf_visual_smoke_robot.argv
     assert "screenshots/hf-visual-smoke-robot" in hf_visual_smoke_robot.argv
