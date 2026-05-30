@@ -964,6 +964,33 @@ def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.Monkey
     assert module._confidence_band(pd.DataFrame({"probability": [0.30, 0.70]}))[0] == "Boundary forming"
 
 
+def test_playground_ui_score_and_recommendation_edge_helpers() -> None:
+    module = _load_module()
+
+    assert module._class_balance(pd.DataFrame({"target": [None, None]})) == "no samples"
+    assert module._run_quality_label(0.85, 0.08) == "Usable run"
+    assert module._gap_quality_label(0.2) == "high overfit"
+    assert module._decision_confidence_note(0.5) == "boundary forming"
+    assert module._summary_sample_count({"samples": object()}, pd.DataFrame(index=range(3))) == 3
+    assert module._summary_sample_count({"samples": -1}, pd.DataFrame(index=range(4))) == 4
+    assert module._simpler_hidden_layers(()) == (4,)
+    assert module._wider_hidden_layers(()) == (8, 8)
+
+    config = module.PlaygroundConfig(hidden_layers=(8,), sample_count=64, epochs=4, grid_size=8)
+    result = {
+        "summary": "not-a-mapping",
+        "grid": pd.DataFrame({"probability": [0.45, 0.55]}),
+    }
+    recommendations = module._tuning_recommendations(config, result)
+    assert recommendations
+    assert all(item["url"].startswith("?pytorch_playground=") for item in recommendations)
+
+    final_grid = pd.DataFrame({"x1": [0.0], "x2": [0.0], "probability": [0.5]})
+    assert module._boundary_snapshot_grid({"grid": final_grid, "boundary_snapshots": pd.DataFrame({"epoch": []})}, final_grid).equals(
+        final_grid
+    )
+
+
 def test_playground_ui_remaining_helper_and_subprocess_edges(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

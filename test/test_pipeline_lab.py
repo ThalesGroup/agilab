@@ -4301,7 +4301,7 @@ def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path):
 
     assert finish_calls == [("demo", False, None)]
     assert history_calls[-1][1]["title"] == "Workflow run failed"
-    assert ("toast", "Workflow run failed. Inspect Run logs.") in fake_st.messages
+    assert ("error", "Workflow run failed. Inspect Run logs.") in fake_st.messages
 
 
 def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monkeypatch, tmp_path):
