@@ -161,9 +161,19 @@ def test_view_data_io_decision_full_page_renders_artifact_evidence(monkeypatch, 
     fake_st = _FakeStreamlit()
     fake_runtime = ModuleType("agi_pages.runtime")
     fake_runtime.artifact_root = lambda _env, _leaf: artifact_root
+    fake_runtime.configure_streamlit_page = (
+        lambda st_module, *, title: st_module.set_page_config(page_title=title)
+    )
     fake_runtime.discover_files = lambda base, pattern: sorted(Path(base).glob(pattern))
     fake_runtime.ensure_repo_on_path = lambda _file: None
     fake_runtime.relative_label = lambda path, root: Path(path).relative_to(root).as_posix()
+    fake_runtime.render_streamlit_page_header = (
+        lambda st_module, *, title, logo_title, caption: (
+            events.append(("logo", logo_title)),
+            st_module.title(title),
+            st_module.caption(caption),
+        )
+    )
     fake_runtime.resolve_active_app_path = lambda **_kwargs: active_app
     fake_runtime.reset_scoped_session_state = lambda *_args, **_kwargs: False
 
