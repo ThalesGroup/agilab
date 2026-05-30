@@ -1393,6 +1393,7 @@ print_dry_run_plan() {
 }
 
 usage() {
+  local status="${1:-1}"
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-cluster-share <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
@@ -1400,7 +1401,7 @@ usage() {
   echo "       Set AGILAB_REFRESH_WORKER_ENVS=1 to remove per-app worker environments before install"
   echo "       [--no-remote-installers]  Refuse downloaded shell installers such as uv/Ollama/Homebrew bootstrap scripts"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
-    exit 1
+    exit "$status"
 }
 
 
@@ -1491,8 +1492,8 @@ while [[ "$#" -gt 0 ]]; do
         --no-remote-installers) NO_REMOTE_INSTALLERS=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         --dry-run)            shift;;
-        --help|-h) usage && exit;;
-        *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
+        --help|-h) usage 0;;
+        *) echo -e "${RED}Unknown option: $1${NC}" && usage 1;;
     esac
 done
 INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"

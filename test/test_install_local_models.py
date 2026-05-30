@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -368,6 +369,37 @@ def test_installers_expose_dry_run_plans_before_dependency_installation() -> Non
 
     assert root_text.index("if (( DRY_RUN )); then") < root_text.index("find . \\(")
     assert enduser_text.index("if (( DRY_RUN )); then") < enduser_text.index("if [[ \"$SOURCE\" == \"local\" ]]")
+
+
+def test_shell_installer_help_succeeds_and_invalid_options_fail(tmp_path: Path) -> None:
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path),
+        "AGILAB_UV_LINK_MODE": "hardlink",
+    }
+
+    for script_path in (INSTALL_SH, INSTALL_ENDUSER_SH):
+        help_run = subprocess.run(
+            ["bash", str(script_path), "--help"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert help_run.returncode == 0
+        assert "Usage:" in help_run.stdout
+
+        invalid_run = subprocess.run(
+            ["bash", str(script_path), "--definitely-invalid"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert invalid_run.returncode != 0
+        assert "Usage:" in invalid_run.stdout
 
 
 def test_installers_do_not_unconditionally_delete_existing_venvs() -> None:

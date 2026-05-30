@@ -98,6 +98,7 @@ else
 fi
 
 usage() {
+  local status="${1:-1}"
   echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--dry-run] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
   echo ""
   echo "Options:"
@@ -108,7 +109,7 @@ usage() {
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
   echo "  --no-remote-installers  Refuse downloaded shell installers such as Ollama bootstrap scripts"
   echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini)"
-  exit 1
+  exit "$status"
 }
 
 print_dry_run_plan() {
@@ -377,7 +378,8 @@ while [[ $# -gt 0 ]]; do
     --no-remote-installers) NO_REMOTE_INSTALLERS=1; shift ;;
     --install-local-models) INSTALL_LOCAL_MODELS="$2"; shift 2 ;;
     --install-local-models=*) INSTALL_LOCAL_MODELS="${1#*=}"; shift ;;
-    *) usage ;;
+    --help|-h) usage 0 ;;
+    *) usage 1 ;;
   esac
 done
 INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
