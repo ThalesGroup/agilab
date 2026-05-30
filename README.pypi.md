@@ -77,7 +77,7 @@ Start with the route that matches the proof you want to show:
 | Gate candidate data | [Data Quality Gate](https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/data_quality_gate_project) | Contract, drift, leakage, and promotion decision evidence before training. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
-| Explore an opt-in app | [PyTorch Playground](https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with live play/pause training, multi-UI surface declarations, and loss-landscape analysis. |
+| Explore an opt-in app | [PyTorch Playground](https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with live play/pause training, multi-UI surface declarations, generic `agilab app surface ...` launch, and loss-landscape analysis. |
 | Go deeper after first proof | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decision, execution playground, UAV queue, service, MLflow, and release-proof routes. |
 
 Use the [local quick start](https://thalesgroup.github.io/agilab/quick-start.html)

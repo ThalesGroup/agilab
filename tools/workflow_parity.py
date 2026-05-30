@@ -960,6 +960,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
                 "--disable-warnings",
                 "-o",
                 "addopts=",
+                "--import-mode=importlib",
                 "src/agilab/core/test",
             ],
             timeout_seconds=20 * 60,

@@ -114,6 +114,14 @@ agilab
   - Renders reviewable ``agi-core`` calls and snippets from UI state so users can
     understand the runtime path and reuse it outside the Streamlit session.
 
+- **App-owned multi-UI surfaces:**
+
+  - Apps can declare named UI surfaces in ``app_settings.toml`` while keeping
+    the runtime, artifacts, and evidence contract inside the app package. Use
+    ``agilab app surface <project> --list`` to inspect the available backends
+    and ``agilab app surface <project> --ui <backend>`` to open one. This keeps
+    Streamlit useful without making the app contract depend on Streamlit.
+
 - **Multi-provider coding assistant:**
 
   - Integrates with OpenAI, Mistral, and OpenAI-compatible endpoints such as vLLM to offer real-time code suggestions across preferred providers.

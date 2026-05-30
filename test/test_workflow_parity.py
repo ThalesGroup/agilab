@@ -201,6 +201,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     combined_cluster_xml = agi_core_combined[2]
     assert combined_run.timeout_seconds == 20 * 60
     assert combined_run.argv[-1] == "src/agilab/core/test"
+    assert "--import-mode=importlib" in combined_run.argv
     assert "--data-file=.coverage.agi-core-combined" in combined_run.argv
     assert "--source=agi_node,agi_cluster" in combined_run.argv
     assert _has_with_dependency(combined_run.argv, "fastparquet")
