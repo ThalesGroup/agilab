@@ -125,10 +125,9 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import reset_scoped_session_state
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
 import agi_gui.pagelib as pagelib
-from agi_gui.pagelib import render_logo
 
 
 def _resolve_active_app() -> Path:
@@ -353,7 +352,11 @@ def _list_subdirectories(base: Path) -> list[str]:
     return []
 
 
-st.title(":world_map: Maps Network Graph")
+render_streamlit_page_header(
+    st,
+    title=":world_map: Maps Network Graph",
+    logo_title="Cartography Visualization",
+)
 
 active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_state(active_app_path)
@@ -377,8 +380,6 @@ if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
 if "GUI_SAMPLING" not in st.session_state:
     st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-render_logo("Cartography Visualization")
-
 # Map imagery token must come from runtime env/secrets, never from source code.
 _mapbox_secret = ""
 try:

@@ -26,6 +26,8 @@ except (ImportError, ModuleNotFoundError, OSError):  # pragma: no cover - packag
 
 
 PAGE_TITLE = "view_demo"
+PAGE_LAYOUT = "wide"
+PAGE_HELP_HTML = "explore-help.html"
 
 
 def _query_param_value(value: object) -> str:
@@ -70,13 +72,17 @@ def _dataset_root(env: Any) -> Path | None:
     return None
 
 
-def main() -> None:
+def _render_page_chrome() -> None:
     st.set_page_config(
         page_title=PAGE_TITLE,
-        layout="wide",
-        menu_items=get_docs_menu_items(html_file="explore-help.html"),
+        layout=PAGE_LAYOUT,
+        menu_items=get_docs_menu_items(html_file=PAGE_HELP_HTML),
     )
     st.title(PAGE_TITLE)
+
+
+def main() -> None:
+    _render_page_chrome()
 
     active_app = _parse_active_app().strip()
     if not active_app:

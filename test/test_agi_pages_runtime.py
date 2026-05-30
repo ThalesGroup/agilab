@@ -127,6 +127,24 @@ def test_agi_pages_runtime_header_can_skip_logo_and_caption() -> None:
     assert events == [("title", "Embedded training analysis")]
 
 
+def test_agi_pages_runtime_header_can_render_logo_without_title() -> None:
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        title=lambda value: events.append(("title", value)),
+        caption=lambda value: events.append(("caption", value)),
+    )
+
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title="3D maps",
+        logo_title="3D Maps",
+        show_title=False,
+        render_logo_fn=lambda *args: events.append(("logo", args)),
+    )
+
+    assert events == [("logo", ("3D Maps",))]
+
+
 def test_agi_pages_runtime_resets_app_scoped_session_state(tmp_path: Path) -> None:
     first_app = tmp_path / "first"
     second_app = tmp_path / "second"

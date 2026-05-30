@@ -193,6 +193,7 @@ def render_streamlit_page_header(
     logo_title: str | None = None,
     caption: str | None = None,
     show_logo: bool = True,
+    show_title: bool = True,
     render_logo_fn: Callable[..., Any] | None = None,
 ) -> None:
     """Render the common AGILAB analysis-page logo, title, and optional caption."""
@@ -206,6 +207,7 @@ def render_streamlit_page_header(
             render_logo_fn()
         else:
             render_logo_fn(logo_title)
-    streamlit.title(title)
+    if show_title:
+        streamlit.title(title)
     if caption:
         streamlit.caption(caption)

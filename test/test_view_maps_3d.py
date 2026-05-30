@@ -695,7 +695,7 @@ def test_view_maps_3d_page_rejects_invalid_datadir(monkeypatch, tmp_path) -> Non
     fake_st.session_state["beamdir"] = tmp_path / "beams"
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
 
     module.page()
 
@@ -735,7 +735,7 @@ def test_view_maps_3d_page_handles_invalid_regex_and_empty_selection(monkeypatch
     outside_file = tmp_path / "outside.csv"
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         module,
         "_list_dataset_files",
@@ -837,7 +837,7 @@ def test_view_maps_3d_page_renders_loaded_datasets_and_geojson_controls(monkeypa
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "pdk", _FakePdk)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         module,
         "_list_dataset_files",
@@ -1020,7 +1020,7 @@ def test_view_maps_3d_page_missing_env_uses_info_fallback(monkeypatch) -> None:
 
     fake_st = _NoPageLinkStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "_bootstrap_env_from_active_app", lambda: False)
 
     with pytest.raises(_StopExecution):

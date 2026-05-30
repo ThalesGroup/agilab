@@ -53,7 +53,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import reset_scoped_session_state
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
 
-st.title(":chart_with_upwards_trend: Barycentric Graph")
+render_streamlit_page_header(st, title=":chart_with_upwards_trend: Barycentric Graph", show_logo=False)
 
 
 PAGE_KEY_PREFIX = "view_barycentric"
