@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-29
+  updated: 2026-05-30
 ---
 
 # Testing Skill (AGILAB)
@@ -75,6 +75,21 @@ Use this skill when validating changes.
   - Reset singleton state and restore class-level mutable state in shared fixtures. In particular,
     tests that stub `AgiEnv.logger` must not leak that stub into later tests that expect the full
     logger API.
+- `agi_env` surface-budget refactors:
+  - When reducing `src/agilab/core/agi-env/src/agi_env/agi_env.py`, keep
+    `test_agi_env_surface_contract.py` as the executable budget and lower the
+    limit only after the refactor lands below it.
+  - Extract behavior into focused support modules, but preserve public
+    monkeypatch seams that tests and callers use, such as module-level
+    `logging`, `_AgiEnvMeta`, singleton class attribute fallback, and
+    `AgiEnv` static/class method dispatch.
+  - Avoid direct hidden imports inside extracted helpers when the original code
+    was monkeypatchable; pass helper functions/modules in from `agi_env.py` or
+    import through the public module seam when compatibility depends on it.
+  - Validate from a clean worktree when the main checkout has unrelated dirty
+    changes. Required evidence is the full `src/agilab/core/agi-env/test`
+    directory, the focused `test_agi_env.py` / surface-contract slice, Ruff on
+    touched modules, and shared-core strict typing.
 - Cluster/share regressions:
   - For live cluster validation, never assume a worker IP from memory or a prior
     run. Run the official no-cache LAN discovery first and use only a fresh
