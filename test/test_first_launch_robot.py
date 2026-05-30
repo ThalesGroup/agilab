@@ -32,7 +32,7 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert report["status"] == "pass", json.dumps(report, indent=2, sort_keys=True)
     assert report["success"] is True
     assert report["within_target"] is True
-    assert report["summary"]["check_count"] == 8
+    assert report["summary"]["check_count"] == 9
     checks = {check["id"]: check for check in report["checks"]}
     assert checks["first_launch_no_exceptions"]["status"] == "pass"
     assert checks["first_launch_env_initialized"]["status"] == "pass"
@@ -214,7 +214,11 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
         markdown = [
             Widget(
                 "AGILAB logo AI/ML reproducibility workbench "
-                f'DEMO / ORCHESTRATE / ANALYSIS <a href="{readme_route}">README</a>'
+                "DEMO / ORCHESTRATE / ANALYSIS "
+                "Choose your next proof Run the built-in proof "
+                "Import the included notebook See AI/ML demos "
+                "Validate engineering evidence Capability Map "
+                f'<a href="{readme_route}">README</a>'
             )
         ]
         caption: list[object] = []
@@ -253,4 +257,4 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "pass"
-    assert payload["summary"]["check_count"] == 8
+    assert payload["summary"]["check_count"] == 9

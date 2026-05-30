@@ -49,6 +49,189 @@ FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
+SHOWCASE_DOC_BASE_URL = "https://thalesgroup.github.io/agilab"
+SHOWCASE_CAPABILITY_MAP_PAGE = "capability-map"
+FIRST_RUN_SHOWCASE_ITEMS = (
+    {
+        "route": "Flight telemetry first proof",
+        "evidence": "run manifest plus map and network evidence",
+        "preview_page": "flight-telemetry-project",
+        "run_page": "ORCHESTRATE",
+        "active_app": "flight_telemetry_project",
+        "run_label": "Run proof",
+    },
+    {
+        "route": "Weather notebook migration",
+        "evidence": "forecast artifacts from a migrated notebook workflow",
+        "preview_page": "notebook-migration-skforecast-meteo",
+        "run_page": "ORCHESTRATE",
+        "active_app": "weather_forecast_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Classic ML pipeline",
+        "evidence": "scikit-learn model, predictions, metrics, and hashes",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "sklearn_pipeline_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Mission decision",
+        "evidence": "scenario scoring, replanning, and decision artifacts",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "mission_decision_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Pandas execution speedup",
+        "evidence": "typed Cython worker runtime evidence",
+        "preview_page": "execution-playground",
+        "run_page": "ORCHESTRATE",
+        "active_app": "execution_pandas_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Polars execution",
+        "evidence": "Polars worker execution evidence for comparison",
+        "preview_page": "execution-playground",
+        "run_page": "ORCHESTRATE",
+        "active_app": "execution_polars_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "PyTorch playground",
+        "evidence": "classifier controls, loss landscape, and artifacts",
+        "preview_page": "public-app-catalog",
+        "run_page": "ANALYSIS",
+        "active_app": "pytorch_playground_project",
+        "run_label": "Open playground",
+    },
+    {
+        "route": "UAV relay queue",
+        "evidence": "relay health, scenario cockpit, and network analysis",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "uav_relay_queue_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "UAV queue policy",
+        "evidence": "queue-policy proof and scenario-cockpit artifacts",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "uav_queue_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Multi-app DAG",
+        "evidence": "cross-app artifact handoff and workflow contract",
+        "preview_page": "public-app-catalog",
+        "run_page": "WORKFLOW",
+        "active_app": "multi_app_dag_project",
+        "run_label": "Open workflow",
+    },
+    {
+        "route": "TeSciA diagnostic",
+        "evidence": "scored diagnostic cases and classroom batch artifacts",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "tescia_diagnostic_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "R runtime bridge",
+        "evidence": "Rscript JSON input/output and manifest hashes",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "r_runtime_bridge_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Excel workbook proof",
+        "evidence": "workbook, CSV outputs, and JSON evidence",
+        "preview_page": "excel-users",
+        "run_label": "Preview script",
+    },
+    {
+        "route": "Voila dashboard proof",
+        "evidence": "hide-code dashboard bridge and app-view evidence",
+        "preview_page": "voila-users",
+        "run_label": "Preview script",
+    },
+    {
+        "route": "MLflow tracking",
+        "evidence": "AGILAB run evidence with optional MLflow handoff",
+        "preview_page": "agilab-mlops-positioning",
+        "run_label": "Preview route",
+    },
+    {
+        "route": "Service and cluster path",
+        "evidence": "service health gates and distributed worker controls",
+        "preview_page": "service-mode",
+        "run_page": "ORCHESTRATE",
+        "active_app": "flight_telemetry_project",
+        "run_label": "Open controls",
+    },
+    {
+        "route": "Local/offline LLM",
+        "evidence": "assistant-provider setup for local model experiments",
+        "preview_page": "quick-start",
+        "run_label": "Open setup",
+    },
+)
+FIRST_RUN_SHOWCASE_GROUPS = (
+    {
+        "id": "built_in",
+        "label": "Run the built-in proof",
+        "summary": (
+            "Fastest confidence check: run the bundled flight-telemetry project locally, "
+            "then inspect the manifest and map evidence."
+        ),
+        "routes": ("Flight telemetry first proof",),
+    },
+    {
+        "id": "notebook",
+        "label": "Import the included notebook",
+        "summary": (
+            "Prove the notebook-to-app path first: use the included notebook lane above, "
+            "then run the generated `flight_telemetry_from_notebook_project`."
+        ),
+        "routes": ("Weather notebook migration",),
+    },
+    {
+        "id": "ai_ml",
+        "label": "See AI/ML demos",
+        "summary": (
+            "Explore model-facing demos after the first proof, without turning the about "
+            "page into a full catalog."
+        ),
+        "routes": (
+            "Classic ML pipeline",
+            "PyTorch playground",
+            "Weather notebook migration",
+            "Local/offline LLM",
+        ),
+    },
+    {
+        "id": "evidence",
+        "label": "Validate engineering evidence",
+        "summary": (
+            "Use these routes when the question is runtime evidence, workflow handoff, "
+            "or adoption readiness rather than first-run onboarding."
+        ),
+        "routes": (
+            "Pandas execution speedup",
+            "Polars execution",
+            "Mission decision",
+            "Multi-app DAG",
+            "UAV relay queue",
+            "TeSciA diagnostic",
+            "MLflow tracking",
+        ),
+    },
+)
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
     / "apps-pages"
@@ -261,6 +444,126 @@ def _first_proof_page_url(page_name: str, query_params: Dict[str, str] | None = 
     query = urlencode(query_params or {})
     suffix = f"?{query}" if query else ""
     return f"/{page_name}{suffix}"
+
+
+def _showcase_docs_url(page_name: str) -> str:
+    """Return the public documentation URL for a first-run showcase route."""
+    return f"{SHOWCASE_DOC_BASE_URL}/{page_name}.html"
+
+
+def _first_run_showcase_items() -> List[Dict[str, str]]:
+    """Return visible first-run routes with preview and progressive run links."""
+    items: List[Dict[str, str]] = []
+    for item in FIRST_RUN_SHOWCASE_ITEMS:
+        route = str(item["route"])
+        preview_url = _showcase_docs_url(str(item["preview_page"]))
+        access_parts = [f"[Preview]({preview_url})"]
+        run_page = str(item.get("run_page") or "").strip()
+        active_app = str(item.get("active_app") or "").strip()
+        if run_page and active_app:
+            run_url = _first_proof_page_url(run_page, {"active_app": active_app})
+            access_parts.append(f"[{item['run_label']}]({run_url})")
+        else:
+            access_parts.append(f"[{item['run_label']}]({preview_url})")
+        items.append(
+            {
+                "route": route,
+                "evidence": str(item["evidence"]),
+                "access": " / ".join(access_parts),
+            }
+        )
+    return items
+
+
+def _first_run_choice_groups() -> List[Dict[str, Any]]:
+    """Return first-run showcase routes grouped by newcomer intent."""
+    by_route = {item["route"]: item for item in _first_run_showcase_items()}
+    groups: List[Dict[str, Any]] = []
+    for group in FIRST_RUN_SHOWCASE_GROUPS:
+        group_items = [
+            by_route[route]
+            for route in group["routes"]
+            if route in by_route
+        ]
+        groups.append(
+            {
+                "id": str(group["id"]),
+                "label": str(group["label"]),
+                "summary": str(group["summary"]),
+                "items": group_items,
+            }
+        )
+    return groups
+
+
+def _first_run_choice_markdown(group: Dict[str, Any]) -> str:
+    """Render one first-run choice without exposing the full catalog at once."""
+    lines = [
+        f"**{group['label']}**",
+        str(group["summary"]),
+        "",
+    ]
+    for item in group["items"]:
+        lines.append(
+            f"- **{item['route']}**: {item['evidence']}. {item['access']}."
+        )
+    lines.extend(
+        [
+            "",
+            (
+                "[Open the full Capability Map]"
+                f"({_showcase_docs_url(SHOWCASE_CAPABILITY_MAP_PAGE)}) "
+                "when you want the complete route catalog."
+            ),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _first_run_choice_widget(groups: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Render a compact choice widget and return the selected group."""
+    labels = [str(group["label"]) for group in groups]
+    default_label = labels[0]
+    key = "first_run_showcase_choice"
+    label = "What do you want to prove first?"
+    segmented_control = getattr(st, "segmented_control", None)
+    if callable(segmented_control):
+        selected_label = segmented_control(
+            label,
+            labels,
+            default=default_label,
+            key=key,
+        )
+    else:
+        radio = getattr(st, "radio", None)
+        if callable(radio):
+            selected_label = radio(
+                label,
+                labels,
+                index=0,
+                key=key,
+                horizontal=True,
+            )
+        else:
+            selected_label = st.selectbox(label, labels, index=0, key=key)
+
+    selected_label = str(selected_label or default_label)
+    return next(
+        (group for group in groups if group["label"] == selected_label),
+        groups[0],
+    )
+
+
+def _render_first_run_showcase() -> None:
+    """Render a guided showcase without dumping the full catalog on first launch."""
+    groups = _first_run_choice_groups()
+    st.markdown("**Choose your next proof**")
+    st.caption(
+        "What do you want to prove first? "
+        + " | ".join(str(group["label"]) for group in groups)
+        + ". Full route list: Capability Map."
+    )
+    st.markdown(_first_run_choice_markdown(_first_run_choice_widget(groups)))
 
 
 def _first_proof_analysis_view_maps_url() -> str:
@@ -652,6 +955,8 @@ def _render_first_proof_wizard_actions(
         st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
         st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
         st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
+
+    _render_first_run_showcase()
 
 
 def _render_first_proof_next_action(

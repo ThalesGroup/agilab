@@ -231,6 +231,23 @@ def build_report(
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
+            "first_launch_showcase_signal",
+            "First launch exposes guided proof chooser",
+            all(
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in (
+                    "Choose your next proof",
+                    "Run the built-in proof",
+                    "Import the included notebook",
+                    "See AI/ML demos",
+                    "Validate engineering evidence",
+                    "Capability Map",
+                )
+            ),
+            "Landing page exposes a guided route chooser without dumping the full catalog",
+            evidence=[str(about_page.relative_to(REPO_ROOT))],
+        ),
+        _check_result(
             "first_launch_workflow_signal",
             "First launch exposes workflow path",
             _contains_any(
