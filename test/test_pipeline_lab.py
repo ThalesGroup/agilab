@@ -1150,6 +1150,121 @@ def test_global_runner_panel_project_stages_dispatch_is_preview_only(monkeypatch
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_global_runner_panel_empty_project_stage_and_error_branches(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_PROJECT,
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_stages=[],
+        stages_file=tmp_path / "lab_stages.toml",
+    )
+
+    assert ("info", "No project stages are recorded yet.") in fake_st.messages
+
+    error_st = _FakeStreamlit(
+        {
+            "demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_PROJECT,
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", error_st)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_load_or_create_pipeline_stages_runner_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("stage preview failed")),
+    )
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_stages=[
+            {
+                "D": "Load",
+                "Q": "Load data",
+                "M": "gpt-test",
+                "C": "print('load')",
+                "E": "",
+                "R": "",
+            }
+        ],
+        stages_file=tmp_path / "lab_stages.toml",
+    )
+
+    assert ("error", "Project stages DAG preview is unavailable.") in error_st.messages
+    assert ("caption", "Full diagnostic") in error_st.messages
+    assert ("code", "stage preview failed") in error_st.messages
+
+
+def test_global_runner_panel_editor_warning_and_failure_branches(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    selected = "broken.json"
+    token = pipeline_lab._multi_app_dag_source_token(selected)
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM,
+            "demo_global_runner_dag_path": selected,
+            f"demo_global_runner_dag_id_{token}": "draft",
+            f"demo_global_runner_label_{token}": "Draft",
+            f"demo_global_runner_description_{token}": "Draft plan.",
+        },
+        buttons={
+            "demo_global_runner_validate": True,
+            "demo_global_runner_save_draft": True,
+            "demo_global_runner_save_app_template": True,
+        },
+        checkboxes={
+            f"demo_global_runner_edit_contract_{token}": True,
+            f"demo_global_runner_controlled_contract_{token}": True,
+            "demo_global_runner_show_json_preview": True,
+        },
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_multi_app_dag", lambda: repo_root)
+    monkeypatch.setattr(pipeline_lab, "app_dag_template_paths", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_sample_options", lambda _root: [])
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_workspace_options", lambda _root, _lab_dir: [])
+    monkeypatch.setattr(pipeline_lab, "_load_multi_app_dag_payload", lambda _path: ({}, "Plan JSON is broken."))
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_stage_options", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_validation_error", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(pipeline_lab, "_save_multi_app_dag_draft", lambda *_args, **_kwargs: (None, "draft denied"))
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_save_multi_app_dag_app_template",
+        lambda *_args, **_kwargs: (None, "template denied"),
+    )
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_load_or_create_global_runner_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("preview denied")),
+    )
+    env = SimpleNamespace(app="alpha_project", target="alpha_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path / "lab", "demo")
+
+    assert ("warning", "Plan JSON is broken.") in fake_st.messages
+    assert ("warning", "Select at least two steps to create a valid multi-app plan.") in fake_st.messages
+    assert ("warning", "Select at least one output before adding step inputs.") in fake_st.messages
+    assert ("warning", "Select at least one step input to create a cross-app plan.") in fake_st.messages
+    assert ("caption", "Read-only workflow file generated from the fields above.") in fake_st.messages
+    assert ("success", "Plan draft is valid.") in fake_st.messages
+    assert ("error", "Plan draft was not saved.") in fake_st.messages
+    assert ("code", "draft denied") in fake_st.messages
+    assert ("error", "App workflow template was not saved.") in fake_st.messages
+    assert ("code", "template denied") in fake_st.messages
+    assert ("error", "Multi-app DAG preview is unavailable.") in fake_st.messages
+    assert ("code", "preview denied") in fake_st.messages
+
+
 def test_pipeline_stages_runner_state_syncs_completed_stages_from_run_logs(tmp_path):
     stages = [
         {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},

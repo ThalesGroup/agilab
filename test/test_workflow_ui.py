@@ -634,16 +634,21 @@ def test_workflow_ui_project_context_remaining_edges(monkeypatch, tmp_path) -> N
         link_button = None
 
     fallback_st = _NoLinkButtonStreamlit()
-    workflow_ui.render_next_action(
-        fallback_st,
-        env=SimpleNamespace(app="demo_project"),
-        key_prefix="demo",
-        action={
+    monkeypatch.setattr(
+        workflow_ui,
+        "project_next_action",
+        lambda _env: {
             "id": "analysis",
             "label": "Review evidence",
+            "detail": "Open analysis.",
             "url": "/ANALYSIS",
             "type": "primary",
         },
+    )
+    workflow_ui.render_next_best_action(
+        fallback_st,
+        env=SimpleNamespace(app="demo_project"),
+        key_prefix="demo",
     )
     assert ("markdown", "[Review evidence](/ANALYSIS)") in fallback_st.events
 
