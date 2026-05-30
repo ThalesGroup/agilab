@@ -613,6 +613,15 @@ def test_skills_shortcut_syncs_then_validates_and_generates():
         ["python3", "tools/generate_skill_badges.py"],
         [
             "python3",
+            "tools/agent_skill_quality_guard.py",
+            "--roots",
+            ".claude/skills",
+            ".codex/skills",
+            "--fail-on",
+            "high",
+        ],
+        [
+            "python3",
             "tools/skill_security_scan.py",
             "--roots",
             ".claude/skills",

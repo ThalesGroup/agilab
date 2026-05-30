@@ -162,6 +162,15 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
             ["python3", "tools/agent_skill_catalog.py", "--apply"],
             ["python3", "tools/generate_skill_badges.py"],
+            [
+                "python3",
+                "tools/agent_skill_quality_guard.py",
+                "--roots",
+                ".claude/skills",
+                ".codex/skills",
+                "--fail-on",
+                "high",
+            ],
             ["python3", "tools/skill_security_scan.py", "--roots", ".claude/skills", ".codex/skills", "--fail-on", "critical"],
         ]
 
@@ -213,7 +222,7 @@ High-frequency mappings:
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
   scope     -> Group dirty tracked and untracked files by review scope and fail when unrelated scopes are mixed.
   task-worktree -> Create a clean sibling git worktree for an isolated task branch.
-  skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
+  skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill quality/security risk.
 """
 
 

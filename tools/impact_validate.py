@@ -967,13 +967,14 @@ def _analyze_paths_uncached(paths: list[str], test_index: TestIndex) -> ImpactRe
                 "python3 tools/codex_skills.py --root .codex/skills generate",
                 "python3 tools/agent_skill_catalog.py --apply",
                 "python3 tools/generate_skill_badges.py",
+                "python3 tools/agent_skill_quality_guard.py --roots .claude/skills .codex/skills --fail-on high",
                 "python3 tools/skill_security_scan.py --roots .claude/skills .codex/skills --fail-on critical",
             ]
         )
         artifacts.append(
             Action(
                 key="skill-sync",
-                summary="Sync the touched shared skills into the repo Codex mirror, rebuild the index/catalog/badges, and scan skill risk.",
+                summary="Sync the touched shared skills into the repo Codex mirror, rebuild the index/catalog/badges, and scan skill quality/security risk.",
                 commands=commands,
             )
         )

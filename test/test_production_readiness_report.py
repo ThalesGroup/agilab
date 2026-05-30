@@ -42,6 +42,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
         "security_disclosure_hardening",
         "security_adoption_strict_gate",
         "profile_supply_chain_scan_gate",
+        "shared_team_go_gate",
         "public_ui_bind_guard",
         "cluster_share_fail_fast",
         "production_boundary_docs",
@@ -57,6 +58,7 @@ def test_build_report_includes_shared_adoption_hardening_controls() -> None:
     for check_id in {
         "security_adoption_strict_gate",
         "profile_supply_chain_scan_gate",
+        "shared_team_go_gate",
         "public_ui_bind_guard",
         "cluster_share_fail_fast",
         "controlled_pilot_readiness_gate",
@@ -68,6 +70,23 @@ def test_build_report_includes_shared_adoption_hardening_controls() -> None:
         assert check["evidence"]
         if "missing" in check["details"]:
             assert check["details"]["missing"] == {}
+
+
+def test_shared_team_go_gate_is_machine_checkable_and_documented() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(check for check in report["checks"] if check["id"] == "shared_team_go_gate")
+
+    assert check["status"] == "pass"
+    assert "machine-checkable go/no-go gate" in check["summary"]
+    assert check["details"]["missing"] == {}
+    assert set(check["evidence"]) == {
+        "tools/shared_go_gate.py",
+        "test/test_shared_go_gate.py",
+        "tools/workflow_parity.py",
+        "docs/source/trusted-shared-deployment.rst",
+    }
 
 
 def test_controlled_pilot_readiness_gate_supports_score_movement() -> None:

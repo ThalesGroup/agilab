@@ -643,6 +643,49 @@ def _check_profile_supply_chain_gate(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_shared_team_go_gate(repo_root: Path) -> dict[str, Any]:
+    required = {
+        "tools/shared_go_gate.py": [
+            'SCHEMA = "agilab.shared_go_gate.v1"',
+            "decision = \"go\" if not failed else \"blocked\"",
+            "clean strict security-check plus fresh profile-specific SBOM and pip-audit evidence",
+            "--strict",
+        ],
+        "test/test_shared_go_gate.py": [
+            "test_shared_go_gate_passes_with_clean_security_and_fresh_profile_artifacts",
+            "test_shared_go_gate_blocks_missing_supply_chain_and_strict_cli_returns_nonzero",
+            "shared_go_gate.build_gate",
+        ],
+        "tools/workflow_parity.py": [
+            "security-adoption",
+            "shared-use go gate artifact",
+            "tools/shared_go_gate.py",
+            "test-results/shared_go_gate.json",
+        ],
+        "docs/source/trusted-shared-deployment.rst": [
+            "tools/shared_go_gate.py",
+            "shared_go_gate.json",
+            "The gate decision is ``go`` only when",
+            "does not turn AGILAB into a multi-tenant production MLOps control",
+        ],
+    }
+    missing = _missing_required_tokens(repo_root, required)
+    ok = not missing
+    summary = (
+        "shared/team use has a machine-checkable go/no-go gate from strict security and supply-chain evidence"
+        if ok
+        else "shared/team go/no-go gate evidence is incomplete"
+    )
+    return _check_result(
+        "shared_team_go_gate",
+        "Shared/team go/no-go gate",
+        ok,
+        summary,
+        evidence=list(required),
+        details={"missing": missing},
+    )
+
+
 def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
     required = {
         "src/agilab/ui_public_bind_guard.py": [
@@ -792,6 +835,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
         _check_security_policy(repo_root),
         _check_security_adoption_gate(repo_root),
         _check_profile_supply_chain_gate(repo_root),
+        _check_shared_team_go_gate(repo_root),
         _check_public_ui_bind_guard(repo_root),
         _check_cluster_share_fail_fast(repo_root),
         _check_production_boundary_docs(repo_root),

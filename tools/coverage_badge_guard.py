@@ -175,7 +175,7 @@ def _is_gui_coverage_path(path: str) -> bool:
         return True
     if path.startswith("test/"):
         return True
-    return path == ".coveragerc.agi-gui"
+    return path in {".coveragerc.agi-gui", "tools/coverage_shard_plan.py"}
 
 
 def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:

@@ -25,6 +25,7 @@ def test_changed_coverage_components_maps_gui_and_root_tests() -> None:
         [
             "src/agilab/orchestrate_execute.py",
             "test/test_orchestrate_execute.py",
+            "tools/coverage_shard_plan.py",
         ]
     )
 
@@ -32,6 +33,7 @@ def test_changed_coverage_components_maps_gui_and_root_tests() -> None:
         "agi-gui": [
             "src/agilab/orchestrate_execute.py",
             "test/test_orchestrate_execute.py",
+            "tools/coverage_shard_plan.py",
         ]
     }
 
