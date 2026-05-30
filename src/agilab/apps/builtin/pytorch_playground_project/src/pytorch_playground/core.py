@@ -42,6 +42,7 @@ FEATURES = (
 DEFAULT_FEATURES = ("x1", "x2", "x1_squared", "x2_squared", "x1_x2")
 ACTIVATIONS = ("tanh", "relu", "sigmoid", "identity")
 OPTIMIZERS = ("Adam", "SGD")
+REGULARIZATIONS = ("None", "L1", "L2")
 CONFIG_SCHEMA = "agilab.pytorch_playground_config.v1"
 EVIDENCE_SCHEMA = "agilab.pytorch_playground_evidence.v1"
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
@@ -79,6 +80,8 @@ class PlaygroundConfig:
     hidden_layers: tuple[int, ...] = (8, 8)
     activation: str = "tanh"
     optimizer: str = "Adam"
+    regularization: str = "None"
+    regularization_rate: float = 0.0
     learning_rate: float = 0.03
     epochs: int = 80
     batch_size: int = 32
@@ -234,6 +237,7 @@ def _config_from_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
     dataset = str(raw_config.get("dataset", default.dataset))
     activation = str(raw_config.get("activation", default.activation))
     optimizer = str(raw_config.get("optimizer", default.optimizer))
+    regularization = str(raw_config.get("regularization", default.regularization))
     return PlaygroundConfig(
         dataset=dataset if dataset in DATASETS else default.dataset,
         sample_count=_bounded_int(raw_config.get("sample_count"), default=default.sample_count, minimum=64, maximum=1000),
@@ -242,6 +246,13 @@ def _config_from_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
         hidden_layers=_coerce_hidden_layers(raw_config.get("hidden_layers"), default.hidden_layers),
         activation=activation if activation in ACTIVATIONS else default.activation,
         optimizer=optimizer if optimizer in OPTIMIZERS else default.optimizer,
+        regularization=regularization if regularization in REGULARIZATIONS else default.regularization,
+        regularization_rate=_bounded_float(
+            raw_config.get("regularization_rate"),
+            default=default.regularization_rate,
+            minimum=0.0,
+            maximum=1.0,
+        ),
         learning_rate=_bounded_float(raw_config.get("learning_rate"), default=default.learning_rate, minimum=0.001, maximum=0.2),
         epochs=_bounded_int(raw_config.get("epochs"), default=default.epochs, minimum=10, maximum=300),
         batch_size=_bounded_int(raw_config.get("batch_size"), default=default.batch_size, minimum=8, maximum=256),
@@ -477,6 +488,10 @@ def _empty_loss_landscape() -> pd.DataFrame:
     )
 
 
+def _empty_boundary_snapshots() -> pd.DataFrame:
+    return pd.DataFrame(columns=["epoch", "x1", "x2", "probability"])
+
+
 def _array_stats(values: np.ndarray) -> dict[str, float]:
     flattened = np.asarray(values, dtype=float).ravel()
     if flattened.size == 0:
@@ -609,7 +624,7 @@ def _classification_metrics(model, loss_fn, x_values, y_values) -> dict[str, flo
     return {"loss": float(loss), "accuracy": float(accuracy)}
 
 
-def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tuple[Any, Any, pd.DataFrame]:
+def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tuple[Any, Any, pd.DataFrame, list[tuple[int, Any]]]:
     features = training_data["features"]
     x_train = training_data["x_train"]
     y_train = training_data["y_train"]
@@ -617,17 +632,21 @@ def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tu
     y_validation = training_data["y_validation"]
     model = _build_model(features.shape[1], config)
     loss_fn = nn.CrossEntropyLoss()
+    weight_decay = config.regularization_rate if config.regularization == "L2" else 0.0
     if config.optimizer == "SGD":
-        optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+        optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
 
     history_rows: list[dict[str, float | int]] = []
+    snapshot_states: list[tuple[int, Any]] = []
     epochs = max(1, int(config.epochs))
     batch_size = max(4, min(int(config.batch_size), len(x_train)))
     log_every = max(1, epochs // 40)
+    snapshot_epochs = _boundary_snapshot_epochs(epochs)
 
     _append_history_row(history_rows, model, loss_fn, x_train, y_train, x_validation, y_validation, 0)
+    snapshot_states.append((0, _model_state_vector(model).clone()))
     for epoch in range(1, epochs + 1):
         model.train()
         batch_order = torch.randperm(len(x_train))
@@ -636,13 +655,18 @@ def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tu
             optimizer.zero_grad()
             batch_logits = model(x_train[batch_indices])
             batch_loss = loss_fn(batch_logits, y_train[batch_indices])
+            if config.regularization == "L1" and config.regularization_rate > 0.0:
+                l1_penalty = sum(parameter.abs().sum() for parameter in model.parameters())
+                batch_loss = batch_loss + config.regularization_rate * l1_penalty
             batch_loss.backward()
             optimizer.step()
 
         if epoch == epochs or epoch % log_every == 0:
             _append_history_row(history_rows, model, loss_fn, x_train, y_train, x_validation, y_validation, epoch)
+        if epoch in snapshot_epochs:
+            snapshot_states.append((epoch, _model_state_vector(model).clone()))
 
-    return model, loss_fn, pd.DataFrame(history_rows)
+    return model, loss_fn, pd.DataFrame(history_rows), snapshot_states
 
 
 def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
@@ -654,6 +678,7 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
             "samples": samples,
             "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
             "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+            "boundary_snapshots": _empty_boundary_snapshots(),
             "network_layers": _empty_network_layers(),
             "activation_maps": _empty_activation_maps(),
             "summary": {
@@ -669,8 +694,9 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
     features = training_data["features"]
     mean = training_data["mean"]
     std = training_data["std"]
-    model, _loss_fn, history = _fit_model(config, training_data)
+    model, _loss_fn, history, snapshot_states = _fit_model(config, training_data)
     grid = _decision_grid(model, config, mean, std)
+    boundary_snapshots = _boundary_snapshots(model, config, mean, std, snapshot_states)
     network_layers = _network_layers(model)
     activation_maps = _hidden_activation_maps(model, config, mean, std)
     final = history.iloc[-1].to_dict() if not history.empty else {}
@@ -680,6 +706,7 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
         "samples": samples,
         "history": history,
         "grid": grid,
+        "boundary_snapshots": boundary_snapshots,
         "network_layers": network_layers,
         "activation_maps": activation_maps,
         "summary": {
@@ -687,6 +714,8 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
             "samples": int(len(samples)),
             "features": int(features.shape[1]),
             "hidden_layers": list(config.hidden_layers),
+            "regularization": config.regularization,
+            "regularization_rate": float(config.regularization_rate),
             "train_accuracy": float(final.get("train_accuracy", 0.0)),
             "validation_accuracy": float(final.get("validation_accuracy", 0.0)),
             "validation_loss": float(final.get("validation_loss", 0.0)),
@@ -728,6 +757,38 @@ def _decision_grid(model, config: PlaygroundConfig, mean: np.ndarray, std: np.nd
         probabilities = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
     grid_points["probability"] = probabilities.astype(float)
     return grid_points
+
+
+def _boundary_snapshot_epochs(epochs: int) -> set[int]:
+    bounded = max(1, int(epochs))
+    candidates = {0, bounded}
+    for fraction in (0.10, 0.25, 0.50, 0.75):
+        candidates.add(max(1, int(round(bounded * fraction))))
+    return candidates
+
+
+def _boundary_snapshots(
+    model,
+    config: PlaygroundConfig,
+    mean: np.ndarray,
+    std: np.ndarray,
+    snapshot_states: list[tuple[int, Any]],
+) -> pd.DataFrame:
+    if not snapshot_states:
+        return _empty_boundary_snapshots()
+    final_state = _model_state_vector(model).clone()
+    frames: list[pd.DataFrame] = []
+    try:
+        for epoch, state in snapshot_states:
+            _assign_model_state_vector(model, state)
+            frame = _decision_grid(model, config, mean, std)
+            frame.insert(0, "epoch", int(epoch))
+            frames.append(frame)
+    finally:
+        _assign_model_state_vector(model, final_state)
+    if not frames:
+        return _empty_boundary_snapshots()
+    return pd.concat(frames, ignore_index=True)
 
 
 def _model_state_vector(model):
@@ -797,7 +858,7 @@ def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: flo
 
     torch.manual_seed(config.seed)
     training_data = _prepare_training_data(config)
-    model, loss_fn, _history = _fit_model(config, training_data)
+    model, loss_fn, _history, _snapshot_states = _fit_model(config, training_data)
     center = _model_state_vector(model)
     first_direction, second_direction = _landscape_directions(center, config.seed)
     resolution = _normalized_landscape_resolution(resolution)
@@ -878,6 +939,7 @@ def _evidence_artifact_files(config: PlaygroundConfig, result: Mapping[str, Any]
     samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
     history = _result_frame(result, "history", pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]))
     grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    boundary_snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
     network_layers = _result_frame(result, "network_layers", _empty_network_layers())
     activation_maps = _result_frame(result, "activation_maps", _empty_activation_maps())
     loss_landscape = _result_frame(result, "loss_landscape", _empty_loss_landscape())
@@ -886,6 +948,7 @@ def _evidence_artifact_files(config: PlaygroundConfig, result: Mapping[str, Any]
         "data/samples.csv": _dataframe_csv_bytes(samples),
         "data/training_history.csv": _dataframe_csv_bytes(history),
         "data/decision_grid.csv": _dataframe_csv_bytes(grid),
+        "data/boundary_snapshots.csv": _dataframe_csv_bytes(boundary_snapshots),
         "model/network_layers.csv": _dataframe_csv_bytes(network_layers),
         "model/hidden_activation_maps.csv": _dataframe_csv_bytes(activation_maps),
         "model/loss_landscape.csv": _dataframe_csv_bytes(loss_landscape),
@@ -904,6 +967,7 @@ def _build_evidence_manifest(config: PlaygroundConfig, result: Mapping[str, Any]
     samples = _result_frame(result, "samples", pd.DataFrame())
     history = _result_frame(result, "history", pd.DataFrame())
     grid = _result_frame(result, "grid", pd.DataFrame())
+    boundary_snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
     network_layers = _result_frame(result, "network_layers", _empty_network_layers())
     activation_maps = _result_frame(result, "activation_maps", _empty_activation_maps())
     loss_landscape = _result_frame(result, "loss_landscape", _empty_loss_landscape())
@@ -920,6 +984,7 @@ def _build_evidence_manifest(config: PlaygroundConfig, result: Mapping[str, Any]
             "samples": int(len(samples)),
             "training_history": int(len(history)),
             "decision_grid": int(len(grid)),
+            "boundary_snapshots": int(len(boundary_snapshots)),
             "network_layers": int(len(network_layers)),
             "hidden_activation_maps": int(len(activation_maps)),
             "loss_landscape": int(len(loss_landscape)),
@@ -943,4 +1008,3 @@ def _build_evidence_pack(config: PlaygroundConfig, result: Mapping[str, Any]) ->
     files = _evidence_artifact_files(config, result)
     files["manifest.json"] = _json_bytes(_build_evidence_manifest(config, result))
     return _deterministic_zip_bytes(files)
-

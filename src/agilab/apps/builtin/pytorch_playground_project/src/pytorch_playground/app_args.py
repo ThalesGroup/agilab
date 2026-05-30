@@ -12,6 +12,7 @@ from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_mod
 DatasetName = Literal["circles", "xor", "spiral", "gaussian"]
 ActivationName = Literal["tanh", "relu", "sigmoid", "identity"]
 OptimizerName = Literal["Adam", "SGD"]
+RegularizationName = Literal["None", "L1", "L2"]
 
 DEFAULT_FEATURE_NAMES = "x1,x2,x1_squared,x2_squared,x1_x2"
 
@@ -29,6 +30,8 @@ class PytorchPlaygroundArgs(BaseModel):
     hidden_layers: str = "12,12"
     activation: ActivationName = "tanh"
     optimizer: OptimizerName = "Adam"
+    regularization: RegularizationName = "None"
+    regularization_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     learning_rate: float = Field(default=0.035, ge=0.001, le=0.2)
     epochs: int = Field(default=90, ge=10, le=300)
     batch_size: int = Field(default=32, ge=8, le=256)
@@ -60,6 +63,8 @@ class PytorchPlaygroundArgsTD(TypedDict, total=False):
     hidden_layers: str
     activation: str
     optimizer: str
+    regularization: str
+    regularization_rate: float
     learning_rate: float
     epochs: int
     batch_size: int
@@ -112,6 +117,8 @@ def to_playground_config(args: PytorchPlaygroundArgs):
         hidden_layers=_parse_hidden_layers(args.hidden_layers),
         activation=args.activation,
         optimizer=args.optimizer,
+        regularization=args.regularization,
+        regularization_rate=args.regularization_rate,
         learning_rate=args.learning_rate,
         epochs=args.epochs,
         batch_size=args.batch_size,

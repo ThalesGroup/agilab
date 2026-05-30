@@ -161,6 +161,16 @@ APP_PACKAGE_README_REQUIRED_SECTIONS = (
     "## Change One Thing",
     "## Scope",
 )
+BUILTIN_APP_README_REQUIRED_SECTIONS = (
+    "## Purpose",
+    "## What You Learn",
+    "## Run In AGILAB",
+    "## Expected Inputs",
+    "## Expected Outputs",
+    "## Change One Thing",
+    "## Troubleshooting",
+    "## Scope",
+)
 
 
 def _expected_script_paths() -> list[Path]:
@@ -311,6 +321,16 @@ def test_packaged_apps_include_required_project_assets() -> None:
                 missing.append(candidate.relative_to(ROOT).as_posix())
 
     assert not missing, "Missing packaged app project assets:\n" + "\n".join(missing)
+
+
+def test_builtin_app_readmes_explain_first_run_and_adaptation() -> None:
+    for app_dir in _builtin_app_dirs():
+        readme = app_dir / "README.md"
+        text = readme.read_text(encoding="utf-8")
+        assert len(text.split()) >= 180, app_dir.name
+        for section in BUILTIN_APP_README_REQUIRED_SECTIONS:
+            assert section in text, f"{app_dir.name}: missing {section}"
+        assert app_dir.name in text
 
 
 def test_app_template_python_files_compile_safe() -> None:

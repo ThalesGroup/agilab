@@ -732,106 +732,6 @@ def test_page_bootstrap_ensure_page_env_delegates_cold_start(tmp_path):
     assert events == ["main", "rerun"]
 
 
-def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path):
-    events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace(
-        set_page_config=lambda **kwargs: events.append(("config", kwargs))
-    )
-
-    def fake_docs_menu_items(*, html_file: str):
-        events.append(("docs", html_file))
-        return {"Get help": html_file}
-
-    def fake_inject_theme(resources_path):
-        events.append(("theme", resources_path))
-
-    page_bootstrap.configure_page_chrome(
-        fake_st,
-        page_label="ANALYSIS",
-        docs_html_file="explore-help.html",
-        resources_path=tmp_path,
-        get_docs_menu_items=fake_docs_menu_items,
-        inject_theme=fake_inject_theme,
-    )
-
-    assert events == [
-        ("docs", "explore-help.html"),
-        (
-            "config",
-            {
-                "page_title": "AGILab ANALYSIS",
-                "layout": "wide",
-                "menu_items": {"Get help": "explore-help.html"},
-            },
-        ),
-        ("theme", tmp_path),
-    ]
-
-
-def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
-    events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace()
-    env = SimpleNamespace(app="demo")
-
-    page_bootstrap.render_page_header(
-        fake_st,
-        page_label="PROJECT",
-        env=env,
-        render_logo=lambda: events.append(("logo", None)),
-        render_pinned_expanders=lambda streamlit: events.append(
-            ("pinned", streamlit is fake_st)
-        ),
-        render_page_context=lambda streamlit, **kwargs: events.append(
-            ("context", (streamlit is fake_st, kwargs))
-        ),
-    )
-
-    assert events == [
-        ("logo", None),
-        ("pinned", True),
-        ("context", (True, {"page_label": "PROJECT", "env": env})),
-    ]
-
-
-def test_page_bootstrap_render_page_chrome_uses_env_resources():
-    events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace(
-        set_page_config=lambda **kwargs: events.append(("config", kwargs))
-    )
-    env = SimpleNamespace(st_resources="/resources")
-
-    page_bootstrap.render_page_chrome(
-        fake_st,
-        env=env,
-        page_label="WORKFLOW",
-        docs_html_file="experiment-help.html",
-        get_docs_menu_items=lambda *, html_file: {"Get help": html_file},
-        inject_theme=lambda resources_path: events.append(("theme", resources_path)),
-        render_logo=lambda: events.append(("logo", None)),
-        render_pinned_expanders=lambda streamlit: events.append(
-            ("pinned", streamlit is fake_st)
-        ),
-        render_page_context=lambda streamlit, **kwargs: events.append(
-            ("context", (streamlit is fake_st, kwargs))
-        ),
-    )
-
-    assert events == [
-        (
-            "config",
-            {
-                "page_title": "AGILab WORKFLOW",
-                "layout": "wide",
-                "menu_items": {"Get help": "experiment-help.html"},
-            },
-        ),
-        ("theme", "/resources"),
-        ("logo", None),
-        ("pinned", True),
-        ("context", (True, {"page_label": "WORKFLOW", "env": env})),
-    ]
-
-
 def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(
     tmp_path, monkeypatch
 ):
@@ -5177,10 +5077,10 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         "expander",
         "If it fails / proof details:False",
     )
-    showcase = _event_index(
+    chooser = _event_index(
         fake_st.events,
         "markdown",
-        "**Explore more proof routes**",
+        "**Choose your next proof**",
     )
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
@@ -5188,7 +5088,6 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
         "Create from included notebook:False",
         "Notebook to validated app: full proof:False",
-        "Show 12 more routes:False",
         "If it fails / proof details:False",
     ]
     assert not any(
@@ -5202,20 +5101,20 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[1]
     assert "Download pipeline notebook" in pre_detail_markdown[1]
     assert "lab_stages.ipynb" in pre_detail_markdown[1]
-    assert pre_detail_markdown[2] == "**Explore more proof routes**"
+    assert pre_detail_markdown[2] == "**Choose your next proof**"
+    assert "**Run the built-in proof**" in pre_detail_markdown[3]
     assert "Flight telemetry first proof" in pre_detail_markdown[3]
-    assert "Weather notebook migration" in pre_detail_markdown[4]
-    assert "Classic ML pipeline" in pre_detail_markdown[5]
-    assert "Mission decision" in pre_detail_markdown[6]
-    assert "Pandas execution speedup" in pre_detail_markdown[7]
-    assert "| Route | Evidence signal | Access |" in pre_detail_markdown[8]
-    assert "Polars execution" in pre_detail_markdown[8]
-    assert "PyTorch playground" in pre_detail_markdown[8]
-    assert "TeSciA diagnostic" in pre_detail_markdown[8]
-    assert "MLflow tracking" in pre_detail_markdown[8]
-    assert "/ORCHESTRATE?active_app=mission_decision_project" in pre_detail_markdown[6]
-    assert "/ANALYSIS?active_app=pytorch_playground_project" in pre_detail_markdown[8]
-    assert [body for kind, body in pre_details if kind == "columns"] == ["3", "3", "2"]
+    assert "Capability Map" in pre_detail_markdown[3]
+    assert "capability-map.html" in pre_detail_markdown[3]
+    assert "| Route | Evidence signal | Access |" not in pre_detail_markdown[3]
+    assert "Mission decision" not in pre_detail_markdown[3]
+    assert "PyTorch playground" not in pre_detail_markdown[3]
+    assert [
+        body
+        for kind, body in pre_details
+        if kind == "selectbox" and body == "What do you want to prove first?"
+    ]
+    assert [body for kind, body in pre_details if kind == "columns"] == ["3"]
     first_action_column = _event_index(fake_st.events, "enter_column", "0")
     second_action_column = _event_index(fake_st.events, "enter_column", "1")
     third_action_column = _event_index(fake_st.events, "enter_column", "2")
@@ -5252,7 +5151,12 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Run one local proof first" in caption_bodies[10]
     assert caption_bodies[11].startswith("Handoff bundle:")
     assert "strict security-check output" in caption_bodies[11]
-    assert caption_bodies[12].startswith("Start with the built-in first proof.")
+    assert caption_bodies[12].startswith("What do you want to prove first?")
+    assert "Run the built-in proof" in caption_bodies[12]
+    assert "Import the included notebook" in caption_bodies[12]
+    assert "See AI/ML demos" in caption_bodies[12]
+    assert "Validate engineering evidence" in caption_bodies[12]
+    assert "Capability Map" in caption_bodies[12]
     assert link_types == {
         "1. INSTALL demo": "secondary",
         "2. EXECUTE demo": "secondary",
@@ -5273,7 +5177,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert (
         open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
     )
-    assert notebook_hint < notebook_full_proof < showcase < proof_details
+    assert notebook_hint < notebook_full_proof < chooser < proof_details
     assert proof_details < progress < validated_path
 
 
@@ -5458,7 +5362,7 @@ def test_first_proof_page_urls_preserve_targeted_query_params():
     assert analysis_params["current_page"][0].endswith("view_maps.py")
 
 
-def test_first_run_showcase_exposes_flagship_routes_and_progressive_links():
+def test_first_run_showcase_groups_flagship_routes_by_newcomer_intent():
     onboarding = about_agilab._about_onboarding
 
     items = onboarding._first_run_showcase_items()
@@ -5491,14 +5395,33 @@ def test_first_run_showcase_exposes_flagship_routes_and_progressive_links():
     assert "excel-users.html" in by_route["Excel workbook proof"]["access"]
     assert "voila-users.html" in by_route["Voila dashboard proof"]["access"]
 
-    markdown = onboarding._first_run_showcase_markdown(items)
-    assert "| Route | Evidence signal | Access |" in markdown
-    assert "Classic ML pipeline" in markdown
-    assert "Service and cluster path" in markdown
-    assert onboarding.FIRST_RUN_SHOWCASE_VISIBLE_LIMIT == 5
-    card = onboarding._first_run_showcase_card_markdown(by_route["Flight telemetry first proof"])
-    assert "**Flight telemetry first proof**" in card
-    assert "/ORCHESTRATE?active_app=flight_telemetry_project" in card
+    groups = onboarding._first_run_choice_groups()
+    by_label = {group["label"]: group for group in groups}
+
+    assert list(by_label) == [
+        "Run the built-in proof",
+        "Import the included notebook",
+        "See AI/ML demos",
+        "Validate engineering evidence",
+    ]
+    assert {
+        item["route"] for item in by_label["Run the built-in proof"]["items"]
+    } == {"Flight telemetry first proof"}
+    assert {
+        item["route"] for item in by_label["See AI/ML demos"]["items"]
+    } >= {"Classic ML pipeline", "PyTorch playground", "Weather notebook migration"}
+    assert {
+        item["route"] for item in by_label["Validate engineering evidence"]["items"]
+    } >= {"Mission decision", "Multi-app DAG", "MLflow tracking"}
+
+    markdown = onboarding._first_run_choice_markdown(
+        by_label["Run the built-in proof"]
+    )
+    assert "**Run the built-in proof**" in markdown
+    assert "Flight telemetry first proof" in markdown
+    assert "Capability Map" in markdown
+    assert "| Route | Evidence signal | Access |" not in markdown
+    assert "Mission decision" not in markdown
 
 
 def test_first_proof_text_column_width_has_stable_floor():

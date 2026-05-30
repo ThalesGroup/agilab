@@ -16,6 +16,14 @@ replayable evidence. The app generates a baseline dataset and a candidate
 dataset, validates the expected columns, profiles quality, measures drift, and
 writes a decision that can be reviewed before another system takes ownership.
 
+## What You Learn
+
+The packaged project demonstrates the same contract-first workflow without
+requiring a source checkout. A first run shows the generated datasets, the
+quality profiles, the drift table, the gate decision, and the manifest that ties
+those artifacts together. It is intended to make a data promotion review easy to
+rerun and easy to inspect from AGILAB.
+
 ## Installed Project
 
 The distribution name is `agi-app-data-quality-gate`; the AGILAB project name is
@@ -67,6 +75,15 @@ Change only `drift_strength`, then rerun the app. Lower values should move the
 gate toward `promote`; higher values should move it toward `manual-review` or
 `block`. Keep `seed=2026` when you want artifact deltas that remain easy to
 explain.
+
+## Troubleshooting
+
+If the package resolves but custom data does not, rerun the default synthetic
+case first. Then verify that CSV and JSON paths are AGILAB-share-relative and
+that the candidate file contains every column required by the contract. A noisy
+or unexpected `manual-review` decision usually means the drift threshold was
+tighter than the candidate distribution, so inspect `drift_metrics.csv` before
+loosening the gate.
 
 ## Scope
 
