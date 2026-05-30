@@ -94,6 +94,12 @@ def collect_violations(root: Path) -> list[RedundancyViolation]:
                 in_rst_literal = False
                 literal_indent = None
 
+            if stripped.startswith(".. code-block::") or stripped.startswith(".. sourcecode::"):
+                in_rst_literal = True
+                literal_indent = None
+                recent.clear()
+                continue
+
             if line.rstrip().endswith("::"):
                 in_rst_literal = True
                 literal_indent = None
