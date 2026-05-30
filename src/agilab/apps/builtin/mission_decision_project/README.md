@@ -16,7 +16,7 @@ does not require private services.
 - How route candidates are scored with deterministic evidence.
 - How a mission event triggers re-planning and exposes before/after deltas.
 - How public FRED-shaped context can be included as fixture evidence without a
-  live API dependency.
+  live API dependency or `fredapi` package.
 - How `view_data_io_decision` reads the exported decision bundle.
 
 ## Run In AGILAB
