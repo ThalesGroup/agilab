@@ -1149,8 +1149,7 @@ def _plain_pytorch_reuse_snippet(config: PlaygroundConfig) -> str:
     config_literal = _snippet_config_literal(config)
     return f'''# Reuse a PyTorch Playground evidence pack outside AGILAB.
 # 1. Download and unzip pytorch_playground_evidence.zip.
-# 2. Put this file next to the unzipped data/ directory.
-# 3. Run: python train_plain_pytorch.py
+# 2. Run from the unzip root: python reuse/train_plain_pytorch.py
 
 from pathlib import Path
 
@@ -1160,7 +1159,9 @@ import torch
 from torch import nn
 
 CONFIG = {config_literal}
-SAMPLES_CSV = Path("data/samples.csv")
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "reuse" else SCRIPT_DIR
+SAMPLES_CSV = ROOT / "data" / "samples.csv"
 
 
 def feature_matrix(samples: pd.DataFrame) -> np.ndarray:
@@ -1268,8 +1269,8 @@ def _pytorch_lightning_reuse_snippet(config: PlaygroundConfig) -> str:
     config_literal = _snippet_config_literal(config)
     return f'''# Reuse a PyTorch Playground evidence pack with PyTorch Lightning.
 # 1. Download and unzip pytorch_playground_evidence.zip.
-# 2. Put this file next to the unzipped data/ directory.
-# 3. Run: python -m pip install lightning && python train_pytorch_lightning.py
+# 2. Run from the unzip root:
+#    python -m pip install lightning && python reuse/train_pytorch_lightning.py
 
 from pathlib import Path
 
@@ -1281,7 +1282,9 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 CONFIG = {config_literal}
-SAMPLES_CSV = Path("data/samples.csv")
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == "reuse" else SCRIPT_DIR
+SAMPLES_CSV = ROOT / "data" / "samples.csv"
 
 
 def feature_matrix(samples: pd.DataFrame) -> np.ndarray:
