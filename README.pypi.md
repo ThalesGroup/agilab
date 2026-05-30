@@ -82,9 +82,6 @@ when you want to run the product locally, the
 when preparing screenshots or video, and the
 [50-star promotion kit](https://github.com/ThalesGroup/agilab/blob/main/PROMOTE.md)
 when sharing the project publicly.
-If you are unsure which feature applies to your case, use the
-[Capability Map](https://thalesgroup.github.io/agilab/capability-map.html);
-it maps user jobs to routes, evidence, maturity, and limits.
 
 If AGILAB helps you make AI/ML experiments reproducible, please star the
 repository so other engineers can find it.
@@ -434,6 +431,7 @@ The PyPI README is only the install entry page. Detailed capability evidence,
 compatibility status, and roadmap scope live in:
 
 - [Features](https://thalesgroup.github.io/agilab/features.html)
+- [Capability map](https://thalesgroup.github.io/agilab/capability-map.html)
 - [Release proof](https://thalesgroup.github.io/agilab/release-proof.html)
 - [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)

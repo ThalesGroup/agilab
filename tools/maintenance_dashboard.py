@@ -122,9 +122,12 @@ def check_extension_contract_kit(repo_root: Path) -> Check:
                 if not item.get(key):
                     malformed.append(f"{type_id}:{key}")
         docs = _read(docs_path)
+        capability_map = _read(repo_root / "docs/source/capability-map.rst")
+        if ":doc:`capability-map`" not in docs:
+            malformed.append("docs:capability-map-reference")
         for label in MATURITY_LABELS:
-            if label not in docs:
-                malformed.append(f"docs:{label}")
+            if label not in capability_map:
+                malformed.append(f"capability-map:{label}")
     missing_types = [item for item in REQUIRED_EXTENSION_TYPES if item not in set(type_ids)]
     ok = not missing and not missing_types and not malformed
     return _check(

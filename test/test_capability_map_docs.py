@@ -18,8 +18,8 @@ def test_capability_map_is_discoverable_from_public_entry_points() -> None:
     features = _read(DOCS_SOURCE / "features.rst")
 
     assert "Capability map <capability-map>" in index
-    assert "Capability Map](https://thalesgroup.github.io/agilab/capability-map.html)" in readme
-    assert "Capability Map](https://thalesgroup.github.io/agilab/capability-map.html)" in pypi_readme
+    assert "Capability map](https://thalesgroup.github.io/agilab/capability-map.html)" in readme
+    assert "Capability map](https://thalesgroup.github.io/agilab/capability-map.html)" in pypi_readme
     assert ":doc:`capability-map`" in features
 
 

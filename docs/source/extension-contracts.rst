@@ -25,11 +25,10 @@ Every extension type declares:
 - **evidence**: reports, run manifests, hashes, UI robot output, or verifier
   results that prove the extension boundary;
 - **guardrails**: tests or tools that fail before drift reaches release time;
-- **maturity labels**: whether the surface is a live product path, local proof,
-  contract proof, operator-triggered live check, or roadmap boundary.
+- **maturity labels**: the capability-map labels that separate shipped local
+  paths, contract proofs, live checks, and roadmap boundaries.
 
-The standard maturity labels are **Live product path**, **Local proof**,
-**Contract proof**, **Operator-triggered live check**, and **Roadmap boundary**.
+Use :doc:`capability-map` as the single reference for maturity-label meanings.
 
 Extension types
 ---------------
