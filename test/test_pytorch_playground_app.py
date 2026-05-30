@@ -51,6 +51,15 @@ def _load_app_args_form_module():
     return module
 
 
+def _load_app_surface_module(name: str):
+    spec = importlib.util.spec_from_file_location(name, APP_SURFACE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
     script_dir = MODULE_PATH.resolve().parent
     project_src = PROJECT_SRC.resolve()
@@ -129,11 +138,7 @@ def test_app_surface_import_prefers_package_when_streamlit_puts_script_dir_first
 
 
 def test_app_surface_drops_shadowing_script_module(monkeypatch):
-    spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_shadow_test", APP_SURFACE_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    module = _load_app_surface_module("pytorch_playground_app_surface_shadow_test")
 
     shadow = ModuleType("pytorch_playground")
     shadow.__file__ = str(APP_SURFACE_PATH.resolve().parent / "pytorch_playground.py")
@@ -144,10 +149,90 @@ def test_app_surface_drops_shadowing_script_module(monkeypatch):
     try:
         module._drop_shadowed_package_module()
     finally:
-        sys.modules.pop(spec.name, None)
+        sys.modules.pop(module.__name__, None)
 
     assert "pytorch_playground" not in sys.modules
     assert "pytorch_playground.core" not in sys.modules
+
+
+def test_app_surface_keeps_real_or_unresolvable_package_modules(monkeypatch, tmp_path: Path):
+    module = _load_app_surface_module("pytorch_playground_app_surface_non_shadow_test")
+
+    package = ModuleType("pytorch_playground")
+    package.__file__ = str(tmp_path / "site-packages" / "pytorch_playground" / "__init__.py")
+    child = ModuleType("pytorch_playground.core")
+    monkeypatch.setitem(sys.modules, "pytorch_playground", package)
+    monkeypatch.setitem(sys.modules, "pytorch_playground.core", child)
+
+    try:
+        module._drop_shadowed_package_module()
+        assert sys.modules["pytorch_playground"] is package
+        assert sys.modules["pytorch_playground.core"] is child
+
+        package.__file__ = object()
+        module._drop_shadowed_package_module()
+        assert sys.modules["pytorch_playground"] is package
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+def test_app_surface_resolves_equals_active_app_arg_and_path_fallback(monkeypatch, tmp_path: Path):
+    module = _load_app_surface_module("pytorch_playground_app_surface_path_fallback_test")
+    active_app = tmp_path / "pytorch_playground_project"
+    active_app.mkdir()
+    monkeypatch.setattr(sys, "argv", ["app_surface.py", f"--active-app={active_app}"])
+
+    class _UnresolvablePath:
+        def expanduser(self):
+            return self
+
+        def resolve(self):
+            raise RuntimeError("synthetic path resolution failure")
+
+    paths: list[object] = []
+    bad_path = _UnresolvablePath()
+
+    try:
+        assert module._resolve_active_app_path() == active_app.resolve()
+        module._append_unique_path(paths, bad_path)
+        module._append_unique_path(paths, bad_path)
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert paths == [bad_path]
+
+
+def test_app_surface_app_args_form_loader_reports_missing_spec(monkeypatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_form_loader_test")
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    try:
+        with pytest.raises(ModuleNotFoundError, match="Unable to load PyTorch Playground app form"):
+            module._load_app_args_form()
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+def test_app_surface_app_args_form_loader_marks_import_only_module(monkeypatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_form_loader_success_test")
+    loaded_modules: list[ModuleType] = []
+
+    class _Loader:
+        def exec_module(self, loaded_module):
+            loaded_modules.append(loaded_module)
+
+    fake_spec = SimpleNamespace(name="_fake_pytorch_playground_app_args_form", loader=_Loader())
+    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: fake_spec)
+    monkeypatch.setattr(module.importlib.util, "module_from_spec", lambda spec: ModuleType(spec.name))
+
+    try:
+        loaded_module = module._load_app_args_form()
+    finally:
+        sys.modules.pop(module.__name__, None)
+        sys.modules.pop(fake_spec.name, None)
+
+    assert loaded_module is loaded_modules[0]
+    assert loaded_module._AGILAB_APP_ARGS_FORM_IMPORT_ONLY is True
 
 
 def test_app_surface_resolves_active_app_from_argv_and_evidence_dirs(monkeypatch, tmp_path: Path):
@@ -266,6 +351,41 @@ def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, 
         sys.modules.pop(spec.name, None)
 
     assert rendered == [evidence_dirs]
+
+
+def test_app_surface_missing_evidence_renders_page_and_checked_paths(monkeypatch, tmp_path: Path):
+    module = _load_app_surface_module("pytorch_playground_app_surface_missing_evidence_render_test")
+    events: list[tuple[str, object]] = []
+
+    class _FakeStreamlit:
+        def set_page_config(self, **kwargs):
+            events.append(("page_config", kwargs))
+
+        def title(self, message):
+            events.append(("title", message))
+
+        def info(self, message):
+            events.append(("info", message))
+
+        def caption(self, message):
+            events.append(("caption", message))
+
+        def code(self, body, **kwargs):
+            events.append(("code", (body, kwargs)))
+
+    evidence_path = tmp_path / "evidence"
+    monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
+
+    try:
+        module._render_missing_evidence([evidence_path])
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
+    assert ("title", "PyTorch Playground") in events
+    assert any(kind == "info" and "No exported PyTorch evidence" in message for kind, message in events)
+    assert ("caption", "Checked evidence locations:") in events
+    assert ("code", (str(evidence_path), {"language": "text"})) in events
 
 
 def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeypatch):
