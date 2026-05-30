@@ -1359,6 +1359,10 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
     assert manifest["row_counts"]["loss_landscape"] == 2
     assert manifest["landscape_summary"]["center_validation_loss"] == pytest.approx(0.6)
     assert manifest["artifacts"]["data/samples.csv"]["sha256"] == hashlib.sha256(sample_bytes).hexdigest()
+    assert b"python reuse/train_plain_pytorch.py" in plain_snippet_bytes
+    assert b'ROOT / "data" / "samples.csv"' in plain_snippet_bytes
+    assert b"python reuse/train_pytorch_lightning.py" in lightning_snippet_bytes
+    assert b'ROOT / "data" / "samples.csv"' in lightning_snippet_bytes
     assert (
         manifest["artifacts"]["reuse/train_plain_pytorch.py"]["sha256"]
         == hashlib.sha256(plain_snippet_bytes).hexdigest()
@@ -1402,10 +1406,14 @@ def test_pytorch_playground_reuse_snippets_are_config_driven() -> None:
     assert "'optimizer': 'SGD'" in plain
     assert "'regularization': 'L1'" in plain
     assert "torch.optim.SGD" in plain
+    assert 'ROOT / "data" / "samples.csv"' in plain
+    assert "python reuse/train_plain_pytorch.py" in plain
     assert "lightning.pytorch as L" not in plain
     assert "import lightning.pytorch as L" in lightning
     assert "class PlaygroundModule(L.LightningModule)" in lightning
     assert "'learning_rate': 0.025" in lightning
+    assert 'ROOT / "data" / "samples.csv"' in lightning
+    assert "python reuse/train_pytorch_lightning.py" in lightning
 
 
 def test_pytorch_playground_loads_latest_evidence_result(tmp_path: Path) -> None:
