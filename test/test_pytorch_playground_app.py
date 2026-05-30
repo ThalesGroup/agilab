@@ -983,6 +983,77 @@ def test_pytorch_playground_training_state_stages_control_changes(monkeypatch: p
     assert pending is False
 
 
+def test_pytorch_playground_live_training_controls_advance_and_pause(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(module, "st", fake_st)
+    config = module.PlaygroundConfig(epochs=6)
+    signature = module._config_signature(config)
+
+    def fake_new_state(_config):
+        return {
+            "status": "ok",
+            "signature": signature,
+            "config": config,
+            "epoch": 0,
+            "playing": False,
+        }
+
+    def fake_advance(state, *, epochs=1):
+        updated = dict(state)
+        updated["epoch"] = min(config.epochs, int(updated["epoch"]) + int(epochs))
+        if updated["epoch"] >= config.epochs:
+            updated["playing"] = False
+        return updated
+
+    def fake_result(state):
+        return {"status": "ok", "summary": {"epoch": int(state["epoch"])}}
+
+    monkeypatch.setattr(module, "_new_live_training_state", fake_new_state)
+    monkeypatch.setattr(module, "_advance_live_training", fake_advance)
+    monkeypatch.setattr(module, "_live_training_result", fake_result)
+
+    state, result, keep_playing = module._run_live_training_controls(
+        config,
+        reset_requested=False,
+        step_requested=False,
+        play_requested=True,
+        pause_requested=False,
+        epochs_per_tick=2,
+    )
+    assert state["epoch"] == 2
+    assert state["playing"] is True
+    assert result["summary"]["epoch"] == 2
+    assert keep_playing is True
+
+    state, _result, keep_playing = module._run_live_training_controls(
+        config,
+        reset_requested=False,
+        step_requested=False,
+        play_requested=False,
+        pause_requested=True,
+        epochs_per_tick=2,
+    )
+    assert state["epoch"] == 2
+    assert state["playing"] is False
+    assert keep_playing is False
+
+
+def test_pytorch_playground_live_training_result_reports_missing_torch(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "torch", None)
+    monkeypatch.setattr(module, "nn", None)
+    config = module.PlaygroundConfig(sample_count=64, epochs=4)
+
+    state = module._new_live_training_state(config)
+    result = module._live_training_result(state)
+
+    assert state["status"] == "missing_torch"
+    assert result["status"] == "missing_torch"
+    assert result["summary"]["backend"] == "missing"
+    assert result["summary"]["target_epochs"] == 4
+
+
 def test_pytorch_playground_config_and_dataset_helper_edges(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
 
@@ -1755,6 +1826,21 @@ def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
     assert landscape_result["loss_landscape"].shape[0] == 25
     assert landscape_result["loss_landscape"]["is_center"].sum() == 1
     assert landscape_result["landscape_summary"]["points"] == 25
+
+    live_state = module._new_live_training_state(config)
+    live_state["playing"] = True
+    live_state = module._advance_live_training(live_state, epochs=1)
+    live_result = module._live_training_result(live_state)
+    assert live_state["epoch"] == 1
+    assert live_state["playing"] is True
+    assert live_result["status"] == "ok"
+    assert live_result["summary"]["backend"] == "torch-live"
+    assert live_result["summary"]["epoch"] == 1
+    assert live_result["grid"].shape[0] == 144
+
+    live_state = module._advance_live_training(live_state, epochs=99)
+    assert live_state["epoch"] == config.epochs
+    assert live_state["playing"] is False
 
 
 def test_pytorch_playground_app_args_convert_to_playground_config(monkeypatch: pytest.MonkeyPatch) -> None:

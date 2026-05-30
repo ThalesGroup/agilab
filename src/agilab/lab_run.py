@@ -14,10 +14,13 @@
 import argparse
 import importlib.util
 import os
+import subprocess
 import sys
 import tomllib
+import webbrowser
 from importlib import metadata as importlib_metadata
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:  # Prefer package import when AGILAB is importable as a normal package.
     from agilab.import_guard import import_agilab_module
@@ -39,6 +42,8 @@ packaged_streamlit_config_path = (
 )
 
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
+PYTORCH_PLAYGROUND_HF_SPACE = "ThalesGroup/agilab"
+PYTORCH_PLAYGROUND_APP_NAME = "pytorch_playground_project"
 _PUBLIC_BIND_GUARD_MODULE = import_agilab_module(
     "agilab.ui_public_bind_guard",
     current_file=__file__,
@@ -208,6 +213,146 @@ def _run_bridge(argv: list[str]) -> int:
     return bridge_cli.main(argv)
 
 
+def _pytorch_playground_project_root() -> Path:
+    try:
+        from agi_app_pytorch_playground import project_root
+    except ModuleNotFoundError:
+        project_root = None
+
+    if project_root is not None:
+        candidate = Path(project_root())
+        if candidate.exists():
+            return candidate
+
+    source_candidate = _PACKAGE_DIR / "apps" / "builtin" / PYTORCH_PLAYGROUND_APP_NAME
+    if source_candidate.exists():
+        return source_candidate
+
+    raise SystemExit(
+        "agilab pytorch-playground: app package not found. "
+        "Install the UI/apps profile with `python -m pip install 'agilab[ui]'` "
+        "on Python >= 3.12, or install `agi-app-pytorch-playground`."
+    )
+
+
+def _pytorch_playground_script_path(project_root: Path) -> Path:
+    script = project_root / "src" / "pytorch_playground" / "playground_ui.py"
+    if not script.is_file():
+        raise SystemExit(f"agilab pytorch-playground: Streamlit surface not found: {script}")
+    return script
+
+
+def _validate_streamlit_host(host: str | None) -> str:
+    if not host:
+        return enforce_public_bind_policy()
+    env = os.environ.copy()
+    env["AGILAB_UI_HOST"] = host
+    return enforce_public_bind_policy(env)
+
+
+def _url_with_pytorch_playground_query(url: str) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault("active_app", PYTORCH_PLAYGROUND_APP_NAME)
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _hf_runtime_url(space_id: str) -> str:
+    if space_id.startswith(("http://", "https://")):
+        return _url_with_pytorch_playground_query(space_id)
+    if "/" not in space_id:
+        raise SystemExit("agilab pytorch-playground: --hf-space must look like <owner>/<space>.")
+    owner, name = space_id.split("/", 1)
+    host = f"https://{owner.lower().replace('_', '-')}-{name.lower().replace('_', '-')}.hf.space/"
+    return _url_with_pytorch_playground_query(host)
+
+
+def _pytorch_playground_hf_url(hf_url: str | None, hf_space: str | None) -> str:
+    explicit = hf_url or os.environ.get("AGILAB_PYTORCH_PLAYGROUND_HF_URL")
+    if explicit:
+        return _url_with_pytorch_playground_query(explicit)
+    space = hf_space or os.environ.get("AGILAB_HF_SPACE") or PYTORCH_PLAYGROUND_HF_SPACE
+    return _hf_runtime_url(space)
+
+
+def _pytorch_playground_streamlit_command(
+    *,
+    project_root: Path,
+    script_path: Path,
+    host: str,
+    port: int,
+    headless: bool,
+    extra_args: list[str],
+) -> list[str]:
+    command = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        str(project_root),
+        "streamlit",
+        "run",
+        "--server.address",
+        host,
+        "--server.port",
+        str(port),
+    ]
+    if headless:
+        command.extend(["--server.headless", "true"])
+    command.append(str(script_path))
+    if extra_args:
+        command.append("--")
+        command.extend(extra_args)
+    return command
+
+
+def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:
+    parser = argparse.ArgumentParser(
+        prog="agilab pytorch-playground",
+        description="Launch the standalone PyTorch Playground locally or open its Hugging Face Space backend.",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=("local", "hf"),
+        default=os.environ.get("AGILAB_PYTORCH_PLAYGROUND_BACKEND", "local"),
+        help="Launch locally through the app uv environment, or open the Hugging Face Space backend.",
+    )
+    parser.add_argument("--host", default=None, help="Local Streamlit host. Defaults to AGILAB's guarded localhost bind.")
+    parser.add_argument("--port", type=int, default=8501, help="Local Streamlit port.")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open a browser for local or HF launch.")
+    parser.add_argument("--hf-url", default=None, help="Explicit Hugging Face runtime URL.")
+    parser.add_argument("--hf-space", default=None, help="Hugging Face Space ID, for example owner/agilab.")
+    args, extra_args = parser.parse_known_args(argv)
+    if extra_args[:1] == ["--"]:
+        extra_args = extra_args[1:]
+
+    if args.backend == "hf":
+        url = _pytorch_playground_hf_url(args.hf_url, args.hf_space)
+        print(url)
+        if not args.no_browser:
+            webbrowser.open(url)
+        return 0
+
+    try:
+        host = _validate_streamlit_host(args.host)
+    except PublicBindPolicyError as exc:
+        raise SystemExit(f"agilab pytorch-playground: {exc}") from exc
+
+    project_root = _pytorch_playground_project_root()
+    script_path = _pytorch_playground_script_path(project_root)
+    _ensure_streamlit_config_file()
+    command = _pytorch_playground_streamlit_command(
+        project_root=project_root,
+        script_path=script_path,
+        host=host,
+        port=args.port,
+        headless=args.no_browser,
+        extra_args=extra_args,
+    )
+    return int(runner(command))
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -291,6 +436,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_kubernetes_job(raw_argv[1:])
     if raw_argv[:1] in (["export"], ["run"], ["init"], ["import"], ["mcp"]):
         return _run_bridge(raw_argv)
+    if raw_argv[:1] in (["pytorch-playground"], ["pytorch_playground"]):
+        return _run_pytorch_playground(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

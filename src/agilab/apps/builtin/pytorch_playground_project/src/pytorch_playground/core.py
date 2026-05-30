@@ -624,49 +624,249 @@ def _classification_metrics(model, loss_fn, x_values, y_values) -> dict[str, flo
     return {"loss": float(loss), "accuracy": float(accuracy)}
 
 
-def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tuple[Any, Any, pd.DataFrame, list[tuple[int, Any]]]:
-    features = training_data["features"]
-    x_train = training_data["x_train"]
-    y_train = training_data["y_train"]
-    x_validation = training_data["x_validation"]
-    y_validation = training_data["y_validation"]
-    model = _build_model(features.shape[1], config)
-    loss_fn = nn.CrossEntropyLoss()
+def _optimizer_for_config(model, config: PlaygroundConfig):
     weight_decay = config.regularization_rate if config.regularization == "L2" else 0.0
     if config.optimizer == "SGD":
-        optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
-    else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
+        return torch.optim.SGD(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
+    return torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=weight_decay)
+
+
+def _train_one_epoch(config: PlaygroundConfig, model, loss_fn, optimizer, training_data: Mapping[str, Any]) -> None:
+    x_train = training_data["x_train"]
+    y_train = training_data["y_train"]
+    batch_size = max(4, min(int(config.batch_size), len(x_train)))
+
+    model.train()
+    batch_order = torch.randperm(len(x_train))
+    for start in range(0, len(x_train), batch_size):
+        batch_indices = batch_order[start : start + batch_size]
+        optimizer.zero_grad()
+        batch_logits = model(x_train[batch_indices])
+        batch_loss = loss_fn(batch_logits, y_train[batch_indices])
+        if config.regularization == "L1" and config.regularization_rate > 0.0:
+            l1_penalty = sum(parameter.abs().sum() for parameter in model.parameters())
+            batch_loss = batch_loss + config.regularization_rate * l1_penalty
+        batch_loss.backward()
+        optimizer.step()
+
+
+def _append_history_row_once(
+    rows: list[dict[str, float | int]],
+    model,
+    loss_fn,
+    training_data: Mapping[str, Any],
+    epoch: int,
+) -> None:
+    if rows and int(rows[-1].get("epoch", -1)) == int(epoch):
+        return
+    _append_history_row(
+        rows,
+        model,
+        loss_fn,
+        training_data["x_train"],
+        training_data["y_train"],
+        training_data["x_validation"],
+        training_data["y_validation"],
+        epoch,
+    )
+
+
+def _fit_model(config: PlaygroundConfig, training_data: Mapping[str, Any]) -> tuple[Any, Any, pd.DataFrame, list[tuple[int, Any]]]:
+    features = training_data["features"]
+    model = _build_model(features.shape[1], config)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = _optimizer_for_config(model, config)
 
     history_rows: list[dict[str, float | int]] = []
     snapshot_states: list[tuple[int, Any]] = []
     epochs = max(1, int(config.epochs))
-    batch_size = max(4, min(int(config.batch_size), len(x_train)))
     log_every = max(1, epochs // 40)
     snapshot_epochs = _boundary_snapshot_epochs(epochs)
 
-    _append_history_row(history_rows, model, loss_fn, x_train, y_train, x_validation, y_validation, 0)
+    _append_history_row_once(history_rows, model, loss_fn, training_data, 0)
     snapshot_states.append((0, _model_state_vector(model).clone()))
     for epoch in range(1, epochs + 1):
-        model.train()
-        batch_order = torch.randperm(len(x_train))
-        for start in range(0, len(x_train), batch_size):
-            batch_indices = batch_order[start : start + batch_size]
-            optimizer.zero_grad()
-            batch_logits = model(x_train[batch_indices])
-            batch_loss = loss_fn(batch_logits, y_train[batch_indices])
-            if config.regularization == "L1" and config.regularization_rate > 0.0:
-                l1_penalty = sum(parameter.abs().sum() for parameter in model.parameters())
-                batch_loss = batch_loss + config.regularization_rate * l1_penalty
-            batch_loss.backward()
-            optimizer.step()
-
+        _train_one_epoch(config, model, loss_fn, optimizer, training_data)
         if epoch == epochs or epoch % log_every == 0:
-            _append_history_row(history_rows, model, loss_fn, x_train, y_train, x_validation, y_validation, epoch)
+            _append_history_row_once(history_rows, model, loss_fn, training_data, epoch)
         if epoch in snapshot_epochs:
             snapshot_states.append((epoch, _model_state_vector(model).clone()))
 
     return model, loss_fn, pd.DataFrame(history_rows), snapshot_states
+
+
+def _new_live_training_state(config: PlaygroundConfig) -> dict[str, Any]:
+    signature = _config_signature(config)
+    if torch is None or nn is None:
+        return {
+            "status": "missing_torch",
+            "detail": "Install the app dependencies to enable PyTorch training.",
+            "signature": signature,
+            "config": config,
+            "epoch": 0,
+            "playing": False,
+        }
+
+    torch.manual_seed(config.seed)
+    training_data = _prepare_training_data(config)
+    model = _build_model(training_data["features"].shape[1], config)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = _optimizer_for_config(model, config)
+    history_rows: list[dict[str, float | int]] = []
+    snapshot_states: list[tuple[int, Any]] = [(0, _model_state_vector(model).clone())]
+    _append_history_row_once(history_rows, model, loss_fn, training_data, 0)
+    return {
+        "status": "ok",
+        "detail": "",
+        "signature": signature,
+        "config": config,
+        "training_data": training_data,
+        "model": model,
+        "loss_fn": loss_fn,
+        "optimizer": optimizer,
+        "history_rows": history_rows,
+        "snapshot_states": snapshot_states,
+        "epoch": 0,
+        "playing": False,
+    }
+
+
+def _advance_live_training(state: Mapping[str, Any], *, epochs: int = 1) -> dict[str, Any]:
+    advanced = dict(state)
+    if advanced.get("status") != "ok":
+        advanced["playing"] = False
+        return advanced
+
+    config = advanced["config"]
+    if not isinstance(config, PlaygroundConfig):
+        advanced["status"] = "error"
+        advanced["detail"] = "Live training state lost its configuration."
+        advanced["playing"] = False
+        return advanced
+
+    target_epoch = min(max(1, int(config.epochs)), int(advanced.get("epoch", 0)) + max(1, int(epochs)))
+    snapshot_epochs = _boundary_snapshot_epochs(config.epochs)
+    history_rows = advanced["history_rows"]
+    snapshot_states = advanced["snapshot_states"]
+    if not isinstance(history_rows, list) or not isinstance(snapshot_states, list):
+        advanced["status"] = "error"
+        advanced["detail"] = "Live training state lost its history."
+        advanced["playing"] = False
+        return advanced
+
+    while int(advanced.get("epoch", 0)) < target_epoch:
+        next_epoch = int(advanced.get("epoch", 0)) + 1
+        _train_one_epoch(
+            config,
+            advanced["model"],
+            advanced["loss_fn"],
+            advanced["optimizer"],
+            advanced["training_data"],
+        )
+        advanced["epoch"] = next_epoch
+        _append_history_row_once(
+            history_rows,
+            advanced["model"],
+            advanced["loss_fn"],
+            advanced["training_data"],
+            next_epoch,
+        )
+        if next_epoch in snapshot_epochs:
+            snapshot_states.append((next_epoch, _model_state_vector(advanced["model"]).clone()))
+
+    if int(advanced.get("epoch", 0)) >= int(config.epochs):
+        advanced["playing"] = False
+    return advanced
+
+
+def _live_training_result(state: Mapping[str, Any]) -> dict[str, Any]:
+    config = state.get("config")
+    if not isinstance(config, PlaygroundConfig):
+        return {
+            "status": "error",
+            "detail": "Live training state is incomplete.",
+            "samples": pd.DataFrame(columns=["x1", "x2", "target"]),
+            "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+            "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+            "boundary_snapshots": _empty_boundary_snapshots(),
+            "network_layers": _empty_network_layers(),
+            "activation_maps": _empty_activation_maps(),
+            "summary": {"backend": "error", "samples": 0, "features": 0},
+        }
+
+    if state.get("status") == "missing_torch":
+        samples = _make_dataset(config)
+        return {
+            "status": "missing_torch",
+            "detail": str(state.get("detail", "Install the app dependencies to enable PyTorch training.")),
+            "samples": samples,
+            "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+            "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+            "boundary_snapshots": _empty_boundary_snapshots(),
+            "network_layers": _empty_network_layers(),
+            "activation_maps": _empty_activation_maps(),
+            "summary": {
+                "backend": "missing",
+                "samples": int(len(samples)),
+                "features": int(len(config.feature_names)),
+                "epoch": int(state.get("epoch", 0) or 0),
+                "target_epochs": int(config.epochs),
+            },
+        }
+
+    if state.get("status") != "ok":
+        samples = _make_dataset(config)
+        return {
+            "status": "error",
+            "detail": str(state.get("detail", "Live PyTorch training failed.")),
+            "samples": samples,
+            "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+            "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+            "boundary_snapshots": _empty_boundary_snapshots(),
+            "network_layers": _empty_network_layers(),
+            "activation_maps": _empty_activation_maps(),
+            "summary": {"backend": "error", "samples": int(len(samples)), "features": int(len(config.feature_names))},
+        }
+
+    training_data = state["training_data"]
+    model = state["model"]
+    mean = training_data["mean"]
+    std = training_data["std"]
+    samples = training_data["samples"]
+    features = training_data["features"]
+    history = pd.DataFrame(
+        list(state.get("history_rows", [])),
+        columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"],
+    )
+    grid = _decision_grid(model, config, mean, std)
+    boundary_snapshots = _boundary_snapshots(model, config, mean, std, list(state.get("snapshot_states", [])))
+    network_layers = _network_layers(model)
+    activation_maps = _hidden_activation_maps(model, config, mean, std)
+    final = history.iloc[-1].to_dict() if not history.empty else {}
+    return {
+        "status": "ok",
+        "detail": "",
+        "samples": samples,
+        "history": history,
+        "grid": grid,
+        "boundary_snapshots": boundary_snapshots,
+        "network_layers": network_layers,
+        "activation_maps": activation_maps,
+        "summary": {
+            "backend": "torch-live",
+            "samples": int(len(samples)),
+            "features": int(features.shape[1]),
+            "hidden_layers": list(config.hidden_layers),
+            "regularization": config.regularization,
+            "regularization_rate": float(config.regularization_rate),
+            "epoch": int(state.get("epoch", 0) or 0),
+            "target_epochs": int(config.epochs),
+            "playing": bool(state.get("playing")),
+            "train_accuracy": float(final.get("train_accuracy", 0.0)),
+            "validation_accuracy": float(final.get("validation_accuracy", 0.0)),
+            "validation_loss": float(final.get("validation_loss", 0.0)),
+        },
+    }
 
 
 def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:

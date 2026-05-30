@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -96,6 +97,9 @@ try:  # noqa: E402
         _loss_landscape,
         _loss_landscape_summary,
         _make_dataset,
+        _advance_live_training,
+        _live_training_result,
+        _new_live_training_state,
         _parse_hidden_layers,
         _plotly_unavailable_figure,
         _preset_config,
@@ -135,6 +139,9 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution fallba
         _loss_landscape,
         _loss_landscape_summary,
         _make_dataset,
+        _advance_live_training,
+        _live_training_result,
+        _new_live_training_state,
         _parse_hidden_layers,
         _plotly_unavailable_figure,
         _preset_config,
@@ -196,6 +203,18 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
     return _call_core("_train_playground", config)
 
 
+def _new_live_training_state(config: PlaygroundConfig) -> dict[str, Any]:
+    return _call_core("_new_live_training_state", config)
+
+
+def _advance_live_training(state: Mapping[str, Any], *, epochs: int = 1) -> dict[str, Any]:
+    return _call_core("_advance_live_training", state, epochs=epochs)
+
+
+def _live_training_result(state: Mapping[str, Any]) -> dict[str, Any]:
+    return _call_core("_live_training_result", state)
+
+
 def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: float = 0.75) -> dict[str, Any]:
     return _call_core("_loss_landscape", config, resolution=resolution, span=span)
 
@@ -208,6 +227,8 @@ def __getattr__(name: str) -> Any:
 
 
 PAGE_TITLE = "PyTorch Playground"
+LIVE_TRAINING_STATE_KEY = "pytorch_playground_live_training_state"
+LIVE_TRAINING_MODE_LABEL = "Live play/pause"
 
 
 _ISOLATED_CORE_RUNNER = r"""
@@ -536,6 +557,69 @@ def _resolve_trained_config(
     trained_config = _config_from_payload({"config": stored_payload})
     trained_preset = str(_session_state_get(TRAINED_PRESET_STATE_KEY, preset_label))
     return trained_config, trained_preset, _config_signature(current_config) != _config_signature(trained_config)
+
+
+def _live_state_current(state: Any, config: PlaygroundConfig) -> bool:
+    return isinstance(state, Mapping) and state.get("signature") == _config_signature(config)
+
+
+def _progress_value(epoch: int, target_epochs: int) -> float:
+    if target_epochs <= 0:
+        return 0.0
+    return max(0.0, min(1.0, float(epoch) / float(target_epochs)))
+
+
+def _run_live_training_controls(
+    config: PlaygroundConfig,
+    *,
+    reset_requested: bool,
+    step_requested: bool,
+    play_requested: bool,
+    pause_requested: bool,
+    epochs_per_tick: int,
+) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    state = _session_state_get(LIVE_TRAINING_STATE_KEY)
+    if reset_requested or not _live_state_current(state, config):
+        state = _new_live_training_state(config)
+    elif play_requested and int(state.get("epoch", 0) or 0) >= int(config.epochs):
+        state = _new_live_training_state(config)
+
+    state = dict(state) if isinstance(state, Mapping) else _new_live_training_state(config)
+    if pause_requested:
+        state["playing"] = False
+    if play_requested:
+        state["playing"] = True
+
+    should_advance = bool(step_requested or state.get("playing"))
+    if should_advance and int(state.get("epoch", 0) or 0) < int(config.epochs):
+        state = _advance_live_training(state, epochs=max(1, int(epochs_per_tick)))
+
+    _session_state_set(LIVE_TRAINING_STATE_KEY, state)
+    result = _live_training_result(state)
+    keep_playing = (
+        bool(state.get("playing"))
+        and result.get("status") == "ok"
+        and int(state.get("epoch", 0) or 0) < int(config.epochs)
+    )
+    return state, result, keep_playing
+
+
+def _render_live_training_status(state: Mapping[str, Any], config: PlaygroundConfig) -> None:
+    epoch = int(state.get("epoch", 0) or 0)
+    target_epochs = int(config.epochs)
+    status = "playing" if state.get("playing") else "paused"
+    st.caption(f"Live state: {status}, epoch {epoch}/{target_epochs}.")
+    progress = getattr(st, "progress", None)
+    if callable(progress):
+        progress(_progress_value(epoch, target_epochs), text=f"{epoch}/{target_epochs} epochs")
+
+
+def _request_live_rerun(delay_seconds: float) -> None:
+    if delay_seconds > 0:
+        time.sleep(max(0.0, min(2.0, float(delay_seconds))))
+    rerun = getattr(st, "rerun", None)
+    if callable(rerun):
+        rerun()
 
 
 @st.cache_data(show_spinner=False)
@@ -1928,6 +2012,11 @@ def main(
     _render_page_styles()
     active_app = _resolve_active_app()
     shared_config = _config_from_query_params(st.query_params)
+    result: dict[str, Any] | None = None
+    live_state: dict[str, Any] | None = None
+    live_mode = False
+    live_rerun_requested = False
+    live_delay_seconds = 0.0
 
     if interactive_controls:
         with st.sidebar:
@@ -2003,8 +2092,51 @@ def main(
             grid_size = st.slider("Grid resolution", 12, 120, defaults.grid_size, step=4, key=f"pt_grid_{preset_key}")
             seed = st.number_input("Seed", min_value=0, max_value=9999, value=defaults.seed, step=1, key=f"pt_seed_{preset_key}")
             st.markdown("### Run")
-            train_requested = st.button("Train / refresh", type="primary", width="stretch")
-            st.caption("Controls are staged. Charts and evidence update only when you train.")
+            training_mode = st.selectbox(
+                "Training mode",
+                ("Full run", LIVE_TRAINING_MODE_LABEL),
+                index=0,
+                key=f"pt_training_mode_{preset_key}",
+                help="Use full run for deterministic evidence, or live mode to watch training advance tick by tick.",
+            )
+            live_mode = training_mode == LIVE_TRAINING_MODE_LABEL
+            train_requested = st.button("Train / refresh", type="primary", width="stretch", disabled=live_mode)
+            live_epochs_per_tick = 5
+            live_reset_requested = False
+            live_step_requested = False
+            live_play_requested = False
+            live_pause_requested = False
+            if live_mode:
+                live_epochs_per_tick = st.slider(
+                    "Live tick epochs",
+                    1,
+                    20,
+                    5,
+                    step=1,
+                    key=f"pt_live_tick_epochs_{preset_key}",
+                    help="How many epochs each visible play/step tick advances.",
+                )
+                live_delay_ms = st.slider(
+                    "Tick delay",
+                    25,
+                    1000,
+                    150,
+                    step=25,
+                    format="%d ms",
+                    key=f"pt_live_tick_delay_{preset_key}",
+                )
+                live_delay_seconds = float(live_delay_ms) / 1000.0
+                reset_column, step_column, play_column = st.columns(3)
+                with reset_column:
+                    live_reset_requested = st.button("Reset", key=f"pt_live_reset_{preset_key}", width="stretch")
+                with step_column:
+                    live_step_requested = st.button("Step", key=f"pt_live_step_{preset_key}", width="stretch")
+                with play_column:
+                    live_pause_requested = st.button("Pause", key=f"pt_live_pause_{preset_key}", width="stretch")
+                    live_play_requested = st.button("Play", key=f"pt_live_play_{preset_key}", type="primary", width="stretch")
+                st.caption("Live mode mutates one in-session model. Download evidence when the run reaches a state worth keeping.")
+            else:
+                st.caption("Controls are staged. Charts and evidence update only when you train.")
 
         try:
             hidden_layers = _parse_hidden_layers(hidden_raw)
@@ -2033,12 +2165,25 @@ def main(
         previous_shared_signature = str(_session_state_get(SHARED_CONFIG_SIGNATURE_STATE_KEY, ""))
         force_shared_refresh = bool(shared_config is not None and shared_signature != previous_shared_signature)
         _session_state_set(SHARED_CONFIG_SIGNATURE_STATE_KEY, shared_signature)
-        trained_config, trained_preset, pending_changes = _resolve_trained_config(
-            config,
-            str(preset_label),
-            train_requested=train_requested,
-            force_refresh=force_shared_refresh,
-        )
+        if live_mode:
+            trained_config = config
+            trained_preset = f"{preset_label} live"
+            pending_changes = False
+            live_state, result, live_rerun_requested = _run_live_training_controls(
+                config,
+                reset_requested=live_reset_requested or force_shared_refresh,
+                step_requested=live_step_requested,
+                play_requested=live_play_requested,
+                pause_requested=live_pause_requested,
+                epochs_per_tick=live_epochs_per_tick,
+            )
+        else:
+            trained_config, trained_preset, pending_changes = _resolve_trained_config(
+                config,
+                str(preset_label),
+                train_requested=train_requested,
+                force_refresh=force_shared_refresh,
+            )
     else:
         evidence_result = _load_latest_evidence_result(evidence_dirs)
         if evidence_result is None:
@@ -2053,11 +2198,16 @@ def main(
             st.caption(f"Loaded evidence from `{evidence_root}`.")
 
     trained_config_dict = asdict(trained_config)
-    if interactive_controls:
+    if interactive_controls and result is None:
         result = _cached_train(trained_config_dict)
+    if result is None:
+        raise RuntimeError("PyTorch Playground did not produce a training result.")
     if interactive_controls:
         with st.sidebar:
-            st.caption(f"Charts show: {trained_preset}")
+            if live_mode and live_state is not None:
+                _render_live_training_status(live_state, trained_config)
+            else:
+                st.caption(f"Charts show: {trained_preset}")
             if pending_changes:
                 st.warning("Pending changes. Press Train / refresh to update the run.")
     if compact:
@@ -2202,6 +2352,9 @@ def main(
         )
         st.code(f"?pytorch_playground={_encode_share_config(trained_config)}", language="text")
         st.code(json.dumps(_json_safe(manifest), indent=2, sort_keys=True), language="json")
+
+    if live_rerun_requested:
+        _request_live_rerun(live_delay_seconds)
 
 
 if __name__ == "__main__":
