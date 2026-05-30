@@ -101,9 +101,11 @@ try:  # noqa: E402
         _live_training_result,
         _new_live_training_state,
         _parse_hidden_layers,
+        _plain_pytorch_reuse_snippet,
         _plotly_unavailable_figure,
         _preset_config,
         _preset_story,
+        _pytorch_lightning_reuse_snippet,
         _resolve_active_app,
         _result_frame,
         _safe_key_fragment,
@@ -143,9 +145,11 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution fallba
         _live_training_result,
         _new_live_training_state,
         _parse_hidden_layers,
+        _plain_pytorch_reuse_snippet,
         _plotly_unavailable_figure,
         _preset_config,
         _preset_story,
+        _pytorch_lightning_reuse_snippet,
         _resolve_active_app,
         _result_frame,
         _safe_key_fragment,
@@ -1664,6 +1668,20 @@ def _render_section_intro(title: str, text: str) -> None:
     )
 
 
+def _render_reuse_snippets(config: PlaygroundConfig) -> None:
+    _render_section_intro(
+        "Reuse outside AGILAB",
+        "Copy the generated scripts or keep them from the evidence ZIP when you want a plain PyTorch or Lightning handoff.",
+    )
+    plain_tab, lightning_tab = st.tabs(["Plain PyTorch", "PyTorch Lightning"])
+    with plain_tab:
+        st.caption("Torch-only script generated from the active playground configuration.")
+        st.code(_plain_pytorch_reuse_snippet(config), language="python")
+    with lightning_tab:
+        st.caption("Optional Lightning port. The playground does not require Lightning unless you run this exported script.")
+        st.code(_pytorch_lightning_reuse_snippet(config), language="python")
+
+
 def _grid_axes(grid: pd.DataFrame, fallback_grid_size: int) -> tuple[np.ndarray, np.ndarray]:
     if grid.empty:
         return np.array([], dtype=float), np.array([], dtype=float)
@@ -2352,6 +2370,7 @@ def main(
         )
         st.code(f"?pytorch_playground={_encode_share_config(trained_config)}", language="text")
         st.code(json.dumps(_json_safe(manifest), indent=2, sort_keys=True), language="json")
+        _render_reuse_snippets(trained_config)
 
     if live_rerun_requested:
         _request_live_rerun(live_delay_seconds)

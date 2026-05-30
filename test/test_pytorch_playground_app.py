@@ -1340,10 +1340,14 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
             "model/network_layers.csv",
             "model/hidden_activation_maps.csv",
             "model/loss_landscape.csv",
+            "reuse/train_plain_pytorch.py",
+            "reuse/train_pytorch_lightning.py",
             "summary/run_summary.json",
         }.issubset(set(names))
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
         sample_bytes = archive.read("data/samples.csv")
+        plain_snippet_bytes = archive.read("reuse/train_plain_pytorch.py")
+        lightning_snippet_bytes = archive.read("reuse/train_pytorch_lightning.py")
         boundary_snapshot_bytes = archive.read("data/boundary_snapshots.csv")
         landscape_bytes = archive.read("model/loss_landscape.csv")
 
@@ -1356,10 +1360,52 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
     assert manifest["landscape_summary"]["center_validation_loss"] == pytest.approx(0.6)
     assert manifest["artifacts"]["data/samples.csv"]["sha256"] == hashlib.sha256(sample_bytes).hexdigest()
     assert (
+        manifest["artifacts"]["reuse/train_plain_pytorch.py"]["sha256"]
+        == hashlib.sha256(plain_snippet_bytes).hexdigest()
+    )
+    assert (
+        manifest["artifacts"]["reuse/train_pytorch_lightning.py"]["sha256"]
+        == hashlib.sha256(lightning_snippet_bytes).hexdigest()
+    )
+    assert (
         manifest["artifacts"]["data/boundary_snapshots.csv"]["sha256"]
         == hashlib.sha256(boundary_snapshot_bytes).hexdigest()
     )
     assert manifest["artifacts"]["model/loss_landscape.csv"]["sha256"] == hashlib.sha256(landscape_bytes).hexdigest()
+
+
+def test_pytorch_playground_reuse_snippets_are_config_driven() -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(
+        dataset="xor",
+        sample_count=128,
+        hidden_layers=(16, 8),
+        activation="relu",
+        optimizer="SGD",
+        regularization="L1",
+        regularization_rate=0.003,
+        learning_rate=0.025,
+        epochs=12,
+        batch_size=24,
+        seed=19,
+        feature_names=("x1", "x2", "x1_x2"),
+    )
+
+    plain = module._plain_pytorch_reuse_snippet(config)
+    lightning = module._pytorch_lightning_reuse_snippet(config)
+
+    compile(plain, "train_plain_pytorch.py", "exec")
+    compile(lightning, "train_pytorch_lightning.py", "exec")
+    assert "'dataset': 'xor'" in plain
+    assert "'hidden_layers': [16, 8]" in plain
+    assert "'feature_names': ['x1', 'x2', 'x1_x2']" in plain
+    assert "'optimizer': 'SGD'" in plain
+    assert "'regularization': 'L1'" in plain
+    assert "torch.optim.SGD" in plain
+    assert "lightning.pytorch as L" not in plain
+    assert "import lightning.pytorch as L" in lightning
+    assert "class PlaygroundModule(L.LightningModule)" in lightning
+    assert "'learning_rate': 0.025" in lightning
 
 
 def test_pytorch_playground_loads_latest_evidence_result(tmp_path: Path) -> None:
@@ -1496,6 +1542,10 @@ def test_pytorch_playground_analysis_uses_evidence_without_training(
     manifest = next(json.loads(body) for body, language in fake_st.code_payloads if language == "json")
     assert manifest["backend"] == "persisted"
     assert manifest["row_counts"]["samples"] == 64
+    python_snippets = [body for body, language in fake_st.code_payloads if language == "python"]
+    assert len(python_snippets) == 2
+    assert "class Classifier(nn.Module)" in python_snippets[0]
+    assert "class PlaygroundModule(L.LightningModule)" in python_snippets[1]
 
 
 def test_pytorch_playground_loss_landscape_summary_marks_center_and_best() -> None:

@@ -12,6 +12,7 @@ import binascii
 import hashlib
 import io
 import json
+import pprint
 import re
 import zipfile
 from collections.abc import Mapping
@@ -1126,6 +1127,10 @@ def _dataframe_csv_bytes(frame: pd.DataFrame) -> bytes:
     return frame.to_csv(index=False, float_format="%.10g").encode("utf-8")
 
 
+def _text_bytes(payload: str) -> bytes:
+    return payload.encode("utf-8")
+
+
 def _artifact_hash(payload: bytes) -> dict[str, Any]:
     return {"sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload)}
 
@@ -1133,6 +1138,261 @@ def _artifact_hash(payload: bytes) -> dict[str, Any]:
 def _result_frame(result: Mapping[str, Any], key: str, empty: pd.DataFrame) -> pd.DataFrame:
     value = result.get(key)
     return value if isinstance(value, pd.DataFrame) else empty
+
+
+def _snippet_config_literal(config: PlaygroundConfig) -> str:
+    payload = _json_safe(_config_payload(config)["config"])
+    return pprint.pformat(payload, sort_dicts=True, width=88)
+
+
+def _plain_pytorch_reuse_snippet(config: PlaygroundConfig) -> str:
+    config_literal = _snippet_config_literal(config)
+    return f'''# Reuse a PyTorch Playground evidence pack outside AGILAB.
+# 1. Download and unzip pytorch_playground_evidence.zip.
+# 2. Put this file next to the unzipped data/ directory.
+# 3. Run: python train_plain_pytorch.py
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+from torch import nn
+
+CONFIG = {config_literal}
+SAMPLES_CSV = Path("data/samples.csv")
+
+
+def feature_matrix(samples: pd.DataFrame) -> np.ndarray:
+    x1 = samples["x1"].to_numpy(dtype=float)
+    x2 = samples["x2"].to_numpy(dtype=float)
+    values = {{
+        "x1": x1,
+        "x2": x2,
+        "x1_squared": x1**2,
+        "x2_squared": x2**2,
+        "x1_x2": x1 * x2,
+        "sin_x1": np.sin(np.pi * x1),
+        "sin_x2": np.sin(np.pi * x2),
+    }}
+    selected = [name for name in CONFIG["feature_names"] if name in values]
+    return np.column_stack([values[name] for name in selected]).astype(np.float32)
+
+
+def activation_layer() -> nn.Module:
+    if CONFIG["activation"] == "relu":
+        return nn.ReLU()
+    if CONFIG["activation"] == "sigmoid":
+        return nn.Sigmoid()
+    if CONFIG["activation"] == "identity":
+        return nn.Identity()
+    return nn.Tanh()
+
+
+class Classifier(nn.Module):
+    def __init__(self, input_dim: int) -> None:
+        super().__init__()
+        layers: list[nn.Module] = []
+        previous_dim = input_dim
+        for width in CONFIG["hidden_layers"]:
+            layers.append(nn.Linear(previous_dim, int(width)))
+            layers.append(activation_layer())
+            previous_dim = int(width)
+        layers.append(nn.Linear(previous_dim, 2))
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
+
+
+def train_split(samples: pd.DataFrame) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    features = feature_matrix(samples)
+    labels = samples["target"].to_numpy(dtype=np.int64)
+    rng = np.random.default_rng(int(CONFIG["seed"]) + 101)
+    indices = rng.permutation(len(labels))
+    train_count = min(len(labels) - 1, max(2, int(round(len(labels) * CONFIG["train_ratio"]))))
+    train_indices = indices[:train_count]
+    validation_indices = indices[train_count:]
+    if len(validation_indices) == 0:
+        validation_indices = train_indices
+    mean = features[train_indices].mean(axis=0, keepdims=True)
+    std = features[train_indices].std(axis=0, keepdims=True)
+    std[std < 1e-6] = 1.0
+    features = (features - mean) / std
+    return (
+        torch.tensor(features[train_indices], dtype=torch.float32),
+        torch.tensor(labels[train_indices], dtype=torch.long),
+        torch.tensor(features[validation_indices], dtype=torch.float32),
+        torch.tensor(labels[validation_indices], dtype=torch.long),
+    )
+
+
+def optimizer_for(model: nn.Module) -> torch.optim.Optimizer:
+    weight_decay = CONFIG["regularization_rate"] if CONFIG["regularization"] == "L2" else 0.0
+    optimizer_cls = torch.optim.SGD if CONFIG["optimizer"] == "SGD" else torch.optim.Adam
+    return optimizer_cls(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=weight_decay)
+
+
+def main() -> None:
+    torch.manual_seed(int(CONFIG["seed"]))
+    x_train, y_train, x_validation, y_validation = train_split(pd.read_csv(SAMPLES_CSV))
+    model = Classifier(input_dim=x_train.shape[1])
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optimizer_for(model)
+
+    for _epoch in range(1, int(CONFIG["epochs"]) + 1):
+        model.train()
+        order = torch.randperm(len(x_train))
+        for start in range(0, len(x_train), int(CONFIG["batch_size"])):
+            batch = order[start : start + int(CONFIG["batch_size"])]
+            optimizer.zero_grad()
+            loss = loss_fn(model(x_train[batch]), y_train[batch])
+            if CONFIG["regularization"] == "L1" and CONFIG["regularization_rate"] > 0.0:
+                loss = loss + CONFIG["regularization_rate"] * sum(p.abs().sum() for p in model.parameters())
+            loss.backward()
+            optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        logits = model(x_validation)
+        accuracy = (logits.argmax(dim=1) == y_validation).float().mean().item()
+    print(f"validation_accuracy={{accuracy:.3f}}")
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
+def _pytorch_lightning_reuse_snippet(config: PlaygroundConfig) -> str:
+    config_literal = _snippet_config_literal(config)
+    return f'''# Reuse a PyTorch Playground evidence pack with PyTorch Lightning.
+# 1. Download and unzip pytorch_playground_evidence.zip.
+# 2. Put this file next to the unzipped data/ directory.
+# 3. Run: python -m pip install lightning && python train_pytorch_lightning.py
+
+from pathlib import Path
+
+import lightning.pytorch as L
+import numpy as np
+import pandas as pd
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
+
+CONFIG = {config_literal}
+SAMPLES_CSV = Path("data/samples.csv")
+
+
+def feature_matrix(samples: pd.DataFrame) -> np.ndarray:
+    x1 = samples["x1"].to_numpy(dtype=float)
+    x2 = samples["x2"].to_numpy(dtype=float)
+    values = {{
+        "x1": x1,
+        "x2": x2,
+        "x1_squared": x1**2,
+        "x2_squared": x2**2,
+        "x1_x2": x1 * x2,
+        "sin_x1": np.sin(np.pi * x1),
+        "sin_x2": np.sin(np.pi * x2),
+    }}
+    selected = [name for name in CONFIG["feature_names"] if name in values]
+    return np.column_stack([values[name] for name in selected]).astype(np.float32)
+
+
+def activation_layer() -> nn.Module:
+    if CONFIG["activation"] == "relu":
+        return nn.ReLU()
+    if CONFIG["activation"] == "sigmoid":
+        return nn.Sigmoid()
+    if CONFIG["activation"] == "identity":
+        return nn.Identity()
+    return nn.Tanh()
+
+
+class Classifier(nn.Module):
+    def __init__(self, input_dim: int) -> None:
+        super().__init__()
+        layers: list[nn.Module] = []
+        previous_dim = input_dim
+        for width in CONFIG["hidden_layers"]:
+            layers.append(nn.Linear(previous_dim, int(width)))
+            layers.append(activation_layer())
+            previous_dim = int(width)
+        layers.append(nn.Linear(previous_dim, 2))
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
+
+
+class PlaygroundModule(L.LightningModule):
+    def __init__(self, input_dim: int) -> None:
+        super().__init__()
+        self.model = Classifier(input_dim)
+        self.loss_fn = nn.CrossEntropyLoss()
+
+    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], _batch_idx: int) -> torch.Tensor:
+        x_values, y_values = batch
+        loss = self.loss_fn(self.model(x_values), y_values)
+        if CONFIG["regularization"] == "L1" and CONFIG["regularization_rate"] > 0.0:
+            loss = loss + CONFIG["regularization_rate"] * sum(p.abs().sum() for p in self.model.parameters())
+        self.log("train_loss", loss, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], _batch_idx: int) -> None:
+        x_values, y_values = batch
+        logits = self.model(x_values)
+        loss = self.loss_fn(logits, y_values)
+        accuracy = (logits.argmax(dim=1) == y_values).float().mean()
+        self.log_dict({{"validation_loss": loss, "validation_accuracy": accuracy}}, prog_bar=True)
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        weight_decay = CONFIG["regularization_rate"] if CONFIG["regularization"] == "L2" else 0.0
+        optimizer_cls = torch.optim.SGD if CONFIG["optimizer"] == "SGD" else torch.optim.Adam
+        return optimizer_cls(self.parameters(), lr=CONFIG["learning_rate"], weight_decay=weight_decay)
+
+
+def make_loaders() -> tuple[DataLoader, DataLoader, int]:
+    samples = pd.read_csv(SAMPLES_CSV)
+    features = feature_matrix(samples)
+    labels = samples["target"].to_numpy(dtype=np.int64)
+    rng = np.random.default_rng(int(CONFIG["seed"]) + 101)
+    indices = rng.permutation(len(labels))
+    train_count = min(len(labels) - 1, max(2, int(round(len(labels) * CONFIG["train_ratio"]))))
+    train_indices = indices[:train_count]
+    validation_indices = indices[train_count:]
+    if len(validation_indices) == 0:
+        validation_indices = train_indices
+    mean = features[train_indices].mean(axis=0, keepdims=True)
+    std = features[train_indices].std(axis=0, keepdims=True)
+    std[std < 1e-6] = 1.0
+    features = (features - mean) / std
+    x_values = torch.tensor(features, dtype=torch.float32)
+    y_values = torch.tensor(labels, dtype=torch.long)
+    batch_size = int(CONFIG["batch_size"])
+    return (
+        DataLoader(TensorDataset(x_values[train_indices], y_values[train_indices]), batch_size=batch_size, shuffle=True),
+        DataLoader(TensorDataset(x_values[validation_indices], y_values[validation_indices]), batch_size=batch_size),
+        x_values.shape[1],
+    )
+
+
+def main() -> None:
+    L.seed_everything(int(CONFIG["seed"]), workers=True)
+    train_loader, validation_loader, input_dim = make_loaders()
+    trainer = L.Trainer(
+        max_epochs=int(CONFIG["epochs"]),
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+    )
+    trainer.fit(PlaygroundModule(input_dim), train_loader, validation_loader)
+
+
+if __name__ == "__main__":
+    main()
+'''
 
 
 def _evidence_artifact_files(config: PlaygroundConfig, result: Mapping[str, Any]) -> dict[str, bytes]:
@@ -1152,6 +1412,8 @@ def _evidence_artifact_files(config: PlaygroundConfig, result: Mapping[str, Any]
         "model/network_layers.csv": _dataframe_csv_bytes(network_layers),
         "model/hidden_activation_maps.csv": _dataframe_csv_bytes(activation_maps),
         "model/loss_landscape.csv": _dataframe_csv_bytes(loss_landscape),
+        "reuse/train_plain_pytorch.py": _text_bytes(_plain_pytorch_reuse_snippet(config)),
+        "reuse/train_pytorch_lightning.py": _text_bytes(_pytorch_lightning_reuse_snippet(config)),
         "summary/run_summary.json": _json_bytes(
             {
                 "schema": EVIDENCE_SCHEMA,
