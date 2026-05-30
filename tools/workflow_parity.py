@@ -774,11 +774,6 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
     junit_path = f"test-results/junit-agi-gui-{label}.xml"
     data_file = f"test-results/coverage-agi-gui-{label}.db"
     manifest_path = _agi_gui_coverage_manifest_path(label)
-    dependency_args: list[str] = []
-    timeout_seconds = 8 * 60
-    if label == "support":
-        dependency_args = ["--with", "torch>=2.8.0,<3"]
-        timeout_seconds = 10 * 60
     clean_paths = [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
@@ -799,7 +794,6 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             "ui",
             "--extra",
             "viz",
-            *dependency_args,
             "python",
             "-c",
             _agi_gui_coverage_chunk_code(label, data_file, junit_path, manifest_path),
@@ -823,7 +817,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             *expanded_targets,
         ],
         env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
-        timeout_seconds=timeout_seconds,
+        timeout_seconds=8 * 60,
         ensure_dirs=["test-results"],
         remove_paths=(
             [*clean_paths, *(f"{path}.*" for path in clean_paths), junit_path]

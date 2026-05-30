@@ -33,9 +33,8 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30-2
 
 - Kept the base `agilab` install as a lightweight command shell and moved the
   core runtime stack behind the `core` extra for leaner package adoption.
-- Scoped PyTorch installation to the AGI-GUI support coverage shard so release
-  coverage can validate real PyTorch training paths without widening the UI
-  extra.
+- Restored the PyTorch Playground coverage margin with explicit fake-torch
+  orchestration tests, keeping the AGI-GUI coverage job lean.
 - Published AGILAB `2026.05.30.post1` to PyPI for `agi-env`, `agi-gui`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.

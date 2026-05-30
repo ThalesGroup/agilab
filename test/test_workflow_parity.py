@@ -248,13 +248,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui timing report",
         "agi-gui coverage xml",
     ]
-    assert agi_gui_chunks[0].timeout_seconds == 10 * 60
-    assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks[1:])
+    assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
     assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
     assert all(_has_extra(command.argv, "ui") for command in agi_gui_commands)
     assert all(_has_extra(command.argv, "viz") for command in agi_gui_commands)
-    assert _has_with_dependency(agi_gui_chunks[0].argv, "torch>=2.8.0,<3")
-    assert all(not _has_with_dependency(command.argv, "torch>=2.8.0,<3") for command in agi_gui_chunks[1:])
     assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
     assert all("coverage" in command.argv for command in agi_gui_chunks)
     assert all("--append" not in command.argv for command in agi_gui_chunks)
