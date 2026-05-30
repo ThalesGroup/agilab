@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import getpass
 import importlib.util
 import os
@@ -37,6 +38,29 @@ from agi_env.share_mount_support import (
 )
 
 
+@dataclass(slots=True)
+class _LoadedEnvironment:
+    home_abs: Path
+    env_path: Path
+    envars: dict
+    repo_agilab_dir: Path
+
+
+@dataclass(slots=True)
+class _PackageBootstrap:
+    agilab_pkg_dir: Path
+    agilab_pck: Path
+    is_agilab_installed: bool
+
+
+@dataclass(slots=True)
+class _AppBootstrap:
+    apps_path: Path | None
+    active_app: Path
+    target: str
+    apps_root: Path
+
+
 def initialize_agi_env_instance(
     env,
     *,
@@ -55,10 +79,89 @@ def initialize_agi_env_instance(
     """Populate an ``AgiEnv`` singleton after the public constructor guard passes."""
 
     env_cls = type(env)
+    _reset_bootstrap_flags(env)
+    loaded = _load_environment(
+        env,
+        verbose=verbose,
+        load_dotenv_values_fn=load_dotenv_values_fn,
+        module_logger=module_logger,
+    )
+    envars = loaded.envars
+
+    _propagate_streamlit_message_size(envars)
+    package = _resolve_package_bootstrap(loaded.repo_agilab_dir)
+
+    apps_path, override_builtin_apps_path = _resolve_requested_apps_path_from_env(
+        envars=envars,
+        apps_path=apps_path,
+        active_app_override=active_app_override,
+    )
+    _configure_environment_kind(
+        env,
+        envars=envars,
+        apps_path=apps_path,
+        active_app_override=active_app_override,
+        is_agilab_installed=package.is_agilab_installed,
+    )
+    app_bootstrap = _resolve_active_app_bootstrap(
+        env,
+        app=app,
+        apps_path=apps_path,
+        active_app_override=active_app_override,
+        override_builtin_apps_path=override_builtin_apps_path,
+        home_abs=loaded.home_abs,
+        envars=envars,
+        agilab_pck=package.agilab_pck,
+    )
+
+    _configure_runtime_identity(
+        env,
+        verbose=verbose,
+        debug=debug,
+        python_variante=python_variante,
+    )
+    _configure_package_layout(
+        env,
+        repo_agilab_dir=loaded.repo_agilab_dir,
+        agilab_pkg_dir=package.agilab_pkg_dir,
+    )
+    _sync_repository_app_links(
+        env,
+        env_cls=env_cls,
+        app_bootstrap=app_bootstrap,
+        ensure_dir_fn=ensure_dir_fn,
+    )
+    _configure_common_runtime(env, app_bootstrap=app_bootstrap, loaded=loaded, envars=envars)
+
+    if env.is_worker_env:
+        env.user = "agi"
+        return
+
+    _configure_non_worker_runtime(
+        env,
+        env_cls=env_cls,
+        envars=envars,
+        optional_agi_pages_bundles_root_fn=optional_agi_pages_bundles_root_fn,
+        ensure_dir_fn=ensure_dir_fn,
+    )
+
+    env._agilab_init_signature = init_signature
+    env._agilab_initialized = True
+
+
+def _reset_bootstrap_flags(env) -> None:
     env.skip_repo_links = False
     env.AGILAB_SHARE_HINT = None
     env.AGILAB_SHARE_REL = None
 
+
+def _load_environment(
+    env,
+    *,
+    verbose: int,
+    load_dotenv_values_fn: Callable,
+    module_logger,
+) -> _LoadedEnvironment:
     env.is_managed_pc = getpass.getuser().startswith("T0")
     env._is_managed_pc = env.is_managed_pc
     env._agi_resources = Path("resources/.agilab")
@@ -77,29 +180,53 @@ def initialize_agi_env_instance(
     env.benchmark = env.resources_path / "benchmark.json"
     env.envars = load_dotenv_values_fn(env_path, verbose=verbose)
     module_logger.debug(f"env path: {env_path}")
-    envars = env.envars
     repo_agilab_dir = Path(__file__).resolve().parents[4]
 
-    _propagate_streamlit_message_size(envars)
+    return _LoadedEnvironment(
+        home_abs=home_abs,
+        env_path=env_path,
+        envars=env.envars,
+        repo_agilab_dir=repo_agilab_dir,
+    )
 
+
+def _resolve_package_bootstrap(repo_agilab_dir: Path) -> _PackageBootstrap:
     package_context = resolve_agilab_package_context(
         repo_agilab_dir=repo_agilab_dir,
         find_spec_fn=importlib.util.find_spec,
         path_cls=Path,
     )
-    agilab_pkg_dir = package_context.package_dir
-    agilab_pck = package_context.apps_root_hint
-    is_agilab_installed = package_context.is_installed
+    return _PackageBootstrap(
+        agilab_pkg_dir=package_context.package_dir,
+        agilab_pck=package_context.apps_root_hint,
+        is_agilab_installed=package_context.is_installed,
+    )
 
+
+def _resolve_requested_apps_path_from_env(
+    *,
+    envars,
+    apps_path: Path | None,
+    active_app_override,
+) -> tuple[Path | None, Path | None]:
     env_apps_path = str(envars.get("APPS_PATH", "") or "").strip()
-    apps_path, override_builtin_apps_path = resolve_requested_apps_path(
+    return resolve_requested_apps_path(
         env_apps_path=env_apps_path,
         explicit_apps_path=apps_path,
         active_app_override=active_app_override,
         path_cls=Path,
     )
 
-    is_agilab_installed = _apply_environment_layout_flags(
+
+def _configure_environment_kind(
+    env,
+    *,
+    envars,
+    apps_path: Path | None,
+    active_app_override,
+    is_agilab_installed: bool,
+) -> None:
+    _apply_environment_layout_flags(
         env,
         envars=envars,
         is_agilab_installed=is_agilab_installed,
@@ -118,6 +245,52 @@ def initialize_agi_env_instance(
     if env.is_worker_env:
         env.skip_repo_links = True
 
+
+def _resolve_active_app_bootstrap(
+    env,
+    *,
+    app: str | None,
+    apps_path: Path | None,
+    active_app_override,
+    override_builtin_apps_path: Path | None,
+    home_abs: Path,
+    envars,
+    agilab_pck: Path,
+) -> _AppBootstrap:
+    apps_path = _configure_app_roots(
+        env,
+        apps_path=apps_path,
+        override_builtin_apps_path=override_builtin_apps_path,
+        agilab_pck=agilab_pck,
+    )
+    app, active_app = _select_active_app(
+        env,
+        app=app,
+        active_app_override=active_app_override,
+        apps_path=apps_path,
+        home_abs=home_abs,
+        envars=envars,
+    )
+    _bind_active_app(env, app=app, active_app=active_app, apps_path=apps_path)
+
+    target = resolve_app_runtime_target(active_app, app)
+    env.share_target_name = target
+
+    return _AppBootstrap(
+        apps_path=apps_path,
+        active_app=active_app,
+        target=target,
+        apps_root=agilab_pck / "apps",
+    )
+
+
+def _configure_app_roots(
+    env,
+    *,
+    apps_path: Path | None,
+    override_builtin_apps_path: Path | None,
+    agilab_pck: Path,
+) -> Path | None:
     repo_root = agilab_pck.parents[1] if len(agilab_pck.parents) > 1 else agilab_pck
     env.builtin_apps_path = override_builtin_apps_path or resolve_builtin_apps_path(
         apps_path=apps_path,
@@ -135,7 +308,18 @@ def initialize_agi_env_instance(
     )
     env.apps_repository_root = apps_repository_root or repo_apps
     env.installed_app_project_paths = installed_app_project_paths()
+    return apps_path
 
+
+def _select_active_app(
+    env,
+    *,
+    app: str | None,
+    active_app_override,
+    apps_path: Path | None,
+    home_abs: Path,
+    envars,
+) -> tuple[str, Path]:
     active_app_selection = resolve_active_app_selection(
         app=app,
         active_app_override=active_app_override,
@@ -153,9 +337,18 @@ def initialize_agi_env_instance(
     if not app.endswith("_project") and not app.endswith("_worker"):
         raise ValueError(f"{app} must end with '_project' or '_worker'")
 
+    return app, active_app
+
+
+def _bind_active_app(
+    env,
+    *,
+    app: str,
+    active_app: Path,
+    apps_path: Path | None,
+) -> None:
     if apps_path and (apps_path / "builtin").exists():
         env.builtin_apps_path = apps_path / "builtin"
-
     env.app = app
     try:
         env.active_app = active_app.resolve()
@@ -163,9 +356,14 @@ def initialize_agi_env_instance(
         env.active_app = active_app
     env.apps_path = apps_path
 
-    target = resolve_app_runtime_target(active_app, app)
-    env.share_target_name = target
 
+def _configure_runtime_identity(
+    env,
+    *,
+    verbose: int,
+    debug: bool,
+    python_variante: str,
+) -> None:
     env.verbose = verbose
     env.python_variante = python_variante
     env.logger = AgiLogger.configure(verbose=verbose, base_name="agi_env")
@@ -173,11 +371,16 @@ def initialize_agi_env_instance(
     env.is_local_worker = False
     env.install_type = 1 if env.is_source_env else (2 if env.is_worker_env else 0)
 
-    _configure_package_layout(env, repo_agilab_dir=repo_agilab_dir, agilab_pkg_dir=agilab_pkg_dir)
 
-    apps_root = env.agilab_pck / "apps"
+def _sync_repository_app_links(
+    env,
+    *,
+    env_cls,
+    app_bootstrap: _AppBootstrap,
+    ensure_dir_fn: Callable[[str | Path], Path],
+) -> None:
     can_link_repo = can_link_repo_apps(
-        apps_path=apps_path,
+        apps_path=app_bootstrap.apps_path,
         active_app=env.active_app,
         builtin_apps_path=env.builtin_apps_path,
         is_worker_env=env.is_worker_env,
@@ -185,9 +388,9 @@ def initialize_agi_env_instance(
     )
     sync_repository_apps(
         can_link_repo=can_link_repo,
-        apps_path=apps_path,
-        apps_root=apps_root,
-        active_app=active_app,
+        apps_path=app_bootstrap.apps_path,
+        apps_root=app_bootstrap.apps_root,
+        active_app=app_bootstrap.active_app,
         is_source_env=env.is_source_env,
         apps_repository_root=env.apps_repository_root,
         get_apps_repository_root_fn=env._get_apps_repository_root,
@@ -200,6 +403,14 @@ def initialize_agi_env_instance(
         path_cls=Path,
     )
 
+
+def _configure_common_runtime(
+    env,
+    *,
+    app_bootstrap: _AppBootstrap,
+    loaded: _LoadedEnvironment,
+    envars,
+) -> None:
     resources_root = env.env_pck
     if not env.is_worker_env:
         env._init_resources(resources_root / env._agi_resources)
@@ -207,20 +418,25 @@ def initialize_agi_env_instance(
     env.GUI_SAMPLING = parse_int_env_value(envars, "GUI_SAMPLING", 20)
 
     env._configure_worker_runtime(
-        target=target,
-        home_abs=home_abs,
-        apps_path=apps_path,
-        apps_root=apps_root,
+        target=app_bootstrap.target,
+        home_abs=loaded.home_abs,
+        apps_path=app_bootstrap.apps_path,
+        apps_root=app_bootstrap.apps_root,
         envars=envars,
-        requested_active_app=active_app,
+        requested_active_app=app_bootstrap.active_app,
     )
 
-    _configure_share_runtime(env, envars=envars, env_path=env_path)
+    _configure_share_runtime(env, envars=envars, env_path=loaded.env_path)
 
-    if env.is_worker_env:
-        env.user = "agi"
-        return
 
+def _configure_non_worker_runtime(
+    env,
+    *,
+    env_cls,
+    envars,
+    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    ensure_dir_fn: Callable[[str | Path], Path],
+) -> None:
     _resolve_worker_base_class(env, env_cls=env_cls)
     _configure_credentials_and_project_state(env, env_cls=env_cls, envars=envars)
     _extract_packaged_dataset_if_needed(env, env_cls=env_cls)
@@ -230,9 +446,6 @@ def initialize_agi_env_instance(
         optional_agi_pages_bundles_root_fn=optional_agi_pages_bundles_root_fn,
         ensure_dir_fn=ensure_dir_fn,
     )
-
-    env._agilab_init_signature = init_signature
-    env._agilab_initialized = True
 
 
 def _propagate_streamlit_message_size(envars) -> None:
