@@ -21,6 +21,7 @@ except ImportError:
 
 PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
+GIT_LFS_POINTER_SIGNATURE = b"version https://git-lfs.github.com/spec/v1"
 
 
 def _ast_to_source(tree: ast.AST) -> str:
@@ -34,6 +35,80 @@ def _safe_resolve(path: Path, *, strict: bool = False) -> Path:
         return path.resolve(strict=strict)
     except PATH_RESOLVE_EXCEPTIONS:
         return path
+
+
+def _is_git_lfs_pointer_file(path: Path) -> bool:
+    """Return ``True`` when the file looks like an unresolved Git LFS pointer."""
+    try:
+        return path.read_bytes()[:120].startswith(GIT_LFS_POINTER_SIGNATURE)
+    except OSError:
+        return False
+
+
+def _find_git_root(path: Path) -> Path | None:
+    """Return the closest ancestor that owns a Git checkout, if any."""
+    for candidate in [path, *path.parents]:
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _find_unresolved_lfs_dataset_archives(source_root: Path) -> list[Path]:
+    """Collect unresolved dataset archives in a deterministic order."""
+    return [
+        path
+        for path in sorted(source_root.rglob("*.7z"), key=lambda item: item.as_posix())
+        if path.name == "dataset.7z" and _is_git_lfs_pointer_file(path)
+    ]
+
+
+def _ensure_git_lfs_dataset_payloads(source_root: Path, logger: Any) -> None:
+    """Ensure LFS dataset pointers under the source tree are materialized."""
+    unresolved = _find_unresolved_lfs_dataset_archives(source_root)
+    if not unresolved:
+        return
+
+    git_root = _find_git_root(source_root)
+    if git_root is None:
+        unresolved_text = ", ".join(path.as_posix() for path in unresolved)
+        raise RuntimeError(
+            "Source project has unresolved Git-LFS dataset pointers but no git repository "
+            f"root was found: {unresolved_text}"
+        )
+
+    logger.info(
+        "Running git lfs pull for source project '%s' from git root '%s' "
+        "to materialize dataset archives.",
+        source_root,
+        git_root,
+    )
+    try:
+        pull_result = subprocess.run(
+            ["git", "-C", str(git_root), "lfs", "pull"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Cannot clone source project: git-lfs is not available in PATH; "
+            "run `git lfs install` and retry."
+        ) from exc
+
+    if pull_result.returncode != 0:
+        raise RuntimeError(
+            "Failed to materialize Git-LFS dataset payloads. "
+            f"git lfs pull exit={pull_result.returncode}: {pull_result.stderr or pull_result.stdout}"
+        )
+
+    if _find_unresolved_lfs_dataset_archives(source_root):
+        unresolved_text = ", ".join(
+            path.as_posix() for path in _find_unresolved_lfs_dataset_archives(source_root)
+        )
+        raise RuntimeError(
+            "git lfs pull succeeded but unresolved dataset pointers remain: "
+            f"{unresolved_text}"
+        )
 
 
 def _try_link_directory(source: Path, dest: Path) -> bool:
@@ -233,6 +308,12 @@ def clone_project(
     if dest_root.exists():
         logger.info(f"Destination project '{dest_project}' already exists.")
         return
+
+    try:
+        _ensure_git_lfs_dataset_payloads(source_root, logger=logger)
+    except RuntimeError as exc:
+        logger.error(f"{exc}")
+        raise
 
     ignore_patterns = [".git", ".git/", ".git/**"]
     gitignore_candidates: list[Path] = []

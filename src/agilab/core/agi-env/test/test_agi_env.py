@@ -1978,6 +1978,115 @@ def test_clone_project_handles_missing_existing_and_template_sources(tmp_path: P
     assert env.projects[0] == Path("gamma_project")
 
 
+def _write_git_lfs_pointer_file(target: Path) -> None:
+    target.write_text(
+        "\n".join(
+            [
+                "version https://git-lfs.github.com/spec/v1",
+                "oid sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                "size 1024",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_clone_project_pulls_git_lfs_payload_before_cloning(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    apps_path = tmp_path / "apps"
+    source = apps_path / "flight_telemetry_project"
+    source_worker = source / "src" / "flight_telemetry_worker"
+    source_manager = source / "src" / "flight_telemetry"
+    dataset = source_worker / "dataset.7z"
+
+    (source / ".git").mkdir(parents=True)
+    source_worker.mkdir(parents=True, exist_ok=True)
+    source_manager.mkdir(parents=True, exist_ok=True)
+    _write_git_lfs_pointer_file(dataset)
+    (source_manager / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (source_worker / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = home
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    run_calls: list[list[str]] = []
+
+    class _FakeRunResult:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        run_calls.append(list(cmd))
+        dataset.write_bytes(b"7z")
+        return _FakeRunResult()
+
+    clone_project_fn = agi_env_module.clone_app_project
+    monkeypatch.setattr(clone_project_fn.__globals__["subprocess"], "run", _fake_run)
+
+    env.clone_project(Path("flight_telemetry_project"), Path("demo_project"))
+
+    cloned = apps_path / "demo_project"
+    assert cloned.exists()
+    assert (cloned / "src" / "demo" / "demo.py").exists()
+    assert (cloned / "src" / "demo_worker" / "dataset.7z").read_bytes() == b"7z"
+    assert run_calls == [[
+        "git",
+        "-C",
+        str(source),
+        "lfs",
+        "pull",
+    ]]
+
+
+def test_clone_project_fails_when_git_lfs_pull_fails(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    apps_path = tmp_path / "apps"
+    source = apps_path / "flight_telemetry_project"
+    source_worker = source / "src" / "flight_telemetry_worker"
+    source_manager = source / "src" / "flight_telemetry"
+    dataset = source_worker / "dataset.7z"
+
+    (source / ".git").mkdir(parents=True)
+    source_worker.mkdir(parents=True, exist_ok=True)
+    source_manager.mkdir(parents=True, exist_ok=True)
+    _write_git_lfs_pointer_file(dataset)
+    (source_manager / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (source_worker / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = home
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    class _FakeRunResult:
+        returncode = 1
+        stdout = ""
+        stderr = "git lfs pull failed"
+
+    def _fake_run(cmd, **_kwargs):
+        dataset.write_text("still-pointer")
+        return _FakeRunResult()
+
+    clone_project_fn = agi_env_module.clone_app_project
+    monkeypatch.setattr(clone_project_fn.__globals__["subprocess"], "run", _fake_run)
+
+    with pytest.raises(RuntimeError, match="Failed to materialize Git-LFS dataset payloads"):
+        env.clone_project(Path("flight_telemetry_project"), Path("demo_project"))
+
+    assert not (apps_path / "demo_project").exists()
+
+
 def test_clone_project_noops_when_source_missing_or_destination_exists(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.apps_path = tmp_path / "apps"
