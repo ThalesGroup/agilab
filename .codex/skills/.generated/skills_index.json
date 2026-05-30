@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-29T17:28:57Z",
+  "generated_at_utc": "2026-05-30T07:34:18Z",
   "tool": "tools/codex_skills.py",
   "count": 30,
   "skills": [
@@ -95,7 +95,7 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-27",
+      "updated": "2026-05-30",
       "path": ".codex/skills/agilab-release-verification/SKILL.md",
       "body_preview": "# AGILAB Release Verification\nUse this skill for release readiness, release execution checks, and post-release\nalignment. Its purpose is to prevent stale plans and false \"all good\" answers by\nchecking the current code, current workflows, and public surfaces before making"
     },

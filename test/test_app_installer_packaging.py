@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = ROOT / "tools"
 sys.path.insert(0, str(TOOLS_ROOT))
 
-from package_split_contract import (
+from package_split_contract import (  # noqa: E402
     APP_PROJECT_PACKAGE_SPECS,
     PAGE_BUNDLE_PACKAGE_SPECS,
     PROMOTED_APP_PROJECT_PACKAGE_NAMES,
@@ -142,7 +142,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-pandas-execution": "execution_pandas_project",
     "agi-app-polars-execution": "execution_polars_project",
     "agi-app-flight-telemetry": "flight_telemetry_project",
-    "agi-app-multi-app-dag": "multi_app_dag_project",
+    "agi-app-multi-dag": "multi_app_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
     "agi-app-sklearn-pipeline": "sklearn_pipeline_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",

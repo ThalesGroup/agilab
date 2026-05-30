@@ -19,7 +19,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-app-pandas-execution",
         "agi-app-polars-execution",
         "agi-app-flight-telemetry",
-        "agi-app-multi-app-dag",
+        "agi-app-multi-dag",
         "agi-app-weather-forecast",
         "agi-app-sklearn-pipeline",
         "agi-app-pytorch-playground",

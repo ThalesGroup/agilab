@@ -399,8 +399,8 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-app-flight-telemetry"
     editable = true
 
-[tool.uv.sources.agi-app-multi-app-dag]
-    path = "./src/agilab/lib/agi-app-multi-app-dag"
+[tool.uv.sources.agi-app-multi-dag]
+    path = "./src/agilab/lib/agi-app-multi-dag"
     editable = true
 
 [tool.uv.sources.agi-app-weather-forecast]

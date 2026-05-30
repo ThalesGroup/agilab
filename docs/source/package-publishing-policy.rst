@@ -95,7 +95,7 @@ recommended use cases, see :doc:`public-app-catalog`.
 - ``agi-app-pandas-execution``
 - ``agi-app-polars-execution``
 - ``agi-app-flight-telemetry``
-- ``agi-app-multi-app-dag``
+- ``agi-app-multi-dag``
 - ``agi-app-weather-forecast``
 - ``agi-app-sklearn-pipeline``
 - ``agi-app-pytorch-playground``
@@ -106,7 +106,7 @@ recommended use cases, see :doc:`public-app-catalog`.
 Ten app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
-``agi-app-multi-app-dag``, ``agi-app-weather-forecast``,
+``agi-app-multi-dag``, ``agi-app-weather-forecast``,
 ``agi-app-sklearn-pipeline``, ``agi-app-pytorch-playground``,
 ``agi-app-tescia-diagnostic``, and ``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
@@ -432,11 +432,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-flight-telemetry``
-   * - ``agi-app-multi-app-dag``
+   * - ``agi-app-multi-dag``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-multi-app-dag``
+     - ``pypi-agi-app-multi-dag``
    * - ``agi-app-weather-forecast``
      - ``ThalesGroup``
      - ``agilab``
@@ -535,7 +535,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-app-pandas-execution``
 - ``pypi-agi-app-polars-execution``
 - ``pypi-agi-app-flight-telemetry``
-- ``pypi-agi-app-multi-app-dag``
+- ``pypi-agi-app-multi-dag``
 - ``pypi-agi-app-weather-forecast``
 - ``pypi-agi-app-sklearn-pipeline``
 - ``pypi-agi-app-pytorch-playground``

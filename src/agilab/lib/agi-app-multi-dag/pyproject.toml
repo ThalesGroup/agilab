@@ -1,6 +1,6 @@
 [project]
 version = "2026.05.30"
-name = "agi-app-multi-app-dag"
+name = "agi-app-multi-dag"
 description = "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -34,7 +34,7 @@ dependencies = ["agi-core>=2026.05.13,<2027.0"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-app-multi-app-dag"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-app-multi-dag"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
@@ -42,8 +42,8 @@ Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [project.entry-points."agilab.apps"]
-multi_app_dag = "agi_app_multi_app_dag:project_root"
-multi_app_dag_project = "agi_app_multi_app_dag:project_root"
+multi_app_dag = "agi_app_multi_dag:project_root"
+multi_app_dag_project = "agi_app_multi_dag:project_root"
 
 
 
@@ -71,15 +71,15 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 include-package-data = false
 package-dir = {"" = "src"}
-packages = ["agi_app_multi_app_dag"]
+packages = ["agi_app_multi_dag"]
 
 [tool.setuptools.package-data]
-"agi_app_multi_app_dag" = [
+"agi_app_multi_dag" = [
     "project/**/*",
 ]
 
 [tool.setuptools.exclude-package-data]
-"agi_app_multi_app_dag" = [
+"agi_app_multi_dag" = [
     "project/**/.venv/**",
     "project/**/__pycache__/**",
     "project/**/*.pyc",

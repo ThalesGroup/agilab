@@ -8,7 +8,7 @@ from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.sdist import sdist as _sdist
 
 APP_PROJECT = 'multi_app_dag_project'
-PACKAGE_IMPORT = 'agi_app_multi_app_dag'
+PACKAGE_IMPORT = 'agi_app_multi_dag'
 
 
 def _load_build_support():

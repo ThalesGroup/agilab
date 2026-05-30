@@ -1,10 +1,10 @@
-# agi-app-multi-app-dag
+# agi-app-multi-dag
 
-[![PyPI version](https://img.shields.io/pypi/v/agi-app-multi-app-dag.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-multi-app-dag/)
-[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-multi-app-dag.svg)](https://pypi.org/project/agi-app-multi-app-dag/)
-[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-multi-app-dag)](https://opensource.org/licenses/BSD-3-Clause)
+[![PyPI version](https://img.shields.io/pypi/v/agi-app-multi-dag.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-multi-dag/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-multi-dag.svg)](https://pypi.org/project/agi-app-multi-dag/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-multi-dag)](https://opensource.org/licenses/BSD-3-Clause)
 
-`agi-app-multi-app-dag` publishes the `multi_app_dag_project` AGILAB app as a
+`agi-app-multi-dag` publishes the `multi_app_dag_project` AGILAB app as a
 self-contained PyPI payload. It is a read-only workflow-contract example rather
 than a domain worker benchmark.
 
@@ -16,7 +16,7 @@ summary artifact that a weather stage can consume.
 
 ## Installed Project
 
-The distribution name is `agi-app-multi-app-dag`; the AGILAB project name is
+The distribution name is `agi-app-multi-dag`; the AGILAB project name is
 `multi_app_dag_project`. The package exposes both `multi_app_dag` and
 `multi_app_dag_project` through the `agilab.apps` entry point group, so
 `AgiEnv(app="multi_app_dag_project")` resolves the project without a monorepo
@@ -25,7 +25,7 @@ checkout.
 ## Install
 
 ```bash
-pip install agi-app-multi-app-dag
+pip install agi-app-multi-dag
 ```
 
 Most users get this package through `agi-apps`, `agilab[ui]`, or

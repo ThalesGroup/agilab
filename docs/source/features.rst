@@ -1,7 +1,9 @@
 Features
 ========
 
-This page lists current shipped capabilities.
+This page lists current shipped capabilities. If you want to choose the right
+route for a user job, start with :doc:`capability-map`; this page is the
+capability inventory behind that map.
 
 For toolchain fit, framework comparison, and when to choose AGILab, see
 :doc:`agilab-mlops-positioning`.
@@ -10,8 +12,10 @@ For planned work, see :doc:`roadmap/agilab-future-work`.
 
 AGILab currently exposes 2 main user interfaces:
 
- - ``agi-core``: an API interface callable directly from your Python program.
- - ``agilab``: a web interface that generates ``agi-core`` calls and can render generated snippets for execution.
+ - ``agi-core``: a Python API callable directly from notebooks, scripts, and
+   exported supervisor notebooks.
+ - ``agilab``: a web interface that drives the same runtime path and can render
+   generated snippets for review before execution.
 
 Shared components include ``agi-env`` (headless environment setup),
 ``agi-gui`` (Streamlit UI dependency bundle and page helpers), ``agi-node``
@@ -22,7 +26,9 @@ agi-core
 
 - **Automated Virtual Environment Setup:**
 
-  - Automatically installs virtual environments for cluster nodes which are computers with multi-cores CPU, GPU and NPU.
+  - Provisions isolated virtual environments for local runs and configured
+    worker nodes. Nodes can be ordinary CPU machines or operator-managed
+    accelerator hosts when the app dependencies and runtime support them.
 
 - **Flexible Application Run Modes:**
 
@@ -33,13 +39,14 @@ agi-core
 
   - **Language Support:**
 
-    - Pure Python (From python 3.11)
-    - Cython (Ahead of execution compilation)
+    - Pure Python on Python 3.11+
+    - Cython ahead-of-execution compilation for supported worker kernels
 
   - **Deployment Modes:**
 
-    - Single Node with MacOS, Windows (from W11) or Linux (Ubuntu from ubuntu 24.04)
-    - Cluster with heterogeneous os per node
+    - Single node on macOS, Windows 11, or Linux such as Ubuntu 24.04
+    - Cluster mode with heterogeneous operating systems when the operator has
+      validated accounts, shares, and network access
 
 - **Node Capacity Calibration:**
 
@@ -88,7 +95,10 @@ agi-core
 
 - **Optimized Run-Mode Selection:**
 
-  - Chooses the best run-mode from up to 16 combinations (8 base modes and an optional RAPIDS variant).
+  - Evaluates supported local run-mode combinations and optional accelerator
+    variants when available. Treat benchmark results as environment-specific;
+    AGILAB records the selected mode and evidence rather than promising a
+    universal fastest path.
 
 
 agilab
@@ -101,7 +111,8 @@ agilab
 
 - **agi-core API Generation:**
 
-  - Automatically generates APIs to streamline development processes.
+  - Renders reviewable ``agi-core`` calls and snippets from UI state so users can
+    understand the runtime path and reuse it outside the Streamlit session.
 
 - **Multi-provider coding assistant:**
 
@@ -109,7 +120,8 @@ agilab
 
 - **Embedded Dataframe Export:**
 
-  - Easily export dataframes cross project.
+  - Exports dataframe artifacts across project and analysis boundaries through
+    explicit files and manifests instead of hidden UI state.
 
 - **5 Ways to Reuse Code:**
 

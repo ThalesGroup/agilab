@@ -3,7 +3,7 @@
   {"project": "execution_pandas_project", "slug": "execution_pandas", "distribution": "agi-app-pandas-execution", "package": "agi_app_pandas_execution"},
   {"project": "execution_polars_project", "slug": "execution_polars", "distribution": "agi-app-polars-execution", "package": "agi_app_polars_execution"},
   {"project": "flight_telemetry_project", "slug": "flight_telemetry", "distribution": "agi-app-flight-telemetry", "package": "agi_app_flight_telemetry"},
-  {"project": "multi_app_dag_project", "slug": "multi_app_dag", "distribution": "agi-app-multi-app-dag", "package": "agi_app_multi_app_dag"},
+  {"project": "multi_app_dag_project", "slug": "multi_app_dag", "distribution": "agi-app-multi-dag", "package": "agi_app_multi_dag"},
   {"project": "weather_forecast_project", "slug": "weather_forecast", "distribution": "agi-app-weather-forecast", "package": "agi_app_weather_forecast"},
   {"project": "sklearn_pipeline_project", "slug": "sklearn_pipeline", "distribution": "agi-app-sklearn-pipeline", "package": "agi_app_sklearn_pipeline"},
   {"project": "pytorch_playground_project", "slug": "pytorch_playground", "distribution": "agi-app-pytorch-playground", "package": "agi_app_pytorch_playground"},

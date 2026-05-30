@@ -19,7 +19,7 @@ Audit notes:
 |--------------|---------|---------|
 | agi-app-flight-telemetry | 2026.5.30 | BSD-3-Clause |
 | agi-app-mission-decision | 2026.5.30 | BSD-3-Clause |
-| agi-app-multi-app-dag | 2026.5.30 | BSD-3-Clause |
+| agi-app-multi-dag | 2026.5.30 | BSD-3-Clause |
 | agi-app-pandas-execution | 2026.5.30 | BSD-3-Clause |
 | agi-app-polars-execution | 2026.5.30 | BSD-3-Clause |
 | agi-app-pytorch-playground | 2026.5.30 | BSD-3-Clause |

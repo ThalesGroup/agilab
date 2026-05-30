@@ -231,6 +231,34 @@ def test_app_contracts_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_maintenance_shortcut_runs_dashboard():
+    assert agilab_dev.planned_commands(["maintenance", "--json"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/maintenance_dashboard.py",
+            "--json",
+        ]
+    ]
+
+
+def test_maintenance_shortcut_has_maintain_alias():
+    assert agilab_dev.planned_commands(["maintain", "--strict"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/maintenance_dashboard.py",
+            "--strict",
+        ]
+    ]
+
+
 def test_audit_shortcut_runs_agilab_audit():
     assert agilab_dev.planned_commands(["audit", "--no-network"]) == [
         [

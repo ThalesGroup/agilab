@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_SLUG = 'multi_app_dag'
 PROJECT_NAME = 'multi_app_dag_project'
-PACKAGE_NAME = 'agi-app-multi-app-dag'
+PACKAGE_NAME = 'agi-app-multi-dag'
 
 
 def package_root() -> Path:

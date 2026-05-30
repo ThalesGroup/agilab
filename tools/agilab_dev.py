@@ -77,6 +77,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"app-contracts", "apps-contracts"}:
         return [_uv_python("tools/app_contract_matrix.py", *args)]
 
+    if command in {"maintenance", "maintain"}:
+        return [_uv_python("tools/maintenance_dashboard.py", *args)]
+
     if command == "audit":
         return [_uv_python("tools/agilab_audit.py", *args)]
 
@@ -167,6 +170,7 @@ def _usage() -> str:
   ./dev [--print-only] robust [robustness_matrix args]
   ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
+  ./dev [--print-only] maintenance [maintenance_dashboard args]
   ./dev [--print-only] audit [agilab_audit args]
   ./dev [--print-only] audit-quality [audit_quality_evaluator args|audit.md]
   ./dev [--print-only] audit-preflight
@@ -187,6 +191,7 @@ High-frequency mappings:
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
+  maintenance -> Report extension contracts, ADRs, docs drift, app/package contracts, evidence docs, release friction, TODO hotspots, generated artifacts, and coverage signals.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
