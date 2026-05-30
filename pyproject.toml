@@ -60,7 +60,7 @@ agilab-mcp = "agilab_mcp.server:main"
 
 [project.optional-dependencies]
 ai = ["openai>=2.32.0,<3"]
-ui = ["agi-apps==2026.05.30", "agi-pages==2026.05.30", "agi-gui==2026.05.30", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "streamlit>=1.56,<1.59", "tomli_w>=1.2.0,<2"]
+ui = ["agi-apps==2026.05.30", "agi-pages==2026.05.30", "agi-gui==2026.05.30", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "streamlit>=1.56,<1.57", "tomli_w>=1.2.0,<2"]
 viz = ["matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7"]
 mlflow = ["mlflow>=3.11.1,<4", "idna>=3.15,<4", "starlette>=1.0.1,<2"]
 bridges = ["duckdb>=1.4.0,<2"]
