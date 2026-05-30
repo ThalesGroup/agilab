@@ -3559,6 +3559,91 @@ def test_pytorch_playground_main_live_mode_and_missing_evidence_branch(
     ]
 
 
+def test_pytorch_playground_core_remaining_training_edges() -> None:
+    module = _load_module()
+
+    fallback_fig = module._plotly_unavailable_figure("demo", trace_count=2)
+    assert len(fallback_fig.data) == 2
+    assert module._parse_hidden_layers("4,, 8") == (4, 8)
+
+    no_hidden_config = module.PlaygroundConfig(
+        sample_count=32,
+        grid_size=8,
+        hidden_layers=(),
+        epochs=2,
+    )
+    training_data = module._prepare_training_data(no_hidden_config)
+    model = module._build_model(len(no_hidden_config.feature_names), no_hidden_config)
+    assert module._hidden_activation_maps(
+        model,
+        no_hidden_config,
+        training_data["mean"],
+        training_data["std"],
+    ).empty
+
+    sgd_config = module.PlaygroundConfig(
+        sample_count=32,
+        grid_size=8,
+        hidden_layers=(4,),
+        optimizer="SGD",
+        regularization="L1",
+        regularization_rate=0.01,
+        epochs=2,
+    )
+    sgd_data = module._prepare_training_data(sgd_config)
+    sgd_model = module._build_model(len(sgd_config.feature_names), sgd_config)
+    loss_fn = module.nn.CrossEntropyLoss()
+    optimizer = module._playground_core._optimizer_for_config(sgd_model, sgd_config)
+    assert optimizer.__class__.__name__ == "SGD"
+    module._playground_core._train_one_epoch(
+        sgd_config,
+        sgd_model,
+        loss_fn,
+        optimizer,
+        sgd_data,
+    )
+
+    rows = [{"epoch": 3}]
+    module._playground_core._append_history_row_once(rows, sgd_model, loss_fn, sgd_data, 3)
+    assert rows == [{"epoch": 3}]
+
+    failed_state = module._advance_live_training({"status": "error", "playing": True})
+    assert failed_state["playing"] is False
+
+    bad_config_state = module._advance_live_training({"status": "ok", "config": "bad", "playing": True})
+    assert bad_config_state["status"] == "error"
+    assert bad_config_state["playing"] is False
+
+    bad_history_state = module._advance_live_training(
+        {
+            "status": "ok",
+            "config": sgd_config,
+            "history_rows": "bad",
+            "snapshot_states": [],
+            "playing": True,
+        }
+    )
+    assert bad_history_state["status"] == "error"
+    assert bad_history_state["playing"] is False
+
+    incomplete_result = module._live_training_result({})
+    assert incomplete_result["status"] == "error"
+    error_result = module._live_training_result(
+        {"status": "error", "detail": "boom", "config": sgd_config, "epoch": 1}
+    )
+    assert error_result["detail"] == "boom"
+    assert error_result["summary"]["backend"] == "error"
+
+    assert module._playground_core._boundary_snapshots(
+        sgd_model,
+        sgd_config,
+        sgd_data["mean"],
+        sgd_data["std"],
+        [],
+    ).empty
+    assert module._playground_core._normalized_landscape_resolution(10) == 11
+
+
 def test_pytorch_playground_app_provider_and_package_docs(tmp_path: Path) -> None:
     spec = importlib.util.spec_from_file_location("agi_app_pytorch_playground_init_test_module", INIT_PATH)
     assert spec is not None and spec.loader is not None

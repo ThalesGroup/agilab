@@ -1894,3 +1894,172 @@ def test_render_cluster_settings_ui_ssh_key_mode_uses_env_default_key_when_input
     assert env.password is None
     assert env.ssh_key_path == "~/.ssh/id_demo"
     assert ("AGI_SSH_KEY_PATH", "~/.ssh/id_demo") in env_calls
+
+
+def test_orchestrate_cluster_remaining_helper_edges(monkeypatch, tmp_path):
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    env_from_envars = SimpleNamespace(
+        home_abs=tmp_path,
+        envars={"AGI_CLUSTER_SHARE": str(share)},
+    )
+    assert orchestrate_cluster._env_cluster_share_setting(env_from_envars) == "cluster-share"
+    assert orchestrate_cluster._cluster_share_problem(env_from_envars) is None
+
+    monkeypatch.setattr(orchestrate_cluster.os, "access", lambda *_args, **_kwargs: False)
+    assert "not writable" in orchestrate_cluster._cluster_share_problem(env_from_envars)
+
+    assert orchestrate_cluster._default_cluster_plan_path() == Path.home() / orchestrate_cluster.CLUSTER_PLAN_FILE
+    assert orchestrate_cluster._default_cluster_plan_path(object()) == Path.home() / orchestrate_cluster.CLUSTER_PLAN_FILE
+    assert orchestrate_cluster._load_lan_discovery_payload(None) == {}
+    assert orchestrate_cluster._parse_cpu_cores("16 cpu available") == 16
+    assert orchestrate_cluster._parse_ram_gb("not memory") is None
+    assert orchestrate_cluster._parse_ram_gb("1.5 TiB") == 1536.0
+    assert orchestrate_cluster._gpu_count("gpu0; gpu1, gpu2") == 3
+
+    assert orchestrate_cluster._recommended_workers_for_node({"host": "localhost"}) == (
+        0,
+        ["excluded: host is not a usable LAN worker address"],
+    )
+    count, reasons = orchestrate_cluster._recommended_workers_for_node(
+        {
+            "host": "192.168.10.22",
+            "status": "ready",
+            "cpu": "cores: 32",
+            "ram": "64 GB",
+            "gpu": "0,1",
+        },
+        scheduler_host="192.168.10.22",
+    )
+    assert count == 1
+    assert any("GPU budget" in reason for reason in reasons)
+    assert any("scheduler host kept" in reason for reason in reasons)
+
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.10.10"],
+                "nodes": [
+                    "bad",
+                    {"host": "192.168.10.10", "status": "ready"},
+                    {"host": "192.168.10.11", "status": "ready", "ram": "16 GB"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = orchestrate_cluster._cluster_advisor_plan(
+        cache_path,
+        {"scheduler": "192.168.10.10:8786", "workers": {"bad": "x", "192.168.10.11": "2"}},
+        env_from_envars,
+    )
+    assert plan["recommended_workers"]["192.168.10.10"] == 1
+    assert plan["recommended_workers"]["192.168.10.11"] >= 1
+    assert plan["summary"]["current_total_workers"] == 2
+
+    bad_parent = tmp_path / "not-a-dir"
+    bad_parent.write_text("blocked", encoding="utf-8")
+    written, message = orchestrate_cluster._write_cluster_advisor_plan(
+        bad_parent / "cluster_plan.json",
+        {"ok": True},
+    )
+    assert written is False
+    assert message
+
+
+def test_render_cluster_settings_ui_lan_button_error_edges(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+
+    def _deps():
+        return orchestrate_cluster.OrchestrateClusterDeps(
+            parse_and_validate_scheduler=lambda raw: raw,
+            parse_and_validate_workers=lambda raw: json.loads(raw) if raw.strip().startswith("{") else None,
+            write_app_settings_toml=lambda _path, settings: settings,
+            clear_load_toml_cache=lambda: None,
+            set_env_var=lambda _key, _value: None,
+            agi_env_envars={},
+        )
+
+    def _env():
+        return SimpleNamespace(
+            app=app_name,
+            home_abs=tmp_path / "home",
+            is_managed_pc=False,
+            AGI_CLUSTER_SHARE=str(share),
+            agi_share_path=Path("clustershare"),
+            share_root_path=lambda: share,
+            user="agi",
+            password=None,
+            ssh_key_path=None,
+            app_settings_file=tmp_path / "app_settings.toml",
+        )
+
+    clear_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={orchestrate_cluster._lan_discovery_clear_key(app_name): True},
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", clear_st)
+    monkeypatch.setattr(orchestrate_cluster, "_clear_lan_discovery_cache", lambda _path: (False, "missing"))
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda *_, **__: {})
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_invalid_worker_hosts", lambda *_, **__: set())
+    orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
+    assert any("already clear" in info for info in clear_st.infos)
+
+    clear_error_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={orchestrate_cluster._lan_discovery_clear_key(app_name): True},
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", clear_error_st)
+    monkeypatch.setattr(orchestrate_cluster, "_clear_lan_discovery_cache", lambda _path: (False, "denied"))
+    orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
+    assert any("Could not clear LAN discovery cache" in error for error in clear_error_st.errors)
+
+    refresh_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={orchestrate_cluster._lan_discovery_refresh_key(app_name): True},
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", refresh_st)
+    monkeypatch.setattr(orchestrate_cluster, "_refresh_lan_discovery_cache", lambda *_args, **_kwargs: (False, "ssh failed"))
+    orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
+    assert any("LAN discovery refresh failed" in error for error in refresh_st.errors)
+
+    advisor_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={orchestrate_cluster._cluster_advisor_plan_key(app_name): True},
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", advisor_st)
+    monkeypatch.setattr(orchestrate_cluster, "_write_cluster_advisor_plan", lambda *_args, **_kwargs: (False, "readonly"))
+    orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
+    assert any("Could not write cluster plan" in error for error in advisor_st.errors)

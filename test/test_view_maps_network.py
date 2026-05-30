@@ -3195,3 +3195,181 @@ def test_view_maps_network_helper_covers_remaining_fallback_branches(
     assert positions["flight_id"].tolist() == ["2002"]
 
     assert module._canonical_bearer_state("   ", routed=True) == "Routed"
+
+
+def test_view_maps_network_direct_helper_remaining_edges(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+
+    class _StopCalled(RuntimeError):
+        pass
+
+    class _NoLinkButtonColumn:
+        def __init__(self, events: list[tuple[str, str]]):
+            self.events = events
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def caption(self, message, **_kwargs):
+            self.events.append(("caption", str(message)))
+
+    class _ContextStreamlit:
+        def __init__(self):
+            self.events: list[tuple[str, str]] = []
+            self.session_state = {}
+
+        def error(self, message, **_kwargs):
+            self.events.append(("error", str(message)))
+
+        def stop(self):
+            raise _StopCalled
+
+        def columns(self, count):
+            return [_NoLinkButtonColumn(self.events) for _ in range(int(count))]
+
+        def caption(self, message, **_kwargs):
+            self.events.append(("caption", str(message)))
+
+        def expander(self, label, expanded=False):
+            self.events.append(("expander", f"{label}:{expanded}"))
+            return _NoLinkButtonColumn(self.events)
+
+        def code(self, message, **_kwargs):
+            self.events.append(("code", str(message)))
+
+        def warning(self, message, **_kwargs):
+            self.events.append(("warning", str(message)))
+
+    fake_st = _ContextStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.delenv("AGILAB_ACTIVE_APP", raising=False)
+    with patch("sys.argv", ["view_maps_network.py"]), pytest.raises(_StopCalled):
+        module._resolve_active_app()
+    assert ("error", "Missing --active-app argument.") in fake_st.events
+
+    env_with_active = SimpleNamespace(app="demo", active_app=tmp_path / "active")
+    assert module._active_app_context_from_env(env_with_active) == (
+        "demo",
+        tmp_path / "active",
+    )
+    env_with_apps_path = SimpleNamespace(target="worker", apps_path=tmp_path / "apps")
+    assert module._active_app_context_from_env(env_with_apps_path) == (
+        "worker",
+        tmp_path / "apps" / "worker",
+    )
+    assert module._active_app_context_from_env(SimpleNamespace()) == (
+        "project",
+        Path("project"),
+    )
+
+    module._render_app_page_context("demo", tmp_path / "active")
+    assert ("caption", "Back to ANALYSIS: /ANALYSIS?active_app=demo") in fake_st.events
+
+    sanitized = module._sanitize_toml_payload(
+        {
+            None: "drop",
+            "path": tmp_path / "file.csv",
+            "set": {"b", "a"},
+            "scalar": np.int64(3),
+        }
+    )
+    assert sanitized["path"] == (tmp_path / "file.csv").as_posix()
+    assert sanitized["set"] == ["a", "b"]
+    assert sanitized["scalar"] == 3
+
+    zeros = module._cloud_heatmap_stats_kernel_py(
+        np.array([0.0]),
+        np.array([0.0]),
+        np.ones((1, 1), dtype=np.float32),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1,
+    )
+    assert all(np.isnan(values).all() for values in zeros)
+
+    nan_grid = module._cloud_heatmap_stats_kernel_py(
+        np.array([0.0]),
+        np.array([0.0]),
+        np.array([[np.nan, 2.0], [3.0, 4.0]], dtype=np.float32),
+        0.0,
+        0.0,
+        module.EARTH_RADIUS_M,
+        0.0,
+        0.0,
+        1,
+    )
+    assert np.isnan(nan_grid[0][0])
+    assert np.isfinite(nan_grid[2][0])
+
+    module._HEATMAP_NUMBA_KERNEL_ATTEMPTED = True
+    module._HEATMAP_NUMBA_KERNEL = "cached"
+    assert module._get_heatmap_numba_kernel() == "cached"
+
+    original_import = __import__
+
+    def _missing_numba(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "numba":
+            raise ImportError("no numba")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr("builtins.__import__", _missing_numba)
+    module._HEATMAP_NUMBA_KERNEL_ATTEMPTED = False
+    module._HEATMAP_NUMBA_KERNEL = None
+    assert module._get_heatmap_numba_kernel() is None
+
+    def _fake_numba(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "numba":
+            return SimpleNamespace(njit=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("jit failed")))
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr("builtins.__import__", _fake_numba)
+    module._HEATMAP_NUMBA_KERNEL_ATTEMPTED = False
+    assert module._get_heatmap_numba_kernel() is None
+
+    with pytest.raises(ValueError, match="matching latitude and longitude"):
+        module._sample_cloud_heatmap_stats_batch("grid.npz", [0.0], [0.0, 1.0])
+    assert module._sample_cloud_heatmap_stats_batch("grid.npz", [], [])["raw_value"].size == 0
+
+    monkeypatch.setattr(
+        module,
+        "_load_cloud_heatmap_grid",
+        lambda _path: {
+            "heatmap": np.asarray([[1.0]], dtype=np.float32),
+            "x_min": 0.0,
+            "z_min": 0.0,
+            "step": module.EARTH_RADIUS_M,
+            "center_x": 0.0,
+            "center_z": 0.0,
+        },
+    )
+    module._HEATMAP_NUMBA_KERNEL_ATTEMPTED = True
+    module._HEATMAP_NUMBA_KERNEL = lambda *_args: (_ for _ in ()).throw(RuntimeError("kernel failed"))
+    sampled = module._sample_cloud_heatmap_stats_batch("grid.npz", [0.0], [0.0])
+    assert sampled["raw_value"].tolist() == [1.0]
+    assert module._HEATMAP_NUMBA_KERNEL is None
+
+    assert module._position_lookup(pd.DataFrame({"flight_id": [], "long": []})) == ({}, set())
+    lookup, node_set = module._position_lookup(
+        pd.DataFrame(
+            {
+                "flight_id": [float("nan"), "1001", "1001"],
+                "long": [1.0, 2.0, 3.0],
+                "lat": [4.0, 5.0, 6.0],
+                "alt": [7.0, 8.0, 9.0],
+            }
+        )
+    )
+    assert lookup == {"1001": (2.0, 5.0, 8.0)}
+    assert node_set == {"1001"}
+    assert module.build_allocation_layers(
+        pd.DataFrame({"source": ["1"], "destination": ["2"]}),
+        pd.DataFrame({"flight_id": ["1"], "long": [1.0]}),
+    ) == []

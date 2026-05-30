@@ -2512,3 +2512,41 @@ async def test_render_execute_section_delete_reports_disk_failure(monkeypatch, t
     )
 
     assert any(kind == "error" and "Failed to delete" in msg for kind, msg in delete_st.messages)
+
+
+def test_orchestrate_execute_remaining_direct_helper_edges(monkeypatch, tmp_path):
+    fake_matplotlib = object()
+    monkeypatch.setattr(orchestrate_execute, "plt", fake_matplotlib)
+    assert orchestrate_execute._require_matplotlib() is fake_matplotlib
+
+    monkeypatch.setattr(orchestrate_execute, "plt", None)
+    monkeypatch.setattr(orchestrate_execute, "_MATPLOTLIB_IMPORT_ERROR", None)
+    imported = object()
+    assert orchestrate_execute._require_matplotlib(lambda _name: imported) is imported
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(orchestrate_execute.Path, "home", classmethod(lambda cls: home))
+
+    roots = orchestrate_execute.collect_candidate_roots(
+        SimpleNamespace(
+            dataframe_path=None,
+            app_data_rel=None,
+            resolve_share_path=lambda _path: (_ for _ in ()).throw(OSError("share failed")),
+        ),
+        {"data_out": "fallback/output", "data_in": "required/input"},
+    )
+    assert roots == [home / "fallback/output"]
+
+    direct_file = tmp_path / "result.csv"
+    direct_file.write_text("x\n1\n", encoding="utf-8")
+    target, files = orchestrate_execute.find_preview_target([direct_file])
+    assert target == direct_file
+    assert files == [direct_file]
+
+    notice_state = {}
+    orchestrate_execute.queue_execute_notice(notice_state, kind="fatal", message="fallback")
+    assert notice_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "info"
+    body, omitted = orchestrate_execute.run_log_view_body("a\nb", max_lines=0)
+    assert body == "a\nb"
+    assert omitted == 0
