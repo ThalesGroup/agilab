@@ -3115,6 +3115,14 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
     worker_module = importlib.import_module("pytorch_playground_worker.pytorch_playground_worker")
     args_module = importlib.import_module("pytorch_playground.app_args")
 
+    with monkeypatch.context() as module_patch:
+        module_patch.setitem(
+            worker_module.sys.modules,
+            "pytorch_playground.app_args",
+            SimpleNamespace(PytorchPlaygroundArgs=object),
+        )
+        assert worker_module._args_model() is worker_module.PytorchPlaygroundArgs
+
     assert worker_module._artifact_dir(
         SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="target"),
         "leaf",
@@ -3212,6 +3220,55 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
     ]
     bare_worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
     assert worker_module.PytorchPlaygroundWorker.work_done(bare_worker) is None
+    bare_worker.pool_init({"args": args})
+    assert worker_module._runtime["args"] is args
+    assert bare_worker.work_init() is None
+
+    landscape = pd.DataFrame(
+        [
+            {
+                "alpha": 0.0,
+                "beta": 0.0,
+                "train_loss": 0.2,
+                "validation_loss": 0.3,
+                "train_accuracy": 0.8,
+                "validation_accuracy": 0.7,
+                "is_center": True,
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        worker_module,
+        "_train_playground",
+        lambda _config: {"status": "ok", "summary": {"backend": "fake"}},
+    )
+    monkeypatch.setattr(
+        worker_module,
+        "_loss_landscape",
+        lambda _config, **_kwargs: {
+            "loss_landscape": landscape,
+            "landscape_summary": {"status": "ok", "points": 1},
+        },
+    )
+    monkeypatch.setattr(worker_module, "_evidence_artifact_files", lambda _config, _result: {"evidence.txt": b"ok"})
+    monkeypatch.setattr(worker_module, "_build_evidence_manifest", lambda _config, _result: {"schema": "test"})
+    monkeypatch.setattr(worker_module, "_json_bytes", lambda value: json.dumps(value).encode())
+    monkeypatch.setattr(worker_module, "_build_evidence_pack", lambda _config, _result: b"zip")
+    monkeypatch.setattr(worker_module, "write_reduce_artifact", lambda *_args, **_kwargs: None)
+
+    landscape_worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    landscape_worker.args = args_module.PytorchPlaygroundArgs(
+        data_out=tmp_path / "landscape-out",
+        compute_loss_landscape=True,
+        landscape_resolution=5,
+        landscape_span=0.2,
+        sample_count=64,
+    )
+    landscape_worker.env = SimpleNamespace(target="", AGILAB_EXPORT_ABS=tmp_path / "landscape-export")
+    landscape_worker._worker_id = 2
+    landscape_worker.start()
+    landscape_summary = landscape_worker.work_pool("pytorch_playground")
+    assert landscape_summary.iloc[0]["loss_landscape_points"] == 1
 
 
 def test_pytorch_playground_worker_exports_real_torch_evidence_when_available(
@@ -3772,6 +3829,7 @@ def test_pytorch_playground_core_remaining_training_edges() -> None:
 
     fallback_fig = module._plotly_unavailable_figure("demo", trace_count=2)
     assert len(fallback_fig.data) == 2
+    assert module._parse_hidden_layers(" ,4,, 8") == (4, 8)
     assert module._parse_hidden_layers("4,, 8") == (4, 8)
 
     no_hidden_config = module.PlaygroundConfig(
@@ -3856,6 +3914,366 @@ def test_pytorch_playground_core_remaining_training_edges() -> None:
         [],
     ).empty
     assert module._playground_core._normalized_landscape_resolution(10) == 11
+
+
+def test_pytorch_playground_training_orchestration_with_fake_torch(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    core = module._playground_core
+
+    class FakeScalar:
+        def __init__(self, value):
+            self.value = float(value)
+
+        def item(self):
+            return self.value
+
+        def backward(self):
+            return None
+
+        def clamp_min(self, minimum):
+            return FakeScalar(max(self.value, float(minimum)))
+
+        def __float__(self):
+            return self.value
+
+        def __add__(self, other):
+            return FakeScalar(self.value + float(other))
+
+        __radd__ = __add__
+
+        def __sub__(self, other):
+            return FakeScalar(self.value - float(other))
+
+        def __rsub__(self, other):
+            return FakeScalar(float(other) - self.value)
+
+        def __mul__(self, other):
+            if isinstance(other, FakeTensor):
+                return FakeTensor(self.value * other.values)
+            return FakeScalar(self.value * float(other))
+
+        __rmul__ = __mul__
+
+        def __truediv__(self, other):
+            return FakeScalar(self.value / float(other))
+
+    class FakeTensor:
+        def __init__(self, values):
+            self.values = np.asarray(values, dtype=float)
+
+        @property
+        def shape(self):
+            return self.values.shape
+
+        @property
+        def dtype(self):
+            return self.values.dtype
+
+        @property
+        def device(self):
+            return "cpu"
+
+        def __len__(self):
+            return len(self.values)
+
+        def __getitem__(self, key):
+            if isinstance(key, FakeTensor):
+                key = key.values.astype(int)
+            elif isinstance(key, tuple):
+                key = tuple(item.values.astype(int) if isinstance(item, FakeTensor) else item for item in key)
+            return FakeTensor(self.values[key])
+
+        def __add__(self, other):
+            return FakeTensor(self.values + _raw(other))
+
+        __radd__ = __add__
+
+        def __sub__(self, other):
+            return FakeTensor(self.values - _raw(other))
+
+        def __rsub__(self, other):
+            return FakeTensor(_raw(other) - self.values)
+
+        def __mul__(self, other):
+            return FakeTensor(self.values * _raw(other))
+
+        __rmul__ = __mul__
+
+        def __truediv__(self, other):
+            return FakeTensor(self.values / _raw(other))
+
+        def __eq__(self, other):
+            return FakeTensor(self.values == _raw(other))
+
+        def argmax(self, dim=1):
+            return FakeTensor(np.argmax(self.values, axis=dim))
+
+        def float(self):
+            return FakeTensor(self.values.astype(float))
+
+        def mean(self):
+            return FakeScalar(float(np.mean(self.values)))
+
+        def detach(self):
+            return self
+
+        def flatten(self):
+            return FakeTensor(self.values.flatten())
+
+        def cpu(self):
+            return self
+
+        def clone(self):
+            return FakeTensor(self.values.copy())
+
+        def reshape(self, *shape):
+            if len(shape) == 1 and isinstance(shape[0], tuple):
+                shape = shape[0]
+            return FakeTensor(self.values.reshape(*shape))
+
+        def to(self, *_args, **_kwargs):
+            return self
+
+        def numpy(self):
+            return self.values
+
+        def abs(self):
+            return FakeTensor(np.abs(self.values))
+
+        def sum(self):
+            return FakeScalar(float(np.sum(self.values)))
+
+        def norm(self):
+            return FakeScalar(float(np.linalg.norm(self.values)))
+
+    def _raw(value):
+        if isinstance(value, FakeTensor):
+            return value.values
+        if isinstance(value, FakeScalar):
+            return value.value
+        return value
+
+    class FakeParameter(FakeTensor):
+        @property
+        def data(self):
+            return self
+
+        def numel(self):
+            return int(self.values.size)
+
+        def copy_(self, other):
+            self.values = np.asarray(_raw(other), dtype=float).reshape(self.values.shape)
+            return self
+
+    class FakeLoss(FakeScalar):
+        pass
+
+    class FakeLossFn:
+        def __call__(self, logits, _labels):
+            return FakeLoss(np.mean(logits.values))
+
+    class FakeOptimizer:
+        def __init__(self, _parameters, **_kwargs):
+            self.zero_grad_calls = 0
+            self.step_calls = 0
+
+        def zero_grad(self):
+            self.zero_grad_calls += 1
+
+        def step(self):
+            self.step_calls += 1
+
+    class FakeSGD(FakeOptimizer):
+        pass
+
+    class FakeAdam(FakeOptimizer):
+        pass
+
+    class FakeLinear:
+        def __init__(self, in_features, out_features, bias=True):
+            self.in_features = int(in_features)
+            self.out_features = int(out_features)
+            self.weight = FakeParameter(np.full((self.out_features, self.in_features), 0.2))
+            self.bias = FakeParameter(np.linspace(-0.1, 0.1, self.out_features)) if bias else None
+
+        def __call__(self, values):
+            raw = np.asarray(values.values, dtype=float)
+            if raw.ndim == 1:
+                raw = raw.reshape(1, -1)
+            columns = [
+                raw[:, index % raw.shape[1]] * (0.5 + index * 0.1) + (index + 1) * 0.05
+                for index in range(self.out_features)
+            ]
+            return FakeTensor(np.column_stack(columns))
+
+    class FakeActivation:
+        def __call__(self, values):
+            return values
+
+    class FakeModel:
+        def __init__(self, input_count=2, hidden_width=3):
+            self.layers = [
+                FakeLinear(input_count, hidden_width),
+                FakeActivation(),
+                FakeLinear(hidden_width, 2),
+            ]
+            self.train_calls = 0
+            self.eval_calls = 0
+
+        def __iter__(self):
+            return iter(self.layers)
+
+        def __call__(self, values):
+            for layer in self.layers:
+                values = layer(values)
+            return values
+
+        def parameters(self):
+            for layer in self.layers:
+                if isinstance(layer, FakeLinear):
+                    yield layer.weight
+                    if layer.bias is not None:
+                        yield layer.bias
+
+        def eval(self):
+            self.eval_calls += 1
+
+        def train(self):
+            self.train_calls += 1
+
+    class FakeNoGrad:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    class FakeGenerator:
+        def manual_seed(self, _seed):
+            return self
+
+    class FakeTorch:
+        float32 = "float32"
+        long = "long"
+        optim = SimpleNamespace(SGD=FakeSGD, Adam=FakeAdam)
+
+        @staticmethod
+        def tensor(values, dtype=None):
+            return FakeTensor(values)
+
+        @staticmethod
+        def randperm(length):
+            return np.arange(int(length))
+
+        @staticmethod
+        def manual_seed(_seed):
+            return None
+
+        @staticmethod
+        def no_grad():
+            return FakeNoGrad()
+
+        @staticmethod
+        def cat(values):
+            return FakeTensor(np.concatenate([value.values.reshape(-1) for value in values]))
+
+        @staticmethod
+        def softmax(logits, dim=1):
+            values = logits.values
+            shifted = values - values.max(axis=dim, keepdims=True)
+            exp_values = np.exp(shifted)
+            return FakeTensor(exp_values / exp_values.sum(axis=dim, keepdims=True))
+
+        @staticmethod
+        def Generator():
+            return FakeGenerator()
+
+        @staticmethod
+        def randn(shape, generator=None, dtype=None):
+            size = int(np.prod(shape))
+            return FakeTensor(np.linspace(0.1, 1.0, size).reshape(shape))
+
+        @staticmethod
+        def dot(left, right):
+            return FakeScalar(np.dot(left.values.reshape(-1), right.values.reshape(-1)))
+
+    monkeypatch.setattr(core, "torch", FakeTorch)
+    monkeypatch.setattr(core, "nn", SimpleNamespace(CrossEntropyLoss=FakeLossFn, Linear=FakeLinear))
+    monkeypatch.setattr(
+        core,
+        "_build_model",
+        lambda input_count, config: FakeModel(input_count, config.hidden_layers[0] if config.hidden_layers else 2),
+    )
+
+    config = core.PlaygroundConfig(
+        dataset="gaussian",
+        sample_count=24,
+        train_ratio=0.8,
+        hidden_layers=(3,),
+        optimizer="SGD",
+        regularization="L1",
+        regularization_rate=0.01,
+        epochs=3,
+        batch_size=5,
+        feature_names=("x1", "x2"),
+        grid_size=12,
+        seed=4,
+    )
+    training_data = core._prepare_training_data(config)
+    model = FakeModel()
+    loss_fn = FakeLossFn()
+    optimizer = core._optimizer_for_config(model, config)
+    assert isinstance(optimizer, FakeSGD)
+    assert isinstance(core._optimizer_for_config(model, core.PlaygroundConfig(optimizer="Adam")), FakeAdam)
+
+    core._train_one_epoch(config, model, loss_fn, optimizer, training_data)
+    rows = []
+    core._append_history_row_once(rows, model, loss_fn, training_data, 1)
+    core._append_history_row_once(rows, model, loss_fn, training_data, 1)
+    assert len(rows) == 1
+
+    fitted_model, _fitted_loss, history, snapshot_states = core._fit_model(config, training_data)
+    assert history["epoch"].tolist()[-1] == 3
+    assert {epoch for epoch, _state in snapshot_states} >= {0, 1, 3}
+
+    train_result = core._train_playground(config)
+    assert train_result["status"] == "ok"
+    assert train_result["summary"]["backend"] == "torch"
+    assert not train_result["boundary_snapshots"].empty
+    assert not train_result["activation_maps"].empty
+
+    live_state = core._new_live_training_state(config)
+    live_state["playing"] = True
+    live_state = core._advance_live_training(live_state, epochs=2)
+    live_result = core._live_training_result(live_state)
+    assert live_result["status"] == "ok"
+    assert live_result["summary"]["backend"] == "torch-live"
+    assert core._advance_live_training({"status": "error", "playing": True})["playing"] is False
+    assert core._advance_live_training({"status": "ok", "config": "bad"})["status"] == "error"
+    assert (
+        core._advance_live_training(
+            {
+                "status": "ok",
+                "config": config,
+                "history_rows": "bad",
+                "snapshot_states": [],
+                "playing": True,
+            }
+        )["detail"]
+        == "Live training state lost its history."
+    )
+    assert core._live_training_result({})["status"] == "error"
+    assert core._live_training_result({"status": "error", "detail": "boom", "config": config})["detail"] == "boom"
+
+    assert core._hidden_activation_maps(FakeModel(), core.PlaygroundConfig(hidden_layers=()), np.ones((1, 2)), np.ones((1, 2))).empty
+    linear_only_model = FakeModel()
+    linear_only_model.layers = [FakeLinear(2, 2)]
+    assert core._hidden_activation_maps(linear_only_model, config, training_data["mean"], training_data["std"]).empty
+    assert core._boundary_snapshots(fitted_model, config, training_data["mean"], training_data["std"], []).empty
+    landscape_result = core._loss_landscape(config, resolution=4, span=0.2)
+    assert landscape_result["status"] == "ok"
+    assert landscape_result["loss_landscape"].shape[0] == 25
+    assert landscape_result["landscape_summary"]["points"] == 25
 
 
 def test_pytorch_playground_app_provider_and_package_docs(tmp_path: Path) -> None:
