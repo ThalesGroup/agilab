@@ -35,7 +35,7 @@ keywords = [
     "pandas",
     "polars",
 ]
-dependencies = ["agi-env==2026.05.30", "cython>=3.1,<4", "humanize>=4.10,<5", "numpy>=2.2,<3", "pandas>=2.3,<4", "parso>=0.8,<1", "polars>=1.35,<2", "psutil>=7,<8", "py7zr>=1.0,<1.1", "setuptools>=68,<83"]
+dependencies = ["agi-env==2026.05.30", "cython>=3.1,<4", "humanize>=4.10,<5", "numpy>=2.2,<3", "pandas>=2.3,<4", "parso>=0.8,<1", "polars>=1.35,<2", "psutil>=7,<8", "py7zr>=1.0,<1.2", "setuptools>=68,<83"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
