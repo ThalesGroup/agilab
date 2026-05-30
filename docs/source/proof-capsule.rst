@@ -90,6 +90,7 @@ The shipped first layer operates on a run manifest:
    agilab verify proof.agipack --signature proof.agipack.sig.json --trust-policy policy.toml --strict
    agilab replay ~/log/execute/flight_telemetry/run_manifest.json
    agilab replay proof.agipack
+   agilab story ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack/story
    agilab export-lineage ~/log/execute/flight_telemetry/run_manifest.json --format all --output-dir proof-pack
    agilab export-traces proof.agipack --output-dir proof-pack
    agilab policy-check ~/log/execute/flight_telemetry/run_manifest.json --strict
@@ -103,6 +104,7 @@ The proof pack includes:
 * OpenLineage-shaped JSON
 * RO-Crate metadata
 * OpenTelemetry-shaped trace JSON
+* ``run_story.json`` and ``run_story.md`` for a shareable one-run summary
 * a local metadata-store entry
 * model, dataset, prompt, and evaluation cards generated from available
   manifest evidence
@@ -118,6 +120,20 @@ public-key hashes, signers, issuers, or expected capsule hashes. Replay is safe
 by default: ``agilab replay`` prints the recorded command from either
 ``run_manifest.json`` or ``proof.agipack`` and requires ``--execute`` before
 launching it.
+
+Run story
+---------
+
+``agilab story`` is the fast-adoption view of the same evidence. It reads a
+``run_manifest.json`` file, hashes present artifacts, summarizes validations,
+keeps only environment-variable names from command overrides, and writes:
+
+* ``run_story.md`` for a human-readable execution story.
+* ``run_story.json`` for CI, chat, ticket, or review-tool ingestion.
+
+The command is read-only: it does not replay the run, call network services, or
+execute recorded commands. Use it when a reviewer needs to understand what
+happened after one AGILAB run without opening logs or notebooks first.
 
 Minimal trust policy example:
 
