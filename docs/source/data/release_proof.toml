@@ -35,24 +35,24 @@ hf_space_commit = "091f0b7b82c349e6b97113a969b395dd4b3d77fe"
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "26689309348"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/26689309348"
+run_id = "26689378396"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/26689378396"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "26689309351"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/26689309351"
+run_id = "26689378393"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/26689378393"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "26689309361"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/26689309361"
+run_id = "26689378410"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/26689378410"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
