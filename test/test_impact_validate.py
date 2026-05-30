@@ -55,6 +55,10 @@ def test_analyze_paths_adds_skill_sync_and_index_refresh() -> None:
     assert "python3 tools/agent_skill_catalog.py --apply" in artifact.commands
     assert "python3 tools/generate_skill_badges.py" in artifact.commands
     assert (
+        "python3 tools/agent_skill_quality_guard.py --roots .claude/skills .codex/skills --fail-on high"
+        in artifact.commands
+    )
+    assert (
         "python3 tools/skill_security_scan.py --roots .claude/skills .codex/skills --fail-on critical"
         in artifact.commands
     )

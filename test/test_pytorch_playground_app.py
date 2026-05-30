@@ -977,6 +977,21 @@ def test_playground_ui_score_and_recommendation_edge_helpers(
     assert module._summary_sample_count({"samples": -1}, pd.DataFrame(index=range(4))) == 4
     assert module._simpler_hidden_layers(()) == (4,)
     assert module._wider_hidden_layers(()) == (8, 8)
+    assert module._base_preset_label(f"{module.DEFAULT_PRESET} live") == module.DEFAULT_PRESET
+    teaching_cards = module._teaching_tour_cards(
+        module.PlaygroundConfig(dataset="xor", hidden_layers=(4,), feature_names=("x1", "x2"))
+    )
+    assert [card["title"] for card in teaching_cards] == [
+        "Immediate visual learning",
+        "Live but replayable",
+        "Inspect the model",
+        "Keep the proof",
+    ]
+    assert "xor dataset" in teaching_cards[0]["text"]
+    ladder_cards = module._demo_ladder_cards(f"{module.DEFAULT_PRESET} live")
+    assert len(ladder_cards) == 4
+    assert any(card["state"] == "active" and card["preset"] == module.DEFAULT_PRESET for card in ladder_cards)
+    assert all(card["url"].startswith("?pytorch_playground=") for card in ladder_cards)
 
     original_import = __import__
 
@@ -1240,6 +1255,32 @@ def test_pytorch_playground_experiment_coach_renders_replay_cards(
     assert "Classic neural playgrounds expose knobs" in markup
     assert markup.count("Open replay config") == 3
     assert "Reduce overfit" in markup
+    assert "?pytorch_playground=" in markup
+
+
+def test_pytorch_playground_teaching_tour_renders_lesson_cards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeStreamlit:
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    module._render_teaching_tour(
+        f"{module.DEFAULT_PRESET} live",
+        module.PlaygroundConfig(dataset="circles", hidden_layers=(12, 12)),
+    )
+
+    markup = "\n".join(rendered)
+    assert "Beyond a classic neural playground" in markup
+    assert "PyTorch-native execution" in markup
+    assert "Open lesson config" in markup
+    assert markup.count("agilab-pt-demo-card") >= 4
+    assert "Feature engineering" in markup
     assert "?pytorch_playground=" in markup
 
 

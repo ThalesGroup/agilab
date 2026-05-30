@@ -160,6 +160,7 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "test/test_pypi_app_packages.py",
             "test/test_streamlit_args.py",
             "test/test_agi_pages_chart_spec.py",
+            "test/test_agi_pages_runtime.py",
             "test/test_pagelib.py",
             "test/test_connector_registry.py",
             "test/test_page_project_selector.py",

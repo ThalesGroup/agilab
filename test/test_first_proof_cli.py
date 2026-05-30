@@ -317,6 +317,25 @@ def test_main_rejects_dry_run_with_extended_profiles() -> None:
         module.main(["--dry-run", "--with-ui"])
 
 
+def test_main_rejects_missing_core_runtime_before_subprocess(monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "_distribution_version",
+        lambda name: None if name in {"agi-core", "agi-env"} else "2026.05.30",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.main(["--dry-run"])
+
+    message = str(excinfo.value)
+    assert "core runtime is not installed" in message
+    assert "Missing: agi-core, agi-env" in message
+    assert "agilab[core]" in message
+    assert "agilab[examples]" in message
+
+
 def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, capsys) -> None:
     module = _load_module()
     active_app = tmp_path / "custom_project"

@@ -197,7 +197,8 @@ EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES: tuple[str, ...] = tuple(
 )
 
 ROOT_EXTRA_INTERNAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
-    "dependencies": ("agi-core",),
+    "dependencies": (),
+    "core": ("agi-core",),
     "ui": ("agi-apps", "agi-pages", "agi-gui"),
     "examples": ("agi-apps",),
     "pages": ("agi-pages",),

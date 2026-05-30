@@ -130,6 +130,7 @@ references, and example projects.
    Demo chooser <demos>
    Packaged examples <packaged-examples>
    Public app catalog <public-app-catalog>
+   PyTorch Playground <pytorch-playground>
    Execution playground <execution-playground>
    Industrial optimization examples <industrial-optimization-examples>
    Notebook migration example <notebook-migration-skforecast-meteo>

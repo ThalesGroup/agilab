@@ -159,7 +159,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "forward shared-core strict ty" in descriptions["ty-typing"]
     dependency_policy = profiles["dependency-policy"][0]
     release_proof = profiles["release-proof"][0]
-    security_adoption = profiles["security-adoption"][0]
+    security_adoption_commands = profiles["security-adoption"]
+    supply_chain_adoption = security_adoption_commands[0]
+    security_adoption = security_adoption_commands[1]
+    shared_go_gate = security_adoption_commands[2]
     production_readiness = profiles["production-readiness"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_contract = profiles["ui-robot-contract"]
@@ -330,14 +333,45 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "-m" in release_proof.argv
     assert "release_proof" in release_proof.argv
     assert release_proof.argv[-1].endswith("test_newcomer_first_proof_passes_from_fresh_source_clone")
-    assert security_adoption.label == "security adoption check"
-    assert security_adoption.argv[-3:] == [
+    assert [command.label for command in security_adoption_commands] == [
+        "base supply-chain scan for shared go gate",
+        "security adoption check",
+        "shared-use go gate artifact",
+    ]
+    assert supply_chain_adoption.argv[-6:] == [
+        "tools/profile_supply_chain_scan.py",
+        "--profile",
+        "base",
+        "--output-dir",
+        "test-results/supply-chain",
+        "--run",
+    ]
+    assert supply_chain_adoption.ensure_dirs == ["test-results/supply-chain"]
+    assert supply_chain_adoption.remove_paths == ["test-results/supply-chain/base"]
+    assert security_adoption.argv[-7:] == [
         "tools/security_adoption_check.py",
         "--output",
         "test-results/security-check.json",
+        "--pip-audit-json",
+        "test-results/supply-chain/base/pip-audit.json",
+        "--sbom-json",
+        "test-results/supply-chain/base/sbom-cyclonedx.json",
     ]
     assert security_adoption.ensure_dirs == ["test-results"]
     assert security_adoption.remove_paths == ["test-results/security-check.json"]
+    assert shared_go_gate.argv[-9:] == [
+        "tools/shared_go_gate.py",
+        "--security-check-json",
+        "test-results/security-check.json",
+        "--supply-chain-dir",
+        "test-results/supply-chain",
+        "--install-profile",
+        "base",
+        "--output",
+        "test-results/shared_go_gate.json",
+    ]
+    assert shared_go_gate.ensure_dirs == ["test-results"]
+    assert shared_go_gate.remove_paths == ["test-results/shared_go_gate.json"]
     assert production_readiness.label == "production readiness gate"
     assert production_readiness.argv[-5:] == [
         "tools/production_readiness_report.py",
@@ -1461,6 +1495,8 @@ def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
         "--skills",
         "agilab-installer",
     ]
+    skill_labels = [command["label"] for command in payload["commands"]["skills"]]
+    assert "guard repo agent skill quality" in skill_labels
 
 
 def test_main_list_profiles_and_print_only_human(capsys) -> None:

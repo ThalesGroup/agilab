@@ -16,13 +16,13 @@ TOOLS_ROOT = REPO_ROOT / "tools"
 sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(TOOLS_ROOT))
 
-import agilab as _agilab_package
+import agilab as _agilab_package  # noqa: E402
 
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-from agilab.app_template_registry import discover_app_templates
-from package_split_contract import PACKAGE_NAMES, ROOT_EXTRA_INTERNAL_REQUIREMENTS
+from agilab.app_template_registry import discover_app_templates  # noqa: E402
+from package_split_contract import PACKAGE_NAMES, ROOT_EXTRA_INTERNAL_REQUIREMENTS  # noqa: E402
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -168,13 +168,14 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     }
     assert deps.isdisjoint(app_or_example_owned)
 
-    # The default package keeps only the core runtime and tiny stdlib shims.
-    assert "agi-core" in deps
+    # Bare installs keep only the CLI shell and tiny Python 3.13 stdlib shims.
+    # Runtime packages are opt-in through the `core`, `ui`, or `examples` extras.
+    assert "agi-core" not in deps
 
 
 def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
-    internal_exact_pins = {"agi-core"}
+    internal_exact_pins: set[str] = set()
     violations: list[str] = []
 
     for requirement in _dependencies(pyproject):
@@ -285,6 +286,7 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
     assert _optional_dependency_names(pyproject, "agents") == {"openai"}
+    assert _optional_dependency_names(pyproject, "core") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["core"])
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
     assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"])
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")

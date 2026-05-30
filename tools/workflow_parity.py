@@ -1165,6 +1165,18 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 argv=["python3", "tools/generate_skill_badges.py"],
             ),
             CommandSpec(
+                label="guard repo agent skill quality",
+                argv=[
+                    "python3",
+                    "tools/agent_skill_quality_guard.py",
+                    "--roots",
+                    ".claude/skills",
+                    ".codex/skills",
+                    "--fail-on",
+                    "high",
+                ],
+            ),
+            CommandSpec(
                 label="scan repo agent skills",
                 argv=[
                     "python3",
@@ -1347,6 +1359,25 @@ def _release_proof_profile() -> list[CommandSpec]:
 def _security_adoption_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
+            label="base supply-chain scan for shared go gate",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/profile_supply_chain_scan.py",
+                "--profile",
+                "base",
+                "--output-dir",
+                "test-results/supply-chain",
+                "--run",
+            ],
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results/supply-chain"],
+            remove_paths=["test-results/supply-chain/base"],
+        ),
+        CommandSpec(
             label="security adoption check",
             argv=[
                 "uv",
@@ -1357,6 +1388,10 @@ def _security_adoption_profile() -> list[CommandSpec]:
                 "tools/security_adoption_check.py",
                 "--output",
                 "test-results/security-check.json",
+                "--pip-audit-json",
+                "test-results/supply-chain/base/pip-audit.json",
+                "--sbom-json",
+                "test-results/supply-chain/base/sbom-cyclonedx.json",
             ],
             timeout_seconds=2 * 60,
             ensure_dirs=["test-results"],
@@ -1373,6 +1408,10 @@ def _security_adoption_profile() -> list[CommandSpec]:
                 "tools/shared_go_gate.py",
                 "--security-check-json",
                 "test-results/security-check.json",
+                "--supply-chain-dir",
+                "test-results/supply-chain",
+                "--install-profile",
+                "base",
                 "--output",
                 "test-results/shared_go_gate.json",
             ],
