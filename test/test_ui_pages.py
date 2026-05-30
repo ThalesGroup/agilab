@@ -959,6 +959,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     _assert_docs_actions_absent(at)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Run readiness" not in markdown_text
+    assert "Path: Prepare" not in markdown_text
     assert all("Check what will run" not in str(item.value) for item in at.caption)
     assert "Project cockpit" not in markdown_text
     assert "Project status" not in markdown_text
@@ -976,7 +977,12 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "1 file" in markdown_text
     assert str(env.active_app) not in markdown_text
     assert str(data_share) not in markdown_text
-    assert "Environment details" in [str(item.label) for item in at.expander]
+    expander_labels = [str(item.label) for item in at.expander]
+    assert "Environment details" in expander_labels
+    assert "Evidence drawer" not in expander_labels
+    assert "Install logs" not in expander_labels
+    assert "Observe benchmark results" not in expander_labels
+    assert all("Path: Prepare" not in label for label in expander_labels)
     assert "Resource summary" in markdown_text
     assert "Share" in markdown_text
     assert "CPU" in markdown_text

@@ -261,6 +261,52 @@ def test_view_inference_analysis_keeps_empty_latency_p90_column_when_p90_is_abse
     assert enriched["p90_routed_latency"].isna().all()
 
 
+def test_view_inference_analysis_state_and_metric_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = tmp_path / "apps" / "demo_project"
+    active_app.mkdir(parents=True)
+    active_scope = module.active_app_scope_value(active_app)
+
+    fake_streamlit = _FakeStreamlit()
+    fake_streamlit.session_state[module.APP_SCOPE_KEY] = active_scope
+    monkeypatch.setattr(module, "st", fake_streamlit)
+    module._reset_state_for_active_app(active_app)
+    assert fake_streamlit.session_state[module.APP_SCOPE_KEY] == active_scope
+
+    class FakeAgiEnv:
+        pass
+
+    env = FakeAgiEnv()
+    fake_streamlit.session_state = {module.ENV_KEY: env}
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(module, "env_app_scope_value", lambda _env: active_scope)
+    module._reset_state_for_active_app(active_app)
+    assert fake_streamlit.session_state[module.APP_SCOPE_KEY] == active_scope
+    assert fake_streamlit.session_state[module.ENV_KEY] is env
+
+    normalized = module._normalize_allocations_frame(
+        pd.DataFrame(
+            {
+                "step": [7],
+                "time_s": [12.5],
+                "allocations": [[{"source": 1, "destination": 2, "bandwidth": 1.0}]],
+            }
+        )
+    )
+    assert normalized["time_s"].tolist() == pytest.approx([12.5])
+    assert normalized["t_now_s"].tolist() == pytest.approx([12.5])
+
+    assert module.build_step_kpi_frame({"bad": pd.DataFrame({"time_index": ["nan"]})}, "time_index").empty
+    assert module.build_latency_percentile_frame(
+        {"bad": pd.DataFrame({"time_index": [0], "latency": [10.0], "routed": [0]})},
+        "time_index",
+    ).empty
+    assert module.build_flow_heatmap_frame(
+        pd.DataFrame({"source": [None], "destination": [None], "bandwidth": [1.0]}),
+        value_kind="served_bandwidth_pct",
+    ).empty
+
+
 def test_view_inference_analysis_compare_style_schema_produces_latency_p90() -> None:
     module = _load_module()
 

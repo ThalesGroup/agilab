@@ -485,6 +485,42 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
     assert any(kind == "success" and "Deleted 1 stale" in message for kind, message in fake_st.messages)
 
 
+def test_get_existing_snippets_cleanup_warns_when_delete_fails(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    runenv_dir = tmp_path / "runenv"
+    runenv_dir.mkdir()
+    stale_snippet = runenv_dir / "AGI_run_flight_telemetry.py"
+    stale_snippet.write_text(
+        "from agi_cluster.agi_distributor import AGI\n"
+        "async def main():\n"
+        "    await AGI.run(None)\n",
+        encoding="utf-8",
+    )
+    app_settings = tmp_path / "app_settings.toml"
+    app_settings.write_text("x=1\n", encoding="utf-8")
+    settings_time = datetime(2026, 4, 1, 11, 0, 0).timestamp()
+    new_time = datetime(2026, 4, 1, 12, 0, 0).timestamp()
+    os.utime(app_settings, (settings_time, settings_time))
+    os.utime(stale_snippet, (new_time, new_time))
+
+    fake_st = _FakeStreamlit(
+        {"clean_stale_snippets_flight_telemetry_project__armed": True},
+        buttons={"clean_stale_snippets_flight_telemetry_project__confirm": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "clean_stale_snippet_files", lambda paths: ([], list(paths)))
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight_telemetry_project")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    assert pipeline_lab.get_existing_snippets(env, stages_file, deps) == {}
+    assert any(kind == "warning" and "Could not delete 1 stale" in message for kind, message in fake_st.messages)
+
+
 def test_get_existing_snippets_handles_candidate_path_edge_cases(monkeypatch, tmp_path):
     stages_file = tmp_path / "lab_stages.toml"
     stages_file.write_text("", encoding="utf-8")
@@ -746,6 +782,20 @@ def test_pipeline_lab_helper_functions_cover_editor_text_and_engine_defaults():
     assert pipeline_lab._resolve_stage_engine("", "runpy", "") == "runpy"
 
 
+def test_repo_root_for_multi_app_dag_falls_back_when_data_catalog_missing(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    original_is_dir = Path.is_dir
+
+    def no_docs_data(self: Path):
+        if self.as_posix().endswith("docs/source/data"):
+            return False
+        return original_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", no_docs_data)
+
+    assert pipeline_lab._repo_root_for_multi_app_dag() == Path(pipeline_lab.__file__).resolve().parents[2]
+
+
 def test_multi_app_dag_display_name_ignores_blank_payload_labels(tmp_path):
     dag_path = tmp_path / "fallback_name.json"
     dag_path.write_text(json.dumps({"label": "   ", "dag_id": "   "}) + "\n", encoding="utf-8")
@@ -801,6 +851,51 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert ("metric", "Run mode=Executable") in fake_st.messages
     assert ("metric", "Runner=uav_queue_to_relay_controlled") in fake_st.messages
     assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
+
+
+def test_global_runner_panel_explains_empty_app_template_and_workspace_sources(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    env = SimpleNamespace(app="unknown_project", target="unknown_project")
+
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_multi_app_dag", lambda: repo_root)
+    monkeypatch.setattr(pipeline_lab, "_global_runner_dag_path", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_app_template_options", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_sample_options", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_workspace_options", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_load_or_create_global_runner_state",
+        lambda *_args, **_kwargs: (
+            {"summary": {}, "source": {}, "units": [], "events": [], "artifacts": []},
+            tmp_path / "state.json",
+            None,
+        ),
+    )
+    monkeypatch.setattr(pipeline_lab, "_render_global_runner_state_view", lambda **_kwargs: None)
+
+    app_template_st = _FakeStreamlit(
+        {
+            "demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG,
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES,
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", app_template_st)
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+    assert (
+        "info",
+        "No app workflow template is bundled for this active project yet.",
+    ) in app_template_st.messages
+
+    workspace_st = _FakeStreamlit(
+        {
+            "demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG,
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE,
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", workspace_st)
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+    assert ("info", "No workspace plan has been saved for this project yet.") in workspace_st.messages
 
 
 def test_global_runner_readiness_summary_prioritizes_running_and_scope():
@@ -3630,6 +3725,28 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_display_lab_tab_empty_pipeline_warns_when_generated_stage_has_no_code(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo_new_q": "build topology",
+        },
+        buttons={"demo_add_first_stage_btn": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+    deps = _make_lab_deps(
+        ask_gpt=lambda *_args, **_kwargs: ["", "question", "model", "", "No runnable code."],
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+
+    assert ("warning", "No runnable code.") in fake_st.messages
+
+
 def test_display_lab_tab_existing_stage_defaults_to_runpy_without_runtime(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
@@ -4124,6 +4241,69 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     assert fake_st.messages.count(("rerun", "called")) >= 2
 
 
+def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path):
+    finish_calls = []
+    history_calls = []
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 1],
+            "demo__run_sequence": [0],
+        },
+        buttons={"demo_run_all": True},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "record_action_history",
+        lambda *args, **kwargs: history_calls.append((args, kwargs)),
+    )
+
+    def _finish_pipeline_run_command(*, session_state, index_page, succeeded, message=None):
+        finish_calls.append((index_page, succeeded, message))
+        return pipeline_lab._pipeline_page_state_module.PipelineCommandResult(
+            status=pipeline_lab._pipeline_page_state_module.PipelineCommandStatus.FAILED,
+            message="Workflow run failed. Inspect Run logs.",
+        )
+
+    monkeypatch.setattr(pipeline_lab, "finish_pipeline_run_command", _finish_pipeline_run_command)
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "alpha", "M": "m1", "C": "print('a')", "E": ""}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "pipeline.log", None),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        run_all_stages=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("run boom")),
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+
+    with pytest.raises(RuntimeError, match="run boom"):
+        pipeline_lab.display_lab_tab(
+            tmp_path,
+            "demo",
+            tmp_path / "lab_stages.toml",
+            tmp_path / "flight_telemetry_project",
+            env,
+            deps,
+        )
+
+    assert finish_calls == [("demo", False, None)]
+    assert history_calls[-1][1]["title"] == "Workflow run failed"
+    assert ("toast", "Workflow run failed. Inspect Run logs.") in fake_st.messages
+
+
 def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monkeypatch, tmp_path):
     run_calls = []
     legacy_code = (
@@ -4219,6 +4399,42 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
     assert kwargs["engine_map"][1] == "agi.run"
     assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == pipeline_lab.GENERATION_MODE_SAFE_ACTIONS
     assert ("rerun", "called") in fake_st.messages
+
+
+def test_display_lab_tab_existing_stages_warns_when_safe_action_generation_has_no_code(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "demo_new_q": "new generated stage",
+        },
+        buttons={"demo_add_stage_btn": True},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": ""}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        ask_gpt=lambda *_args, **_kwargs: ["", "new generated stage", "model", "", ""],
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+
+    assert ("warning", "The assistant did not return runnable stage code.") in fake_st.messages
 
 
 def test_display_lab_tab_overlay_save_persists_editor_payload(monkeypatch, tmp_path):

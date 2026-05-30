@@ -89,6 +89,44 @@ def test_live_artifacts_discovery_deduplicates_sorts_and_summarizes(tmp_path: Pa
     assert module.summarize_artifacts(updated_records)["signature"] != first_signature
 
 
+def test_live_artifacts_discovery_covers_exception_edges(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    image_path = root / "plot.png"
+    image_path.write_bytes(b"png")
+    parquet_path = root / "table.parquet"
+    parquet_path.write_bytes(b"parquet")
+
+    records = module.discover_artifacts(root, ("**/*",))
+    assert {record.kind for record in records} >= {"image", "parquet"}
+
+    assert module.discover_artifacts(object(), ("**/*",)) == ()
+
+    original_glob = Path.glob
+
+    def broken_glob(self: Path, pattern: str):
+        if self == root.resolve(strict=False):
+            raise OSError("glob boom")
+        return original_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", broken_glob)
+    assert module.discover_artifacts(root, ("**/*",)) == ()
+
+    monkeypatch.setattr(Path, "glob", original_glob)
+    original_stat = Path.stat
+
+    def broken_stat(self: Path, *args, **kwargs):
+        if self == image_path.resolve(strict=False):
+            raise OSError("stat boom")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", broken_stat)
+    assert [record.relative_path for record in module.discover_artifacts(root, ("**/*",))] == [
+        "table.parquet"
+    ]
+
+
 def test_live_artifacts_preview_handles_json_text_images_metadata_and_errors(tmp_path: Path) -> None:
     module = _load_module()
     json_path = tmp_path / "state.json"

@@ -2162,6 +2162,66 @@ def test_notebook_export_path_and_app_root_edge_helpers(monkeypatch, tmp_path):
     assert support._is_valid_app_root(app_root) is False
 
 
+def test_notebook_export_and_import_cleanup_edge_helpers(monkeypatch, tmp_path, caplog):
+    support = notebook_export_support
+
+    assert support._metadata_string_list("not-a-list") == []
+    assert support._notebook_import_metadata_from_stage(
+        {
+            "NB_CELL_ID": "cell-1",
+            "NB_CELL_INDEX": "not-int",
+            "NB_CONTEXT_IDS": ["ctx", "", 3],
+        }
+    ) == {
+        "cell_id": "cell-1",
+        "source_cell_index": "not-int",
+        "context_ids": ["ctx", "3"],
+    }
+
+    existing = tmp_path / "existing.py"
+    existing.write_text("old", encoding="utf-8")
+    missing = tmp_path / "missing.py"
+    backups = pipeline_editor._backup_notebook_import_targets([existing, missing])
+    existing.write_text("new", encoding="utf-8")
+    pipeline_editor._restore_notebook_import_targets(backups)
+    assert existing.read_text(encoding="utf-8") == "old"
+    assert not missing.exists()
+
+    temp_file = tmp_path / "temp.py"
+    temp_file.write_text("temp", encoding="utf-8")
+    stubborn = tmp_path / "stubborn.py"
+    stubborn.write_text("temp", encoding="utf-8")
+    original_unlink = Path.unlink
+
+    def broken_unlink(self: Path, *args, **kwargs):
+        if self == stubborn:
+            raise OSError("unlink boom")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", broken_unlink)
+    pipeline_editor._cleanup_notebook_import_temp_files([temp_file, stubborn, tmp_path / "absent.py"])
+    assert not temp_file.exists()
+    assert "Unable to remove notebook import temporary file" in caplog.text
+
+    app_root = tmp_path / "apps" / "demo_project"
+    app_root.mkdir(parents=True)
+    context = support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir="",
+        active_app=str(app_root),
+    )
+    original_resolve = Path.resolve
+
+    def broken_resolve(self: Path, *args, **kwargs):
+        if self == app_root:
+            raise OSError("resolve boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", broken_resolve)
+    assert support._project_notebook_mirror_path(context, "lab_stages.ipynb") is None
+
+
 def test_notebook_export_related_page_and_provider_edge_helpers(monkeypatch, tmp_path):
     support = notebook_export_support
 

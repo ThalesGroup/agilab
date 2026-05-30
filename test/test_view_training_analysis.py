@@ -191,6 +191,72 @@ def test_view_training_analysis_grid_shape_scales_with_selection_count() -> None
     assert module._grid_shape(10) == (4, 3)
 
 
+def test_view_training_analysis_helper_edges_cover_embedded_and_label_fallbacks(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    class IndexOnly:
+        def __getitem__(self, key: str) -> list[str]:
+            if key != "embed":
+                raise KeyError(key)
+            return [" true "]
+
+    class BrokenIndex:
+        def __getitem__(self, _key: str) -> str:
+            raise TypeError("bad query params")
+
+    assert module._query_param_value(IndexOnly(), "embed") == "true"
+    assert module._query_param_value(BrokenIndex(), "embed") == ""
+
+    export_root = tmp_path / "export"
+    (export_root / "flight_telemetry").mkdir(parents=True)
+    env = SimpleNamespace(
+        AGILAB_EXPORT_ABS=export_root,
+        target="flight_telemetry_project",
+        app="flight_telemetry_project",
+    )
+    assert (
+        module._embedded_default_data_subpath(
+            env,
+            "AGILAB_EXPORT",
+            "",
+            embed_mode=True,
+        )
+        == "flight_telemetry"
+    )
+    assert module._embedded_default_data_subpath(env, "Custom", "seed", embed_mode=True) == "seed"
+    assert module._shared_trainer_prefix_length({}) == 0
+
+    data_root = tmp_path / "runs"
+    trainer_a = data_root / "a" / "trainer"
+    trainer_b = data_root / "b" / "trainer"
+    for trainer in (trainer_a, trainer_b):
+        run_dir = trainer / "tensorboard" / "run_shared"
+        run_dir.mkdir(parents=True)
+        (run_dir / "events.out.tfevents.1").write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "_initial_trainer_group_labels",
+        lambda roots, _data_root: {root: "shared" for root in roots},
+    )
+    labeled_runs = module._discover_run_labels([trainer_a, trainer_b], data_root)
+
+    assert labeled_runs == {
+        "a/trainer/run_shared": (trainer_a / "tensorboard" / "run_shared").resolve(),
+        "b/trainer/run_shared": (trainer_b / "tensorboard" / "run_shared").resolve(),
+    }
+
+    history_root = data_root / "history_only"
+    history_file = history_root / module.TRAINING_HISTORY_REL
+    history_file.parent.mkdir(parents=True)
+    history_file.write_text("epoch,loss\n", encoding="utf-8")
+
+    assert module._discover_run_labels([history_root], data_root) == {
+        "training_history": history_file.resolve()
+    }
+    assert module._load_training_history_frame(history_file).empty
+
+
 def test_view_training_analysis_builds_one_trace_per_run_and_metric() -> None:
     module = _load_module()
 

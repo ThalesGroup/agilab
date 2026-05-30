@@ -117,8 +117,6 @@ import_agilab_symbols(
     "agilab.workflow_ui",
     {
         "is_dag_worker_base": "is_dag_worker_base",
-        "render_project_evidence_drawer": "render_project_evidence_drawer",
-        "render_workflow_timeline": "render_workflow_timeline",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
@@ -1631,61 +1629,6 @@ def _render_orchestrate_readiness_panel(
     )
 
 
-def _render_orchestrate_action_rail(
-    env: Any,
-    *,
-    install_status: dict[str, Any],
-    installed: bool,
-    install_block_reason: str,
-) -> None:
-    """Show the concrete ORCHESTRATE path before detailed controls."""
-    run_count, run_caption = _run_history_summary(env)
-    has_run = str(run_count).strip() not in {"", "0"}
-    project_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "").strip()
-    install_exists = bool(
-        install_status.get("manager_exists") or install_status.get("worker_exists")
-    )
-    install_state = "done" if installed else "warning" if install_exists else "waiting"
-    install_detail = (
-        "environment ready"
-        if installed
-        else install_block_reason or "run INSTALL before EXECUTE"
-    )
-    render_workflow_timeline(
-        st,
-        title="Path: Prepare -> Install -> Execute -> Review evidence",
-        expanded=True,
-        items=(
-            {
-                "label": "Prepare",
-                "state": "ready" if project_name else "blocked",
-                "detail": f"`{project_name}` selected" if project_name else "select a project first",
-            },
-            {
-                "label": "Install",
-                "state": install_state,
-                "detail": install_detail,
-            },
-            {
-                "label": "Execute",
-                "state": "ready" if installed else "waiting",
-                "detail": "run the project" if installed else "disabled until INSTALL is ready",
-            },
-            {
-                "label": "Review evidence",
-                "state": "ready" if has_run else "waiting",
-                "detail": run_caption if has_run else "open ANALYSIS after EXECUTE writes outputs",
-            },
-        ),
-    )
-    render_project_evidence_drawer(
-        st,
-        env=env,
-        key_prefix="orchestrate:evidence",
-        expanded=has_run,
-    )
-
-
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")
 
 
@@ -1786,12 +1729,11 @@ async def _render_deployment_panel(
         if not install_state.action.enabled:
             st.caption(install_state.action.disabled_reason)
 
-        install_expanded = st.session_state.get("_install_logs_expanded", False)
-        log_expander = st.expander("Install logs", expanded=install_expanded)
-        with log_expander:
-            log_placeholder = st.empty()
-            existing_log = st.session_state.get("log_text", "").strip()
-            if existing_log:
+        existing_log = st.session_state.get("log_text", "").strip()
+        if existing_log:
+            install_expanded = st.session_state.get("_install_logs_expanded", False)
+            with st.expander("Install logs", expanded=install_expanded):
+                log_placeholder = st.empty()
                 log_placeholder.code(existing_log, language="python")
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
@@ -1815,6 +1757,9 @@ async def _render_deployment_panel(
             install_command = install_state.install_command
             context_lines = install_state.context_lines
             local_log: list[str] = []
+            log_expander = st.expander("Install logs", expanded=True)
+            with log_expander:
+                log_placeholder = st.empty()
             with log_expander:
                 log_placeholder.empty()
                 for line in context_lines:
@@ -2280,53 +2225,62 @@ async def _render_run_panels(
                     st.code(cmd, language="python")
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
-            with st.expander("Observe benchmark results", expanded=expand_benchmark):
-                try:
-                    if env.benchmark.exists():
-                        with open(env.benchmark, "r") as f:
-                            raw = json.load(f) or {}
+            benchmark_exists = False
+            try:
+                benchmark_exists = bool(env.benchmark.exists())
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                benchmark_exists = False
+            show_benchmark_results = (
+                run_state.benchmark_enabled or benchmark_exists or expand_benchmark
+            )
+            if show_benchmark_results:
+                with st.expander("Observe benchmark results", expanded=expand_benchmark):
+                    try:
+                        if benchmark_exists:
+                            with open(env.benchmark, "r") as f:
+                                raw = json.load(f) or {}
 
-                        date_value = str(raw.pop("date", "") or "").strip()
-                        raw = benchmark_rows_with_delta_percent(raw)
-                        benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
+                            date_value = str(raw.pop("date", "") or "").strip()
+                            raw = benchmark_rows_with_delta_percent(raw)
+                            benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
 
-                        df_nonempty = benchmark_df.dropna(how="all")
-                        if not df_nonempty.empty:
-                            df_nonempty = df_nonempty.loc[
-                                :, df_nonempty.notna().any(axis=0)
-                            ]
-                            df_nonempty = df_nonempty.loc[
-                                :,
-                                order_benchmark_display_columns(
-                                    list(df_nonempty.columns)
-                                ),
-                            ]
-                        if not df_nonempty.empty and df_nonempty.shape[1] > 0:
-                            date_value = _benchmark_display_date(
-                                env.benchmark, date_value
-                            )
+                            df_nonempty = benchmark_df.dropna(how="all")
+                            if not df_nonempty.empty:
+                                df_nonempty = df_nonempty.loc[
+                                    :, df_nonempty.notna().any(axis=0)
+                                ]
+                                df_nonempty = df_nonempty.loc[
+                                    :,
+                                    order_benchmark_display_columns(
+                                        list(df_nonempty.columns)
+                                    ),
+                                ]
+                            if not df_nonempty.empty and df_nonempty.shape[1] > 0:
+                                date_value = _benchmark_display_date(
+                                    env.benchmark, date_value
+                                )
 
-                            if date_value:
-                                st.caption(f"Benchmark date: {date_value}")
-                            st.info(BENCHMARK_MODE_LEGEND_MARKDOWN)
+                                if date_value:
+                                    st.caption(f"Benchmark date: {date_value}")
+                                st.info(BENCHMARK_MODE_LEGEND_MARKDOWN)
 
-                            render_dataframe_preview(
-                                df_nonempty,
-                                truncation_label="Benchmark table preview limited",
-                                column_config=benchmark_dataframe_column_config(
-                                    st.column_config
-                                ),
-                            )
+                                render_dataframe_preview(
+                                    df_nonempty,
+                                    truncation_label="Benchmark table preview limited",
+                                    column_config=benchmark_dataframe_column_config(
+                                        st.column_config
+                                    ),
+                                )
+                            else:
+                                st.info(
+                                    "Benchmark file is present but empty. Run the benchmark to collect data."
+                                )
                         else:
                             st.info(
-                                "Benchmark file is present but empty. Run the benchmark to collect data."
+                                "No benchmark results yet. Select one or more Benchmark modes and click RUN to gather data."
                             )
-                    else:
-                        st.info(
-                            "No benchmark results yet. Select one or more Benchmark modes and click RUN to gather data."
-                        )
-                except json.JSONDecodeError as e:
-                    st.warning(f"Error decoding JSON: {e}")
+                    except json.JSONDecodeError as e:
+                        st.warning(f"Error decoding JSON: {e}")
 
     if show_submit_panel:
         service_deps = OrchestrateServiceDeps(
@@ -2494,12 +2448,6 @@ async def page() -> None:
     install_block_reason = (
         _install_status_warning_message(install_status)
         or _runtime_status_label(install_status)[1]
-    )
-    _render_orchestrate_action_rail(
-        env,
-        install_status=install_status,
-        installed=installed,
-        install_block_reason=install_block_reason,
     )
 
     # Sidebar toggles for each page section

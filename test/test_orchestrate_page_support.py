@@ -1285,6 +1285,68 @@ def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> 
     assert "python_dotenv" not in status["worker_missing_modules"]
 
 
+def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Path) -> None:
+    assert orchestrate_page_support._project_distribution_name(None) is None
+    assert orchestrate_page_support._project_distribution_name(tmp_path / "missing_project") is None
+
+    malformed_project = tmp_path / "bad_project"
+    malformed_project.mkdir()
+    (malformed_project / "pyproject.toml").write_text("[project\n", encoding="utf-8")
+    assert orchestrate_page_support._project_distribution_name(malformed_project) is None
+
+    unnamed_project = tmp_path / "unnamed_project"
+    unnamed_project.mkdir()
+    (unnamed_project / "pyproject.toml").write_text("[project]\nname='  '\n", encoding="utf-8")
+    assert orchestrate_page_support._project_distribution_name(unnamed_project) is None
+
+    assert orchestrate_page_support._dependency_modules_from_requirement("!!! not a requirement") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("requests; extra == 'dev'") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("agilab>=1") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("dask[distributed]>=2026") == (
+        "dask",
+        "distributed",
+    )
+
+    site_packages = tmp_path / "site-packages"
+    site_packages.mkdir()
+    metadata_dir = site_packages / "demo-1.0.dist-info"
+    metadata_dir.mkdir()
+    metadata_file = metadata_dir / "METADATA"
+    metadata_file.write_text(
+        "Metadata-Version: 2.4\nName: demo\nRequires-Dist: python-dotenv>=1\n",
+        encoding="utf-8",
+    )
+    assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], []) == ()
+    assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], ["demo"]) == ("dotenv",)
+
+    nameless = site_packages / "nameless-1.0.dist-info" / "METADATA"
+    nameless.parent.mkdir()
+    nameless.write_text("Metadata-Version: 2.4\n", encoding="utf-8")
+    assert orchestrate_page_support._metadata_distribution_name(nameless) is None
+
+    original_glob = Path.glob
+
+    def broken_glob(self: Path, pattern: str):
+        if self == site_packages:
+            raise OSError("glob boom")
+        return original_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", broken_glob)
+    assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], ["demo"]) == ()
+
+    monkeypatch.setattr(Path, "glob", original_glob)
+    original_read_text = Path.read_text
+
+    def broken_read_text(self: Path, *args, **kwargs):
+        if self == metadata_file:
+            raise OSError("read boom")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", broken_read_text)
+    assert orchestrate_page_support._metadata_distribution_name(metadata_file) is None
+    assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], ["demo"]) == ()
+
+
 def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
     active_app = tmp_path / "weather_forecast_project"
     worker_root = tmp_path / "wenv" / "weather_forecast_worker"

@@ -404,6 +404,42 @@ def test_preview_candidate_paths_removes_duplicates_across_roots(tmp_path):
     assert candidates == [first, second]
 
 
+def test_preview_candidate_records_tolerates_directory_walk_races(monkeypatch, tmp_path):
+    root = tmp_path / "output"
+    nested = root / "nested"
+    nested.mkdir(parents=True)
+    unsupported = root / "notes.txt"
+    unsupported.write_text("ignore", encoding="utf-8")
+    symlink = root / "linked.csv"
+    symlink.symlink_to(unsupported)
+    valid = nested / "artifact.csv"
+    valid.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    missing_root = tmp_path / "missing-root"
+    original_stat = orchestrate_execute.Path.stat
+
+    def flaky_stat(self: Path, *args, **kwargs):
+        if self == missing_root:
+            raise OSError("stat boom")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(orchestrate_execute.Path, "stat", flaky_stat)
+
+    records = orchestrate_execute._preview_candidate_records([missing_root, root])
+
+    assert [record.path for record in records] == [valid]
+
+    original_scandir = orchestrate_execute.os.scandir
+
+    def broken_scandir(path):
+        if Path(path) == root:
+            raise OSError("scandir boom")
+        return original_scandir(path)
+
+    monkeypatch.setattr(orchestrate_execute.os, "scandir", broken_scandir)
+    assert orchestrate_execute._preview_candidate_records([root]) == []
+
+
 @pytest.mark.parametrize(
     ("stderr", "expected"),
     [
