@@ -41,6 +41,39 @@ def test_dispatcher_init_sets_instance_args_without_class_state():
     assert "args" not in WorkDispatcher.__dict__
 
 
+def test_dispatcher_run_stage_contract_rejects_legacy_and_invalid_payloads():
+    with pytest.raises(TypeError, match="Legacy dispatch key"):
+        WorkDispatcher._split_dispatch_args({"_agilab_run_steps": []})
+    assert WorkDispatcher._split_dispatch_args({RUN_STAGES_KEY: None}) == ({}, [])
+    with pytest.raises(TypeError, match="must be a list"):
+        WorkDispatcher._split_dispatch_args({RUN_STAGES_KEY: {"stage": "train"}})
+
+    with pytest.raises(TypeError, match="does not accept RunRequest.stages"):
+        WorkDispatcher._apply_run_stages(SimpleNamespace(args={}), [{"name": "train"}])
+
+
+def test_dispatcher_onerror_handles_readonly_and_unclassified_failures(monkeypatch):
+    calls: list[str] = []
+    chmod_calls: list[tuple[str, int]] = []
+
+    monkeypatch.setattr(dispatcher_module.os, "access", lambda *_args: False)
+    monkeypatch.setattr(
+        dispatcher_module.os,
+        "chmod",
+        lambda path, mode: chmod_calls.append((path, mode)),
+    )
+    WorkDispatcher._onerror(lambda path: calls.append(path), "locked.txt", (OSError, OSError("locked"), None))
+
+    assert calls == ["locked.txt"]
+    assert chmod_calls == [("locked.txt", dispatcher_module.stat.S_IWUSR)]
+
+    monkeypatch.setattr(dispatcher_module.os, "access", lambda *_args: True)
+    with pytest.raises(ValueError, match="bad remove"):
+        WorkDispatcher._onerror(lambda _path: None, "bad.txt", (ValueError, ValueError("bad remove"), None))
+    with pytest.raises(RuntimeError, match="failed to remove"):
+        WorkDispatcher._onerror(lambda _path: None, "unknown.txt", ())
+
+
 @pytest.mark.asyncio
 async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_args(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"

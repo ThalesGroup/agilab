@@ -56,7 +56,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB PyPI Release Maintenance Use this skill only for AGILAB PyPI release cleanup and retention work. PyPI release deletion is destructive and cannot be undone from the repository. ## Scope
 - agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-27
+  updated: 2026-05-30
   preview: # AGILAB Release Verification Use this skill for release readiness, release execution checks, and post-release alignment. Its purpose is to prevent stale plans and false "all good" answers by checking the current code, current workflows, and public surfaces before making
 - agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

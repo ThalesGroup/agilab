@@ -36,8 +36,8 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
         "project": "multi_app_dag_project",
         "slug": "multi_app_dag",
-        "distribution": "agi-app-multi-app-dag",
-        "package": "agi_app_multi_app_dag",
+        "distribution": "agi-app-multi-dag",
+        "package": "agi_app_multi_dag",
     },
     {
         "project": "weather_forecast_project",

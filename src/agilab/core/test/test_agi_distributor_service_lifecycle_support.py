@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import time
 from pathlib import Path
@@ -188,6 +189,21 @@ def test_wrap_worker_chunk_handles_non_list_and_out_of_range_index():
     assert wrapped["chunk"] == []
     assert wrapped["total_workers"] == 2
     assert wrapped["worker_idx"] == 8
+
+
+def test_service_task_json_default_serializes_supported_values(tmp_path):
+    assert service_lifecycle_support._service_task_json_default(
+        datetime.date(2026, 5, 30)
+    ) == "2026-05-30"
+    assert service_lifecycle_support._service_task_json_default(
+        datetime.datetime(2026, 5, 30, 10, 15)
+    ) == "2026-05-30T10:15:00"
+    assert service_lifecycle_support._service_task_json_default(tmp_path) == str(tmp_path)
+    assert service_lifecycle_support._service_task_json_default(
+        test_service_task_json_default_serializes_supported_values
+    ) == "test_service_task_json_default_serializes_supported_values"
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        service_lifecycle_support._service_task_json_default(object())
 
 
 def test_prepare_service_worker_args_sets_queue_bound_service_args(tmp_path):

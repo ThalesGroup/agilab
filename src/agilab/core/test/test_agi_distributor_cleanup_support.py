@@ -100,6 +100,24 @@ def test_remove_dir_forcefully_onerror_covers_permission_and_log_paths(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_remote_cmd_prefix_returns_empty_when_detection_fails():
+    async def _raise_detect(_ip):
+        raise OSError("ssh unavailable")
+
+    env = SimpleNamespace(envars={}, is_local=lambda _ip: False)
+
+    assert (
+        await cleanup_support._remote_cmd_prefix(
+            env,
+            "10.0.0.2",
+            detect_export_cmd_fn=_raise_detect,
+        )
+        == ""
+    )
+    assert env.envars == {}
+
+
+@pytest.mark.asyncio
 async def test_wait_for_port_release_success_after_retry():
     calls = {"count": 0}
 

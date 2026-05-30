@@ -231,6 +231,34 @@ def test_app_contracts_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_maintenance_shortcut_runs_dashboard():
+    assert agilab_dev.planned_commands(["maintenance", "--json"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/maintenance_dashboard.py",
+            "--json",
+        ]
+    ]
+
+
+def test_maintenance_shortcut_has_maintain_alias():
+    assert agilab_dev.planned_commands(["maintain", "--strict"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/maintenance_dashboard.py",
+            "--strict",
+        ]
+    ]
+
+
 def test_audit_shortcut_runs_agilab_audit():
     assert agilab_dev.planned_commands(["audit", "--no-network"]) == [
         [
@@ -535,6 +563,43 @@ def test_clean_shortcut_keeps_apply_flag():
             "python",
             "tools/clean_local_artifacts.py",
             "--apply",
+        ]
+    ]
+
+
+def test_scope_shortcut_runs_worktree_scope_guard():
+    assert agilab_dev.planned_commands(["scope", "--max-scopes", "1"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/worktree_scope_guard.py",
+            "--max-scopes",
+            "1",
+        ]
+    ]
+
+
+def test_task_worktree_shortcut_requires_branch_and_keeps_arguments():
+    try:
+        agilab_dev.planned_commands(["task-worktree"])
+    except SystemExit as exc:
+        assert str(exc) == "task-worktree: branch name is required"
+    else:
+        raise AssertionError("task-worktree should require a branch")
+
+    assert agilab_dev.planned_commands(["worktree", "fix/demo", "--print-only"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/task_worktree.py",
+            "fix/demo",
+            "--print-only",
         ]
     ]
 

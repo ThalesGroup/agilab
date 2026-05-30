@@ -421,7 +421,7 @@ Current packaging policy is conservative:
   examples, agents, MLflow, visualization, local-LLM, offline, and dev profiles.
 - Promoted app payloads live in per-app packages such as
   `agi-app-mission-decision`, `agi-app-pandas-execution`,
-  `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-app-dag`,
+  `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`,
   `agi-app-weather-forecast`, `agi-app-pytorch-playground`,
   `agi-app-tescia-diagnostic`, and `agi-app-uav-relay-queue`;
   `agi-apps` is the umbrella catalog/example package
@@ -535,9 +535,12 @@ The README is only the entry page. Detailed capability evidence, compatibility
 status, and roadmap scope live in:
 
 - [Features](https://thalesgroup.github.io/agilab/features.html)
+- [Capability map](https://thalesgroup.github.io/agilab/capability-map.html)
 - [Release proof](https://thalesgroup.github.io/agilab/release-proof.html)
 - [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
+- [Maintenance playbook](https://thalesgroup.github.io/agilab/maintenance-playbook.html)
+- [Extension contracts](https://thalesgroup.github.io/agilab/extension-contracts.html)
 - [Package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html)
 - [Future work](https://thalesgroup.github.io/agilab/roadmap/agilab-future-work.html)
 - [Audience bridges](https://thalesgroup.github.io/agilab/roadmap/audience-bridges.html)

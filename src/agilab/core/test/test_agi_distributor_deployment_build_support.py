@@ -94,6 +94,21 @@ def test_build_module_command_prefers_source_build_script(tmp_path):
     assert deployment_build_support._build_module_command(env) == f'python "{build_script}"'
 
 
+def test_build_module_command_prefers_legacy_source_build_script(tmp_path):
+    agi_node_path = tmp_path / "agi-node"
+    build_script = agi_node_path / "agi_dispatcher" / "build.py"
+    build_script.parent.mkdir(parents=True, exist_ok=True)
+    build_script.write_text("print('build')\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        is_source_env=True,
+        agi_node=agi_node_path,
+        setup_app_module="agi_node.agi_dispatcher.build",
+    )
+
+    assert deployment_build_support._build_module_command(env) == f'python "{build_script}"'
+
+
 @pytest.mark.parametrize(
     ("pyvers_worker", "expected"),
     [
@@ -115,6 +130,45 @@ def test_project_uv_adds_free_threading_prefix(monkeypatch):
 
     monkeypatch.setattr(deployment_build_support, "python_supports_free_threading", lambda: True)
     assert deployment_build_support._project_uv(env) == "env TEST=1 PYTHON_GIL=0 uv"
+
+
+def test_build_support_environment_helpers_cover_edge_branches(monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.delenv("UV_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_EXTRA_INDEX_URL", raising=False)
+    monkeypatch.delenv("UV_FIND_LINKS", raising=False)
+
+    class _BrokenEnvars:
+        def get(self, _key):
+            raise RuntimeError("broken env source")
+
+    assert deployment_build_support._envar_value(_BrokenEnvars(), "MISSING") is None
+    assert deployment_build_support._uv_resolver_mode({}) == "online"
+    assert deployment_build_support._uv_resolver_mode({"AGI_INTERNET_ON": True}) == "online"
+    assert deployment_build_support._uv_resolver_mode({"AGI_INTERNET_ON": False}) == "cache-only"
+    assert deployment_build_support._uv_resolver_mode({"AGI_INTERNET_ON": 1}) == "online"
+    assert deployment_build_support._uv_resolver_mode({"AGI_INTERNET_ON": 0}) == "cache-only"
+    assert deployment_build_support._uv_resolver_mode({"AGI_INTERNET_ON": float("nan")}) == "cache-only"
+
+    assert deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": True})) == ""
+    assert deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": False})) == "--offline "
+    assert deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": 1})) == ""
+    assert deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": 0})) == "--offline "
+    assert (
+        deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": float("nan")}))
+        == "--offline "
+    )
+    assert deployment_build_support._uv_offline_flag(SimpleNamespace(envars={"AGI_INTERNET_ON": "'yes'"})) == ""
+
+    assert deployment_build_support._env_truthy(_BrokenEnvars(), "FLAG") is False
+    assert deployment_build_support._env_truthy({"FLAG": True}, "FLAG") is True
+    assert deployment_build_support._env_truthy({"FLAG": 1}, "FLAG") is True
+    assert deployment_build_support._env_truthy({"FLAG": float("nan")}, "FLAG") is False
+    assert deployment_build_support._env_truthy({"FLAG": "enabled"}, "FLAG") is True
+
+    env = SimpleNamespace(is_free_threading_available=False, envars={}, uv="uv")
+    monkeypatch.setattr(deployment_build_support, "python_supports_free_threading", lambda: True)
+    assert deployment_build_support._project_uv(env) == "uv"
 
 
 def test_worker_build_commands_request_build_tool_overlay():
@@ -188,6 +242,14 @@ def test_worker_pyproject_source_missing_raises(tmp_path):
         deployment_build_support._worker_pyproject_source(env)
 
 
+def test_worker_pyproject_source_falls_back_to_manager_pyproject(tmp_path):
+    manager = tmp_path / "manager.toml"
+    manager.write_text("[project]\nname='manager'\n", encoding="utf-8")
+    env = SimpleNamespace(worker_pyproject=tmp_path / "missing.toml", manager_pyproject=manager)
+
+    assert deployment_build_support._worker_pyproject_source(env) == manager
+
+
 def _git_commit(repo: Path) -> None:
     subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
@@ -249,6 +311,78 @@ def test_directory_fingerprint_falls_back_when_git_source_is_dirty(tmp_path):
     assert fingerprint
     assert fingerprint[0].get("strategy") != "git-tree"
     assert any(entry.get("rel") == "demo/__init__.py" for entry in fingerprint)
+
+
+def test_build_support_fingerprint_edge_cases(monkeypatch, tmp_path):
+    missing = tmp_path / "missing.txt"
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    assert deployment_build_support._file_fingerprint(missing) is None
+    assert deployment_build_support._file_fingerprint(directory) is None
+    assert deployment_build_support._optional_file_fingerprint(None) is None
+    assert deployment_build_support._optional_file_fingerprint(object()) is None
+    assert deployment_build_support._git_directory_fingerprint(missing) == []
+
+    class _BrokenPath:
+        def exists(self):
+            return True
+
+        def expanduser(self):
+            raise OSError("cannot resolve")
+
+    assert deployment_build_support._git_directory_fingerprint(_BrokenPath()) is None
+
+    source = tmp_path / "repo" / "src"
+    source.mkdir(parents=True)
+
+    def _missing_git(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(deployment_build_support.subprocess, "run", _missing_git)
+    assert deployment_build_support._git_directory_fingerprint(source) is None
+
+    def _outside_repo(*_args, **_kwargs):
+        return subprocess.CompletedProcess(_args[0], 0, stdout=str(tmp_path / "other") + "\n", stderr="")
+
+    monkeypatch.setattr(deployment_build_support.subprocess, "run", _outside_repo)
+    assert deployment_build_support._git_directory_fingerprint(source) is None
+
+
+def test_worker_build_cache_helpers_cover_disabled_and_missing_outputs(tmp_path):
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "wenv",
+        envars={deployment_build_support.DISABLE_BUILD_CACHE_ENV: "1"},
+        active_app=tmp_path / "app",
+        worker_pyproject=tmp_path / "worker.toml",
+        manager_pyproject=tmp_path / "manager.toml",
+        uvproject=tmp_path / "uv.toml",
+        base_worker_cls="PandasWorker",
+        pyvers_worker="3.13",
+    )
+    env.wenv_abs.mkdir()
+
+    assert deployment_build_support._worker_build_outputs_exist(env.wenv_abs, is_cy=False) is False
+    assert deployment_build_support._worker_build_outputs_exist(env.wenv_abs, is_cy=True) is False
+    assert (
+        deployment_build_support._worker_build_cache_hit(
+            env=env,
+            packages="agi_dispatcher, pandas_worker",
+            worker_group=None,
+            is_cy=False,
+            module_cmd="python -m build",
+            core_install_commands=[],
+        )
+        is False
+    )
+    deployment_build_support._record_worker_build_cache(
+        env=env,
+        packages="agi_dispatcher, pandas_worker",
+        worker_group=None,
+        is_cy=False,
+        module_cmd="python -m build",
+        core_install_commands=[],
+    )
+    assert not deployment_build_support._build_cache_path(env.wenv_abs).exists()
 
 
 def test_copy_cython_worker_lib_raises_when_output_missing(tmp_path):

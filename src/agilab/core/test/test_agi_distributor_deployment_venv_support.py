@@ -64,6 +64,29 @@ def test_project_venv_matches_checks_executable_and_requested_version(tmp_path: 
         )
 
 
+def test_project_venv_version_and_site_packages_fallback_edges(monkeypatch, tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    cfg = project / ".venv" / "pyvenv.cfg"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("home = /tmp\nversion = unknown\n", encoding="utf-8")
+    _write_venv_python(project)
+
+    assert deployment_venv_support.project_venv_cfg_version(project) is None
+    assert deployment_venv_support.project_venv_matches(project, python_version="3.13") is False
+
+    original_glob = Path.glob
+
+    def _raise_for_lib(path, pattern):
+        if path == project / ".venv" / "lib" and pattern == "python*/site-packages":
+            raise OSError("blocked")
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(Path, "glob", _raise_for_lib)
+    fallback = deployment_venv_support.project_site_packages_dir(project, os_name="posix")
+    assert fallback.name == "site-packages"
+    assert fallback.parent.name.startswith("python")
+
+
 def test_project_site_packages_dir_handles_windows_and_free_threaded_versions(tmp_path: Path) -> None:
     assert deployment_venv_support.project_site_packages_dir(tmp_path, os_name="nt") == (
         tmp_path / ".venv" / "Lib" / "site-packages"

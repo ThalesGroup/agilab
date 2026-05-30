@@ -120,6 +120,67 @@ def test_capacity_support_private_helper_edges(monkeypatch, tmp_path):
     ) is True
 
 
+def test_capacity_cache_edges_and_invalid_ttl(monkeypatch):
+    monkeypatch.setenv(capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV, "bad")
+    assert capacity_support._calibration_cache_ttl(SimpleNamespace(envars={})) == (
+        capacity_support.DEFAULT_CALIBRATION_CACHE_TTL_SECONDS
+    )
+    monkeypatch.delenv(capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV)
+    assert (
+        capacity_support._calibration_cache_ttl(
+            SimpleNamespace(envars={capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV: "-5"})
+        )
+        == 0.0
+    )
+
+    agi = SimpleNamespace(
+        env=SimpleNamespace(
+            envars={capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV: "100"},
+            share="",
+            localshare="",
+            clustershare="",
+        ),
+        _workers={},
+        _dask_workers=[],
+        _capacity_predictor=None,
+        _calibration_cache=None,
+    )
+    assert capacity_support._restore_calibration_cache(agi, now=10.0) is False
+
+    signature = capacity_support._calibration_signature(agi)
+    invalid_caches = [
+        {},
+        {"signature": {"different": True}},
+        {"signature": signature},
+        {"signature": signature, "measured_at": "not-a-number"},
+        {"signature": signature, "measured_at": -200.0},
+        {"signature": signature, "measured_at": 1.0, "workers_info": [], "capacity": {}},
+        {"signature": signature, "measured_at": 1.0, "workers_info": {}, "capacity": []},
+    ]
+    for cache in invalid_caches:
+        agi._calibration_cache = cache
+        assert capacity_support._restore_calibration_cache(agi, now=10.0) is False
+
+    agi._calibration_cache = {
+        "signature": signature,
+        "measured_at": 9.0,
+        "workers_info": {"worker": {"label": 1.0}},
+        "capacity": {"worker": 1.0},
+    }
+    assert capacity_support._restore_calibration_cache(agi, now=10.0) is True
+    agi.workers_info["worker"]["label"] = 2.0
+    assert agi._calibration_cache["workers_info"]["worker"]["label"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_benchmark_rejects_unsupported_mode_type(tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+
+    with pytest.raises(TypeError, match="Benchmark mode must be None"):
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode="fast"))
+
+
 @pytest.mark.asyncio
 async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     env = _minimal_app_env()

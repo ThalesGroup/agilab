@@ -13,6 +13,11 @@ from typing import Callable, Iterable, Sequence
 
 ZERO_SHA = "0" * 40
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+import worktree_scope_guard  # noqa: E402
 
 DOCS_GUARD_PREFIXES = (
     "docs/source/",
@@ -45,6 +50,8 @@ APP_CONTRACT_GUARD_FILES = {
     "tools/app_contract_matrix.py",
     "tools/package_split_contract.py",
 }
+DEFAULT_PUSH_MAX_SCOPES = worktree_scope_guard.DEFAULT_MAX_SCOPES
+PUSH_SCOPE_ALLOWED = worktree_scope_guard.DEFAULT_ALLOWED_SCOPES
 
 
 GitRunner = Callable[[Sequence[str]], str]
@@ -56,6 +63,9 @@ class GuardState:
     docs_changed: bool
     release_proof_changed: bool
     app_contracts_changed: bool
+    mixed_scope: bool = False
+    scope_count: int = 0
+    scope_limit: int = DEFAULT_PUSH_MAX_SCOPES
     detection_failed: bool = False
     error: str = ""
 
@@ -125,7 +135,12 @@ def _matches(path: str, *, prefixes: Iterable[str], files: set[str]) -> bool:
     return path in files or any(path.startswith(prefix) for prefix in prefixes)
 
 
-def classify_changed_files(changed_files: Sequence[str]) -> GuardState:
+def classify_changed_files(
+    changed_files: Sequence[str],
+    *,
+    max_scopes: int = DEFAULT_PUSH_MAX_SCOPES,
+    allowed_scopes: Sequence[str] = PUSH_SCOPE_ALLOWED,
+) -> GuardState:
     docs_changed = any(
         _matches(path, prefixes=DOCS_GUARD_PREFIXES, files=DOCS_GUARD_FILES)
         for path in changed_files
@@ -138,11 +153,19 @@ def classify_changed_files(changed_files: Sequence[str]) -> GuardState:
         _matches(path, prefixes=APP_CONTRACT_GUARD_PREFIXES, files=APP_CONTRACT_GUARD_FILES)
         for path in changed_files
     )
+    scope_report = worktree_scope_guard.analyze_scope(
+        changed_files,
+        max_scopes=max_scopes,
+        allowed_scopes=allowed_scopes,
+    )
     return GuardState(
         changed_files=tuple(sorted(set(changed_files))),
         docs_changed=docs_changed,
         release_proof_changed=release_proof_changed,
         app_contracts_changed=app_contracts_changed,
+        mixed_scope=scope_report.mixed,
+        scope_count=len(scope_report.counted_scopes),
+        scope_limit=scope_report.max_scopes,
     )
 
 
@@ -152,6 +175,7 @@ def failed_detection_state(error: Exception) -> GuardState:
         docs_changed=True,
         release_proof_changed=True,
         app_contracts_changed=True,
+        mixed_scope=True,
         detection_failed=True,
         error=str(error),
     )
@@ -166,6 +190,9 @@ def render_shell(state: GuardState) -> str:
         f"DOCS_CHANGED={_shell_bool(state.docs_changed)}",
         f"RELEASE_PROOF_CHANGED={_shell_bool(state.release_proof_changed)}",
         f"APP_CONTRACTS_CHANGED={_shell_bool(state.app_contracts_changed)}",
+        f"MIXED_SCOPE={_shell_bool(state.mixed_scope)}",
+        f"SCOPE_COUNT={state.scope_count}",
+        f"SCOPE_LIMIT={state.scope_limit}",
         f"DETECTION_FAILED={_shell_bool(state.detection_failed)}",
         f"CHANGED_COUNT={len(state.changed_files)}",
     ]

@@ -652,6 +652,53 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
     assert "test-results/coverage-agi-gui-pipeline.db.fragment" in combined_commands[0]
 
 
+def test_agi_gui_coverage_combine_deduplicates_parallel_base_paths(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    combined_commands: list[list[str]] = []
+
+    for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
+        base_db = test_results / f"coverage-agi-gui-{chunk}.db"
+        worker_db = test_results / f"{base_db.name}.worker"
+        base_db.write_text("coverage-base\n", encoding="utf-8")
+        worker_db.write_text("coverage-worker\n", encoding="utf-8")
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": f"test-results/coverage-agi-gui-{chunk}.db",
+                    "junit_path": f"test-results/junit-agi-gui-{chunk}.xml",
+                    "coverage_db_paths": [
+                        f"test-results/coverage-agi-gui-{chunk}.db",
+                        f"test-results/coverage-agi-gui-{chunk}.db.worker",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_run(cmd, check=False):
+        combined_commands.append(list(cmd))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, "subprocess", SimpleNamespace(run=fake_run))
+
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 0
+
+    assert combined_commands
+    combine_args = combined_commands[0]
+    assert "test-results/coverage-agi-gui-support.db.worker" in combine_args
+    assert "test-results/coverage-agi-gui-support.db" not in combine_args
+
+
 def test_agi_gui_coverage_combine_does_not_recover_failing_junit(tmp_path, monkeypatch, capsys) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)

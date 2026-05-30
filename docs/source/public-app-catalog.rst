@@ -62,7 +62,7 @@ Status legend:
      - Synthetic worker execution playground for the Polars path, comparable
        with the Pandas app.
    * - ``multi_app_dag_project``
-     - ``agi-app-multi-app-dag``
+     - ``agi-app-multi-dag``
      - PyPI app package
      - Cross-app DAG template preview and artifact-handoff contract review.
    * - ``pytorch_playground_project``

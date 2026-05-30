@@ -42,7 +42,7 @@ PYPI_APP_REQUIREMENT_RE = re.compile(
 
 PROMOTED_PYPI_APP_PACKAGES: tuple[str, ...] = (
     "agi-app-flight-telemetry",
-    "agi-app-multi-app-dag",
+    "agi-app-multi-dag",
     "agi-app-mission-decision",
     "agi-app-pandas-execution",
     "agi-app-polars-execution",

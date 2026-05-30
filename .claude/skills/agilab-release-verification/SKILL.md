@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-27
+  updated: 2026-05-30
 ---
 
 # AGILAB Release Verification
@@ -41,6 +41,7 @@ Run this before tagging or dispatching the release workflow:
 ```bash
 git status --short --branch --untracked-files=no
 ./dev audit --strict
+./dev maintenance
 ./dev release
 ```
 
@@ -49,10 +50,29 @@ dirty paths and ahead/behind state are explained.
 
 If `./dev release` fails, fix the local guard first unless the failure is
 explicitly GitHub-only, secret-dependent, or network/publication-dependent.
+If `./dev maintenance` fails, fix the reported extension-contract, ADR, docs
+mirror, app/package contract, Evidence Core, or shared-core guardrail drift
+before calling the release ready. A warning is not automatically a release
+blocker, but it must be named explicitly; expected warnings currently include
+coverage below the maintenance floor or real TODO/FIXME hotspot triage. The
+dashboard still reports the gap to the long-term 99% coverage aspiration.
 If `tools/pypi_project_preflight.py` reports a `missing-project` blocker,
 register the pending trusted publisher before dispatching the release workflow.
 An existing PyPI project with a new unpublished version is normal; a missing
 project or newer PyPI version than the committed source is not.
+
+Before registering a pending publisher for a new or renamed app package, sanity
+check the public distribution name. Prefer concise `agi-app-<domain>` names and
+avoid redundant forms such as `agi-app-*-project`, `agi-app-*-app-*`, or stale
+prototype names. Once the name is chosen, update the complete package contract
+surface in one change: `tools/package_split_contract.py`,
+`src/agilab/lib/app_project_build_support.py`,
+`src/agilab/lib/agi-apps/pyproject.toml`, `src/agilab/pypi_app_packages.py`,
+`.github/dependabot.yml`, package README/metadata, public docs/license pages,
+and tests. Then prove the rename with an old-name grep, `tools/app_contract_matrix.py
+--quiet`, `tools/release_plan.py --check-workflow ... --skip-existing-pypi`,
+`tools/pypi_trusted_publisher_contract.py --package <new-name>`, and a local
+`python -m build <package-dir>` before creating the PyPI pending publisher.
 
 For a release that should prune old PyPI releases and sync Hugging Face, verify
 the required repository secrets exist before dispatching or rerunning the

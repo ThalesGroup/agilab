@@ -17,6 +17,38 @@ The current public contract is intentionally conservative:
 This is not a second experiment tracker, model registry, or storage UI. It is
 the data-access contract around AGILAB workflows.
 
+Connector Maturity Levels
+-------------------------
+
+Use these labels consistently when reading connector evidence:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 42 36
+
+   * - Level
+     - What AGILAB proves
+     - What remains outside the proof
+   * - Local proof
+     - A deterministic local connector such as SQLite produces query results,
+       artifact hashes, and JSON evidence without network access.
+     - Behavior of the eventual production database, account policy, or
+       network path.
+   * - Contract proof
+     - TOML connector definitions, app/page references, credential-reference
+       shape, and runtime dependency mapping are valid.
+     - Real endpoint reachability, IAM, firewall rules, quota, latency, or
+       billing.
+   * - Emulator proof
+     - Account-free local emulators match the expected adapter shape for S3,
+       Azure Blob, GCS, or search endpoints.
+     - Real cloud control-plane behavior and managed-service differences.
+   * - Operator-triggered live check
+     - An explicit user action probes a real endpoint in a prepared
+       environment.
+     - General certification for every region, tenant, credential, or network
+       policy.
+
 Catalog Shape
 -------------
 
@@ -77,6 +109,8 @@ The ``s3`` provider also accepts the aliases ``aws_s3``, ``amazon_s3``, and
 ``s3_compatible``. The runtime dependency column describes what an operator
 environment needs for live probes; those packages are not required for the
 default public contract-validation evidence.
+
+.. _sqlite-database-proof:
 
 SQLite Database Proof
 ---------------------

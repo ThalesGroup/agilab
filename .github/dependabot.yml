@@ -137,7 +137,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-multi-app-dag"
+    directory: "/src/agilab/lib/agi-app-multi-dag"
     schedule:
       interval: "weekly"
       day: "monday"

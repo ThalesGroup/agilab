@@ -83,7 +83,7 @@ App packages
    agi-app-pandas-execution <agi-app-pandas-execution-licenses>
    agi-app-polars-execution <agi-app-polars-execution-licenses>
    agi-app-flight-telemetry <agi-app-flight-telemetry-licenses>
-   agi-app-multi-app-dag <agi-app-multi-app-dag-licenses>
+   agi-app-multi-dag <agi-app-multi-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
    agi-app-sklearn-pipeline <agi-app-sklearn-pipeline-licenses>
    agi-app-data-quality-gate <agi-app-data-quality-gate-licenses>

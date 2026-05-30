@@ -1,3 +1,5 @@
+import sys
+import types
 from types import SimpleNamespace
 
 from agi_node.agi_dispatcher import post_install as post_mod
@@ -23,6 +25,27 @@ def test_resolve_post_install_app_arg_places_relative_under_home_wenv(tmp_path):
     )
 
     assert resolved == home / "wenv" / "demo_project"
+
+
+def test_packaged_apps_path_handles_missing_and_imported_agilab(monkeypatch, tmp_path):
+    monkeypatch.delitem(sys.modules, "agilab", raising=False)
+    original_import = post_mod.__import__ if hasattr(post_mod, "__import__") else __import__
+
+    def _raise_for_agilab(name, *args, **kwargs):
+        if name == "agilab":
+            raise ImportError("missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _raise_for_agilab)
+    assert post_mod._packaged_apps_path() is None
+
+    fake_package = tmp_path / "site-packages" / "agilab"
+    fake_package.mkdir(parents=True)
+    fake_agilab = types.SimpleNamespace(__file__=str(fake_package / "__init__.py"))
+    monkeypatch.setitem(sys.modules, "agilab", fake_agilab)
+    monkeypatch.setattr("builtins.__import__", original_import)
+
+    assert post_mod._packaged_apps_path() == fake_package / "apps"
 
 
 def test_prepare_post_install_context_uses_env_target_share_and_existing_archive(tmp_path):

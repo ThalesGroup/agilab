@@ -77,6 +77,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"app-contracts", "apps-contracts"}:
         return [_uv_python("tools/app_contract_matrix.py", *args)]
 
+    if command in {"maintenance", "maintain"}:
+        return [_uv_python("tools/maintenance_dashboard.py", *args)]
+
     if command == "audit":
         return [_uv_python("tools/agilab_audit.py", *args)]
 
@@ -143,6 +146,14 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "clean":
         return [_uv_python("tools/clean_local_artifacts.py", *args)]
 
+    if command in {"scope", "scope-guard"}:
+        return [_uv_python("tools/worktree_scope_guard.py", *args)]
+
+    if command in {"task-worktree", "worktree"}:
+        if not args:
+            raise SystemExit(f"{command}: branch name is required")
+        return [_uv_python("tools/task_worktree.py", *args)]
+
     if command == "skills":
         skills, extras = _split_leading_values(args, command_name=command)
         return [
@@ -167,6 +178,7 @@ def _usage() -> str:
   ./dev [--print-only] robust [robustness_matrix args]
   ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
+  ./dev [--print-only] maintenance [maintenance_dashboard args]
   ./dev [--print-only] audit [agilab_audit args]
   ./dev [--print-only] audit-quality [audit_quality_evaluator args|audit.md]
   ./dev [--print-only] audit-preflight
@@ -176,6 +188,8 @@ def _usage() -> str:
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
   ./dev [--print-only] clean [--apply]
+  ./dev [--print-only] scope [worktree_scope_guard args]
+  ./dev [--print-only] task-worktree <branch> [task_worktree args]
   ./dev [--print-only] skills <skill> [skill...]
 
 High-frequency mappings:
@@ -187,6 +201,7 @@ High-frequency mappings:
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
+  maintenance -> Report extension contracts, ADRs, docs drift, app/package contracts, evidence docs, release friction, TODO hotspots, generated artifacts, and coverage signals.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
@@ -196,6 +211,8 @@ High-frequency mappings:
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
+  scope     -> Group dirty tracked and untracked files by review scope and fail when unrelated scopes are mixed.
+  task-worktree -> Create a clean sibling git worktree for an isolated task branch.
   skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
 """
 
