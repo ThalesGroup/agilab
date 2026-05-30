@@ -15,12 +15,12 @@ into a later CI/promotion step.
 
 ## What You Learn
 
-This app shows how to turn a subjective data review into a repeatable AGILAB
-stage contract. You learn how manager arguments select input files and
-thresholds, how the worker produces normalized evidence, and how a reducer can
-summarize pass/fail status without hiding the detailed artifact trail. The
-important pattern is reusable: keep the business decision small, keep the raw
-evidence inspectable, and export a manifest that another tool can consume.
+The first run shows how AGILAB turns a data-readiness question into replayable
+evidence rather than a spreadsheet note. You see the app produce source data,
+profile both sides of the comparison, apply a contract, score drift, and write a
+decision card that names the failing or passing gate. It is a compact example of
+how an experiment workbench can protect a downstream model workflow before
+training begins.
 
 ## Run In AGILAB
 
@@ -82,12 +82,12 @@ explain.
 
 ## Troubleshooting
 
-If the app reports missing CSV files, confirm that `baseline_csv` and
-`candidate_csv` are relative to the AGILAB share, not absolute paths on your
-desktop. If the gate fails on the default synthetic run, inspect
-`gate_decision.json` first: the failure is usually an intentional drift signal,
-not an execution error. If your own data fails schema validation, start by
-running with the default contract, then add only the column rules you need.
+If custom CSV inputs fail, first run the defaults again to confirm the app and
+worker install are healthy. Then check that `baseline_csv`, `candidate_csv`,
+`contract_json`, and `thresholds_json` are relative to the AGILAB share, not to
+the repository checkout. Contract errors usually mean a required column is
+missing, a numeric column was parsed as text, or a threshold override used a name
+that is not present in the generated `data_contract.json`.
 
 ## Scope
 
