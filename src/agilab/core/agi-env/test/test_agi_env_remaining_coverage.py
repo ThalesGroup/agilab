@@ -4,12 +4,12 @@ import builtins
 import importlib.util
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 import agi_env.agi_env as agi_env_module
 import pytest
-from agi_env import AgiEnv
+from agi_env import AgiEnv, project_initialization_support
 from agi_env.agi_logger import AgiLogger
 
 
@@ -77,6 +77,111 @@ def test_agi_env_import_honours_call_pdb_override_and_color_scheme(monkeypatch):
         "call_pdb": True,
         "color_scheme": "NoColor",
     }
+
+
+def test_optional_agi_pages_bundles_root_handles_runtime_shapes(tmp_path: Path, monkeypatch):
+    original_find_spec = importlib.util.find_spec
+
+    def _find_spec(name, *args, **kwargs):
+        if name == "agi_pages":
+            return object()
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", _find_spec)
+    real_import = builtins.__import__
+
+    def _fail_agi_pages_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_pages":
+            raise ImportError("optional package failed to import")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _fail_agi_pages_import)
+    assert agi_env_module._optional_agi_pages_bundles_root() is None
+
+    monkeypatch.setattr(builtins, "__import__", real_import)
+    fake_pages = ModuleType("agi_pages")
+    monkeypatch.setitem(sys.modules, "agi_pages", fake_pages)
+
+    fake_pages.bundles_root = tmp_path / "not-callable"  # type: ignore[attr-defined]
+    assert agi_env_module._optional_agi_pages_bundles_root() is None
+
+    fake_pages.bundles_root = lambda: (_ for _ in ()).throw(RuntimeError("probe failed"))  # type: ignore[attr-defined]
+    assert agi_env_module._optional_agi_pages_bundles_root() is None
+
+    bundles_root = tmp_path / "bundles"
+    fake_pages.bundles_root = lambda: bundles_root  # type: ignore[attr-defined]
+    assert agi_env_module._optional_agi_pages_bundles_root() == bundles_root
+
+
+def test_signature_value_handles_unresolvable_paths_and_repr(monkeypatch, tmp_path: Path):
+    fragile = tmp_path / "fragile"
+    original_resolve = agi_env_module.Path.resolve
+
+    def _raise_for_fragile_path(self, *args, **kwargs):
+        if self == fragile:
+            raise RuntimeError("path metadata unavailable")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(agi_env_module.Path, "resolve", _raise_for_fragile_path, raising=False)
+
+    assert AgiEnv._signature_value(fragile) == ("path", str(fragile))
+    assert AgiEnv._signature_value(object()).startswith("<object object at ")
+
+
+def test_agienv_for_app_initializes_when_singleton_missing(monkeypatch, tmp_path: Path):
+    AgiEnv.reset()
+    captured: dict[str, object] = {}
+
+    def _fake_init(self, *args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        self.apps_path = kwargs["apps_path"]
+        self.app = kwargs["app"]
+        self.verbose = kwargs["verbose"]
+
+    monkeypatch.setattr(AgiEnv, "__init__", _fake_init, raising=True)
+
+    try:
+        env = AgiEnv.for_app(
+            apps_path=tmp_path / "apps",
+            app=tmp_path / "apps" / "demo_project",
+            verbose=2,
+            debug=True,
+        )
+
+        assert env is AgiEnv.current()
+        assert captured["args"] == ()
+        assert captured["kwargs"] == {
+            "apps_path": (tmp_path / "apps").resolve(),
+            "app": "demo_project",
+            "verbose": 2,
+            "debug": True,
+        }
+    finally:
+        AgiEnv.reset()
+
+
+def test_project_discovery_uses_installed_projects_and_skips_bad_paths(tmp_path: Path):
+    installed = tmp_path / "installed_project"
+    installed.mkdir()
+    non_project = tmp_path / "notes"
+    non_project.mkdir()
+    existing_destination = tmp_path / "existing.txt"
+    existing_destination.write_text("keep\n", encoding="utf-8")
+
+    projects = project_initialization_support.discover_projects(
+        [object(), tmp_path / "missing"],
+        installed_app_project_paths=[non_project, object(), installed],
+        logger=None,
+    )
+    project_initialization_support.copy_file_if_missing(
+        tmp_path / "source.txt",
+        existing_destination,
+        logger=None,
+    )
+
+    assert projects == ["installed_project"]
+    assert existing_destination.read_text(encoding="utf-8") == "keep\n"
 
 
 def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_path: Path):
