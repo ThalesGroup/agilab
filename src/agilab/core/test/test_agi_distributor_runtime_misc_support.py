@@ -337,6 +337,46 @@ def test_load_capacity_predictor_rejects_signature_mismatch(tmp_path):
     assert "sha256 mismatch" in calls["warnings"][0][2]
 
 
+def test_capacity_model_manifest_error_reports_all_validation_failures(monkeypatch, tmp_path):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    manifest_path = runtime_misc_support.write_capacity_model_manifest(model_path)
+    original_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    manifest_path.write_text("{bad json", encoding="utf-8")
+    assert "model manifest is unreadable" in runtime_misc_support._capacity_model_manifest_error(model_path)
+
+    for key, value, expected in (
+        ("schema", "wrong", "schema mismatch"),
+        ("model_file", "other.pkl", "file mismatch"),
+        ("algorithm", "md5", "algorithm mismatch"),
+        ("size_bytes", 1, "size mismatch"),
+        ("digest_sha256", "", "digest missing"),
+    ):
+        payload = dict(original_payload)
+        payload[key] = value
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert expected in runtime_misc_support._capacity_model_manifest_error(model_path)
+
+    manifest_path.write_text(json.dumps(original_payload), encoding="utf-8")
+    original_stat = Path.stat
+
+    def _raise_for_model(path, *args, **kwargs):
+        if path == model_path:
+            raise OSError("stat blocked")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _raise_for_model)
+    assert "cannot stat model file for manifest verification" in (
+        runtime_misc_support._capacity_model_manifest_error(model_path)
+    )
+    assert "cannot stat model file" in runtime_misc_support._capacity_model_trust_error(
+        model_path,
+        model_path.parent,
+    )
+
+
 def test_load_capacity_predictor_retrains_when_missing(tmp_path):
     calls = {"retrain": 0}
 

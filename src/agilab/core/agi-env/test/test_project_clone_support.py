@@ -242,6 +242,76 @@ def test_copy_existing_projects_swallow_unsupported_operation_from_resolve(tmp_p
     assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
+def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    dest = tmp_path / "dest"
+
+    monkeypatch.setattr(
+        project_clone_support.os,
+        "symlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileExistsError),
+    )
+    assert project_clone_support._try_link_directory(source, dest) is True
+    assert project_clone_support._try_link_symlink(source, dest) is True
+
+    monkeypatch.setattr(
+        project_clone_support.os,
+        "symlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no symlink")),
+    )
+    assert project_clone_support._try_link_directory(source, dest) is False
+
+    monkeypatch.setattr(project_clone_support.os, "name", "nt")
+    run_calls = []
+
+    def _fake_run(cmd, **kwargs):
+        run_calls.append((cmd, kwargs))
+        return object()
+
+    monkeypatch.setattr(project_clone_support.subprocess, "run", _fake_run)
+    assert project_clone_support._try_link_directory(source, dest) is True
+    assert run_calls[0][0][:3] == ["cmd", "/c", "mklink"]
+
+    monkeypatch.setattr(
+        project_clone_support.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            project_clone_support.subprocess.CalledProcessError(1, "mklink")
+        ),
+    )
+    assert project_clone_support._try_link_directory(source, dest) is False
+
+
+def test_try_link_symlink_falls_back_to_resolved_directory_or_false(monkeypatch, tmp_path: Path):
+    item_dir = tmp_path / "item"
+    item_dir.mkdir()
+    item_file = tmp_path / "item.txt"
+    item_file.write_text("x", encoding="utf-8")
+    dest = tmp_path / "dest"
+    link_calls = []
+
+    monkeypatch.setattr(
+        project_clone_support.os,
+        "readlink",
+        lambda _item: (_ for _ in ()).throw(OSError("not a symlink")),
+    )
+    monkeypatch.setattr(
+        project_clone_support.os,
+        "symlink",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no symlink")),
+    )
+    monkeypatch.setattr(
+        project_clone_support,
+        "_try_link_directory",
+        lambda source, current_dest: link_calls.append((source, current_dest)) or True,
+    )
+
+    assert project_clone_support._try_link_symlink(item_dir, dest) is True
+    assert link_calls == [(item_dir.resolve(strict=False), dest)]
+    assert project_clone_support._try_link_symlink(item_file, dest) is False
+
+
 def test_clone_project_handles_operational_failures_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
     apps_path = tmp_path / "apps"
     source_root = apps_path / "alpha_project"

@@ -10,7 +10,12 @@ from unittest import mock
 import pytest
 import tomlkit
 
-from agi_cluster.agi_distributor import deployment_local_support, uv_source_support
+from agi_cluster.agi_distributor import (
+    deployment_editable_install_support,
+    deployment_local_support,
+    deployment_stage_cache_support,
+    uv_source_support,
+)
 
 
 def _venv_python(project: Path, *, os_name: str | None = None) -> Path:
@@ -754,6 +759,444 @@ def test_deploy_stage_cache_enabled_respects_refresh_and_disable(monkeypatch):
             {"AGILAB_REFRESH_LOCKS": "1"}
         )
         is False
+    )
+
+
+def test_deploy_stage_cache_support_edge_cases(monkeypatch, tmp_path):
+    class _BrokenEnvars:
+        def get(self, _key):
+            raise RuntimeError("broken env source")
+
+    assert deployment_stage_cache_support._env_value(_BrokenEnvars(), "FLAG") is None
+    assert deployment_stage_cache_support._env_value({"FLAG": "  'yes'  "}, "FLAG") == "yes"
+    assert deployment_stage_cache_support._env_truthy({"FLAG": '"on"'}, "FLAG") is True
+    assert deployment_stage_cache_support._load_deploy_stage_cache(tmp_path / "missing.json") == {
+        "schema": deployment_local_support.DEPLOY_STAGE_CACHE_SCHEMA,
+        "stages": {},
+    }
+
+    invalid_cache = tmp_path / "invalid-cache.json"
+    invalid_cache.write_text("[]", encoding="utf-8")
+    assert deployment_stage_cache_support._load_deploy_stage_cache(invalid_cache) == {
+        "schema": deployment_local_support.DEPLOY_STAGE_CACHE_SCHEMA,
+        "stages": {},
+    }
+
+    cache_path = tmp_path / "cache" / "stages.json"
+    deployment_stage_cache_support._write_deploy_stage_cache(
+        cache_path,
+        {"stages": {"manager-sync": {"digest": "abc"}}},
+    )
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["stages"]["manager-sync"]["digest"] == "abc"
+
+    trace_path = tmp_path / "trace" / "deploy.json"
+    deployment_stage_cache_support._write_deploy_timing_trace(
+        trace_path,
+        stages=[{"stage": "manager-sync", "result": "ran", "seconds": 0.1}],
+        results={"manager-sync": "ran"},
+        app_path=tmp_path / "app",
+        worker_project=tmp_path / "worker",
+    )
+    assert json.loads(trace_path.read_text(encoding="utf-8"))["schema"] == (
+        deployment_local_support.DEPLOY_TIMING_TRACE_SCHEMA
+    )
+
+    def _raise_os_error(*_args, **_kwargs):
+        raise OSError("write blocked")
+
+    monkeypatch.setattr(Path, "write_text", _raise_os_error)
+    deployment_stage_cache_support._write_deploy_stage_cache(tmp_path / "blocked.json", {})
+    deployment_stage_cache_support._write_deploy_timing_trace(
+        tmp_path / "blocked-trace.json",
+        stages=[],
+        results={},
+        app_path=tmp_path,
+        worker_project=tmp_path,
+    )
+
+
+def test_deploy_stage_fingerprints_and_copy_stamps_cover_edge_cases(monkeypatch, tmp_path):
+    missing = tmp_path / "missing.txt"
+    file_path = tmp_path / "data.txt"
+    file_path.write_text("payload", encoding="utf-8")
+    directory = tmp_path / "tree"
+    nested = directory / "nested"
+    nested.mkdir(parents=True)
+    (nested / "item.txt").write_text("value", encoding="utf-8")
+
+    missing_fp = deployment_stage_cache_support._deploy_stage_file_fingerprint(missing)
+    assert missing_fp["missing"] is True
+    dir_as_file = deployment_stage_cache_support._deploy_stage_file_fingerprint(directory)
+    assert dir_as_file["kind"] == "directory"
+    tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(directory)
+    assert tree_fp["kind"] == "directory"
+    assert any(entry["path"] == "nested/item.txt" for entry in tree_fp["entries"])
+    file_tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(file_path)
+    assert file_tree_fp["sha256"]
+
+    stamp_path = deployment_stage_cache_support._deploy_copy_stamp_path(
+        tmp_path / "output.txt",
+        directory=False,
+    )
+    payload = deployment_stage_cache_support._deploy_copy_stamp_payload(
+        kind="dataset",
+        source=file_path,
+        destination=tmp_path / "output.txt",
+        source_fingerprint=deployment_stage_cache_support._deploy_stage_file_fingerprint(file_path),
+    )
+    assert not deployment_stage_cache_support._deploy_copy_stamp_matches(
+        stamp_path,
+        payload,
+        output_probe=lambda: True,
+    )
+    deployment_stage_cache_support._write_deploy_copy_stamp(stamp_path, payload)
+    assert deployment_stage_cache_support._deploy_copy_stamp_matches(
+        stamp_path,
+        payload,
+        output_probe=lambda: True,
+    )
+    assert not deployment_stage_cache_support._deploy_copy_stamp_matches(
+        stamp_path,
+        {**payload, "kind": "other"},
+        output_probe=lambda: True,
+    )
+    assert not deployment_stage_cache_support._deploy_copy_stamp_matches(
+        stamp_path,
+        payload,
+        output_probe=lambda: (_ for _ in ()).throw(OSError("probe failed")),
+    )
+    assert deployment_stage_cache_support._deploy_stage_project_inputs(None, file_path) == [
+        file_path / "pyproject.toml",
+        file_path / "uv.lock",
+        file_path / "uv_config.toml",
+        file_path / "setup.py",
+        file_path / "setup.cfg",
+    ]
+
+    def _raise_os_error(*_args, **_kwargs):
+        raise OSError("write blocked")
+
+    monkeypatch.setattr(Path, "write_text", _raise_os_error)
+    deployment_stage_cache_support._write_deploy_copy_stamp(tmp_path / "blocked.json", payload)
+
+
+def test_deploy_stage_fingerprints_cover_unreadable_and_large_inputs(monkeypatch, tmp_path):
+    class _BrokenPath:
+        def expanduser(self):
+            return self
+
+        def resolve(self, *, strict=False):
+            del strict
+            raise RuntimeError("cannot resolve")
+
+        def as_posix(self):
+            return "broken-path"
+
+    assert deployment_stage_cache_support._deploy_stage_file_fingerprint(_BrokenPath()) == {
+        "path": "broken-path",
+        "missing": True,
+    }
+    assert deployment_stage_cache_support._deploy_stage_directory_fingerprint(_BrokenPath()) == {
+        "path": "broken-path",
+        "missing": True,
+    }
+
+    large_file = tmp_path / "large.bin"
+    large_file.write_bytes(b"abc")
+    monkeypatch.setattr(deployment_stage_cache_support, "DEPLOY_STAGE_CACHE_HASH_LIMIT", 1)
+    large_fp = deployment_stage_cache_support._deploy_stage_file_fingerprint(large_file)
+    assert "sha256" not in large_fp
+    assert "mtime_ns" in large_fp
+    monkeypatch.setattr(
+        deployment_stage_cache_support,
+        "DEPLOY_STAGE_CACHE_HASH_LIMIT",
+        8 * 1024 * 1024,
+    )
+
+    readable_file = tmp_path / "readable.txt"
+    readable_file.write_text("payload", encoding="utf-8")
+    original_read_bytes = Path.read_bytes
+
+    def _raise_read_bytes(path):
+        if path == readable_file:
+            raise OSError("blocked")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", _raise_read_bytes)
+    unreadable_file_fp = deployment_stage_cache_support._deploy_stage_file_fingerprint(readable_file)
+    assert "sha256" not in unreadable_file_fp
+    assert "mtime_ns" in unreadable_file_fp
+
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    original_stat = Path.stat
+
+    def _raise_stat(path, *args, **kwargs):
+        if path == tree:
+            raise OSError("stat blocked")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _raise_stat)
+    assert deployment_stage_cache_support._deploy_stage_directory_fingerprint(tree)["missing"] is True
+    monkeypatch.setattr(Path, "stat", original_stat)
+
+    original_rglob = Path.rglob
+
+    def _raise_rglob(path, pattern):
+        if path == tree:
+            raise OSError("blocked")
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _raise_rglob)
+    unreadable_tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(tree)
+    assert unreadable_tree_fp["unreadable"] is True
+    monkeypatch.setattr(Path, "rglob", lambda _path, _pattern: [tmp_path / "external.txt"])
+    (tmp_path / "external.txt").write_text("outside", encoding="utf-8")
+    external_tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(tree)
+    assert external_tree_fp["entries"][0]["path"] == "external.txt"
+
+    broken_link = tree / "broken-link"
+    try:
+        broken_link.symlink_to(tree / "missing-target")
+    except (OSError, NotImplementedError):
+        broken_link = tree / "plain"
+    monkeypatch.setattr(Path, "rglob", lambda _path, _pattern: [broken_link])
+    other_tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(tree)
+    assert other_tree_fp["entries"][0]["kind"] == "other"
+
+    bad_child = tree / "bad-child"
+    monkeypatch.setattr(Path, "rglob", lambda _path, _pattern: [bad_child])
+    original_is_dir = Path.is_dir
+
+    def _raise_is_dir(path):
+        if path == bad_child:
+            raise OSError("bad child")
+        return original_is_dir(path)
+
+    monkeypatch.setattr(Path, "is_dir", _raise_is_dir)
+    bad_child_tree_fp = deployment_stage_cache_support._deploy_stage_directory_fingerprint(tree)
+    assert bad_child_tree_fp["entries"] == [{"path": "bad-child", "unreadable": True}]
+
+
+def test_dependency_module_and_pth_import_roots_cover_edge_branches(monkeypatch, tmp_path):
+    modules = deployment_local_support._dependency_modules_from_info(
+        {
+            "agi-env": {"name": "agi-env"},
+            "dask": {"name": "dask", "extras": {"distributed"}},
+            "pillow": {"name": "pillow", "extras": set()},
+        }
+    )
+    assert modules == ("dask", "distributed", "PIL")
+
+    site_packages = tmp_path / "site-packages"
+    site_packages.mkdir()
+    relative_root = site_packages / "relative-src"
+    absolute_root = tmp_path / "absolute-src"
+    relative_root.mkdir()
+    absolute_root.mkdir()
+    (site_packages / "demo.pth").write_text(
+        "\n# comment\nimport site\nrelative-src\n" + str(absolute_root) + "\n",
+        encoding="utf-8",
+    )
+    roots = deployment_local_support._pth_import_roots(site_packages)
+    assert roots == (relative_root.resolve(strict=False), absolute_root.resolve(strict=False))
+    assert deployment_local_support._module_available_on_root(relative_root, ".")
+
+    original_read_text = Path.read_text
+
+    def _raise_for_pth(path, *args, **kwargs):
+        if path.name == "demo.pth":
+            raise OSError("blocked")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_for_pth)
+    assert deployment_local_support._pth_import_roots(site_packages) == ()
+
+    original_glob = Path.glob
+
+    def _raise_for_site_packages(path, pattern):
+        if path == site_packages and pattern == "*.pth":
+            raise OSError("blocked")
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(Path, "glob", _raise_for_site_packages)
+    assert deployment_local_support._pth_import_roots(site_packages) == ()
+
+
+def test_editable_install_support_edge_cases(tmp_path):
+    cache_path = tmp_path / "editable-cache.json"
+    assert deployment_editable_install_support._load_editable_install_cache(cache_path) == {
+        "schema": deployment_local_support.EDITABLE_INSTALL_CACHE_SCHEMA,
+        "installs": {},
+    }
+    cache_path.write_text("[]", encoding="utf-8")
+    assert deployment_editable_install_support._load_editable_install_cache(cache_path) == {
+        "schema": deployment_local_support.EDITABLE_INSTALL_CACHE_SCHEMA,
+        "installs": {},
+    }
+    deployment_editable_install_support._write_editable_install_cache(
+        cache_path,
+        {"installs": {"demo": {"digest": "abc"}}},
+    )
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["installs"]["demo"]["digest"] == "abc"
+    assert deployment_editable_install_support._editable_install_project(object()) is None
+
+    site_packages = deployment_local_support._project_site_packages_dir(
+        tmp_path,
+        python_version="3.13",
+    )
+    site_packages.mkdir(parents=True)
+    package_project = tmp_path / "pkg"
+    package_project.mkdir()
+    (package_project / "pyproject.toml").write_text("[project]\nname='pkg'\n", encoding="utf-8")
+    bad_dist = site_packages / "bad.dist-info"
+    bad_dist.mkdir()
+    (bad_dist / "direct_url.json").write_text("{bad json", encoding="utf-8")
+    noneditable_dist = site_packages / "noneditable.dist-info"
+    noneditable_dist.mkdir()
+    (noneditable_dist / "direct_url.json").write_text(
+        json.dumps({"url": package_project.resolve(strict=False).as_uri(), "dir_info": {}}),
+        encoding="utf-8",
+    )
+    remote_dist = site_packages / "remote.dist-info"
+    remote_dist.mkdir()
+    (remote_dist / "direct_url.json").write_text(
+        json.dumps({"url": "file://remote.example/tmp/pkg", "dir_info": {"editable": True}}),
+        encoding="utf-8",
+    )
+    good_dist = site_packages / "good.dist-info"
+    good_dist.mkdir()
+    (good_dist / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": package_project.resolve(strict=False).as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert deployment_editable_install_support._editable_install_proof_exists(
+        tmp_path,
+        package_project,
+        python_version="3.13",
+    )
+
+
+def test_editable_install_proof_accepts_windows_file_url(tmp_path):
+    site_packages = deployment_local_support._project_site_packages_dir(
+        tmp_path,
+        os_name="nt",
+        python_version="3.13",
+    )
+    site_packages.mkdir(parents=True)
+    dist_info = site_packages / "windows.dist-info"
+    dist_info.mkdir()
+    (dist_info / "direct_url.json").write_text(
+        json.dumps({"url": "file:///C:/src/pkg", "dir_info": {"editable": True}}),
+        encoding="utf-8",
+    )
+
+    assert deployment_editable_install_support._editable_install_proof_exists(
+        tmp_path,
+        Path("C:/src/pkg"),
+        os_name="nt",
+        python_version="3.13",
+    )
+
+
+def test_editable_install_support_remaining_error_edges(monkeypatch, tmp_path):
+    shadow_file = tmp_path / "shadow.py"
+    shadow_file.write_text("# stale\n", encoding="utf-8")
+    original_unlink = Path.unlink
+
+    def _unlink_race(path, *args, **kwargs):
+        if path == shadow_file:
+            raise FileNotFoundError
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _unlink_race)
+    assert deployment_editable_install_support._remove_site_package_shadow(shadow_file) is False
+
+    original_write_text = Path.write_text
+
+    def _raise_write_text(*_args, **_kwargs):
+        raise OSError("blocked")
+
+    monkeypatch.setattr(Path, "write_text", _raise_write_text)
+    deployment_editable_install_support._write_editable_install_cache(
+        tmp_path / "blocked-cache.json",
+        {"installs": {"demo": {"digest": "abc"}}},
+    )
+    monkeypatch.setattr(Path, "write_text", original_write_text)
+
+    site_packages = deployment_local_support._project_site_packages_dir(
+        tmp_path,
+        python_version="3.13",
+    )
+    site_packages.mkdir(parents=True, exist_ok=True)
+    package_project = tmp_path / "pkg"
+    package_project.mkdir()
+
+    original_glob = Path.glob
+
+    def _raise_glob(path, pattern):
+        if path == site_packages and pattern == "*.dist-info/direct_url.json":
+            raise OSError("blocked")
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(Path, "glob", _raise_glob)
+    assert not deployment_editable_install_support._editable_install_proof_exists(
+        tmp_path,
+        package_project,
+        python_version="3.13",
+    )
+    monkeypatch.setattr(Path, "glob", original_glob)
+
+    for index, payload in enumerate(
+        [
+            [],
+            {"dir_info": {"editable": True}},
+            {"url": "https://example.test/pkg", "dir_info": {"editable": True}},
+            {"url": "file://remote.example/tmp/pkg", "dir_info": {"editable": True}},
+        ],
+        start=1,
+    ):
+        dist_info = site_packages / f"invalid-{index}.dist-info"
+        dist_info.mkdir()
+        (dist_info / "direct_url.json").write_text(json.dumps(payload), encoding="utf-8")
+    assert not deployment_editable_install_support._editable_install_proof_exists(
+        tmp_path,
+        package_project,
+        python_version="3.13",
+    )
+
+    monkeypatch.setattr(
+        deployment_editable_install_support,
+        "_load_editable_install_cache",
+        lambda _path: {"installs": []},
+    )
+    assert not deployment_editable_install_support._editable_install_cache_hit(
+        uv_cmd="uv",
+        package_project=package_project,
+        venv_project=tmp_path,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+        os_name="posix",
+    )
+    monkeypatch.setattr(
+        deployment_editable_install_support,
+        "_editable_install_proof_exists",
+        lambda *_args, **_kwargs: True,
+    )
+    deployment_editable_install_support._record_editable_install_cache(
+        uv_cmd="uv",
+        package_project=package_project,
+        venv_project=tmp_path,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+        os_name="posix",
     )
 
 
