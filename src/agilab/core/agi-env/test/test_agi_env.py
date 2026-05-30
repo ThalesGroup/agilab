@@ -4,6 +4,7 @@ import getpass
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -15,6 +16,7 @@ from unittest import mock
 from agi_env import AgiEnv
 import agi_env.agi_env as agi_env_module
 from agi_env import data_archive_support
+from agi_env import project_clone_support
 
 from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
@@ -178,7 +180,8 @@ def test_humanize_validation_errors_model_level(env):
 def test_create_rename_map_basic(env, tmp_path: Path):
     src = tmp_path / 'alpha_project'
     dst = tmp_path / 'bravo_project'
-    src.mkdir(); dst.mkdir()
+    src.mkdir()
+    dst.mkdir()
     mapping = env.create_rename_map(src, dst)
     assert mapping.get('alpha_project') == 'bravo_project'
     assert mapping.get('alpha') == 'bravo'
@@ -2024,6 +2027,7 @@ def test_clone_project_pulls_git_lfs_payload_before_cloning(tmp_path: Path, monk
 
     def _fake_run(cmd, **_kwargs):
         run_calls.append(list(cmd))
+        assert _kwargs["timeout"] == project_clone_support.GIT_LFS_PULL_TIMEOUT_SECONDS
         dataset.write_bytes(b"7z")
         return _FakeRunResult()
 
@@ -2042,7 +2046,108 @@ def test_clone_project_pulls_git_lfs_payload_before_cloning(tmp_path: Path, monk
         str(source),
         "lfs",
         "pull",
+        "--include=src/flight_telemetry_worker/dataset.7z",
     ]]
+
+
+def test_clone_project_scopes_git_lfs_pull_to_project_dataset(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    apps_path = repo / "src" / "agilab" / "apps" / "builtin"
+    source = apps_path / "flight_telemetry_project"
+    source_worker = source / "src" / "flight_telemetry_worker"
+    source_manager = source / "src" / "flight_telemetry"
+    source_dataset = source_worker / "dataset.7z"
+    unrelated_dataset = apps_path / "other_project" / "src" / "other_worker" / "dataset.7z"
+
+    (repo / ".git").mkdir(parents=True)
+    source_worker.mkdir(parents=True, exist_ok=True)
+    source_manager.mkdir(parents=True, exist_ok=True)
+    unrelated_dataset.parent.mkdir(parents=True, exist_ok=True)
+    _write_git_lfs_pointer_file(source_dataset)
+    _write_git_lfs_pointer_file(unrelated_dataset)
+    (source_manager / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (source_worker / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = home
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    run_calls: list[list[str]] = []
+
+    class _FakeRunResult:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        run_calls.append(list(cmd))
+        assert cmd[-1] == (
+            "--include=src/agilab/apps/builtin/flight_telemetry_project/"
+            "src/flight_telemetry_worker/dataset.7z"
+        )
+        source_dataset.write_bytes(b"7z")
+        return _FakeRunResult()
+
+    clone_project_fn = agi_env_module.clone_app_project
+    monkeypatch.setattr(clone_project_fn.__globals__["subprocess"], "run", _fake_run)
+
+    env.clone_project(Path("flight_telemetry_project"), Path("demo_project"))
+
+    assert (apps_path / "demo_project").exists()
+    assert project_clone_support._is_git_lfs_pointer_file(unrelated_dataset)
+    assert run_calls == [[
+        "git",
+        "-C",
+        str(repo),
+        "lfs",
+        "pull",
+        (
+            "--include=src/agilab/apps/builtin/flight_telemetry_project/"
+            "src/flight_telemetry_worker/dataset.7z"
+        ),
+    ]]
+
+
+def test_clone_project_fails_when_git_lfs_pull_times_out(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    apps_path = tmp_path / "apps"
+    source = apps_path / "flight_telemetry_project"
+    source_worker = source / "src" / "flight_telemetry_worker"
+    source_manager = source / "src" / "flight_telemetry"
+    dataset = source_worker / "dataset.7z"
+
+    (source / ".git").mkdir(parents=True)
+    source_worker.mkdir(parents=True, exist_ok=True)
+    source_manager.mkdir(parents=True, exist_ok=True)
+    _write_git_lfs_pointer_file(dataset)
+    (source_manager / "flight_telemetry.py").write_text("class FlightTelemetry:\n    pass\n", encoding="utf-8")
+    (source_worker / "flight_telemetry_worker.py").write_text(
+        "class FlightTelemetryWorker:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    env = object.__new__(AgiEnv)
+    env.apps_path = apps_path
+    env.home_abs = home
+    env.projects = []
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock())
+
+    def _fake_run(cmd, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd, timeout=_kwargs["timeout"])
+
+    clone_project_fn = agi_env_module.clone_app_project
+    monkeypatch.setattr(clone_project_fn.__globals__["subprocess"], "run", _fake_run)
+
+    with pytest.raises(RuntimeError, match="Timed out materializing Git-LFS dataset payloads"):
+        env.clone_project(Path("flight_telemetry_project"), Path("demo_project"))
+
+    assert not (apps_path / "demo_project").exists()
 
 
 def test_clone_project_fails_when_git_lfs_pull_fails(tmp_path: Path, monkeypatch):
@@ -2906,7 +3011,10 @@ def test_create_symlink_and_windows_link_helpers_log_expected_paths(tmp_path: Pa
     assert AgiEnv.create_junction_windows(src_dir, tmp_path / "junction_oserror") is False
 
     monkeypatch.setattr(AgiEnv, "has_admin_rights", staticmethod(lambda: False))
-    fake_create = lambda *_args, **_kwargs: 0
+
+    def fake_create(*_args, **_kwargs):
+        return 0
+
     monkeypatch.setattr(
         agi_env_module.ctypes,
         "windll",

@@ -22,6 +22,7 @@ except ImportError:
 PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 PROJECT_COPY_EXCEPTIONS = (OSError, shutil.Error)
 GIT_LFS_POINTER_SIGNATURE = b"version https://git-lfs.github.com/spec/v1"
+GIT_LFS_PULL_TIMEOUT_SECONDS = 5 * 60
 
 
 def _ast_to_source(tree: ast.AST) -> str:
@@ -62,6 +63,23 @@ def _find_unresolved_lfs_dataset_archives(source_root: Path) -> list[Path]:
     ]
 
 
+def _git_lfs_include_arg(paths: list[Path], git_root: Path) -> str:
+    """Return a deterministic git-lfs include path list relative to ``git_root``."""
+    resolved_git_root = _safe_resolve(git_root)
+    include_paths: list[str] = []
+    for path in paths:
+        resolved_path = _safe_resolve(path)
+        try:
+            relative_path = resolved_path.relative_to(resolved_git_root)
+        except ValueError as exc:
+            raise RuntimeError(
+                "Cannot materialize Git-LFS dataset payload outside the git root: "
+                f"{path.as_posix()}"
+            ) from exc
+        include_paths.append(relative_path.as_posix())
+    return ",".join(sorted(include_paths))
+
+
 def _ensure_git_lfs_dataset_payloads(source_root: Path, logger: Any) -> None:
     """Ensure LFS dataset pointers under the source tree are materialized."""
     unresolved = _find_unresolved_lfs_dataset_archives(source_root)
@@ -76,29 +94,37 @@ def _ensure_git_lfs_dataset_payloads(source_root: Path, logger: Any) -> None:
             f"root was found: {unresolved_text}"
         )
 
+    include_arg = _git_lfs_include_arg(unresolved, git_root)
     logger.info(
-        "Running git lfs pull for source project '%s' from git root '%s' "
+        "Running scoped git lfs pull for source project '%s' from git root '%s' "
         "to materialize dataset archives.",
         source_root,
         git_root,
     )
     try:
         pull_result = subprocess.run(
-            ["git", "-C", str(git_root), "lfs", "pull"],
+            ["git", "-C", str(git_root), "lfs", "pull", f"--include={include_arg}"],
             check=False,
             capture_output=True,
             text=True,
+            timeout=GIT_LFS_PULL_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         raise RuntimeError(
             "Cannot clone source project: git-lfs is not available in PATH; "
             "run `git lfs install` and retry."
         ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            "Timed out materializing Git-LFS dataset payloads after "
+            f"{GIT_LFS_PULL_TIMEOUT_SECONDS}s: {include_arg}"
+        ) from exc
 
     if pull_result.returncode != 0:
         raise RuntimeError(
             "Failed to materialize Git-LFS dataset payloads. "
-            f"git lfs pull exit={pull_result.returncode}: {pull_result.stderr or pull_result.stdout}"
+            f"git lfs pull exit={pull_result.returncode}, include={include_arg}: "
+            f"{pull_result.stderr or pull_result.stdout}"
         )
 
     if _find_unresolved_lfs_dataset_archives(source_root):

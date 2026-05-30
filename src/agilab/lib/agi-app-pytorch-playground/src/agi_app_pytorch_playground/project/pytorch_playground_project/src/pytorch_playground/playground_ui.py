@@ -733,16 +733,40 @@ def _load_evidence_result(evidence_dir: Path) -> tuple[PlaygroundConfig, dict[st
 
 def _load_latest_evidence_result(
     evidence_dirs: Sequence[str | Path] | None,
+    *,
+    evidence_manifest_token: tuple[int, str] | None = None,
 ) -> tuple[PlaygroundConfig, dict[str, Any], Path] | None:
-    candidates: list[tuple[float, Path]] = []
+    def _normalize_root(root_path: Path) -> str:
+        try:
+            return str(root_path.expanduser().resolve())
+        except OSError:
+            return str(root_path.expanduser())
+
+    preferred_root: str | None = None
+    preferred_timestamp: int | None = None
+    if evidence_manifest_token is not None:
+        try:
+            preferred_timestamp = int(evidence_manifest_token[0])
+            preferred_root = _normalize_root(Path(evidence_manifest_token[1]))
+        except (TypeError, ValueError, OSError):
+            preferred_root = None
+            preferred_timestamp = None
+
+    candidates: list[tuple[int, int, str, Path]] = []
     for raw_path in evidence_dirs or ():
         root = Path(raw_path).expanduser()
         manifest_path = root / "manifest.json"
         try:
-            candidates.append((manifest_path.stat().st_mtime, root))
+            manifest_timestamp = int(manifest_path.stat().st_mtime_ns)
+            root_key = _normalize_root(root)
+            priority = 0
+            if preferred_root is not None and preferred_timestamp is not None:
+                if root_key == preferred_root and manifest_timestamp >= preferred_timestamp:
+                    priority = 1
+            candidates.append((priority, manifest_timestamp, root_key, root))
         except OSError:
             continue
-    for _mtime, root in sorted(candidates, reverse=True):
+    for _priority, _manifest_timestamp, _root_key, root in sorted(candidates, reverse=True):
         loaded = _load_evidence_result(root)
         if loaded is not None:
             return loaded
@@ -2195,6 +2219,7 @@ def main(
     landscape_resolution: int = 21,
     landscape_span: float = 0.75,
     evidence_dirs: Sequence[str | Path] | None = None,
+    evidence_manifest_token: tuple[int, str] | None = None,
     configure_page: bool = True,
     compact: bool = False,
 ) -> None:
@@ -2377,7 +2402,9 @@ def main(
                 force_refresh=force_shared_refresh,
             )
     else:
-        evidence_result = _load_latest_evidence_result(evidence_dirs)
+        evidence_result = _load_latest_evidence_result(
+            evidence_dirs, evidence_manifest_token=evidence_manifest_token
+        )
         if evidence_result is None:
             trained_config = config_override or PlaygroundConfig()
             _render_hero(active_app, preset_label or "ORCHESTRATE args", trained_config)

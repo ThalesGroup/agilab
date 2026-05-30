@@ -8,6 +8,7 @@ from typing import Any
 
 _APP_SRC = Path(__file__).resolve().parents[1]
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_LAST_MANIFEST_SESSION_KEY = "pytorch_playground_last_manifest"
 
 
 def _prepend_sys_path(path: Path) -> None:
@@ -112,6 +113,58 @@ def _analysis_evidence_dirs(
     return paths
 
 
+def _manifest_path_key(path: Path) -> str:
+    try:
+        return str(path.expanduser().resolve())
+    except OSError:
+        return str(path.expanduser())
+
+
+def _record_latest_manifest_path(
+    active_app_path: Path, evidence_dirs: list[Path]
+) -> None:
+    import streamlit as st
+
+    latest_candidate = None
+    for raw_path in evidence_dirs:
+        manifest_path = Path(raw_path).expanduser() / "manifest.json"
+        try:
+            mtime = manifest_path.stat().st_mtime_ns
+        except OSError:
+            continue
+        path_key = _manifest_path_key(manifest_path.parent)
+        if latest_candidate is None or mtime > latest_candidate[0]:
+            latest_candidate = (mtime, path_key)
+
+    if latest_candidate is None:
+        return
+
+    st.session_state[f"{_LAST_MANIFEST_SESSION_KEY}:{active_app_path.name}"] = latest_candidate
+
+
+def _consume_last_manifest_token(active_app_path: Path | None) -> tuple[int, str] | None:
+    import streamlit as st
+
+    if active_app_path is None:
+        return None
+
+    session_key = f"{_LAST_MANIFEST_SESSION_KEY}:{active_app_path.name}"
+    token = st.session_state.get(session_key)
+    if token is None:
+        return None
+
+    if not isinstance(token, tuple) or len(token) != 2:
+        return None
+
+    raw_timestamp, root_key = token
+    try:
+        timestamp = int(raw_timestamp)
+    except (TypeError, ValueError):
+        return None
+
+    return timestamp, str(root_key)
+
+
 def _has_evidence(paths: list[Path]) -> bool:
     return any((path / "manifest.json").is_file() for path in paths)
 
@@ -157,7 +210,7 @@ def _render_analysis_surface(
 
         st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
         return
-    playground_ui.main(
+    playground_kwargs = dict(
         config_override=config,
         preset_label="ORCHESTRATE args",
         interactive_controls=False,
@@ -168,6 +221,10 @@ def _render_analysis_surface(
         configure_page=configure_page,
         compact=compact,
     )
+    manifest_token = _consume_last_manifest_token(active_app_path)
+    if manifest_token is not None:
+        playground_kwargs["evidence_manifest_token"] = manifest_token
+    playground_ui.main(**playground_kwargs)
 
 
 def _run_playground_once(runtime_env: Any, args_model: Any):
@@ -198,14 +255,19 @@ def _render_run_button(
         )
         if callable(persist_current_args):
             args_model = persist_current_args(env=runtime_env)
+        evidence_dirs = _analysis_evidence_dirs(runtime_env, args_model, active_app_path)
         with st.spinner("Refreshing PyTorch evidence"):
             summary = _run_playground_once(runtime_env, args_model)
+        _record_latest_manifest_path(active_app_path, evidence_dirs)
+        rerun = getattr(st, "rerun", None)
     except Exception as exc:
         container.error(f"Run failed: {exc}")
         return
     rows = len(summary) if hasattr(summary, "__len__") else 1
     row_label = "row" if rows == 1 else "rows"
     container.success(f"Run complete. Evidence refreshed ({rows} {row_label}).")
+    if callable(rerun):
+        rerun()
 
 
 def _render_surface_styles() -> None:

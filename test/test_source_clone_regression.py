@@ -53,34 +53,6 @@ def _is_git_lfs_pointer_file(path: Path) -> bool:
     return True
 
 
-def _hydrate_clone_lfs_pointers(clone_root: Path) -> int:
-    """Copy resolved ``*.7z`` payloads from the source checkout into the clone."""
-    count = 0
-    for source_file in ROOT.rglob("*.7z"):
-        if not source_file.is_file():
-            continue
-        if source_file.suffix != ".7z":
-            continue
-        if _is_git_lfs_pointer_file(source_file):
-            continue
-        if not source_file.match("*_worker/dataset.7z"):
-            continue
-        if "build" in source_file.relative_to(ROOT).parts:
-            continue
-        relative = source_file.relative_to(ROOT)
-        clone_file = clone_root / relative
-        if not clone_file.exists() or not _is_git_lfs_pointer_file(clone_file):
-            continue
-
-        try:
-            clone_file.write_bytes(source_file.read_bytes())
-        except OSError:
-            continue
-        count += 1
-
-    return count
-
-
 def _clone_unresolved_dataset_pointers(clone_root: Path) -> list[Path]:
     """Return unresolved LFS pointer dataset payloads in the clone."""
     unresolved: list[Path] = []
@@ -97,7 +69,7 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     clone_root.mkdir()
     clone_proc = subprocess.run(
         ["git", "clone", "--depth", "1", "--local", str(ROOT), str(clone_root)],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -112,13 +84,6 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     )
     unresolved_before = _clone_unresolved_dataset_pointers(clone_root)
     if unresolved_before:
-        if lfs_pull.returncode != 0:
-            if not (clone_root / ".gitattributes").exists():
-                return clone_root
-        hydrated = _hydrate_clone_lfs_pointers(clone_root)
-        if hydrated:
-            return clone_root
-
         unresolved_after = _clone_unresolved_dataset_pointers(clone_root)
         if unresolved_after:
             unresolved_report = "\n".join(
@@ -137,14 +102,43 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
         if not (clone_root / ".gitattributes").exists():
             return clone_root
 
-        hydrated = _hydrate_clone_lfs_pointers(clone_root)
-        if not hydrated:
-            raise AssertionError(
-                "git lfs pull failed for fresh source clone; this blocks "
-                "full-repo proofs requiring packaged datasets. stderr="
-                f"{lfs_pull.stderr}"
-            )
+        raise AssertionError(
+            "git lfs pull failed for fresh source clone; this blocks "
+            "full-repo proofs requiring packaged datasets. stderr="
+            f"{lfs_pull.stderr}"
+        )
     return clone_root
+
+
+def test_materialize_fresh_source_clone_fails_when_lfs_pointer_remains(tmp_path: Path, monkeypatch):
+    def _fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            assert kwargs["check"] is False
+            clone_root = Path(cmd[-1])
+            (clone_root / ".gitattributes").write_text("*.7z filter=lfs diff=lfs merge=lfs -text\n", encoding="utf-8")
+            dataset = clone_root / "src" / "demo_worker" / "dataset.7z"
+            dataset.parent.mkdir(parents=True, exist_ok=True)
+            dataset.write_text(
+                "\n".join(
+                    [
+                        "version https://git-lfs.github.com/spec/v1",
+                        "oid sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                        "size 1024",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+        if cmd[:3] == ["git", "-C", str(tmp_path / "source-clone")]:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    with pytest.raises(AssertionError, match="payloads are still pointers"):
+        _materialize_fresh_source_clone(tmp_path)
 
 
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:

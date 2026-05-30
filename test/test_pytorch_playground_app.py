@@ -315,6 +315,61 @@ def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
     ]
 
 
+def test_app_surface_analysis_uses_manifest_token_from_session(monkeypatch):
+    spec = importlib.util.spec_from_file_location(
+        "pytorch_playground_app_surface_analysis_token_test", APP_SURFACE_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    calls: list[dict[str, object]] = []
+    fake_config = SimpleNamespace(dataset="circles")
+    fake_args = SimpleNamespace(
+        compute_loss_landscape=True,
+        landscape_resolution=17,
+        landscape_span=0.4,
+    )
+    fake_app_args = SimpleNamespace(to_playground_config=lambda args: fake_config)
+    fake_playground_ui = SimpleNamespace(main=lambda **kwargs: calls.append(kwargs))
+    fake_package = ModuleType("pytorch_playground")
+    fake_package.app_args = fake_app_args
+    fake_package.playground_ui = fake_playground_ui
+    evidence_dirs = [PROJECT_PATH.resolve() / "evidence"]
+    token = (123_456_789, str((PROJECT_PATH / "evidence").resolve()))
+    fake_streamlit = SimpleNamespace(
+        session_state={f"{module._LAST_MANIFEST_SESSION_KEY}:{PROJECT_PATH.name}": token}
+    )
+
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (SimpleNamespace(), fake_args))
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
+    monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
+
+    try:
+        module.render(mode="analysis")
+    finally:
+        sys.modules.pop(spec.name, None)
+
+    assert calls == [
+        {
+            "config_override": fake_config,
+            "preset_label": "ORCHESTRATE args",
+            "interactive_controls": False,
+            "compute_loss_landscape": True,
+            "landscape_resolution": 17,
+            "landscape_span": 0.4,
+            "evidence_dirs": evidence_dirs,
+            "configure_page": True,
+            "compact": False,
+            "evidence_manifest_token": token,
+        }
+    ]
+
+
 def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, tmp_path: Path):
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_no_evidence_test", APP_SURFACE_PATH)
     assert spec is not None and spec.loader is not None
@@ -444,6 +499,7 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
 
         def error(self, message):
             events.append(("error", message))
+        session_state = {}
 
     fake_app_args_form = SimpleNamespace(
         render=lambda **kwargs: events.append(("form", kwargs)),
@@ -1816,6 +1872,75 @@ def test_pytorch_playground_loads_latest_evidence_result(tmp_path: Path) -> None
     assert result["summary"]["backend"] == "persisted"
     assert len(result["samples"]) == 96
     assert len(result["loss_landscape"]) == 2
+
+
+def test_pytorch_playground_loads_latest_evidence_result_preferring_token(tmp_path: Path) -> None:
+    module = _load_module()
+    old_config = module.PlaygroundConfig(dataset="circles", sample_count=32, grid_size=12, seed=3)
+    preferred_config = module.PlaygroundConfig(dataset="xor", sample_count=48, grid_size=14, seed=9)
+    latest_config = module.PlaygroundConfig(dataset="spiral", sample_count=96, grid_size=16, seed=7)
+
+    old_dir = tmp_path / "old"
+    preferred_dir = tmp_path / "preferred"
+    latest_dir = tmp_path / "latest"
+
+    _write_playground_evidence_dir(module, old_dir, old_config, _minimal_playground_result(module, old_config))
+    _write_playground_evidence_dir(
+        module,
+        preferred_dir,
+        preferred_config,
+        _minimal_playground_result(module, preferred_config),
+    )
+    _write_playground_evidence_dir(
+        module,
+        latest_dir,
+        latest_config,
+        _minimal_playground_result(module, latest_config),
+    )
+    module.os.utime(old_dir / "manifest.json", (1, 1))
+    module.os.utime(preferred_dir / "manifest.json", (2, 2))
+    module.os.utime(latest_dir / "manifest.json", (3, 3))
+
+    loaded = module._load_latest_evidence_result(
+        [old_dir, latest_dir, preferred_dir],
+        evidence_manifest_token=(
+            int((preferred_dir / "manifest.json").stat().st_mtime_ns),
+            str(preferred_dir),
+        ),
+    )
+    assert loaded is not None
+    config, result, evidence_root = loaded
+    assert evidence_root == preferred_dir
+    assert config.dataset == preferred_config.dataset
+    assert result["summary"]["backend"] == "persisted"
+
+
+def test_pytorch_playground_loads_latest_evidence_result_uses_temporary_fallback_on_bad_token(tmp_path: Path) -> None:
+    module = _load_module()
+    first_config = module.PlaygroundConfig(dataset="circles", sample_count=32, grid_size=12, seed=3)
+    second_config = module.PlaygroundConfig(dataset="spiral", sample_count=96, grid_size=16, seed=7)
+
+    old_dir = tmp_path / "old"
+    latest_dir = tmp_path / "latest"
+    _write_playground_evidence_dir(module, old_dir, first_config, _minimal_playground_result(module, first_config))
+    _write_playground_evidence_dir(
+        module,
+        latest_dir,
+        second_config,
+        _minimal_playground_result(module, second_config),
+    )
+    module.os.utime(old_dir / "manifest.json", (1, 1))
+    module.os.utime(latest_dir / "manifest.json", (2, 2))
+
+    loaded = module._load_latest_evidence_result(
+        [old_dir, latest_dir],
+        evidence_manifest_token=(0, str(tmp_path / "missing")),
+    )
+    assert loaded is not None
+    config, result, evidence_root = loaded
+    assert evidence_root == latest_dir
+    assert config.dataset == second_config.dataset
+    assert result["summary"]["backend"] == "persisted"
 
 
 def test_pytorch_playground_analysis_uses_evidence_without_training(
