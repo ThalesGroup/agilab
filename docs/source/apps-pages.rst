@@ -14,10 +14,11 @@ Page bundles are standalone dashboards that complement the built-in workflow
 pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.
 
-Looking for the PyTorch playground or loss landscape? Use the built-in
-``pytorch_playground_project`` app. It is a reproducible app project, not a
-generic app-agnostic analysis page. The loss-landscape projection belongs to
-that app, not to a separate ``view_loss_landscape`` package.
+Looking for the PyTorch playground, live play/pause training, or loss landscape?
+Use the built-in ``pytorch_playground_project`` app or launch it directly with
+``agilab pytorch-playground``. It is a reproducible app project, not a generic
+app-agnostic analysis page. The loss-landscape projection belongs to that app,
+not to a separate ``view_loss_landscape`` package.
 
 What is a page bundle?
 ----------------------

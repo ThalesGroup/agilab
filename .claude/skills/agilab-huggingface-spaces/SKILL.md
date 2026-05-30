@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-30
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -52,17 +52,19 @@ This is not a raw repo push and not a generic Space scaffold. The deploy script 
 
 Profile app/page sets:
 - `first-proof`
-  - apps: `flight_telemetry_project`, `weather_forecast_project`
+  - apps: `flight_telemetry_project`, `weather_forecast_project`,
+    `pytorch_playground_project`
   - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
 - `advanced`
   - apps: `execution_pandas_project`, `execution_polars_project`,
     `flight_telemetry_project`, `multi_app_dag_project`,
+    `weather_forecast_legacy_project`,
     `mission_decision_project`, `minimal_app_project`, `tescia_diagnostic_project`,
     `uav_queue_project`, `uav_relay_queue_project`,
     `weather_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
     `view_maps_network`, `view_queue_resilience`, `view_relay_resilience`,
-    `view_release_decision`
+    `view_release_decision`, `view_scenario_cockpit`
 
 The advanced profile installs the current Advanced Proof Pack demo set. Do not
 describe it as "every built-in app" unless the deploy script, README, and

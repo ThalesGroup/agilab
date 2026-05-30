@@ -42,7 +42,7 @@ packaged_streamlit_config_path = (
 )
 
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
-PYTORCH_PLAYGROUND_HF_SPACE = "ThalesGroup/agilab"
+PYTORCH_PLAYGROUND_HF_SPACE = "jpmorard/agilab"
 PYTORCH_PLAYGROUND_APP_NAME = "pytorch_playground_project"
 _PUBLIC_BIND_GUARD_MODULE = import_agilab_module(
     "agilab.ui_public_bind_guard",

@@ -98,6 +98,7 @@ def test_builtin_app_profile_requires_current_first_proof_apps() -> None:
     missing, unexpected = module.builtin_app_entry_mismatch(
         [
             {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+            {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
             {"path": "src/agilab/apps/builtin/tescia_diagnostic_project"},
         ]
     )
@@ -370,6 +371,7 @@ def test_builtin_and_public_pages_tree_report_profile_mismatches() -> None:
         timeout=1.0,
         fetcher=lambda _url, _timeout: [
             {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+            {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
             {"path": "src/agilab/apps/builtin/private_project"},
         ],
         clock=_clock(0.0, 0.1),
@@ -398,7 +400,10 @@ def test_builtin_and_public_pages_tree_report_profile_mismatches() -> None:
     missing_only = module.check_builtin_app_tree(
         "demo/agilab",
         timeout=1.0,
-        fetcher=lambda _url, _timeout: [{"path": "src/agilab/apps/builtin/flight_telemetry_project"}],
+        fetcher=lambda _url, _timeout: [
+            {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+            {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
+        ],
         clock=_clock(4.0, 4.1),
     )
     unexpected_only = module.check_builtin_app_tree(
@@ -406,6 +411,7 @@ def test_builtin_and_public_pages_tree_report_profile_mismatches() -> None:
         timeout=1.0,
         fetcher=lambda _url, _timeout: [
             {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+            {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
             {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             {"path": "src/agilab/apps/builtin/private_project"},
         ],
@@ -453,6 +459,8 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             3.8,
             3.8,
             4.7,
+            4.7,
+            4.9,
         ]
     )
 
@@ -465,6 +473,7 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
         if _url.endswith("src/agilab/apps/builtin"):
             return [
                 {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
                 {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             ]
         if _url.endswith("src/agilab/pages"):
@@ -492,7 +501,7 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == 4.7
+    assert summary.total_duration_seconds == 4.9
     assert summary.within_target is True
     assert [check.label for check in summary.checks][-4:] == [
         "public app tree",
@@ -526,6 +535,8 @@ def test_run_smoke_marks_successful_slow_run_outside_target() -> None:
             2.7,
             2.7,
             3.0,
+            3.0,
+            3.3,
         ]
     )
 
@@ -535,6 +546,7 @@ def test_run_smoke_marks_successful_slow_run_outside_target() -> None:
         if _url.endswith("src/agilab/apps/builtin"):
             return [
                 {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
                 {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             ]
         if _url.endswith("src/agilab/pages"):
@@ -560,7 +572,7 @@ def test_run_smoke_marks_successful_slow_run_outside_target() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == pytest.approx(3.0)
+    assert summary.total_duration_seconds == pytest.approx(3.3)
     assert summary.within_target is False
 
 
@@ -574,6 +586,7 @@ def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
         if _url.endswith("src/agilab/apps/builtin"):
             return [
                 {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
                 {"path": "src/agilab/apps/builtin/weather_forecast_project"},
             ]
         if _url.endswith("src/agilab/pages"):
@@ -760,6 +773,7 @@ def test_module_entrypoint_runs_tree_only_json_without_network(monkeypatch, caps
             return _Response(
                 [
                     {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
+                    {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
                     {"path": "src/agilab/apps/builtin/weather_forecast_project"},
                 ]
             )
