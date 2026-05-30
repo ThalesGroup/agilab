@@ -1,24 +1,53 @@
 # Weather Forecast Project
 
-`weather_forecast_project` is a built-in AGILAB example that turns the
-`skforecast + Meteo-France` notebook migration pilot into a real project.
+`weather_forecast_project` is the built-in AGILAB app for the skforecast +
+Meteo-France notebook migration storyline.
 
-What it demonstrates:
+## Purpose
 
-- the source notebook flow becomes an explicit AGILAB project
-- the sample dataset is seeded automatically for the first local run
-- `forecast_metrics.json` and `forecast_predictions.csv` are exported as stable artifacts
-- `view_forecast_analysis` can read those artifacts directly from `ANALYSIS`
-- `view_release_decision` can compare a candidate run against a baseline and export `promotion_decision.json`
+Use this app to show how a forecasting notebook becomes a reproducible AGILAB
+project with installable dependencies, seeded data, forecast artifacts, analysis
+views, and release-decision evidence.
 
-Default flow:
+## What You Learn
+
+- How notebook migration becomes an explicit app and worker contract.
+- How the first run seeds a compact public weather dataset.
+- How forecast metrics and predictions are written for replay.
+- How `view_forecast_analysis` reads time-series artifacts.
+- How `view_release_decision` compares a candidate run against a baseline.
+
+## Run In AGILAB
 
 1. Select `weather_forecast_project` in `PROJECT`.
-2. Review paths and forecasting parameters in the app args form.
-3. Run the app from `ORCHESTRATE`.
-4. Open `view_forecast_analysis` from `ANALYSIS`.
-5. Open `view_release_decision` when you want a promotable / blocked baseline comparison.
+2. Open `ORCHESTRATE`.
+3. Review paths and forecasting parameters.
+4. Run `INSTALL`, then `EXECUTE`.
+5. Open `ANALYSIS` with `view_forecast_analysis` or `view_release_decision`.
 
-The small bundled CSV is only meant to show the migration path cleanly. Replace
-the dataset under `weather_forecast/dataset` with a larger local weather snapshot
-when you want to iterate on the same pipeline with real data.
+## Expected Inputs
+
+The default run uses the bundled compact weather CSV under
+`weather_forecast/dataset`. No API key or live Meteo-France call is required.
+
+## Expected Outputs
+
+The app writes `forecast_metrics.json`, `forecast_predictions.csv`, analysis
+artifacts, reducer summaries, and optional `promotion_decision.json` evidence.
+
+## Change One Thing
+
+After the default run works, replace only the input weather CSV with a larger
+local snapshot that preserves the expected columns. Forecast metrics should
+change while artifact names remain stable.
+
+## Troubleshooting
+
+If `skforecast` is missing, run `INSTALL` for this app and test from the app
+environment. If analysis pages are empty, confirm `EXECUTE` produced forecast
+artifacts before opening `ANALYSIS`.
+
+## Scope
+
+This is a notebook-migration and forecast-evidence demo. It is not a live
+weather service or production forecasting platform.
