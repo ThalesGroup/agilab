@@ -395,6 +395,21 @@ def test_repository_knowledge_records_skip_duplicate_scan_hits(
     assert records[0]["kind"] == "package_source"
 
 
+def test_repository_knowledge_records_skip_disappearing_scan_hits(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module(CORE_PATH, "repository_knowledge_disappearing_scan_module")
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    disappearing = repo_root / "src" / "agilab" / "gone.py"
+
+    monkeypatch.setattr(module, "_iter_files", lambda _root: [disappearing])
+    monkeypatch.setattr(module, "_iter_named_files", lambda _root, _filename: [])
+
+    assert module._records(repo_root) == []
+
+
 def test_repository_knowledge_record_cache_reuses_unchanged_files(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

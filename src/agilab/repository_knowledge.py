@@ -264,6 +264,29 @@ def _record_with_cache(
     return record
 
 
+def _append_record_if_available(
+    records: list[dict[str, Any]],
+    *,
+    repo_root: Path,
+    path: Path,
+    kind: str,
+    cache_state: Mapping[str, Any] | None,
+    updated_entries: dict[str, Any] | None,
+) -> bool:
+    try:
+        record = _record_with_cache(
+            repo_root,
+            path,
+            kind,
+            cache_state=cache_state,
+            updated_entries=updated_entries,
+        )
+    except FileNotFoundError:
+        return False
+    records.append(record)
+    return True
+
+
 def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     cache_state = _load_record_cache(record_cache_path) if record_cache_path is not None else None
@@ -283,42 +306,39 @@ def _records(repo_root: Path, *, record_cache_path: Path | None = None) -> list[
                 continue
             if kind in {"package_source", "tool", "test"} and path.suffix not in CODE_SUFFIXES:
                 continue
-            records.append(
-                _record_with_cache(
-                    repo_root,
-                    path,
-                    kind,
-                    cache_state=cache_state,
-                    updated_entries=updated_entries,
-                )
-            )
-            seen.add(path)
+            if _append_record_if_available(
+                records,
+                repo_root=repo_root,
+                path=path,
+                kind=kind,
+                cache_state=cache_state,
+                updated_entries=updated_entries,
+            ):
+                seen.add(path)
     for path in _iter_named_files(repo_root, "pyproject.toml"):
         if path in seen or _is_excluded(path):
             continue
-        records.append(
-            _record_with_cache(
-                repo_root,
-                path,
-                "package_manifest",
-                cache_state=cache_state,
-                updated_entries=updated_entries,
-            )
-        )
-        seen.add(path)
+        if _append_record_if_available(
+            records,
+            repo_root=repo_root,
+            path=path,
+            kind="package_manifest",
+            cache_state=cache_state,
+            updated_entries=updated_entries,
+        ):
+            seen.add(path)
     for filename in ROOT_RUNBOOKS:
         path = repo_root / filename
         if path.is_file() and path not in seen:
-            records.append(
-                _record_with_cache(
-                    repo_root,
-                    path,
-                    "runbook",
-                    cache_state=cache_state,
-                    updated_entries=updated_entries,
-                )
-            )
-            seen.add(path)
+            if _append_record_if_available(
+                records,
+                repo_root=repo_root,
+                path=path,
+                kind="runbook",
+                cache_state=cache_state,
+                updated_entries=updated_entries,
+            ):
+                seen.add(path)
     if cache_state is not None and updated_entries is not None:
         _write_record_cache(record_cache_path, {"schema": RECORD_CACHE_SCHEMA, "entries": updated_entries})
     return sorted(records, key=lambda row: (str(row.get("kind", "")), str(row.get("path", ""))))
