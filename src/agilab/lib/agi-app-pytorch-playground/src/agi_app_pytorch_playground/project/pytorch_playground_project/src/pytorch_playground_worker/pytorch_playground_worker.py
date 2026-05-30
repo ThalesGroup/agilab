@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +31,14 @@ logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
 
 
+def _args_model() -> type[Any]:
+    module = sys.modules.get("pytorch_playground.app_args")
+    model = getattr(module, "PytorchPlaygroundArgs", None)
+    if isinstance(model, type) and model.__name__ == "PytorchPlaygroundArgs":
+        return model
+    return PytorchPlaygroundArgs
+
+
 def _artifact_dir(env: object, leaf: str) -> Path:
     export_root = getattr(env, "AGILAB_EXPORT_ABS", None)
     target = str(getattr(env, "target", "") or "")
@@ -43,11 +52,12 @@ def _artifact_dir(env: object, leaf: str) -> Path:
 
 
 def _args_with_defaults(value: Any) -> PytorchPlaygroundArgs:
-    if isinstance(value, PytorchPlaygroundArgs):
+    args_model = _args_model()
+    if isinstance(value, (PytorchPlaygroundArgs, args_model)):
         return value
     model_dump = getattr(value, "model_dump", None)
     if value.__class__.__name__ == "PytorchPlaygroundArgs" and callable(model_dump):
-        if value.__class__.__module__ == PytorchPlaygroundArgs.__module__:
+        if value.__class__.__module__ == args_model.__module__:
             return value
         raw = model_dump(mode="json")
     elif isinstance(value, dict):
@@ -56,7 +66,7 @@ def _args_with_defaults(value: Any) -> PytorchPlaygroundArgs:
         raw = vars(value).copy()
     else:
         raw = vars(value).copy()
-    return PytorchPlaygroundArgs(**{key: val for key, val in raw.items() if not key.startswith("_")})
+    return args_model(**{key: val for key, val in raw.items() if not key.startswith("_")})
 
 
 def _write_artifact_files(root: Path, files: dict[str, bytes]) -> None:
