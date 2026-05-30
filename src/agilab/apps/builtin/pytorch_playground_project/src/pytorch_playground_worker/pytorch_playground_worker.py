@@ -47,6 +47,8 @@ def _args_with_defaults(value: Any) -> PytorchPlaygroundArgs:
         return value
     model_dump = getattr(value, "model_dump", None)
     if value.__class__.__name__ == "PytorchPlaygroundArgs" and callable(model_dump):
+        if value.__class__.__module__ == PytorchPlaygroundArgs.__module__:
+            return value
         raw = model_dump(mode="json")
     elif isinstance(value, dict):
         raw = dict(value)
