@@ -52,22 +52,23 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
     state = core.build_revision_traceability(Path.cwd())
 
     assert state["run_status"] == "validated"
-    assert state["summary"]["builtin_apps"] == [
+    expected_apps = [
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "multi_app_dag_project",
-        "weather_forecast_legacy_project",
-        "mission_decision_project",
         "minimal_app_project",
+        "mission_decision_project",
+        "multi_app_dag_project",
         "pytorch_playground_project",
         "r_runtime_bridge_project",
         "sklearn_pipeline_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_legacy_project",
         "weather_forecast_project",
     ]
+    assert state["summary"]["builtin_apps"] == sorted(expected_apps)
     assert {row["name"] for row in state["core_components"]} == {
         "agilab",
         "agi-core",
