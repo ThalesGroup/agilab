@@ -43,6 +43,19 @@ def test_dependabot_visibility_covers_python_and_github_actions() -> None:
     assert 'interval: "weekly"' in text
 
 
+def test_dependabot_does_not_reopen_unsupported_streamlit_bumps() -> None:
+    text = DEPENDABOT.read_text(encoding="utf-8")
+
+    for directory in ('directory: "/"', 'directory: "/src/agilab/lib/agi-gui"'):
+        start = text.index(f'package-ecosystem: "pip"\n    {directory}')
+        next_entry = text.find("\n  - package-ecosystem:", start + 1)
+        section = text[start:] if next_entry == -1 else text[start:next_entry]
+        assert 'dependency-name: "streamlit"' in section
+        assert 'version-update:semver-major' in section
+        assert 'version-update:semver-minor' in section
+        assert 'version-update:semver-patch' in section
+
+
 def test_contributing_documents_enterprise_governance_boundaries() -> None:
     contributing = CONTRIBUTING.read_text(encoding="utf-8")
     template = PR_TEMPLATE.read_text(encoding="utf-8")
