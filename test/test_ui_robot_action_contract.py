@@ -72,6 +72,7 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert actions_by_label["Export"]["disposition"] == "trial-only"
     assert actions_by_label["Overwrite"]["disposition"] == "ignored"
     assert actions_by_label["Rebuild Universal Offline knowledge base"]["disposition"] == "ignored"
+    assert actions_by_label["Reset"]["disposition"] == "trial-only"
     assert actions_by_label["Train / refresh"]["disposition"] == "trial-only"
     assert payload["summary"]["unused_disposition_count"] == 0
 

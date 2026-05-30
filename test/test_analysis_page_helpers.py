@@ -1280,8 +1280,9 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monke
     template_text = entrypoint.read_text(encoding="utf-8")
     assert "except (ImportError, ModuleNotFoundError, OSError) as exc" in template_text
     assert 'PAGE_TITLE = "demo_view"' in template_text
+    assert 'PAGE_HELP_HTML = "explore-help.html"' in template_text
     assert "src/view_demo/view_demo.py" not in template_text
-    assert 'get_docs_menu_items(html_file="explore-help.html")' in template_text
+    assert "get_docs_menu_items(html_file=PAGE_HELP_HTML)" in template_text
 
     fake_streamlit = _FakeAnalysisTemplateStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)

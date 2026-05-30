@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -115,6 +116,50 @@ def test_app_dispatch_smoke_state_contains_real_artifacts(tmp_path: Path) -> Non
     assert (workspace / queue["real_execution"]["reduce_artifact_path"]).is_file()
     assert (workspace / relay["real_execution"]["summary_metrics_path"]).is_file()
     assert (workspace / relay["real_execution"]["reduce_artifact_path"]).is_file()
+
+
+def test_app_dispatch_smoke_ignores_stale_uav_modules(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    for package_name in (
+        "uav_queue",
+        "uav_queue_worker",
+        "uav_relay_queue",
+        "uav_relay_queue_worker",
+    ):
+        stale_package = ModuleType(package_name)
+        stale_package.__path__ = []
+        monkeypatch.setitem(sys.modules, package_name, stale_package)
+
+    proof = module.persist_app_dispatch_smoke(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "app_dispatch_smoke.json",
+        run_root=tmp_path / "workspace",
+    )
+
+    assert proof.ok is True
+    assert proof.completed_unit_ids == ("queue_baseline", "relay_followup")
+
+
+def test_app_dispatch_smoke_moves_target_project_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_core_module()
+    repo_root = Path.cwd()
+    src_root = repo_root / "src" / "agilab" / "apps" / "builtin" / "uav_relay_queue_project" / "src"
+    monkeypatch.setattr(
+        module.sys,
+        "path",
+        ["shadow-package-root", str(src_root), "other-package-root"],
+    )
+
+    result = module._ensure_app_project_on_path(repo_root, "uav_relay_queue_project")
+
+    assert result == src_root
+    assert module.sys.path[:3] == [str(src_root), "shadow-package-root", "other-package-root"]
+    assert module.sys.path.count(str(src_root)) == 1
 
 
 def test_app_dispatch_smoke_report_handles_load_failure(tmp_path: Path) -> None:
