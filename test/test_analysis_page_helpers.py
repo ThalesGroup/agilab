@@ -357,6 +357,24 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
     ]
 
 
+def test_hide_parent_sidebar_emits_sidecar_sidebar_css(monkeypatch):
+    module = _load_analysis_module()
+    markdown_calls: list[tuple[tuple, dict]] = []
+
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(markdown=lambda *args, **kwargs: markdown_calls.append((args, kwargs))),
+    )
+
+    module._hide_parent_sidebar()
+
+    assert len(markdown_calls) == 1
+    css = markdown_calls[0][0][0]
+    assert '[data-testid="stSidebar"] { display: none !important; }' in css
+    assert '[data-testid="stAppViewContainer"] { margin-left: 0 !important; }' in css
+
+
 def test_render_view_page_back_button_sets_app_surface_overview_flag(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     view_path = tmp_path / "view_demo.py"
@@ -408,6 +426,51 @@ def test_render_view_page_back_button_sets_app_surface_overview_flag(tmp_path: P
     assert fake_st.session_state["current_page"] == "main"
     assert fake_st.query_params["current_page"] == "main"
     assert fake_st.query_params[module._APP_SURFACE_HIDE_QUERY_PARAM] == "true"
+
+
+def test_main_does_not_hide_parent_sidebar_on_main_route(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    sidebar_hides: list[str] = []
+
+    fake_st = SimpleNamespace(
+        query_params={"active_app": "flight_telemetry_project"},
+        session_state={},
+    )
+    fake_env = SimpleNamespace(
+        app="flight_telemetry_project",
+        projects=["flight_telemetry_project"],
+        AGILAB_PAGES_ABS=str(tmp_path / "pages"),
+        resolve_user_app_settings_file=lambda _project: tmp_path / "app_settings.toml",
+    )
+
+    async def _false(*_args, **_kwargs):
+        return False
+
+    async def _render_configured(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_initialize_analysis_env", lambda _request: fake_env)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: sidebar_hides.append("hide"))
+    monkeypatch.setattr(module, "_read_config", lambda _path: {})
+    monkeypatch.setattr(module, "_migrate_declared_app_ui_page_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_migrate_declared_app_surface_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_migrate_legacy_analysis_page_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "discover_views", lambda _path: [])
+    monkeypatch.setattr(module, "_resolve_discovered_views", lambda _views: {})
+    monkeypatch.setattr(module, "_consume_legacy_app_ui_route_for_app_surface", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_render_selected_notebook_route", _false)
+    monkeypatch.setattr(module, "_render_selected_view_route", _false)
+    monkeypatch.setattr(module, "_render_configured_app_surface", _render_configured)
+    monkeypatch.setattr(module, "_active_app_path_for_env", lambda _env: tmp_path / "app")
+    monkeypatch.setattr(module, "render_page_header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "render_project_selector", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_store_active_app", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_active_app_arg_for_env", lambda _env: "")
+
+    asyncio.run(module.main())
+
+    assert sidebar_hides == []
 
 
 def test_render_configured_app_surface_skips_when_hidden_or_overview_requested(tmp_path: Path, monkeypatch):

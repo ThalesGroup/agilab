@@ -7,6 +7,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
 import re
 import shlex
 import subprocess
@@ -22,11 +23,31 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project"
 DEFAULT_MAX_SECONDS = 10 * 60
 RUN_MANIFEST_RELATIVE_PATH = Path("src/agilab/run_manifest.py")
+
+
+def _uv_python_args() -> tuple[str, ...]:
+    explicit_python = os.environ.get("AGILAB_RELEASE_PROOF_PYTHON")
+    if explicit_python:
+        return ("--python", explicit_python)
+
+    current_version = sys.version_info[:2]
+    if current_version <= (3, 13):
+        return ("--python", str(sys.executable))
+
+    for minor in (13, 12, 11):
+        candidate = shutil.which(f"python3.{minor}")
+        if candidate:
+            return ("--python", candidate)
+
+    return ("--python", str(sys.executable))
+
+
 UV_RUN_PYTHON = (
     "uv",
     "--preview-features",
     "extra-build-dependencies",
     "run",
+    *_uv_python_args(),
     "--extra",
     "ui",
     "python",

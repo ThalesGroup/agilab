@@ -1327,7 +1327,24 @@ def _dependency_policy_profile() -> list[CommandSpec]:
     ]
 
 
+def _release_proof_uv_python() -> str:
+    explicit_python = os.environ.get("AGILAB_RELEASE_PROOF_PYTHON")
+    if explicit_python:
+        return explicit_python
+
+    if sys.version_info[:2] <= (3, 13):
+        return sys.executable
+
+    for minor in (13, 12, 11):
+        candidate = shutil.which(f"python3.{minor}")
+        if candidate:
+            return candidate
+
+    return sys.executable
+
+
 def _release_proof_profile() -> list[CommandSpec]:
+    uv_python = _release_proof_uv_python()
     return [
         CommandSpec(
             label="fresh source clone first-proof plus notebook import/export proof",
@@ -1336,6 +1353,8 @@ def _release_proof_profile() -> list[CommandSpec]:
                 "--preview-features",
                 "extra-build-dependencies",
                 "run",
+                "--python",
+                uv_python,
                 "pytest",
                 "-q",
                 "-o",
@@ -1350,6 +1369,7 @@ def _release_proof_profile() -> list[CommandSpec]:
                 "OPENAI_API_KEY": "sk-test-release-proof-000000000000",
                 "PYTHONUNBUFFERED": "1",
                 "VIRTUAL_ENV": "",
+                "AGILAB_RELEASE_PROOF_PYTHON": uv_python,
             },
             timeout_seconds=15 * 60,
         )

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import importlib.util
-import io
 import os
 import subprocess
 import sys
-import tarfile
+import shutil
 from pathlib import Path
 
 import pytest
@@ -14,6 +13,23 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_PROOF_ENV = "AGILAB_RUN_RELEASE_PROOF_SLOW"
+UV_PYTHON_SELECTOR = ("AGILAB_RELEASE_PROOF_PYTHON", "AGILAB_SOURCE_CLONE_PYTHON")
+
+
+def _uv_python_args() -> tuple[str, ...]:
+    for env_key in UV_PYTHON_SELECTOR:
+        if explicit := os.environ.get(env_key):
+            return ("--python", explicit)
+
+    if sys.version_info[:2] <= (3, 13):
+        return ("--python", str(sys.executable))
+
+    for minor in (13, 12, 11):
+        which_candidate = shutil.which(f"python3.{minor}")
+        if which_candidate:
+            return ("--python", which_candidate)
+
+    return ("--python", str(sys.executable))
 
 
 def _load_module(path: Path, name: str):
@@ -26,17 +42,108 @@ def _load_module(path: Path, name: str):
     return module
 
 
+def _is_git_lfs_pointer_file(path: Path) -> bool:
+    """Return ``True`` when a file looks like an unresolved Git LFS pointer."""
+    try:
+        header = path.read_bytes()[:120]
+    except OSError:
+        return False
+    if not header.startswith(b"version https://git-lfs.github.com/spec/v1"):
+        return False
+    return True
+
+
+def _hydrate_clone_lfs_pointers(clone_root: Path) -> int:
+    """Copy resolved ``*.7z`` payloads from the source checkout into the clone."""
+    count = 0
+    for source_file in ROOT.rglob("*.7z"):
+        if not source_file.is_file():
+            continue
+        if source_file.suffix != ".7z":
+            continue
+        if _is_git_lfs_pointer_file(source_file):
+            continue
+        if not source_file.match("*_worker/dataset.7z"):
+            continue
+        if "build" in source_file.relative_to(ROOT).parts:
+            continue
+        relative = source_file.relative_to(ROOT)
+        clone_file = clone_root / relative
+        if not clone_file.exists() or not _is_git_lfs_pointer_file(clone_file):
+            continue
+
+        try:
+            clone_file.write_bytes(source_file.read_bytes())
+        except OSError:
+            continue
+        count += 1
+
+    return count
+
+
+def _clone_unresolved_dataset_pointers(clone_root: Path) -> list[Path]:
+    """Return unresolved LFS pointer dataset payloads in the clone."""
+    unresolved: list[Path] = []
+    for candidate in sorted(clone_root.rglob("*_worker/dataset.7z")):
+        if not candidate.is_file():
+            continue
+        if _is_git_lfs_pointer_file(candidate):
+            unresolved.append(candidate)
+    return unresolved
+
+
 def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     clone_root = tmp_path / "source-clone"
     clone_root.mkdir()
-    completed = subprocess.run(
-        ["git", "archive", "--format=tar", "HEAD"],
-        cwd=ROOT,
+    clone_proc = subprocess.run(
+        ["git", "clone", "--depth", "1", "--local", str(ROOT), str(clone_root)],
         check=True,
         capture_output=True,
+        text=True,
     )
-    with tarfile.open(fileobj=io.BytesIO(completed.stdout)) as archive:
-        archive.extractall(clone_root, filter="data")
+    if clone_proc.returncode != 0:
+        raise AssertionError(
+            f"git clone failed while creating fresh source clone: {clone_proc.stderr}"
+        )
+    lfs_pull = subprocess.run(
+        ["git", "-C", str(clone_root), "lfs", "pull"],
+        capture_output=True,
+        text=True,
+    )
+    unresolved_before = _clone_unresolved_dataset_pointers(clone_root)
+    if unresolved_before:
+        if lfs_pull.returncode != 0:
+            if not (clone_root / ".gitattributes").exists():
+                return clone_root
+        hydrated = _hydrate_clone_lfs_pointers(clone_root)
+        if hydrated:
+            return clone_root
+
+        unresolved_after = _clone_unresolved_dataset_pointers(clone_root)
+        if unresolved_after:
+            unresolved_report = "\n".join(
+                str(path.relative_to(clone_root)) for path in unresolved_after
+            )
+            stderr = lfs_pull.stderr.strip() if lfs_pull.stderr else ""
+            if lfs_pull.returncode == 0:
+                stderr = "git lfs pull returned success but payloads are still pointers"
+            raise AssertionError(
+                "git lfs pull did not materialize packaged dataset payloads; this blocks "
+                "full-repo proofs requiring packaged datasets. stderr="
+                f"{stderr}\nunresolved_dataset_files:\n{unresolved_report}"
+            )
+
+    if lfs_pull.returncode != 0:
+        if not (clone_root / ".gitattributes").exists():
+            return clone_root
+
+        hydrated = _hydrate_clone_lfs_pointers(clone_root)
+        if not hydrated:
+            raise AssertionError(
+                "git lfs pull failed for fresh source clone; this blocks "
+                "full-repo proofs requiring packaged datasets. stderr="
+                f"{lfs_pull.stderr}"
+            )
     return clone_root
 
 
@@ -61,6 +168,7 @@ def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
             "--preview-features",
             "extra-build-dependencies",
             "run",
+            *_uv_python_args(),
             "python",
             str(clone_root / "tools" / "newcomer_first_proof.py"),
             "--active-app",
@@ -194,6 +302,7 @@ print(marker + "=" + json.dumps(payload, sort_keys=True))
                 "run",
                 "--extra",
                 "ui",
+                *_uv_python_args(),
                 "python",
                 "-c",
                 proof_code,
@@ -227,6 +336,7 @@ print(marker + "=" + json.dumps(payload, sort_keys=True))
                 "run",
                 "--extra",
                 "ui",
+                *_uv_python_args(),
                 "python",
                 str(clone_root / "src" / "agilab" / "apps" / "install.py"),
                 str(active_app),
@@ -285,6 +395,7 @@ async def main() -> None:
     data_in = run_args.pop("data_in", None)
     data_out = run_args.pop("data_out", None)
     reset_target = run_args.pop("reset_target", None)
+
     request = RunRequest(
         params=run_args,
         data_in=data_in,
@@ -345,6 +456,7 @@ asyncio.run(main())
                 "run",
                 "--extra",
                 "ui",
+                *_uv_python_args(),
                 "python",
                 "-c",
                 execute_code,
@@ -530,6 +642,7 @@ print(marker + "=" + json.dumps({
                 "run",
                 "--extra",
                 "ui",
+                *_uv_python_args(),
                 "python",
                 "-c",
                 export_code,

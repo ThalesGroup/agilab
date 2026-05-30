@@ -2690,8 +2690,6 @@ def _hide_parent_sidebar():
         <style>
         /* Hide the sidebar and its toggle button */
         [data-testid="stSidebar"] { display: none !important; }
-        [data-testid="stSidebarNav"] { display: none !important; }
-        [data-testid="collapsedControl"] { display: none !important; }
         /* Pull content to the left since sidebar is gone */
         [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
         </style>
