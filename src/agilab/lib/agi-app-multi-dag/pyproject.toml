@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.30.post1"
+version = "2026.05.31"
 name = "agi-app-multi-dag"
 description = "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 multi_app_dag = "agi_app_multi_dag:project_root"
 multi_app_dag_project = "agi_app_multi_dag:project_root"
+
 
 
 

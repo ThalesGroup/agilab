@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.30.post1"
+version = "2026.05.31"
 name = "agi-app-data-quality-gate"
 description = "AGILAB deterministic data contract, drift, leakage, and promotion gate"
 requires-python = ">=3.11"
@@ -46,6 +46,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 data_quality_gate = "agi_app_data_quality_gate:project_root"
 data_quality_gate_project = "agi_app_data_quality_gate:project_root"
+
 
 [dependency-groups]
 dev = [
