@@ -3141,6 +3141,17 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
     assert isinstance(parsed_foreign_args, args_module.PytorchPlaygroundArgs)
     assert parsed_foreign_args.sample_count == 144
 
+    SameModuleArgs = type(
+        "PytorchPlaygroundArgs",
+        (),
+        {
+            "__module__": args_module.PytorchPlaygroundArgs.__module__,
+            "model_dump": lambda self, **_kwargs: {"sample_count": 152},
+        },
+    )
+    same_module_args = SameModuleArgs()
+    assert worker_module._args_with_defaults(same_module_args) is same_module_args
+
     class ArgsObject:
         def __init__(self):
             self.sample_count = 160
