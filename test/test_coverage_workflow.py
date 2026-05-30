@@ -81,6 +81,12 @@ def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> Non
     assert "      - agi-cluster" not in workflow_text
 
 
+def test_core_coverage_uses_importlib_import_mode_for_src_layout() -> None:
+    run_block = _agi_core_run_block()
+
+    assert "--import-mode=importlib" in run_block
+
+
 def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
     workflow_text = _workflow_text()
     trigger_block = workflow_text.split("workflow_dispatch:", 1)[0]
