@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.30"
+version = "2026.05.30.post1"
 name = "agi-app-multi-dag"
 description = "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
 requires-python = ">=3.11"

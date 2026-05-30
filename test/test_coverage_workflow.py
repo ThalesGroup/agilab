@@ -218,6 +218,14 @@ def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
     assert run_block.count("--extra viz") >= 2
 
 
+def test_agi_gui_support_shard_installs_pytorch_for_real_training_coverage() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert 'if [ "$label" = "support" ]; then' in run_block
+    assert 'chunk_timeout="10m"' in run_block
+    assert "torch>=2.8.0,<3" in run_block
+
+
 def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
     workflow_text = _workflow_text()
 

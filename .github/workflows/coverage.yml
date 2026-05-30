@@ -279,7 +279,13 @@ jobs:
           run_gui_chunk() {
             local label="$1"
             shift
-            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
+            local chunk_timeout="8m"
+            local uv_args=(--group dev --extra ui --extra viz)
+            if [ "$label" = "support" ]; then
+              chunk_timeout="10m"
+              uv_args+=(--with 'torch>=2.8.0,<3')
+            fi
+            timeout "$chunk_timeout" uv --preview-features extra-build-dependencies run "${uv_args[@]}" \
               python -m coverage run \
               --rcfile=.coveragerc.agi-gui \
               --data-file="test-results/coverage-agi-gui-${label}.db" \

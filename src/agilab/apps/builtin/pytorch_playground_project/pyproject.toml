@@ -1,14 +1,14 @@
 [project]
 name = "pytorch_playground_project"
-version = "2026.05.30"
+version = "2026.05.30.post1"
 description = "Built-in AGILab app for reproducible PyTorch classifier playground experiments."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "agi-env>=2026.05.30",
-    "agi-node>=2026.05.30",
-    "agi-cluster>=2026.05.30",
-    "agi-gui>=2026.05.30",
+    "agi-env>=2026.05.30.post1",
+    "agi-node>=2026.05.30.post1",
+    "agi-cluster>=2026.05.30.post1",
+    "agi-gui>=2026.05.30.post1",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
     "plotly>=6.3.0,<7",
