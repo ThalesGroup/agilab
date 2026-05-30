@@ -1,50 +1,52 @@
 # R Runtime Bridge
 
-`r_runtime_bridge_project` proves the narrow AGILAB R integration contract:
-AGILAB remains the Python orchestrator and worker runtime, while one worker
-stage executes an external R payload through `Rscript`.
+`r_runtime_bridge_project` proves the narrow AGILAB contract for executing an
+external R payload through `Rscript`.
 
-The boundary is intentionally simple:
+## Purpose
 
-```text
-input.json
-  -> Rscript scripts/summarize.R input.json output.json artifacts/
-  -> output.json + artifacts + stdout/stderr logs
-  -> AGILAB manifest and reduce evidence
-```
+Use this project when existing R code should remain an app-owned stage while
+AGILAB still owns orchestration, artifacts, manifests, and reducer evidence.
 
-This is not an R-native worker. It is a reproducible stage runtime adapter for
-R code that already exists in a project.
+## What You Learn
 
-## Requirements
+- How Python manager/worker code can call `Rscript` without shell execution.
+- How input JSON, output JSON, artifact files, stdout, and stderr become
+  evidence.
+- How the adapter keeps R scripts inside the active app root.
+- How to document external runtime requirements without making the whole worker
+  R-native.
 
-- `Rscript` available on `PATH`
-- R package `jsonlite`
+## Run In AGILAB
 
-Install `jsonlite` in R if needed:
+1. Install `Rscript` and the R package `jsonlite`.
+2. Select `r_runtime_bridge_project` in `PROJECT`.
+3. Open `ORCHESTRATE`.
+4. Keep the default payload and run `INSTALL`, then `EXECUTE`.
 
-```r
-install.packages("jsonlite")
-```
+## Expected Inputs
 
-## Run
+The default payload is `{"x": [1, 2, 3, 4, 5]}` and the default script is
+`scripts/summarize.R`.
 
-Select `r_runtime_bridge_project`, open `ORCHESTRATE`, keep the defaults, then run.
-The default payload is:
+## Expected Outputs
 
-```json
-{"x": [1, 2, 3, 4, 5]}
-```
+The R script writes output JSON with `n`, `mean`, and `sd`, plus logs and
+artifact metadata under `r_runtime_bridge/evidence`.
 
-Expected R output:
+## Change One Thing
 
-```json
-{
-  "n": 5,
-  "mean": 3,
-  "sd": 1.5811
-}
-```
+After the default run works, change only the numeric vector in the input JSON.
+The output mean and standard deviation should change while the manifest schema
+stays stable.
 
-Artifacts are written under `r_runtime_bridge/evidence` and mirrored to the normal
-AGILAB analysis artifact path for the active app.
+## Troubleshooting
+
+If the run reports missing `Rscript`, install R or put `Rscript` on `PATH`. If
+`jsonlite` is missing, run `install.packages("jsonlite")` in R. If a custom
+script is rejected, keep it under the active app root.
+
+## Scope
+
+This is a reproducible adapter for R stages. It is not an R-native worker
+runtime and does not execute arbitrary scripts outside the app boundary.

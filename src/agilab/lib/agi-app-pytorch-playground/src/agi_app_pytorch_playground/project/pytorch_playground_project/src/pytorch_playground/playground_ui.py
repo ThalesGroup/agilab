@@ -7,12 +7,11 @@ from __future__ import annotations
 import html
 import json
 import os
-import pickle
 import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
@@ -71,30 +70,25 @@ try:  # noqa: E402
     import pytorch_playground.core as _playground_core
     from pytorch_playground.core import (
         ACTIVATIONS,
-        CONFIG_SCHEMA,
-        CUSTOM_PRESET,
         DATASETS,
         DEFAULT_FEATURES,
         DEFAULT_PRESET,
-        EVIDENCE_SCHEMA,
         FEATURES,
         OPTIMIZERS,
         PLAYGROUND_PRESETS,
-        PRESET_STORIES,
+        REGULARIZATIONS,
         SHARED_CONFIG_SIGNATURE_STATE_KEY,
         TRAINED_CONFIG_STATE_KEY,
         TRAINED_PRESET_STATE_KEY,
         PlaygroundConfig,
         _build_evidence_manifest,
         _build_evidence_pack,
-        _coerce_feature_names,
         _config_from_payload,
         _config_from_query_params,
-        _config_payload,
         _config_signature,
         _config_state_payload,
-        _decode_share_config,
         _empty_activation_maps,
+        _empty_boundary_snapshots,
         _empty_loss_landscape,
         _empty_network_layers,
         _encode_share_config,
@@ -121,6 +115,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution fallba
         FEATURES,
         OPTIMIZERS,
         PLAYGROUND_PRESETS,
+        REGULARIZATIONS,
         SHARED_CONFIG_SIGNATURE_STATE_KEY,
         TRAINED_CONFIG_STATE_KEY,
         TRAINED_PRESET_STATE_KEY,
@@ -132,6 +127,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution fallba
         _config_signature,
         _config_state_payload,
         _empty_activation_maps,
+        _empty_boundary_snapshots,
         _empty_loss_landscape,
         _empty_network_layers,
         _encode_share_config,
@@ -217,11 +213,52 @@ PAGE_TITLE = "PyTorch Playground"
 _ISOLATED_CORE_RUNNER = r"""
 from __future__ import annotations
 
-import pickle
+import json
 import sys
 from pathlib import Path
 
+import pandas as pd
+
 from pytorch_playground.core import PlaygroundConfig, _loss_landscape, _train_playground
+
+_DATAFRAME_IPC_TYPE = "agilab.pytorch_playground.dataframe.v1"
+
+
+def _ipc_encode(value):
+    if isinstance(value, pd.DataFrame):
+        return {
+            "__type__": _DATAFRAME_IPC_TYPE,
+            "columns": [str(column) for column in value.columns],
+            "records": value.to_dict(orient="records"),
+        }
+    if isinstance(value, dict):
+        return {str(key): _ipc_encode(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_ipc_encode(item) for item in value]
+    try:
+        import numpy as np
+    except Exception:
+        np = None
+    if np is not None:
+        if isinstance(value, np.integer):
+            return int(value)
+        if isinstance(value, np.floating):
+            number = float(value)
+            return number if np.isfinite(number) else None
+        if isinstance(value, np.ndarray):
+            return _ipc_encode(value.tolist())
+    if isinstance(value, float):
+        try:
+            import math
+
+            return value if math.isfinite(value) else None
+        except Exception:
+            return value
+    return value
+
+
+def _write_response(output_path: Path, output: dict[str, object]) -> None:
+    output_path.write_text(json.dumps(_ipc_encode(output), sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _config_from_payload(payload: dict[str, object]) -> PlaygroundConfig:
@@ -233,6 +270,8 @@ def _config_from_payload(payload: dict[str, object]) -> PlaygroundConfig:
         hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
         activation=str(payload["activation"]),
         optimizer=str(payload["optimizer"]),
+        regularization=str(payload.get("regularization", "None")),
+        regularization_rate=float(payload.get("regularization_rate", 0.0)),
         learning_rate=float(payload["learning_rate"]),
         epochs=int(payload["epochs"]),
         batch_size=int(payload["batch_size"]),
@@ -244,8 +283,8 @@ def _config_from_payload(payload: dict[str, object]) -> PlaygroundConfig:
 
 input_path = Path(sys.argv[1])
 output_path = Path(sys.argv[2])
-request = pickle.loads(input_path.read_bytes())
 try:
+    request = json.loads(input_path.read_text(encoding="utf-8"))
     config = _config_from_payload(request["config"])
     if request["action"] == "train":
         result = _train_playground(config)
@@ -262,8 +301,46 @@ except BaseException as exc:
 else:
     output = {"ok": True, "result": result}
 
-output_path.write_bytes(pickle.dumps(output, protocol=pickle.HIGHEST_PROTOCOL))
+try:
+    _write_response(output_path, output)
+except BaseException as exc:
+    _write_response(output_path, {"ok": False, "error_type": type(exc).__name__, "error": str(exc)})
 """
+
+
+_DATAFRAME_IPC_TYPE = "agilab.pytorch_playground.dataframe.v1"
+
+
+def _ipc_encode(value: Any) -> Any:
+    if isinstance(value, pd.DataFrame):
+        return {
+            "__type__": _DATAFRAME_IPC_TYPE,
+            "columns": [str(column) for column in value.columns],
+            "records": _json_safe(value.to_dict(orient="records")),
+        }
+    if isinstance(value, Mapping):
+        return {str(key): _ipc_encode(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_ipc_encode(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return _ipc_encode(value.tolist())
+    return _json_safe(value)
+
+
+def _ipc_decode(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        if value.get("__type__") == _DATAFRAME_IPC_TYPE:
+            columns = value.get("columns", [])
+            records = value.get("records", [])
+            if not isinstance(columns, list) or not all(isinstance(column, str) for column in columns):
+                raise ValueError("invalid dataframe columns in isolated runner response")
+            if not isinstance(records, list):
+                raise ValueError("invalid dataframe records in isolated runner response")
+            return pd.DataFrame(records, columns=columns)
+        return {str(key): _ipc_decode(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_ipc_decode(item) for item in value]
+    return value
 
 
 def _config_from_cache_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
@@ -275,6 +352,8 @@ def _config_from_cache_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
         hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
         activation=str(payload["activation"]),
         optimizer=str(payload["optimizer"]),
+        regularization=str(payload.get("regularization", "None")),
+        regularization_rate=float(payload.get("regularization_rate", 0.0)),
         learning_rate=float(payload["learning_rate"]),
         epochs=int(payload["epochs"]),
         batch_size=int(payload["batch_size"]),
@@ -361,9 +440,9 @@ def _run_core_in_subprocess(
     }
     with tempfile.TemporaryDirectory(prefix="agilab-pytorch-playground-") as tmp_dir:
         tmp_path = Path(tmp_dir)
-        input_path = tmp_path / "request.pkl"
-        output_path = tmp_path / "response.pkl"
-        input_path.write_bytes(pickle.dumps(request, protocol=pickle.HIGHEST_PROTOCOL))
+        input_path = tmp_path / "request.json"
+        output_path = tmp_path / "response.json"
+        input_path.write_text(json.dumps(_ipc_encode(request), sort_keys=True) + "\n", encoding="utf-8")
         env = os.environ.copy()
         project_src = str(_APP_SRC)
         python_path = env.get("PYTHONPATH", "")
@@ -391,7 +470,13 @@ def _run_core_in_subprocess(
                 return _training_error_result(config, detail)
             return _loss_landscape_error_result(detail)
 
-        response = pickle.loads(output_path.read_bytes())
+        try:
+            response = _ipc_decode(json.loads(output_path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            detail = _format_isolated_runner_failure(action, error=f"{type(exc).__name__}: {exc}")
+            if action == "train":
+                return _training_error_result(config, detail)
+            return _loss_landscape_error_result(detail)
 
     if not isinstance(response, Mapping) or not response.get("ok"):
         detail = _format_isolated_runner_failure(
@@ -502,6 +587,7 @@ def _load_evidence_result(evidence_dir: Path) -> tuple[PlaygroundConfig, dict[st
         pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
     )
     grid = _read_evidence_frame(root / "data" / "decision_grid.csv", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    boundary_snapshots = _read_evidence_frame(root / "data" / "boundary_snapshots.csv", _empty_boundary_snapshots())
     network_layers = _read_evidence_frame(root / "model" / "network_layers.csv", _empty_network_layers())
     activation_maps = _read_evidence_frame(root / "model" / "hidden_activation_maps.csv", _empty_activation_maps())
     loss_landscape = _read_evidence_frame(root / "model" / "loss_landscape.csv", _empty_loss_landscape())
@@ -522,6 +608,7 @@ def _load_evidence_result(evidence_dir: Path) -> tuple[PlaygroundConfig, dict[st
             "samples": samples,
             "history": history,
             "grid": grid,
+            "boundary_snapshots": boundary_snapshots,
             "network_layers": network_layers,
             "activation_maps": activation_maps,
             "loss_landscape": loss_landscape,
@@ -854,6 +941,91 @@ def _render_page_styles() -> None:
   color: #94a3b8;
   font-size: 0.88rem;
 }
+.agilab-pt-coach {
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  border-radius: 8px;
+  padding: 0.95rem;
+  margin: 0.35rem 0 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(251, 191, 36, 0.15), transparent 30rem),
+    rgba(8, 13, 26, 0.78);
+}
+.agilab-pt-coach-head {
+  color: #f8fafc;
+  font-size: 1.02rem;
+  font-weight: 850;
+  margin-bottom: 0.2rem;
+}
+.agilab-pt-coach-note {
+  color: #94a3b8;
+  font-size: 0.87rem;
+  margin-bottom: 0.75rem;
+}
+.agilab-pt-coach-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  min-height: 10.4rem;
+  padding: 0.85rem 0.9rem;
+  background: rgba(15, 23, 42, 0.68);
+}
+.agilab-pt-coach-card strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 0.96rem;
+  margin-bottom: 0.35rem;
+}
+.agilab-pt-coach-card span {
+  color: #94a3b8;
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  margin-bottom: 0.5rem;
+}
+.agilab-pt-coach-card code {
+  color: #fde68a;
+}
+.agilab-pt-coach-card a {
+  color: #7dd3fc;
+  font-weight: 760;
+  text-decoration: none;
+}
+.agilab-pt-network-map {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 8px;
+  padding: 0.85rem;
+  margin: 0.2rem 0 0.8rem;
+  background: rgba(8, 13, 26, 0.70);
+  overflow-x: auto;
+}
+.agilab-pt-network-row {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-width: max-content;
+}
+.agilab-pt-network-layer {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  min-width: 7.4rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 23, 42, 0.72);
+}
+.agilab-pt-network-layer strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 0.86rem;
+}
+.agilab-pt-network-layer span {
+  color: #94a3b8;
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.16rem;
+}
+.agilab-pt-network-edge {
+  color: #7dd3fc;
+  font-size: 1.4rem;
+  font-weight: 860;
+}
 @media (max-width: 860px) {
   .agilab-pt-guide {
     grid-template-columns: 1fr;
@@ -1107,11 +1279,251 @@ def _render_interpretation_cards(result: Mapping[str, Any]) -> None:
             )
 
 
+def _bounded_layer_width(value: float) -> int:
+    return max(1, min(256, int(round(value))))
+
+
+def _simpler_hidden_layers(hidden_layers: Sequence[int]) -> tuple[int, ...]:
+    if not hidden_layers:
+        return (4,)
+    reduced = tuple(_bounded_layer_width(width * 0.65) for width in hidden_layers)
+    if len(reduced) > 1:
+        reduced = reduced[:-1]
+    return reduced or (4,)
+
+
+def _wider_hidden_layers(hidden_layers: Sequence[int]) -> tuple[int, ...]:
+    if not hidden_layers:
+        return (8, 8)
+    widened = tuple(_bounded_layer_width(width * 1.35) for width in hidden_layers)
+    if len(widened) < 3:
+        widened = (*widened, max(4, widened[-1]))
+    return widened[:4]
+
+
+def _feature_boost(config: PlaygroundConfig) -> tuple[str, ...]:
+    preferred_by_dataset = {
+        "xor": ("x1", "x2", "x1_x2", "x1_squared", "x2_squared"),
+        "spiral": ("x1", "x2", "sin_x1", "sin_x2", "x1_x2"),
+        "circles": DEFAULT_FEATURES,
+        "gaussian": ("x1", "x2", "x1_x2"),
+    }
+    preferred = preferred_by_dataset.get(config.dataset, DEFAULT_FEATURES)
+    features = list(config.feature_names)
+    for feature in preferred:
+        if feature in FEATURES and feature not in features:
+            features.append(feature)
+    return tuple(features[: len(FEATURES)])
+
+
+def _coach_url(config: PlaygroundConfig) -> str:
+    return f"?pytorch_playground={_encode_share_config(config)}"
+
+
+def _tuning_recommendations(config: PlaygroundConfig, result: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Return replayable next experiments based on the visible run state."""
+    summary = result.get("summary", {})
+    if not isinstance(summary, Mapping):
+        summary = {}
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    validation_accuracy = _finite_number(summary.get("validation_accuracy", 0.0))
+    gap = _generalization_gap(summary)
+    confidence = _confidence_score(grid)
+    recommendations: list[dict[str, str]] = []
+    seen_signatures = {_config_signature(config)}
+
+    def _add(title: str, why: str, change: str, candidate: PlaygroundConfig) -> None:
+        signature = _config_signature(candidate)
+        if signature in seen_signatures:
+            return
+        seen_signatures.add(signature)
+        recommendations.append(
+            {
+                "title": title,
+                "why": why,
+                "change": change,
+                "url": _coach_url(candidate),
+                "token": _encode_share_config(candidate),
+            }
+        )
+
+    if gap > 0.12:
+        candidate = replace(
+            config,
+            hidden_layers=_simpler_hidden_layers(config.hidden_layers),
+            sample_count=min(1000, max(config.sample_count + 96, int(config.sample_count * 1.2))),
+            epochs=max(40, int(config.epochs * 0.85)),
+            learning_rate=max(0.001, config.learning_rate * 0.85),
+        )
+        _add(
+            "Reduce overfit",
+            f"Train is ahead of validation by {_format_percentage_points(gap)}.",
+            "Simpler network, slightly more data, lower learning rate.",
+            candidate,
+        )
+
+    if validation_accuracy < 0.82 or confidence < 0.35:
+        candidate = replace(
+            config,
+            hidden_layers=_wider_hidden_layers(config.hidden_layers),
+            epochs=min(300, max(config.epochs + 40, int(config.epochs * 1.35))),
+            learning_rate=min(0.2, config.learning_rate * 1.15),
+            grid_size=min(120, max(config.grid_size + 8, int(config.grid_size * 1.1))),
+        )
+        _add(
+            "Sharpen the boundary",
+            f"Validation is {_format_percent(validation_accuracy)} and confidence is {_format_percent(confidence)}.",
+            "More capacity, more epochs, finer surface.",
+            candidate,
+        )
+
+    boosted_features = _feature_boost(config)
+    if boosted_features != config.feature_names:
+        candidate = replace(
+            config,
+            feature_names=boosted_features,
+            epochs=min(300, max(config.epochs + 20, config.epochs)),
+        )
+        _add(
+            "Try richer features",
+            "The current feature set leaves useful nonlinear signals unused.",
+            "Add engineered features while keeping the same challenge.",
+            candidate,
+        )
+
+    candidate = replace(
+        config,
+        sample_count=max(96, min(config.sample_count, 256)),
+        epochs=max(30, min(config.epochs, 70)),
+        grid_size=max(40, min(config.grid_size, 64)),
+    )
+    _add(
+        "Make a fast replay",
+        "Use this when the goal is a quick live demo rather than maximum accuracy.",
+        "Smaller run, same dataset, same model shape.",
+        candidate,
+    )
+
+    candidate = replace(
+        config,
+        grid_size=min(120, max(config.grid_size, 104)),
+        epochs=min(300, max(config.epochs, 120)),
+    )
+    _add(
+        "Export a cleaner visual",
+        "Use this when the boundary already works and the artifact should look publication-ready.",
+        "Finer grid and longer training for smoother evidence.",
+        candidate,
+    )
+
+    return recommendations[:3]
+
+
+def _render_experiment_coach(config: PlaygroundConfig, result: Mapping[str, Any]) -> None:
+    recommendations = _tuning_recommendations(config, result)
+    if not recommendations:
+        return
+    st.markdown(
+        """
+<div class="agilab-pt-coach">
+  <div class="agilab-pt-coach-head">Experiment coach</div>
+  <div class="agilab-pt-coach-note">
+    Classic neural playgrounds expose knobs. AGILAB adds replayable next
+    experiments: each card is a share token you can open, train, and export as evidence.
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    columns = st.columns(len(recommendations))
+    for column, recommendation in zip(columns, recommendations, strict=False):
+        with column:
+            st.markdown(
+                '<div class="agilab-pt-coach-card">'
+                f"<strong>{html.escape(recommendation['title'])}</strong>"
+                f"<span>{html.escape(recommendation['why'])}</span>"
+                f"<span><code>{html.escape(recommendation['change'])}</code></span>"
+                f'<a href="{html.escape(recommendation["url"])}" target="_self">Open replay config</a>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def _network_layer_cards(config: PlaygroundConfig, layers: pd.DataFrame) -> list[dict[str, str]]:
+    cards = [
+        {
+            "title": "Inputs",
+            "value": f"{len(config.feature_names)} feature(s)",
+            "detail": ", ".join(config.feature_names),
+        }
+    ]
+    for index, width in enumerate(config.hidden_layers, start=1):
+        parameters = ""
+        if not layers.empty and "layer" in layers and "parameters" in layers:
+            candidates = layers[layers["layer"] == index]
+            if not candidates.empty:
+                parameters = f"{int(candidates.iloc[0]['parameters']):,} params"
+        cards.append(
+            {
+                "title": f"Hidden {index}",
+                "value": f"{int(width)} neurons",
+                "detail": parameters or config.activation,
+            }
+        )
+    cards.append(
+        {
+            "title": "Output",
+            "value": "2 classes",
+            "detail": "softmax boundary",
+        }
+    )
+    return cards
+
+
+def _network_architecture_html(config: PlaygroundConfig, layers: pd.DataFrame) -> str:
+    parts: list[str] = ['<div class="agilab-pt-network-map"><div class="agilab-pt-network-row">']
+    for index, card in enumerate(_network_layer_cards(config, layers)):
+        if index:
+            parts.append('<div class="agilab-pt-network-edge">→</div>')
+        parts.append(
+            '<div class="agilab-pt-network-layer">'
+            f"<strong>{html.escape(card['title'])}</strong>"
+            f"<span>{html.escape(card['value'])}</span>"
+            f"<span>{html.escape(card['detail'])}</span>"
+            "</div>"
+        )
+    parts.append("</div></div>")
+    return "".join(parts)
+
+
+def _boundary_snapshot_grid(result: Mapping[str, Any], final_grid: pd.DataFrame) -> pd.DataFrame:
+    snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
+    if snapshots.empty or "epoch" not in snapshots:
+        return final_grid
+    epochs = sorted(int(value) for value in pd.to_numeric(snapshots["epoch"], errors="coerce").dropna().unique())
+    if not epochs:
+        return final_grid
+    selectbox = getattr(st, "selectbox", None)
+    selected_epoch = (
+        selectbox(
+            "Boundary epoch",
+            epochs,
+            index=len(epochs) - 1,
+            help="Step through stored learning snapshots before the final evidence export.",
+        )
+        if callable(selectbox)
+        else epochs[-1]
+    )
+    selected = snapshots[snapshots["epoch"].astype(int) == int(selected_epoch)].drop(columns=["epoch"], errors="ignore")
+    return selected if not selected.empty else final_grid
+
+
 def _render_hero(active_app: Path | None, preset_label: str, config: PlaygroundConfig) -> None:
     chips = [
         f"dataset: {config.dataset}",
         f"features: {len(config.feature_names)}",
         f"network: {'-'.join(str(width) for width in config.hidden_layers) or 'linear'}",
+        f"regularization: {config.regularization}",
         f"epochs: {config.epochs}",
     ]
     if active_app is not None:
@@ -1145,6 +1557,7 @@ def _render_compact_header(active_app: Path | None, preset_label: str, config: P
         f"dataset: {config.dataset}",
         f"features: {len(config.feature_names)}",
         f"network: {network}",
+        f"regularization: {config.regularization}",
         f"epochs: {config.epochs}",
     ]
     st.markdown(
@@ -1560,6 +1973,22 @@ def main(
                 index=OPTIMIZERS.index(defaults.optimizer),
                 key=f"pt_optimizer_{preset_key}",
             )
+            regularization = st.selectbox(
+                "Regularization",
+                REGULARIZATIONS,
+                index=REGULARIZATIONS.index(defaults.regularization),
+                key=f"pt_regularization_{preset_key}",
+            )
+            regularization_rate = st.slider(
+                "Regularization rate",
+                0.0,
+                1.0,
+                defaults.regularization_rate,
+                step=0.001,
+                format="%.3f",
+                key=f"pt_regularization_rate_{preset_key}",
+                disabled=regularization == "None",
+            )
             learning_rate = st.slider(
                 "Learning rate",
                 0.001,
@@ -1591,6 +2020,8 @@ def main(
             hidden_layers=hidden_layers,
             activation=activation,
             optimizer=optimizer,
+            regularization=regularization,
+            regularization_rate=regularization_rate if regularization != "None" else 0.0,
             learning_rate=learning_rate,
             epochs=epochs,
             batch_size=batch_size,
@@ -1646,6 +2077,8 @@ def main(
     if not compact:
         _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
         _render_interpretation_cards(result)
+        if result["status"] == "ok":
+            _render_experiment_coach(trained_config, result)
     loaded_landscape = _result_frame(result, "loss_landscape", _empty_loss_landscape())
     landscape_result: dict[str, Any] = {
         "status": "not_computed",
@@ -1663,8 +2096,9 @@ def main(
         )
         left, right = st.columns([2, 1])
         with left:
+            visible_grid = _boundary_snapshot_grid(result, result["grid"])
             st.plotly_chart(
-                _decision_figure(result["samples"], result["grid"], trained_config.grid_size),
+                _decision_figure(result["samples"], visible_grid, trained_config.grid_size),
                 width="stretch",
                 config={"displayModeBar": False},
             )
@@ -1683,6 +2117,7 @@ def main(
             "Network internals",
             "Compare layer weight magnitudes, then inspect one hidden neuron activation map at a time.",
         )
+        st.markdown(_network_architecture_html(trained_config, network_layers), unsafe_allow_html=True)
         st.plotly_chart(_network_figure(network_layers), width="stretch", config={"displayModeBar": False})
         st.dataframe(network_layers, width="stretch", hide_index=True)
         if activation_maps.empty:

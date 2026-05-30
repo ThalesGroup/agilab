@@ -564,14 +564,23 @@ def test_isolated_runner_success_serializes_request_and_pythonpath(monkeypatch: 
     def fake_run(cmd, **kwargs):
         input_path = Path(cmd[-2])
         output_path = Path(cmd[-1])
-        request = module.pickle.loads(input_path.read_bytes())
+        request = module.json.loads(input_path.read_text(encoding="utf-8"))
         captured["request"] = request
         captured["pythonpath"] = kwargs["env"]["PYTHONPATH"]
-        output_path.write_bytes(
-            module.pickle.dumps(
-                {"ok": True, "result": {"status": "ok", "summary": {"backend": "torch"}}},
-                protocol=module.pickle.HIGHEST_PROTOCOL,
-            )
+        output_path.write_text(
+            module.json.dumps(
+                module._ipc_encode(
+                    {
+                        "ok": True,
+                        "result": {
+                            "status": "ok",
+                            "summary": {"backend": "torch"},
+                            "history": pd.DataFrame({"epoch": [0], "train_loss": [0.4]}),
+                        },
+                    }
+                )
+            ),
+            encoding="utf-8",
         )
         return SimpleNamespace(returncode=0, stderr="")
 
@@ -581,8 +590,9 @@ def test_isolated_runner_success_serializes_request_and_pythonpath(monkeypatch: 
 
     assert result["status"] == "ok"
     assert result["summary"]["backend"] == "torch"
+    assert result["history"].iloc[0]["train_loss"] == pytest.approx(0.4)
     assert captured["request"]["action"] == "train"
-    assert captured["request"]["config"]["hidden_layers"] == (4,)
+    assert captured["request"]["config"]["hidden_layers"] == [4]
     assert str(module._APP_SRC) in str(captured["pythonpath"]).split(module.os.pathsep)
 
 
@@ -617,7 +627,7 @@ def test_isolated_runner_failure_paths_return_displayable_error_results(monkeypa
 
     def payload_run(payload):
         def fake_run(cmd, **_kwargs):
-            Path(cmd[-1]).write_bytes(module.pickle.dumps(payload, protocol=module.pickle.HIGHEST_PROTOCOL))
+            Path(cmd[-1]).write_text(module.json.dumps(module._ipc_encode(payload)), encoding="utf-8")
             return SimpleNamespace(returncode=0, stderr="")
 
         return fake_run
@@ -639,6 +649,27 @@ def test_isolated_runner_failure_paths_return_displayable_error_results(monkeypa
     assert "runner returned an invalid payload" in invalid_result["detail"]
     assert invalid_landscape["status"] == "error"
     assert invalid_landscape["loss_landscape"].empty
+
+    def invalid_json_run(cmd, **_kwargs):
+        Path(cmd[-1]).write_text("{not-json", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", invalid_json_run)
+    invalid_json = module._run_core_in_subprocess("train", config)
+    assert invalid_json["status"] == "error"
+    assert "JSONDecodeError" in invalid_json["detail"]
+
+
+def test_isolated_runner_ipc_uses_json_without_pickle() -> None:
+    module = _load_module()
+    frame = pd.DataFrame({"epoch": [0, 1], "train_loss": [0.5, 0.25]})
+
+    encoded = module._ipc_encode({"history": frame, "nested": [{"grid": frame.iloc[:1]}]})
+    decoded = module._ipc_decode(module.json.loads(module.json.dumps(encoded)))
+
+    assert "pickle" not in module._ISOLATED_CORE_RUNNER
+    assert decoded["history"].equals(frame)
+    assert decoded["nested"][0]["grid"].equals(frame.iloc[:1])
 
 
 def test_cached_train_and_loss_landscape_route_to_isolated_runner(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -692,6 +723,92 @@ def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.Monkey
     assert module._gap_band({"train_accuracy": 0.95, "validation_accuracy": 0.70})[0] == "Likely overfit"
     assert module._confidence_band(pd.DataFrame({"probability": [0.1, 0.9]}))[0] == "Decisive boundary"
     assert module._confidence_band(pd.DataFrame({"probability": [0.30, 0.70]}))[0] == "Boundary forming"
+
+
+def test_pytorch_playground_experiment_coach_returns_replayable_next_configs() -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(
+        dataset="xor",
+        sample_count=128,
+        hidden_layers=(32, 16),
+        feature_names=("x1", "x2"),
+        epochs=80,
+        grid_size=56,
+    )
+    result = {
+        "summary": {
+            "train_accuracy": 0.96,
+            "validation_accuracy": 0.70,
+        },
+        "grid": pd.DataFrame({"probability": [0.46, 0.50, 0.54]}),
+    }
+
+    recommendations = module._tuning_recommendations(config, result)
+    by_title = {item["title"]: item for item in recommendations}
+
+    assert list(by_title) == [
+        "Reduce overfit",
+        "Sharpen the boundary",
+        "Try richer features",
+    ]
+    for recommendation in recommendations:
+        assert recommendation["url"].startswith("?pytorch_playground=")
+        decoded = module._decode_share_config(recommendation["token"])
+        assert decoded is not None
+        assert decoded != config
+
+    reduce_overfit = module._decode_share_config(by_title["Reduce overfit"]["token"])
+    sharpen_boundary = module._decode_share_config(by_title["Sharpen the boundary"]["token"])
+    richer_features = module._decode_share_config(by_title["Try richer features"]["token"])
+
+    assert reduce_overfit is not None
+    assert sharpen_boundary is not None
+    assert richer_features is not None
+    assert len(reduce_overfit.hidden_layers) < len(config.hidden_layers)
+    assert sharpen_boundary.epochs > config.epochs
+    assert set(richer_features.feature_names) >= {"x1_x2", "x1_squared", "x2_squared"}
+
+
+def test_pytorch_playground_experiment_coach_renders_replay_cards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    rendered: list[str] = []
+
+    class FakeColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    class FakeStreamlit:
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeColumn() for _ in range(count)]
+
+        def markdown(self, body, **_kwargs):
+            rendered.append(str(body))
+
+    monkeypatch.setattr(module, "st", FakeStreamlit())
+
+    config = module.PlaygroundConfig(
+        feature_names=("x1", "x2"),
+        hidden_layers=(16, 8),
+    )
+    result = {
+        "summary": {"train_accuracy": 0.90, "validation_accuracy": 0.70},
+        "grid": pd.DataFrame({"probability": [0.4, 0.5, 0.6]}),
+    }
+
+    module._render_experiment_coach(config, result)
+
+    markup = "\n".join(rendered)
+    assert "Experiment coach" in markup
+    assert "Classic neural playgrounds expose knobs" in markup
+    assert markup.count("Open replay config") == 3
+    assert "Reduce overfit" in markup
+    assert "?pytorch_playground=" in markup
 
 
 def _runtime_payload_files(root: Path) -> set[Path]:
@@ -782,6 +899,8 @@ def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
         hidden_layers=(16, 8),
         activation="relu",
         optimizer="SGD",
+        regularization="L1",
+        regularization_rate=0.015,
         learning_rate=0.015,
         epochs=120,
         batch_size=64,
@@ -807,6 +926,8 @@ def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
                 "hidden_layers": "8,wide",
                 "activation": "unknown",
                 "optimizer": "bad",
+                "regularization": "dropout",
+                "regularization_rate": 20.0,
                 "feature_names": ["x1", "missing", "x2"],
             }
         }
@@ -817,6 +938,8 @@ def test_pytorch_playground_share_config_round_trips_and_sanitizes() -> None:
     assert sanitized.hidden_layers == module.PlaygroundConfig().hidden_layers
     assert sanitized.activation == module.PlaygroundConfig().activation
     assert sanitized.optimizer == module.PlaygroundConfig().optimizer
+    assert sanitized.regularization == module.PlaygroundConfig().regularization
+    assert sanitized.regularization_rate == 1.0
     assert sanitized.feature_names == ("x1", "x2")
     assert module._preset_config(module.DEFAULT_PRESET).dataset == "circles"
     assert module._preset_config(module.CUSTOM_PRESET, config) == config
@@ -916,6 +1039,8 @@ def _minimal_playground_result(module, config) -> dict[str, object]:
             "probability": [0.1, 0.9, 0.2, 0.8],
         }
     )
+    boundary_snapshots = grid.copy()
+    boundary_snapshots.insert(0, "epoch", 0)
     loss_landscape = pd.DataFrame(
         [
             {
@@ -945,6 +1070,7 @@ def _minimal_playground_result(module, config) -> dict[str, object]:
         "samples": samples,
         "history": history,
         "grid": grid,
+        "boundary_snapshots": boundary_snapshots,
         "network_layers": module._empty_network_layers(),
         "activation_maps": module._empty_activation_maps(),
         "loss_landscape": loss_landscape,
@@ -1019,6 +1145,7 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
             "data/samples.csv",
             "data/training_history.csv",
             "data/decision_grid.csv",
+            "data/boundary_snapshots.csv",
             "model/network_layers.csv",
             "model/hidden_activation_maps.csv",
             "model/loss_landscape.csv",
@@ -1026,15 +1153,21 @@ def test_pytorch_playground_evidence_pack_is_deterministic(
         }.issubset(set(names))
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
         sample_bytes = archive.read("data/samples.csv")
+        boundary_snapshot_bytes = archive.read("data/boundary_snapshots.csv")
         landscape_bytes = archive.read("model/loss_landscape.csv")
 
     assert manifest["schema"] == module.EVIDENCE_SCHEMA
     assert manifest["app"] == "pytorch_playground_project"
     assert manifest["config_schema"] == module.CONFIG_SCHEMA
     assert manifest["row_counts"]["samples"] == 32
+    assert manifest["row_counts"]["boundary_snapshots"] == 0
     assert manifest["row_counts"]["loss_landscape"] == 2
     assert manifest["landscape_summary"]["center_validation_loss"] == pytest.approx(0.6)
     assert manifest["artifacts"]["data/samples.csv"]["sha256"] == hashlib.sha256(sample_bytes).hexdigest()
+    assert (
+        manifest["artifacts"]["data/boundary_snapshots.csv"]["sha256"]
+        == hashlib.sha256(boundary_snapshot_bytes).hexdigest()
+    )
     assert manifest["artifacts"]["model/loss_landscape.csv"]["sha256"] == hashlib.sha256(landscape_bytes).hexdigest()
 
 
@@ -1610,6 +1743,7 @@ def test_pytorch_playground_training_smoke_when_torch_is_available() -> None:
     assert result["status"] == "ok"
     assert not result["history"].empty
     assert result["grid"].shape[0] == 144
+    assert sorted(result["boundary_snapshots"]["epoch"].unique().tolist()) == [0, 1, 2]
     assert not result["network_layers"].empty
     assert not result["activation_maps"].empty
     assert sorted(result["activation_maps"]["layer"].unique().tolist()) == [1]
@@ -1630,12 +1764,16 @@ def test_pytorch_playground_app_args_convert_to_playground_config(monkeypatch: p
     args = app_args.PytorchPlaygroundArgs(
         hidden_layers="4, 2",
         feature_names="x1, missing, sin_x2",
+        regularization="L2",
+        regularization_rate=0.01,
         sample_count=96,
     )
     config = app_args.to_playground_config(args)
 
     assert config.hidden_layers == (4, 2)
     assert config.feature_names == ("x1", "sin_x2")
+    assert config.regularization == "L2"
+    assert config.regularization_rate == pytest.approx(0.01)
     assert config.sample_count == 96
 
 
@@ -1751,7 +1889,7 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "def _field_key" in source
     assert "key=key" in source
     assert "st.json(" not in source
-    assert ".multiselect(" not in source
+    assert "container.multiselect(label, FEATURES, key=key)" in source
     assert "def _render_wide_args_form" in source
     assert "def _render_compact_args_form" in source
     assert "def _render_dataset_fields" not in source
@@ -1761,7 +1899,7 @@ def test_pytorch_playground_app_args_form_uses_project_scoped_static_json() -> N
     assert "Quick fields are enough" not in source
     assert ".columns(" in source
     assert "Loss landscape" in source
-    for label in ("Samples", "Epochs", "Learning rate", "Loss landscape", "Evidence path"):
+    for label in ("Samples", "Epochs", "Learning rate", "Regularization", "Loss landscape", "Evidence path"):
         assert source.count(f'"{label}"') == 1
     assert "def _build_synced_run_snippet" in source
     assert "Synced RUN snippet" in source
@@ -1819,6 +1957,10 @@ def test_pytorch_playground_compact_app_args_form_uses_shared_fields(monkeypatch
 
         def selectbox(self, label, options, *, key):
             events.append(("selectbox", label, None))
+            return form_module.st.session_state[key]
+
+        def multiselect(self, label, _options, *, key):
+            events.append(("multiselect", label, None))
             return form_module.st.session_state[key]
 
         def columns(self, _spec):
@@ -1907,6 +2049,9 @@ def test_pytorch_playground_app_args_form_renders_wide_sidebar_and_snippets(
             return session_state[key]
 
         def selectbox(self, _label, options, *, key):
+            return session_state[key]
+
+        def multiselect(self, _label, _options, *, key):
             return session_state[key]
 
     def fake_load_args_state(_env, *, args_module):

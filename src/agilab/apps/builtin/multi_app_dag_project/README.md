@@ -1,39 +1,52 @@
 # Multi-app DAG Project
 
-`multi_app_dag_project` is the built-in AGILAB example for cross-app workflow
+`multi_app_dag_project` is the built-in read-only example for cross-app DAG
 contracts.
 
-It does not compete with an app-local `lab_stages.toml`. Instead, it shows how a
-multi-app DAG connects independent built-in apps through explicit artifact
-handoffs.
+## Purpose
 
-## What It Shows
+Use this project to inspect how independent AGILAB apps can be connected through
+explicit artifact handoffs before any app is executed.
 
-- a built-in app-owned DAG template under `dag_templates/`
-- a `flight_telemetry_project` stage that produces `flight_reduce_summary`
-- a `weather_forecast_legacy_project` stage that consumes that summary
-- a read-only runner-state preview before any app is executed
+## What You Learn
 
-## Typical Flow
+- How a DAG template can live with the app that teaches it.
+- How `flight_telemetry_project` can produce a handoff consumed by a weather
+  stage.
+- How runner-state previews expose runnable and blocked units.
+- Why cross-app orchestration should keep artifact contracts explicit.
+
+## Run In AGILAB
 
 1. Select `multi_app_dag_project` in `WORKFLOW`.
 2. Open `Workflow graph`.
-3. Choose `Multi-app DAG`, then select the bundled multi-app DAG template.
-4. Inspect the runnable and blocked stages before dispatching or adapting it.
+3. Choose `Multi-app DAG`.
+4. Select the bundled flight-to-weather DAG template.
+5. Inspect stage readiness and handoffs.
 
-## Outputs
+## Expected Inputs
 
-The preview helper writes a runner-state JSON file to
-`~/log/execute/multi_app_dag/runner_state.json`. The bundled DAG template itself is
-read-only and safe to inspect without running the downstream apps.
+The project ships DAG templates under `dag_templates/`. No live app execution is
+required for the preview.
+
+## Expected Outputs
+
+The preview writes runner-state JSON under `~/log/execute/multi_app_dag/` and
+reports app stages, artifact dependencies, and dispatch readiness.
+
+## Change One Thing
+
+After the default preview works, edit a copy of the DAG template and change one
+artifact handoff. The preview should make the affected downstream stage blocked
+or runnable based on that contract.
+
+## Troubleshooting
+
+If the preview cannot find built-in apps, run AGILAB once from the source or
+installed checkout so `.agilab-path` points at the package. If packaged preview
+layout setup fails, inspect `~/.cache/agilab/multi_app_dag_layout`.
 
 ## Scope
 
-Use this project to learn cross-app orchestration. Use `flight_telemetry_project` or
-`uav_queue_project` when you want a domain app that executes real worker code.
-
-## Reducer Contract Status
-
-`multi_app_dag_project` is template-preview only. It intentionally does not ship a
-reducer contract because it demonstrates cross-app DAG contracts and runner
-state, not a concrete worker merge output.
+This is a DAG-contract preview. It intentionally does not ship a reducer
+contract because it does not execute a concrete worker merge output.

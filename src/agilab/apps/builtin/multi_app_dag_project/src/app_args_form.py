@@ -8,10 +8,26 @@ import streamlit as st
 from pydantic import ValidationError
 
 _HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
 
-from multi_app_dag.app_args import MultiAppDagArgs, dump_args, load_args
+
+def _ensure_project_src_import_precedence() -> None:
+    """Keep the project src ahead of the package directory for Streamlit form imports."""
+
+    project_src = str(_HERE)
+    sys.path[:] = [entry for entry in sys.path if entry != project_src]
+    sys.path.insert(0, project_src)
+
+    module = sys.modules.get("multi_app_dag")
+    if module is None or getattr(module, "__path__", None):
+        return
+    for loaded_name in list(sys.modules):
+        if loaded_name == "multi_app_dag" or loaded_name.startswith("multi_app_dag."):
+            sys.modules.pop(loaded_name, None)
+
+
+_ensure_project_src_import_precedence()
+
+from multi_app_dag.app_args import MultiAppDagArgs, dump_args, load_args  # noqa: E402
 
 
 PAGE_ID = "multi_app_dag_project:app_args_form"
