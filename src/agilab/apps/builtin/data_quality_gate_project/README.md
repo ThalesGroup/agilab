@@ -13,6 +13,15 @@ a baseline dataset and a candidate dataset, validates the contract, measures
 quality and drift, then writes a gate decision that can be reviewed or wired
 into a later CI/promotion step.
 
+## What You Learn
+
+This app shows how to turn a subjective data review into a repeatable AGILAB
+stage contract. You learn how manager arguments select input files and
+thresholds, how the worker produces normalized evidence, and how a reducer can
+summarize pass/fail status without hiding the detailed artifact trail. The
+important pattern is reusable: keep the business decision small, keep the raw
+evidence inspectable, and export a manifest that another tool can consume.
+
 ## Run In AGILAB
 
 Select `data_quality_gate_project`, then open `ORCHESTRATE`. Keep the default
@@ -70,6 +79,15 @@ After the default run works, change only one thing:
 
 Keep `seed=2026` for synthetic comparisons so artifact deltas remain easy to
 explain.
+
+## Troubleshooting
+
+If the app reports missing CSV files, confirm that `baseline_csv` and
+`candidate_csv` are relative to the AGILAB share, not absolute paths on your
+desktop. If the gate fails on the default synthetic run, inspect
+`gate_decision.json` first: the failure is usually an intentional drift signal,
+not an execution error. If your own data fails schema validation, start by
+running with the default contract, then add only the column rules you need.
 
 ## Scope
 
