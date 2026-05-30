@@ -33,6 +33,7 @@ canonical source can serve both agents.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
 - `agilab-release-verification`: Verify release readiness and post-release alignment across PyPI, GitHub, docs, badges, and Hugging Face.
+- `agilab-security-review-patterns`: Review AGILAB changes for security hardening risks across UI exposure, execution, cluster, secrets, supply-chain, publishing, and LLM connector surfaces.
 - `agilab-pypi-release-maintenance`: Guarded workflow for inspecting and deleting old AGILAB PyPI releases without touching the protected current release.
 - `agilab-huggingface-spaces`: Maintain and deploy the official AGILAB Docker Space from the public checkout and sibling Hugging Face bundle.
 - `agilab-intent-router`: Route terse AGILAB operator requests into the right skill, safety mode, validation depth, and output contract.

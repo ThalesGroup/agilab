@@ -5,7 +5,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 ## Badges
 
-- Skills: 30 skills
+- Skills: 31 skills
 - Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references
 - Works with: Codex, Claude Code, Aider, OpenCode
 - Catalog-compatible: Continue
@@ -33,6 +33,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 - agilab-pypi-release-maintenance: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item. (.claude/skills/agilab-pypi-release-maintenance/SKILL.md)
 - agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
 - agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
+- agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
 - agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
 - agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)

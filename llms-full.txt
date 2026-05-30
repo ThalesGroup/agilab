@@ -62,6 +62,10 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-19
   preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
+- agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-30
+  preview: # AGILAB Security Review Patterns Use this skill to review AGILAB changes through a security-hardening lens before merge, release, or public documentation. It is a review workflow, not a pentest claim. Keep findings tied to concrete files, commands, and user impact.
 - agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-21
