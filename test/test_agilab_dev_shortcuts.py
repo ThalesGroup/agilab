@@ -567,6 +567,43 @@ def test_clean_shortcut_keeps_apply_flag():
     ]
 
 
+def test_scope_shortcut_runs_worktree_scope_guard():
+    assert agilab_dev.planned_commands(["scope", "--max-scopes", "1"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/worktree_scope_guard.py",
+            "--max-scopes",
+            "1",
+        ]
+    ]
+
+
+def test_task_worktree_shortcut_requires_branch_and_keeps_arguments():
+    try:
+        agilab_dev.planned_commands(["task-worktree"])
+    except SystemExit as exc:
+        assert str(exc) == "task-worktree: branch name is required"
+    else:
+        raise AssertionError("task-worktree should require a branch")
+
+    assert agilab_dev.planned_commands(["worktree", "fix/demo", "--print-only"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/task_worktree.py",
+            "fix/demo",
+            "--print-only",
+        ]
+    ]
+
+
 def test_skills_shortcut_syncs_then_validates_and_generates():
     assert agilab_dev.planned_commands(["skills", "agilab-runbook"]) == [
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],

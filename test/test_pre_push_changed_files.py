@@ -63,6 +63,34 @@ def test_classify_public_app_catalog_change_runs_docs_and_app_contract_guards():
     assert state.app_contracts_changed
 
 
+def test_classify_infra_scopes_do_not_count_as_mixed_push_scope():
+    state = pre_push_changed_files.classify_changed_files(
+        [
+            "AGENTS.md",
+            ".githooks/pre-push",
+            "tools/agilab_dev.py",
+            "test/test_agilab_dev_shortcuts.py",
+        ]
+    )
+
+    assert not state.mixed_scope
+    assert state.scope_count == 0
+
+
+def test_classify_many_product_scopes_blocks_mixed_push_scope():
+    state = pre_push_changed_files.classify_changed_files(
+        [
+            "src/agilab/apps/builtin/flight_telemetry_project/README.md",
+            "src/agilab/apps/builtin/mission_decision_project/README.md",
+            "src/agilab/apps-pages/view_maps/pyproject.toml",
+        ],
+        max_scopes=2,
+    )
+
+    assert state.mixed_scope
+    assert state.scope_count == 3
+
+
 def test_pre_push_records_use_remote_sha_as_diff_base():
     calls = []
 
@@ -84,6 +112,9 @@ def test_render_shell_is_eval_friendly():
         "DOCS_CHANGED=1",
         "RELEASE_PROOF_CHANGED=1",
         "APP_CONTRACTS_CHANGED=0",
+        "MIXED_SCOPE=0",
+        "SCOPE_COUNT=0",
+        "SCOPE_LIMIT=2",
         "DETECTION_FAILED=0",
         "CHANGED_COUNT=1",
         "DETECTION_ERROR=",

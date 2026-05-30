@@ -33,7 +33,9 @@ Use this runbook whenever you:
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
-  drift signals, `docs` for docs mirror sync plus stamp verification, and
+  drift signals, `docs` for docs mirror sync plus stamp verification, `scope` for
+  dirty worktree scope classification, `task-worktree` for clean isolated task
+  worktrees, and
   `clean` for stale local build/lib duplicate-source cleanup. `impact` tells you what must be validated, `test` runs the
   narrow pytest slice, `lint` provisions Ruff through `uv --extra dev` so it does not depend
   on an already-synced local venv, `bugfix` is the default low-load pre-push loop for normal code fixes,
@@ -51,8 +53,9 @@ Use this runbook whenever you:
   `badge` checks badge freshness when intentionally requested, `maintenance` reports the
   extension contract kit, ADRs, docs drift, app/package contracts, Evidence Core docs,
   release skip-existing behavior, TODO hotspots, generated artifacts, and coverage signal,
-  `docs` keeps the public mirror
-  aligned, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
+  `docs` keeps the public mirror aligned, `scope` fails fast when unrelated dirty
+  scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
+  branch, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
   is passed. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
@@ -88,6 +91,15 @@ Use this runbook whenever you:
   that belong to that scope. Direct pushes to `main` are reserved for explicit
   emergency fixes or release-maintenance operations where the user asks for that
   exception.
+- **Dirty-scope guardrail**: Before starting a new task in a dirty checkout, and
+  before answering "push", "release", or "all clean", run `./dev scope`. It
+  includes untracked non-ignored files by default. If it reports `MIXED`, stop
+  adding changes to that checkout unless the user explicitly wants to merge the
+  scopes. Either create a clean sibling worktree with
+  `./dev task-worktree <branch-name>` and continue there, or stage only the exact
+  files for the current task and run `./dev scope --staged`. This prevents one
+  frequent failure mode: unrelated app, docs, skills, release, and test edits
+  accumulating until no safe push or release scope is obvious.
 - **AGILAB product goal**: Optimize AGILAB work toward becoming the strongest
   open-source workbench for turning AI/ML experiments, notebooks, and agent runs
   into replayable, attestable evidence. Prefer concrete evidence primitives:
@@ -136,8 +148,10 @@ Use this runbook whenever you:
   refreshed only for release/pre-release validation or badge tooling changes.
 - **Local pre-push guardrails**: Keep the repo hook enabled with
   `git config core.hooksPath .githooks`. The pre-push hook first classifies the pushed
-  changed files with `tools/pre_push_changed_files.py`. It runs docs mirror checks only when
-  docs mirror inputs changed, release-proof checks only when release-proof inputs changed,
+  changed files with `tools/pre_push_changed_files.py`. It rejects pushes that span too many
+  non-infrastructure scopes before docs/release/app-contract checks run; split the work or use
+  `AGILAB_ALLOW_MIXED_SCOPE_PUSH=1` only with an explicit reason. It runs docs mirror checks
+  only when docs mirror inputs changed, release-proof checks only when release-proof inputs changed,
   and app-contract checks only when built-in app/package/catalog/docs contract inputs changed.
   If classification fails, it fails safe by running all local guards. Coverage badge freshness is
   intentionally not part of the default bugfix pre-push path; run `./dev badge` or the `badges`

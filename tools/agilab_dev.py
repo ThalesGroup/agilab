@@ -146,6 +146,14 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "clean":
         return [_uv_python("tools/clean_local_artifacts.py", *args)]
 
+    if command in {"scope", "scope-guard"}:
+        return [_uv_python("tools/worktree_scope_guard.py", *args)]
+
+    if command in {"task-worktree", "worktree"}:
+        if not args:
+            raise SystemExit(f"{command}: branch name is required")
+        return [_uv_python("tools/task_worktree.py", *args)]
+
     if command == "skills":
         skills, extras = _split_leading_values(args, command_name=command)
         return [
@@ -180,6 +188,8 @@ def _usage() -> str:
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
   ./dev [--print-only] clean [--apply]
+  ./dev [--print-only] scope [worktree_scope_guard args]
+  ./dev [--print-only] task-worktree <branch> [task_worktree args]
   ./dev [--print-only] skills <skill> [skill...]
 
 High-frequency mappings:
@@ -201,6 +211,8 @@ High-frequency mappings:
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
+  scope     -> Group dirty tracked and untracked files by review scope and fail when unrelated scopes are mixed.
+  task-worktree -> Create a clean sibling git worktree for an isolated task branch.
   skills    -> Sync repo skills from Claude to Codex, validate, regenerate indexes/catalog/badges, and scan skill risk.
 """
 
