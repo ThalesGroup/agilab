@@ -53,13 +53,6 @@ _page_project_selector_module = load_local_module(
     fallback_name="agilab_page_project_selector_fallback",
 )
 switch_to_project_page = _page_project_selector_module.switch_to_project_page
-_page_docs_module = load_local_module(
-    "agilab.page_docs",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
-get_docs_menu_items = _page_docs_module.get_docs_menu_items
 
 from agi_gui.pagelib import (
     activate_mlflow,
@@ -68,8 +61,6 @@ from agi_gui.pagelib import (
     run_agi,
     load_df,
     resolve_selected_df_path,
-    render_logo,
-    inject_theme,
 )
 from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv
@@ -93,6 +84,7 @@ import_agilab_symbols(
     {
         "ensure_page_env": "_ensure_page_env",
         "load_about_page_module": "_load_about_page_module_impl",
+        "render_page_chrome": "render_page_chrome",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
@@ -100,20 +92,9 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.pinned_expander",
-    {
-        "render_pinned_expanders": "render_pinned_expanders",
-    },
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
-    fallback_name="agilab_pinned_expander_fallback",
-)
-import_agilab_symbols(
-    globals(),
     "agilab.workflow_ui",
     {
         "is_dag_based_app": "is_dag_based_app",
-        "render_page_context": "render_page_context",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
@@ -1659,12 +1640,12 @@ def main() -> None:
     env: AgiEnv = st.session_state["env"]
 
     try:
-        st.set_page_config(
-            page_title="AGILab WORKFLOW",
-            layout="wide",
-            menu_items=get_docs_menu_items(html_file="experiment-help.html"),
+        render_page_chrome(
+            st,
+            env=env,
+            page_label="WORKFLOW",
+            docs_html_file="experiment-help.html",
         )
-        inject_theme(env.st_resources)
 
         st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
@@ -1682,16 +1663,6 @@ def main() -> None:
         )
         st.session_state.setdefault("df_file_out", str(df_dir_def / DEFAULT_DF))
         st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
-
-        df_file = (
-            Path(st.session_state["df_file"]) if st.session_state["df_file"] else None
-        )
-        if df_file:
-            render_logo()
-        else:
-            render_logo()
-        render_pinned_expanders(st)
-        render_page_context(st, page_label="WORKFLOW", env=env)
 
         if background_services_enabled() and not st.session_state.get(
             "server_started", False

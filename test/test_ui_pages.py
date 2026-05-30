@@ -421,15 +421,30 @@ def _write_minimal_run_manifest(
 
 def test_first_party_pages_configure_docs_menu_items() -> None:
     expected = {
-        "src/agilab/main_page.py": "get_about_content()",
-        "src/agilab/pages/1_PROJECT.py": 'get_docs_menu_items(html_file="edit-help.html")',
-        "src/agilab/pages/2_ORCHESTRATE.py": 'get_docs_menu_items(html_file="execute-help.html")',
-        "src/agilab/pages/3_WORKFLOW.py": 'get_docs_menu_items(html_file="experiment-help.html")',
-        "src/agilab/pages/4_ANALYSIS.py": 'get_docs_menu_items(html_file="explore-help.html")',
+        "src/agilab/main_page.py": ("get_about_content()",),
+        "src/agilab/pages/1_PROJECT.py": (
+            "render_page_chrome(",
+            'docs_html_file="edit-help.html"',
+        ),
+        "src/agilab/pages/2_ORCHESTRATE.py": (
+            "render_page_chrome(",
+            'docs_html_file="execute-help.html"',
+        ),
+        "src/agilab/pages/3_WORKFLOW.py": (
+            "render_page_chrome(",
+            'docs_html_file="experiment-help.html"',
+        ),
+        "src/agilab/pages/4_ANALYSIS.py": (
+            "configure_page_chrome(",
+            "render_page_header(",
+            'docs_html_file="explore-help.html"',
+        ),
     }
 
-    for page_path, marker in expected.items():
-        assert marker in Path(page_path).read_text(encoding="utf-8")
+    for page_path, markers in expected.items():
+        source = Path(page_path).read_text(encoding="utf-8")
+        for marker in markers:
+            assert marker in source
 
 
 @pytest.fixture
@@ -2109,8 +2124,9 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "Export creates a portable archive" not in source
     assert "Project workspace" not in source
     assert "Identity, editable files" not in source
-    assert 'page_title="AGILab PROJECT"' in source
-    assert 'layout="wide"' in source
+    assert "render_page_chrome(" in source
+    assert 'page_label="PROJECT"' in source
+    assert 'docs_html_file="edit-help.html"' in source
     assert '["Edit", "Create", "Import", "Rename", "Delete"]' in source
     assert '["Edit", "Clone", "Import", "Rename", "Delete"]' not in source
     assert "_render_project_workspace_overview" not in source
