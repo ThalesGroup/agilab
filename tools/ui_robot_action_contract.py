@@ -83,6 +83,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "ignored",
         "requires a local knowledge-base rebuild outside the deterministic UI robot environment",
     ),
+    "Reset": (
+        "trial-only",
+        "clears the PyTorch playground local training state; focused playground tests cover state reset behavior",
+    ),
     "Rename": (
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",

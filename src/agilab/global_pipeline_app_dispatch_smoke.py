@@ -171,9 +171,17 @@ def _relative(path: Path, root: Path) -> str:
 def _ensure_app_project_on_path(repo_root: Path, project_name: str) -> Path:
     src_root = repo_root / "src" / "agilab" / "apps" / "builtin" / project_name / "src"
     src_text = str(src_root)
-    if src_text not in sys.path:
-        sys.path.insert(0, src_text)
+    sys.path[:] = [entry for entry in sys.path if entry != src_text]
+    sys.path.insert(0, src_text)
     return src_root
+
+
+def _drop_app_module_cache(package_names: tuple[str, ...]) -> None:
+    prefixes = tuple(f"{name}." for name in package_names)
+    for module_name in list(sys.modules):
+        if module_name in package_names or module_name.startswith(prefixes):
+            del sys.modules[module_name]
+    importlib.invalidate_caches()
 
 
 def _make_env(run_root: Path, *, target: str) -> SimpleNamespace:
@@ -211,6 +219,7 @@ def _run_queue_family_app(
     app_entry: str,
 ) -> dict[str, Any]:
     _ensure_app_project_on_path(repo_root, project_name)
+    _drop_app_module_cache((manager_package, worker_package))
     manager_module = importlib.import_module(manager_package)
     worker_module = importlib.import_module(worker_package)
     args_class = getattr(manager_module, args_class_name)
