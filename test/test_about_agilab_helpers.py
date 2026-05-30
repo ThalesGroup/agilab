@@ -2146,6 +2146,7 @@ def test_bootstrap_path_matching_and_payload_project_edges(tmp_path):
     project.mkdir(parents=True)
 
     assert bootstrap._normalize_path(_BrokenPath()) is None
+    assert bootstrap._existing_env_matches_apps_path(SimpleNamespace(), _BrokenPath()) is False
     assert bootstrap._existing_env_matches_apps_path(SimpleNamespace(), apps_path) is False
     assert (
         bootstrap._existing_env_matches_apps_path(
@@ -2196,8 +2197,61 @@ def test_bootstrap_path_matching_and_payload_project_edges(tmp_path):
     assert bootstrap.normalize_active_app_input(env, str(package_project)) == project.resolve()
     assert bootstrap.persisted_active_app_request(env, project) == str(project)
 
+    non_project_payload = tmp_path / "agi-app-demo" / "src" / "agi_app_demo" / "demo_project"
+    non_project_payload.mkdir(parents=True)
+    assert bootstrap.normalize_active_app_input(env, str(non_project_payload)) == non_project_payload.resolve()
+
+    non_package_payload = tmp_path / "agi-app-demo" / "src" / "demo_pkg" / "project" / "demo_project"
+    non_package_payload.mkdir(parents=True)
+    assert bootstrap.normalize_active_app_input(env, str(non_package_payload)) == non_package_payload.resolve()
+
+    non_source_payload = tmp_path / "package-root" / "lib" / "agi_app_demo" / "project" / "demo_project"
+    non_source_payload.mkdir(parents=True)
+    assert bootstrap.normalize_active_app_input(env, str(non_source_payload)) == non_source_payload.resolve()
+
+    unresolved_source_payload = (
+        tmp_path
+        / "agi-app-unresolved"
+        / "src"
+        / "agi_app_unresolved"
+        / "project"
+        / "unresolved_project"
+    )
+    unresolved_source_payload.mkdir(parents=True)
+
+    class TypeErrorPath:
+        def __fspath__(self):
+            raise TypeError("bad path")
+
+    bad_root_env = SimpleNamespace(
+        apps_path=TypeErrorPath(),
+        builtin_apps_path=TypeErrorPath(),
+        apps_repository_root=tmp_path / "repo",
+        projects={"unresolved_project"},
+    )
+    assert (
+        bootstrap.normalize_active_app_input(
+            bad_root_env,
+            str(unresolved_source_payload),
+        )
+        == unresolved_source_payload.resolve()
+    )
+
     stale = tmp_path / "other" / "demo_project"
     assert bootstrap.persisted_active_app_request(env, stale) == "demo_project"
+
+    original_resolve = bootstrap.Path.resolve
+
+    def failing_resolve(self, *args, **kwargs):
+        if self == stale:
+            raise OSError("cannot resolve persisted path")
+        return original_resolve(self, *args, **kwargs)
+
+    try:
+        bootstrap.Path.resolve = failing_resolve
+        assert bootstrap.persisted_active_app_request(env, stale) == "demo_project"
+    finally:
+        bootstrap.Path.resolve = original_resolve
 
 
 def test_bootstrap_persist_env_handles_plain_and_empty_cluster_credentials(tmp_path):
@@ -3492,9 +3546,35 @@ def test_about_layout_package_memory_and_gpu_fallback_edges(monkeypatch):
         else "",
     )
     assert layout._nvidia_gpu_summary() == "2 GPUs: NVIDIA A100 (108 SMs); NVIDIA L4"
+    monkeypatch.setattr(layout, "_command_output", lambda _command: "NVIDIA L4, 48\n")
+    assert layout._nvidia_gpu_summary() == "NVIDIA L4 (48 SMs)"
+    monkeypatch.setattr(layout, "_nvidia_gpu_summary", lambda: "")
+    assert layout._gpu_summary("Linux") == "Not detected"
     monkeypatch.setattr(layout, "_command_output", lambda _command: "\n")
     assert layout._nvidia_gpu_summary() == ""
+    monkeypatch.setattr(
+        layout,
+        "_command_output",
+        lambda command: "Display:\n    Resolution: 1920 x 1080\n"
+        if command == ("system_profiler", "SPDisplaysDataType")
+        else "",
+    )
+    assert layout._mac_gpu_summary() == ""
     assert layout._lspci_gpu_summary("00:00.0 Host bridge: Intel\n") == ""
+
+    class CountPsutil:
+        @staticmethod
+        def cpu_count(logical=False):
+            return 12 if logical is False else 24
+
+    monkeypatch.setattr(
+        builtins,
+        "__import__",
+        lambda name, *args, **kwargs: CountPsutil
+        if name == "psutil"
+        else real_import(name, *args, **kwargs),
+    )
+    assert layout._physical_cpu_count() == 12
 
 
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
@@ -3620,11 +3700,19 @@ gpu = "A100"
     ) == {"cluster": {"pool": "yes"}}
     assert layout._cluster_params_from_settings({"cluster": "bad"}) == {}
     assert layout._format_bool_flag("off") is False
+    assert layout._format_bool_flag(1) is True
     assert layout._cluster_mode_label({}) == "local"
     assert (
         layout._env_cluster_share(SimpleNamespace(AGI_CLUSTER_SHARE=" /mnt/share "))
         == "/mnt/share"
     )
+    assert (
+        layout._hardware_line(
+            {"CPU": "CPU", "RAM": "RAM", "GPU": "GPU", "NPU": "NPU"}
+        )
+        == "CPU: CPU; RAM: RAM; GPU: GPU; NPU: NPU"
+    )
+    assert layout._workers_items(42) == []
 
     monkeypatch.setattr(layout.socket, "gethostname", lambda: "host-a")
     monkeypatch.setattr(layout.socket, "getfqdn", lambda: "host-a.example")
@@ -3804,6 +3892,23 @@ gpu = "A100"
         totals["CPU"] == "4 cores + 1 worker reverse SSH needed + 1 worker unreachable"
     )
     assert totals["RAM"] == "32 GB + 1 worker reverse SSH needed + 1 worker unreachable"
+
+    totals_from_config = layout._cluster_resource_totals(
+        cluster_enabled=True,
+        scheduler="worker-a",
+        worker_items=[("worker-a", 1)],
+        user="agi",
+        ssh_key_path="",
+        hardware_inventory={
+            "worker-a": {
+                "CPU": "Configured CPU; cores: 6",
+                "RAM": "24 GB",
+                "GPU": "Configured GPU",
+                "NPU": "Configured NPU",
+            }
+        },
+    )
+    assert totals_from_config["CPU"] == "6 cores"
 
     monkeypatch.setattr(layout, "_command_output", original_command_output)
     monkeypatch.setattr(

@@ -964,7 +964,9 @@ def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.Monkey
     assert module._confidence_band(pd.DataFrame({"probability": [0.30, 0.70]}))[0] == "Boundary forming"
 
 
-def test_playground_ui_score_and_recommendation_edge_helpers() -> None:
+def test_playground_ui_score_and_recommendation_edge_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = _load_module()
 
     assert module._class_balance(pd.DataFrame({"target": [None, None]})) == "no samples"
@@ -976,6 +978,29 @@ def test_playground_ui_score_and_recommendation_edge_helpers() -> None:
     assert module._simpler_hidden_layers(()) == (4,)
     assert module._wider_hidden_layers(()) == (8, 8)
 
+    original_import = __import__
+
+    def fail_streamlit_context_import(name, *args, **kwargs):
+        if name == "streamlit.runtime.scriptrunner":
+            raise RuntimeError("no streamlit runtime")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fail_streamlit_context_import)
+    assert module._streamlit_script_context_active() is False
+    monkeypatch.setattr("builtins.__import__", original_import)
+
+    class EmptyProbabilityGrid:
+        empty = False
+
+        def __contains__(self, key):
+            return key == "probability"
+
+        def __getitem__(self, key):
+            assert key == "probability"
+            return SimpleNamespace(to_numpy=lambda dtype=float: np.asarray([], dtype=dtype))
+
+    assert module._confidence_score(EmptyProbabilityGrid()) == 0.0
+
     config = module.PlaygroundConfig(hidden_layers=(8,), sample_count=64, epochs=4, grid_size=8)
     result = {
         "summary": "not-a-mapping",
@@ -985,10 +1010,22 @@ def test_playground_ui_score_and_recommendation_edge_helpers() -> None:
     assert recommendations
     assert all(item["url"].startswith("?pytorch_playground=") for item in recommendations)
 
+    monkeypatch.setattr(module, "_config_signature", lambda _config: "same-signature")
+    assert module._tuning_recommendations(config, result) == []
+    monkeypatch.setattr(module, "_tuning_recommendations", lambda _config, _result: [])
+    assert module._render_experiment_coach(config, result) is None
+
     final_grid = pd.DataFrame({"x1": [0.0], "x2": [0.0], "probability": [0.5]})
     assert module._boundary_snapshot_grid({"grid": final_grid, "boundary_snapshots": pd.DataFrame({"epoch": []})}, final_grid).equals(
         final_grid
     )
+    nonnumeric_snapshots = pd.DataFrame(
+        {"epoch": ["bad"], "x1": [1.0], "x2": [1.0], "probability": [0.9]}
+    )
+    assert module._boundary_snapshot_grid(
+        {"boundary_snapshots": nonnumeric_snapshots},
+        final_grid,
+    ).equals(final_grid)
 
 
 def test_playground_ui_remaining_helper_and_subprocess_edges(
@@ -2807,10 +2844,25 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
         def __init__(self):
             self.session_state: dict[str, object] = {}
             self.errors: list[str] = []
+            self.events: list[tuple[str, object]] = []
             self.sidebar = FakeContainer("sidebar")
+
+        def caption(self, body, **_kwargs):
+            self.events.append(("caption", body))
+
+        def markdown(self, body, **_kwargs):
+            self.events.append(("markdown", body))
+
+        def code(self, body, **kwargs):
+            self.events.append(("code", (body, kwargs.get("language"))))
+
+        def expander(self, label, *, expanded=False):
+            self.events.append(("expander", (label, expanded)))
+            return FakeContainer(str(label))
 
         def error(self, message):
             self.errors.append(str(message))
+            self.events.append(("error", str(message)))
 
         def stop(self):
             raise StopRender()
@@ -2915,6 +2967,31 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
     output_container = FakeContainer("output")
     form_module.render(env=env, container=output_container, compact=False)
     assert ("error", "bad config") in output_container.events
+
+    monkeypatch.setattr(form_module.app_args, "to_playground_config", lambda parsed: parsed)
+    monkeypatch.setattr(
+        form_module,
+        "_render_args_form",
+        lambda *_args, **_kwargs: {"sample_count": "not-an-int"},
+    )
+    validation_container = FakeContainer("validation")
+    form_module.render(env=env, container=validation_container, compact=False)
+    assert any("humanized: ValidationError" in str(event[1]) for event in validation_container.events)
+
+    monkeypatch.setattr(
+        form_module,
+        "_render_args_form",
+        lambda *_args, **_kwargs: model.model_dump(mode="json"),
+    )
+    sidebar_fake = FakeStreamlit()
+    sidebar_fake.session_state = {"env": env, "app_settings": fake_st.session_state["app_settings"]}
+    monkeypatch.setattr(form_module, "st", sidebar_fake)
+    form_module.render(env=env, container=None, compact=False)
+    assert ("markdown", "### PyTorch Playground") in sidebar_fake.events
+    assert (
+        "caption",
+        "These fields are persisted as app arguments.",
+    ) in sidebar_fake.events
 
 
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
