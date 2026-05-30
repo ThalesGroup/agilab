@@ -235,6 +235,30 @@ LIVE_TRAINING_STATE_KEY = "pytorch_playground_live_training_state"
 LIVE_TRAINING_MODE_LABEL = "Live play/pause"
 
 
+DEMO_LADDER: tuple[dict[str, str], ...] = (
+    {
+        "preset": "Instant wow: clean circles",
+        "lesson": "First visual win",
+        "watch": "Boundary sharpens quickly while the evidence pack stays reproducible.",
+    },
+    {
+        "preset": "Feature puzzle: XOR",
+        "lesson": "Feature engineering",
+        "watch": "Remove then restore `x1_x2` to see why nonlinear features matter.",
+    },
+    {
+        "preset": "Hard mode: spiral",
+        "lesson": "Capacity and terrain",
+        "watch": "Use neurons, snapshots, and loss terrain to explain a harder fit.",
+    },
+    {
+        "preset": "Fast baseline: gaussian",
+        "lesson": "Sanity check",
+        "watch": "Tiny model, fast replay, stable manifest for demos and smoke tests.",
+    },
+)
+
+
 _ISOLATED_CORE_RUNNER = r"""
 from __future__ import annotations
 
@@ -992,6 +1016,67 @@ def _render_page_styles() -> None:
   gap: 0.75rem;
   margin: 0.6rem 0 1rem;
 }
+.agilab-pt-tour {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 8px;
+  padding: 0.95rem;
+  margin: 0.35rem 0 1rem;
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), transparent 28rem),
+    rgba(8, 13, 26, 0.78);
+}
+.agilab-pt-tour-head {
+  color: #f8fafc;
+  font-size: 1.05rem;
+  font-weight: 860;
+  margin-bottom: 0.25rem;
+}
+.agilab-pt-tour-note {
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  margin-bottom: 0.8rem;
+}
+.agilab-pt-tour-grid,
+.agilab-pt-demo-ladder {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.agilab-pt-tour-card,
+.agilab-pt-demo-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  min-height: 9.2rem;
+  padding: 0.78rem 0.85rem;
+  background: rgba(15, 23, 42, 0.68);
+}
+.agilab-pt-demo-card--active {
+  border-color: rgba(114, 214, 180, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(114, 214, 180, 0.22);
+}
+.agilab-pt-tour-card strong,
+.agilab-pt-demo-card strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+.agilab-pt-tour-card span,
+.agilab-pt-demo-card span {
+  color: #94a3b8;
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.34;
+}
+.agilab-pt-demo-card a {
+  color: #7dd3fc;
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 760;
+  margin-top: 0.45rem;
+  text-decoration: none;
+}
 .agilab-pt-step {
   border: 1px solid rgba(148, 163, 184, 0.20);
   border-radius: 8px;
@@ -1115,7 +1200,9 @@ def _render_page_styles() -> None:
   font-weight: 860;
 }
 @media (max-width: 860px) {
-  .agilab-pt-guide {
+  .agilab-pt-guide,
+  .agilab-pt-tour-grid,
+  .agilab-pt-demo-ladder {
     grid-template-columns: 1fr;
   }
   .agilab-pt-run-panel,
@@ -1316,6 +1403,93 @@ def _render_guided_flow(*, pending_changes: bool, result_status: str) -> None:
         + _guide_step("2. Inspect", "Read the boundary, curves, neurons, and terrain.", second_class)
         + _guide_step("3. Reuse", "Download evidence or share the replay token.", third_class)
         + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _base_preset_label(preset_label: str) -> str:
+    value = str(preset_label or "").strip()
+    return value.removesuffix(" live")
+
+
+def _teaching_tour_cards(config: PlaygroundConfig) -> list[dict[str, str]]:
+    """Explain the concrete delta over classic visual neural playgrounds."""
+    network = "-".join(str(width) for width in config.hidden_layers) or "linear"
+    return [
+        {
+            "title": "Immediate visual learning",
+            "text": f"{config.dataset} dataset, {len(config.feature_names)} feature(s), {network} network.",
+        },
+        {
+            "title": "Live but replayable",
+            "text": "Play, pause, and step the boundary; switch to Train / refresh for deterministic evidence.",
+        },
+        {
+            "title": "Inspect the model",
+            "text": "Boundary snapshots, neuron maps, weight magnitudes, and loss terrain stay in one surface.",
+        },
+        {
+            "title": "Keep the proof",
+            "text": "Export a manifest, evidence ZIP, replay token, and plain PyTorch or Lightning code.",
+        },
+    ]
+
+
+def _demo_ladder_cards(active_label: str) -> list[dict[str, str]]:
+    active_base = _base_preset_label(active_label)
+    cards: list[dict[str, str]] = []
+    for recipe in DEMO_LADDER:
+        preset = recipe["preset"]
+        cards.append(
+            {
+                "preset": preset,
+                "lesson": recipe["lesson"],
+                "watch": recipe["watch"],
+                "url": _coach_url(_preset_config(preset)),
+                "state": "active" if preset == active_base else "",
+            }
+        )
+    return cards
+
+
+def _render_teaching_tour(preset_label: str, config: PlaygroundConfig) -> None:
+    tour_cards = "".join(
+        '<div class="agilab-pt-tour-card">'
+        f"<strong>{html.escape(card['title'])}</strong>"
+        f"<span>{html.escape(card['text'])}</span>"
+        "</div>"
+        for card in _teaching_tour_cards(config)
+    )
+    ladder_cards = "".join(
+        f'<div class="agilab-pt-demo-card agilab-pt-demo-card--{html.escape(card["state"])}">'
+        f"<strong>{html.escape(card['lesson'])}</strong>"
+        f"<span>{html.escape(card['preset'])}</span>"
+        f"<span>{html.escape(card['watch'])}</span>"
+        f'<a href="{html.escape(card["url"])}" target="_self">Open lesson config</a>'
+        "</div>"
+        for card in _demo_ladder_cards(preset_label)
+    )
+    st.markdown(
+        """
+<div class="agilab-pt-tour">
+  <div class="agilab-pt-tour-head">Beyond a classic neural playground</div>
+  <div class="agilab-pt-tour-note">
+    Keep the instant teaching loop, then add PyTorch-native execution,
+    replayable configurations, engineering evidence, and code handoff.
+  </div>
+  <div class="agilab-pt-tour-grid">
+"""
+        + tour_cards
+        + """
+  </div>
+  <div class="agilab-pt-tour-head" style="margin-top: 0.9rem;">Teaching route</div>
+  <div class="agilab-pt-demo-ladder">
+"""
+        + ladder_cards
+        + """
+  </div>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
@@ -2243,6 +2417,7 @@ def main(
 
     _render_summary(trained_config, result, compact=compact)
     if not compact:
+        _render_teaching_tour(trained_preset, trained_config)
         _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
         _render_interpretation_cards(result)
         if result["status"] == "ok":

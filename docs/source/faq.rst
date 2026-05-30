@@ -159,8 +159,10 @@ Choose the smallest public surface that matches the task:
 
    * - Need
      - Install surface
-   * - CLI proof and compact runtime
+   * - Command shell only
      - ``agilab``
+   * - CLI proof and compact runtime
+     - ``agilab[core]``
    * - Local Streamlit UI with public app and page catalogs
      - ``agilab[ui]``
    * - Packaged examples and notebooks without the full UI profile
@@ -172,10 +174,11 @@ Choose the smallest public surface that matches the task:
    * - Optional MLflow, agents, or local LLM stacks
      - Add the matching optional extra only when that feature is used.
 
-The base package is intentionally small compared with the full UI/demo stack,
-but it still installs the core execution meta-package ``agi-core``. That means
-``agi-env``, ``agi-node``, and ``agi-cluster`` are present as runtime building
-blocks even when you run locally. Installing those packages does not mean the
+The base package is intentionally small compared with the full UI/demo stack:
+it keeps the ``agilab`` command shell available without installing the core
+runtime. Use ``agilab[core]`` when you want ``agilab dry-run`` or compact
+``agi-core`` notebook/API checks, and use ``agilab[examples]`` for the packaged
+first-proof demo assets. Installing core runtime packages does not mean the
 first proof uses a remote cluster; cluster execution remains opt-in.
 
 Why are apps and pages separate packages?

@@ -85,8 +85,9 @@ published package::
 
 The ``ui`` extra installs ``agi-apps`` and its per-app project packages for
 public built-in projects, plus ``agi-pages`` for packaged ANALYSIS page
-bundles. A base ``agilab`` install stays CLI/core-only; run ``agilab dry-run``
-there when you only need the lightweight import/runtime smoke.
+bundles. A base ``agilab`` install stays command-shell only; install
+``agilab[core]`` when you only need ``agilab dry-run`` and the lightweight
+import/runtime smoke.
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
@@ -282,7 +283,9 @@ scripts::
     uv --preview-features extra-build-dependencies run agilab first-proof --json --with-install
 
 ``agilab dry-run`` is the fast alias for ``agilab first-proof --dry-run`` and
-checks only CLI/core readiness.
+checks only CLI/core readiness. It requires a source checkout, ``agilab[core]``,
+``agilab[examples]``, or ``agilab[ui]`` because the bare command-shell package
+does not install the runtime stack.
 
 Use ``--dry-run`` when startup or import errors appear before you need a full UI
 proof contract.

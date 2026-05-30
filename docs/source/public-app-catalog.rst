@@ -69,8 +69,9 @@ Status legend:
      - ``agi-app-pytorch-playground``
      - PyPI app package
      - Reproducible PyTorch classifier playground with live play/pause training,
-       persisted controls, multi-UI surface declarations, and evidence
-       artifacts. It can also be launched with ``agilab pytorch-playground``,
+       persisted controls, replayable teaching route, multi-UI surface
+       declarations, evidence artifacts, and generated PyTorch/Lightning code.
+       It can also be launched with ``agilab pytorch-playground``,
        ``agilab pytorch-playground --backend hf``, or the generic
        ``agilab app surface pytorch_playground_project --ui <backend>`` path.
    * - ``r_runtime_bridge_project``
@@ -115,8 +116,9 @@ Recommended first choices
   reusable forecast artifacts.
 - Use ``sklearn_pipeline_project`` when the question is classic ML
   reproducibility with a familiar scikit-learn pipeline.
-- Use ``pytorch_playground_project`` when you want a more visual AI/ML demo
-  with live play/pause training and exportable training evidence.
+- Use ``pytorch_playground_project`` when you want a visual AI/ML demo that
+  goes beyond a browser-only neural playground: live play/pause training,
+  replay tokens, generated PyTorch/Lightning code, and exportable evidence.
 - Use ``uav_relay_queue_project`` or ``uav_queue_project`` only after the first
   proof, because they are better suited to advanced evidence and scenario
   comparison.
@@ -134,3 +136,5 @@ See also:
   contract.
 - :doc:`advanced-proof-pack` for the heavier evidence scenarios.
 - :doc:`execution-playground` for the Pandas/Polars execution comparison.
+- :doc:`pytorch-playground` for the PyTorch Playground teaching and evidence
+  route.

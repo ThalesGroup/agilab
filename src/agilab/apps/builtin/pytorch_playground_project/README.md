@@ -9,6 +9,11 @@ Use this project to train a compact PyTorch classifier, watch the decision
 boundary move with real play/pause controls, and export replayable evidence
 without leaving the AGILAB app model.
 
+It is not a clone of the classic browser-only neural-network playgrounds. Keep
+those for the shortest beginner explanation; use this app when the same visual
+lesson must become a PyTorch-native, replayable, evidence-backed engineering
+artifact.
+
 ## What You Learn
 
 - How Streamlit controls map to persisted ORCHESTRATE arguments.
@@ -26,6 +31,9 @@ without leaving the AGILAB app model.
   PyTorch and PyTorch Lightning scripts.
 - How the UI isolates heavy PyTorch work from Streamlit while keeping typed JSON
   IPC at the subprocess boundary.
+- How the teaching route differs from a classic visual playground: each preset
+  opens a replayable configuration, and each full run exports the config,
+  metrics, boundary snapshots, model diagnostics, and reusable code.
 
 ## Direct Launch
 
@@ -61,7 +69,10 @@ maintain a different Hugging Face Space.
    decision surface formed during training.
 6. Open `Neuron lens` to read the network map, then change features, hidden
    layers, or regularization and refresh evidence again.
-7. Open `ORCHESTRATE` when you want the reproducible install/run path.
+7. Use the `Beyond a classic neural playground` teaching route to switch
+   between first-run circles, XOR feature engineering, spiral capacity, and
+   gaussian sanity-check lessons.
+8. Open `ORCHESTRATE` when you want the reproducible install/run path.
 
 ## Expected Inputs
 
@@ -84,6 +95,8 @@ After the default run works, change only one learning control:
 - For XOR, remove engineered features, refresh evidence, then add `x1_x2` back
   to see why feature toggles matter.
 - Change only the hidden-layer tuple and compare the `Boundary epoch` snapshots.
+- Open a lesson card in the teaching route, train it, then compare the replay
+  token and evidence manifest with the previous run.
 
 The decision boundary and evidence manifest should update while the artifact
 names stay stable.

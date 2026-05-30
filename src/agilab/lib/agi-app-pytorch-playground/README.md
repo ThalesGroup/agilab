@@ -16,6 +16,11 @@ datasets, watch the decision boundary move with play/pause controls, inspect
 the resulting boundary/layers/loss terrain, and keep the configuration and
 artifacts replayable.
 
+Classic browser neural-network playgrounds are still the shortest beginner
+teaching route. This package is the engineering-oriented step after that:
+PyTorch-native execution, replay tokens, deterministic manifests, evidence ZIPs,
+and reusable PyTorch/Lightning code from the same visual lesson.
+
 ## Installed Project
 
 The distribution name is `agi-app-pytorch-playground`; the AGILAB project name
@@ -57,7 +62,10 @@ Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
 PyTorch Playground surface. That surface places persisted ORCHESTRATE
 arguments next to the decision boundary, training curves, neuron/loss views,
 evidence download, a deterministic `Train / refresh` path, and a live
-play/pause mode for watching bounded epoch ticks without leaving ANALYSIS.
+play/pause mode for watching bounded epoch ticks without leaving ANALYSIS. The
+surface also includes a teaching route that opens replayable lesson
+configurations for circles, XOR feature engineering, spiral capacity, and a
+gaussian sanity check.
 
 Open `ORCHESTRATE` when you want the reproducible AGILAB execution path: tune
 the sidebar fields, then run `INSTALL` and `RUN`. Enable loss-landscape

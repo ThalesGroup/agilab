@@ -142,16 +142,20 @@ Published app/example umbrella package
 wheel and source distribution. It is an umbrella/catalog package: it keeps the
 lightweight ``agilab.apps.install`` helper and ``agilab.examples`` learning
 assets, and it depends on the app payload packages already promoted to PyPI.
-The root ``agilab`` wheel stays lean; ``agilab[ui]`` and ``agilab[examples]``
-pull ``agi-apps`` when the packaged first-proof or demo assets are needed.
+The root ``agilab`` wheel stays lean; ``agilab[core]`` pulls the compact runtime,
+while ``agilab[ui]`` and ``agilab[examples]`` pull ``agi-apps`` when the
+packaged first-proof or demo assets are needed.
 
 Why keep them published
 -----------------------
 
 Publishing these runtime packages keeps the release process reproducible:
 
-- ``pip install agilab`` and ``uvx agilab`` can resolve the exact base package
-  graph for CLI and first-proof checks.
+- ``pip install agilab`` and ``uvx agilab`` can resolve the exact lightweight
+  command-shell graph without forcing runtime, UI, app, page, notebook, or model
+  dependencies.
+- ``pip install "agilab[core]"`` installs the matching ``agi-core`` package for
+  ``agilab dry-run`` and compact notebook/API runtime checks.
 - ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
   Streamlit page dependencies for the local web interface, plus ``agi-apps``,
   its per-app project dependencies, and ``agi-pages`` so the UI opens with

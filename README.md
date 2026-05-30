@@ -101,7 +101,7 @@ Start with the route that matches the proof you want to show:
 | Gate candidate data | [Data Quality Gate](src/agilab/apps/builtin/data_quality_gate_project) | Contract, drift, leakage, and promotion decision evidence before training. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
-| Explore an opt-in app | [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with live play/pause training, multi-UI surface declarations, generic `agilab app surface ...` launch, and loss-landscape analysis. |
+| Explore an opt-in app | [PyTorch Playground](https://thalesgroup.github.io/agilab/pytorch-playground.html) | Reproducible classifier playground with live play/pause training, replayable teaching route, evidence ZIPs, generated PyTorch/Lightning code, multi-UI surface declarations, and loss-landscape analysis. |
 | Go deeper after first proof | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decision, execution playground, UAV queue, service, MLflow, and release-proof routes. |
 
 Use the [local quick start](#quick-start) when you want to run the product
@@ -130,8 +130,10 @@ install.
 - [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project)
   is the opt-in classifier playground app for
   synthetic datasets, real play/pause training, hidden-layer activation maps,
-  network diagnostics, and the **Loss landscape** view. It demonstrates the
-  reusable app-surface contract: inspect backends with
+  network diagnostics, a replayable teaching route, and the **Loss landscape**
+  view. It keeps the instant visual learning loop of classic neural playgrounds,
+  then adds PyTorch-native evidence, replay tokens, and reusable PyTorch or
+  Lightning code. It demonstrates the reusable app-surface contract: inspect backends with
   `agilab app surface pytorch_playground_project --list`, open the local UI with
   `agilab app surface pytorch_playground_project --ui streamlit`, or open the
   hosted backend with `agilab app surface pytorch_playground_project --ui hf`.
@@ -270,7 +272,8 @@ what they need:
 
 | Profile | Dependency scope | Use when |
 |---|---|---|
-| Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies but not the built-in app or page-bundle payload. | CLI/core tooling, source-checkout validation, and worker-runtime development. |
+| Base package | Lightweight `agilab` command shell plus Python 3.13 stdlib shims. It does not install the core runtime, UI, apps, pages, notebooks, or model stacks by default. | Version/help checks, package/app management commands, and metadata/reporting helpers that do not execute AGILAB runtime code. |
+| `core` extra | `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster` for compact local/distributed runtime smoke checks. | CLI proof, source-checkout validation, notebook/API runtime, and worker-runtime development without the UI or packaged examples. |
 | `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `notebook` extra | Notebook execution helpers such as `nbclient`, `nbformat`, and `ipykernel`. | Running `agilab run notebook` to execute a local notebook and write AGILAB evidence. |
@@ -426,8 +429,9 @@ tests, `docs/html`, build directories, generated C files,
 
 Current packaging policy is conservative:
 
-- Base `agilab` keeps CLI/core proof dependencies separate from UI, page bundles,
-  examples, agents, MLflow, visualization, local-LLM, offline, and dev profiles.
+- Base `agilab` keeps the command shell separate from core runtime, UI, page
+  bundles, examples, agents, MLflow, visualization, local-LLM, offline, and dev
+  profiles; use `agilab[core]` when CLI proof/runtime smoke checks are needed.
 - Promoted app payloads live in per-app packages such as
   `agi-app-mission-decision`, `agi-app-pandas-execution`,
   `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`,

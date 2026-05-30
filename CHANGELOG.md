@@ -17,7 +17,16 @@ publication, or evidence refreshes on an already published date version.
 
 ## Unreleased
 
-No unreleased changes.
+### Added
+
+- Added a PyTorch Playground teaching route that keeps visual lessons replayable
+  through lesson links, evidence ZIPs, manifests, and generated PyTorch or
+  Lightning code.
+
+### Changed
+
+- Kept the base `agilab` install as a lightweight command shell and moved the
+  core runtime stack behind the `core` extra for leaner package adoption.
 
 ## [2026.05.30] - 2026-05-30
 

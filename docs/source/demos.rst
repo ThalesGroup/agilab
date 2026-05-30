@@ -43,6 +43,10 @@ What each route is for
   when you want the notebook-to-AGILAB story: source notebooks, migrated
   ``lab_stages.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
   the hosted ``weather_forecast_project`` analysis route.
+- **PyTorch Playground**: use :doc:`pytorch-playground` when you want a
+  browser-visible neural-network lesson that goes beyond a classic playground:
+  live play/pause training, replayable lesson configs, PyTorch code handoff,
+  and an evidence ZIP from the same run.
 - **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
   when you want the deeper packaged proof routes: ``mission_decision_project``,
   the ``execution_pandas_project`` Cython worker speedup demo,
@@ -109,6 +113,20 @@ The static scenario contract is available as JSON:
   packaged local pages and ``agi-pages`` analysis views.
   The same route is available in the UI by following ``PROJECT`` ->
   ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_telemetry_project``.
+
+**PyTorch Playground teaching route**
+  Use :doc:`pytorch-playground` when the demo objective is visual ML learning
+  plus reproducible engineering handoff:
+
+  .. code-block:: bash
+
+     agilab app surface pytorch_playground_project --ui streamlit
+
+  Stop when the ``Beyond a classic neural playground`` cards are visible, train
+  ``Instant wow: clean circles``, open the XOR lesson config, and download the
+  evidence ZIP. The useful proof is not the visual boundary alone; it is the
+  replay token, manifest, generated PyTorch/Lightning snippets, and boundary
+  snapshots attached to that lesson.
 
 **SQLite database proof**
   Use the packaged ``sqlite_connector_proof`` preview when the demo objective is
