@@ -2835,6 +2835,9 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
     assert form_module._get_env() is env
     assert form_module._active_app_name(env) == "pytorch_playground_project"
     assert form_module._snippet_apps_path(env) == str(tmp_path / "apps")
+    bad_active_env = SimpleNamespace(app="", active_app=object(), apps_path=tmp_path / "fallback_apps")
+    assert form_module._active_app_name(bad_active_env) == "pytorch_playground_project"
+    assert form_module._snippet_apps_path(bad_active_env) == str(tmp_path / "fallback_apps")
     assert form_module._cluster_settings() == {}
     fake_st.session_state["app_settings"] = {"cluster": "bad"}
     assert form_module._cluster_settings() == {}
@@ -2863,6 +2866,7 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
     assert payload == {}
     assert stages == []
     assert (data_in, data_out, reset_target) == ("in", "out", True)
+    assert form_module._split_run_request_payload({"stages": None})[1] == []
 
     model = form_module.app_args.PytorchPlaygroundArgs(compute_loss_landscape=False)
     values: dict[str, object] = {}
@@ -2889,6 +2893,7 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
     parsed = form_module.persist_current_args(env=env)
     assert isinstance(parsed, form_module.app_args.PytorchPlaygroundArgs)
     assert persisted
+    assert "RunRequest" in form_module._build_synced_run_snippet(parsed, env=env)
 
     original_import = builtins.__import__
 

@@ -4304,6 +4304,56 @@ def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path):
     assert ("error", "Workflow run failed. Inspect Run logs.") in fake_st.messages
 
 
+def test_display_lab_tab_warns_when_pipeline_start_is_blocked(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 1],
+            "demo__run_sequence": [0],
+        },
+        buttons={"demo_run_all": True},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "start_pipeline_run_command",
+        lambda **_kwargs: pipeline_lab._pipeline_page_state_module.PipelineCommandResult(
+            status=pipeline_lab._pipeline_page_state_module.PipelineCommandStatus.FAILED,
+            message="Workflow is already running.",
+        ),
+    )
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "alpha", "M": "m1", "C": "print('a')", "E": ""}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        run_all_stages=lambda *_args, **_kwargs: pytest.fail("blocked start must not run stages"),
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+
+    pipeline_lab.display_lab_tab(
+        tmp_path,
+        "demo",
+        tmp_path / "lab_stages.toml",
+        tmp_path / "flight_telemetry_project",
+        env,
+        deps,
+    )
+
+    assert ("warning", "Workflow is already running.") in fake_st.messages
+    assert ("rerun", "called") in fake_st.messages
+
+
 def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monkeypatch, tmp_path):
     run_calls = []
     legacy_code = (

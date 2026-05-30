@@ -438,6 +438,7 @@ def test_preview_candidate_records_tolerates_directory_walk_races(monkeypatch, t
 
     monkeypatch.setattr(orchestrate_execute.os, "scandir", broken_scandir)
     assert orchestrate_execute._preview_candidate_records([root]) == []
+    assert orchestrate_execute._preview_candidate_records([unsupported]) == []
 
 
 @pytest.mark.parametrize(
@@ -1244,6 +1245,53 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_telemetry_project"
     assert panels["orchestrate_run_logs"]["body"] == "existing log"
     assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"
+    assert ("rerun", "called") in fake_st.messages
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_can_clear_existing_tailed_run_logs(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "run_log_cache": "old line\nnew line",
+            "last_run_log_path": str(tmp_path / "run.log"),
+        },
+        buttons={"orchestrate_run_logs_clear_existing": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_telemetry_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+    )
+    from dataclasses import replace
+
+    deps = replace(
+        _make_execute_deps(fake_st.messages, fake_st.session_state),
+        log_display_max_lines=1,
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_telemetry_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    assert any(kind == "caption" and "older lines omitted" in msg for kind, msg in fake_st.messages)
+    assert fake_st.session_state["run_log_cache"] == ""
+    assert fake_st.session_state["log_text"] == ""
     assert ("rerun", "called") in fake_st.messages
 
 
