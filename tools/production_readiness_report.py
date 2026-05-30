@@ -658,9 +658,16 @@ def _check_shared_team_go_gate(repo_root: Path) -> dict[str, Any]:
         ],
         "tools/workflow_parity.py": [
             "security-adoption",
+            "base supply-chain scan for shared go gate",
+            "tools/profile_supply_chain_scan.py",
             "shared-use go gate artifact",
             "tools/shared_go_gate.py",
+            "test-results/supply-chain",
             "test-results/shared_go_gate.json",
+            "--pip-audit-json",
+            "--sbom-json",
+            "--install-profile",
+            "base",
         ],
         "docs/source/trusted-shared-deployment.rst": [
             "tools/shared_go_gate.py",

@@ -33,24 +33,28 @@ The JSON uses schema `agilab.resource_snapshot.v1` and records CPU, memory,
 disk, GPU backends, and execution recommendations. Attach it to run evidence
 when resource constraints explain scheduler, autoscale, or model choices.
 
-## Skill security scan
+## Skill quality and security scans
 
 Changed repo-managed skills are scanned locally. Run the local check before
 pushing skill changes:
 
 ```bash
+python tools/agent_skill_quality_guard.py --changed-only --fail-on high
 python tools/skill_security_scan.py --changed-only --fail-on critical
 ```
 
 For a full local pass:
 
 ```bash
+python tools/agent_skill_quality_guard.py --roots .claude/skills .codex/skills --fail-on high
 python tools/skill_security_scan.py --roots .claude/skills .codex/skills --fail-on critical
 ```
 
-The scanner is a review aid. It flags literal secrets, private absolute paths,
-powerful tool grants, network access, and environment-variable usage; findings
-should be reviewed in context before changing a skill.
+The quality guard checks portable skill structure, local links, support-file
+reachability, activation size, and optional external `skill-validator` output
+when that CLI is installed. The security scanner flags literal secrets, private
+absolute paths, powerful tool grants, network access, and environment-variable
+usage. Findings should be reviewed in context before changing a skill.
 
 ## Trace an agent run
 
