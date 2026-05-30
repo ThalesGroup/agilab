@@ -24,11 +24,11 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``091f0b7b82c349e6b97113a969b395dd4b3d77fe``
    * - Public guardrails
-     - `repo-guardrails run 26688486026 <https://github.com/ThalesGroup/agilab/actions/runs/26688486026>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 26688978396 <https://github.com/ThalesGroup/agilab/actions/runs/26688978396>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 26688486038 <https://github.com/ThalesGroup/agilab/actions/runs/26688486038>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 26688978394 <https://github.com/ThalesGroup/agilab/actions/runs/26688978394>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 26688486034 <https://github.com/ThalesGroup/agilab/actions/runs/26688486034>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 26688978410 <https://github.com/ThalesGroup/agilab/actions/runs/26688978410>`__ built the public documentation from the managed docs mirror
    * - Coverage
      - `coverage run 26688486033 <https://github.com/ThalesGroup/agilab/actions/runs/26688486033>`__ passed component coverage and badge freshness checks
    * - PyPI publish
