@@ -13,6 +13,7 @@ keywords = [
     "reproducibility",
 ]
 dependencies = [
+    "agi-pages>=2026.05.30,<2027.0",
     "agi-env>=2026.05.12.post3,<2027.0",
     "agi-node>=2026.05.12.post3,<2027.0",
     "agi-gui>=2026.05.12.post3,<2027.0",
@@ -36,6 +37,7 @@ Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.uv.sources]
+agi-pages = { path = "../../lib/agi-pages", editable = true }
 agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }
 agi-node = { path = "../../core/agi-node", editable = true }

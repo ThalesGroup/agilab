@@ -63,7 +63,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import reset_scoped_session_state
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 
 
 def _default_app() -> Path | None:
@@ -175,7 +175,7 @@ def _visible_dataset_files(datadir: Path, files: list[Path]) -> list[Path]:
         visible_files.append(file_path)
     return visible_files
 
-st.title(":world_map: Cartography Visualization")
+render_streamlit_page_header(st, title=":world_map: Cartography Visualization", show_logo=False)
 
 
 def continuous():
