@@ -1455,6 +1455,8 @@ def test_view_release_decision_settings_and_status_edge_helpers(monkeypatch, tmp
     settings_path = app_root / "src" / "app_settings.toml"
     settings_path.write_text("[pages.view_release_decision]\nmetrics_glob='*.json'\n", encoding="utf-8")
     assert module._active_app_root(env) == app_root
+    assert module._active_app_root(SimpleNamespace(active_app=app_root)) == app_root
+    assert module._active_app_root(SimpleNamespace()) is None
     assert module._release_page_settings(env)["metrics_glob"] == "*.json"
 
     original_load = module.load_app_settings
@@ -1469,6 +1471,7 @@ def test_view_release_decision_settings_and_status_edge_helpers(monkeypatch, tmp
     settings_path.write_text('[pages]\n[pages.view_release_decision]\nrequired_patterns="a\\nb"\n', encoding="utf-8")
     assert module._release_page_settings(env)["required_patterns"] == "a\nb"
     assert module._string_list("a\n\n b ") == ["a", "b"]
+    assert module._string_list((" a ", "", 3)) == ["a", "3"]
 
     def broken_load(path):
         if path == settings_path:
@@ -1491,6 +1494,15 @@ def test_view_release_decision_settings_and_status_edge_helpers(monkeypatch, tmp
     )
     assert status == "needs_review"
     assert "No standardized KPI gate" in summary
+
+    artifact_status, artifact_summary = module._decision_status(
+        baseline_path=tmp_path / "baseline.json",
+        candidate_path=tmp_path / "candidate.json",
+        artifact_rows=[{"status": "fail"}],
+        metric_rows=[],
+    )
+    assert artifact_status == "blocked"
+    assert "Required evidence artifacts" in artifact_summary
 
 
 def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(tmp_path) -> None:

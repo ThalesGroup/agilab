@@ -3357,6 +3357,16 @@ def test_view_maps_network_direct_helper_remaining_edges(
     assert module._HEATMAP_NUMBA_KERNEL is None
 
     assert module._position_lookup(pd.DataFrame({"flight_id": [], "long": []})) == ({}, set())
+
+    class _PositionRowsWithoutFlightId:
+        empty = False
+        columns = ["flight_id", "long", "lat"]
+
+        def itertuples(self, index=False):
+            del index
+            yield SimpleNamespace(long=1.0, lat=2.0)
+
+    assert module._position_lookup(_PositionRowsWithoutFlightId()) == ({}, set())
     lookup, node_set = module._position_lookup(
         pd.DataFrame(
             {

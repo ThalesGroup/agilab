@@ -2203,6 +2203,73 @@ def test_notebook_export_and_import_cleanup_edge_helpers(monkeypatch, tmp_path, 
     assert not temp_file.exists()
     assert "Unable to remove notebook import temporary file" in caplog.text
 
+    pipeline_editor._restore_notebook_import_targets({stubborn: None})
+    assert "Unable to restore notebook import target" in caplog.text
+
+    atomic_target = tmp_path / "atomic.txt"
+    atomic_tmp = atomic_target.with_name(f".{atomic_target.name}.tmp.{os.getpid()}")
+
+    def broken_atomic_unlink(self: Path, *args, **kwargs):
+        if self == atomic_tmp:
+            raise OSError("atomic cleanup boom")
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", broken_atomic_unlink)
+    monkeypatch.setattr(
+        pipeline_editor.os,
+        "replace",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("replace boom")),
+    )
+    with pytest.raises(OSError, match="replace boom"):
+        pipeline_editor._atomic_write_text(atomic_target, "payload")
+    assert "Unable to remove temporary notebook export file" in caplog.text
+
+    class RoleSidebar:
+        def __init__(self):
+            self.calls: list[tuple[str, int]] = []
+
+        def expander(self, _label, *, expanded=False):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def caption(self, _message):
+            return None
+
+        def selectbox(self, label, options, *, index, **_kwargs):
+            self.calls.append((label, index))
+            return options[index]
+
+    monkeypatch.setitem(
+        pipeline_editor.NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS,
+        "manager",
+        "Not present",
+    )
+    role_sidebar = RoleSidebar()
+    selected_roles = pipeline_editor._render_notebook_import_runtime_role_controls(
+        role_sidebar,
+        {
+            "source_signature": "sig",
+            "notebook_import": {
+                "pipeline_stages": [
+                    {
+                        "id": "stage-1",
+                        "source_cell_index": 1,
+                        "runtime_role": "manager",
+                        "code": "print('manager')",
+                    }
+                ]
+            },
+        },
+        "idx",
+    )
+    assert role_sidebar.calls[0][1] == 0
+    assert selected_roles == {}
+
     app_root = tmp_path / "apps" / "demo_project"
     app_root.mkdir(parents=True)
     context = support.NotebookExportContext(
