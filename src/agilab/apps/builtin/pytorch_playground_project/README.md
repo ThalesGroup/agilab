@@ -22,6 +22,8 @@ without leaving the AGILAB app model.
   full reproducible artifact.
 - How generated samples, history, grids, network metadata, and manifests become
   a deterministic evidence ZIP.
+- How to reuse the trained experiment outside AGILAB through generated plain
+  PyTorch and PyTorch Lightning scripts.
 - How the UI isolates heavy PyTorch work from Streamlit while keeping typed JSON
   IPC at the subprocess boundary.
 
@@ -70,7 +72,8 @@ dataset from the selected preset, seed, feature set, and training parameters.
 
 The worker writes `playground_config.json`, samples, training history, decision
 grid, boundary snapshots, network layers, hidden activation maps, optional loss landscape,
-`run_summary.json`, `manifest.json`, and `pytorch_playground_evidence.zip`.
+plain PyTorch and PyTorch Lightning reuse scripts, `run_summary.json`,
+`manifest.json`, and `pytorch_playground_evidence.zip`.
 
 ## Change One Thing
 
