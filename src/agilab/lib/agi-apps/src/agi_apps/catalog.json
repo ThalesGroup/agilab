@@ -6,6 +6,7 @@
   {"project": "multi_app_dag_project", "slug": "multi_app_dag", "distribution": "agi-app-multi-app-dag", "package": "agi_app_multi_app_dag"},
   {"project": "weather_forecast_project", "slug": "weather_forecast", "distribution": "agi-app-weather-forecast", "package": "agi_app_weather_forecast"},
   {"project": "sklearn_pipeline_project", "slug": "sklearn_pipeline", "distribution": "agi-app-sklearn-pipeline", "package": "agi_app_sklearn_pipeline"},
+  {"project": "data_quality_gate_project", "slug": "data_quality_gate", "distribution": "agi-app-data-quality-gate", "package": "agi_app_data_quality_gate"},
   {"project": "pytorch_playground_project", "slug": "pytorch_playground", "distribution": "agi-app-pytorch-playground", "package": "agi_app_pytorch_playground"},
   {"project": "tescia_diagnostic_project", "slug": "tescia_diagnostic", "distribution": "agi-app-tescia-diagnostic", "package": "agi_app_tescia_diagnostic"},
   {"project": "uav_queue_project", "slug": "uav_queue", "distribution": "agi-app-uav-queue", "package": "agi_app_uav_queue"},

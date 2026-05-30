@@ -99,6 +99,10 @@ dev = [
     path = "../agi-app-sklearn-pipeline"
     editable = true
 
+[tool.uv.sources.agi-app-data-quality-gate]
+    path = "../agi-app-data-quality-gate"
+    editable = true
+
 [tool.uv.sources.agi-app-pytorch-playground]
     path = "../agi-app-pytorch-playground"
     editable = true

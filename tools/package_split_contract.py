@@ -31,6 +31,7 @@ APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-app-multi-app-dag", "src/agilab/lib/agi-app-multi-app-dag"),
     ("agi-app-weather-forecast", "src/agilab/lib/agi-app-weather-forecast"),
     ("agi-app-sklearn-pipeline", "src/agilab/lib/agi-app-sklearn-pipeline"),
+    ("agi-app-data-quality-gate", "src/agilab/lib/agi-app-data-quality-gate"),
     ("agi-app-pytorch-playground", "src/agilab/lib/agi-app-pytorch-playground"),
     ("agi-app-tescia-diagnostic", "src/agilab/lib/agi-app-tescia-diagnostic"),
     ("agi-app-uav-queue", "src/agilab/lib/agi-app-uav-queue"),

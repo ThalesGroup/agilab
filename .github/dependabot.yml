@@ -159,6 +159,17 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-data-quality-gate"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:50"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
     directory: "/src/agilab/lib/agi-app-tescia-diagnostic"
     schedule:
       interval: "weekly"
