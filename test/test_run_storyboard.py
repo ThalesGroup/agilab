@@ -117,6 +117,8 @@ def test_run_storyboard_strict_fails_on_failed_manifest(tmp_path: Path) -> None:
 
 
 def test_lab_run_routes_storyboard(monkeypatch) -> None:
+    import agilab
+
     lab_run = _load_module(LAB_RUN_PATH, "lab_run_storyboard_route_test_module")
     captured = {}
 
@@ -127,6 +129,7 @@ def test_lab_run_routes_storyboard(monkeypatch) -> None:
             return 0
 
     monkeypatch.setitem(sys.modules, "agilab.run_storyboard", _Storyboard)
+    monkeypatch.setattr(agilab, "run_storyboard", _Storyboard, raising=False)
 
     assert lab_run.main(["story", "run_manifest.json", "--json"]) == 0
     assert captured["argv"] == ["run_manifest.json", "--json"]
