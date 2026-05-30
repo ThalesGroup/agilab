@@ -12,6 +12,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import importlib.util
 import os
 import sys
 import tomllib
@@ -162,6 +163,12 @@ def _run_adoption_report(argv: list[str]) -> int:
     return adoption_report.main(argv)
 
 
+def _run_storyboard(argv: list[str]) -> int:
+    from agilab import run_storyboard
+
+    return run_storyboard.main(argv)
+
+
 def _run_evidence_contract(argv: list[str]) -> int:
     from agilab import evidence_contract
 
@@ -240,6 +247,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_security_check(raw_argv[1:])
     if raw_argv[:1] in (["adoption-report"], ["adoption_report"]):
         return _run_adoption_report(raw_argv[1:])
+    if raw_argv[:1] in (["story"], ["storyboard"], ["run-story"], ["run_story"]):
+        return _run_storyboard(raw_argv[1:])
     if raw_argv[:1] in (
         ["prove"],
         ["verify"],
