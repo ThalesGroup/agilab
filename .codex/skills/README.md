@@ -29,6 +29,7 @@ canonical source can serve both agents.
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
 - `agilab-deep-audit`: Produce evidence-backed AGILAB audit/code-review artifacts with architecture context, blast-radius tracing, and prioritized recommendations.
+- `agilab-evidence-contracts`: Maintain evidence, proof, replay, artifact hash, and verification contracts across AGILAB runs, notebooks, agent traces, releases, and docs.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
@@ -43,6 +44,7 @@ canonical source can serve both agents.
 - `docx-figure-sync`: Replace embedded DOCX figures without disturbing nearby layout and captions.
 - `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_stages.toml` naming/IO-flow clarification.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
+- `agilab-prompt-eval-regression`: Design deterministic regression evaluations for AGILAB prompt, notebook-import, generated-code, local-LLM, and agent-skill behavior.
 - `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
 - `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.
 - `repo-skill-maintenance`: Maintain the shared `.claude/skills` and `.codex/skills` trees safely, with targeted sync and validation.
