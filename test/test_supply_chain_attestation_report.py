@@ -126,22 +126,23 @@ def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_at
     assert {row["name"] for row in state["app_lib_components"]} == {
         "agi-apps",
     }
-    assert [row["app"] for row in state["builtin_app_pyprojects"]] == [
+    expected_apps = [
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "multi_app_dag_project",
-        "weather_forecast_legacy_project",
-        "mission_decision_project",
         "minimal_app_project",
+        "mission_decision_project",
+        "multi_app_dag_project",
         "pytorch_playground_project",
         "r_runtime_bridge_project",
         "sklearn_pipeline_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_legacy_project",
         "weather_forecast_project",
     ]
+    assert [row["app"] for row in state["builtin_app_pyprojects"]] == sorted(expected_apps)
     assert all(row["sha256"] for row in state["root_files"])
     assert state["provenance"]["executes_commands"] is False
     assert state["provenance"]["queries_network"] is False
