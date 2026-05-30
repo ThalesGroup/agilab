@@ -149,9 +149,11 @@ def test_render_page_context_renders_project_cockpit(tmp_path) -> None:
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
     markdown = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
-    assert "Project cockpit" in markdown
+    assert "Project status" in markdown
     assert "flight_telemetry_project" in markdown
-    assert "run_manifest.json" in markdown
+    assert "manifest: run_manifest.json" in markdown
+    assert "Page</div>" not in markdown
+    assert "Artifacts</div>" not in markdown
     assert "agilab-header-card" in markdown
     assert (
         "link_button",
