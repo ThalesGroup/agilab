@@ -284,6 +284,141 @@ def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch)
     assert captured == [["list", "--json"]]
 
 
+def test_main_dispatches_app_surface_without_pypi_management(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_app_surface(argv: list[str]) -> int:
+        captured.append(argv)
+        return 49
+
+    monkeypatch.setattr(lab_run, "_run_app_surface", fake_app_surface)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["app", "surface", "demo_project", "--ui", "hf", "--no-browser"])
+
+    assert rc == 49
+    assert captured == [["demo_project", "--ui", "hf", "--no-browser"]]
+
+
+def test_app_surface_local_launcher_uses_declared_streamlit_surface(monkeypatch, tmp_path: Path):
+    project_root = tmp_path / "demo_project"
+    script_path = project_root / "src" / "demo" / "app_surface.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
+    (project_root / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[app_surface]",
+                'title = "Demo"',
+                'entrypoint = "demo/app_surface.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    captured: list[list[str]] = []
+
+    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
+    monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
+
+    rc = lab_run._run_app_surface(
+        ["demo_project", "--host", "127.0.0.1", "--port", "8765", "--no-browser", "--", "--flag"],
+        runner=lambda command: captured.append(command) or 53,
+    )
+
+    assert rc == 53
+    assert captured == [[
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        str(project_root),
+        "streamlit",
+        "run",
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        "8765",
+        "--server.headless",
+        "true",
+        str(script_path),
+        "--",
+        "--active-app",
+        str(project_root),
+        "--flag",
+    ]]
+
+
+def test_app_surface_hf_launcher_uses_declared_url(monkeypatch, tmp_path: Path, capsys):
+    project_root = tmp_path / "demo_project"
+    (project_root / "src").mkdir(parents=True)
+    (project_root / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[app_surface]",
+                'default = "hf"',
+                "",
+                "[app_surface.backends.hf]",
+                'backend = "hf"',
+                'title = "Demo HF"',
+                'url = "https://demo.hf.space/?active_app=demo_project"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    opened: list[str] = []
+
+    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
+    monkeypatch.setattr(lab_run.webbrowser, "open", lambda url: opened.append(url) or True)
+
+    rc = lab_run._run_app_surface(["demo_project", "--ui", "hf", "--no-browser"])
+
+    assert rc == 0
+    assert opened == []
+    assert capsys.readouterr().out.strip() == (
+        "https://demo.hf.space/?active_app=demo_project"
+    )
+
+
+def test_app_surface_hf_launcher_allows_space_override(monkeypatch, tmp_path: Path, capsys):
+    project_root = tmp_path / "demo_project"
+    (project_root / "src").mkdir(parents=True)
+    (project_root / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[app_surface]",
+                'default = "hf"',
+                "",
+                "[app_surface.backends.hf]",
+                'backend = "hf"',
+                'title = "Demo HF"',
+                'url = "https://declared.hf.space/?active_app=demo_project"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
+    monkeypatch.setattr(lab_run.webbrowser, "open", lambda _url: True)
+
+    rc = lab_run._run_app_surface(
+        ["demo_project", "--ui", "hf", "--hf-space", "Owner/Other_Space", "--no-browser"]
+    )
+
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == (
+        "https://owner-other-space.hf.space/?active_app=demo_project"
+    )
+
+
 def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []

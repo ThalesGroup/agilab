@@ -20,6 +20,41 @@ Use the built-in ``pytorch_playground_project`` app or launch it directly with
 app-agnostic analysis page. The loss-landscape projection belongs to that app,
 not to a separate ``view_loss_landscape`` package.
 
+App-owned multi-UI surfaces
+---------------------------
+
+Page bundles stay app-agnostic. When an app needs an interactive UI that owns
+training, controls, live loops, or evidence refresh, declare an app-owned
+surface instead. The default Streamlit surface remains compatible with the
+ANALYSIS and ORCHESTRATE pages, while additional named backends can point to a
+hosted demo or future UI adapters.
+
+.. code-block:: toml
+
+   [app_surface]
+   title = "PyTorch Playground"
+   entrypoint = "pytorch_playground/app_surface.py"
+   default = "streamlit"
+
+   [app_surface.backends.streamlit]
+   backend = "streamlit"
+   entrypoint = "pytorch_playground/app_surface.py"
+   capabilities = ["local", "live-training", "play-pause"]
+
+   [app_surface.backends.hf]
+   backend = "hf"
+   url = "https://jpmorard-agilab.hf.space/?active_app=pytorch_playground_project"
+   capabilities = ["hosted-demo", "live-training"]
+
+The generic launcher is::
+
+   agilab app surface pytorch_playground_project --ui streamlit
+   agilab app surface pytorch_playground_project --ui hf
+
+The rule is strict: the app runtime, artifacts, and evidence contracts stay in
+the app package. UI surfaces are thin adapters, so a project can move from
+Streamlit to another frontend without losing its work.
+
 What is a page bundle?
 ----------------------
 
@@ -309,10 +344,10 @@ Live evidence monitor for app-agnostic exported artifacts.
 view_app_ui
 ^^^^^^^^^^^
 
-Generic bridge for app-owned interactive Streamlit UIs.
+Generic bridge for the default app-owned Streamlit UI.
 
-- Input: an active app with ``[pages.view_app_ui].entrypoint`` configured in
-  ``app_settings.toml``.
+- Input: an active app with ``[app_surface]`` or legacy
+  ``[pages.view_app_ui].entrypoint`` configured in ``app_settings.toml``.
 - Output: the app-owned UI rendered inside ANALYSIS while the app keeps
   control of training, execution semantics, and evidence artifacts.
 

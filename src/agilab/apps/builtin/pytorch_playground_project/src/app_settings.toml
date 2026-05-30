@@ -44,3 +44,17 @@ view_module = []
 [app_surface]
 title = "PyTorch Playground"
 entrypoint = "pytorch_playground/app_surface.py"
+default = "streamlit"
+
+[app_surface.backends.streamlit]
+title = "PyTorch Playground"
+backend = "streamlit"
+entrypoint = "pytorch_playground/app_surface.py"
+default = true
+capabilities = ["local", "live-training", "play-pause", "evidence-refresh"]
+
+[app_surface.backends.hf]
+title = "PyTorch Playground on Hugging Face"
+backend = "hf"
+url = "https://jpmorard-agilab.hf.space/?active_app=pytorch_playground_project"
+capabilities = ["hosted-demo", "live-training", "play-pause"]
