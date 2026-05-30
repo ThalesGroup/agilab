@@ -31,8 +31,8 @@ def test_revision_traceability_report_passes_public_contract(tmp_path: Path) -> 
     assert report["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert report["summary"]["execution_mode"] == "revision_traceability_static"
     assert report["summary"]["core_component_count"] == 5
-    assert report["summary"]["builtin_app_count"] == 14
-    assert report["summary"]["app_fingerprint_count"] == 14
+    assert report["summary"]["builtin_app_count"] == 15
+    assert report["summary"]["app_fingerprint_count"] == 15
     assert report["summary"]["command_execution_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert {check["id"] for check in report["checks"]} == {
@@ -53,6 +53,7 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
 
     assert state["run_status"] == "validated"
     expected_apps = [
+        "data_quality_gate_project",
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",

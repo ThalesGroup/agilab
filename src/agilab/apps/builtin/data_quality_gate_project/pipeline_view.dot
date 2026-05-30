@@ -1,0 +1,13 @@
+digraph data_quality_gate_project {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+
+  build_candidate_data [label="Build baseline + candidate"];
+  validate_contract [label="Validate contract"];
+  measure_drift [label="Measure drift"];
+  write_gate_decision [label="Write gate decision"];
+
+  build_candidate_data -> validate_contract;
+  validate_contract -> measure_drift;
+  measure_drift -> write_gate_decision;
+}

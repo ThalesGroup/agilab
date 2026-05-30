@@ -23,13 +23,13 @@ Audit notes:
 | agi-node | 2026.5.30 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
-| backports-zstd | 1.3.0 | PSF-2.0 |
+| backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | cffi | 2.0.0 | MIT |
-| click | 8.3.3 | BSD-3-CLAUSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | dask | 2026.3.0 | BSD-3-CLAUSE |
 | distributed | 2026.3.0 | BSD-3-CLAUSE |
 | fsspec | 2026.2.0 | BSD-3-CLAUSE |
@@ -44,11 +44,11 @@ Audit notes:
 | numpy | 2.3.5 | BSD LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
-| parso | 0.8.6 | MIT LICENSE |
+| parso | 0.8.7 | MIT LICENSE |
 | partd | 1.4.2 | BSD |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.2 | MIT LICENSE |
+| polars-runtime-32 | 1.41.2 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -69,9 +69,9 @@ Audit notes:
 | tblib | 3.2.2 | BSD-2-CLAUSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | threadpoolctl | 3.6.0 | BSD LICENSE |
-| tomlkit | 0.14.0 | MIT LICENSE |
+| tomlkit | 0.15.0 | MIT LICENSE |
 | toolz | 1.1.0 | BSD-3-CLAUSE |
-| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
+| tornado | 6.5.6 | APACHE SOFTWARE LICENSE |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |
 | urllib3 | 2.7.0 | MIT |

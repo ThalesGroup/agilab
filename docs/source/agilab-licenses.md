@@ -18,24 +18,24 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | accelerate | 0.34.2 | APACHE SOFTWARE LICENSE |
-| agi-app-flight-telemetry | 2026.5.30 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.30 | BSD-3-Clause |
-| agi-app-multi-app-dag | 2026.5.30 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-pytorch-playground | 2026.5.30 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.23 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.23 | BSD-3-Clause |
+| agi-app-multi-app-dag | UNKNOWN | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
+| agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
 | agi-app-sklearn-pipeline | 2026.5.30 | BSD-3-Clause |
-| agi-app-tescia-diagnostic | 2026.5.30 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.30 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.30 | BSD-3-Clause |
-| agi-apps | 2026.5.30 | BSD-3-Clause |
+| agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
+| agi-apps | 2026.5.23 | BSD-3-Clause |
 | agi-cluster | 2026.5.30 | BSD-3-Clause |
 | agi-core | 2026.5.30 | BSD-3-Clause |
 | agi-env | 2026.5.30 | BSD-3-Clause |
-| agi-gui | 2026.5.30 | BSD-3-Clause |
+| agi-gui | 2026.5.23 | BSD-3-Clause |
 | agi-node | 2026.5.30 | BSD-3-Clause |
-| agi-pages | 2026.5.30 | BSD-3-Clause |
-| aiohappyeyeballs | 2.6.1 | PYTHON SOFTWARE FOUNDATION LICENSE |
+| agi-pages | 2026.5.23 | BSD-3-Clause |
+| aiohappyeyeballs | 2.6.2 | PYTHON SOFTWARE FOUNDATION LICENSE |
 | aiohttp | 3.13.5 | APACHE-2.0;; MIT |
 | aiosignal | 1.4.0 | APACHE SOFTWARE LICENSE |
 | alembic | 1.18.4 | MIT |
@@ -52,86 +52,86 @@ Audit notes:
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | 23.2.0 | MIT LICENSE |
 | babel | 2.18.0 | BSD LICENSE |
-| backports-zstd | 1.3.0 | PSF-2.0 |
+| backports-zstd | 1.5.0 | PSF-2.0 |
 | beautifulsoup4 | 4.14.3 | MIT LICENSE |
 | bleach | 6.3.0 | APACHE SOFTWARE LICENSE |
 | blinker | 1.9.0 | MIT LICENSE |
 | boolean-py | 5.0 | BSD-2-CLAUSE |
 | brotli | 1.2.0 | MIT |
-| build | 1.4.4 | MIT |
+| build | 1.5.0 | MIT |
 | cachecontrol | 0.14.4 | APACHE-2.0 |
-| cachetools | 7.0.6 | MIT |
-| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.1.4 | MIT |
+| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | 2.0.0 | MIT |
 | chardet | 5.2.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | charset-normalizer | 3.4.7 | MIT |
 | chz | 0.4.0 | MIT LICENSE |
-| click | 8.3.3 | BSD-3-CLAUSE |
+| click | 8.4.1 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | comm | 0.2.3 | BSD LICENSE |
 | contourpy | 1.3.3 | BSD LICENSE |
-| coverage | 7.13.5 | APACHE-2.0 |
+| coverage | 7.14.1 | APACHE-2.0 |
 | cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
 | cycler | 0.12.1 | BSD LICENSE |
 | cyclonedx-bom | 7.3.0 | APACHE SOFTWARE LICENSE |
 | cyclonedx-python-lib | 11.7.0 | APACHE SOFTWARE LICENSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| cython | 3.2.5 | APACHE-2.0 |
 | dask | 2026.3.0 | BSD-3-CLAUSE |
-| databricks-sdk | 0.105.0 | APACHE SOFTWARE LICENSE |
+| databricks-sdk | 0.112.0 | APACHE SOFTWARE LICENSE |
 | datasets | 4.8.5 | APACHE SOFTWARE LICENSE |
 | debugpy | 1.8.20 | MIT LICENSE |
-| decorator | 5.2.1 | BSD LICENSE |
+| decorator | 5.3.1 | BSD-2-CLAUSE |
 | defusedxml | 0.7.1 | PYTHON SOFTWARE FOUNDATION LICENSE |
 | dill | 0.4.1 | BSD LICENSE |
 | distributed | 2026.3.0 | BSD-3-CLAUSE |
 | distro | 1.9.0 | APACHE SOFTWARE LICENSE |
 | docker | 7.1.0 | APACHE SOFTWARE LICENSE |
-| docutils | 0.22.4 | BSD LICENSE;; GNU GENERAL PUBLIC LICENSE _GPL_;; PUBLIC DOMAIN |
+| docutils | 0.23 | BSD LICENSE;; GNU GENERAL PUBLIC LICENSE _GPL_;; PUBLIC DOMAIN |
 | duckdb | 1.5.3 | MIT LICENSE |
 | executing | 2.2.1 | MIT LICENSE |
-| faiss-cpu | 1.13.2 | MIT |
+| faiss-cpu | 1.14.2 | MIT |
 | fastapi | 0.136.1 | MIT |
 | fastjsonschema | 2.21.2 | BSD LICENSE |
-| filelock | 3.29.0 | MIT LICENSE |
+| filelock | 3.29.0 | MIT |
 | flask | 3.1.3 | BSD-3-CLAUSE |
 | flask-cors | 6.0.2 | MIT |
-| fonttools | 4.62.1 | MIT |
+| fonttools | 4.63.0 | MIT |
 | fqdn | 1.5.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | frozenlist | 1.8.0 | APACHE-2.0 |
 | fsspec | 2026.2.0 | BSD-3-CLAUSE |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
-| google-auth | 2.49.2 | APACHE SOFTWARE LICENSE |
+| google-auth | 2.53.0 | APACHE SOFTWARE LICENSE |
 | gpt-oss | 0.0.9 | UNKNOWN |
 | graphene | 3.4.3 | MIT |
 | graphql-core | 3.2.8 | MIT LICENSE |
 | graphql-relay | 3.2.0 | MIT LICENSE |
 | gunicorn | 25.3.0 | MIT |
 | h11 | 0.16.0 | MIT LICENSE |
-| hf-xet | 1.4.3 | APACHE SOFTWARE LICENSE |
+| hf-xet | 1.5.0 | APACHE SOFTWARE LICENSE |
 | html2text | 2025.4.15 | GPL-3.0-OR-LATER |
-| httpcore | 1.0.9 | BSD LICENSE |
+| httpcore | 1.0.9 | BSD-3-CLAUSE |
 | httpx | 0.28.1 | BSD LICENSE |
 | httpx-sse | 0.4.3 | MIT |
 | huey | 2.6.0 | MIT |
-| huggingface-hub | 1.12.2 | APACHE SOFTWARE LICENSE |
+| huggingface-hub | 1.17.0 | APACHE SOFTWARE LICENSE |
 | humanize | 4.15.0 | MIT |
 | id | 1.6.1 | APACHE SOFTWARE LICENSE |
-| idna | 3.16 | BSD-3-CLAUSE |
-| importlib-metadata | 8.7.1 | APACHE-2.0 |
+| idna | 3.17 | BSD-3-CLAUSE |
+| importlib-metadata | 8.9.0 | APACHE-2.0 |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | iniconfig | 2.3.0 | MIT |
 | ipykernel | 6.31.0 | BSD-3-CLAUSE |
-| ipython | 9.13.0 | BSD-3-CLAUSE |
+| ipython | 9.14.0 | BSD-3-CLAUSE |
 | ipython-pygments-lexers | 1.1.1 | BSD LICENSE |
 | isoduration | 20.11.0 | ISC LICENSE _ISCL_ |
 | itsdangerous | 2.2.0 | BSD LICENSE |
 | jaraco-classes | 3.4.0 | MIT LICENSE |
 | jaraco-context | 6.1.2 | MIT |
-| jaraco-functools | 4.4.0 | MIT |
-| jedi | 0.19.2 | MIT LICENSE |
+| jaraco-functools | 4.5.0 | MIT |
+| jedi | 0.20.0 | MIT LICENSE |
 | jinja2 | 3.1.6 | BSD LICENSE |
-| jiter | 0.14.0 | MIT |
+| jiter | 0.15.0 | MIT |
 | joblib | 1.5.3 | BSD-3-CLAUSE |
 | json5 | 0.14.0 | APACHE SOFTWARE LICENSE |
 | jsonpatch | 1.33 | BSD LICENSE |
@@ -142,36 +142,36 @@ Audit notes:
 | jupyter-core | 5.9.1 | BSD-3-CLAUSE |
 | jupyter-events | 0.12.1 | BSD LICENSE |
 | jupyter-lsp | 2.3.1 | BSD LICENSE |
-| jupyter-server | 2.18.2 | BSD LICENSE |
+| jupyter-server | 2.19.0 | BSD LICENSE |
 | jupyter-server-terminals | 0.5.4 | BSD LICENSE |
 | jupyterlab | 4.5.7 | BSD LICENSE |
 | jupyterlab-pygments | 0.3.0 | BSD LICENSE |
 | jupyterlab-server | 2.28.0 | BSD LICENSE |
 | keyring | 25.7.0 | MIT |
 | kiwisolver | 1.5.0 | BSD LICENSE |
-| langchain | 1.2.16 | MIT LICENSE |
-| langchain-classic | 1.0.4 | MIT LICENSE |
-| langchain-community | 0.4.1 | MIT |
+| langchain | 1.3.2 | MIT LICENSE |
+| langchain-classic | 1.0.7 | MIT LICENSE |
+| langchain-community | 0.4.2 | MIT |
 | langchain-core | 1.4.0 | MIT LICENSE |
-| langchain-protocol | 0.0.14 | MIT LICENSE |
+| langchain-protocol | 0.0.16 | MIT LICENSE |
 | langchain-text-splitters | 1.1.2 | MIT LICENSE |
 | langchainhub | 0.1.18 | MIT LICENSE |
-| langgraph | 1.1.10 | MIT |
-| langgraph-checkpoint | 4.0.3 | MIT |
-| langgraph-prebuilt | 1.0.12 | MIT |
-| langgraph-sdk | 0.3.13 | MIT |
-| langsmith | 0.8.5 | MIT |
+| langgraph | 1.2.2 | MIT |
+| langgraph-checkpoint | 4.1.1 | MIT |
+| langgraph-prebuilt | 1.1.0 | MIT |
+| langgraph-sdk | 0.3.15 | MIT |
+| langsmith | 0.8.7 | MIT |
 | lark | 1.3.1 | MIT LICENSE |
 | legacy-cgi | 2.6.4 | PSF-2.0 |
 | license-expression | 30.4.4 | APACHE-2.0 |
 | llguidance | 1.7.5 | MIT |
 | locket | 1.0.0 | BSD LICENSE |
-| lxml | 6.1.0 | BSD-3-CLAUSE |
+| lxml | 6.1.1 | BSD-3-CLAUSE |
 | mako | 1.3.12 | MIT LICENSE |
-| markdown-it-py | 4.0.0 | MIT LICENSE |
+| markdown-it-py | 4.2.0 | MIT LICENSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
 | matplotlib | 3.10.0 | PYTHON SOFTWARE FOUNDATION LICENSE |
-| matplotlib-inline | 0.2.1 | BSD-3-CLAUSE |
+| matplotlib-inline | 0.2.2 | BSD-3-CLAUSE |
 | mdurl | 0.1.2 | MIT LICENSE |
 | miniaudio | 1.71 | MIT LICENSE |
 | mistune | 3.2.1 | BSD LICENSE |
@@ -183,13 +183,13 @@ Audit notes:
 | mlx-lm | 0.31.3 | MIT |
 | mlx-metal | 0.31.2 | MIT |
 | mlx-vlm | 0.5.0 | MIT LICENSE |
-| more-itertools | 11.0.2 | MIT |
+| more-itertools | 11.1.0 | MIT |
 | mpmath | 1.3.0 | BSD LICENSE |
 | msgpack | 1.1.2 | APACHE-2.0 |
 | multidict | 6.7.1 | APACHE LICENSE 2.0 |
 | multiprocess | 0.70.19 | BSD LICENSE |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| narwhals | 2.20.0 | MIT LICENSE |
+| narwhals | 2.21.2 | MIT LICENSE |
 | nbclient | 0.10.4 | BSD LICENSE |
 | nbconvert | 7.17.1 | BSD LICENSE |
 | nbformat | 5.10.4 | BSD LICENSE |
@@ -198,37 +198,37 @@ Audit notes:
 | nh3 | 0.3.5 | MIT |
 | notebook-shim | 0.2.4 | BSD LICENSE |
 | numpy | 2.3.5 | BSD LICENSE |
-| openai | 2.33.0 | APACHE SOFTWARE LICENSE |
+| openai | 2.38.0 | APACHE SOFTWARE LICENSE |
 | openai-harmony | 0.0.8 | UNKNOWN |
 | opencv-python | 4.13.0.92 | APACHE SOFTWARE LICENSE |
-| opentelemetry-api | 1.41.1 | APACHE-2.0 |
-| opentelemetry-proto | 1.41.1 | APACHE-2.0 |
-| opentelemetry-sdk | 1.41.1 | APACHE-2.0 |
-| opentelemetry-semantic-conventions | 0.62b1 | APACHE-2.0 |
-| orjson | 3.11.8 | APACHE SOFTWARE LICENSE;; MIT LICENSE;; MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| ormsgpack | 1.12.2 | APACHE SOFTWARE LICENSE;; MIT LICENSE |
+| opentelemetry-api | 1.42.1 | APACHE-2.0 |
+| opentelemetry-proto | 1.42.1 | APACHE-2.0 |
+| opentelemetry-sdk | 1.42.1 | APACHE-2.0 |
+| opentelemetry-semantic-conventions | 0.63b1 | APACHE-2.0 |
+| orjson | 3.11.9 | MIT_;; MPL-2.0;; _APACHE-2.0 |
+| ormsgpack | 1.12.2 | APACHE-2.0;; MIT |
 | packageurl-python | 0.17.6 | MIT LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
 | pandocfilters | 1.5.1 | BSD LICENSE |
-| parso | 0.8.6 | MIT LICENSE |
+| parso | 0.8.7 | MIT LICENSE |
 | partd | 1.4.2 | BSD |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | 4.9.0 | ISC LICENSE _ISCL_ |
 | pillow | 12.2.0 | MIT-CMU |
-| pip | 26.1 | MIT |
+| pip | 26.1.1 | MIT |
 | pip-api | 0.0.34 | APACHE SOFTWARE LICENSE |
 | pip-audit | 2.10.0 | APACHE SOFTWARE LICENSE |
 | pip-requirements-parser | 32.0.1 | MIT |
-| platformdirs | 4.9.6 | MIT LICENSE |
-| plotly | 6.7.0 | MIT LICENSE |
+| platformdirs | 4.10.0 | MIT LICENSE |
+| plotly | 6.7.0 | MIT |
 | pluggy | 1.6.0 | MIT LICENSE |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.41.2 | MIT LICENSE |
+| polars-runtime-32 | 1.41.2 | MIT LICENSE |
 | prettytable | 3.17.0 | BSD-3-CLAUSE |
 | prometheus-client | 0.25.0 | APACHE-2.0;; BSD-2-CLAUSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
-| propcache | 0.4.1 | APACHE SOFTWARE LICENSE |
+| propcache | 0.5.2 | APACHE SOFTWARE LICENSE |
 | protobuf | 6.33.6 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
@@ -243,41 +243,41 @@ Audit notes:
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | 2.12.5 | MIT |
 | pydantic-core | 2.41.5 | MIT |
-| pydantic-settings | 2.14.0 | MIT LICENSE |
+| pydantic-settings | 2.14.1 | MIT |
 | pydeck | 0.9.2 | APACHE LICENSE 2.0 |
 | pyfiglet | 1.0.4 | MIT LICENSE |
 | pygments | 2.20.0 | BSD-2-CLAUSE |
 | pyparsing | 3.3.2 | MIT |
-| pypdf | 6.10.2 | BSD-3-CLAUSE |
+| pypdf | 6.12.2 | BSD-3-CLAUSE |
 | pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | pyproject-hooks | 1.2.0 | MIT LICENSE |
 | pytest | 9.0.3 | MIT |
-| pytest-asyncio | 1.3.0 | APACHE-2.0 |
+| pytest-asyncio | 1.4.0 | APACHE-2.0 |
 | pytest-cov | 7.1.0 | MIT LICENSE |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | python-json-logger | 4.1.0 | BSD-2-CLAUSE |
-| pytz | 2026.1.post1 | MIT LICENSE |
+| pytz | 2026.2 | MIT LICENSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
 | pyzmq | 27.1.0 | BSD LICENSE |
 | pyzstd | 0.19.1 | BSD LICENSE |
 | readme-renderer | 44.0 | APACHE SOFTWARE LICENSE |
 | referencing | 0.37.0 | MIT |
-| regex | 2026.4.4 | APACHE-2.0;; CNRI-PYTHON |
-| requests | 2.33.1 | APACHE SOFTWARE LICENSE |
+| regex | 2026.5.9 | APACHE-2.0;; CNRI-PYTHON |
+| requests | 2.34.2 | APACHE SOFTWARE LICENSE |
 | requests-toolbelt | 1.0.0 | APACHE SOFTWARE LICENSE |
 | rfc3339-validator | 0.1.4 | MIT LICENSE |
 | rfc3986 | 2.0.0 | APACHE SOFTWARE LICENSE |
 | rfc3986-validator | 0.1.1 | MIT LICENSE |
-| rfc3987-syntax | 1.1.0 | APACHE SOFTWARE LICENSE |
+| rfc3987-syntax | 1.1.0 | MIT |
 | rich | 15.0.0 | MIT LICENSE |
-| rpds-py | 0.30.0 | MIT |
-| ruff | 0.15.14 | MIT |
+| rpds-py | 2026.5.1 | MIT |
+| ruff | 0.15.15 | MIT |
 | safetensors | 0.7.0 | APACHE SOFTWARE LICENSE |
 | scikit-learn | 1.8.0 | BSD-3-CLAUSE |
 | scipy | 1.16.3 | BSD LICENSE |
 | send2trash | 2.1.0 | BSD-3-CLAUSE |
-| sentence-transformers | 5.4.1 | APACHE SOFTWARE LICENSE |
+| sentence-transformers | 5.5.1 | APACHE SOFTWARE LICENSE |
 | sentencepiece | 0.2.1 | UNKNOWN |
 | setuptools | 81.0.0 | MIT |
 | shellingham | 1.5.4 | ISC LICENSE _ISCL_ |
@@ -287,15 +287,15 @@ Audit notes:
 | sniffio | 1.3.1 | APACHE SOFTWARE LICENSE;; MIT LICENSE |
 | sortedcontainers | 2.4.0 | APACHE SOFTWARE LICENSE |
 | sounddevice | 0.5.5 | MIT |
-| soupsieve | 2.8.3 | MIT LICENSE |
-| sqlalchemy | 2.0.49 | MIT |
+| soupsieve | 2.8.4 | MIT |
+| sqlalchemy | 2.0.50 | MIT |
 | sqlparse | 0.5.5 | BSD LICENSE |
 | stack-data | 0.6.3 | MIT LICENSE |
 | standard-imghdr | 3.13.0 | PYTHON SOFTWARE FOUNDATION LICENSE |
-| starlette | 1.0.1 | BSD-3-CLAUSE |
+| starlette | 1.2.0 | BSD-3-CLAUSE |
 | streamlit | 1.56.0 | APACHE-2.0 |
 | streamlit-code-editor | 0.1.22 | UNKNOWN |
-| structlog | 25.5.0 | APACHE SOFTWARE LICENSE;; MIT LICENSE |
+| structlog | 25.5.0 | APACHE-2.0;; MIT |
 | sympy | 1.14.0 | BSD LICENSE |
 | tblib | 3.2.2 | BSD-2-CLAUSE |
 | tenacity | 9.1.4 | APACHE SOFTWARE LICENSE |
@@ -303,32 +303,32 @@ Audit notes:
 | terminado | 0.18.1 | BSD LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | threadpoolctl | 3.6.0 | BSD LICENSE |
-| tiktoken | 0.12.0 | MIT LICENSE |
+| tiktoken | 0.13.0 | MIT LICENSE |
 | tinycss2 | 1.4.0 | BSD LICENSE |
 | tokenizers | 0.22.2 | APACHE SOFTWARE LICENSE |
 | toml | 0.10.2 | MIT LICENSE |
 | tomli | 2.4.1 | MIT |
 | tomli-w | 1.2.0 | MIT LICENSE |
-| tomlkit | 0.14.0 | MIT LICENSE |
+| tomlkit | 0.15.0 | MIT LICENSE |
 | toolz | 1.1.0 | BSD-3-CLAUSE |
-| torch | 2.11.0 | BSD-3-CLAUSE |
-| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
+| torch | 2.12.0 | BSD-3-CLAUSE |
+| tornado | 6.5.6 | APACHE SOFTWARE LICENSE |
 | tqdm | 4.67.3 | MIT;; MPL-2.0 |
-| traitlets | 5.14.3 | BSD LICENSE |
-| transformers | 5.7.0 | APACHE 2.0 LICENSE |
+| traitlets | 5.15.0 | BSD LICENSE |
+| transformers | 5.9.0 | APACHE 2.0 LICENSE |
 | twine | 6.2.0 | APACHE-2.0 |
-| typer | 0.25.0 | MIT |
-| types-requests | 2.33.0.20260408 | APACHE-2.0 |
+| typer | 0.25.1 | MIT |
+| types-requests | 2.33.0.20260518 | APACHE-2.0 |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |
 | tzdata | 2026.2 | APACHE-2.0 |
 | universal-offline-ai-chatbot | 0.1.0 | MIT LICENSE |
 | uri-template | 1.3.0 | MIT LICENSE |
 | urllib3 | 2.7.0 | MIT |
-| uuid-utils | 0.14.1 | BSD-3-CLAUSE |
-| uvicorn | 0.46.0 | BSD-3-CLAUSE |
+| uuid-utils | 0.16.0 | BSD-3-CLAUSE |
+| uvicorn | 0.48.0 | BSD-3-CLAUSE |
 | watchdog | 6.0.0 | APACHE SOFTWARE LICENSE |
-| wcwidth | 0.6.0 | MIT |
+| wcwidth | 0.7.0 | MIT |
 | webcolors | 25.10.0 | BSD LICENSE |
 | webencodings | 0.5.1 | BSD LICENSE |
 | websocket-client | 1.9.0 | APACHE SOFTWARE LICENSE |
@@ -336,7 +336,7 @@ Audit notes:
 | werkzeug | 3.1.8 | BSD-3-CLAUSE |
 | wheel | 0.47.0 | MIT |
 | xxhash | 3.7.0 | BSD LICENSE |
-| yarl | 1.23.0 | APACHE-2.0 |
+| yarl | 1.24.2 | APACHE-2.0 |
 | zict | 3.0.0 | BSD LICENSE |
-| zipp | 3.23.1 | MIT |
+| zipp | 4.1.0 | MIT |
 | zstandard | 0.25.0 | BSD-3-CLAUSE |

@@ -52,6 +52,12 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
         "package": "agi_app_sklearn_pipeline",
     },
     {
+        "project": "data_quality_gate_project",
+        "slug": "data_quality_gate",
+        "distribution": "agi-app-data-quality-gate",
+        "package": "agi_app_data_quality_gate",
+    },
+    {
         "project": "pytorch_playground_project",
         "slug": "pytorch_playground",
         "distribution": "agi-app-pytorch-playground",
