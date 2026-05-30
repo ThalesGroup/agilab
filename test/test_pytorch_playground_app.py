@@ -3152,6 +3152,24 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
     same_module_args = SameModuleArgs()
     assert worker_module._args_with_defaults(same_module_args) is same_module_args
 
+    def _replacement_args_init(self, **kwargs):
+        self.sample_count = kwargs.get("sample_count", 0)
+
+    ReplacementArgs = type(
+        "PytorchPlaygroundArgs",
+        (),
+        {
+            "__module__": args_module.__name__,
+            "__init__": _replacement_args_init,
+        },
+    )
+    with monkeypatch.context() as module_patch:
+        module_patch.setattr(args_module, "PytorchPlaygroundArgs", ReplacementArgs)
+        replacement_args = worker_module._args_with_defaults({"sample_count": 168})
+        assert isinstance(replacement_args, ReplacementArgs)
+        assert replacement_args.sample_count == 168
+        assert worker_module._args_with_defaults(replacement_args) is replacement_args
+
     class ArgsObject:
         def __init__(self):
             self.sample_count = 160
