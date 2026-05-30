@@ -231,6 +231,22 @@ def build_report(
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
+            "first_launch_showcase_signal",
+            "First launch exposes flagship showcase",
+            all(
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in (
+                    "Explore more proof routes",
+                    "Weather notebook migration",
+                    "Mission decision",
+                    "PyTorch playground",
+                    "MLflow tracking",
+                )
+            ),
+            "Landing page exposes the broader AGILAB app and proof-route showcase",
+            evidence=[str(about_page.relative_to(REPO_ROOT))],
+        ),
+        _check_result(
             "first_launch_workflow_signal",
             "First launch exposes workflow path",
             _contains_any(

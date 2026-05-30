@@ -49,6 +49,138 @@ FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
 FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
+SHOWCASE_DOC_BASE_URL = "https://thalesgroup.github.io/agilab"
+FIRST_RUN_SHOWCASE_VISIBLE_LIMIT = 5
+FIRST_RUN_SHOWCASE_ITEMS = (
+    {
+        "route": "Flight telemetry first proof",
+        "evidence": "run manifest plus map and network evidence",
+        "preview_page": "flight-telemetry-project",
+        "run_page": "ORCHESTRATE",
+        "active_app": "flight_telemetry_project",
+        "run_label": "Run proof",
+    },
+    {
+        "route": "Weather notebook migration",
+        "evidence": "forecast artifacts from a migrated notebook workflow",
+        "preview_page": "notebook-migration-skforecast-meteo",
+        "run_page": "ORCHESTRATE",
+        "active_app": "weather_forecast_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Classic ML pipeline",
+        "evidence": "scikit-learn model, predictions, metrics, and hashes",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "sklearn_pipeline_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Mission decision",
+        "evidence": "scenario scoring, replanning, and decision artifacts",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "mission_decision_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Pandas execution speedup",
+        "evidence": "typed Cython worker runtime evidence",
+        "preview_page": "execution-playground",
+        "run_page": "ORCHESTRATE",
+        "active_app": "execution_pandas_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Polars execution",
+        "evidence": "Polars worker execution evidence for comparison",
+        "preview_page": "execution-playground",
+        "run_page": "ORCHESTRATE",
+        "active_app": "execution_polars_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "PyTorch playground",
+        "evidence": "classifier controls, loss landscape, and artifacts",
+        "preview_page": "public-app-catalog",
+        "run_page": "ANALYSIS",
+        "active_app": "pytorch_playground_project",
+        "run_label": "Open playground",
+    },
+    {
+        "route": "UAV relay queue",
+        "evidence": "relay health, scenario cockpit, and network analysis",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "uav_relay_queue_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "UAV queue policy",
+        "evidence": "queue-policy proof and scenario-cockpit artifacts",
+        "preview_page": "advanced-proof-pack",
+        "run_page": "ORCHESTRATE",
+        "active_app": "uav_queue_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Multi-app DAG",
+        "evidence": "cross-app artifact handoff and workflow contract",
+        "preview_page": "public-app-catalog",
+        "run_page": "WORKFLOW",
+        "active_app": "multi_app_dag_project",
+        "run_label": "Open workflow",
+    },
+    {
+        "route": "TeSciA diagnostic",
+        "evidence": "scored diagnostic cases and classroom batch artifacts",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "tescia_diagnostic_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "R runtime bridge",
+        "evidence": "Rscript JSON input/output and manifest hashes",
+        "preview_page": "public-app-catalog",
+        "run_page": "ORCHESTRATE",
+        "active_app": "r_runtime_bridge_project",
+        "run_label": "Open run page",
+    },
+    {
+        "route": "Excel workbook proof",
+        "evidence": "workbook, CSV outputs, and JSON evidence",
+        "preview_page": "excel-users",
+        "run_label": "Preview script",
+    },
+    {
+        "route": "Voila dashboard proof",
+        "evidence": "hide-code dashboard bridge and app-view evidence",
+        "preview_page": "voila-users",
+        "run_label": "Preview script",
+    },
+    {
+        "route": "MLflow tracking",
+        "evidence": "AGILAB run evidence with optional MLflow handoff",
+        "preview_page": "agilab-mlops-positioning",
+        "run_label": "Preview route",
+    },
+    {
+        "route": "Service and cluster path",
+        "evidence": "service health gates and distributed worker controls",
+        "preview_page": "service-mode",
+        "run_page": "ORCHESTRATE",
+        "active_app": "flight_telemetry_project",
+        "run_label": "Open controls",
+    },
+    {
+        "route": "Local/offline LLM",
+        "evidence": "assistant-provider setup for local model experiments",
+        "preview_page": "quick-start",
+        "run_label": "Open setup",
+    },
+)
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
     / "apps-pages"
@@ -261,6 +393,75 @@ def _first_proof_page_url(page_name: str, query_params: Dict[str, str] | None = 
     query = urlencode(query_params or {})
     suffix = f"?{query}" if query else ""
     return f"/{page_name}{suffix}"
+
+
+def _showcase_docs_url(page_name: str) -> str:
+    """Return the public documentation URL for a first-run showcase route."""
+    return f"{SHOWCASE_DOC_BASE_URL}/{page_name}.html"
+
+
+def _first_run_showcase_items() -> List[Dict[str, str]]:
+    """Return visible first-run routes with preview and progressive run links."""
+    items: List[Dict[str, str]] = []
+    for item in FIRST_RUN_SHOWCASE_ITEMS:
+        route = str(item["route"])
+        preview_url = _showcase_docs_url(str(item["preview_page"]))
+        access_parts = [f"[Preview]({preview_url})"]
+        run_page = str(item.get("run_page") or "").strip()
+        active_app = str(item.get("active_app") or "").strip()
+        if run_page and active_app:
+            run_url = _first_proof_page_url(run_page, {"active_app": active_app})
+            access_parts.append(f"[{item['run_label']}]({run_url})")
+        else:
+            access_parts.append(f"[{item['run_label']}]({preview_url})")
+        items.append(
+            {
+                "route": route,
+                "evidence": str(item["evidence"]),
+                "access": " / ".join(access_parts),
+            }
+        )
+    return items
+
+
+def _first_run_showcase_markdown(items: List[Dict[str, str]]) -> str:
+    """Render the first-run showcase as a compact Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Route | Evidence signal | Access |", "| --- | --- | --- |"]
+    table.extend(
+        f"| {_cell(item['route'])} | {_cell(item['evidence'])} | {item['access']} |"
+        for item in items
+    )
+    return "\n".join(table)
+
+
+def _first_run_showcase_card_markdown(item: Dict[str, str]) -> str:
+    """Render one flagship route as a compact card body."""
+    return f"**{item['route']}**\n\n{item['evidence']}\n\n{item['access']}"
+
+
+def _render_first_run_showcase() -> None:
+    """Render flagship routes without overwhelming the first-proof path."""
+    items = _first_run_showcase_items()
+    visible_items = items[:FIRST_RUN_SHOWCASE_VISIBLE_LIMIT]
+    remaining_items = items[FIRST_RUN_SHOWCASE_VISIBLE_LIMIT:]
+
+    st.markdown("**Explore more proof routes**")
+    st.caption(
+        "Start with the built-in first proof. These routes stay available when you want "
+        "another demo, notebook migration, or integration proof."
+    )
+    for offset in range(0, len(visible_items), 3):
+        row = visible_items[offset : offset + 3]
+        for column, item in zip(st.columns(len(row)), row):
+            with column:
+                st.markdown(_first_run_showcase_card_markdown(item))
+
+    if remaining_items:
+        with st.expander(f"Show {len(remaining_items)} more routes", expanded=False):
+            st.markdown(_first_run_showcase_markdown(remaining_items))
 
 
 def _first_proof_analysis_view_maps_url() -> str:
@@ -652,6 +853,8 @@ def _render_first_proof_wizard_actions(
         st.markdown(_notebook_to_validated_app_markdown(_notebook_to_validated_app_rows(env)))
         st.caption(_first_proof_adoption_gate_caption(_first_proof_adoption_gate(env, state)))
         st.caption(_first_proof_handoff_bundle_caption(_first_proof_handoff_bundle_rows(env, state)))
+
+    _render_first_run_showcase()
 
 
 def _render_first_proof_next_action(

@@ -5077,12 +5077,18 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         "expander",
         "If it fails / proof details:False",
     )
+    showcase = _event_index(
+        fake_st.events,
+        "markdown",
+        "**Explore more proof routes**",
+    )
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
         "Create from included notebook:False",
         "Notebook to validated app: full proof:False",
+        "Show 12 more routes:False",
         "If it fails / proof details:False",
     ]
     assert not any(
@@ -5096,12 +5102,25 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[1]
     assert "Download pipeline notebook" in pre_detail_markdown[1]
     assert "lab_stages.ipynb" in pre_detail_markdown[1]
-    assert [body for kind, body in pre_details if kind == "columns"] == ["3"]
+    assert pre_detail_markdown[2] == "**Explore more proof routes**"
+    assert "Flight telemetry first proof" in pre_detail_markdown[3]
+    assert "Weather notebook migration" in pre_detail_markdown[4]
+    assert "Classic ML pipeline" in pre_detail_markdown[5]
+    assert "Mission decision" in pre_detail_markdown[6]
+    assert "Pandas execution speedup" in pre_detail_markdown[7]
+    assert "| Route | Evidence signal | Access |" in pre_detail_markdown[8]
+    assert "Polars execution" in pre_detail_markdown[8]
+    assert "PyTorch playground" in pre_detail_markdown[8]
+    assert "TeSciA diagnostic" in pre_detail_markdown[8]
+    assert "MLflow tracking" in pre_detail_markdown[8]
+    assert "/ORCHESTRATE?active_app=mission_decision_project" in pre_detail_markdown[6]
+    assert "/ANALYSIS?active_app=pytorch_playground_project" in pre_detail_markdown[8]
+    assert [body for kind, body in pre_details if kind == "columns"] == ["3", "3", "2"]
     first_action_column = _event_index(fake_st.events, "enter_column", "0")
     second_action_column = _event_index(fake_st.events, "enter_column", "1")
     third_action_column = _event_index(fake_st.events, "enter_column", "2")
     caption_bodies = [body for kind, body in pre_details if kind == "caption"]
-    assert len(caption_bodies) == 12
+    assert len(caption_bodies) == 13
     assert caption_bodies[0] == (
         "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence. Notebook-first paths are below: use AGILAB's included notebook first; upload your own notebook from PROJECT Create when you are ready."
     )
@@ -5133,6 +5152,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Run one local proof first" in caption_bodies[10]
     assert caption_bodies[11].startswith("Handoff bundle:")
     assert "strict security-check output" in caption_bodies[11]
+    assert caption_bodies[12].startswith("Start with the built-in first proof.")
     assert link_types == {
         "1. INSTALL demo": "secondary",
         "2. EXECUTE demo": "secondary",
@@ -5153,7 +5173,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert (
         open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
     )
-    assert notebook_hint < notebook_full_proof < proof_details
+    assert notebook_hint < notebook_full_proof < showcase < proof_details
     assert proof_details < progress < validated_path
 
 
@@ -5336,6 +5356,49 @@ def test_first_proof_page_urls_preserve_targeted_query_params():
     assert parsed_analysis_url.path == "/ANALYSIS"
     assert analysis_params["active_app"] == ["flight_telemetry_project"]
     assert analysis_params["current_page"][0].endswith("view_maps.py")
+
+
+def test_first_run_showcase_exposes_flagship_routes_and_progressive_links():
+    onboarding = about_agilab._about_onboarding
+
+    items = onboarding._first_run_showcase_items()
+    by_route = {item["route"]: item for item in items}
+
+    assert len(items) >= 16
+    for route in (
+        "Flight telemetry first proof",
+        "Weather notebook migration",
+        "Mission decision",
+        "Pandas execution speedup",
+        "Polars execution",
+        "PyTorch playground",
+        "UAV relay queue",
+        "UAV queue policy",
+        "TeSciA diagnostic",
+        "R runtime bridge",
+        "Excel workbook proof",
+        "Voila dashboard proof",
+        "MLflow tracking",
+        "Local/offline LLM",
+    ):
+        assert route in by_route
+        assert "[Preview](https://thalesgroup.github.io/agilab/" in by_route[route]["access"]
+
+    assert "/ORCHESTRATE?active_app=flight_telemetry_project" in by_route["Flight telemetry first proof"]["access"]
+    assert "/ORCHESTRATE?active_app=mission_decision_project" in by_route["Mission decision"]["access"]
+    assert "/ANALYSIS?active_app=pytorch_playground_project" in by_route["PyTorch playground"]["access"]
+    assert "/ORCHESTRATE?active_app=tescia_diagnostic_project" in by_route["TeSciA diagnostic"]["access"]
+    assert "excel-users.html" in by_route["Excel workbook proof"]["access"]
+    assert "voila-users.html" in by_route["Voila dashboard proof"]["access"]
+
+    markdown = onboarding._first_run_showcase_markdown(items)
+    assert "| Route | Evidence signal | Access |" in markdown
+    assert "Classic ML pipeline" in markdown
+    assert "Service and cluster path" in markdown
+    assert onboarding.FIRST_RUN_SHOWCASE_VISIBLE_LIMIT == 5
+    card = onboarding._first_run_showcase_card_markdown(by_route["Flight telemetry first proof"])
+    assert "**Flight telemetry first proof**" in card
+    assert "/ORCHESTRATE?active_app=flight_telemetry_project" in card
 
 
 def test_first_proof_text_column_width_has_stable_floor():

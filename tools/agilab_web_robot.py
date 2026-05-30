@@ -686,57 +686,56 @@ def run_browser_robot(
                     assert_page_healthy(
                         page,
                         label="landing page",
-                        expect_any=("First proof", "Upload"),
+                        expect_any=("First proof", "Explore more proof routes"),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),
                 ):
                     return steps
 
-                robot_notebook_path = Path(tempfile.gettempdir()) / "agilab-web-robot-upload.ipynb"
-                robot_notebook_path.write_text(
-                    json.dumps(
-                        {
-                            "cells": [
-                                {
-                                    "cell_type": "code",
-                                    "execution_count": None,
-                                    "metadata": {},
-                                    "outputs": [],
-                                    "source": ["print('hello from AGILAB web robot')"],
-                                }
-                            ],
-                            "metadata": {},
-                            "nbformat": 4,
-                            "nbformat_minor": 5,
-                        }
-                    ),
-                    encoding="utf-8",
-                )
                 start = time.perf_counter()
                 try:
-                    with page.expect_file_chooser(timeout=timeout_ms) as file_chooser_info:
-                        page.locator("[data-testid='stFileUploaderDropzone'] button").click(
-                            timeout=timeout_ms
+                    page.get_by_text("Create from included notebook", exact=True).first.click(
+                        timeout=timeout_ms
+                    )
+                    link = page.locator("a", has_text="Create from built-in notebook").first
+                    link.wait_for(timeout=timeout_ms)
+                    notebook_href = link.get_attribute("href")
+                    if not notebook_href:
+                        raise RuntimeError("Create from built-in notebook link has no href")
+                    parsed_href = urllib.parse.urlparse(notebook_href)
+                    parsed_query = urllib.parse.parse_qs(parsed_href.query)
+                    expected_query = {
+                        "start": ["notebook-import"],
+                        "sample": ["agilab-first-proof"],
+                    }
+                    missing_query = {
+                        key: value
+                        for key, value in expected_query.items()
+                        if parsed_query.get(key) != value
+                    }
+                    if parsed_href.path != "/PROJECT" or missing_query:
+                        raise RuntimeError(
+                            "Create from built-in notebook link does not target PROJECT sample import: "
+                            f"href={notebook_href!r} missing={missing_query!r}"
                         )
-                    file_chooser_info.value.set_files(str(robot_notebook_path))
                     steps.append(
                         RobotStep(
-                            "about upload button",
+                            "about built-in notebook link",
                             True,
                             time.perf_counter() - start,
-                            "file chooser opened and notebook selected",
+                            "PROJECT sample-import link is visible and well-formed",
                             page.url,
                         )
                     )
-                except (Error, TimeoutError) as exc:
-                    screenshot = _screenshot(page, screenshot_dir, "about upload button")
-                    detail = f"could not open file chooser from ABOUT Upload button: {exc}"
+                except (Error, TimeoutError, RuntimeError) as exc:
+                    screenshot = _screenshot(page, screenshot_dir, "about built-in notebook link")
+                    detail = f"could not validate ABOUT built-in notebook link: {exc}"
                     if screenshot:
                         detail += f"; screenshot={screenshot}"
                     steps.append(
                         RobotStep(
-                            "about upload button",
+                            "about built-in notebook link",
                             False,
                             time.perf_counter() - start,
                             detail,
@@ -747,24 +746,26 @@ def run_browser_robot(
 
                 start = time.perf_counter()
                 try:
+                    project_url = urllib.parse.urljoin(page.url, notebook_href)
+                    page.goto(project_url, wait_until="domcontentloaded", timeout=timeout_ms)
                     page.wait_for_url(re.compile(r".*/PROJECT(?:\?.*)?$"), timeout=timeout_ms)
                     steps.append(
                         RobotStep(
-                            "notebook upload handoff",
+                            "built-in notebook handoff",
                             True,
                             time.perf_counter() - start,
-                            "PROJECT opened",
+                            "PROJECT opened for sample notebook import",
                             page.url,
                         )
                     )
                 except (Error, TimeoutError) as exc:
-                    screenshot = _screenshot(page, screenshot_dir, "notebook upload handoff")
-                    detail = f"PROJECT did not open after notebook upload: {exc}"
+                    screenshot = _screenshot(page, screenshot_dir, "built-in notebook handoff")
+                    detail = f"PROJECT did not open after built-in notebook handoff: {exc}"
                     if screenshot:
                         detail += f"; screenshot={screenshot}"
                     steps.append(
                         RobotStep(
-                            "notebook upload handoff",
+                            "built-in notebook handoff",
                             False,
                             time.perf_counter() - start,
                             detail,
@@ -775,27 +776,29 @@ def run_browser_robot(
 
                 start = time.perf_counter()
                 try:
-                    page.wait_for_selector(
-                        "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']",
+                    page.get_by_text(
+                        "AGILAB's included notebook is selected",
+                        exact=False,
+                    ).wait_for(
                         timeout=timeout_ms,
                     )
                     steps.append(
                         RobotStep(
-                            "project notebook uploader",
+                            "project sample notebook import",
                             True,
                             time.perf_counter() - start,
-                            "visible",
+                            "sample notebook import is visible without a local file chooser",
                             page.url,
                         )
                     )
                 except (Error, TimeoutError) as exc:
-                    screenshot = _screenshot(page, screenshot_dir, "project notebook uploader")
-                    detail = f"PROJECT notebook uploader not visible after upload handoff: {exc}"
+                    screenshot = _screenshot(page, screenshot_dir, "project sample notebook import")
+                    detail = f"PROJECT sample notebook import not visible after handoff: {exc}"
                     if screenshot:
                         detail += f"; screenshot={screenshot}"
                     steps.append(
                         RobotStep(
-                            "project notebook uploader",
+                            "project sample notebook import",
                             False,
                             time.perf_counter() - start,
                             detail,
@@ -931,7 +934,7 @@ def run_frontend_smoke(
                     assert_page_healthy(
                         page,
                         label="frontend landing hydration",
-                        expect_any=("First proof", "Upload"),
+                        expect_any=("First proof", "Explore more proof routes"),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),
@@ -998,8 +1001,8 @@ def _frontend_smoke_route() -> list[str]:
 
 def _full_robot_route() -> list[str]:
     return [
-        "landing Upload chooser",
-        "PROJECT notebook handoff",
+        "landing built-in notebook link",
+        "PROJECT sample notebook handoff",
         "ORCHESTRATE",
         "ANALYSIS",
     ]
