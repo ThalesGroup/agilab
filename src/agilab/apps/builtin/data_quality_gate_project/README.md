@@ -13,6 +13,15 @@ a baseline dataset and a candidate dataset, validates the contract, measures
 quality and drift, then writes a gate decision that can be reviewed or wired
 into a later CI/promotion step.
 
+## What You Learn
+
+The first run shows how AGILAB turns a data-readiness question into replayable
+evidence rather than a spreadsheet note. You see the app produce source data,
+profile both sides of the comparison, apply a contract, score drift, and write a
+decision card that names the failing or passing gate. It is a compact example of
+how an experiment workbench can protect a downstream model workflow before
+training begins.
+
 ## Run In AGILAB
 
 Select `data_quality_gate_project`, then open `ORCHESTRATE`. Keep the default
@@ -70,6 +79,15 @@ After the default run works, change only one thing:
 
 Keep `seed=2026` for synthetic comparisons so artifact deltas remain easy to
 explain.
+
+## Troubleshooting
+
+If custom CSV inputs fail, first run the defaults again to confirm the app and
+worker install are healthy. Then check that `baseline_csv`, `candidate_csv`,
+`contract_json`, and `thresholds_json` are relative to the AGILAB share, not to
+the repository checkout. Contract errors usually mean a required column is
+missing, a numeric column was parsed as text, or a threshold override used a name
+that is not present in the generated `data_contract.json`.
 
 ## Scope
 

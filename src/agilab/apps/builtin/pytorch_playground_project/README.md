@@ -1,59 +1,65 @@
 # PyTorch Playground Project
 
-Built-in AGILAB app for reproducible PyTorch classifier playground experiments.
-It generates a small synthetic dataset, trains a real PyTorch classifier, and
-exports deterministic evidence artifacts that can be replayed or inspected.
+`pytorch_playground_project` is the built-in AGILAB app for reproducible
+neural-network playground experiments.
 
 ## Purpose
 
-Use this project when you want a compact neural-network teaching workflow that
-still behaves like an AGILAB app: controls are persisted in `app_settings.toml`,
-`ORCHESTRATE` executes the run, and the worker writes CSV/JSON evidence plus a
-deterministic ZIP bundle.
+Use this project to train a compact PyTorch classifier, inspect the decision
+boundary, and export replayable evidence without leaving the AGILAB app model.
+
+## What You Learn
+
+- How Streamlit controls map to persisted ORCHESTRATE arguments.
+- How an app-owned ANALYSIS surface can show training curves, learning snapshots,
+  neuron views, regularization effects, and loss landscape evidence.
+- How generated samples, history, grids, network metadata, and manifests become
+  a deterministic evidence ZIP.
+- How the UI isolates heavy PyTorch work from Streamlit while keeping typed JSON
+  IPC at the subprocess boundary.
 
 ## Run In AGILAB
 
-Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
-PyTorch Playground surface. That single surface places persisted ORCHESTRATE
-arguments next to the decision boundary, training curves, neuron/loss views,
-evidence download, and a run button that refreshes the evidence without leaving
-ANALYSIS.
-
-Open `ORCHESTRATE` when you want the reproducible AGILAB execution path:
-adjust the sidebar fields, then run `INSTALL` and `RUN`. The default
-configuration trains the clean-circles preset and exports evidence under
-`pytorch_playground/evidence`.
-
-The app also keeps a local Streamlit playground surface for interactive review:
-
-```bash
-uv run streamlit run src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
-```
+1. Select `pytorch_playground_project` in `PROJECT`.
+2. Open `ANALYSIS` for the interactive playground surface.
+3. Use the default clean-circles preset and refresh evidence.
+4. Open `Boundary lab` and change the `Boundary epoch` selector to see how the
+   decision surface formed during training.
+5. Open `Neuron lens` to read the network map, then change features, hidden
+   layers, or regularization and refresh evidence again.
+6. Open `ORCHESTRATE` when you want the reproducible install/run path.
 
 ## Expected Inputs
 
-The default run generates its own synthetic dataset. No external file, cloud
-service, notebook, API key, or private model is required.
+No external file is required. The app generates a deterministic synthetic
+dataset from the selected preset, seed, feature set, and training parameters.
 
 ## Expected Outputs
 
-The worker writes:
+The worker writes `playground_config.json`, samples, training history, decision
+grid, boundary snapshots, network layers, hidden activation maps, optional loss landscape,
+`run_summary.json`, `manifest.json`, and `pytorch_playground_evidence.zip`.
 
-- `config/playground_config.json`
-- `data/samples.csv`
-- `data/training_history.csv`
-- `data/decision_grid.csv`
-- `model/network_layers.csv`
-- `model/hidden_activation_maps.csv`
-- `model/loss_landscape.csv`
-- `summary/run_summary.json`
-- `manifest.json`
-- `pytorch_playground_evidence.zip`
+## Change One Thing
+
+After the default run works, change only one learning control:
+
+- Switch `Regularization` from `None` to `L2` and keep the rate small, for
+  example `0.001`.
+- For XOR, remove engineered features, refresh evidence, then add `x1_x2` back
+  to see why feature toggles matter.
+- Change only the hidden-layer tuple and compare the `Boundary epoch` snapshots.
+
+The decision boundary and evidence manifest should update while the artifact
+names stay stable.
+
+## Troubleshooting
+
+If PyTorch is unavailable, the app returns displayable `missing_torch` evidence
+instead of crashing. If the isolated UI runner fails, inspect the displayed
+diagnostic tail before changing model code.
 
 ## Scope
 
-This is a reproducible educational app for neural-network behavior and loss
-landscape inspection. It owns its PyTorch-specific UI inside the app project;
-generic apps-pages are only optional artifact readers such as cross-run scalar
-inspection. It is not a model-serving platform, production training pipeline,
-or generic app-agnostic analysis page.
+This is an educational PyTorch evidence app. It is not a model-serving platform
+or a generic app-agnostic analysis page.

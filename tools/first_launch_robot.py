@@ -232,18 +232,19 @@ def build_report(
         ),
         _check_result(
             "first_launch_showcase_signal",
-            "First launch exposes flagship showcase",
+            "First launch exposes guided proof chooser",
             all(
                 _contains_any([*markdown, *captions, *buttons], [token])
                 for token in (
-                    "Explore more proof routes",
-                    "Weather notebook migration",
-                    "Mission decision",
-                    "PyTorch playground",
-                    "MLflow tracking",
+                    "Choose your next proof",
+                    "Run the built-in proof",
+                    "Import the included notebook",
+                    "See AI/ML demos",
+                    "Validate engineering evidence",
+                    "Capability Map",
                 )
             ),
-            "Landing page exposes the broader AGILAB app and proof-route showcase",
+            "Landing page exposes a guided route chooser without dumping the full catalog",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(

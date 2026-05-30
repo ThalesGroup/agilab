@@ -13,12 +13,15 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from agi_env.streamlit_args import load_args_state, persist_args
-from pytorch_playground import app_args
-from pytorch_playground.core import (
+from agi_env.streamlit_args import load_args_state, persist_args  # noqa: E402
+from pytorch_playground import app_args  # noqa: E402
+from pytorch_playground.core import (  # noqa: E402
     ACTIVATIONS,
     DATASETS,
+    DEFAULT_FEATURES,
+    FEATURES,
     OPTIMIZERS,
+    REGULARIZATIONS,
     _coerce_feature_names,
 )
 
@@ -120,6 +123,28 @@ FORM_FIELDS: tuple[FormField, ...] = (
         options=OPTIMIZERS,
         wide_row="architecture",
         compact_group="Advanced model",
+    ),
+    FormField(
+        "regularization",
+        "Regularization",
+        "Model",
+        "selectbox",
+        options=REGULARIZATIONS,
+        wide_row="regularization",
+        compact_group="Advanced model",
+    ),
+    FormField(
+        "regularization_rate",
+        "Regularization rate",
+        "Model",
+        "number_input",
+        value_type="float",
+        min_value=0.0,
+        max_value=1.0,
+        step=0.001,
+        wide_row="regularization",
+        compact_group="Advanced model",
+        disabled_unless="regularization",
     ),
     FormField(
         "epochs",
@@ -341,7 +366,14 @@ def _selectbox(
 
 def _feature_names(container: Any, env: Any, name: str, label: str, value: str) -> str:
     selected = _coerce_feature_names(value)
-    return _text_input(container, env, name, label, ",".join(selected))
+    if not selected:
+        selected = DEFAULT_FEATURES
+    key = _field_key(env, name)
+    if key not in st.session_state:
+        st.session_state[key] = list(selected)
+    rendered = container.multiselect(label, FEATURES, key=key)
+    chosen = _coerce_feature_names(rendered, default=DEFAULT_FEATURES)
+    return ",".join(chosen)
 
 
 def _state_value(env: Any, name: str, fallback: Any) -> Any:
@@ -582,6 +614,8 @@ def _field_disabled(
 ) -> bool:
     if field.disabled_unless is None:
         return False
+    if field.disabled_unless == "regularization":
+        return str(values.get("regularization", getattr(model, "regularization", "None"))) == "None"
     fallback = getattr(model, field.disabled_unless)
     return not bool(
         values.get(

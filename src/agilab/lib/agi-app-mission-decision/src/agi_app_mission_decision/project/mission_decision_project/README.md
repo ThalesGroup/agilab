@@ -1,68 +1,57 @@
 # Mission Decision Project
 
-Autonomous mission-data decision demo for AGILAB.
+`mission_decision_project` is the deterministic public AGILAB demo for an
+autonomous mission decision loop.
 
-`mission_decision_project` is the first-class public AGILAB demo for the Mission
-Decision storyline. It is a deterministic mission-decision app, not a media-only
-storyboard.
+## Purpose
 
-## What It Shows
+Use this app to show how mission data, candidate routes, operational
+constraints, and a failure event become replayable decision evidence. It is
+designed for public demos and tests, so the default run uses synthetic data and
+does not require private services.
 
-The app turns a compact mission scenario into a repeatable decision loop:
+## What You Learn
 
-1. Ingest mission data from simulated sensors, network status, and operational constraints.
-2. Generate the pipeline stages required for the scenario.
-3. Distribute scenario execution across AGILAB workers.
-4. Score candidate routes with a deterministic optimization policy.
-5. Inject a mission event and re-plan.
-6. Export a final decision with latency, cost, and reliability deltas.
+- How AGILAB turns a mission scenario into pipeline stages and worker tasks.
+- How route candidates are scored with deterministic evidence.
+- How a mission event triggers re-planning and exposes before/after deltas.
+- How public FRED-shaped context can be included as fixture evidence without a
+  live API dependency.
+- How `view_data_io_decision` reads the exported decision bundle.
 
-The app is intentionally deterministic so it can be used in public demos, automated tests,
-and Hugging Face Spaces without private datasets or external services.
+## Run In AGILAB
 
-It also includes an offline FRED-shaped public macro-context fixture. That proves
-how an external public data source can feed the feature-evidence table without
-requiring a live network call, API key, or `fredapi` dependency. Custom demos can
-opt in to the public FRED CSV endpoint later through the app-local helper module.
+1. Select `mission_decision_project` in `PROJECT`.
+2. Open `ORCHESTRATE`.
+3. Run `INSTALL`, then `EXECUTE`.
+4. Open `ANALYSIS` and select `view_data_io_decision`.
 
-## Quick Run
+## Expected Inputs
 
-From the AGILAB UI:
+The default input is the seeded `mission_decision_demo.json` scenario plus
+deterministic public macro-context fixture rows.
 
-1. `PROJECT` -> select `src/agilab/apps/builtin/mission_decision_project`.
-2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
-3. `ANALYSIS` -> open the default `view_data_io_decision` page.
+## Expected Outputs
 
-Expected successful result:
+The app writes artifacts under `mission_decision/results` and mirrors the
+analysis bundle under `export/mission_decision/data_io_decision`, including
+summary metrics, mission decision JSON, generated pipeline JSON, sensor stream,
+feature table, candidate routes, and decision timeline CSV files.
 
-- seeded scenario: `mission_decision_demo.json`
-- initial strategy: `direct_satcom`
-- adapted strategy: `relay_mesh`
-- decision deltas are shown versus the no-replan outcome
+## Change One Thing
 
-## Outputs
+After the default run works, adjust one route constraint or event severity. The
+selected strategy and decision deltas should change without introducing
+nondeterministic inputs.
 
-Each run writes artifacts under `mission_decision/results` and mirrors the
-analysis-ready bundle under `export/mission_decision/data_io_decision`:
+## Troubleshooting
 
-- `*_summary_metrics.json`
-- `*_mission_decision.json`
-- `*_generated_pipeline.json`
-- `*_sensor_stream.csv`
-- `*_feature_table.csv`
-- `*_candidate_routes.csv`
-- `*_decision_timeline.csv`
-
-Open `view_data_io_decision` from the ANALYSIS page to inspect the selected strategy,
-the pre/post-failure metrics, and the adaptation timeline.
-
-The feature table includes deterministic FRED-compatible fixture rows under the
-`fred_fixture` source label. These rows are context evidence only; the default
-route-scoring policy remains fully deterministic and mission-scenario driven.
+If the analysis page is empty, confirm the mirrored `data_io_decision` bundle
+exists. If a route score looks surprising, inspect the candidate-routes CSV
+before changing the deterministic policy.
 
 ## Scope
 
-This demo uses a public synthetic scenario and deterministic scoring. It proves
-AGILAB’s setup -> execution -> analysis path for an autonomous decision workflow.
-It does not claim live production telemetry, production MLOps governance, or
-first-class runtime expansion of arbitrary pipeline stages.
+This app proves AGILAB setup, execution, and analysis for a mission decision
+storyline. It does not claim live telemetry, production autonomy governance, or
+runtime expansion of arbitrary pipeline stages.
