@@ -40,6 +40,7 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
     assert check["status"] == "pass", "\n".join(check["details"].get("failures", []))
     assert check["id"] == "reduce_contract_adoption_guardrail"
     assert check["details"]["checked_apps"] == sorted([
+        "data_quality_gate_project",
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",

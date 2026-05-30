@@ -195,6 +195,7 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert "schedule:" in text
     assert 'branches: ["main"]' in text
     assert 'branches: ["**"]' in text
+    assert "--import-mode=importlib" in text
     assert "src/agilab/core/test src/agilab/core/agi-env/test" in text
     assert "test-results/windows-core-tests.txt" in text
     assert "test-results/windows-core-tests.xml" in text

@@ -758,24 +758,24 @@ def main() -> None:
     )
     with summary_tab:
         st.subheader("Model Summary")
-        st.dataframe(_format_summary(summary_df), use_container_width=True)
+        st.dataframe(_format_summary(summary_df), width="stretch")
         st.caption(f"Loaded {len(alloc_df):,} allocation decisions from {base_dir}.")
 
     with dashboard_tab:
         st.plotly_chart(
             build_overview_figure(alloc_df, summary_df, models),
-            use_container_width=True,
+            width="stretch",
         )
 
     with time_tab:
-        st.plotly_chart(build_time_figure(alloc_df, models), use_container_width=True)
+        st.plotly_chart(build_time_figure(alloc_df, models), width="stretch")
 
     with path_tab:
-        st.plotly_chart(build_path_figure(alloc_df, models), use_container_width=True)
+        st.plotly_chart(build_path_figure(alloc_df, models), width="stretch")
 
     with failures_tab:
         failures = build_failure_table(alloc_df)
-        st.dataframe(failures.head(int(limit_failures)), use_container_width=True)
+        st.dataframe(failures.head(int(limit_failures)), width="stretch")
 
 
 if __name__ == "__main__":
