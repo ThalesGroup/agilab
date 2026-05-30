@@ -44,12 +44,17 @@ current_payload = current_args.model_dump(mode="json")
 
 artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "data_quality_gate"
 st.caption(
-    "Data Quality Gate validates a deterministic candidate dataset against a "
-    f"contract, drift thresholds, and promotion decision. Analysis artifacts are exported to `{artifact_root}`."
+    "Data Quality Gate validates a candidate dataset against a contract, drift thresholds, "
+    f"and a promotion decision. Leave CSV fields empty for the deterministic built-in sample. "
+    f"Analysis artifacts are exported to `{artifact_root}`."
 )
 
 for key, default in (
     ("data_out", str(current_payload.get("data_out", "data_quality_gate/evidence") or "data_quality_gate/evidence")),
+    ("baseline_csv", str(current_payload.get("baseline_csv") or "")),
+    ("candidate_csv", str(current_payload.get("candidate_csv") or "")),
+    ("contract_json", str(current_payload.get("contract_json") or "")),
+    ("thresholds_json", str(current_payload.get("thresholds_json") or "")),
     ("baseline_rows", int(current_payload.get("baseline_rows", 240) or 240)),
     ("candidate_rows", int(current_payload.get("candidate_rows", 220) or 220)),
     ("drift_strength", float(current_payload.get("drift_strength", 0.35) or 0.35)),
@@ -76,8 +81,25 @@ with c6:
     st.checkbox("Inject quality issues", key=_k("include_quality_issues"))
     st.checkbox("Reset output", key=_k("reset_target"))
 
+with st.expander("Use your own CSV data or gate policy", expanded=False):
+    st.caption(
+        "Paths are relative to the AGILAB share. Provide baseline and candidate CSV together; "
+        "contract/threshold JSON files are optional."
+    )
+    p1, p2 = st.columns(2)
+    with p1:
+        st.text_input("Baseline CSV", key=_k("baseline_csv"), placeholder="data_quality_gate/input/baseline.csv")
+        st.text_input("Contract JSON", key=_k("contract_json"), placeholder="data_quality_gate/input/contract.json")
+    with p2:
+        st.text_input("Candidate CSV", key=_k("candidate_csv"), placeholder="data_quality_gate/input/candidate.csv")
+        st.text_input("Thresholds JSON", key=_k("thresholds_json"), placeholder="data_quality_gate/input/thresholds.json")
+
 candidate: dict[str, Any] = {
     "data_out": (st.session_state.get(_k("data_out")) or "").strip(),
+    "baseline_csv": (st.session_state.get(_k("baseline_csv")) or "").strip(),
+    "candidate_csv": (st.session_state.get(_k("candidate_csv")) or "").strip(),
+    "contract_json": (st.session_state.get(_k("contract_json")) or "").strip(),
+    "thresholds_json": (st.session_state.get(_k("thresholds_json")) or "").strip(),
     "baseline_rows": st.session_state.get(_k("baseline_rows"), 240),
     "candidate_rows": st.session_state.get(_k("candidate_rows"), 220),
     "drift_strength": st.session_state.get(_k("drift_strength"), 0.35),
@@ -113,5 +135,6 @@ else:
     resolved_data_out = env.resolve_share_path(validated.data_out)
     st.caption(
         f"Resolved evidence directory: `{resolved_data_out}`  -  "
+        f"input mode: `{'csv' if validated.baseline_csv and validated.candidate_csv else 'synthetic'}`  -  "
         f"candidate/baseline rows: `{validated.candidate_rows}/{validated.baseline_rows}`."
     )

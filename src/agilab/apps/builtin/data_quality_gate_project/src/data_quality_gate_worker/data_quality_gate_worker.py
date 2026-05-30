@@ -55,6 +55,15 @@ def _args_with_defaults(value: Any) -> DataQualityGateArgs:
     return DataQualityGateArgs(**{key: val for key, val in raw.items() if not key.startswith("_")})
 
 
+def _resolve_optional_share_path(env: object, value: Path | None) -> Path | None:
+    if value is None:
+        return None
+    path = Path(value).expanduser()
+    if not path.is_absolute() and callable(getattr(env, "resolve_share_path", None)):
+        path = Path(env.resolve_share_path(path))
+    return path
+
+
 def _copy_artifacts(source: Path, destination: Path) -> None:
     if source.resolve() == destination.resolve():
         return
@@ -77,6 +86,10 @@ class DataQualityGateWorker(PandasWorker):
         if not data_out.is_absolute() and callable(getattr(self.env, "resolve_share_path", None)):
             data_out = Path(self.env.resolve_share_path(data_out))
         self.args.data_out = data_out
+        self.args.baseline_csv = _resolve_optional_share_path(self.env, self.args.baseline_csv)
+        self.args.candidate_csv = _resolve_optional_share_path(self.env, self.args.candidate_csv)
+        self.args.contract_json = _resolve_optional_share_path(self.env, self.args.contract_json)
+        self.args.thresholds_json = _resolve_optional_share_path(self.env, self.args.thresholds_json)
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
             reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(self.env), label="data_out")
@@ -128,6 +141,10 @@ class DataQualityGateWorker(PandasWorker):
         args = self._current_args()
         summary = build_data_quality_gate_artifacts(
             output_dir=Path(self.data_out),
+            baseline_csv=args.baseline_csv,
+            candidate_csv=args.candidate_csv,
+            contract_json=args.contract_json,
+            thresholds_json=args.thresholds_json,
             baseline_rows=args.baseline_rows,
             candidate_rows=args.candidate_rows,
             drift_strength=args.drift_strength,
@@ -138,8 +155,11 @@ class DataQualityGateWorker(PandasWorker):
         _copy_artifacts(Path(self.data_out), Path(self.artifact_dir))
         metrics = {
             "decision": summary["decision"],
+            "input_mode": summary["input_mode"],
             "max_psi": summary["drift"]["max_psi"],
             "max_ks_statistic": summary["drift"]["max_ks_statistic"],
+            "recommended_action": summary["recommended_action"],
+            "risk_score": summary["risk_score"],
             "warn_feature_count": summary["drift"]["warn_feature_count"],
             "block_feature_count": summary["drift"]["block_feature_count"],
             "worker_id": int(getattr(self, "_worker_id", 0)),
