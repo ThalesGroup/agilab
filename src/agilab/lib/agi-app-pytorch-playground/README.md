@@ -12,8 +12,9 @@ execution, and deterministic evidence artifacts.
 ## Purpose
 
 Use this package to train a small PyTorch classifier on generated visual
-datasets, inspect the resulting boundary/layers/loss terrain, and keep the
-configuration and artifacts replayable.
+datasets, watch the decision boundary move with play/pause controls, inspect
+the resulting boundary/layers/loss terrain, and keep the configuration and
+artifacts replayable.
 
 ## Installed Project
 
@@ -33,13 +34,30 @@ The app project itself installs PyTorch when AGILAB prepares its project
 environment. The payload package stays lightweight and only exposes the project
 root.
 
+## Direct Launch
+
+When AGILAB is installed, launch the app-managed Streamlit surface directly:
+
+```bash
+agilab pytorch-playground
+```
+
+To open the hosted backend instead of a local app virtual environment:
+
+```bash
+agilab pytorch-playground --backend hf
+```
+
+Use `AGILAB_PYTORCH_PLAYGROUND_HF_URL` or `--hf-space owner/agilab` for a
+custom Hugging Face Space.
+
 ## Run In AGILAB
 
 Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
 PyTorch Playground surface. That surface places persisted ORCHESTRATE
 arguments next to the decision boundary, training curves, neuron/loss views,
-evidence download, and a run button that refreshes the evidence without leaving
-ANALYSIS.
+evidence download, a deterministic `Train / refresh` path, and a live
+play/pause mode for watching bounded epoch ticks without leaving ANALYSIS.
 
 Open `ORCHESTRATE` when you want the reproducible AGILAB execution path: tune
 the sidebar fields, then run `INSTALL` and `RUN`. Enable loss-landscape

@@ -5,29 +5,54 @@ neural-network playground experiments.
 
 ## Purpose
 
-Use this project to train a compact PyTorch classifier, inspect the decision
-boundary, and export replayable evidence without leaving the AGILAB app model.
+Use this project to train a compact PyTorch classifier, watch the decision
+boundary move with real play/pause controls, and export replayable evidence
+without leaving the AGILAB app model.
 
 ## What You Learn
 
 - How Streamlit controls map to persisted ORCHESTRATE arguments.
 - How an app-owned ANALYSIS surface can show training curves, learning snapshots,
   neuron views, regularization effects, and loss landscape evidence.
+- How live play/pause training differs from a deterministic full evidence run:
+  live mode mutates one in-session model, while `Train / refresh` rebuilds the
+  full reproducible artifact.
 - How generated samples, history, grids, network metadata, and manifests become
   a deterministic evidence ZIP.
 - How the UI isolates heavy PyTorch work from Streamlit while keeping typed JSON
   IPC at the subprocess boundary.
 
+## Direct Launch
+
+Use the app-managed environment so PyTorch, Plotly, and Streamlit are installed
+in the right place:
+
+```bash
+agilab pytorch-playground
+```
+
+To open the hosted backend instead of a local app venv:
+
+```bash
+agilab pytorch-playground --backend hf
+```
+
+Set `AGILAB_PYTORCH_PLAYGROUND_HF_URL` or pass `--hf-space owner/agilab` when
+you maintain a different Hugging Face Space.
+
 ## Run In AGILAB
 
 1. Select `pytorch_playground_project` in `PROJECT`.
 2. Open `ANALYSIS` for the interactive playground surface.
-3. Use the default clean-circles preset and refresh evidence.
-4. Open `Boundary lab` and change the `Boundary epoch` selector to see how the
+3. Use the default clean-circles preset and either press `Train / refresh` for
+   a full evidence run or switch `Training mode` to `Live play/pause`.
+4. In live mode, press `Play`, `Pause`, or `Step` to watch the boundary and
+   curves advance by bounded epoch ticks.
+5. Open `Boundary lab` and change the `Boundary epoch` selector to see how the
    decision surface formed during training.
-5. Open `Neuron lens` to read the network map, then change features, hidden
+6. Open `Neuron lens` to read the network map, then change features, hidden
    layers, or regularization and refresh evidence again.
-6. Open `ORCHESTRATE` when you want the reproducible install/run path.
+7. Open `ORCHESTRATE` when you want the reproducible install/run path.
 
 ## Expected Inputs
 

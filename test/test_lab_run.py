@@ -87,6 +87,77 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     assert lab_run.os.environ["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
+def test_main_dispatches_pytorch_playground_without_generic_ui(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_pytorch_playground(argv: list[str]) -> int:
+        captured.append(argv)
+        return 19
+
+    monkeypatch.setattr(lab_run, "_run_pytorch_playground", fake_pytorch_playground)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("generic AGILAB UI should not be launched")),
+    )
+
+    rc = lab_run.main(["pytorch-playground", "--backend", "hf", "--no-browser"])
+
+    assert rc == 19
+    assert captured == [["--backend", "hf", "--no-browser"]]
+
+
+def test_pytorch_playground_local_launcher_uses_app_uv_project(monkeypatch, tmp_path: Path):
+    project_root = tmp_path / "pytorch_playground_project"
+    script_path = project_root / "src" / "pytorch_playground" / "playground_ui.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text("from pytorch_playground.playground_ui import main\n", encoding="utf-8")
+    captured: list[list[str]] = []
+
+    monkeypatch.setattr(lab_run, "_pytorch_playground_project_root", lambda: project_root)
+    monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
+
+    rc = lab_run._run_pytorch_playground(
+        ["--host", "127.0.0.1", "--port", "8765", "--no-browser", "--", "--demo-flag"],
+        runner=lambda command: captured.append(command) or 23,
+    )
+
+    assert rc == 23
+    assert captured == [[
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        str(project_root),
+        "streamlit",
+        "run",
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        "8765",
+        "--server.headless",
+        "true",
+        str(script_path),
+        "--",
+        "--demo-flag",
+    ]]
+
+
+def test_pytorch_playground_hf_backend_prints_runtime_url(monkeypatch, capsys):
+    opened: list[str] = []
+    monkeypatch.setattr(lab_run.webbrowser, "open", lambda url: opened.append(url) or True)
+
+    rc = lab_run._run_pytorch_playground(["--backend", "hf", "--hf-space", "Owner/agilab", "--no-browser"])
+
+    assert rc == 0
+    assert opened == []
+    assert capsys.readouterr().out.strip() == (
+        "https://owner-agilab.hf.space/?active_app=pytorch_playground_project"
+    )
+
+
 def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
