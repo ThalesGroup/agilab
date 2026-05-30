@@ -162,6 +162,7 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "test/test_connector_registry.py",
             "test/test_page_project_selector.py",
             "test/test_run_manifest.py",
+            "test/test_run_storyboard.py",
         ),
     ),
     ("views", ("test/test_view*.py",)),

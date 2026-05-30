@@ -88,3 +88,50 @@ def test_maintenance_dashboard_cli_writes_machine_readable_report(tmp_path: Path
     stdout_report = json.loads(captured.out)
     assert report["schema"] == "agilab.maintenance_dashboard.v1"
     assert stdout_report["summary"]["check_count"] == report["summary"]["check_count"]
+
+
+def test_coverage_badge_signal_passes_above_floor_and_reports_aspiration(tmp_path: Path) -> None:
+    module = _load_module()
+    badge = tmp_path / "badges" / "coverage-agilab.svg"
+    badge.parent.mkdir()
+    badge.write_text("<svg><text>coverage: 97%</text></svg>\n", encoding="utf-8")
+
+    check = module.check_coverage_badges(tmp_path).as_dict()
+
+    assert check["status"] == "pass"
+    assert check["details"]["percent"] == 97
+    assert check["details"]["warning_floor"] == module.COVERAGE_WARNING_FLOOR
+    assert check["details"]["aspirational_target"] == module.COVERAGE_ASPIRATIONAL_TARGET
+    assert check["details"]["gap_to_aspirational_target"] == 2
+
+
+def test_coverage_badge_signal_warns_below_floor(tmp_path: Path) -> None:
+    module = _load_module()
+    badge = tmp_path / "badges" / "coverage-agilab.svg"
+    badge.parent.mkdir()
+    badge.write_text("<svg><text>coverage: 94%</text></svg>\n", encoding="utf-8")
+
+    check = module.check_coverage_badges(tmp_path).as_dict()
+
+    assert check["status"] == "warn"
+    assert check["details"]["percent"] == 94
+
+
+def test_todo_hotspot_scanner_counts_real_comment_markers_only(tmp_path: Path) -> None:
+    module = _load_module()
+    source = tmp_path / "src" / "agilab" / "sample.py"
+    docs = tmp_path / "docs" / "source" / "maintenance.rst"
+    source.parent.mkdir(parents=True)
+    docs.parent.mkdir(parents=True)
+    source.write_text(
+        'label = "TODO/FIXME hotspot vocabulary is not backlog"\n'
+        "# TODO tighten this sample later\n",
+        encoding="utf-8",
+    )
+    docs.write_text("The dashboard reports TODO/FIXME hotspot vocabulary.\n", encoding="utf-8")
+
+    check = module.check_todo_hotspots(tmp_path).as_dict()
+
+    assert check["status"] == "warn"
+    assert check["details"]["total"] == 1
+    assert check["details"]["top"] == [("src/agilab/sample.py", 1)]

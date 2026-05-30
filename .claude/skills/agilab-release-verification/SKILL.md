@@ -54,7 +54,8 @@ If `./dev maintenance` fails, fix the reported extension-contract, ADR, docs
 mirror, app/package contract, Evidence Core, or shared-core guardrail drift
 before calling the release ready. A warning is not automatically a release
 blocker, but it must be named explicitly; expected warnings currently include
-coverage below the long-term 99% target or TODO/FIXME hotspot triage.
+coverage below the maintenance floor or real TODO/FIXME hotspot triage. The
+dashboard still reports the gap to the long-term 99% coverage aspiration.
 If `tools/pypi_project_preflight.py` reports a `missing-project` blocker,
 register the pending trusted publisher before dispatching the release workflow.
 An existing PyPI project with a new unpublished version is normal; a missing

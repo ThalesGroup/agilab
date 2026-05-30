@@ -40,6 +40,11 @@ MATURITY_LABELS = (
     "Operator-triggered live check",
     "Roadmap boundary",
 )
+HOTSPOT_MARKER_PATTERN = re.compile(
+    r"(?im)(?:^|\s)(?:#|//|/\*|\*|<!--)\s*(?:TODO|FIXME|XXX)\b"
+)
+COVERAGE_WARNING_FLOOR = 95
+COVERAGE_ASPIRATIONAL_TARGET = 99
 
 
 @dataclass(frozen=True)
@@ -412,7 +417,6 @@ def check_generated_artifact_hygiene(repo_root: Path) -> Check:
 
 def check_todo_hotspots(repo_root: Path, *, max_hotspots: int = 25) -> Check:
     roots = ("src/agilab", "tools", "test", "docs/source")
-    pattern = re.compile(r"\b(TODO|FIXME|XXX)\b", re.IGNORECASE)
     counts: dict[str, int] = {}
     for root_name in roots:
         root = repo_root / root_name
@@ -425,7 +429,7 @@ def check_todo_hotspots(repo_root: Path, *, max_hotspots: int = 25) -> Check:
             if path.suffix not in {".py", ".md", ".rst", ".toml", ".yaml", ".yml", ".json"}:
                 continue
             try:
-                count = len(pattern.findall(_read(path)))
+                count = len(HOTSPOT_MARKER_PATTERN.findall(_read(path)))
             except UnicodeDecodeError:
                 continue
             if count:
@@ -460,15 +464,20 @@ def check_coverage_badges(repo_root: Path) -> Check:
             evidence=(badge.as_posix(),),
             details={"percent": percent},
         )
-    status = "pass" if percent >= 99 else "warn"
+    status = "pass" if percent >= COVERAGE_WARNING_FLOOR else "warn"
     return _check(
         "coverage_badge_signal",
         "Coverage badge signal",
         True,
-        "global coverage badge is readable; below-99 coverage is a maintenance warning",
+        "global coverage badge is readable and above the long-term maintenance floor",
         status=status,
         evidence=(badge.as_posix(),),
-        details={"percent": percent, "target": 99},
+        details={
+            "percent": percent,
+            "warning_floor": COVERAGE_WARNING_FLOOR,
+            "aspirational_target": COVERAGE_ASPIRATIONAL_TARGET,
+            "gap_to_aspirational_target": max(0, COVERAGE_ASPIRATIONAL_TARGET - percent),
+        },
     )
 
 

@@ -287,6 +287,23 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
 
 
 OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
+    "isolated-all-builtins-orchestrate-smoke": RobotScenario(
+        name="isolated-all-builtins-orchestrate-smoke",
+        description=(
+            "Fast all-builtins ORCHESTRATE smoke: render every built-in app with "
+            "isolated runtime, no apps-pages, no action callbacks, and explicit "
+            "browser error capture."
+        ),
+        pages="ORCHESTRATE",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=15.0,
+        page_timeout_seconds=120.0,
+        target_seconds=900.0,
+        max_action_clicks_per_page=0,
+        browser_error_check=True,
+    ),
     "isolated-browser-history": RobotScenario(
         name="isolated-browser-history",
         description=(
