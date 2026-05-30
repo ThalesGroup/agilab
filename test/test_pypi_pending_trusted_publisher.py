@@ -318,6 +318,29 @@ def test_register_treats_visible_pending_publisher_row_as_success() -> None:
     assert result.already_registered is True
 
 
+def test_register_treats_existing_project_as_successful_noop() -> None:
+    module = _load_module()
+    publisher = module.PendingGitHubPublisher(
+        project_name="agi-app-multi-dag",
+        owner="ThalesGroup",
+        repository="agilab",
+        workflow_filename="pypi-publish.yaml",
+        environment="pypi-agi-app-multi-dag",
+    )
+
+    result = module._interpret_registration_response(
+        "The trusted publisher could not be registered. This project already exists.",
+        publisher,
+    )
+    summary = module.render_summary(result)
+
+    assert result.registered is False
+    assert result.already_registered is False
+    assert result.project_exists is True
+    assert summary["success"] is True
+    assert summary["project_exists"] is True
+
+
 def test_register_rejects_pending_publisher_for_different_project() -> None:
     module = _load_module()
     publisher = module.PendingGitHubPublisher(

@@ -78,6 +78,7 @@ class RegistrationResult:
     publisher: PendingGitHubPublisher
     registered: bool
     already_registered: bool
+    project_exists: bool = False
     dry_run: bool = False
 
 
@@ -400,9 +401,11 @@ def _interpret_registration_response(
             "PyPI account publishing settings, then rerun this workflow."
         )
     if PROJECT_EXISTS_FRAGMENT in text:
-        raise RuntimeError(
-            f"PyPI project {publisher.project_name!r} already exists; configure "
-            "the normal project trusted publisher instead of a pending publisher."
+        return RegistrationResult(
+            publisher=publisher,
+            registered=False,
+            already_registered=False,
+            project_exists=True,
         )
     if GENERIC_FAILURE_FRAGMENT in text or DIFFERENT_PROJECT_FRAGMENT in text:
         raise RuntimeError(
@@ -476,6 +479,7 @@ def render_summary(result: RegistrationResult) -> dict[str, Any]:
         "success": True,
         "registered": result.registered,
         "already_registered": result.already_registered,
+        "project_exists": result.project_exists,
         "dry_run": result.dry_run,
         "publisher": asdict(result.publisher),
     }
@@ -484,7 +488,12 @@ def render_summary(result: RegistrationResult) -> dict[str, Any]:
 def append_step_summary(path: Path, summary: dict[str, Any]) -> None:
     publisher = summary["publisher"]
     status = "DRY RUN" if summary["dry_run"] else "PASS"
-    state = "already registered" if summary["already_registered"] else "registered"
+    if summary["project_exists"]:
+        state = "project already exists"
+    elif summary["already_registered"]:
+        state = "already registered"
+    else:
+        state = "registered"
     if summary["dry_run"]:
         state = "not submitted"
     lines = [
@@ -620,6 +629,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     elif result.already_registered:
         print(f"Pending trusted publisher already registered for {publisher.project_name}.")
+    elif result.project_exists:
+        print(
+            f"PyPI project {publisher.project_name} already exists; "
+            "pending publisher registration is no longer needed."
+        )
     else:
         print(f"Registered pending trusted publisher for {publisher.project_name}.")
 
