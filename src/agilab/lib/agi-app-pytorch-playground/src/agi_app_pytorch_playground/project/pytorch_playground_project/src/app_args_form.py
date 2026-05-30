@@ -383,10 +383,13 @@ def _state_value(env: Any, name: str, fallback: Any) -> Any:
 def _current_form_values(
     model: app_args.PytorchPlaygroundArgs, *, env: Any
 ) -> dict[str, Any]:
-    return {
-        field.name: _state_value(env, field.name, getattr(model, field.name))
-        for field in FORM_FIELDS
-    }
+    values: dict[str, Any] = {}
+    for field in FORM_FIELDS:
+        value = _state_value(env, field.name, getattr(model, field.name))
+        if field.widget == "feature_names":
+            value = ",".join(_coerce_feature_names(value, default=DEFAULT_FEATURES))
+        values[field.name] = _coerce_field_value(field, value)
+    return values
 
 
 def persist_current_args(*, env: Any | None = None) -> app_args.PytorchPlaygroundArgs:

@@ -531,6 +531,123 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
     assert ("caption", "Output file is too large for inline download: large.csv") in fake_st.events
 
 
+def test_workflow_ui_project_context_remaining_edges(monkeypatch, tmp_path) -> None:
+    assert workflow_ui._project_display_name(None) == "No project"
+    assert workflow_ui._project_display_name(SimpleNamespace()) == "No project"
+    assert workflow_ui._project_path(None) is None
+    assert workflow_ui._project_path(SimpleNamespace(app="demo_project")) is None
+    assert workflow_ui._runtime_roots(None) == []
+    assert workflow_ui._artifact_label(tmp_path / "figure.svg") == "Figure"
+    assert workflow_ui._artifact_label(tmp_path / "notebook.ipynb") == "Notebook"
+    assert workflow_ui._artifact_description(tmp_path / "outside.log", tmp_path / "root") == "outside.log"
+
+    app_root = tmp_path / "apps" / "demo_project"
+    app_root.mkdir(parents=True)
+    env = SimpleNamespace(app="demo_project", apps_path=tmp_path / "apps", runenv=tmp_path / "missing-run")
+    assert workflow_ui._project_path(env) == app_root
+
+    artifacts_root = app_root / "artifacts"
+    artifacts_root.mkdir()
+    manifest = artifacts_root / "run_manifest.json"
+    manifest.write_text("{}", encoding="utf-8")
+    table = artifacts_root / "metrics.csv"
+    table.write_text("x\n1\n", encoding="utf-8")
+    ignored = artifacts_root / ".git" / "ignored.csv"
+    ignored.parent.mkdir()
+    ignored.write_text("x\n", encoding="utf-8")
+    scanned = workflow_ui._scan_project_evidence(env)
+    assert scanned["count"] == 2
+    assert scanned["manifest"] == manifest
+    assert [artifact["label"] for artifact in scanned["artifacts"]][:2] == ["Table", "Run manifest"]
+
+    with monkeypatch.context() as scoped_monkeypatch:
+        scoped_monkeypatch.setattr(
+            workflow_ui.os,
+            "walk",
+            lambda _root: (_ for _ in ()).throw(OSError("walk failed")),
+        )
+        assert workflow_ui._scan_project_evidence(env)["count"] == 0
+
+    assert workflow_ui._project_install_status(None) == ("Unknown", "environment not loaded", "incomplete")
+    assert workflow_ui._run_history(None) == ("0", "environment not loaded", "incomplete")
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agilab.environment_health":
+            raise RuntimeError("blocked")
+        return original_import(name, globals, locals, fromlist, level)
+
+    original_import = __import__
+    monkeypatch.setattr("builtins.__import__", _blocked_import)
+    assert workflow_ui._project_install_status(SimpleNamespace()) == (
+        "Check",
+        "install status unavailable",
+        "incomplete",
+    )
+    assert workflow_ui._run_history(SimpleNamespace()) == (
+        "0",
+        "run log status unavailable",
+        "incomplete",
+    )
+
+    fake_st = _FakeStreamlit()
+    workflow_ui.render_project_evidence_drawer(
+        fake_st,
+        env=SimpleNamespace(app="missing", active_app=tmp_path / "missing"),
+        key_prefix="missing",
+    )
+    assert (
+        "caption",
+        "No evidence files found yet. Run ORCHESTRATE -> EXECUTE first.",
+    ) in fake_st.events
+    assert workflow_ui._normalize_artifact({"description": "Description only"}) == {
+        "label": "Artifact",
+        "path": None,
+        "kind": "artifact",
+        "description": "Description only",
+        "preview": True,
+    }
+
+    file_root = tmp_path / "standalone.csv"
+    file_root.write_text("x\n1\n", encoding="utf-8")
+    file_scan = workflow_ui._scan_project_evidence(SimpleNamespace(app_data_rel=file_root))
+    assert file_scan["count"] == 1
+    assert file_scan["examples"] == ["standalone.csv"]
+
+    limited_root = tmp_path / "limited"
+    limited_root.mkdir()
+    for index in range(4):
+        (limited_root / f"artifact_{index}.csv").write_text("x\n1\n", encoding="utf-8")
+    monkeypatch.setattr(workflow_ui, "_COCKPIT_SCAN_LIMIT", 2)
+    limited_scan = workflow_ui._scan_project_evidence(SimpleNamespace(app_data_rel=limited_root))
+    assert limited_scan["truncated"] is True
+    assert limited_scan["count"] == 2
+
+    assert workflow_ui._project_next_action(
+        SimpleNamespace(app="demo_project"),
+        project_ready=True,
+        install_value="Ready",
+        run_value="3",
+        artifact_count=0,
+    )["label"] == "Create evidence"
+
+    class _NoLinkButtonStreamlit(_FakeStreamlit):
+        link_button = None
+
+    fallback_st = _NoLinkButtonStreamlit()
+    workflow_ui.render_next_action(
+        fallback_st,
+        env=SimpleNamespace(app="demo_project"),
+        key_prefix="demo",
+        action={
+            "id": "analysis",
+            "label": "Review evidence",
+            "url": "/ANALYSIS",
+            "type": "primary",
+        },
+    )
+    assert ("markdown", "[Review evidence](/ANALYSIS)") in fallback_st.events
+
+
 def test_artifact_drawer_covers_generic_preview_edges(monkeypatch, tmp_path) -> None:
     fake_st = _FakeStreamlit()
     folder = tmp_path / "folder"

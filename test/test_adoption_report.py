@@ -171,3 +171,55 @@ def test_main_writes_json_and_strict_fails_when_manifest_missing(tmp_path: Path)
         str(tmp_path / "missing-report.json"),
         "--strict",
     ]) == 1
+
+
+def test_adoption_report_edge_cases_and_stdout(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "logs"))
+    default_path = adoption_report.default_manifest_path()
+    assert default_path == adoption_report.default_manifest_candidates()[0]
+
+    present = adoption_report.default_manifest_candidates()[1]
+    present.parent.mkdir(parents=True, exist_ok=True)
+    present.write_text("{}", encoding="utf-8")
+    assert adoption_report.default_manifest_path() == present
+
+    assert adoption_report._status_label(False, "parse-error") == "invalid"
+
+    invalid_manifest = tmp_path / "invalid.json"
+    invalid_manifest.write_text("{not-json", encoding="utf-8")
+    invalid_report = adoption_report.build_report(manifest_path=invalid_manifest)
+    assert invalid_report["summary"]["first_proof_status"] == "invalid"
+    assert "manifest parse error" in invalid_report["first_proof"]["issues"][0]
+
+    wrong_manifest = _write_manifest(
+        tmp_path / "wrong" / "run_manifest.json",
+        app_name="other_project",
+        status="fail",
+        validation_status="fail",
+    )
+    payload = json.loads(wrong_manifest.read_text(encoding="utf-8"))
+    payload["path_id"] = "other-path"
+    payload["timing"]["target_seconds"] = None
+    wrong_manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = adoption_report.build_report(manifest_path=wrong_manifest)
+    issues = report["first_proof"]["issues"]
+    assert any("path_id is" in issue for issue in issues)
+    assert any("manifest status is" in issue for issue in issues)
+    assert any("one or more manifest validations" in issue for issue in issues)
+    assert any("required validation issue" in issue for issue in issues)
+    assert any("active app is" in issue for issue in issues)
+    assert any("target_seconds is missing" in issue for issue in issues)
+    assert "## Blocking Issues" in adoption_report.render_markdown(report)
+
+    slow_manifest = _write_manifest(tmp_path / "slow" / "run_manifest.json")
+    slow_payload = json.loads(slow_manifest.read_text(encoding="utf-8"))
+    slow_payload["timing"]["duration_seconds"] = 99.0
+    slow_payload["timing"]["target_seconds"] = 1.0
+    slow_manifest.write_text(json.dumps(slow_payload), encoding="utf-8")
+    slow_report = adoption_report.build_report(manifest_path=slow_manifest)
+    assert any("exceeds target" in issue for issue in slow_report["first_proof"]["issues"])
+
+    assert adoption_report.main(["--manifest", str(slow_manifest)]) == 0
+    stdout = capsys.readouterr().out
+    assert "# AGILAB Adoption Report" in stdout

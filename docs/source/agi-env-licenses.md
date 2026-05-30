@@ -31,7 +31,6 @@ Audit notes:
 | pydantic-core | 2.41.5 | MIT |
 | pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | tomlkit | 0.14.0 | MIT LICENSE |
 | typing-extensions | 4.15.0 | PSF-2.0 |

@@ -57,7 +57,6 @@ Audit notes:
 | pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | referencing | 0.37.0 | MIT |
 | requests | 2.33.1 | APACHE SOFTWARE LICENSE |
 | rpds-py | 0.30.0 | MIT |

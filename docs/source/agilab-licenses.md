@@ -260,7 +260,6 @@ Audit notes:
 | pytz | 2026.1.post1 | MIT LICENSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
 | pyzmq | 27.1.0 | BSD LICENSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | readme-renderer | 44.0 | APACHE SOFTWARE LICENSE |
 | referencing | 0.37.0 | MIT |
 | regex | 2026.4.4 | APACHE-2.0;; CNRI-PYTHON |

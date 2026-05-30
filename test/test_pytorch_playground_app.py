@@ -5,6 +5,7 @@ import importlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 from types import ModuleType
 from types import SimpleNamespace
@@ -643,6 +644,124 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
     assert ("column_success", "Run complete. Evidence refreshed (1 row).") in events
 
 
+def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    module = _load_app_surface_module("pytorch_playground_app_surface_extra_modes_test")
+    events: list[tuple[str, object]] = []
+
+    assert module._resolve_active_app_path(tmp_path / "missing") is None
+    monkeypatch.setattr(sys, "argv", ["app_surface.py"])
+    assert module._resolve_active_app_path() is None
+
+    class FakeAgiEnv:
+        def __init__(self, **kwargs):
+            events.append(("agi-env-init", kwargs))
+            self.app_settings_file = tmp_path / "settings.toml"
+
+        @classmethod
+        def for_app(cls, **kwargs):
+            events.append(("agi-env-for-app", kwargs))
+            instance = cls(**kwargs)
+            instance.app_settings_file.write_text("[args]\nsample_count=96\n", encoding="utf-8")
+            return instance
+
+    fake_agi_env_module = ModuleType("agi_env")
+    fake_agi_env_module.AgiEnv = FakeAgiEnv
+    monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env_module)
+
+    env, args_model = module._load_orchestrate_args(PROJECT_PATH.resolve())
+    assert args_model.sample_count == 96
+    assert events[0][0] == "agi-env-for-app"
+
+    resolved_dirs = module._analysis_evidence_dirs(
+        SimpleNamespace(resolve_share_path=lambda value: tmp_path / "share" / value),
+        SimpleNamespace(data_out="relative-evidence"),
+        PROJECT_PATH.resolve(),
+    )
+    assert resolved_dirs[-1] == (tmp_path / "share" / "relative-evidence").resolve()
+
+    fake_package = ModuleType("pytorch_playground")
+    fake_playground_ui = SimpleNamespace(
+        PAGE_TITLE="PyTorch Playground",
+        main=lambda **kwargs: events.append(("playground-main", kwargs)),
+    )
+    fake_app_args_form = SimpleNamespace(render=lambda **kwargs: events.append(("configure-form", kwargs)))
+    fake_package.playground_ui = fake_playground_ui
+    monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
+    monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
+
+    module._render_analysis_surface(None, configure_page=False, compact=True)
+    assert ("playground-main", {"configure_page": False, "compact": True}) in events
+
+    class FakeStreamlit:
+        def set_page_config(self, **kwargs):
+            events.append(("page-config", kwargs))
+
+        def error(self, message):
+            events.append(("st-error", message))
+
+    monkeypatch.setitem(sys.modules, "streamlit", FakeStreamlit())
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (_ for _ in ()).throw(RuntimeError("bad args")))
+    module._render_analysis_surface(PROJECT_PATH.resolve())
+    assert ("st-error", "Unable to load ORCHESTRATE app arguments: bad args") in events
+    module._render_full_surface(PROJECT_PATH.resolve())
+    assert events[-1] == ("st-error", "Unable to load ORCHESTRATE app arguments: bad args")
+
+    class NoMarkdownStreamlit:
+        pass
+
+    monkeypatch.setitem(sys.modules, "streamlit", NoMarkdownStreamlit())
+    assert module._render_surface_styles() is None
+
+    module._render_full_surface(None)
+    assert events[-1] == ("playground-main", {})
+
+    module.render(mode="configure", env="env", container="container")
+    assert events[-1] == ("configure-form", {"env": "env", "container": "container"})
+
+    monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: None)
+    monkeypatch.setattr(
+        module,
+        "_render_analysis_surface",
+        lambda path: events.append(("render-analysis", path)),
+    )
+    monkeypatch.setattr(
+        module,
+        "_render_full_surface",
+        lambda path, **kwargs: events.append(("render-full", (path, kwargs))),
+    )
+    module.render(mode="analysis")
+    module.render(mode="full", env="env", container="container")
+    assert ("render-analysis", None) in events
+    assert ("render-full", (None, {"env": "env", "container": "container"})) in events
+    with pytest.raises(ValueError, match="Unsupported PyTorch Playground app surface mode"):
+        module.render(mode="unknown")
+
+
+def test_app_surface_run_button_idle_and_failure_paths(monkeypatch: pytest.MonkeyPatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_run_edges_test")
+    events: list[tuple[str, object]] = []
+
+    class IdleContainer:
+        def button(self, label, **kwargs):
+            events.append(("button", (label, kwargs)))
+            return False
+
+        def error(self, message):
+            events.append(("error", message))
+
+    assert module._render_run_button(PROJECT_PATH.resolve(), container=IdleContainer()) is None
+    assert events == [("button", ("Refresh evidence", {"type": "primary", "width": "stretch"}))]
+
+    class ClickContainer(IdleContainer):
+        def button(self, label, **kwargs):
+            events.append(("click", label))
+            return True
+
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (_ for _ in ()).throw(RuntimeError("run failed")))
+    module._render_run_button(PROJECT_PATH.resolve(), container=ClickContainer())
+    assert ("error", "Run failed: run failed") in events
+
+
 def test_cached_train_uses_isolated_subprocess_in_streamlit_context() -> None:
     module = _load_module()
     if module.torch is None:
@@ -843,6 +962,135 @@ def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.Monkey
     assert module._gap_band({"train_accuracy": 0.95, "validation_accuracy": 0.70})[0] == "Likely overfit"
     assert module._confidence_band(pd.DataFrame({"probability": [0.1, 0.9]}))[0] == "Decisive boundary"
     assert module._confidence_band(pd.DataFrame({"probability": [0.30, 0.70]}))[0] == "Boundary forming"
+
+
+def test_playground_ui_remaining_helper_and_subprocess_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=16, epochs=2, grid_size=5)
+
+    with pytest.raises(AttributeError, match="definitely_missing"):
+        getattr(module, "definitely_missing")
+    assert module._ipc_encode(np.array([[1, 2], [3, 4]])) == [[1, 2], [3, 4]]
+    with pytest.raises(ValueError, match="invalid dataframe columns"):
+        module._ipc_decode({"__type__": module._DATAFRAME_IPC_TYPE, "columns": [1], "records": []})
+    with pytest.raises(ValueError, match="invalid dataframe records"):
+        module._ipc_decode({"__type__": module._DATAFRAME_IPC_TYPE, "columns": ["x"], "records": {}})
+
+    class IndexOnlyState:
+        def __init__(self):
+            self.values = {"present": "value"}
+
+        def __getitem__(self, key):
+            return self.values[key]
+
+        def __setitem__(self, key, value):
+            self.values[key] = value
+
+    state = IndexOnlyState()
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    assert module._session_state_get("present", "fallback") == "value"
+    assert module._session_state_get("missing", "fallback") == "fallback"
+    module._session_state_set("new", "saved")
+    assert state.values["new"] == "saved"
+    assert module._progress_value(3, 0) == 0.0
+    assert module._progress_value(99, 10) == 1.0
+
+    events: list[tuple[str, object]] = []
+
+    class StatusStreamlit:
+        session_state = {}
+
+        def caption(self, body):
+            events.append(("caption", body))
+
+        def progress(self, value, **kwargs):
+            events.append(("progress", value))
+            events.append(("progress_text", kwargs.get("text")))
+
+        def rerun(self):
+            events.append(("rerun", ""))
+
+    monkeypatch.setattr(module, "st", StatusStreamlit())
+    monkeypatch.setattr(module.time, "sleep", lambda delay: events.append(("sleep", delay)))
+    module._render_live_training_status({"epoch": 1, "playing": True}, config)
+    module._request_live_rerun(0.01)
+    assert ("caption", "Live state: playing, epoch 1/2.") in events
+    assert ("progress", 0.5) in events
+    assert ("rerun", "") in events
+
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{not-json", encoding="utf-8")
+    list_json = tmp_path / "list.json"
+    list_json.write_text("[]\n", encoding="utf-8")
+    assert module._read_json_file(bad_json) == {}
+    assert module._read_json_file(list_json) == {}
+    empty_frame = pd.DataFrame({"x": []})
+    recovered_frame = module._read_evidence_frame(tmp_path / "missing.csv", empty_frame)
+    assert recovered_frame.empty
+    assert recovered_frame is not empty_frame
+    assert module._load_evidence_result(tmp_path / "missing-evidence") is None
+
+    evidence_root = tmp_path / "evidence"
+    (evidence_root / "config").mkdir(parents=True)
+    (evidence_root / "summary").mkdir(parents=True)
+    (evidence_root / "manifest.json").write_text(json.dumps({"schema": "demo"}), encoding="utf-8")
+    (evidence_root / "config" / "playground_config.json").write_text(
+        json.dumps({"config": {"dataset": "xor", "sample_count": 24}}),
+        encoding="utf-8",
+    )
+    (evidence_root / "summary" / "run_summary.json").write_text(
+        json.dumps({"summary": {"backend": "saved"}}),
+        encoding="utf-8",
+    )
+    loaded = module._load_latest_evidence_result([tmp_path / "missing", evidence_root])
+    assert loaded is not None
+    loaded_config, loaded_result, loaded_root = loaded
+    assert loaded_root == evidence_root
+    assert loaded_config.dataset == "xor"
+    assert loaded_result["summary"]["backend"] == "saved"
+
+    samples = pd.DataFrame({"x1": [0.0, 1.0], "x2": [0.0, 1.0], "target": [0, 1]})
+    grid = pd.DataFrame({"x1": [0.0], "x2": [0.0], "probability": [0.5]})
+    history = pd.DataFrame({"epoch": [1], "train_loss": [0.5], "validation_loss": [0.6]})
+    activation_maps = pd.DataFrame({"layer": [1], "neuron": [1], "x1": [0.0], "x2": [0.0], "activation": [0.3]})
+    layers = pd.DataFrame({"layer": [1], "kind": ["hidden"], "weight_max_abs": [0.1], "bias_max_abs": [0.2]})
+    landscape = pd.DataFrame({"alpha": [0.0], "beta": [0.0], "validation_loss": [0.4]})
+    monkeypatch.setattr(module, "go", None)
+    assert module._decision_figure(samples, grid, 5) is not None
+    assert module._history_figure(history) is not None
+    assert module._activation_figure(activation_maps, 1, 1) is not None
+    assert module._network_figure(layers) is not None
+    assert module._loss_landscape_figure(landscape) is not None
+
+    def timeout_run(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="python", timeout=1)
+
+    monkeypatch.setattr(module.subprocess, "run", timeout_run)
+    assert module._run_core_in_subprocess("train", config)["status"] == "error"
+    assert module._run_core_in_subprocess("loss_landscape", config)["status"] == "error"
+
+    def failed_run(*_args, **_kwargs):
+        return SimpleNamespace(returncode=2, stderr="boom\ntrace")
+
+    monkeypatch.setattr(module.subprocess, "run", failed_run)
+    assert "exit code 2" in module._run_core_in_subprocess("train", config)["detail"]
+
+    def malformed_run(args, **_kwargs):
+        Path(args[-1]).write_text("{bad-json", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", malformed_run)
+    assert "JSONDecodeError" in module._run_core_in_subprocess("loss_landscape", config)["detail"]
+
+    def invalid_payload_run(args, **_kwargs):
+        Path(args[-1]).write_text(json.dumps({"ok": True, "result": []}), encoding="utf-8")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", invalid_payload_run)
+    assert "invalid payload" in module._run_core_in_subprocess("train", config)["detail"]
 
 
 def test_pytorch_playground_experiment_coach_returns_replayable_next_configs() -> None:
@@ -2047,10 +2295,74 @@ def test_pytorch_playground_distribution_marks_extra_workers_idle(monkeypatch: p
 
     manager = manager_module.PytorchPlayground.__new__(manager_module.PytorchPlayground)
     work_plan, metadata, id_name, count_name, label = manager.build_distribution(3)
+    fallback_plan, fallback_metadata, *_ = manager.build_distribution("bad")
 
     assert work_plan == [[["pytorch_playground"]], [], []]
     assert metadata == [[{"run": "pytorch_playground", "work_items": 1}], [], []]
+    assert fallback_plan == [[["pytorch_playground"]]]
+    assert fallback_metadata == [[{"run": "pytorch_playground", "work_items": 1}]]
     assert (id_name, count_name, label) == ("run", "work_items", "items")
+
+
+def test_pytorch_playground_manager_initialization_and_toml_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    manager_module = importlib.import_module("pytorch_playground.pytorch_playground")
+    args_module = importlib.import_module("pytorch_playground.app_args")
+
+    def fake_share_dir(self, env):
+        self.share_checked = env
+
+    def fake_managed_paths(self, args):
+        return args
+
+    monkeypatch.setattr(manager_module.PytorchPlayground, "_ensure_managed_pc_share_dir", fake_share_dir)
+    monkeypatch.setattr(manager_module.PytorchPlayground, "_apply_managed_pc_paths", fake_managed_paths)
+
+    class FakeEnv:
+        verbose = 2
+        AGILAB_EXPORT_ABS = tmp_path / "export"
+        target = "custom_target"
+        app = ""
+        active_app = ""
+
+        def resolve_share_path(self, value):
+            return tmp_path / "share" / Path(value)
+
+    existing = tmp_path / "share" / "pytorch_playground" / "evidence"
+    existing.mkdir(parents=True)
+    (existing / "stale.txt").write_text("old", encoding="utf-8")
+
+    manager = manager_module.PytorchPlayground(
+        FakeEnv(),
+        data_out=Path("pytorch_playground/evidence"),
+        reset_target=True,
+        sample_count=96,
+    )
+
+    assert manager.verbose == 2
+    assert manager.data_out == existing
+    assert not (existing / "stale.txt").exists()
+    assert manager.analysis_artifact_dir == tmp_path / "export" / "custom_target" / "pytorch_playground"
+    assert manager.as_dict()["sample_count"] == 96
+
+    settings_path = tmp_path / "settings.toml"
+    manager.to_toml(settings_path)
+    loaded = manager_module.PytorchPlayground.from_toml(
+        FakeEnv(),
+        settings_path=settings_path,
+        sample_count=128,
+    )
+    assert loaded.as_dict()["sample_count"] == 128
+
+    with pytest.raises(ValueError, match="Invalid PyTorch playground arguments"):
+        manager_module.PytorchPlayground(FakeEnv(), sample_count=1)
+
+    app_suffix = manager_module.PytorchPlaygroundApp.__new__(manager_module.PytorchPlaygroundApp)
+    assert isinstance(app_suffix, manager_module.PytorchPlayground)
+    assert args_module.ensure_defaults(manager.args).model_dump(mode="json") == manager.args.model_dump(mode="json")
 
 
 def test_pytorch_playground_reduce_contract_merges_training_summaries(
@@ -2402,6 +2714,177 @@ def test_pytorch_playground_app_args_form_fallback_snippet_edges(
     assert "RUN_STAGES_PAYLOAD = json.loads('[]')" in snippet
 
 
+def test_pytorch_playground_app_args_form_remaining_edge_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import builtins
+
+    form_module = _load_app_args_form_module()
+
+    class StopRender(RuntimeError):
+        pass
+
+    class FakeContainer:
+        def __init__(self, label: str = "container"):
+            self.label = label
+            self.events: list[tuple[str, object]] = []
+
+        def __enter__(self):
+            self.events.append(("enter", self.label))
+            return self
+
+        def __exit__(self, *_args):
+            self.events.append(("exit", self.label))
+            return False
+
+        def markdown(self, body):
+            self.events.append(("markdown", body))
+
+        def caption(self, body):
+            self.events.append(("caption", body))
+
+        def error(self, body):
+            self.events.append(("error", body))
+
+        def code(self, body, **kwargs):
+            self.events.append(("code", (body, kwargs.get("language"))))
+
+        def expander(self, label, *, expanded=False):
+            self.events.append(("expander", (label, expanded)))
+            return self
+
+        def columns(self, spec):
+            self.events.append(("columns", tuple(spec) if isinstance(spec, list) else spec))
+            return [self for _ in range(len(spec) if isinstance(spec, list) else int(spec))]
+
+        def text_input(self, _label, *, key):
+            return form_module.st.session_state[key]
+
+        def checkbox(self, _label, *, key):
+            return form_module.st.session_state[key]
+
+        def number_input(self, _label, *, key, **_kwargs):
+            return form_module.st.session_state[key]
+
+        def slider(self, _label, *, key, **_kwargs):
+            return form_module.st.session_state[key]
+
+        def selectbox(self, _label, options=None, *, key):
+            return form_module.st.session_state[key]
+
+        def multiselect(self, _label, _options, *, key):
+            return form_module.st.session_state[key]
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.session_state: dict[str, object] = {}
+            self.errors: list[str] = []
+            self.sidebar = FakeContainer("sidebar")
+
+        def error(self, message):
+            self.errors.append(str(message))
+
+        def stop(self):
+            raise StopRender()
+
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(form_module, "st", fake_st)
+    with pytest.raises(StopRender):
+        form_module._get_env()
+    assert fake_st.errors == [
+        "AGILAB environment is not initialised yet. Return to the main page and try again."
+    ]
+
+    env = SimpleNamespace(
+        app="",
+        active_app=tmp_path / "apps" / "pytorch_playground_project",
+        apps_path=tmp_path / "apps",
+        target="target",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        humanize_validation_errors=lambda exc: [f"humanized: {type(exc).__name__}"],
+    )
+    fake_st.session_state["env"] = env
+    assert form_module._get_env() is env
+    assert form_module._active_app_name(env) == "pytorch_playground_project"
+    assert form_module._snippet_apps_path(env) == str(tmp_path / "apps")
+    assert form_module._cluster_settings() == {}
+    fake_st.session_state["app_settings"] = {"cluster": "bad"}
+    assert form_module._cluster_settings() == {}
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "host",
+            "workers": {"w": 1},
+            "workers_data_path": "/share",
+            "pool": True,
+            "cython": True,
+            "rapids": True,
+            "verbose": "bad",
+        }
+    }
+    assert form_module._coerce_verbose("bad") == 1
+    fake_st.session_state["mode"] = 7
+    assert form_module._run_mode(form_module._cluster_settings(), cluster_enabled=True) == 7
+    fake_st.session_state.pop("mode")
+    assert form_module._run_mode(form_module._cluster_settings(), cluster_enabled=True) == 15
+    assert form_module._optional_string_expr(False, "x") == "None"
+    assert form_module._optional_python_expr(True, {}) == "None"
+    payload, stages, data_in, data_out, reset_target = form_module._split_run_request_payload(
+        {"args": "not-list", "data_in": "in", "data_out": "out", "reset_target": True}
+    )
+    assert payload == {}
+    assert stages == []
+    assert (data_in, data_out, reset_target) == ("in", "out", True)
+
+    model = form_module.app_args.PytorchPlaygroundArgs(compute_loss_landscape=False)
+    values: dict[str, object] = {}
+    resolution_field = next(field for field in form_module.FORM_FIELDS if field.name == "landscape_resolution")
+    assert form_module._field_disabled(resolution_field, values, model, env=env) is True
+    assert (
+        form_module._feature_names(FakeContainer(), env, "feature_names", "Features", "")
+        == ",".join(form_module.DEFAULT_FEATURES)
+    )
+    sidebar_values = form_module._render_args_form(model, env=env, container=FakeContainer(), wide=False)
+    assert set(sidebar_values) == {field.name for field in form_module.FORM_FIELDS}
+
+    fake_st.session_state = {
+        "env": env,
+        "app_settings": fake_st.session_state["app_settings"],
+    }
+    persisted: list[object] = []
+    monkeypatch.setattr(
+        form_module,
+        "load_args_state",
+        lambda _env, *, args_module: (model, {"seed": "payload"}, tmp_path / "settings.toml"),
+    )
+    monkeypatch.setattr(form_module, "persist_args", lambda *args, **kwargs: persisted.append((args, kwargs)))
+    parsed = form_module.persist_current_args(env=env)
+    assert isinstance(parsed, form_module.app_args.PytorchPlaygroundArgs)
+    assert persisted
+
+    original_import = builtins.__import__
+
+    def fail_orchestrate_import(name, *args, **kwargs):
+        if name == "agilab.orchestrate_page_support":
+            raise ImportError("blocked")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_orchestrate_import)
+    snippet = form_module._build_synced_run_snippet(parsed, env=env)
+    assert "asyncio.run(main())" in snippet
+    assert "RunRequest" in snippet
+
+    monkeypatch.setattr(
+        form_module.app_args,
+        "to_playground_config",
+        lambda _parsed: (_ for _ in ()).throw(ValueError("bad config")),
+    )
+    output_container = FakeContainer("output")
+    form_module.render(env=env, container=output_container, compact=False)
+    assert ("error", "bad config") in output_container.events
+
+
 def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
     source_root = PROJECT_PATH / "src"
     payload_root = PACKAGE_PROJECT_PATH / "src"
@@ -2453,6 +2936,74 @@ def test_pytorch_playground_worker_exports_evidence_without_torch(
     assert manifest["app"] == "pytorch_playground_project"
     assert (tmp_path / "out" / "pytorch_playground_evidence.zip").is_file()
     assert (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground" / "manifest.json").is_file()
+
+
+def test_pytorch_playground_worker_helper_and_dispatch_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    worker_module = importlib.import_module("pytorch_playground_worker.pytorch_playground_worker")
+    args_module = importlib.import_module("pytorch_playground.app_args")
+
+    assert worker_module._artifact_dir(
+        SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="target"),
+        "leaf",
+    ) == tmp_path / "export" / "target" / "leaf"
+    assert worker_module._artifact_dir(
+        SimpleNamespace(resolve_share_path=lambda value: tmp_path / "share" / value),
+        "leaf",
+    ) == tmp_path / "share" / "leaf"
+    monkeypatch.setattr(worker_module.Path, "home", staticmethod(lambda: tmp_path))
+    assert worker_module._artifact_dir(SimpleNamespace(), "leaf") == tmp_path / "export" / "leaf"
+
+    args = args_module.PytorchPlaygroundArgs(sample_count=96)
+    assert worker_module._args_with_defaults(args) is args
+    assert worker_module._args_with_defaults(args.model_dump(mode="json")).sample_count == 96
+    assert worker_module._args_with_defaults(SimpleNamespace(sample_count=128, _private="skip")).sample_count == 128
+
+    class ArgsObject:
+        def __init__(self):
+            self.sample_count = 160
+            self._private = "skip"
+
+    assert worker_module._args_with_defaults(ArgsObject()).sample_count == 160
+
+    existing_out = tmp_path / "resolved" / "evidence"
+    existing_out.mkdir(parents=True)
+    (existing_out / "stale.txt").write_text("old", encoding="utf-8")
+    worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    worker.args = {"data_out": "evidence", "reset_target": True, "sample_count": 96}
+    worker.env = SimpleNamespace(resolve_share_path=lambda value: tmp_path / "resolved" / value, target="")
+    worker._worker_id = 0
+    worker.start()
+    assert worker.data_out == existing_out
+    assert not (existing_out / "stale.txt").exists()
+
+    events: list[tuple[str, object]] = []
+    dispatch_worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    dispatch_worker._worker_id = 0
+    dispatch_worker.work_init = lambda: events.append(("init", None))
+    dispatch_worker.work_pool = lambda item: events.append(("pool", item)) or pd.DataFrame([{"item": item}])
+    dispatch_worker.work_done = lambda df: events.append(("done", df.iloc[0]["item"]))
+    dispatch_worker.stop = lambda: events.append(("stop", None))
+    worker_module.BaseWorker._t0 = None
+
+    elapsed = dispatch_worker.works([["a", ("b", "c")]], [])
+
+    assert elapsed >= 0
+    assert events == [
+        ("init", None),
+        ("pool", "a"),
+        ("done", "a"),
+        ("pool", "b"),
+        ("done", "b"),
+        ("pool", "c"),
+        ("done", "c"),
+        ("stop", None),
+    ]
+    bare_worker = worker_module.PytorchPlaygroundWorker.__new__(worker_module.PytorchPlaygroundWorker)
+    assert worker_module.PytorchPlaygroundWorker.work_done(bare_worker) is None
 
 
 def test_pytorch_playground_worker_exports_real_torch_evidence_when_available(
@@ -2832,6 +3383,265 @@ def test_pytorch_playground_main_renders_with_fake_streamlit(monkeypatch: pytest
     assert fake_st.downloads
     manifest = next(json.loads(body) for body, language in fake_st.code_payloads if language == "json")
     assert manifest["schema"] == module.EVIDENCE_SCHEMA
+
+
+def test_pytorch_playground_main_live_mode_and_missing_evidence_branch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def selectbox(self, _label, options, index=0, **_kwargs):
+            return list(options)[index]
+
+        def button(self, label, **_kwargs):
+            return label == "Play"
+
+        def caption(self, *_args, **_kwargs):
+            return None
+
+        def progress(self, *_args, **_kwargs):
+            return None
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.query_params = {}
+            self.session_state: dict[str, object] = {}
+            self.sidebar = FakeContext()
+            self.infos: list[str] = []
+            self.errors: list[str] = []
+            self.warnings: list[str] = []
+            self.downloads: list[bytes] = []
+            self.code_payloads: list[tuple[str, str | None]] = []
+            self.rerun_count = 0
+
+        def set_page_config(self, **_kwargs):
+            return None
+
+        def title(self, *_args, **_kwargs):
+            return None
+
+        def caption(self, message="", **_kwargs):
+            return None
+
+        def markdown(self, *_args, **_kwargs):
+            return None
+
+        def error(self, message, **_kwargs):
+            self.errors.append(str(message))
+
+        def warning(self, message, **_kwargs):
+            self.warnings.append(str(message))
+
+        def columns(self, spec):
+            count = spec if isinstance(spec, int) else len(spec)
+            return [FakeContext() for _ in range(count)]
+
+        def tabs(self, labels):
+            return [FakeContext() for _label in labels]
+
+        def selectbox(self, label, options, index=0, **_kwargs):
+            if label == "Training mode":
+                return module.LIVE_TRAINING_MODE_LABEL
+            return list(options)[index]
+
+        def slider(self, _label, _min, _max, value, **_kwargs):
+            return value
+
+        def multiselect(self, _label, _options, default=None, **_kwargs):
+            return list(default or [])
+
+        def text_input(self, _label, value="", **_kwargs):
+            return value
+
+        def number_input(self, _label, value=0, **_kwargs):
+            return value
+
+        def checkbox(self, *_args, **_kwargs):
+            return False
+
+        def button(self, label, **_kwargs):
+            return label == "Play"
+
+        def plotly_chart(self, *_args, **_kwargs):
+            return None
+
+        def dataframe(self, *_args, **_kwargs):
+            return None
+
+        def info(self, message, **_kwargs):
+            self.infos.append(str(message))
+
+        def metric(self, *_args, **_kwargs):
+            return None
+
+        def progress(self, *_args, **_kwargs):
+            return None
+
+        def download_button(self, _label, data, **_kwargs):
+            self.downloads.append(data)
+            return False
+
+        def code(self, body, **kwargs):
+            self.code_payloads.append((str(body), kwargs.get("language")))
+
+        def rerun(self):
+            self.rerun_count += 1
+
+        def json(self, payload, **_kwargs):
+            raise AssertionError(f"st.json should not be used by PyTorch Playground: {payload!r}")
+
+    config = module.PlaygroundConfig(sample_count=64, grid_size=12, hidden_layers=(4,), epochs=8)
+    samples = module._make_dataset(config)
+    result = {
+        "status": "ok",
+        "detail": "",
+        "samples": samples,
+        "history": pd.DataFrame(
+            {
+                "epoch": [1],
+                "train_loss": [0.5],
+                "validation_loss": [0.6],
+                "train_accuracy": [0.7],
+                "validation_accuracy": [0.65],
+            }
+        ),
+        "grid": pd.DataFrame({"x1": [0.0], "x2": [0.0], "probability": [0.5]}),
+        "network_layers": module._empty_network_layers(),
+        "activation_maps": module._empty_activation_maps(),
+        "summary": {"backend": "live", "samples": len(samples), "features": 2},
+    }
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_logo", lambda: None)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: tmp_path)
+    monkeypatch.setattr(module.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        module,
+        "_run_live_training_controls",
+        lambda *_args, **_kwargs: (
+            {"epoch": 1, "playing": True, "signature": module._config_signature(config)},
+            result,
+            True,
+        ),
+    )
+
+    module.main()
+
+    assert fake_st.rerun_count == 1
+    assert fake_st.downloads
+
+    analysis_st = FakeStreamlit()
+    monkeypatch.setattr(module, "st", analysis_st)
+    module.main(
+        interactive_controls=False,
+        evidence_dirs=[tmp_path / "missing"],
+        configure_page=False,
+    )
+    assert analysis_st.infos == [
+        "No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS."
+    ]
+
+
+def test_pytorch_playground_core_remaining_training_edges() -> None:
+    module = _load_module()
+
+    fallback_fig = module._plotly_unavailable_figure("demo", trace_count=2)
+    assert len(fallback_fig.data) == 2
+    assert module._parse_hidden_layers("4,, 8") == (4, 8)
+
+    no_hidden_config = module.PlaygroundConfig(
+        sample_count=32,
+        grid_size=8,
+        hidden_layers=(),
+        epochs=2,
+    )
+    training_data = module._prepare_training_data(no_hidden_config)
+    model = module._build_model(len(no_hidden_config.feature_names), no_hidden_config)
+    assert module._hidden_activation_maps(
+        model,
+        no_hidden_config,
+        training_data["mean"],
+        training_data["std"],
+    ).empty
+
+    sgd_config = module.PlaygroundConfig(
+        sample_count=32,
+        grid_size=8,
+        hidden_layers=(4,),
+        optimizer="SGD",
+        regularization="L1",
+        regularization_rate=0.01,
+        epochs=2,
+    )
+    sgd_data = module._prepare_training_data(sgd_config)
+    sgd_model = module._build_model(len(sgd_config.feature_names), sgd_config)
+    loss_fn = module.nn.CrossEntropyLoss()
+    optimizer = module._playground_core._optimizer_for_config(sgd_model, sgd_config)
+    assert optimizer.__class__.__name__ == "SGD"
+    module._playground_core._train_one_epoch(
+        sgd_config,
+        sgd_model,
+        loss_fn,
+        optimizer,
+        sgd_data,
+    )
+
+    rows = [{"epoch": 3}]
+    module._playground_core._append_history_row_once(rows, sgd_model, loss_fn, sgd_data, 3)
+    assert rows == [{"epoch": 3}]
+
+    failed_state = module._advance_live_training({"status": "error", "playing": True})
+    assert failed_state["playing"] is False
+
+    bad_config_state = module._advance_live_training({"status": "ok", "config": "bad", "playing": True})
+    assert bad_config_state["status"] == "error"
+    assert bad_config_state["playing"] is False
+
+    bad_history_state = module._advance_live_training(
+        {
+            "status": "ok",
+            "config": sgd_config,
+            "history_rows": "bad",
+            "snapshot_states": [],
+            "playing": True,
+        }
+    )
+    assert bad_history_state["status"] == "error"
+    assert bad_history_state["playing"] is False
+
+    incomplete_result = module._live_training_result({})
+    assert incomplete_result["status"] == "error"
+    error_result = module._live_training_result(
+        {"status": "error", "detail": "boom", "config": sgd_config, "epoch": 1}
+    )
+    assert error_result["detail"] == "boom"
+    assert error_result["summary"]["backend"] == "error"
+
+    assert module._playground_core._boundary_snapshots(
+        sgd_model,
+        sgd_config,
+        sgd_data["mean"],
+        sgd_data["std"],
+        [],
+    ).empty
+    assert module._playground_core._normalized_landscape_resolution(10) == 11
 
 
 def test_pytorch_playground_app_provider_and_package_docs(tmp_path: Path) -> None:

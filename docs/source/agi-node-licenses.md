@@ -40,7 +40,6 @@ Audit notes:
 | pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | setuptools | 81.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |

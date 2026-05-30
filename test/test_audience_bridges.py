@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agilab import agent_run, bridge_cli, run_manifest
+import agilab_mcp
 from agilab_mcp import manifest_tools, server as mcp_server
 
 
@@ -176,6 +177,13 @@ def test_hf_space_export_edges_and_secret_scan(tmp_path: Path) -> None:
     assert payload["status"] == "pass"
     assert (output / "evidence" / "evidence.txt").is_file()
 
+    evidence_dir = tmp_path / "evidence-dir"
+    evidence_dir.mkdir()
+    (evidence_dir / "nested.txt").write_text("evidence\n", encoding="utf-8")
+    payload = bridge_cli.export_hf_space(project, output, evidence_path=evidence_dir, force=True)
+    assert payload["status"] == "pass"
+    assert (output / "evidence" / "nested.txt").is_file()
+
 
 def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
@@ -266,6 +274,86 @@ def test_duckdb_bridge_plan_and_optional_execution(tmp_path: Path) -> None:
             table_name="input;drop",
             plan_only=True,
         )
+
+
+def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> None:
+    list_json = tmp_path / "list.json"
+    list_json.write_text("[]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Expected JSON object"):
+        bridge_cli._read_json(list_json)
+
+    repo = tmp_path / "repo"
+    (repo / "src" / "agilab").mkdir(parents=True)
+    (repo / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    assert bridge_cli._repo_root(repo / "src" / "agilab") == repo
+    assert bridge_cli._resolve_artifact_path(str(tmp_path / "absolute.txt"), tmp_path / "run.json") == (
+        tmp_path / "absolute.txt"
+    )
+
+    notebook = tmp_path / "bad.ipynb"
+    notebook.write_text("[]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Expected notebook JSON object"):
+        bridge_cli._load_notebook_json(notebook)
+    notebook.write_text('{"cells": {}}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Expected notebook cells list"):
+        bridge_cli._load_notebook_json(notebook)
+
+    payload = {"cells": "not-a-list"}
+    bridge_cli._ensure_notebook_cell_ids(payload)
+    payload = {"cells": ["skip", {"id": "keep"}, {"cell_type": "code"}]}
+    bridge_cli._ensure_notebook_cell_ids(payload)
+    assert payload["cells"][2]["id"] == "agilab-cell-0001"
+
+    bridge_cli._emit({"schema": "demo", "status": "planned", "path": "out"}, json_output=False)
+    emitted = capsys.readouterr().out
+    assert "planned" in emitted
+    assert "path: out" in emitted
+
+    query = tmp_path / "query.sql"
+    query.write_text("select * from input_table", encoding="utf-8")
+
+    class FakeConnection:
+        description = [("value",)]
+
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def execute(self, query_text, params=None):
+            self.calls.append((query_text, params))
+            return self
+
+        def fetchall(self):
+            return [(1,)]
+
+    connection = FakeConnection()
+    fake_duckdb = SimpleNamespace(connect=lambda database: connection)
+    for suffix, expected_reader in (
+        (".csv", "read_csv_auto"),
+        (".parquet", "read_parquet"),
+        (".jsonl", "read_json_auto"),
+    ):
+        data = tmp_path / f"input{suffix}"
+        data.write_text("value\n1\n", encoding="utf-8")
+        bridge_cli.run_duckdb_query(
+            query,
+            tmp_path / f"duckdb-{suffix[1:]}",
+            input_path=data,
+            duckdb_module=fake_duckdb,
+        )
+        assert expected_reader in connection.calls[-2][0]
+
+    unsupported = tmp_path / "input.txt"
+    unsupported.write_text("value\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported DuckDB input format"):
+        bridge_cli.run_duckdb_query(
+            query,
+            tmp_path / "duckdb-unsupported",
+            input_path=unsupported,
+            duckdb_module=fake_duckdb,
+        )
+
+    with pytest.raises(RuntimeError, match="MLflow import MVP requires"):
+        bridge_cli.import_mlflow_handoff("demo", tmp_path / "mlflow.json")
 
 
 def _write_minimal_notebook(path: Path, source: str = "print('hello')") -> Path:
@@ -575,6 +663,74 @@ def test_notebook_sandbox_cli_route(monkeypatch: pytest.MonkeyPatch, capsys) -> 
             "allow_errors": True,
         }
     ]
+
+
+def test_bridge_cli_routes_export_import_init_and_mcp(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    calls: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(
+        bridge_cli,
+        "export_hf_space",
+        lambda *args, **kwargs: calls.append(("hf", (args, kwargs))) or {"status": "pass", "schema": "hf"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "export_mlflow_handoff",
+        lambda *args, **kwargs: calls.append(("mlflow", args)) or {"status": "pass", "schema": "mlflow"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "export_airflow_dag",
+        lambda *args, **kwargs: calls.append(("airflow", (args, kwargs))) or {"status": "pass", "schema": "airflow"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "export_dagster_job",
+        lambda *args, **kwargs: calls.append(("dagster", (args, kwargs))) or {"status": "pass", "schema": "dagster"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "run_duckdb_query",
+        lambda *args, **kwargs: calls.append(("duckdb", (args, kwargs))) or {"status": "planned", "schema": "duckdb"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "init_vscode_bridge",
+        lambda *args, **kwargs: calls.append(("vscode", (args, kwargs))) or {"status": "pass", "schema": "vscode"},
+    )
+    monkeypatch.setattr(
+        bridge_cli,
+        "import_mlflow_handoff",
+        lambda *args, **kwargs: calls.append(("import-mlflow", (args, kwargs))) or {"status": "pass", "schema": "import"},
+    )
+
+    fake_server = ModuleType("agilab_mcp.server")
+    fake_server.main = lambda args: calls.append(("mcp", args)) or 0
+    monkeypatch.setitem(sys.modules, "agilab_mcp.server", fake_server)
+    monkeypatch.setattr(agilab_mcp, "server", fake_server)
+
+    assert bridge_cli.main(["export", "hf-space", "--project", "p", "--output", "o", "--evidence", "e", "--force"]) == 0
+    assert bridge_cli.main(["export", "mlflow", "--run", "m.json", "--output", "o.json"]) == 0
+    assert bridge_cli.main(["export", "airflow-dag", "--run", "m.json", "--output", "dag.py", "--dag-id", "demo"]) == 0
+    assert bridge_cli.main(["export", "dagster-job", "--run", "m.json", "--output", "job.py", "--job-name", "demo_job"]) == 0
+    assert bridge_cli.main(["run", "duckdb", "--query", "q.sql", "--output", "out", "--input", "in.csv", "--params", "p.json", "--table-name", "input_table", "--plan-only"]) == 0
+    assert bridge_cli.main(["init", "vscode", "--root", "workspace", "--force"]) == 0
+    assert bridge_cli.main(["import", "mlflow", "--experiment", "exp", "--input", "in.json", "--output", "out.json"]) == 0
+    assert bridge_cli.main(["mcp", "--", "--help"]) == 0
+
+    assert [name for name, _payload in calls] == [
+        "hf",
+        "mlflow",
+        "airflow",
+        "dagster",
+        "duckdb",
+        "vscode",
+        "import-mlflow",
+        "mcp",
+    ]
+    assert calls[0][1][1]["force"] is True
+    assert calls[-1][1] == ["--help"]
+    assert "planned" in capsys.readouterr().out
 
 
 def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
