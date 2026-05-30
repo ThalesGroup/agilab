@@ -12,6 +12,7 @@ from typing import Any, Callable
 SERVICE_TASK_SCHEMA = "agi.service.task.v1"
 SERVICE_TASK_SUFFIX = ".task.json"
 LEGACY_SERVICE_TASK_SUFFIX = ".task.pkl"
+SERVICE_TASK_EXECUTION_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 def resolve_service_queue_root(
@@ -255,7 +256,7 @@ def run_service_queue(
                 )
                 processed += 1
             # Worker code can fail arbitrarily; persist the failure and keep the queue alive.
-            except Exception as exc:
+            except SERVICE_TASK_EXECUTION_EXCEPTIONS as exc:
                 payload["status"] = "failed"
                 payload["finished_at"] = time_module.time()
                 payload["runtime"] = time_module.time() - task_start

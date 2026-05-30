@@ -81,6 +81,11 @@ from agi_env.runtime_bootstrap_support import (
     sync_repository_apps,
 )
 from agi_env.worker_runtime_support import configure_worker_runtime
+from agi_env.windows_link_support import (
+    create_junction_windows as _create_junction_windows,
+    create_symlink_windows as _create_symlink_windows,
+    has_admin_rights as _has_admin_rights,
+)
 from agi_env.process_support import (
     build_subprocess_env,
     fix_windows_drive as _fix_windows_drive,
@@ -1542,10 +1547,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         Returns:
             bool: True if admin, False otherwise.
         """
-        try:
-            return ctypes.windll.shell32.IsUserAnAdmin()  # ty: ignore[unresolved-attribute]
-        except (AttributeError, OSError, RuntimeError):
-            return False
+        return _has_admin_rights(ctypes_module=ctypes)
 
     @staticmethod
     def create_junction_windows(source: Path, dest: Path) -> bool:
@@ -1556,18 +1558,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             source (Path): The target directory path.
             dest (Path): The destination junction path.
         """
-        try:
-            # Using the mklink command to create a junction (/J) which doesn't require admin rights.
-            subprocess.check_call(['cmd', '/c', 'mklink', '/J', str(dest), str(source)])
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"Created junction: {dest} -> {source}")
-            return True
-        except (OSError, subprocess.CalledProcessError) as e:
-            logger = AgiEnv.logger
-            if logger:
-                logger.error(f"Failed to create junction. Error: {e}")
-            return False
+        return _create_junction_windows(
+            source,
+            dest,
+            logger=AgiEnv.logger,
+            check_call=subprocess.check_call,
+        )
 
     @staticmethod
     def create_symlink_windows(source: Path, dest: Path):
@@ -1578,36 +1574,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             source (Path): Source directory path.
             dest (Path): Destination symlink path.
         """
-        # Define necessary Windows API functions and constants
-        CreateSymbolicLink = ctypes.windll.kernel32.CreateSymbolicLinkW  # ty: ignore[unresolved-attribute]
-        CreateSymbolicLink.restype = wintypes.BOOL
-        CreateSymbolicLink.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
-
-        SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
-
-        # Check if Developer Mode is enabled or if the process has admin rights
-        if not AgiEnv.has_admin_rights():
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(
-                    "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
-                )
-            return
-
-        flags = SYMBOLIC_LINK_FLAG_DIRECTORY
-
-        success = CreateSymbolicLink(str(dest), str(source), flags)
-        if success:
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
-        else:
-            error_code = ctypes.GetLastError()  # ty: ignore[unresolved-attribute]
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(
-                    f"Failed to create symbolic link for .venv. Error code: {error_code}"
-                )
+        return _create_symlink_windows(
+            source,
+            dest,
+            has_admin_rights_fn=AgiEnv.has_admin_rights,
+            logger=AgiEnv.logger,
+            ctypes_module=ctypes,
+            wintypes_module=wintypes,
+        )
 
     def create_rename_map(self, target_project: Path, dest_project: Path) -> dict:
         """Create a mapping of old → new names for cloning."""
@@ -1689,7 +1663,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         try:
             # HEAD request to Google
             req = urllib.request.Request("https://www.google.com", method="HEAD")
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            with urllib.request.urlopen(req, timeout=3):
                 pass  # Success if no exception
         except OSError:
             AgiEnv.logger.error("No internet connection detected. Aborting.")  # ty: ignore[unresolved-attribute]

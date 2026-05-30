@@ -25,6 +25,7 @@ DISTRIBUTION_PLAN_WRAP_EXCEPTIONS = (
     ImportError,
     ModuleNotFoundError,
 )
+WORKER_CODE_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 def _resolve_primary_cython_dist_path(
@@ -318,7 +319,7 @@ def initialize_worker(
             file_path=file_path,
             path_cls=path_cls,
         )
-    except Exception:
+    except WORKER_CODE_BOUNDARY_EXCEPTIONS:
         # Worker loading/constructor/startup executes app code; keep one logging boundary here.
         logger_obj.error(traceback_module.format_exc())
         raise
@@ -801,7 +802,7 @@ def execute_worker_plan(
         else:
             logger_obj.error("this worker is not initialized")
             raise RuntimeError("failed to do_works")
-    except Exception:
+    except WORKER_CODE_BOUNDARY_EXCEPTIONS:
         # ``works(...)`` executes arbitrary worker code; keep the runtime logging boundary here.
         logger_obj.error(traceback_module.format_exc())
         raise
