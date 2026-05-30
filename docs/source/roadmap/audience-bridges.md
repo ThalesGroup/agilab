@@ -47,7 +47,7 @@ agilab export airflow-dag --run run_manifest.json --output agilab_dag.py
 agilab export dagster-job --run run_manifest.json --output agilab_job.py
 ```
 
-The app-local `r_stage_smoke_project` remains the proof that AGILAB can execute
+The app-local `r_runtime_bridge_project` remains the proof that AGILAB can execute
 an external R payload through the `Rscript` + JSON + artifact contract. Live
 Rscript tests are skipped when R is not installed.
 
@@ -154,7 +154,7 @@ Message to users:
 
 R support should remain an external stage runtime, not an R-native worker.
 
-The app-local R stage smoke project is the right baseline:
+The app-local R runtime bridge project is the right baseline:
 
 ```text
 input.json
@@ -386,7 +386,7 @@ Phase 1: reproducible reporting audience
 
 Phase 2: R users
 
-4. Keep `r_stage_smoke_project` as the app-local proof
+4. Keep `r_runtime_bridge_project` as the app-local proof
 5. Reuse the Rscript JSON/artifact adapter contract
 6. Add an optional small R client only after the app-local proof is useful
 
@@ -438,7 +438,7 @@ Validation:
 
 ```bash
 pytest -q test/test_audience_bridges.py
-pytest -q test/test_r_stage_smoke_project.py
+pytest -q test/test_r_runtime_bridge_project.py
 ```
 
 ## Product story

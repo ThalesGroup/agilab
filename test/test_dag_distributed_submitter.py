@@ -170,7 +170,7 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
         calls.append(kwargs)
         return {"summary_metrics": {"factory_runner": 1}}
 
-    submitter = dag_distributed_submitter.build_global_dag_distributed_stage_submitter(
+    submitter = dag_distributed_submitter.build_multi_app_dag_distributed_stage_submitter(
         env=env,
         app_settings={
             "cluster": {
@@ -200,7 +200,7 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
 
 
 def test_build_global_submitter_returns_none_without_cluster() -> None:
-    submitter = dag_distributed_submitter.build_global_dag_distributed_stage_submitter(
+    submitter = dag_distributed_submitter.build_multi_app_dag_distributed_stage_submitter(
         env=SimpleNamespace(app_settings_file=None),
         app_settings={"cluster": {"cluster_enabled": False}},
     )
@@ -229,7 +229,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         runner_fn=_runner,
         repo_root=repo_root,
         lab_dir=tmp_path / "lab",
-        run_root=tmp_path / "lab/.agilab/global_dag_real_runs/flight_context",
+        run_root=tmp_path / "lab/.agilab/multi_app_dag_real_runs/flight_context",
         unit={"id": "flight_context", "app": "flight_telemetry_project"},
         artifact={"artifact": "flight_reduce_summary", "kind": "reduce_summary", "path": "flight/reduce.json"},
         execution_contract={
@@ -259,7 +259,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         runner_fn=lambda **_kwargs: {"summary_metrics": ["ignored"]},
         repo_root=repo_root,
         lab_dir=tmp_path / "lab",
-        run_root=tmp_path / "lab/.agilab/global_dag_real_runs/default_metrics",
+        run_root=tmp_path / "lab/.agilab/multi_app_dag_real_runs/default_metrics",
         unit={"id": "flight_context", "app": "flight_telemetry_project"},
         artifact={"artifact": "default_metrics"},
         execution_contract={},

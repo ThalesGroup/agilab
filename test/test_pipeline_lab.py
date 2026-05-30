@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -745,11 +746,11 @@ def test_pipeline_lab_helper_functions_cover_editor_text_and_engine_defaults():
     assert pipeline_lab._resolve_stage_engine("", "runpy", "") == "runpy"
 
 
-def test_global_dag_display_name_ignores_blank_payload_labels(tmp_path):
+def test_multi_app_dag_display_name_ignores_blank_payload_labels(tmp_path):
     dag_path = tmp_path / "fallback_name.json"
     dag_path.write_text(json.dumps({"label": "   ", "dag_id": "   "}) + "\n", encoding="utf-8")
 
-    assert pipeline_lab._global_dag_display_name(str(dag_path), Path.cwd()) == "fallback_name"
+    assert pipeline_lab._multi_app_dag_display_name(str(dag_path), Path.cwd()) == "fallback_name"
 
 
 def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypatch, tmp_path):
@@ -775,7 +776,7 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
         "Next action: Preview `flight_context`.",
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
-    edit_token = pipeline_lab._global_dag_source_token(
+    edit_token = pipeline_lab._multi_app_dag_source_token(
         "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     )
     assert ("Edit plan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
@@ -803,7 +804,7 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
 
 
 def test_global_runner_readiness_summary_prioritizes_running_and_scope():
-    summary = pipeline_lab._global_dag_readiness_summary(
+    summary = pipeline_lab._multi_app_dag_readiness_summary(
         {
             "summary": {
                 "unit_count": 3,
@@ -832,7 +833,7 @@ def test_global_runner_readiness_summary_prioritizes_running_and_scope():
 
 
 def test_global_runner_readiness_summary_describes_blocked_artifact():
-    summary = pipeline_lab._global_dag_readiness_summary(
+    summary = pipeline_lab._multi_app_dag_readiness_summary(
         {
             "summary": {
                 "unit_count": 1,
@@ -1247,7 +1248,7 @@ def test_pipeline_stages_runner_state_marks_stale_when_stages_newer_than_run_log
     assert state["run_status"] == "stale"
     assert state["summary"]["stale_unit_ids"] == ["stage_001"]
     assert state["source"]["execution_sync"]["reason"] == "lab_stages.toml is newer than the latest workflow run log."
-    assert pipeline_lab._global_dag_readiness_summary(state)["next_action"] == (
+    assert pipeline_lab._multi_app_dag_readiness_summary(state)["next_action"] == (
         "Run the workflow again or reset the preview after editing project stages."
     )
 
@@ -1322,13 +1323,13 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
             "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
         }
 
-    monkeypatch.setattr(pipeline_lab, "run_global_dag_queue_baseline_app", _fake_queue_run)
+    monkeypatch.setattr(pipeline_lab, "run_multi_app_dag_queue_baseline_app", _fake_queue_run)
     env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["runnable_unit_ids"] == ["relay_followup"]
     assert state["summary"]["available_artifact_ids"] == ["queue_metrics", "queue_reduce_summary"]
@@ -1363,7 +1364,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
             "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
         }
 
-    monkeypatch.setattr(pipeline_lab, "run_global_dag_queue_baseline_app", _fake_queue_run)
+    monkeypatch.setattr(pipeline_lab, "run_multi_app_dag_queue_baseline_app", _fake_queue_run)
     env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
@@ -1372,7 +1373,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert state["source"]["dag_path"] == (
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
     )
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
     assert ("metric", "Run mode=Executable") in fake_st.messages
@@ -1534,7 +1535,7 @@ def test_global_runner_panel_wires_distributed_backend_from_orchestrate_settings
         builder_calls.append(kwargs)
         return _submit_stage
 
-    monkeypatch.setattr(pipeline_lab, "build_global_dag_distributed_stage_submitter", _build_submitter)
+    monkeypatch.setattr(pipeline_lab, "build_multi_app_dag_distributed_stage_submitter", _build_submitter)
     env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
@@ -1565,7 +1566,7 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
         output_path=state_path,
         dag_path=Path("docs/source/data/multi_app_dag_sample.json"),
     )
-    state = pipeline_lab._run_next_controlled_global_dag_stage(
+    state = pipeline_lab._run_next_controlled_multi_app_dag_stage(
         proof.runner_state,
         repo_root=Path.cwd(),
         dag_path=Path.cwd() / "docs/source/data/multi_app_dag_sample.json",
@@ -1595,7 +1596,7 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
             ],
         }
 
-    monkeypatch.setattr(pipeline_lab, "run_global_dag_relay_followup_app", _fake_relay_run)
+    monkeypatch.setattr(pipeline_lab, "run_multi_app_dag_relay_followup_app", _fake_relay_run)
     env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
@@ -1603,7 +1604,7 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
     state = pipeline_lab.load_runner_state(state_path)
     assert relay_calls == [
         {
-            "run_root": tmp_path / ".agilab" / "global_dag_real_runs" / "relay_followup",
+            "run_root": tmp_path / ".agilab" / "multi_app_dag_real_runs" / "relay_followup",
             "queue_result": state["units"][0]["real_execution"],
         }
     ]
@@ -1641,7 +1642,7 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
 
 
 def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch, tmp_path):
-    draft_dir = tmp_path / ".agilab" / "global_dags"
+    draft_dir = tmp_path / ".agilab" / "multi_app_dags"
     draft_dir.mkdir(parents=True)
     draft_path = draft_dir / "workspace-dag.json"
     sample_text = Path("docs/source/data/multi_app_dag_sample.json").read_text(encoding="utf-8")
@@ -1665,8 +1666,8 @@ def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch
     assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
 
-def test_global_dag_execution_history_rows_skip_planning_and_sort_latest_first():
-    rows = pipeline_lab._global_dag_execution_history_rows(
+def test_multi_app_dag_execution_history_rows_skip_planning_and_sort_latest_first():
+    rows = pipeline_lab._multi_app_dag_execution_history_rows(
         {
             "events": [
                 {
@@ -1761,7 +1762,7 @@ def test_global_runner_panel_reset_rebuilds_matching_runner_state(monkeypatch, t
 
 def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch, tmp_path):
     selected = "docs/source/data/multi_app_dag_flight_sample.json"
-    token = pipeline_lab._global_dag_source_token(selected)
+    token = pipeline_lab._multi_app_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
@@ -1778,14 +1779,14 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    draft_path = tmp_path / ".agilab" / "global_dags" / "flight-dag-edited.json"
+    draft_path = tmp_path / ".agilab" / "multi_app_dags" / "flight-dag-edited.json"
     assert draft_path.is_file()
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["source"]["dag_path"] == str(draft_path)
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert any(kind == "success" and "Saved plan draft" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
-    assert fake_st.session_state[pipeline_lab._global_dag_pending_source_key("demo")] == {
+    assert fake_st.session_state[pipeline_lab._multi_app_dag_pending_source_key("demo")] == {
         "source": pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE,
         "dag_path": str(draft_path),
     }
@@ -1815,7 +1816,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
 
 def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, tmp_path):
     selected = "docs/source/data/multi_app_dag_flight_sample.json"
-    token = pipeline_lab._global_dag_source_token(selected)
+    token = pipeline_lab._multi_app_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
@@ -1834,7 +1835,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
     assert ("error", "Plan draft is not valid.") in fake_st.messages
     assert ("caption", "Validation details") in fake_st.messages
     assert any(kind == "code" and "dag_id is required" in message for kind, message in fake_st.messages)
-    assert not (tmp_path / ".agilab" / "global_dags").exists()
+    assert not (tmp_path / ".agilab" / "multi_app_dags").exists()
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
 
 
@@ -1894,7 +1895,7 @@ def _write_alpha_beta_dag(path: Path) -> None:
     )
 
 
-def test_global_dag_path_source_and_label_helpers_cover_edge_branches(monkeypatch, tmp_path):
+def test_multi_app_dag_path_source_and_label_helpers_cover_edge_branches(monkeypatch, tmp_path):
     repo_root = tmp_path / "repo"
     docs_data = repo_root / "docs" / "source" / "data"
     docs_data.mkdir(parents=True)
@@ -1915,20 +1916,20 @@ def test_global_dag_path_source_and_label_helpers_cover_edge_branches(monkeypatc
         lambda _repo, app_name="", include_all_when_empty=True: ["templates/app.json"],
     )
 
-    assert pipeline_lab._resolve_global_dag_input("", repo_root) is None
-    assert pipeline_lab._global_dag_label("", repo_root) == "No plan selected"
-    assert pipeline_lab._global_dag_label(str(sample_path.relative_to(repo_root)), repo_root).startswith("Sample DAG - ")
-    assert pipeline_lab._global_dag_label(str(broken_sample.relative_to(repo_root)), repo_root).endswith(
+    assert pipeline_lab._resolve_multi_app_dag_input("", repo_root) is None
+    assert pipeline_lab._multi_app_dag_label("", repo_root) == "No plan selected"
+    assert pipeline_lab._multi_app_dag_label(str(sample_path.relative_to(repo_root)), repo_root).startswith("Sample DAG - ")
+    assert pipeline_lab._multi_app_dag_label(str(broken_sample.relative_to(repo_root)), repo_root).endswith(
         "multi_app_dag_broken.json"
     )
-    assert pipeline_lab._global_dag_display_name("", repo_root) == "not selected"
-    assert pipeline_lab._global_dag_display_name(str(broken_sample.relative_to(repo_root)), repo_root) == (
+    assert pipeline_lab._multi_app_dag_display_name("", repo_root) == "not selected"
+    assert pipeline_lab._multi_app_dag_display_name(str(broken_sample.relative_to(repo_root)), repo_root) == (
         "multi_app_dag_broken"
     )
-    assert pipeline_lab._global_dag_workspace_options(repo_root, repo_root) == [
+    assert pipeline_lab._multi_app_dag_workspace_options(repo_root, repo_root) == [
         f".agilab/{pipeline_lab.GLOBAL_DAG_DRAFT_DIRNAME}/draft.json"
     ]
-    assert pipeline_lab._global_dag_library_options(repo_root, repo_root) == [
+    assert pipeline_lab._multi_app_dag_library_options(repo_root, repo_root) == [
         "templates/app.json",
         "docs/source/data/multi_app_dag_broken.json",
         "docs/source/data/multi_app_dag_sample.json",
@@ -1937,7 +1938,7 @@ def test_global_dag_path_source_and_label_helpers_cover_edge_branches(monkeypatc
     assert pipeline_lab._global_runner_dag_path(SimpleNamespace(app="demo_project"), repo_root) == app_template
 
 
-def test_global_dag_pending_source_selection_covers_sources_and_rejections(monkeypatch, tmp_path):
+def test_multi_app_dag_pending_source_selection_covers_sources_and_rejections(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     repo_root = tmp_path / "repo"
@@ -1956,24 +1957,24 @@ def test_global_dag_pending_source_selection_covers_sources_and_rejections(monke
         "source_options": None,
     }
 
-    pipeline_lab._apply_global_dag_pending_source_selection("demo", **kwargs)
+    pipeline_lab._apply_multi_app_dag_pending_source_selection("demo", **kwargs)
     assert fake_st.session_state == {}
 
-    fake_st.session_state[pipeline_lab._global_dag_pending_source_key("demo")] = {"source": "unknown", "dag_path": "x"}
-    pipeline_lab._apply_global_dag_pending_source_selection("demo", **kwargs)
+    fake_st.session_state[pipeline_lab._multi_app_dag_pending_source_key("demo")] = {"source": "unknown", "dag_path": "x"}
+    pipeline_lab._apply_multi_app_dag_pending_source_selection("demo", **kwargs)
     assert "source" not in fake_st.session_state
 
-    pipeline_lab._queue_global_dag_source_selection(
+    pipeline_lab._queue_multi_app_dag_source_selection(
         "demo",
         source=pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STAGES_LEGACY,
         dag_path=dag_path,
         repo_root=repo_root,
         notice="queued",
     )
-    pipeline_lab._apply_global_dag_pending_source_selection("demo", **kwargs)
+    pipeline_lab._apply_multi_app_dag_pending_source_selection("demo", **kwargs)
     assert fake_st.session_state["source"] == pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STAGES
     assert fake_st.session_state["custom"] == "dag.json"
-    assert fake_st.session_state[pipeline_lab._global_dag_notice_key("demo")] == "queued"
+    assert fake_st.session_state[pipeline_lab._multi_app_dag_notice_key("demo")] == "queued"
 
     for source, state_key, selected in [
         (pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES, "app_template", "dag.json"),
@@ -1981,11 +1982,11 @@ def test_global_dag_pending_source_selection_covers_sources_and_rejections(monke
         (pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE, "workspace", "workspace.json"),
         (pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM, "custom", "custom.json"),
     ]:
-        fake_st.session_state[pipeline_lab._global_dag_pending_source_key("demo")] = {
+        fake_st.session_state[pipeline_lab._multi_app_dag_pending_source_key("demo")] = {
             "source": source,
             "dag_path": selected,
         }
-        pipeline_lab._apply_global_dag_pending_source_selection("demo", **kwargs)
+        pipeline_lab._apply_multi_app_dag_pending_source_selection("demo", **kwargs)
         assert fake_st.session_state["source"] == source
         assert fake_st.session_state[state_key] == selected
 
@@ -2011,11 +2012,11 @@ def test_global_dag_pending_source_selection_covers_sources_and_rejections(monke
     ) == pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM
 
 
-def test_global_dag_payload_save_and_template_validation_branches(monkeypatch, tmp_path):
+def test_multi_app_dag_payload_save_and_template_validation_branches(monkeypatch, tmp_path):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     _seed_minimal_builtin_app(repo_root, "alpha_project")
-    payload = pipeline_lab._empty_global_dag_payload()
+    payload = pipeline_lab._empty_multi_app_dag_payload()
     payload.update(
         {
             "dag_id": "Alpha beta template",
@@ -2027,46 +2028,46 @@ def test_global_dag_payload_save_and_template_validation_branches(monkeypatch, t
     )
     editor_text = json.dumps(payload)
 
-    assert pipeline_lab._global_dag_editor_text(None) == ""
-    assert pipeline_lab._load_global_dag_payload(None)[1] == "No plan is selected."
-    invalid_payload, invalid_error = pipeline_lab._global_dag_payload_from_text("[1]")
+    assert pipeline_lab._multi_app_dag_editor_text(None) == ""
+    assert pipeline_lab._load_multi_app_dag_payload(None)[1] == "No plan is selected."
+    invalid_payload, invalid_error = pipeline_lab._multi_app_dag_payload_from_text("[1]")
     assert invalid_payload is None
     assert invalid_error == "Plan JSON must be a JSON object."
-    assert "Invalid JSON" in pipeline_lab._global_dag_validation_error("{", repo_root)
-    assert pipeline_lab._global_dag_has_controlled_contract_marker({}) is False
-    assert pipeline_lab._portable_global_dag_stem({"label": " !!! "}, "fallback") == "global-dag-draft"
+    assert "Invalid JSON" in pipeline_lab._multi_app_dag_validation_error("{", repo_root)
+    assert pipeline_lab._multi_app_dag_has_controlled_contract_marker({}) is False
+    assert pipeline_lab._portable_multi_app_dag_stem({"label": " !!! "}, "fallback") == "multi-app-dag-draft"
 
     monkeypatch.setattr(pipeline_lab, "format_validation_error_for_user", lambda *_args, **_kwargs: "schema error")
-    assert pipeline_lab._save_global_dag_draft(tmp_path, editor_text, repo_root)[1] == "schema error"
-    assert pipeline_lab._save_global_dag_app_template(repo_root, active_app_name="alpha_project", editor_text=editor_text)[1] == (
+    assert pipeline_lab._save_multi_app_dag_draft(tmp_path, editor_text, repo_root)[1] == "schema error"
+    assert pipeline_lab._save_multi_app_dag_app_template(repo_root, active_app_name="alpha_project", editor_text=editor_text)[1] == (
         "schema error"
     )
 
     monkeypatch.setattr(pipeline_lab, "format_validation_error_for_user", lambda *_args, **_kwargs: "")
-    draft_path, draft_error = pipeline_lab._save_global_dag_draft(tmp_path, editor_text, repo_root)
+    draft_path, draft_error = pipeline_lab._save_multi_app_dag_draft(tmp_path, editor_text, repo_root)
     assert draft_error == ""
     assert draft_path is not None and draft_path.name == "Alpha-beta-template.json"
 
     without_marker = dict(payload)
     without_marker["execution"] = {}
-    assert "Enable executable app template" in pipeline_lab._save_global_dag_app_template(
+    assert "Enable executable app template" in pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="alpha_project",
         editor_text=json.dumps(without_marker),
     )[1]
-    assert "not a checked-in built-in app" in pipeline_lab._save_global_dag_app_template(
+    assert "not a checked-in built-in app" in pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="missing_project",
         editor_text=editor_text,
     )[1]
     missing_node = dict(payload)
     missing_node["nodes"] = [{"id": "beta", "app": "beta_project"}]
-    assert "must include" in pipeline_lab._save_global_dag_app_template(
+    assert "must include" in pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="alpha_project",
         editor_text=json.dumps(missing_node),
     )[1]
-    template_path, template_error = pipeline_lab._save_global_dag_app_template(
+    template_path, template_error = pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="alpha_project",
         editor_text=editor_text,
@@ -2075,7 +2076,7 @@ def test_global_dag_payload_save_and_template_validation_branches(monkeypatch, t
     assert template_path is not None and template_path.is_file()
 
 
-def test_global_dag_visual_editor_and_workplan_helpers_cover_default_rows(monkeypatch, tmp_path):
+def test_multi_app_dag_visual_editor_and_workplan_helpers_cover_default_rows(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_lab, "builtin_app_names", lambda _repo: ["alpha_project", "gamma_project"])
     payload = {
         "nodes": [
@@ -2095,13 +2096,13 @@ def test_global_dag_visual_editor_and_workplan_helpers_cover_default_rows(monkey
         ],
     }
 
-    tables = pipeline_lab._global_dag_editor_tables(payload)
+    tables = pipeline_lab._multi_app_dag_editor_tables(payload)
     assert list(tables["nodes"]["id"]) == ["alpha", ""]
     assert list(tables["produces"]["id"]) == ["alpha_metrics"]
     assert list(tables["consumes"]["id"]) == ["seed"]
-    assert pipeline_lab._global_dag_editor_tables({"nodes": "bad"})["nodes"].empty
+    assert pipeline_lab._multi_app_dag_editor_tables({"nodes": "bad"})["nodes"].empty
 
-    stages = pipeline_lab._global_dag_stage_options(tmp_path, payload)
+    stages = pipeline_lab._multi_app_dag_stage_options(tmp_path, payload)
     assert stages["alpha"]["app"] == "alpha_project"
     assert stages["alpha_project"]["purpose"] == "Run alpha."
     assert pipeline_lab._stage_label("alpha", stages) == "alpha (alpha_project - Run alpha.)"
@@ -2109,14 +2110,14 @@ def test_global_dag_visual_editor_and_workplan_helpers_cover_default_rows(monkey
     selected_rows = pipeline_lab._selected_stage_rows(["alpha", "missing"], stages)
     assert selected_rows == [{"id": "alpha", "app": "alpha_project", "purpose": "Run alpha."}]
 
-    artifact_options = pipeline_lab._global_dag_artifact_options(["alpha", "gamma"], tables)
+    artifact_options = pipeline_lab._multi_app_dag_artifact_options(["alpha", "gamma"], tables)
     assert artifact_options["alpha::alpha_metrics"]["path"] == "alpha/metrics.json"
     assert artifact_options["gamma::gamma_summary"]["kind"] == "summary_metrics"
     assert pipeline_lab._artifact_option_label("gamma::gamma_summary", artifact_options) == (
         "gamma creates gamma_summary (summary_metrics, gamma/summary.json)"
     )
     assert pipeline_lab._artifact_option_label("missing", {}) == "missing creates "
-    handoff_options = pipeline_lab._global_dag_handoff_options(["alpha", "gamma"], artifact_options, payload)
+    handoff_options = pipeline_lab._multi_app_dag_handoff_options(["alpha", "gamma"], artifact_options, payload)
     assert handoff_options["alpha::gamma::alpha_metrics"]["handoff"] == "Use metrics."
     assert pipeline_lab._handoff_option_label("alpha::gamma::alpha_metrics", handoff_options) == (
         "gamma uses alpha_metrics from alpha"
@@ -2146,7 +2147,7 @@ def test_global_dag_visual_editor_and_workplan_helpers_cover_default_rows(monkey
     ) == [{"node": "gamma", "id": "alpha_metrics", "kind": "summary_metrics", "path": "alpha/metrics.json"}]
 
 
-def test_global_dag_display_summary_helpers_cover_fallbacks():
+def test_multi_app_dag_display_summary_helpers_cover_fallbacks():
     state = {
         "summary": {"available_artifact_ids": ["alpha_metrics"]},
         "artifacts": [{"artifact": "alpha_metrics", "status": "available"}],
@@ -2185,47 +2186,47 @@ def test_global_dag_display_summary_helpers_cover_fallbacks():
     assert display_rows[1]["blocked_by"] == "alpha_metrics"
     assert pipeline_lab._state_units_for_display({"units": "bad"}) == []
     assert pipeline_lab._workplan_artifact_id("bad") == ""
-    assert pipeline_lab._global_dag_workplan_needs({"artifact_dependencies": "bad"}) == "none"
-    assert pipeline_lab._global_dag_workplan_needs({"artifact_dependencies": [{"id": "seed"}]}) == "seed"
-    assert pipeline_lab._global_dag_workplan_produces({"produces": "bad"}) == "none"
-    assert pipeline_lab._global_dag_workplan_rows_for_display({"units": "bad"}) == []
-    rows = pipeline_lab._global_dag_workplan_rows_for_display(state)
+    assert pipeline_lab._multi_app_dag_workplan_needs({"artifact_dependencies": "bad"}) == "none"
+    assert pipeline_lab._multi_app_dag_workplan_needs({"artifact_dependencies": [{"id": "seed"}]}) == "seed"
+    assert pipeline_lab._multi_app_dag_workplan_produces({"produces": "bad"}) == "none"
+    assert pipeline_lab._multi_app_dag_workplan_rows_for_display({"units": "bad"}) == []
+    rows = pipeline_lab._multi_app_dag_workplan_rows_for_display(state)
     assert rows[0]["Creates"] == "alpha_metrics"
     assert rows[1]["Uses"] == "alpha_metrics from alpha"
     assert pipeline_lab._artifact_handoffs_for_display({"units": "bad"}) == []
     handoffs = pipeline_lab._artifact_handoffs_for_display(state)
     assert handoffs[0]["Status"] == "available"
-    assert pipeline_lab._global_dag_units({"units": "bad"}) == []
-    assert pipeline_lab._global_dag_unit_count({"summary": {"unit_count": "bad"}, "units": [{"id": "alpha"}]}) == 1
-    assert pipeline_lab._global_dag_next_action({"summary": {"failed_unit_ids": ["alpha"]}}) == "Inspect failed step `alpha`."
-    assert pipeline_lab._global_dag_next_action({"summary": {"completed_unit_ids": ["alpha"], "unit_count": 1}}) == (
+    assert pipeline_lab._multi_app_dag_units({"units": "bad"}) == []
+    assert pipeline_lab._multi_app_dag_unit_count({"summary": {"unit_count": "bad"}, "units": [{"id": "alpha"}]}) == 1
+    assert pipeline_lab._multi_app_dag_next_action({"summary": {"failed_unit_ids": ["alpha"]}}) == "Inspect failed step `alpha`."
+    assert pipeline_lab._multi_app_dag_next_action({"summary": {"completed_unit_ids": ["alpha"], "unit_count": 1}}) == (
         "All steps completed."
     )
-    assert pipeline_lab._global_dag_next_action({"summary": {"unit_count": "bad"}, "units": []}) == (
+    assert pipeline_lab._multi_app_dag_next_action({"summary": {"unit_count": "bad"}, "units": []}) == (
         "No ready step is available."
     )
-    assert pipeline_lab._global_dag_execution_scope({"provenance": "bad"}) == "preview only, no app run"
-    assert pipeline_lab._global_dag_execution_scope({"provenance": {"controlled_execution": True}}) == (
+    assert pipeline_lab._multi_app_dag_execution_scope({"provenance": "bad"}) == "preview only, no app run"
+    assert pipeline_lab._multi_app_dag_execution_scope({"provenance": {"controlled_execution": True}}) == (
         "controlled step execution"
     )
-    assert pipeline_lab._global_dag_execution_scope(
+    assert pipeline_lab._multi_app_dag_execution_scope(
         {"provenance": {"controlled_execution": True, "dispatch_mode": "controlled_contract_stage_execution"}}
     ) == "controlled contract execution"
     support = SimpleNamespace(supported=True, status="Executable")
-    assert pipeline_lab._global_dag_execution_status({"summary": {"stale_unit_ids": ["alpha"]}}, support) == (
+    assert pipeline_lab._multi_app_dag_execution_status({"summary": {"stale_unit_ids": ["alpha"]}}, support) == (
         "Stale: project stages changed"
     )
-    assert pipeline_lab._global_dag_execution_status({"summary": {"failed_unit_ids": ["alpha"]}}, support) == (
+    assert pipeline_lab._multi_app_dag_execution_status({"summary": {"failed_unit_ids": ["alpha"]}}, support) == (
         "Blocked: failed step"
     )
-    assert pipeline_lab._global_dag_execution_status({"summary": {"completed_unit_ids": ["alpha"], "unit_count": 1}}, support) == (
+    assert pipeline_lab._multi_app_dag_execution_status({"summary": {"completed_unit_ids": ["alpha"], "unit_count": 1}}, support) == (
         "Completed"
     )
-    assert pipeline_lab._global_dag_execution_status(
+    assert pipeline_lab._multi_app_dag_execution_status(
         {"summary": {"blocked_unit_ids": ["beta"], "runnable_unit_ids": [], "unit_count": 2}},
         support,
     ) == "Blocked: missing output"
-    assert pipeline_lab._global_dag_execution_status({}, SimpleNamespace(supported=False, status="Preview-only")) == (
+    assert pipeline_lab._multi_app_dag_execution_status({}, SimpleNamespace(supported=False, status="Preview-only")) == (
         "Preview-only"
     )
 
@@ -2271,15 +2272,15 @@ def test_workflow_status_run_log_and_dot_helpers_cover_edge_branches(monkeypatch
         {"controls": [{"label": "Run next stage", "enabled": True}, {"label": "Hidden", "enabled": False}, "bad"]}
     ) == ("Run next stage",)
 
-    pipeline_lab._render_global_dag_execution_capability(
+    pipeline_lab._render_multi_app_dag_execution_capability(
         contract_name="Demo",
         execution_status="Executable",
         real_run_support=SimpleNamespace(adapter="adapter-a", message="Ready to run."),
     )
     assert ("caption", "Ready to run.") in fake_st.messages
 
-    assert pipeline_lab._global_dag_dot({"units": "bad"}) == ""
-    dot = pipeline_lab._global_dag_dot(
+    assert pipeline_lab._multi_app_dag_dot({"units": "bad"}) == ""
+    dot = pipeline_lab._multi_app_dag_dot(
         {
             "artifacts": [{"artifact": "ready_metrics", "status": "available"}],
             "units": [
@@ -2366,7 +2367,7 @@ def test_pipeline_stage_execution_evidence_helpers_cover_running_and_stale_branc
     pipeline_lab._apply_pipeline_stages_execution_evidence(state, {"has_evidence": False})
 
     stale_state = {"source": {}, "provenance": {}, "events": "bad", "artifacts": [], "units": [{"id": "stage_001"}]}
-    monkeypatch.setattr(pipeline_lab, "_global_dag_now_iso", lambda: "2026-05-07T00:00:00Z")
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_now_iso", lambda: "2026-05-07T00:00:00Z")
     pipeline_lab._mark_pipeline_stages_state_stale(stale_state, reason="changed", previous_digest="old")
     assert stale_state["run_status"] == "stale"
     assert stale_state["source"]["previous_stages_digest"] == "old"
@@ -2404,7 +2405,7 @@ def test_pipeline_lab_additional_helper_edges(monkeypatch, tmp_path):
     assert ("code", "print('load')") in fake_st.messages
     pipeline_lab._render_project_stage_snippet_preview([], index_page_str="demo")
 
-    assert pipeline_lab._global_dag_existing_handoffs({"edges": "bad"}) == {}
+    assert pipeline_lab._multi_app_dag_existing_handoffs({"edges": "bad"}) == {}
     tables = {
         "produces": pipeline_lab.pd.DataFrame(
             [{"node": "alpha", "id": "alpha_metrics", "kind": "summary_metrics", "path": "alpha.json"}]
@@ -2425,23 +2426,23 @@ def test_pipeline_lab_additional_helper_edges(monkeypatch, tmp_path):
     assert pipeline_lab._artifact_handoffs_for_display(
         {"units": [{"id": "beta", "artifact_dependencies": "bad"}]}
     ) == []
-    assert pipeline_lab._global_dag_units({"units": ["bad", {"id": "alpha"}]}) == [{"id": "alpha"}]
-    assert pipeline_lab._global_dag_status_ids(
+    assert pipeline_lab._multi_app_dag_units({"units": ["bad", {"id": "alpha"}]}) == [{"id": "alpha"}]
+    assert pipeline_lab._multi_app_dag_status_ids(
         {"units": [{"id": "alpha", "dispatch_status": "runnable"}, {"id": "", "dispatch_status": "runnable"}]},
         "runnable",
     ) == ["alpha"]
-    assert pipeline_lab._global_dag_next_action(
+    assert pipeline_lab._multi_app_dag_next_action(
         {"summary": {"blocked_unit_ids": ["beta"]}, "units": [{"id": "beta", "operator_ui": {}}]}
     ) == "Wait for `beta`."
-    assert pipeline_lab._global_dag_next_action({"summary": {"running_unit_ids": ["alpha"]}}) == (
+    assert pipeline_lab._multi_app_dag_next_action({"summary": {"running_unit_ids": ["alpha"]}}) == (
         "Monitor running step `alpha`."
     )
-    assert pipeline_lab._global_dag_next_action({"summary": {"runnable_unit_ids": ["alpha"]}}) == "Preview `alpha`."
-    assert pipeline_lab._global_dag_execution_scope({"provenance": {"real_app_execution": True}}) == (
+    assert pipeline_lab._multi_app_dag_next_action({"summary": {"runnable_unit_ids": ["alpha"]}}) == "Preview `alpha`."
+    assert pipeline_lab._multi_app_dag_execution_scope({"provenance": {"real_app_execution": True}}) == (
         "live app execution"
     )
-    assert pipeline_lab._global_dag_execution_status({}, SimpleNamespace(supported=True, status="Ready")) == "Ready"
-    assert pipeline_lab._global_dag_readiness_summary(
+    assert pipeline_lab._multi_app_dag_execution_status({}, SimpleNamespace(supported=True, status="Ready")) == "Ready"
+    assert pipeline_lab._multi_app_dag_readiness_summary(
         {"summary": {"unit_count": 2, "runnable_unit_ids": ["a"], "blocked_unit_ids": ["b"]}}
     )["blocked_count"] == 1
 
@@ -2532,38 +2533,38 @@ def test_pipeline_lab_additional_helper_edges(monkeypatch, tmp_path):
     assert stale_state["events"][0]["kind"] == "run_stale"
 
 
-def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
+def test_pipeline_lab_remaining_multi_app_dag_helper_edges(monkeypatch, tmp_path):
     repo_root = tmp_path / "repo"
     docs_data = repo_root / "docs" / "source" / "data"
     docs_data.mkdir(parents=True)
     list_payload = docs_data / "multi_app_dag_list.json"
     list_payload.write_text("[]", encoding="utf-8")
 
-    assert pipeline_lab._global_dag_label(str(list_payload.relative_to(repo_root)), repo_root).endswith(
+    assert pipeline_lab._multi_app_dag_label(str(list_payload.relative_to(repo_root)), repo_root).endswith(
         "docs/source/data/multi_app_dag_list.json"
     )
-    assert pipeline_lab._global_dag_display_name(str(list_payload.relative_to(repo_root)), repo_root) == (
+    assert pipeline_lab._multi_app_dag_display_name(str(list_payload.relative_to(repo_root)), repo_root) == (
         "multi_app_dag_list"
     )
-    assert pipeline_lab._load_global_dag_payload(list_payload)[1] == "Plan JSON must be a JSON object."
-    assert "Invalid JSON" in pipeline_lab._save_global_dag_app_template(
+    assert pipeline_lab._load_multi_app_dag_payload(list_payload)[1] == "Plan JSON must be a JSON object."
+    assert "Invalid JSON" in pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="alpha_project",
         editor_text="{",
     )[1]
 
     monkeypatch.setattr(pipeline_lab, "app_dag_template_paths", lambda *_args, **_kwargs: ["duplicate.json"])
-    monkeypatch.setattr(pipeline_lab, "_global_dag_sample_options", lambda _root: ["duplicate.json", "sample.json"])
-    monkeypatch.setattr(pipeline_lab, "_global_dag_workspace_options", lambda _root, _lab: ["sample.json", "draft.json"])
-    assert pipeline_lab._global_dag_library_options(repo_root, tmp_path) == [
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_sample_options", lambda _root: ["duplicate.json", "sample.json"])
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_workspace_options", lambda _root, _lab: ["sample.json", "draft.json"])
+    assert pipeline_lab._multi_app_dag_library_options(repo_root, tmp_path) == [
         "duplicate.json",
         "sample.json",
         "draft.json",
     ]
     assert pipeline_lab._parse_handoff_key("not-a-handoff") == ("", "", "")
     assert pipeline_lab._parse_handoff_key("alpha::beta::metrics") == ("alpha", "beta", "metrics")
-    assert pipeline_lab._global_dag_workplan_rows_for_display({"units": "bad"}) == []
-    assert pipeline_lab._global_dag_workplan_rows_for_display(
+    assert pipeline_lab._multi_app_dag_workplan_rows_for_display({"units": "bad"}) == []
+    assert pipeline_lab._multi_app_dag_workplan_rows_for_display(
         {
             "units": [
                 {
@@ -2665,7 +2666,7 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
     assert ("caption", pipeline_lab.GLOBAL_DAG_EMPTY_STATE) in empty_view_st.messages
 
     monkeypatch.setattr(pipeline_lab, "builtin_app_names", lambda _root: ["alpha_project"])
-    stages = pipeline_lab._global_dag_stage_options(
+    stages = pipeline_lab._multi_app_dag_stage_options(
         repo_root,
         {
             "nodes": [
@@ -2685,7 +2686,7 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
             ]
         )
     }
-    artifact_options = pipeline_lab._global_dag_artifact_options(["alpha"], tables)
+    artifact_options = pipeline_lab._multi_app_dag_artifact_options(["alpha"], tables)
     assert artifact_options["alpha::alpha_summary"]["path"] == "alpha/summary.json"
     assert pipeline_lab._parse_handoff_key("bad-key") == ("", "", "")
 
@@ -2693,7 +2694,7 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "load_dag_distributed_settings", lambda *_args, **_kwargs: {"enabled": False})
     monkeypatch.setattr(pipeline_lab, "dag_distributed_stage_config_from_settings", lambda *_args, **_kwargs: None)
-    assert pipeline_lab._global_dag_distributed_request_preview_rows(SimpleNamespace(), {}, repo_root) == []
+    assert pipeline_lab._multi_app_dag_distributed_request_preview_rows(SimpleNamespace(), {}, repo_root) == []
     fake_config = SimpleNamespace(enabled=True)
     monkeypatch.setattr(pipeline_lab, "dag_distributed_stage_config_from_settings", lambda *_args, **_kwargs: fake_config)
     monkeypatch.setattr(
@@ -2701,7 +2702,7 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
         "build_distributed_request_preview_rows",
         lambda state, *, repo_root, config: [{"repo_root": str(repo_root), "config": config.enabled}],
     )
-    assert pipeline_lab._global_dag_distributed_request_preview_rows(SimpleNamespace(), {"units": []}, repo_root) == [
+    assert pipeline_lab._multi_app_dag_distributed_request_preview_rows(SimpleNamespace(), {"units": []}, repo_root) == [
         {"repo_root": str(repo_root), "config": True}
     ]
 
@@ -2711,8 +2712,8 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
         captured.update(kwargs)
         return lambda *_args, **_kwargs: {"ok": True}
 
-    monkeypatch.setattr(pipeline_lab, "build_global_dag_distributed_stage_submitter", _build_submitter)
-    engine = pipeline_lab._global_dag_engine(repo_root, tmp_path, None, env=SimpleNamespace())
+    monkeypatch.setattr(pipeline_lab, "build_multi_app_dag_distributed_stage_submitter", _build_submitter)
+    engine = pipeline_lab._multi_app_dag_engine(repo_root, tmp_path, None, env=SimpleNamespace())
     assert engine.stage_submit_fn is not None
     assert captured["verbose"] == 2
     batch_calls: dict[str, Any] = {}
@@ -2722,26 +2723,26 @@ def test_pipeline_lab_remaining_global_dag_helper_edges(monkeypatch, tmp_path):
         batch_calls.update(kwargs)
         return SimpleNamespace(ok=True)
 
-    monkeypatch.setattr(pipeline_lab, "run_ready_controlled_global_dag_stages", _fake_ready_runner)
-    assert pipeline_lab._run_ready_controlled_global_dag_stages(
+    monkeypatch.setattr(pipeline_lab, "run_ready_controlled_multi_app_dag_stages", _fake_ready_runner)
+    assert pipeline_lab._run_ready_controlled_multi_app_dag_stages(
         {"units": []},
         repo_root=repo_root,
         dag_path=None,
         lab_dir=tmp_path,
     ).ok is True
-    assert batch_calls["run_queue_fn"] is pipeline_lab.run_global_dag_queue_baseline_app
+    assert batch_calls["run_queue_fn"] is pipeline_lab.run_multi_app_dag_queue_baseline_app
     assert pipeline_lab._global_runner_state_path(tmp_path) == tmp_path / ".agilab" / "runner_state.json"
     assert pipeline_lab._runner_state_dag_matches({"source": {}}, None, repo_root) is True
-    assert pipeline_lab._controlled_global_dag_real_run_supported({}, None, repo_root) is False
+    assert pipeline_lab._controlled_multi_app_dag_real_run_supported({}, None, repo_root) is False
 
 
 def test_pipeline_lab_remaining_display_and_log_edges(monkeypatch, tmp_path):
-    assert pipeline_lab._global_dag_executor_label({}) == "preview"
-    assert pipeline_lab._global_dag_executor_label({"execution_contract": {"entrypoint": "alpha.main"}}) == "alpha.main"
-    assert pipeline_lab._global_dag_executor_label({"execution_contract": {"command": [" ", "python", "", "-m", "alpha"]}}) == (
+    assert pipeline_lab._multi_app_dag_executor_label({}) == "preview"
+    assert pipeline_lab._multi_app_dag_executor_label({"execution_contract": {"entrypoint": "alpha.main"}}) == "alpha.main"
+    assert pipeline_lab._multi_app_dag_executor_label({"execution_contract": {"command": [" ", "python", "", "-m", "alpha"]}}) == (
         "command: python -m alpha"
     )
-    assert pipeline_lab._global_dag_executor_label({"execution_contract": {"command": []}}) == "preview"
+    assert pipeline_lab._multi_app_dag_executor_label({"execution_contract": {"command": []}}) == "preview"
     assert pipeline_lab._artifact_handoffs_for_display(
         {
             "summary": {"available_artifact_ids": []},
@@ -2751,7 +2752,7 @@ def test_pipeline_lab_remaining_display_and_log_edges(monkeypatch, tmp_path):
             ],
         }
     )[0]["Status"] == "missing"
-    assert pipeline_lab._global_dag_next_action(
+    assert pipeline_lab._multi_app_dag_next_action(
         {
             "summary": {"blocked_unit_ids": ["beta"]},
             "units": [
@@ -2836,7 +2837,7 @@ def test_pipeline_lab_rebuilds_stale_synced_pipeline_state(monkeypatch, tmp_path
     state_path = lab_dir / ".agilab" / pipeline_lab.GLOBAL_RUNNER_STATE_FILENAME
     pipeline_lab.write_runner_state(state_path, previous_state)
 
-    monkeypatch.setattr(pipeline_lab, "_global_dag_now_iso", lambda: "2026-05-08T00:00:00Z")
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_now_iso", lambda: "2026-05-08T00:00:00Z")
     state, returned_path = pipeline_lab._load_or_create_pipeline_stages_runner_state(
         SimpleNamespace(app="demo_project", target="demo_project"),
         lab_dir,
@@ -2962,14 +2963,14 @@ def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatc
     assert ("warning", "No preview step.") in distributed_st.messages
 
 
-def test_save_global_dag_app_template_requires_controlled_marker(tmp_path):
+def test_save_multi_app_dag_app_template_requires_controlled_marker(tmp_path):
     repo_root = tmp_path / "repo"
     _seed_minimal_builtin_app(repo_root, "alpha_project")
     _seed_minimal_builtin_app(repo_root, "beta_project")
     dag_path = tmp_path / "alpha_beta.json"
     _write_alpha_beta_dag(dag_path)
 
-    template_path, error = pipeline_lab._save_global_dag_app_template(
+    template_path, error = pipeline_lab._save_multi_app_dag_app_template(
         repo_root,
         active_app_name="alpha_project",
         editor_text=dag_path.read_text(encoding="utf-8"),
@@ -2986,7 +2987,7 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
     dag_path = tmp_path / "alpha_beta.json"
     _write_alpha_beta_dag(dag_path)
     selected = str(dag_path)
-    token = pipeline_lab._global_dag_source_token(selected)
+    token = pipeline_lab._multi_app_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM,
@@ -3001,7 +3002,7 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
         },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_multi_app_dag", lambda: repo_root)
     env = SimpleNamespace(app="alpha_project", target="alpha_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path / "lab", "demo")
@@ -3023,7 +3024,7 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
     assert state["source"]["dag_path"] == (
         "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
     )
-    pending_key = pipeline_lab._global_dag_pending_source_key("demo")
+    pending_key = pipeline_lab._multi_app_dag_pending_source_key("demo")
     assert fake_st.session_state[pending_key] == {
         "source": pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES,
         "dag_path": "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json",
@@ -3047,7 +3048,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
     dag_path = tmp_path / "alpha_beta.json"
     _write_alpha_beta_dag(dag_path)
     selected = str(dag_path)
-    token = pipeline_lab._global_dag_source_token(selected)
+    token = pipeline_lab._multi_app_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM,
@@ -3062,7 +3063,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
         },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_multi_app_dag", lambda: repo_root)
     env = SimpleNamespace(app="alpha_project", target="alpha_project")
     lab_dir = tmp_path / "lab"
 
@@ -3238,14 +3239,14 @@ def test_display_lab_tab_hides_dataframe_empty_state_for_dag_project(monkeypatch
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
     env = SimpleNamespace(
-        active_app=tmp_path / "global_dag_project",
+        active_app=tmp_path / "multi_app_dag_project",
         envars={},
-        app="global_dag_project",
-        target="global_dag",
+        app="multi_app_dag_project",
+        target="multi_app_dag",
         base_worker_cls="PolarsWorker",
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "global_dag_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "multi_app_dag_project", env, deps)
 
     rendered_text = "\n".join(message for _kind, message in fake_st.messages)
     assert fake_st.session_state["loaded_df"] is None
@@ -3786,7 +3787,6 @@ def test_display_lab_tab_existing_stages_warns_for_empty_add_snippet(monkeypatch
 def test_display_lab_tab_locked_stage_run_and_remove_confirm(monkeypatch, tmp_path):
     run_calls = []
     remove_calls = []
-    snapshots = []
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],

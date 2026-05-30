@@ -602,7 +602,7 @@ $DefaultAppsOrder = @(
     'flowsynth_project',
     'ilp_project',
     'link_sim_project',
-    'mycode_project',
+    'minimal_app_project',
     'network_sim_project',
     'rssi_predictor_project',
     'sat_trajectory_project',
@@ -643,7 +643,7 @@ function Order-ByPreference {
     return [string[]]$ordered.ToArray()
 }
 
-$builtinApps = @('mycode_project', 'flight_telemetry_project', 'uav_relay_queue_project')
+$builtinApps = @('minimal_app_project', 'flight_telemetry_project', 'uav_relay_queue_project')
 $appsOverride = $env:BUILTIN_APPS_OVERRIDE
 $promptForApps = $true
 $forceAllApps = $false

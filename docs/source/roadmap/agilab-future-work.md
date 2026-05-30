@@ -785,7 +785,7 @@ use this order after the P0-P2 professionalization gates are under control:
      queue-family reduce artefacts as evidence
    - a repository guardrail now requires every non-template built-in app to
      expose a reducer contract
-   - `mycode_project` and `global_dag_project` are the explicit template-only
+   - `minimal_app_project` and `multi_app_dag_project` are the explicit template-only
      exemptions because they have no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
@@ -1001,7 +1001,7 @@ Current shipped baseline:
   nodes, acyclic dependencies, docs references, artifact handoffs, and the
   two-sample DAG suite
 - the KPI evidence bundle includes this as `multi_app_dag_report_contract`
-- the global DAG report family now covers execution planning, persisted
+- the multi-app DAG report family now covers execution planning, persisted
   dispatch state, real two-app app-entry smoke execution, operator state,
   dependency views, live-update payloads, operator actions, and static operator
   UI proof for the checked-in `queue_baseline -> relay_followup` contract
@@ -1024,7 +1024,7 @@ Why it matters:
 
 Purpose:
 
-- turn the checked-in global DAG, execution plan, read-only runner state, and
+- turn the checked-in multi-app DAG, execution plan, read-only runner state, and
   persisted dispatch-state proof into live app execution with persisted
   operator-visible status
 
@@ -1095,7 +1095,7 @@ Current shipped baseline:
 
 Remaining scope for this item:
 
-- no open report-driven contract gap remains for the global DAG runner/UI
+- no open report-driven contract gap remains for the multi-app DAG runner/UI
   baseline; future work is product hardening, placement, and broader external
   validation
 
@@ -1415,9 +1415,9 @@ Current state:
 Current guardrail:
 
 - all non-template built-in apps now expose a reducer contract
-- `mycode_project` is template-only and intentionally exempt because its worker
+- `minimal_app_project` is template-only and intentionally exempt because its worker
   hooks are placeholders with no concrete merge output
-- `global_dag_project` is template-preview only and intentionally exempt because
+- `multi_app_dag_project` is template-preview only and intentionally exempt because
   it demonstrates cross-app DAG contracts rather than a concrete worker merge
   output
 - future apps/templates must add `reduction.py`, emit
@@ -1467,7 +1467,7 @@ Completed slices:
   `ReduceArtifact.from_dict`, displays reducer evidence, and flags invalid JSON
 - a repository guardrail now fails if a non-template built-in app lacks a
   reducer contract or worker-scoped artifact writer
-- `mycode_project` and `global_dag_project` are documented as template-only
+- `minimal_app_project` and `multi_app_dag_project` are documented as template-only
   rather than counted as reducer migration gaps
 
 Next concrete change request:

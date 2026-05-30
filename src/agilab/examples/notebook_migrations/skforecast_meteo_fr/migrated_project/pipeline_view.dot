@@ -1,4 +1,4 @@
-digraph meteo_forecast_pipeline {
+digraph weather_forecast_legacy_pipeline {
   rankdir=LR;
   node [shape=box, style="rounded,filled", fillcolor="#eef4ff", color="#4a6990", fontname="Helvetica"];
 

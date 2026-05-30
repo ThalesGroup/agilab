@@ -18,7 +18,7 @@ from agilab.global_pipeline_dependency_view import (
 
 
 SCHEMA = "agilab.global_pipeline_live_state_updates.v1"
-DEFAULT_RUN_ID = "global-dag-live-state-updates-proof"
+DEFAULT_RUN_ID = "multi-app-dag-live-state-updates-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:08Z"
 UPDATED_AT = "2026-04-25T00:00:13Z"
@@ -199,7 +199,7 @@ def build_live_state_updates(
             sequence=1,
             timestamp=GRAPH_READY_AT,
             kind="dependency_graph_ready",
-            target_type="global_dag",
+            target_type="multi_app_dag",
             target_id="global_pipeline",
             status="ready",
             message="full-DAG dependency graph is ready for operator update rendering",

@@ -5,7 +5,7 @@ from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
 
-APP = "mycode_project"
+APP = "minimal_app_project"
 
 
 def agilab_apps_path() -> Path:

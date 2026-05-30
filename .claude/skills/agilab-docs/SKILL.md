@@ -112,9 +112,10 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Proof-pack docs must keep the shipped boundary clear. The current first layer
   operates on `run_manifest.json` and writes JSON evidence through commands such
   as `agilab prove`, `verify`, `replay`, `export-lineage`, `policy-check`,
-  `cards`, and `metadata-store`. Signed `.agipack` archives and stronger
-  external attestation remain roadmap unless the implementation and release
-  proof show they are shipped.
+  `cards`, and `metadata-store`. Hash-verifiable `.agipack` archives and
+  optional detached Ed25519 signatures are shipped; external Sigstore/SLSA
+  attestation remains roadmap unless the implementation and release proof show
+  it is shipped.
 
 ## Positioning Claim Guardrail
 

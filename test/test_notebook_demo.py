@@ -19,7 +19,7 @@ MODULE_SPEC.loader.exec_module(notebook_demo)
 NOTEBOOK_DIR = Path(__file__).resolve().parents[1] / "src" / "agilab" / "examples" / "notebook_quickstart"
 
 
-def _make_app(root: Path, name: str = "mycode_project") -> Path:
+def _make_app(root: Path, name: str = "minimal_app_project") -> Path:
     app_root = root / name
     (app_root / "src").mkdir(parents=True)
     (app_root / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
@@ -61,7 +61,7 @@ def test_resolve_notebook_apps_path_reports_install_hint(monkeypatch, tmp_path: 
 
 
 def test_notebook_demo_package_and_installed_app_resolution_edges(monkeypatch, tmp_path: Path) -> None:
-    assert notebook_demo._normalise_project_app("") == "mycode_project"
+    assert notebook_demo._normalise_project_app("") == "minimal_app_project"
     assert notebook_demo._normalise_project_app("weather-forecast") == "weather_forecast_project"
 
     builtin_root = tmp_path / "pkg" / "apps" / "builtin"
@@ -158,10 +158,10 @@ def test_notebook_app_env_resolves_apps_path_and_returns_agi_env(monkeypatch, tm
 
     monkeypatch.setattr(notebook_demo, "_import_agi_env", lambda: FakeAgiEnv)
 
-    env = notebook_demo.notebook_app_env("mycode_project", apps_path=builtin_root, verbose=1)
+    env = notebook_demo.notebook_app_env("minimal_app_project", apps_path=builtin_root, verbose=1)
 
     assert isinstance(env, FakeAgiEnv)
-    assert calls == [{"apps_path": builtin_root, "app": "mycode_project", "verbose": 1}]
+    assert calls == [{"apps_path": builtin_root, "app": "minimal_app_project", "verbose": 1}]
 
 
 def test_notebook_agi_core_context_keeps_run_inputs_visible(monkeypatch, tmp_path: Path) -> None:
@@ -182,27 +182,27 @@ def test_notebook_agi_core_context_keeps_run_inputs_visible(monkeypatch, tmp_pat
     monkeypatch.setattr(notebook_demo, "_import_run_request", lambda: FakeRunRequest)
 
     context = notebook_demo.notebook_agi_core_context(
-        "mycode",
+        "minimal_app",
         apps_path=builtin_root,
         verbose=1,
         dataset="demo",
     )
 
-    assert context.app == "mycode_project"
-    assert context.app_env.app == "mycode_project"
+    assert context.app == "minimal_app_project"
+    assert context.app_env.app == "minimal_app_project"
     assert context.app_env.apps_path == builtin_root
     assert context.request.scheduler == "127.0.0.1"
     assert context.request.workers == {"127.0.0.1": 1}
     assert context.request.mode == 0
     assert context.request.params == {"dataset": "demo"}
-    assert context.log_root == tmp_path / "log" / "execute" / "mycode"
+    assert context.log_root == tmp_path / "log" / "execute" / "minimal_app"
 
 
 @pytest.mark.asyncio
 async def test_install_if_needed_uses_request_defaults_without_hiding_agi_run(monkeypatch) -> None:
     calls = []
     fake_agi = object()
-    app_env = SimpleNamespace(app="mycode_project", target="mycode")
+    app_env = SimpleNamespace(app="minimal_app_project", target="minimal_app")
     request = SimpleNamespace(
         scheduler="10.0.0.1",
         workers={"10.0.0.2": 2},
@@ -260,8 +260,8 @@ async def test_install_if_needed_accepts_explicit_scheduler_workers_and_modes(mo
 def test_notebook_log_root_uses_runtime_target(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(notebook_demo.Path, "home", staticmethod(lambda: tmp_path))
 
-    assert notebook_demo.notebook_log_root(SimpleNamespace(target="mycode")) == (
-        tmp_path / "log" / "execute" / "mycode"
+    assert notebook_demo.notebook_log_root(SimpleNamespace(target="minimal_app")) == (
+        tmp_path / "log" / "execute" / "minimal_app"
     )
     assert notebook_demo.notebook_log_root("weather_forecast_project") == (
         tmp_path / "log" / "execute" / "weather_forecast"

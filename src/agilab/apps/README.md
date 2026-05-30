@@ -1,7 +1,7 @@
 # Apps
 
 This directory contains AGILAB app project sources. Keep the packaged base
-install small: `mycode_project` is the only project bundled directly in the
+install small: `minimal_app_project` is the only project bundled directly in the
 `agi-apps` umbrella as a starter template. Public demos are distributed through
 focused `agi-app-*` packages.
 
@@ -16,7 +16,7 @@ installs.
 - a worker package under `src/<name>_worker/`
 - optional service/template payloads
 
-Use `mycode_project` when you need the smallest app scaffold. Install
+Use `minimal_app_project` when you need the smallest app scaffold. Install
 `agilab[examples]` or individual `agi-app-*` packages when you need complete
 domain demos such as mission decision, flight telemetry, weather forecast, or
 queue resilience.

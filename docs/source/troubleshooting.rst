@@ -290,7 +290,7 @@ While running ``uv`` inside a project from another one:
 
 .. code-block:: none
 
-warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/builtin/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/builtin/minimal_app_project/.venv` and will be ignored; use `--active` to target the active environment instead
 
 This is an informational ``uv`` warning, but AGILAB-managed PyCharm configs and run
 wrappers clear ``VIRTUAL_ENV`` before invoking ``uv`` so normal launches should not print

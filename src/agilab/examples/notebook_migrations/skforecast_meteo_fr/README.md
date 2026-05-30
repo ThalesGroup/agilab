@@ -1,5 +1,10 @@
 # skforecast Meteo-France Migration Pilot
 
+## Purpose
+
+Show how a small weather-forecast notebook sequence can become an AGILAB
+workflow with explicit stages, reusable artifacts, and a matching runnable app.
+
 ## Example Class
 
 **Notebook import asset.** This folder contains notebooks, artifacts, `lab_stages.toml`, and a pipeline view for import or inspection. It is not an installed AGI project helper.
@@ -9,11 +14,51 @@ This folder is a lightweight, local-first migration example for showing how a
 small notebook workflow can move into AGILAB without changing the core data
 science story.
 
-## Source notebooks
+## What You Learn
+
+- How notebook cells map to AGILAB stage metadata.
+- How migrated artifacts feed an `ANALYSIS` page.
+- How the pilot relates to the packaged weather forecast app.
+
+## Install
+
+No package install is required to inspect the migration assets. To run the
+matching app, install AGILAB with examples enabled and select
+`weather_forecast_project`.
+
+## Run
+
+Open the notebooks under `notebooks/` for the original workflow, or use
+`PROJECT` and `ORCHESTRATE` with `weather_forecast_project` for the runnable
+AGILAB app.
+
+## Expected Input
+
+- `data/meteo_fr_daily_sample.csv`: a compact Meteo-France-style daily weather
+  sample.
+
+## Expected Output
+
+- `analysis_artifacts/forecast_metrics.json`
+- `analysis_artifacts/forecast_predictions.csv`
+
+## Read The Notebook
 
 - `notebooks/01_prepare_meteo_series.ipynb`
 - `notebooks/02_backtest_temperature_forecast.ipynb`
 - `notebooks/03_compare_predictions.ipynb`
+
+## Change One Thing
+
+Change the target column or forecast horizon in the notebook, then mirror the
+same parameter change in the AGILAB app to compare notebook and app outputs.
+
+## Troubleshooting
+
+- If a notebook dependency is missing, run it from an AGILAB examples
+  environment rather than the lean base CLI environment.
+- If the AGILAB app is not visible, install the examples extra or refresh the
+  app catalog from `PROJECT`.
 
 ## Why migrate to AGILAB
 

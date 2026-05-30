@@ -9,12 +9,12 @@ from .dag_execution_adapters import (
     DAG_STAGE_BACKEND_DISTRIBUTED,
     DAG_STAGE_BACKEND_LOCAL,
     GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE,
-    GLOBAL_DAG_REAL_EXECUTION_SCOPE,
-    GLOBAL_DAG_REAL_RUN_DIRNAME,
+    GLOBAL_DAG_REAL_EXECUTION_SCOPE,  # noqa: F401 - re-exported for pipeline_lab compatibility
+    GLOBAL_DAG_REAL_RUN_DIRNAME,  # noqa: F401 - re-exported for pipeline_lab compatibility
     DagBatchExecutionResult,
     DagExecutionContext,
     DagStageExecutionResult,
-    available_artifact_ids,
+    available_artifact_ids,  # noqa: F401 - re-exported for pipeline_lab compatibility
     dag_units,
     registered_execution_adapter_ids,
     run_ready_adapter_stages,
@@ -28,7 +28,7 @@ from .dag_execution_registry import (
     FLIGHT_CONTEXT_UNIT_ID,
     FLIGHT_TO_WEATHER_ADAPTER,
     FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH,
-    GLOBAL_DAG_SAMPLE_RELATIVE_PATH,
+    GLOBAL_DAG_SAMPLE_RELATIVE_PATH,  # noqa: F401 - re-exported for pipeline_lab compatibility
     WEATHER_FORECAST_REVIEW_UNIT_ID,
     UAV_QUEUE_ADAPTER,
     UAV_QUEUE_TEMPLATE_RELATIVE_PATH,
@@ -64,8 +64,8 @@ GLOBAL_DAG_QUEUE_UNIT_ID = QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = RELAY_UNIT_ID
 GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID = FLIGHT_CONTEXT_UNIT_ID
 GLOBAL_DAG_WEATHER_FORECAST_REVIEW_UNIT_ID = WEATHER_FORECAST_REVIEW_UNIT_ID
-run_global_dag_queue_baseline_app = run_queue_baseline_app
-run_global_dag_relay_followup_app = run_relay_followup_app
+run_multi_app_dag_queue_baseline_app = run_queue_baseline_app
+run_multi_app_dag_relay_followup_app = run_relay_followup_app
 dispatch_next_runnable = dispatch_next_runnable_state
 registered_dag_execution_adapter_ids = registered_execution_adapter_ids
 
@@ -271,8 +271,8 @@ def run_next_controlled_stage(
         DagExecutionContext(
             repo_root=repo_root,
             lab_dir=lab_dir,
-            run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
-            run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+            run_queue_fn=run_queue_fn or run_multi_app_dag_queue_baseline_app,
+            run_relay_fn=run_relay_fn or run_multi_app_dag_relay_followup_app,
             stage_run_fns=stage_run_fns,
             now_fn=now_fn,
         ),
@@ -307,8 +307,8 @@ def run_ready_controlled_stages(
         DagExecutionContext(
             repo_root=repo_root,
             lab_dir=lab_dir,
-            run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
-            run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+            run_queue_fn=run_queue_fn or run_multi_app_dag_queue_baseline_app,
+            run_relay_fn=run_relay_fn or run_multi_app_dag_relay_followup_app,
             stage_run_fns=stage_run_fns,
             stage_submit_fn=stage_submit_fn,
             now_fn=now_fn,

@@ -234,8 +234,8 @@ def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
         "custom_project",
     )
     assert workflow_ui.is_dag_based_app(
-        SimpleNamespace(app="global_dag_project", target="global_dag", base_worker_cls="PolarsWorker"),
-        "global_dag_project",
+        SimpleNamespace(app="multi_app_dag_project", target="multi_app_dag", base_worker_cls="PolarsWorker"),
+        "multi_app_dag_project",
     )
     assert not workflow_ui.is_dag_based_app(
         SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry", base_worker_cls="PolarsWorker"),

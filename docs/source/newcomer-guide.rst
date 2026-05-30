@@ -130,7 +130,7 @@ runtime goals.
      - This is the recommended first proof: install one public built-in app,
        run it, inspect visible output, and keep ``run_manifest.json``.
    * - Modify the smallest app
-     - ``mycode_project``
+     - ``minimal_app_project``
      - It is the minimal built-in app/template to adapt after the first proof
        passes.
    * - Explore richer app behavior
@@ -148,7 +148,7 @@ runtime goals.
        start a service or cluster run.
 
 Rule of thumb: run ``flight_telemetry_project`` first, modify
-``mycode_project`` second, then use previews and notebook assets to understand
+``minimal_app_project`` second, then use previews and notebook assets to understand
 specific contracts before expanding to richer apps or cluster work.
 
 Adoption evidence

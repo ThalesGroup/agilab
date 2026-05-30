@@ -27,7 +27,7 @@ def test_service_health_check_ok(monkeypatch):
     monkeypatch.setattr(service_health_check, "AgiEnv", _DummyEnv)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
-    code = service_health_check.main(["--app", "mycode_project"])
+    code = service_health_check.main(["--app", "minimal_app_project"])
     assert code == 0
 
 
@@ -38,7 +38,7 @@ def test_service_health_check_fails_when_unhealthy(monkeypatch):
     monkeypatch.setattr(service_health_check, "AgiEnv", _DummyEnv)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
-    code = service_health_check.main(["--app", "mycode_project"])
+    code = service_health_check.main(["--app", "minimal_app_project"])
     assert code == 2
 
 
@@ -49,7 +49,7 @@ def test_service_health_check_idle_requires_allow_idle(monkeypatch):
     monkeypatch.setattr(service_health_check, "AgiEnv", _DummyEnv)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
-    code = service_health_check.main(["--app", "mycode_project"])
+    code = service_health_check.main(["--app", "minimal_app_project"])
     assert code == 4
 
 
@@ -60,7 +60,7 @@ def test_service_health_check_idle_allowed(monkeypatch):
     monkeypatch.setattr(service_health_check, "AgiEnv", _DummyEnv)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
-    code = service_health_check.main(["--app", "mycode_project", "--allow-idle"])
+    code = service_health_check.main(["--app", "minimal_app_project", "--allow-idle"])
     assert code == 0
 
 
@@ -78,7 +78,7 @@ def test_service_health_check_forwards_output_path(monkeypatch, tmp_path):
     code = service_health_check.main(
         [
             "--app",
-            "mycode_project",
+            "minimal_app_project",
             "--health-output-path",
             str(output_path),
         ]
@@ -100,12 +100,12 @@ def test_service_health_check_fails_when_restart_rate_exceeds_default(monkeypatc
     monkeypatch.setattr(service_health_check, "AgiEnv", _DummyEnv)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
-    code = service_health_check.main(["--app", "mycode_project"])
+    code = service_health_check.main(["--app", "minimal_app_project"])
     assert code == 5
 
 
 def test_service_health_check_reads_sla_from_app_settings(monkeypatch, tmp_path):
-    app_settings = tmp_path / "mycode_project" / "src" / "app_settings.toml"
+    app_settings = tmp_path / "minimal_app_project" / "src" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True, exist_ok=True)
     app_settings.write_text(
         textwrap.dedent(
@@ -132,13 +132,13 @@ def test_service_health_check_reads_sla_from_app_settings(monkeypatch, tmp_path)
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
     code = service_health_check.main(
-        ["--app", "mycode_project", "--apps-path", str(tmp_path)]
+        ["--app", "minimal_app_project", "--apps-path", str(tmp_path)]
     )
     assert code == 0
 
 
 def test_service_health_check_cli_overrides_sla_settings(monkeypatch, tmp_path):
-    app_settings = tmp_path / "mycode_project" / "src" / "app_settings.toml"
+    app_settings = tmp_path / "minimal_app_project" / "src" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True, exist_ok=True)
     app_settings.write_text(
         textwrap.dedent(
@@ -162,7 +162,7 @@ def test_service_health_check_cli_overrides_sla_settings(monkeypatch, tmp_path):
     code = service_health_check.main(
         [
             "--app",
-            "mycode_project",
+            "minimal_app_project",
             "--apps-path",
             str(tmp_path),
             "--no-allow-idle",
@@ -175,8 +175,8 @@ def test_service_health_check_prometheus_output(monkeypatch, capsys):
     async def _serve(_env, **_kwargs):
         return {
             "status": "running",
-            "app": "mycode_project",
-            "target": "mycode",
+            "app": "minimal_app_project",
+            "target": "minimal_app",
             "workers_unhealthy_count": 0,
             "workers_running_count": 2,
             "workers_restarted_count": 0,
@@ -186,7 +186,7 @@ def test_service_health_check_prometheus_output(monkeypatch, capsys):
     monkeypatch.setattr(service_health_check.AGI, "serve", staticmethod(_serve))
 
     code = service_health_check.main(
-        ["--app", "mycode_project", "--format", "prometheus"]
+        ["--app", "minimal_app_project", "--format", "prometheus"]
     )
     captured = capsys.readouterr()
     assert code == 0

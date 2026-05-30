@@ -23,7 +23,7 @@ Catalog
      - Executable app helper
      - First proof for ``flight_telemetry_project``: install, run, and inspect
        map-ready telemetry output.
-   * - ``mycode``
+   * - ``minimal_app``
      - Executable app helper
      - Smallest worker template and local execution smoke.
    * - ``weather_forecast``

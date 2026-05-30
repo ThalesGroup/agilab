@@ -63,7 +63,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG operator actions report",
+        "multi-app DAG operator actions report",
         "tools/global_pipeline_operator_actions_report.py --compact",
         "retry and partial-rerun action execution",
         "real app-entry action replay",
@@ -81,9 +81,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline operator actions docs reference",
         ok,
         (
-            "features docs expose the global DAG operator action command"
+            "features docs expose the multi-app DAG operator action command"
             if ok
-            else "features docs do not expose the global DAG operator action command"
+            else "features docs do not expose the multi-app DAG operator action command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,

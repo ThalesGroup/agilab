@@ -44,7 +44,7 @@ def test_app_dispatch_smoke_report_executes_queue_and_relay(tmp_path: Path) -> N
     assert output_path.is_file()
     assert report["summary"]["schema"] == "agilab.global_pipeline_dispatch_state.v1"
     assert report["summary"]["smoke_schema"] == "agilab.global_pipeline_app_dispatch_smoke.v1"
-    assert report["summary"]["run_id"] == "global-dag-real-dispatch-smoke"
+    assert report["summary"]["run_id"] == "multi-app-dag-real-dispatch-smoke"
     assert report["summary"]["run_status"] == "completed"
     assert report["summary"]["persistence_format"] == "json"
     assert report["summary"]["round_trip_ok"] is True

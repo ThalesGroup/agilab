@@ -19,6 +19,7 @@ import tomllib
 from agi_pages.runtime import (
     ensure_repo_on_path as _page_ensure_repo_on_path,
     resolve_active_app_path,
+    reset_scoped_session_state,
 )
 
 
@@ -64,13 +65,12 @@ def _resolve_active_app() -> Path:
 
 def _ensure_app_scoped_env() -> AgiEnv:
     active_app_path = _resolve_active_app()
-    active_app_key = str(active_app_path.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) != active_app_key:
-        for key in list(st.session_state):
-            key_text = str(key)
-            if key_text.startswith(f"{PAGE_KEY}_") and key_text != APP_SCOPE_KEY:
-                st.session_state.pop(key, None)
-        st.session_state[APP_SCOPE_KEY] = active_app_key
+    reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        prefixes=(f"{PAGE_KEY}_",),
+    )
 
     env = st.session_state.get("env")
     if env is not None:

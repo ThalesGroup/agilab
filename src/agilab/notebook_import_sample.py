@@ -35,12 +35,12 @@ SAMPLE_NOTEBOOKS = (
         project_name_hint="flight-telemetry-from-notebook-project",
     ),
     NotebookImportSample(
-        sample_id="mycode",
-        title="Mycode from notebook",
-        resource_name="notebook_import_samples/mycode_from_notebook.ipynb",
-        download_name="mycode_from_notebook.ipynb",
-        recommended_template="mycode_project",
-        project_name_hint="mycode-from-notebook-project",
+        sample_id="minimal_app",
+        title="MinimalApp from notebook",
+        resource_name="notebook_import_samples/minimal_app_from_notebook.ipynb",
+        download_name="minimal_app_from_notebook.ipynb",
+        recommended_template="minimal_app_project",
+        project_name_hint="minimal_app-from-notebook-project",
     ),
     NotebookImportSample(
         sample_id="weather_forecast",

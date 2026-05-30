@@ -42,7 +42,7 @@ EXAMPLE_APPS = {
     "flight_telemetry": ("AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"),
     "sklearn_pipeline": ("AGI_install_sklearn_pipeline.py", "AGI_run_sklearn_pipeline.py"),
     "weather_forecast": ("AGI_install_weather_forecast.py", "AGI_run_weather_forecast.py"),
-    "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
+    "minimal_app": ("AGI_install_minimal_app.py", "AGI_run_minimal_app.py"),
 }
 EXAMPLE_PREVIEWS = {
     "excel_workbook_proof": ("preview_excel_workbook_proof.py",),
@@ -81,14 +81,14 @@ DOCS_INDEX = ROOT / "docs/source/index.rst"
 DEPRECATED_EXAMPLE_DIR_NAMES = {
     "data_io_2026",
     "flight",
-    "meteo_forecast",
+    "weather_forecast_legacy",
 }
 BUILTIN_EXAMPLE_PAYLOADS = {
     "inter_project_dag": (
         BUILTIN_APPS_ROOT
-        / "global_dag_project"
+        / "multi_app_dag_project"
         / "dag_templates"
-        / "flight_to_weather_global_dag.json"
+        / "flight_to_weather_multi_app_dag.json"
     ),
     "mlflow_auto_tracking": (
         BUILTIN_APPS_ROOT
@@ -103,7 +103,7 @@ BUILTIN_EXAMPLE_PAYLOADS = {
         / "resilience_failure_injection_scenario.json"
     ),
     "service_mode": (
-        BUILTIN_APPS_ROOT / "mycode_project" / "service_templates" / "sample_health_running.json"
+        BUILTIN_APPS_ROOT / "minimal_app_project" / "service_templates" / "sample_health_running.json"
     ),
     "train_then_serve": (
         BUILTIN_APPS_ROOT
@@ -142,12 +142,12 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-pandas-execution": "execution_pandas_project",
     "agi-app-polars-execution": "execution_polars_project",
     "agi-app-flight-telemetry": "flight_telemetry_project",
-    "agi-app-global-dag": "global_dag_project",
+    "agi-app-multi-app-dag": "multi_app_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
     "agi-app-sklearn-pipeline": "sklearn_pipeline_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",
     "agi-app-tescia-diagnostic": "tescia_diagnostic_project",
-    "agi-app-uav-queue-project": "uav_queue_project",
+    "agi-app-uav-queue": "uav_queue_project",
     "agi-app-uav-relay-queue": "uav_relay_queue_project",
 }
 APP_PACKAGE_README_REQUIRED_SECTIONS = (
@@ -996,7 +996,7 @@ def test_packaged_example_catalog_is_documented() -> None:
             assert heading in readme_text
 
     learning_path = catalog_text.split("## Learning Path", 1)[1].split("## Execution Map", 1)[0]
-    assert "`global_dag_project`" not in learning_path
+    assert "`multi_app_dag_project`" not in learning_path
     assert "Built-in app-owned demo templates" in catalog_text
 
 
@@ -1207,7 +1207,7 @@ def test_app_project_payload_copy_produces_self_contained_project_dirs(tmp_path:
             assert "[tool.uv.sources]" not in pyproject_path.read_text(encoding="utf-8")
 
 
-def test_agi_apps_umbrella_bundles_only_the_base_mycode_template() -> None:
+def test_agi_apps_umbrella_bundles_only_the_base_minimal_app_template() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
     package_data = pyproject["tool"]["setuptools"]["package-data"]
     dependencies = pyproject["project"]["dependencies"]
@@ -1216,7 +1216,7 @@ def test_agi_apps_umbrella_bundles_only_the_base_mycode_template() -> None:
     builtin_patterns = [
         pattern for pattern in package_data["agilab.apps"] if pattern.startswith("builtin/")
     ]
-    assert builtin_patterns == ["builtin/mycode_project/**/*"]
+    assert builtin_patterns == ["builtin/minimal_app_project/**/*"]
     dependency_text = " ".join(dependencies)
     assert all(f"{distribution}==" in dependency_text for distribution in PROMOTED_APP_PROJECT_PACKAGE_NAMES)
     assert all(
@@ -1233,18 +1233,18 @@ def test_agi_apps_catalog_matches_per_app_packages() -> None:
     assert catalog_distributions == [distribution for distribution, _ in APP_PROJECT_PACKAGE_SPECS]
 
 
-def test_agi_apps_umbrella_copy_keeps_only_mycode_builtin_payload(tmp_path: Path) -> None:
+def test_agi_apps_umbrella_copy_keeps_only_minimal_app_builtin_payload(tmp_path: Path) -> None:
     support = _load_app_project_build_support()
 
     support.copy_agi_apps_umbrella_payload(tmp_path)
 
     builtin_root = tmp_path / "agilab" / "apps" / "builtin"
-    assert (builtin_root / "mycode_project" / "pyproject.toml").is_file()
+    assert (builtin_root / "minimal_app_project" / "pyproject.toml").is_file()
     assert not (builtin_root / "flight_telemetry_project").exists()
-    assert not (builtin_root / "mycode_project" / ".venv").exists()
-    assert not (builtin_root / "mycode_project" / "uv.lock").exists()
-    assert not list((builtin_root / "mycode_project").rglob("*.pyx"))
-    assert not list((builtin_root / "mycode_project").rglob("*.c"))
+    assert not (builtin_root / "minimal_app_project" / ".venv").exists()
+    assert not (builtin_root / "minimal_app_project" / "uv.lock").exists()
+    assert not list((builtin_root / "minimal_app_project").rglob("*.pyx"))
+    assert not list((builtin_root / "minimal_app_project").rglob("*.c"))
 
 
 def test_agilab_apps_init_exposes_builtin_namespace_without_stale_docstring_code() -> None:
@@ -1273,7 +1273,7 @@ def test_preview_example_payloads_live_with_builtin_apps() -> None:
     for path in BUILTIN_EXAMPLE_PAYLOADS.values():
         assert path.is_file()
 
-    assert not (EXAMPLES_ROOT / "global_dag").exists()
+    assert not (EXAMPLES_ROOT / "multi_app_dag").exists()
     for example_name in BUILTIN_EXAMPLE_PAYLOADS:
         assert not sorted((EXAMPLES_ROOT / example_name).glob("*.json"))
 
@@ -1335,10 +1335,10 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
     assert (tmp_path / "runner_state.json").is_file()
 
 
-def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) -> None:
-    app_root = BUILTIN_APPS_ROOT / "global_dag_project"
-    script = app_root / "src" / "global_dag" / "preview_global_dag.py"
-    module_name = "agilab_global_dag_preview_test_module"
+def test_multi_app_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) -> None:
+    app_root = BUILTIN_APPS_ROOT / "multi_app_dag_project"
+    script = app_root / "src" / "multi_app_dag" / "preview_multi_app_dag.py"
+    module_name = "agilab_multi_app_dag_preview_test_module"
     sys.modules.pop(module_name, None)
     spec = importlib.util.spec_from_file_location(module_name, script)
     assert spec and spec.loader
@@ -1348,12 +1348,12 @@ def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) 
 
     summary = module.build_preview(
         repo_root=ROOT,
-        dag_path=app_root / "dag_templates" / "flight_to_weather_global_dag.json",
+        dag_path=app_root / "dag_templates" / "flight_to_weather_multi_app_dag.json",
         output_path=tmp_path / "runner_state.json",
         now="2026-04-29T00:00:00Z",
     )
 
-    assert summary["example"] == "global_dag_project"
+    assert summary["example"] == "multi_app_dag_project"
     assert summary["dag"]["ok"] is True
     assert summary["dag"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
@@ -1377,7 +1377,7 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
     )
 
     assert summary["example"] == "service_mode"
-    assert summary["target_app"] == "mycode_project"
+    assert summary["target_app"] == "minimal_app_project"
     assert [action["action"] for action in summary["operator_sequence"]] == [
         "start",
         "status",
@@ -1400,7 +1400,7 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
             "max_unhealthy": 0,
         },
     }
-    assert summary["artifacts"]["health_json"] == "service/mycode/health.json"
+    assert summary["artifacts"]["health_json"] == "service/minimal_app/health.json"
     assert summary["real_service_execution"] is False
     assert (tmp_path / "service_operator_preview.json").is_file()
 

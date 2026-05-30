@@ -79,7 +79,7 @@ internal aliases. The executable helper examples are:
 
 - ``flight_telemetry`` -> ``flight_telemetry_project`` for the default first
   proof
-- ``mycode`` -> ``mycode_project`` for the smallest worker template
+- ``minimal_app`` -> ``minimal_app_project`` for the smallest worker template
 - ``weather_forecast`` -> ``weather_forecast_project`` for the notebook
   migration app
 - ``mission_decision`` -> ``mission_decision_project`` for the richer decision
@@ -225,10 +225,12 @@ The shipped proof-pack layer is JSON-first. It starts from
 ``policy-check``, ``cards``, and ``metadata-store`` to make the run evidence
 inspectable and replayable.
 
-Signed archive formats, stronger third-party attestations, and richer portable
-capsules are roadmap work unless a release proof explicitly links the shipped
-implementation. Treat current proof-pack evidence as structured local/release
-evidence, not as independent external certification.
+Hash-verifiable ``.agipack`` archives and optional detached Ed25519 signatures
+are part of the shipped proof-capsule layer. Stronger third-party attestations,
+such as external Sigstore/SLSA binding, remain roadmap work unless a release
+proof explicitly links the shipped implementation. Treat current proof-pack
+evidence as structured local/release evidence, not as independent external
+certification.
 
 Why does PyPI sometimes show several AGILAB packages for one release?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -252,7 +254,7 @@ checked-in wrappers under ``tools/run_configs``.
 Typical usage::
 
    bash tools/run_configs/agilab/agilab-run-dev.sh
-   bash tools/run_configs/apps/builtin-mycode-run.sh
+   bash tools/run_configs/apps/builtin-minimal_app-run.sh
 
 Do I need a cluster or shared folder for the first proof?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

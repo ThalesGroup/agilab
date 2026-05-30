@@ -23,7 +23,7 @@ from .global_pipeline_app_dispatch_smoke import (
     run_relay_followup_app,
 )
 
-GLOBAL_DAG_REAL_RUN_DIRNAME = "global_dag_real_runs"
+GLOBAL_DAG_REAL_RUN_DIRNAME = "multi_app_dag_real_runs"
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = "controlled_uav_queue_to_relay_stage"
 GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE = "controlled_contract_dag_stage"
 GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE = "controlled_contract_dag_stage_distributed"

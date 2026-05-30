@@ -72,7 +72,7 @@ def env(tmp_path, monkeypatch):
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
     monkeypatch.setenv("HOME", str(fake_home))
     apps_path = agipath / 'apps'
-    return AgiEnv(apps_path=apps_path, app='mycode_project', verbose=1)
+    return AgiEnv(apps_path=apps_path, app='minimal_app_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     captured = {}
@@ -93,14 +93,14 @@ def test_change_app_reinitializes_on_change(monkeypatch, env):
         called['count'] += 1
         called['kwargs'] = k
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
-    current_app_path = apps_path / 'mycode_project'
+    current_app_path = apps_path / 'minimal_app_project'
     env.app = current_app_path
-    mycode_name = "mycode_path"
+    minimal_app_name = "minimal_app_path"
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_app(mycode_name)
+        env.change_app(minimal_app_name)
     assert called['count'] == 1
     assert called['kwargs'].get('apps_path') == apps_path
-    assert called['kwargs'].get('app') == mycode_name
+    assert called['kwargs'].get('app') == minimal_app_name
     assert 'install_type' not in called['kwargs']
 
 def test_change_app_noop_when_same_app(monkeypatch, env):
@@ -108,10 +108,10 @@ def test_change_app_noop_when_same_app(monkeypatch, env):
     def fake_init(self, *a, **k):
         called['count'] += 1
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
-    current_app_path = apps_path / 'mycode_project'
+    current_app_path = apps_path / 'minimal_app_project'
     env.app = current_app_path
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_app('mycode_project')
+        env.change_app('minimal_app_project')
     assert called['count'] == 0
 
 
@@ -338,9 +338,9 @@ def test_app_settings_file_points_to_user_workspace_and_is_seeded(tmp_path: Path
     monkeypatch.setenv("HOME", str(fake_home))
 
     AgiEnv.reset()
-    env = AgiEnv(apps_path=agipath / "apps", app="mycode_project", verbose=1)
+    env = AgiEnv(apps_path=agipath / "apps", app="minimal_app_project", verbose=1)
 
-    expected_workspace = fake_home / ".agilab" / "apps" / "mycode_project" / "app_settings.toml"
+    expected_workspace = fake_home / ".agilab" / "apps" / "minimal_app_project" / "app_settings.toml"
     assert env.app_settings_file == expected_workspace
     assert env.app_settings_file.exists()
     assert env.app_settings_source_file.exists()
@@ -362,7 +362,7 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
     (fake_home / ".agilab" / ".env").write_text(
         "AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE=/nonexistent_cluster_share\n"
     )
-    workspace_settings = fake_home / ".agilab" / "apps" / "mycode_project" / "app_settings.toml"
+    workspace_settings = fake_home / ".agilab" / "apps" / "minimal_app_project" / "app_settings.toml"
     workspace_settings.parent.mkdir(parents=True, exist_ok=True)
     workspace_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
 
@@ -370,8 +370,8 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
     monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
 
     fake_apps = tmp_path / "apps"
-    fake_app = fake_apps / "mycode_project"
-    (fake_app / "src" / "mycode").mkdir(parents=True, exist_ok=True)
+    fake_app = fake_apps / "minimal_app_project"
+    (fake_app / "src" / "minimal_app").mkdir(parents=True, exist_ok=True)
     (fake_app / "src" / "app_settings.toml").write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
 
     AgiEnv.reset()
@@ -381,7 +381,7 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
         AgiEnv, "_init_apps", lambda self: None
     ):
-        env = AgiEnv(apps_path=fake_apps, app="mycode_project", verbose=1)
+        env = AgiEnv(apps_path=fake_apps, app="minimal_app_project", verbose=1)
 
     assert env.agi_share_path == env.AGI_LOCAL_SHARE
 
@@ -403,7 +403,7 @@ def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, mo
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
 
     # Create a fake app with cluster_enabled = true in app_settings.toml
-    # so _cluster_enabled_from_settings() returns True (the real mycode_project
+    # so _cluster_enabled_from_settings() returns True (the real minimal_app_project
     # has cluster_enabled = false which would prevent the warning from firing).
     fake_apps = tmp_path / "apps"
     fake_app = fake_apps / app_name
@@ -999,9 +999,9 @@ def test_change_app_marks_reinitialization_as_intentional(monkeypatch, env):
         called["kwargs"] = k
 
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
-    env.app = apps_path / "mycode_project"
+    env.app = apps_path / "minimal_app_project"
     with mock.patch.object(AgiEnv, "__init__", fake_init, create=True):
-        env.change_app("mycode_path")
+        env.change_app("minimal_app_path")
 
     assert called["kwargs"]["_agilab_reinitialize"] is True
 

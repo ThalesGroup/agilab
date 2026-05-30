@@ -791,7 +791,7 @@ def test_newcomer_docs_choose_first_example_without_deprecation_confusion() -> N
 
     for phrase in (
         "``flight_telemetry_project``",
-        "``mycode_project``",
+        "``minimal_app_project``",
         "``weather_forecast_project`` or ``mission_decision_project``",
         "Read-only preview examples",
         "``notebook_migrations/skforecast_meteo_fr``",

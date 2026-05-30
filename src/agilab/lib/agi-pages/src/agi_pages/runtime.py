@@ -57,6 +57,59 @@ def resolve_active_app_path(
     raise FileNotFoundError(message)
 
 
+def active_app_scope_value(active_app: str | Path) -> str:
+    """Return the stable session-scope key for an active app path."""
+
+    return str(Path(active_app).expanduser().resolve())
+
+
+def env_app_scope_value(env: Any) -> str | None:
+    """Infer the active-app session-scope key from an AGILAB environment object."""
+
+    app_path = getattr(env, "app_path", None)
+    if app_path:
+        return active_app_scope_value(app_path)
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        return active_app_scope_value(active_app)
+    apps_path = getattr(env, "apps_path", None)
+    app = getattr(env, "app", None)
+    if apps_path and app:
+        return active_app_scope_value(Path(apps_path) / str(app))
+    return None
+
+
+def reset_scoped_session_state(
+    session_state: Any,
+    scope_key: str,
+    scope_value: str | Path,
+    *,
+    keys: tuple[str, ...] = (),
+    prefixes: tuple[str, ...] = (),
+    clear_on_first_scope: bool = True,
+    normalize_scope: bool = True,
+) -> bool:
+    """Clear page-owned session state when the active app scope changes."""
+
+    normalized_scope = active_app_scope_value(scope_value) if normalize_scope else str(scope_value)
+    previous_scope = session_state.get(scope_key)
+    if previous_scope == normalized_scope:
+        return False
+
+    should_clear = clear_on_first_scope or previous_scope is not None
+    if should_clear:
+        exact_keys = set(keys)
+        for key in list(session_state.keys()):
+            if key == scope_key:
+                continue
+            key_text = str(key)
+            if key in exact_keys or any(key_text.startswith(prefix) for prefix in prefixes):
+                session_state.pop(key, None)
+
+    session_state[scope_key] = normalized_scope
+    return True
+
+
 def artifact_root(env: Any, page_subdir: str) -> Path:
     """Return the conventional export root for one page bundle."""
 

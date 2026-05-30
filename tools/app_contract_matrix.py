@@ -24,13 +24,13 @@ PUBLIC_APP_CATALOG_REL = Path("docs/source/public-app-catalog.rst")
 APPS_PAGES_CATALOG_REL = Path("docs/source/apps-pages.rst")
 AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
 AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
-REDUCER_EXEMPT_PROJECTS = frozenset({"mycode_project", "global_dag_project"})
+REDUCER_EXEMPT_PROJECTS = frozenset({"minimal_app_project", "multi_app_dag_project"})
 OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
     {
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "mycode_project",
+        "minimal_app_project",
         "pytorch_playground_project",
     }
 )

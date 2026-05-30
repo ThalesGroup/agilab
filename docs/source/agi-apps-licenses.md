@@ -17,19 +17,20 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-app-flight-telemetry | 2026.5.23 | BSD-3-Clause |
-| agi-app-global-dag | 2026.5.23 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.23 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.23 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.23 | BSD-3-Clause |
-| agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
-| agi-app-tescia-diagnostic | 2026.5.23 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.23 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.23 | BSD-3-Clause |
-| agi-cluster | 2026.5.25 | BSD-3-Clause |
-| agi-core | 2026.5.25 | BSD-3-Clause |
-| agi-env | 2026.5.25 | BSD-3-Clause |
-| agi-node | 2026.5.25 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.30 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.30 | BSD-3-Clause |
+| agi-app-multi-app-dag | 2026.5.30 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.30 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.30 | BSD-3-Clause |
+| agi-app-pytorch-playground | 2026.5.30 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | 2026.5.30 | BSD-3-Clause |
+| agi-app-tescia-diagnostic | 2026.5.30 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.30 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.30 | BSD-3-Clause |
+| agi-cluster | 2026.5.30 | BSD-3-Clause |
+| agi-core | 2026.5.30 | BSD-3-Clause |
+| agi-env | 2026.5.30 | BSD-3-Clause |
+| agi-node | 2026.5.30 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
 | backports-zstd | 1.3.0 | PSF-2.0 |
@@ -59,16 +60,17 @@ Audit notes:
 | polars | 1.40.1 | MIT LICENSE |
 | polars-runtime-32 | 1.40.1 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
-| py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
+| py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | 3.0 | BSD-3-CLAUSE |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
-| pydantic | 2.13.3 | MIT |
-| pydantic-core | 2.46.3 | MIT |
-| pyppmd | 1.3.1 | LGPL-2.1-OR-LATER |
+| pydantic | 2.12.5 | MIT |
+| pydantic-core | 2.41.5 | MIT |
+| pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
+| pyzstd | 0.19.1 | BSD LICENSE |
 | scikit-learn | 1.8.0 | BSD-3-CLAUSE |
 | scipy | 1.16.3 | BSD LICENSE |
 | setuptools | 81.0.0 | MIT |

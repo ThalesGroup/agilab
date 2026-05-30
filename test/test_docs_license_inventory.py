@@ -62,4 +62,4 @@ def test_license_docs_cover_public_package_split() -> None:
         assert "| Package Name | Version | License |" in text
 
     assert not (DOCS_SOURCE / "flight-telemetry-project-licenses.md").exists()
-    assert not (DOCS_SOURCE / "mycode-project-licenses.md").exists()
+    assert not (DOCS_SOURCE / "minimal-app-project-licenses.md").exists()

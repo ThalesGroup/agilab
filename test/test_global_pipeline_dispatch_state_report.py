@@ -37,7 +37,7 @@ def test_dispatch_state_report_persists_and_reloads_json(tmp_path: Path) -> None
     assert report["status"] == "pass"
     assert output_path.is_file()
     assert report["summary"]["schema"] == "agilab.global_pipeline_dispatch_state.v1"
-    assert report["summary"]["run_id"] == "global-dag-dispatch-proof"
+    assert report["summary"]["run_id"] == "multi-app-dag-dispatch-proof"
     assert report["summary"]["run_status"] == "in_progress"
     assert report["summary"]["persistence_format"] == "json"
     assert report["summary"]["round_trip_ok"] is True

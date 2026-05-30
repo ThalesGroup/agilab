@@ -14,8 +14,8 @@ from agi_node.agi_dispatcher import BaseWorker
 _BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
 
 
-def _mycode_env(*, verbose: int = 0) -> AgiEnv:
-    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+def _minimal_app_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="minimal_app_project", verbose=verbose)
 
 
 @pytest.fixture(autouse=True)
@@ -122,7 +122,7 @@ def test_capacity_support_private_helper_edges(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.benchmark = tmp_path / "benchmark.json"
     env.benchmark.write_text("stale", encoding="utf-8")
 
@@ -166,7 +166,7 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.benchmark = tmp_path / "benchmark.json"
     called = {"install": 0}
 
@@ -189,7 +189,7 @@ async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path
 
 @pytest.mark.asyncio
 async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.benchmark = tmp_path / "benchmark.json"
 
     async def _bad_run(*_args, **_kwargs):
@@ -205,7 +205,7 @@ async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.benchmark = tmp_path / "benchmark.json"
 
     async def _non_str_run(*_args, **_kwargs):
@@ -221,7 +221,7 @@ async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     calls = {"start": 0, "stop": 0, "update": 0}
     runs = {}
     sequence = iter(["m4 2.0", "m5 1.0"])
@@ -263,7 +263,7 @@ async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_can_add_best_single_node_run(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     calls = {"start": 0, "stop": 0, "update": 0}
     worker_snapshots: list[dict[str, int]] = []
     runs = {}
@@ -321,7 +321,7 @@ async def test_benchmark_dask_modes_can_add_best_single_node_run(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_maps_best_rapids_node_modes(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.envars["10.0.0.3"] = "hw_rapids_capable"
     worker_snapshots: list[dict[str, int]] = []
     modes_seen: list[int] = []
@@ -379,7 +379,7 @@ async def test_benchmark_dask_modes_maps_best_rapids_node_modes(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_uses_fresh_class_rapids_capability(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     env.envars.pop("10.0.0.3", None)
     monkeypatch.setattr(AgiEnv, "envars", {"10.0.0.3": "hw_rapids_capable"})
     modes_seen: list[int] = []
@@ -429,7 +429,7 @@ async def test_benchmark_dask_modes_warns_when_best_rapids_capability_unknown(
     monkeypatch,
     caplog,
 ):
-    env = _mycode_env()
+    env = _minimal_app_env()
     unknown_best_host = "203.0.113.3"
     env.envars.pop(unknown_best_host, None)
     monkeypatch.delenv(unknown_best_host, raising=False)
@@ -479,7 +479,7 @@ async def test_benchmark_dask_modes_warns_when_best_rapids_capability_unknown(
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_deduplicates_requested_best_rapids_counterparts(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     unknown_best_host = "203.0.113.3"
     monkeypatch.setattr(AgiEnv, "envars", {})
     modes_seen: list[int] = []
@@ -530,7 +530,7 @@ async def test_benchmark_dask_modes_deduplicates_requested_best_rapids_counterpa
 
 @pytest.mark.asyncio
 async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     calls = {"stop": 0}
 
     async def _start(_scheduler):

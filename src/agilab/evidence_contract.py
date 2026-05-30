@@ -642,9 +642,9 @@ def write_proof_capsule(
 ) -> ProofCapsuleWriteResult:
     """Write a hash-verifiable ``.agipack`` archive for a run manifest.
 
-    The first archive format is intentionally unsigned. It gives reviewers one
-    portable ZIP file with per-entry SHA-256 hashes, while keeping detached
-    signatures and external provenance attestations as explicit later layers.
+    The archive itself stays hash-verifiable and unsigned. Optional detached
+    Ed25519 signatures are written as a separate JSON sidecar, while external
+    provenance attestations remain explicit later layers.
     """
     manifest_path = manifest_path.expanduser()
     capsule_path = capsule_path.expanduser()
@@ -705,8 +705,8 @@ def write_proof_capsule(
             "limitations": [
                 "This .agipack is hash-verifiable but not cryptographically signed.",
                 (
-                    "External Sigstore, SLSA, or PyPI attestations must be carried "
-                    "as separate evidence files until a signed capsule layer ships."
+                    "Detached Ed25519 signatures and external Sigstore, SLSA, or "
+                    "PyPI attestations are carried as separate evidence files."
                 ),
             ],
         }

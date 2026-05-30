@@ -112,14 +112,14 @@ def test_fetch_pypi_distribution_files_returns_empty_mapping_for_missing_project
 
 def test_expected_distribution_filenames_match_wheel_and_sdist_policy() -> None:
     filenames = expected_distribution_filenames(
-        "agi-app-global-dag",
+        "agi-app-multi-app-dag",
         Version("2026.5.18"),
         artifact_policy="wheel+sdist",
     )
 
     assert filenames == [
-        "agi_app_global_dag-2026.5.18-py3-none-any.whl",
-        "agi_app_global_dag-2026.5.18.tar.gz",
+        "agi_app_multi_app_dag-2026.5.18-py3-none-any.whl",
+        "agi_app_multi_app_dag-2026.5.18.tar.gz",
     ]
 
 

@@ -123,7 +123,7 @@ references, and example projects.
    Execution playground <execution-playground>
    Industrial optimization examples <industrial-optimization-examples>
    Notebook migration example <notebook-migration-skforecast-meteo>
-   MyCode project <mycode-project>
+   Minimal App project <minimal-app-project>
    Flight telemetry project <flight-telemetry-project>
 
 .. toctree::

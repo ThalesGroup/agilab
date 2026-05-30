@@ -49,7 +49,7 @@ The current bit values are:
 
 Prefer the public constants instead of typing numeric bitmasks:
 
-- ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the MyCode docs example.
+- ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the Minimal App docs example.
 - ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the Flight docs example.
 
 This is why the install examples below pass named constants through
@@ -60,7 +60,7 @@ should not teach those values directly.
 In normal usage, these values are generated from the UI toggles rather than
 typed manually.
 
-The literal-included MyCode and Flight snippets below are kept aligned with the
+The literal-included Minimal App and Flight snippets below are kept aligned with the
 packaged examples under ``src/agilab/examples``: they resolve built-in apps from
 ``apps/builtin`` and keep Cython off for the public first-run examples. Cython
 can still be enabled intentionally later, after the local Python/Dask path is
@@ -72,9 +72,9 @@ Usage Example
 Installation
 ^^^^^^^^^^^^
 
-Install the ``mycode`` example:
+Install the ``minimal_app`` example:
 
-.. literalinclude:: examples/mycode/AGI.install-mycode.py
+.. literalinclude:: examples/minimal_app/AGI.install-minimal_app.py
    :language: python
 
 Install the ``flight`` example:
@@ -87,7 +87,7 @@ Distribute
 
 Create the distribution bundle that will be sent to the workers:
 
-.. literalinclude:: examples/mycode/AGI.get_distrib-mycode.py
+.. literalinclude:: examples/minimal_app/AGI.get_distrib-minimal_app.py
    :language: python
 
 Equivalent example for ``flight``:
@@ -110,7 +110,7 @@ Start with the simplest mental model first:
 Then move to the generated examples that add install-time capabilities,
 distributed hosts, and app-specific arguments:
 
-.. literalinclude:: examples/mycode/AGI.run-mycode.py
+.. literalinclude:: examples/minimal_app/AGI.run-minimal_app.py
    :language: python
 
 Equivalent example for ``flight``:

@@ -63,7 +63,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG live state updates report",
+        "multi-app DAG live state updates report",
         "tools/global_pipeline_live_state_updates_report.py --compact",
         "live orchestration-state updates",
         "deterministic update stream",
@@ -81,9 +81,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline live state updates docs reference",
         ok,
         (
-            "features docs expose the global DAG live-state update command"
+            "features docs expose the multi-app DAG live-state update command"
             if ok
-            else "features docs do not expose the global DAG live-state update command"
+            else "features docs do not expose the multi-app DAG live-state update command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,

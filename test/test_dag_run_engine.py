@@ -241,7 +241,7 @@ def test_dag_run_engine_executes_controlled_queue_stage(tmp_path):
 
     assert result.ok
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert result.state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert result.state["summary"]["runnable_unit_ids"] == ["relay_followup"]
     assert result.state["summary"]["available_artifact_ids"] == ["queue_metrics", "queue_reduce_summary"]
@@ -279,7 +279,7 @@ def test_dag_run_engine_executes_app_owned_uav_template_queue_stage(tmp_path):
     assert support.adapter == dag_run_engine.GLOBAL_DAG_CONTROLLED_ADAPTER
     assert result.ok
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
 
 
 def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_path):
@@ -311,7 +311,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert support.adapter == dag_run_engine.GLOBAL_DAG_CONTROLLED_CONTRACT_ADAPTER
     assert result.ok
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "flight_context"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "flight_context"]
     assert result.state["summary"]["completed_unit_ids"] == ["flight_context"]
     assert result.state["summary"]["runnable_unit_ids"] == ["weather_forecast_review"]
     assert result.state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
@@ -404,7 +404,7 @@ def test_dag_run_engine_run_ready_wraps_single_stage_adapter(tmp_path):
 
     assert result.ok
     assert result.executed_unit_ids == (dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID,)
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert result.state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert result.state["summary"]["runnable_unit_ids"] == ["relay_followup"]
 
@@ -637,7 +637,7 @@ def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):
     assert relay_result.executed_unit_id == dag_run_engine.GLOBAL_DAG_RELAY_UNIT_ID
     assert relay_calls == [
         {
-            "run_root": tmp_path / ".agilab" / "global_dag_real_runs" / "relay_followup",
+            "run_root": tmp_path / ".agilab" / "multi_app_dag_real_runs" / "relay_followup",
             "queue_result": relay_result.state["units"][0]["real_execution"],
         }
     ]

@@ -91,7 +91,7 @@ End-to-end CLI example
    from agi_env import AgiEnv
 
    APPS_PATH = "src/agilab/apps/builtin"
-   APP = "mycode_project"
+   APP = "minimal_app_project"
 
    async def main():
        env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
@@ -134,7 +134,7 @@ Use this checker for automation/monitoring:
 .. code-block:: bash
 
    uv run python tools/service_health_check.py \
-     --app mycode_project \
+     --app minimal_app_project \
      --apps-path src/agilab/apps/builtin
 
 Health JSON is written by default to:

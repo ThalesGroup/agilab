@@ -70,7 +70,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG app dispatch smoke report",
+        "multi-app DAG app dispatch smoke report",
         "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
         "real queue_baseline and relay_followup execution",
         "relay_metrics",

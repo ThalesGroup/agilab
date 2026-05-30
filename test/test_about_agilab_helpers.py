@@ -4790,7 +4790,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -4824,7 +4824,7 @@ def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -4834,7 +4834,7 @@ def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
     by_step = {row["step"]: row for row in rows}
 
     assert by_step["Project selected"]["status"] == "Next"
-    assert "mycode_project" in by_step["Project selected"]["detail"]
+    assert "minimal_app_project" in by_step["Project selected"]["detail"]
     assert by_step["Run executed"]["status"] == "Waiting"
     assert by_step["Evidence manifest"]["status"] == "Waiting"
 
@@ -4847,7 +4847,7 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
     select_state = about_agilab._newcomer_first_proof_state(
         SimpleNamespace(
             apps_path=apps_path,
-            app="mycode_project",
+            app="minimal_app_project",
             AGILAB_LOG_ABS=tmp_path / "log",
         )
     )
@@ -4858,7 +4858,7 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
     assert select_action["tone"] == "next"
     assert select_action["title"] == "Start with the known demo project"
     assert select_action["cta_label"] == "Select demo"
-    assert "mycode_project" in select_action["detail"]
+    assert "minimal_app_project" in select_action["detail"]
     assert "flight_telemetry_project" in select_action["detail"]
 
     run_state = about_agilab._newcomer_first_proof_state(
@@ -5025,7 +5025,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
@@ -5371,7 +5371,7 @@ def test_first_proof_wizard_omits_redundant_select_demo_step(
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
@@ -5409,7 +5409,7 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     fake_st = _FakeStreamlit(button_values={"1. INSTALL demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
@@ -5448,7 +5448,7 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     fake_st = _FakeStreamlit(button_values={"2. EXECUTE demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
@@ -5534,7 +5534,7 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
     fake_st = _FakeStreamlit(button_values={"Create from built-in notebook": True})
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )
@@ -5562,7 +5562,7 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
     assert query == {
         "start": ["notebook-import"],
         "sample": ["agilab-first-proof"],
-        "active_app": ["mycode_project"],
+        "active_app": ["minimal_app_project"],
     }
     assert "sidebar_selection" not in fake_st.session_state
     assert "create_mode" not in fake_st.session_state
@@ -5584,7 +5584,7 @@ def test_first_proof_wizard_does_not_render_direct_notebook_upload(
     )
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="mycode_project",
+        app="minimal_app_project",
         AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path / "resources",
     )

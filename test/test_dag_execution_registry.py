@@ -52,16 +52,16 @@ def _flight_template_path(repo_root: Path) -> Path:
     return repo_root / dag_execution_registry.FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
 
 
-def _global_dag_template_path(repo_root: Path) -> Path:
+def _multi_app_dag_template_path(repo_root: Path) -> Path:
     return (
         repo_root
         / "src"
         / "agilab"
         / "apps"
         / "builtin"
-        / "global_dag_project"
+        / "multi_app_dag_project"
         / "dag_templates"
-        / "flight_to_weather_global_dag.json"
+        / "flight_to_weather_multi_app_dag.json"
     )
 
 
@@ -249,9 +249,9 @@ def test_registry_rejects_marker_opted_contract_template_without_stage_contract(
     assert "must declare `execution.entrypoint` or `execution.command`" in support.message
 
 
-def test_registry_keeps_global_dag_project_template_preview_only():
+def test_registry_keeps_multi_app_dag_project_template_preview_only():
     repo_root = Path.cwd()
-    dag_path = _global_dag_template_path(repo_root)
+    dag_path = _multi_app_dag_template_path(repo_root)
 
     adapter = dag_execution_registry.registered_adapter_for_source(dag_path, repo_root)
     support = dag_execution_registry.resolve_real_run_support(

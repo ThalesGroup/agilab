@@ -39,6 +39,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
+from agi_pages.runtime import active_app_scope_value, reset_scoped_session_state
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
@@ -458,7 +459,7 @@ def update_datadir(var_key, widget_key):
 
 
 def _reset_state_for_active_app(active_app: Path) -> None:
-    active_app_key = str(active_app.resolve())
+    active_app_key = active_app_scope_value(active_app)
     current_scope = st.session_state.get(APP_SCOPE_KEY)
     if current_scope == active_app_key:
         return
@@ -470,9 +471,12 @@ def _reset_state_for_active_app(active_app: Path) -> None:
             if existing_app_key == active_app_key:
                 st.session_state[APP_SCOPE_KEY] = active_app_key
                 return
-    for key in APP_SCOPED_SESSION_KEYS:
-        st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = active_app_key
+    reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app,
+        keys=APP_SCOPED_SESSION_KEYS,
+    )
 
 
 def page(env):

@@ -116,7 +116,7 @@ def test_init_service_queue_falls_back_to_home_when_share_resolution_fails(tmp_p
 def test_service_queue_prefers_workers_data_path(tmp_path):
     agi = _build_agi()
     agi._workers_data_path = str(tmp_path / "cluster-share")
-    env = _build_env(tmp_path, target="mycode_project", app="mycode_project")
+    env = _build_env(tmp_path, target="minimal_app_project", app="minimal_app_project")
 
     queue_paths = service_state_support.init_service_queue(agi, env)
 
@@ -128,7 +128,7 @@ def test_service_queue_prefers_workers_data_path(tmp_path):
 def test_service_queue_keeps_workers_data_path_literal():
     agi = _build_agi()
     agi._workers_data_path = "/tmp/agilab_test_share"
-    env = _build_env(Path("/tmp"), target="mycode_project", app="mycode_project")
+    env = _build_env(Path("/tmp"), target="minimal_app_project", app="minimal_app_project")
 
     queue_paths = service_state_support.init_service_queue(agi, env)
 
@@ -422,7 +422,7 @@ def test_service_queue_counts_reads_task_files(tmp_path):
 
 def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_path):
     agi = _build_agi()
-    env = _build_env(tmp_path, target="mycode_project", app="mycode_project")
+    env = _build_env(tmp_path, target="minimal_app_project", app="minimal_app_project")
     queue_root = tmp_path / "queue"
     for name in ("pending", "running", "done", "failed", "heartbeats"):
         (queue_root / name).mkdir(parents=True, exist_ok=True)
@@ -444,7 +444,7 @@ def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_pat
 
 def test_init_service_queue_ignores_missing_files_during_cleanup(monkeypatch, tmp_path):
     agi = _build_agi()
-    env = _build_env(tmp_path, target="mycode_project", app="mycode_project")
+    env = _build_env(tmp_path, target="minimal_app_project", app="minimal_app_project")
     queue_root = tmp_path / "queue"
     for name in ("pending", "running", "done", "failed", "heartbeats"):
         (queue_root / name).mkdir(parents=True, exist_ok=True)

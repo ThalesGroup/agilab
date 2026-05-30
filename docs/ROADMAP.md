@@ -25,7 +25,7 @@ Recommended near-term order:
    Airflow/Dagster export.
 6. Stabilize the extension contracts across apps, pages, notebooks,
    connectors, reducers, evidence reports, and package splits.
-7. Productize global DAG, intent-first operator mode, observability, and MLOps
+7. Productize multi-app DAG, intent-first operator mode, observability, and MLOps
    handoff on top of the stable baseline.
 
 Supporting roadmap documents:

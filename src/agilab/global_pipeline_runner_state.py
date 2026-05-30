@@ -36,7 +36,7 @@ COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
 PLANNED_STATUS = "planned"
 PERSISTENCE_FORMAT = "json"
-DEFAULT_RUN_ID = "global-dag-runner-state"
+DEFAULT_RUN_ID = "multi-app-dag-runner-state"
 
 
 @dataclass(frozen=True)
@@ -396,7 +396,7 @@ def build_persisted_runner_state(
                 "unit_id": "",
                 "from_status": "",
                 "to_status": PLANNED_STATUS,
-                "detail": "persisted global DAG runner state created",
+                "detail": "persisted multi-app DAG runner state created",
             }
         ],
         "provenance": {
@@ -505,7 +505,7 @@ def dispatch_next_runnable(
     _refresh_persisted_summary(mutable_state)
     return RunnerDispatchResult(
         ok=False,
-        message="No runnable global DAG unit is available to dispatch.",
+        message="No runnable multi-app DAG unit is available to dispatch.",
         dispatched_unit_id="",
         state=mutable_state,
     )

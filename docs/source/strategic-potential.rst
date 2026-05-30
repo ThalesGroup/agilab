@@ -194,7 +194,7 @@ evidence closes a listed gap.
        formal certification.
    * - ``4.5 / 5``
      - At least two external fresh-machine first proofs are attached through
-       run manifests or artifact indexes; global DAG operator flow has a live
+       run manifests or artifact indexes; multi-app DAG operator flow has a live
        UI proof; connector examples demonstrate credentialed operator-gated
        validation without leaking secrets.
      - Multi-tenant production operations, cloud/Kubernetes parity, or

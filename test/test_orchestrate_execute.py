@@ -630,7 +630,7 @@ def test_orchestrate_execute_import_survives_missing_networkx():
         ("workflow_project", "workflow_project", "workflow", "DagWorker", True),
         ("sb3_trainer_project", "sb3_trainer_project", "sb3_trainer", "Sb3TrainerWorker", True),
         ("custom_project", "custom_project", "custom", "CustomDagWorker", True),
-        ("global_dag_project", "global_dag_project", "global_dag", "PolarsWorker", True),
+        ("multi_app_dag_project", "multi_app_dag_project", "multi_app_dag", "PolarsWorker", True),
         ("custom_dag_project", "custom_dag_project", "custom_dag", None, True),
         ("dag_app_template", "your_dag_project", "dag_app", None, True),
         ("flight_telemetry_project", "flight_telemetry_project", "flight", "PolarsWorker", False),
@@ -1722,7 +1722,7 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
 @pytest.mark.parametrize(
     ("app_state_name", "env_app", "target"),
     [
-        ("global_dag_project", "global_dag_project", "global_dag"),
+        ("multi_app_dag_project", "multi_app_dag_project", "multi_app_dag"),
         ("custom_dag_project", "custom_dag_project", "custom_dag"),
         ("workflow_project", "workflow_project", "workflow"),
     ],

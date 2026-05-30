@@ -10,13 +10,13 @@ HEALTH_PAYLOAD_PATH = (
     Path(__file__).resolve().parents[2]
     / "apps"
     / "builtin"
-    / "mycode_project"
+    / "minimal_app_project"
     / "service_templates"
     / "sample_health_running.json"
 )
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "service_mode" / "service_operator_preview.json"
-DEFAULT_APP = "mycode_project"
-DEFAULT_TARGET = "mycode"
+DEFAULT_APP = "minimal_app_project"
+DEFAULT_TARGET = "minimal_app"
 
 
 def _int_field(payload: dict[str, Any], key: str) -> int:

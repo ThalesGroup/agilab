@@ -105,7 +105,7 @@ where the plan comes from:
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
 * ``Workspace drafts`` loads plans saved from the current project workspace
-  under ``.agilab/global_dags``.
+  under ``.agilab/multi_app_dags``.
 * ``Custom path`` loads an external JSON plan by path.
 
 The graph is hidden by default so small screens stay readable. Enable

@@ -53,6 +53,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
+from agi_pages.runtime import reset_scoped_session_state
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
@@ -97,17 +98,13 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
 def _reset_app_scoped_session_state(active_app: Path) -> bool:
     """Clear Barycentric page state that belongs to a specific active app."""
 
-    app_scope = str(active_app.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in list(st.session_state.keys()):
-        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
-            isinstance(key, str) and key.startswith(prefix)
-            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
-        ):
-            st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
 
 
 class ModifiedScrawler(Scrawler):

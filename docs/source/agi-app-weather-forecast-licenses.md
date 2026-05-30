@@ -19,10 +19,10 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-cluster | 2026.5.25 | BSD-3-Clause |
-| agi-core | 2026.5.25 | BSD-3-Clause |
-| agi-env | 2026.5.25 | BSD-3-Clause |
-| agi-node | 2026.5.25 | BSD-3-Clause |
+| agi-cluster | 2026.5.30 | BSD-3-Clause |
+| agi-core | 2026.5.30 | BSD-3-Clause |
+| agi-env | 2026.5.30 | BSD-3-Clause |
+| agi-node | 2026.5.30 | BSD-3-Clause |
 | alembic | 1.18.4 | MIT |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
@@ -74,19 +74,20 @@ Audit notes:
 | polars-runtime-32 | 1.40.1 | MIT LICENSE |
 | protobuf | 6.33.6 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
-| py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
+| py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pyarrow | 23.0.1 | APACHE-2.0 |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | 3.0 | BSD-3-CLAUSE |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
-| pydantic | 2.13.3 | MIT |
-| pydantic-core | 2.46.3 | MIT |
+| pydantic | 2.12.5 | MIT |
+| pydantic-core | 2.41.5 | MIT |
 | pydeck | 0.9.2 | APACHE LICENSE 2.0 |
 | pygments | 2.20.0 | BSD-2-CLAUSE |
-| pyppmd | 1.3.1 | LGPL-2.1-OR-LATER |
+| pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
+| pyzstd | 0.19.1 | BSD LICENSE |
 | referencing | 0.37.0 | MIT |
 | requests | 2.33.1 | APACHE SOFTWARE LICENSE |
 | rich | 15.0.0 | MIT LICENSE |

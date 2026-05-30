@@ -471,7 +471,7 @@ def test_packaged_notebook_import_sample_rejects_unknown_sample_id() -> None:
 
     assert [sample.sample_id for sample in samples] == [
         "flight_telemetry",
-        "mycode",
+        "minimal_app",
         "weather_forecast",
         "mission_decision",
     ]
@@ -479,7 +479,7 @@ def test_packaged_notebook_import_sample_rejects_unknown_sample_id() -> None:
         sample_module.get_sample_notebook("unknown")
     except KeyError as exc:
         assert "Unknown notebook import sample 'unknown'" in str(exc)
-        assert "flight_telemetry, mycode, weather_forecast, mission_decision" in str(exc)
+        assert "flight_telemetry, minimal_app, weather_forecast, mission_decision" in str(exc)
     else:
         raise AssertionError("unknown notebook import sample id should fail closed")
 
@@ -499,7 +499,7 @@ def test_packaged_notebook_import_samples_create_equivalent_from_notebook_projec
             "flight_telemetry_project",
             "flight_telemetry_from_notebook_project",
         ),
-        "mycode": ("mycode_project", "mycode_from_notebook_project"),
+        "minimal_app": ("minimal_app_project", "minimal_app_from_notebook_project"),
         "weather_forecast": (
             "weather_forecast_project",
             "weather_forecast_from_notebook_project",

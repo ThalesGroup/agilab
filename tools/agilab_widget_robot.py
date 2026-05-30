@@ -106,11 +106,11 @@ RISKY_ACTION_LABEL_TOKENS = {
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {
     "flight_telemetry",
     "weather_forecast",
-    "meteo_forecast",
+    "weather_forecast_legacy",
     "uav_queue",
     "uav_relay_queue",
 }
-NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS = {"mycode_project"}
+NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS = {"minimal_app_project"}
 ORCHESTRATE_OUTPUT_ACTION_LABELS = {
     "run -> load -> export",
     "load output",
@@ -1757,7 +1757,7 @@ def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: 
         _seed_flight_artifacts(export_root, share_root)
     elif target in {"uav_queue", "uav_relay_queue"}:
         _seed_queue_artifacts(export_root, target)
-    elif target in {"weather_forecast", "meteo_forecast"}:
+    elif target in {"weather_forecast", "weather_forecast_legacy"}:
         _seed_forecast_artifacts(export_root, target)
 
 
@@ -5916,7 +5916,6 @@ def sweep_app(  # pragma: no cover - live browser path
                         upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
 
                         def run_page(page_name: str, page: Any, browser_issues: list[dict[str, str]]) -> PageSweep | None:
-                            display = page_label(page_name)
                             result = sweep_page(
                                 page,
                                 web_robot=web_robot,

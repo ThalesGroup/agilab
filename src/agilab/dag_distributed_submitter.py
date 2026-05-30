@@ -76,7 +76,7 @@ def dag_distributed_stage_config_from_settings(
     )
 
 
-def build_global_dag_distributed_stage_submitter(
+def build_multi_app_dag_distributed_stage_submitter(
     *,
     env: Any,
     app_settings: Mapping[str, Any] | None = None,

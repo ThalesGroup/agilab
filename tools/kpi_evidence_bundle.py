@@ -32,8 +32,8 @@ STRATEGIC_POTENTIAL_SCORE = "4.2 / 5"
 README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
 README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"
 TEMPLATE_ONLY_BUILTIN_APPS = {
-    "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
-    "global_dag_project": "cross-app DAG template preview with no concrete worker merge output",
+    "minimal_app_project": "starter template with placeholder worker hooks and no concrete merge output",
+    "multi_app_dag_project": "cross-app DAG template preview with no concrete worker merge output",
 }
 
 
@@ -944,18 +944,18 @@ def _reduce_contract_adoption_details(repo_root: Path) -> dict[str, Any]:
         except Exception as exc:
             failures.append(f"{project_dir.name}: {exc}")
 
-    mycode_docs = repo_root / "docs" / "source" / "mycode-project.rst"
+    minimal_app_docs = repo_root / "docs" / "source" / "minimal-app-project.rst"
     try:
-        mycode_text = mycode_docs.read_text(encoding="utf-8")
-        normalized_docs = re.sub(r"\s+", " ", mycode_text.lower())
+        minimal_app_text = minimal_app_docs.read_text(encoding="utf-8")
+        normalized_docs = re.sub(r"\s+", " ", minimal_app_text.lower())
         if "template-only" not in normalized_docs:
-            failures.append("mycode_project docs do not mark the project as template-only")
+            failures.append("minimal_app_project docs do not mark the project as template-only")
         if "no concrete merge output" not in normalized_docs:
-            failures.append("mycode_project docs do not explain the reducer exemption")
-        if "reduce_summary_worker_<id>.json" not in mycode_text:
-            failures.append("mycode_project docs do not name the reducer artifact contract")
+            failures.append("minimal_app_project docs do not explain the reducer exemption")
+        if "reduce_summary_worker_<id>.json" not in minimal_app_text:
+            failures.append("minimal_app_project docs do not name the reducer artifact contract")
     except Exception as exc:
-        failures.append(f"mycode_project docs: {exc}")
+        failures.append(f"minimal_app_project docs: {exc}")
 
     return {
         "checked_apps": checked_apps,
@@ -984,7 +984,7 @@ def _check_reduce_contract_adoption_guardrail(repo_root: Path) -> dict[str, Any]
         evidence=[
             "src/agilab/apps/builtin",
             "test/test_reduce_contract_adoption.py",
-            "docs/source/mycode-project.rst",
+            "docs/source/minimal-app-project.rst",
         ],
         details=details,
     )
@@ -2149,9 +2149,9 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
                 "execution_pandas_project",
                 "execution_polars_project",
                 "flight_telemetry_project",
-                "meteo_forecast_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
+                "weather_forecast_legacy_project",
                 "weather_forecast_project",
             ]
             and summary.get("round_trip_ok") is True
@@ -2178,7 +2178,7 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
             "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
-            "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/weather_forecast_legacy_project/src/app_settings.toml",
             "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",

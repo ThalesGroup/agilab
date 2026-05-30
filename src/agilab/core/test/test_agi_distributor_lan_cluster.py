@@ -11,8 +11,8 @@ from agi_env import AgiEnv
 _BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
 
 
-def _mycode_env(*, verbose: int = 0) -> AgiEnv:
-    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+def _minimal_app_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="minimal_app_project", verbose=verbose)
 
 _LAN_CLUSTER_ENABLED = os.environ.get("AGILAB_RUN_LAN_CLUSTER_TESTS", "").strip().lower() in {
     "1",
@@ -75,7 +75,7 @@ async def _assert_remote_ssh_ready(ip: str) -> None:
 @pytest.mark.parametrize("scheduler_ip", _LAN_CLUSTER_IPS)
 async def test_lan_cluster_scheduler_rotation_smoke(scheduler_ip):
     workers = {ip: 1 for ip in _LAN_CLUSTER_IPS}
-    env = _mycode_env(verbose=1)
+    env = _minimal_app_env(verbose=1)
     _apply_live_credentials(env)
 
     AGI.env = env

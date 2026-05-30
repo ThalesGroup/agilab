@@ -56,8 +56,8 @@ Status legend:
      - PyPI app package
      - Synthetic worker execution playground for the Polars path, comparable
        with the Pandas app.
-   * - ``global_dag_project``
-     - ``agi-app-global-dag``
+   * - ``multi_app_dag_project``
+     - ``agi-app-multi-app-dag``
      - PyPI app package
      - Cross-app DAG template preview and artifact-handoff contract review.
    * - ``pytorch_playground_project``
@@ -65,7 +65,7 @@ Status legend:
      - PyPI app package
      - Reproducible PyTorch classifier playground with persisted controls and
        evidence artifacts.
-   * - ``r_stage_smoke_project``
+   * - ``r_runtime_bridge_project``
      - None
      - Source built-in
      - Narrow R stage runtime proof: AGILAB stays the Python orchestrator while
@@ -83,16 +83,16 @@ Status legend:
      - Compact UAV relay queue scenario with relay-health, scenario-cockpit,
        and network-map analysis.
    * - ``uav_queue_project``
-     - ``agi-app-uav-queue-project``
+     - ``agi-app-uav-queue``
      - Release artifact
      - Queue-policy proof generator and scenario-cockpit evidence source used
        by the advanced proof pack.
-   * - ``mycode_project``
+   * - ``minimal_app_project``
      - None
      - Source built-in
      - Minimal app structure reference for adapting manager, worker, settings,
        and app argument form code.
-   * - ``meteo_forecast_project``
+   * - ``weather_forecast_legacy_project``
      - None
      - Source built-in
      - Source-checkout weather migration reference kept beside the packaged

@@ -16,6 +16,7 @@ from agi_pages.runtime import (
     ensure_repo_on_path as _page_ensure_repo_on_path,
     relative_label as _page_relative_label,
     resolve_active_app_path,
+    reset_scoped_session_state,
     safe_metric,
 )
 
@@ -59,13 +60,12 @@ def _discover_files(base: Path, pattern: str) -> list[Path]:
 def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
     """Clear persisted Relay Resilience defaults when the active app changes."""
 
-    app_scope = str(active_app_path.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
-        st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+    )
 
 
 def _load_json(path: Path) -> dict[str, Any]:

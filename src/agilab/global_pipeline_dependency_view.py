@@ -18,7 +18,7 @@ from agilab.global_pipeline_operator_state import (
 
 
 SCHEMA = "agilab.global_pipeline_dependency_view.v1"
-DEFAULT_RUN_ID = "global-dag-dependency-view-proof"
+DEFAULT_RUN_ID = "multi-app-dag-dependency-view-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:07Z"
 UPDATED_AT = "2026-04-25T00:00:07Z"

@@ -210,7 +210,7 @@ If you want the simplest mental model first, start with a local-only run:
    from agi_env import AgiEnv
 
    async def main():
-       app_env = AgiEnv(app="mycode_project", verbose=1)
+       app_env = AgiEnv(app="minimal_app_project", verbose=1)
        request = RunRequest(mode=AGI.PYTHON_MODE)
        result = await AGI.run(app_env, request=request)
        print(result)
@@ -233,7 +233,7 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
    from agi_env import AgiEnv
 
    async def main():
-       app_env = AgiEnv(app="mycode_project", verbose=1)
+       app_env = AgiEnv(app="minimal_app_project", verbose=1)
        workers = {
            "192.168.1.21": 1,  # one worker slot on host 1
            "192.168.1.22": 1,  # one worker slot on host 2

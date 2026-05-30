@@ -781,7 +781,7 @@ def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> Non
 
     assert "install.py" in package_data
     builtin_patterns = [pattern for pattern in package_data if pattern.startswith("builtin/")]
-    assert builtin_patterns == ["builtin/mycode_project/**/*"]
+    assert builtin_patterns == ["builtin/minimal_app_project/**/*"]
     assert any(dependency.startswith("agi-core==") for dependency in dependencies)
     assert {
         _project_dependency_pin("agi-app-mission-decision"),

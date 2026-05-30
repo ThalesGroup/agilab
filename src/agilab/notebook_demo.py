@@ -19,7 +19,7 @@ from agilab.notebook_colab_support import (
     worker_venv_path,
 )
 
-DEFAULT_NOTEBOOK_APP = "mycode_project"
+DEFAULT_NOTEBOOK_APP = "minimal_app_project"
 DEFAULT_LOCAL_SCHEDULER = "127.0.0.1"
 DEFAULT_LOCAL_WORKERS = {DEFAULT_LOCAL_SCHEDULER: 1}
 DEFAULT_LOCAL_MODE = 0

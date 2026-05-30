@@ -168,8 +168,8 @@ _dag_run_engine_module = import_agilab_module(
     fallback_name="agilab_dag_run_engine_fallback",
 )
 DagRunEngine = _dag_run_engine_module.DagRunEngine
-GlobalDagBatchExecutionResult = _dag_run_engine_module.DagBatchExecutionResult
-GlobalDagStageExecutionResult = _dag_run_engine_module.DagStageExecutionResult
+MultiAppDagBatchExecutionResult = _dag_run_engine_module.DagBatchExecutionResult
+MultiAppDagStageExecutionResult = _dag_run_engine_module.DagStageExecutionResult
 GLOBAL_DAG_QUEUE_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_RELAY_UNIT_ID
 GLOBAL_DAG_REAL_RUN_DIRNAME = _dag_run_engine_module.GLOBAL_DAG_REAL_RUN_DIRNAME
@@ -187,10 +187,10 @@ execution_history_rows = _dag_run_engine_module.execution_history_rows
 load_runner_state = _dag_run_engine_module.load_runner_state
 persist_runner_state = _dag_run_engine_module.persist_runner_state
 repo_relative_text_for_dag = _dag_run_engine_module.repo_relative_text
-run_global_dag_queue_baseline_app = _dag_run_engine_module.run_global_dag_queue_baseline_app
-run_global_dag_relay_followup_app = _dag_run_engine_module.run_global_dag_relay_followup_app
-run_next_controlled_global_dag_stage = _dag_run_engine_module.run_next_controlled_stage
-run_ready_controlled_global_dag_stages = _dag_run_engine_module.run_ready_controlled_stages
+run_multi_app_dag_queue_baseline_app = _dag_run_engine_module.run_multi_app_dag_queue_baseline_app
+run_multi_app_dag_relay_followup_app = _dag_run_engine_module.run_multi_app_dag_relay_followup_app
+run_next_controlled_multi_app_dag_stage = _dag_run_engine_module.run_next_controlled_stage
+run_ready_controlled_multi_app_dag_stages = _dag_run_engine_module.run_ready_controlled_stages
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
 write_runner_state = _dag_run_engine_module.write_runner_state
 
@@ -241,8 +241,8 @@ _dag_distributed_submitter_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "dag_distributed_submitter.py",
     fallback_name="agilab_dag_distributed_submitter_fallback",
 )
-build_global_dag_distributed_stage_submitter = (
-    _dag_distributed_submitter_module.build_global_dag_distributed_stage_submitter
+build_multi_app_dag_distributed_stage_submitter = (
+    _dag_distributed_submitter_module.build_multi_app_dag_distributed_stage_submitter
 )
 build_distributed_request_preview_rows = (
     _dag_distributed_submitter_module.build_distributed_request_preview_rows
@@ -258,7 +258,7 @@ GENERATE_STAGE_SOURCE = "Generate stage"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
 GLOBAL_DAG_EMPTY_STATE = "No plan steps are available."
-GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
+GLOBAL_DAG_DRAFT_DIRNAME = "multi_app_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
 GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
@@ -282,11 +282,11 @@ PIPELINE_STAGE_STARTED_RE = re.compile(r"\b(?:Running|Run)\s+(?:stage|stage)\s+(
 PIPELINE_STAGE_COMPLETED_RE = re.compile(r"\b(?:Stage|Stage)\s+(\d+):\s+engine=", re.IGNORECASE)
 
 
-def _global_dag_pending_source_key(index_page_str: str) -> str:
+def _multi_app_dag_pending_source_key(index_page_str: str) -> str:
     return f"{index_page_str}_global_runner_pending_source"
 
 
-def _global_dag_notice_key(index_page_str: str) -> str:
+def _multi_app_dag_notice_key(index_page_str: str) -> str:
     return f"{index_page_str}_global_runner_notice"
 
 
@@ -323,7 +323,7 @@ def _valid_runtime_choices(raw_paths: List[Any]) -> List[str]:
     return choices
 
 
-def _repo_root_for_global_dag() -> Path:
+def _repo_root_for_multi_app_dag() -> Path:
     candidates = [
         Path.cwd(),
         Path(__file__).resolve().parents[2],
@@ -336,9 +336,9 @@ def _repo_root_for_global_dag() -> Path:
 
 def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
     app_name = _active_app_name(env)
-    app_templates = _global_dag_app_template_options(repo_root, app_name)
+    app_templates = _multi_app_dag_app_template_options(repo_root, app_name)
     if app_templates:
-        template_path = _resolve_global_dag_input(app_templates[0], repo_root)
+        template_path = _resolve_multi_app_dag_input(app_templates[0], repo_root)
         if template_path is not None and template_path.is_file():
             return template_path
     preferred = (
@@ -353,7 +353,7 @@ def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
     return fallback_path if fallback_path.is_file() else None
 
 
-def _global_dag_draft_dir(lab_dir: Path) -> Path:
+def _multi_app_dag_draft_dir(lab_dir: Path) -> Path:
     return lab_dir / ".agilab" / GLOBAL_DAG_DRAFT_DIRNAME
 
 
@@ -361,7 +361,7 @@ def _repo_relative_text(path: Path, repo_root: Path) -> str:
     return repo_relative_text_for_dag(path, repo_root)
 
 
-def _resolve_global_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
+def _resolve_multi_app_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
     raw_text = str(raw_value or "").strip()
     if not raw_text:
         return None
@@ -369,8 +369,8 @@ def _resolve_global_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
     return candidate if candidate.is_absolute() else repo_root / candidate
 
 
-def _global_dag_label(path_text: str, repo_root: Path) -> str:
-    path = _resolve_global_dag_input(path_text, repo_root)
+def _multi_app_dag_label(path_text: str, repo_root: Path) -> str:
+    path = _resolve_multi_app_dag_input(path_text, repo_root)
     if path is None:
         return "No plan selected"
     fallback = _repo_relative_text(path, repo_root)
@@ -384,8 +384,8 @@ def _global_dag_label(path_text: str, repo_root: Path) -> str:
     return f"{label} - {fallback}" if label else fallback
 
 
-def _global_dag_display_name(path_text: str, repo_root: Path) -> str:
-    path = _resolve_global_dag_input(path_text, repo_root)
+def _multi_app_dag_display_name(path_text: str, repo_root: Path) -> str:
+    path = _resolve_multi_app_dag_input(path_text, repo_root)
     if path is None:
         return "not selected"
     try:
@@ -401,7 +401,7 @@ def _global_dag_display_name(path_text: str, repo_root: Path) -> str:
     return path.stem or "custom plan"
 
 
-def _global_dag_sample_options(repo_root: Path) -> list[str]:
+def _multi_app_dag_sample_options(repo_root: Path) -> list[str]:
     docs_data_dir = repo_root / "docs" / "source" / "data"
     paths = sorted(docs_data_dir.glob("multi_app_dag*.json")) if docs_data_dir.is_dir() else []
     return [_repo_relative_text(path, repo_root) for path in paths]
@@ -411,17 +411,17 @@ def _active_app_name(env: AgiEnv) -> str:
     return Path(str(getattr(env, "app", "") or getattr(env, "target", ""))).name
 
 
-def _global_dag_app_template_options(repo_root: Path, app_name: str) -> list[str]:
+def _multi_app_dag_app_template_options(repo_root: Path, app_name: str) -> list[str]:
     return app_dag_template_paths(repo_root, app_name=app_name, include_all_when_empty=False)
 
 
-def _global_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
-    draft_dir = _global_dag_draft_dir(lab_dir)
+def _multi_app_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
+    draft_dir = _multi_app_dag_draft_dir(lab_dir)
     paths = sorted(draft_dir.glob("*.json")) if draft_dir.is_dir() else []
     return [_repo_relative_text(path, repo_root) for path in paths]
 
 
-def _queue_global_dag_source_selection(
+def _queue_multi_app_dag_source_selection(
     index_page_str: str,
     *,
     source: str,
@@ -429,14 +429,14 @@ def _queue_global_dag_source_selection(
     repo_root: Path,
     notice: str,
 ) -> None:
-    st.session_state[_global_dag_pending_source_key(index_page_str)] = {
+    st.session_state[_multi_app_dag_pending_source_key(index_page_str)] = {
         "source": source,
         "dag_path": _repo_relative_text(dag_path, repo_root),
     }
-    st.session_state[_global_dag_notice_key(index_page_str)] = notice
+    st.session_state[_multi_app_dag_notice_key(index_page_str)] = notice
 
 
-def _apply_global_dag_pending_source_selection(
+def _apply_multi_app_dag_pending_source_selection(
     index_page_str: str,
     *,
     source_key: str,
@@ -449,7 +449,7 @@ def _apply_global_dag_pending_source_selection(
     workspace_options: list[str],
     source_options: list[str] | None = None,
 ) -> None:
-    pending = st.session_state.pop(_global_dag_pending_source_key(index_page_str), None)
+    pending = st.session_state.pop(_multi_app_dag_pending_source_key(index_page_str), None)
     if not isinstance(pending, dict):
         return
     source = str(pending.get("source", "")).strip()
@@ -495,13 +495,13 @@ def _default_multi_app_dag_source(
     return GLOBAL_DAG_SOURCE_CUSTOM
 
 
-def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
+def _multi_app_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     options: list[str] = []
     seen: set[str] = set()
     for option in [
         *app_dag_template_paths(repo_root),
-        *_global_dag_sample_options(repo_root),
-        *_global_dag_workspace_options(repo_root, lab_dir),
+        *_multi_app_dag_sample_options(repo_root),
+        *_multi_app_dag_workspace_options(repo_root, lab_dir),
     ]:
         if option in seen:
             continue
@@ -510,13 +510,13 @@ def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     return options
 
 
-def _global_dag_editor_text(path: Path | None) -> str:
+def _multi_app_dag_editor_text(path: Path | None) -> str:
     if path is None or not path.is_file():
         return ""
     return path.read_text(encoding="utf-8")
 
 
-def _global_dag_payload_from_text(editor_text: str) -> tuple[dict[str, Any] | None, str]:
+def _multi_app_dag_payload_from_text(editor_text: str) -> tuple[dict[str, Any] | None, str]:
     try:
         payload = json.loads(editor_text)
     except json.JSONDecodeError as exc:
@@ -526,25 +526,25 @@ def _global_dag_payload_from_text(editor_text: str) -> tuple[dict[str, Any] | No
     return payload, ""
 
 
-def _load_global_dag_payload(path: Path | None) -> tuple[dict[str, Any], str]:
-    editor_text = _global_dag_editor_text(path)
+def _load_multi_app_dag_payload(path: Path | None) -> tuple[dict[str, Any], str]:
+    editor_text = _multi_app_dag_editor_text(path)
     if not editor_text.strip():
-        return _empty_global_dag_payload(), "No plan is selected."
-    payload, error = _global_dag_payload_from_text(editor_text)
+        return _empty_multi_app_dag_payload(), "No plan is selected."
+    payload, error = _multi_app_dag_payload_from_text(editor_text)
     if error or payload is None:
-        return _empty_global_dag_payload(), error
+        return _empty_multi_app_dag_payload(), error
     return payload, ""
 
 
-def _global_dag_validation_error(editor_text: str, repo_root: Path) -> str:
-    payload, error = _global_dag_payload_from_text(editor_text)
+def _multi_app_dag_validation_error(editor_text: str, repo_root: Path) -> str:
+    payload, error = _multi_app_dag_payload_from_text(editor_text)
     if error or payload is None:
         return error
 
     return format_validation_error_for_user(payload, repo_root=repo_root)
 
 
-def _global_dag_has_controlled_contract_marker(payload: dict[str, Any]) -> bool:
+def _multi_app_dag_has_controlled_contract_marker(payload: dict[str, Any]) -> bool:
     execution = payload.get("execution")
     if not isinstance(execution, dict):
         return False
@@ -554,19 +554,19 @@ def _global_dag_has_controlled_contract_marker(payload: dict[str, Any]) -> bool:
     )
 
 
-def _save_global_dag_app_template(
+def _save_multi_app_dag_app_template(
     repo_root: Path,
     *,
     active_app_name: str,
     editor_text: str,
 ) -> tuple[Path | None, str]:
-    payload, parse_error = _global_dag_payload_from_text(editor_text)
+    payload, parse_error = _multi_app_dag_payload_from_text(editor_text)
     if parse_error or payload is None:
         return None, parse_error
     validation_error = format_validation_error_for_user(payload, repo_root=repo_root)
     if validation_error:
         return None, validation_error
-    if not _global_dag_has_controlled_contract_marker(payload):
+    if not _multi_app_dag_has_controlled_contract_marker(payload):
         return None, "Enable executable app template before saving an app-owned controlled workflow."
 
     active_app = Path(active_app_name).name.strip()
@@ -574,7 +574,7 @@ def _save_global_dag_app_template(
     if active_app not in available_apps:
         return None, f"Active project `{active_app or 'unknown'}` is not a checked-in built-in app."
     node_apps = {
-        _clean_global_dag_cell(node.get("app"))
+        _clean_multi_app_dag_cell(node.get("app"))
         for node in payload.get("nodes", [])
         if isinstance(node, dict)
     }
@@ -585,34 +585,34 @@ def _save_global_dag_app_template(
         repo_root / "src" / "agilab" / "apps" / "builtin" / active_app / "dag_templates"
     )
     template_dir.mkdir(parents=True, exist_ok=True)
-    template_path = template_dir / f"{_portable_global_dag_stem(payload, 'global-dag-template')}.json"
+    template_path = template_dir / f"{_portable_multi_app_dag_stem(payload, 'multi-app-dag-template')}.json"
     template_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return template_path, ""
 
 
-def _portable_global_dag_stem(payload: dict[str, Any], fallback: str) -> str:
+def _portable_multi_app_dag_stem(payload: dict[str, Any], fallback: str) -> str:
     raw_name = str(payload.get("dag_id", "") or payload.get("label", "") or fallback).strip()
     stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw_name).strip(".-")
-    return stem or "global-dag-draft"
+    return stem or "multi-app-dag-draft"
 
 
-def _save_global_dag_draft(lab_dir: Path, editor_text: str, repo_root: Path) -> tuple[Path | None, str]:
-    validation_error = _global_dag_validation_error(editor_text, repo_root)
+def _save_multi_app_dag_draft(lab_dir: Path, editor_text: str, repo_root: Path) -> tuple[Path | None, str]:
+    validation_error = _multi_app_dag_validation_error(editor_text, repo_root)
     if validation_error:
         return None, validation_error
     payload = json.loads(editor_text)
     assert isinstance(payload, dict)
-    draft_dir = _global_dag_draft_dir(lab_dir)
+    draft_dir = _multi_app_dag_draft_dir(lab_dir)
     draft_dir.mkdir(parents=True, exist_ok=True)
-    draft_path = draft_dir / f"{_portable_global_dag_stem(payload, 'global-dag-draft')}.json"
+    draft_path = draft_dir / f"{_portable_multi_app_dag_stem(payload, 'multi-app-dag-draft')}.json"
     draft_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return draft_path, ""
 
 
-def _empty_global_dag_payload() -> dict[str, Any]:
+def _empty_multi_app_dag_payload() -> dict[str, Any]:
     return {
         "schema": MULTI_APP_DAG_SCHEMA,
-        "dag_id": "new-global-dag",
+        "dag_id": "new-multi-app-dag",
         "label": "New multi-app DAG",
         "description": "",
         "execution": {
@@ -624,14 +624,14 @@ def _empty_global_dag_payload() -> dict[str, Any]:
     }
 
 
-def _global_dag_source_token(path_text: str) -> str:
+def _multi_app_dag_source_token(path_text: str) -> str:
     raw = path_text or "empty"
     compact = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw).strip(".-")[:28]
     checksum = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
     return f"{compact or 'dag'}-{checksum}"
 
 
-def _clean_global_dag_cell(value: Any) -> str:
+def _clean_multi_app_dag_cell(value: Any) -> str:
     return clean_dag_cell(value)
 
 
@@ -643,7 +643,7 @@ def _rows_dataframe(rows: list[dict[str, str]], columns: list[str]) -> pd.DataFr
     return pd.DataFrame(rows, columns=columns)
 
 
-def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame]:
+def _multi_app_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame]:
     nodes = payload.get("nodes", [])
     if not isinstance(nodes, list):
         nodes = []
@@ -654,12 +654,12 @@ def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame
     for node in nodes:
         if not isinstance(node, dict):
             continue
-        node_id = _clean_global_dag_cell(node.get("id"))
+        node_id = _clean_multi_app_dag_cell(node.get("id"))
         node_rows.append(
             {
                 "id": node_id,
-                "app": _clean_global_dag_cell(node.get("app")),
-                "purpose": _clean_global_dag_cell(node.get("purpose")),
+                "app": _clean_multi_app_dag_cell(node.get("app")),
+                "purpose": _clean_multi_app_dag_cell(node.get("purpose")),
             }
         )
         for artifact in node.get("produces", []) if isinstance(node.get("produces"), list) else []:
@@ -667,9 +667,9 @@ def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame
                 produces_rows.append(
                     {
                         "node": node_id,
-                        "id": _clean_global_dag_cell(artifact.get("id")),
-                        "kind": _clean_global_dag_cell(artifact.get("kind")),
-                        "path": _clean_global_dag_cell(artifact.get("path")),
+                        "id": _clean_multi_app_dag_cell(artifact.get("id")),
+                        "kind": _clean_multi_app_dag_cell(artifact.get("kind")),
+                        "path": _clean_multi_app_dag_cell(artifact.get("path")),
                     }
                 )
         for artifact in node.get("consumes", []) if isinstance(node.get("consumes"), list) else []:
@@ -677,18 +677,18 @@ def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame
                 consumes_rows.append(
                     {
                         "node": node_id,
-                        "id": _clean_global_dag_cell(artifact.get("id")),
-                        "kind": _clean_global_dag_cell(artifact.get("kind")),
-                        "path": _clean_global_dag_cell(artifact.get("path")),
+                        "id": _clean_multi_app_dag_cell(artifact.get("id")),
+                        "kind": _clean_multi_app_dag_cell(artifact.get("kind")),
+                        "path": _clean_multi_app_dag_cell(artifact.get("path")),
                     }
                 )
 
     edge_rows = [
         {
-            "from": _clean_global_dag_cell(edge.get("from")),
-            "to": _clean_global_dag_cell(edge.get("to")),
-            "artifact": _clean_global_dag_cell(edge.get("artifact")),
-            "handoff": _clean_global_dag_cell(edge.get("handoff")),
+            "from": _clean_multi_app_dag_cell(edge.get("from")),
+            "to": _clean_multi_app_dag_cell(edge.get("to")),
+            "artifact": _clean_multi_app_dag_cell(edge.get("artifact")),
+            "handoff": _clean_multi_app_dag_cell(edge.get("handoff")),
         }
         for edge in payload.get("edges", [])
         if isinstance(edge, dict)
@@ -714,19 +714,19 @@ def _stage_label(stage_id: str, stages: dict[str, dict[str, str]]) -> str:
     return f"{stage_id} ({details})" if details else stage_id
 
 
-def _global_dag_stage_options(repo_root: Path, payload: dict[str, Any]) -> dict[str, dict[str, str]]:
+def _multi_app_dag_stage_options(repo_root: Path, payload: dict[str, Any]) -> dict[str, dict[str, str]]:
     stages: dict[str, dict[str, str]] = {}
     nodes = payload.get("nodes", [])
     for node in nodes if isinstance(nodes, list) else []:
         if not isinstance(node, dict):
             continue
-        stage_id = _clean_global_dag_cell(node.get("id"))
+        stage_id = _clean_multi_app_dag_cell(node.get("id"))
         if not stage_id:
             continue
         stages[stage_id] = {
             "id": stage_id,
-            "app": _clean_global_dag_cell(node.get("app")),
-            "purpose": _clean_global_dag_cell(node.get("purpose")),
+            "app": _clean_multi_app_dag_cell(node.get("app")),
+            "purpose": _clean_multi_app_dag_cell(node.get("purpose")),
         }
 
     for app_name in sorted(builtin_app_names(repo_root)):
@@ -755,21 +755,21 @@ def _selected_stage_rows(stage_ids: list[str], stages: dict[str, dict[str, str]]
     ]
 
 
-def _global_dag_existing_handoffs(payload: dict[str, Any]) -> dict[tuple[str, str, str], str]:
+def _multi_app_dag_existing_handoffs(payload: dict[str, Any]) -> dict[tuple[str, str, str], str]:
     edges = payload.get("edges", [])
     handoffs: dict[tuple[str, str, str], str] = {}
     for edge in edges if isinstance(edges, list) else []:
         if not isinstance(edge, dict):
             continue
-        source = _clean_global_dag_cell(edge.get("from"))
-        target = _clean_global_dag_cell(edge.get("to"))
-        artifact = _clean_global_dag_cell(edge.get("artifact"))
+        source = _clean_multi_app_dag_cell(edge.get("from"))
+        target = _clean_multi_app_dag_cell(edge.get("to"))
+        artifact = _clean_multi_app_dag_cell(edge.get("artifact"))
         if source and target and artifact:
-            handoffs[(source, target, artifact)] = _clean_global_dag_cell(edge.get("handoff"))
+            handoffs[(source, target, artifact)] = _clean_multi_app_dag_cell(edge.get("handoff"))
     return handoffs
 
 
-def _global_dag_artifact_options(
+def _multi_app_dag_artifact_options(
     stage_ids: list[str],
     tables: dict[str, pd.DataFrame],
 ) -> dict[str, dict[str, str]]:
@@ -816,12 +816,12 @@ def _parse_handoff_key(option_key: str) -> tuple[str, str, str]:
     return parts[0], parts[1], parts[2]
 
 
-def _global_dag_handoff_options(
+def _multi_app_dag_handoff_options(
     stage_ids: list[str],
     artifact_options: dict[str, dict[str, str]],
     payload: dict[str, Any],
 ) -> dict[str, dict[str, str]]:
-    existing_handoffs = _global_dag_existing_handoffs(payload)
+    existing_handoffs = _multi_app_dag_existing_handoffs(payload)
     options: dict[str, dict[str, str]] = {}
     for artifact in artifact_options.values():
         source = artifact["node"]
@@ -866,7 +866,7 @@ def _default_handoff_keys(
     payload: dict[str, Any],
 ) -> list[str]:
     defaults: list[str] = []
-    for source, target, artifact in _global_dag_existing_handoffs(payload):
+    for source, target, artifact in _multi_app_dag_existing_handoffs(payload):
         option_key = _handoff_key(source, target, artifact)
         if option_key in handoff_options:
             defaults.append(option_key)
@@ -959,7 +959,7 @@ def _consumes_rows_from_handoffs(
     return rows
 
 
-def _global_dag_payload_from_visual_editor(
+def _multi_app_dag_payload_from_visual_editor(
     base_payload: dict[str, Any],
     *,
     dag_id: str,
@@ -988,7 +988,7 @@ def _global_runner_state_path(lab_dir: Path) -> Path:
     return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
 
 
-def _global_dag_engine(
+def _multi_app_dag_engine(
     repo_root: Path,
     lab_dir: Path,
     dag_path: Path | None,
@@ -996,7 +996,7 @@ def _global_dag_engine(
 ) -> DagRunEngine:
     stage_submitter = None
     if env is not None:
-        stage_submitter = build_global_dag_distributed_stage_submitter(
+        stage_submitter = build_multi_app_dag_distributed_stage_submitter(
             env=env,
             app_settings=st.session_state.get("app_settings"),
             verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
@@ -1005,13 +1005,13 @@ def _global_dag_engine(
         repo_root=repo_root,
         lab_dir=lab_dir,
         dag_path=dag_path,
-        run_queue_fn=run_global_dag_queue_baseline_app,
-        run_relay_fn=run_global_dag_relay_followup_app,
+        run_queue_fn=run_multi_app_dag_queue_baseline_app,
+        run_relay_fn=run_multi_app_dag_relay_followup_app,
         stage_submit_fn=stage_submitter,
     )
 
 
-def _global_dag_distributed_request_preview_rows(
+def _multi_app_dag_distributed_request_preview_rows(
     env: AgiEnv,
     state: dict[str, Any],
     repo_root: Path,
@@ -1041,16 +1041,16 @@ def _load_or_create_global_runner_state(
     *,
     reset: bool = False,
 ) -> tuple[dict[str, Any], Path, Path | None]:
-    repo_root = _repo_root_for_global_dag()
+    repo_root = _repo_root_for_multi_app_dag()
     dag_path = dag_path or _global_runner_dag_path(env, repo_root)
-    return _global_dag_engine(repo_root, lab_dir, dag_path, env=env).load_or_create_state(reset=reset)
+    return _multi_app_dag_engine(repo_root, lab_dir, dag_path, env=env).load_or_create_state(reset=reset)
 
 
-def _global_dag_now_iso() -> str:
+def _multi_app_dag_now_iso() -> str:
     return _dag_run_engine_module._now_iso()
 
 
-def _run_next_controlled_global_dag_stage(
+def _run_next_controlled_multi_app_dag_stage(
     state: Dict[str, Any],
     *,
     repo_root: Path,
@@ -1058,20 +1058,20 @@ def _run_next_controlled_global_dag_stage(
     lab_dir: Path,
     run_queue_fn: Callable[..., Dict[str, Any]] | None = None,
     run_relay_fn: Callable[..., Dict[str, Any]] | None = None,
-    now_fn: Callable[[], str] = _global_dag_now_iso,
-) -> GlobalDagStageExecutionResult:
-    return run_next_controlled_global_dag_stage(
+    now_fn: Callable[[], str] = _multi_app_dag_now_iso,
+) -> MultiAppDagStageExecutionResult:
+    return run_next_controlled_multi_app_dag_stage(
         state,
         repo_root=repo_root,
         dag_path=dag_path,
         lab_dir=lab_dir,
-        run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
-        run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+        run_queue_fn=run_queue_fn or run_multi_app_dag_queue_baseline_app,
+        run_relay_fn=run_relay_fn or run_multi_app_dag_relay_followup_app,
         now_fn=now_fn,
     )
 
 
-def _run_ready_controlled_global_dag_stages(
+def _run_ready_controlled_multi_app_dag_stages(
     state: Dict[str, Any],
     *,
     repo_root: Path,
@@ -1080,17 +1080,17 @@ def _run_ready_controlled_global_dag_stages(
     run_queue_fn: Callable[..., Dict[str, Any]] | None = None,
     run_relay_fn: Callable[..., Dict[str, Any]] | None = None,
     stage_submit_fn: Callable[..., Dict[str, Any]] | None = None,
-    now_fn: Callable[[], str] = _global_dag_now_iso,
+    now_fn: Callable[[], str] = _multi_app_dag_now_iso,
     max_workers: int | None = None,
     execution_backend: str = GLOBAL_DAG_STAGE_BACKEND_LOCAL,
-) -> GlobalDagBatchExecutionResult:
-    return run_ready_controlled_global_dag_stages(
+) -> MultiAppDagBatchExecutionResult:
+    return run_ready_controlled_multi_app_dag_stages(
         state,
         repo_root=repo_root,
         dag_path=dag_path,
         lab_dir=lab_dir,
-        run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
-        run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+        run_queue_fn=run_queue_fn or run_multi_app_dag_queue_baseline_app,
+        run_relay_fn=run_relay_fn or run_multi_app_dag_relay_followup_app,
         stage_submit_fn=stage_submit_fn,
         now_fn=now_fn,
         max_workers=max_workers,
@@ -1102,7 +1102,7 @@ def _available_artifact_ids(state: Dict[str, Any]) -> set[str]:
     return available_artifact_ids(state)
 
 
-def _global_dag_executor_label(unit: Dict[str, Any]) -> str:
+def _multi_app_dag_executor_label(unit: Dict[str, Any]) -> str:
     executor = str(unit.get("executor", "") or "").strip()
     if executor:
         return executor
@@ -1125,7 +1125,7 @@ def _global_dag_executor_label(unit: Dict[str, Any]) -> str:
     return "preview"
 
 
-def _controlled_global_dag_real_run_supported(
+def _controlled_multi_app_dag_real_run_supported(
     state: Dict[str, Any],
     dag_path: Path | None,
     repo_root: Path,
@@ -1147,7 +1147,7 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
             {
                 "unit": str(unit.get("id", "")),
                 "app": str(unit.get("app", "")),
-                "executor": _global_dag_executor_label(unit),
+                "executor": _multi_app_dag_executor_label(unit),
                 "status": str(unit.get("dispatch_status", "")),
                 "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
                 "blocked_by": ", ".join(
@@ -1166,7 +1166,7 @@ def _workplan_artifact_id(row: Any) -> str:
     return str(row.get("artifact", "") or row.get("id", "") or "").strip()
 
 
-def _global_dag_workplan_state(unit: dict[str, Any]) -> str:
+def _multi_app_dag_workplan_state(unit: dict[str, Any]) -> str:
     status = str(
         unit.get("dispatch_status", "")
         or unit.get("status", "")
@@ -1184,7 +1184,7 @@ def _global_dag_workplan_state(unit: dict[str, Any]) -> str:
     }.get(status, status or "planned")
 
 
-def _global_dag_workplan_needs(unit: dict[str, Any]) -> str:
+def _multi_app_dag_workplan_needs(unit: dict[str, Any]) -> str:
     dependencies = unit.get("artifact_dependencies", [])
     if not isinstance(dependencies, list):
         return "none"
@@ -1201,7 +1201,7 @@ def _global_dag_workplan_needs(unit: dict[str, Any]) -> str:
     return ", ".join(labels) if labels else "none"
 
 
-def _global_dag_workplan_produces(unit: dict[str, Any]) -> str:
+def _multi_app_dag_workplan_produces(unit: dict[str, Any]) -> str:
     produced = unit.get("produces", [])
     if not isinstance(produced, list):
         return "none"
@@ -1210,7 +1210,7 @@ def _global_dag_workplan_produces(unit: dict[str, Any]) -> str:
     return ", ".join(labels) if labels else "none"
 
 
-def _global_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
+def _multi_app_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
     units = state.get("units", [])
     if not isinstance(units, list):
         return []
@@ -1222,10 +1222,10 @@ def _global_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[st
             {
                 "Step": str(unit.get("id", "")),
                 "App": str(unit.get("app", "")),
-                "Runs with": _global_dag_executor_label(unit),
-                "Uses": _global_dag_workplan_needs(unit),
-                "Creates": _global_dag_workplan_produces(unit),
-                "Status": _global_dag_workplan_state(unit),
+                "Runs with": _multi_app_dag_executor_label(unit),
+                "Uses": _multi_app_dag_workplan_needs(unit),
+                "Creates": _multi_app_dag_workplan_produces(unit),
+                "Status": _multi_app_dag_workplan_state(unit),
             }
         )
     return rows
@@ -1311,65 +1311,65 @@ def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]
     return rows
 
 
-def _global_dag_execution_history_rows(state: Dict[str, Any]) -> list[dict[str, str]]:
+def _multi_app_dag_execution_history_rows(state: Dict[str, Any]) -> list[dict[str, str]]:
     return execution_history_rows(state)
 
 
-def _global_dag_units(state: Dict[str, Any]) -> list[dict[str, Any]]:
+def _multi_app_dag_units(state: Dict[str, Any]) -> list[dict[str, Any]]:
     units = state.get("units", [])
     if not isinstance(units, list):
         return []
     return [unit for unit in units if isinstance(unit, dict)]
 
 
-def _global_dag_status_ids(state: Dict[str, Any], status: str) -> list[str]:
+def _multi_app_dag_status_ids(state: Dict[str, Any], status: str) -> list[str]:
     summary = state.get("summary", {})
     summary_key = f"{status}_unit_ids"
     if isinstance(summary, dict) and isinstance(summary.get(summary_key), list):
         return [str(unit_id) for unit_id in summary[summary_key] if str(unit_id)]
     return [
         str(unit.get("id", ""))
-        for unit in _global_dag_units(state)
+        for unit in _multi_app_dag_units(state)
         if unit.get("dispatch_status") == status and str(unit.get("id", ""))
     ]
 
 
-def _global_dag_unit_count(state: Dict[str, Any]) -> int:
+def _multi_app_dag_unit_count(state: Dict[str, Any]) -> int:
     summary = state.get("summary", {})
     if isinstance(summary, dict) and summary.get("unit_count") is not None:
         try:
             return int(summary.get("unit_count") or 0)
         except (TypeError, ValueError):
             pass
-    return len(_global_dag_units(state))
+    return len(_multi_app_dag_units(state))
 
 
-def _global_dag_dependency_count(state: Dict[str, Any]) -> int:
+def _multi_app_dag_dependency_count(state: Dict[str, Any]) -> int:
     count = 0
-    for unit in _global_dag_units(state):
+    for unit in _multi_app_dag_units(state):
         dependencies = unit.get("artifact_dependencies", [])
         if isinstance(dependencies, list):
             count += sum(1 for dependency in dependencies if isinstance(dependency, dict))
     return count
 
 
-def _global_dag_next_action(state: Dict[str, Any]) -> str:
-    stale = _global_dag_status_ids(state, "stale")
+def _multi_app_dag_next_action(state: Dict[str, Any]) -> str:
+    stale = _multi_app_dag_status_ids(state, "stale")
     if stale:
         return "Run the workflow again or reset the preview after editing project stages."
-    failed = _global_dag_status_ids(state, "failed")
+    failed = _multi_app_dag_status_ids(state, "failed")
     if failed:
         return f"Inspect failed step `{failed[0]}`."
-    running = _global_dag_status_ids(state, "running")
+    running = _multi_app_dag_status_ids(state, "running")
     if running:
         return f"Monitor running step `{running[0]}`."
-    runnable = _global_dag_status_ids(state, "runnable")
+    runnable = _multi_app_dag_status_ids(state, "runnable")
     if runnable:
         return f"Preview `{runnable[0]}`."
-    blocked = _global_dag_status_ids(state, "blocked")
+    blocked = _multi_app_dag_status_ids(state, "blocked")
     if blocked:
         blocked_artifacts: list[str] = []
-        for unit in _global_dag_units(state):
+        for unit in _multi_app_dag_units(state):
             if str(unit.get("id", "")) != blocked[0]:
                 continue
             operator_ui = unit.get("operator_ui", {})
@@ -1379,13 +1379,13 @@ def _global_dag_next_action(state: Dict[str, Any]) -> str:
             break
         suffix = f" until `{', '.join(blocked_artifacts)}` is ready" if blocked_artifacts else ""
         return f"Wait for `{blocked[0]}`{suffix}."
-    completed = _global_dag_status_ids(state, "completed")
-    if completed and len(completed) == _global_dag_unit_count(state):
+    completed = _multi_app_dag_status_ids(state, "completed")
+    if completed and len(completed) == _multi_app_dag_unit_count(state):
         return "All steps completed."
     return "No ready step is available."
 
 
-def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
+def _multi_app_dag_execution_scope(state: Dict[str, Any]) -> str:
     provenance = state.get("provenance", {})
     if not isinstance(provenance, dict):
         return "preview only, no app run"
@@ -1399,38 +1399,38 @@ def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
     return "preview only, no app run"
 
 
-def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
-    if _global_dag_status_ids(state, "stale"):
+def _multi_app_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
+    if _multi_app_dag_status_ids(state, "stale"):
         return "Stale: project stages changed"
     if not bool(getattr(support, "supported", False)):
         return str(getattr(support, "status", "Preview-only") or "Preview-only")
-    failed = _global_dag_status_ids(state, "failed")
+    failed = _multi_app_dag_status_ids(state, "failed")
     if failed:
         return "Blocked: failed step"
-    if _global_dag_unit_count(state) and len(_global_dag_status_ids(state, "completed")) == _global_dag_unit_count(state):
+    if _multi_app_dag_unit_count(state) and len(_multi_app_dag_status_ids(state, "completed")) == _multi_app_dag_unit_count(state):
         return "Completed"
-    if _global_dag_status_ids(state, "blocked") and not _global_dag_status_ids(state, "runnable"):
+    if _multi_app_dag_status_ids(state, "blocked") and not _multi_app_dag_status_ids(state, "runnable"):
         return "Blocked: missing output"
     return str(getattr(support, "status", "Executable") or "Executable")
 
 
-def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
+def _multi_app_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
     return {
-        "stage_count": _global_dag_unit_count(state),
-        "dependency_count": _global_dag_dependency_count(state),
-        "runnable_count": len(_global_dag_status_ids(state, "runnable")),
-        "blocked_count": len(_global_dag_status_ids(state, "blocked")),
-        "running_count": len(_global_dag_status_ids(state, "running")),
-        "completed_count": len(_global_dag_status_ids(state, "completed")),
-        "failed_count": len(_global_dag_status_ids(state, "failed")),
-        "stale_count": len(_global_dag_status_ids(state, "stale")),
-        "next_action": _global_dag_next_action(state),
-        "execution_scope": _global_dag_execution_scope(state),
+        "stage_count": _multi_app_dag_unit_count(state),
+        "dependency_count": _multi_app_dag_dependency_count(state),
+        "runnable_count": len(_multi_app_dag_status_ids(state, "runnable")),
+        "blocked_count": len(_multi_app_dag_status_ids(state, "blocked")),
+        "running_count": len(_multi_app_dag_status_ids(state, "running")),
+        "completed_count": len(_multi_app_dag_status_ids(state, "completed")),
+        "failed_count": len(_multi_app_dag_status_ids(state, "failed")),
+        "stale_count": len(_multi_app_dag_status_ids(state, "stale")),
+        "next_action": _multi_app_dag_next_action(state),
+        "execution_scope": _multi_app_dag_execution_scope(state),
     }
 
 
-def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
-    summary = _global_dag_readiness_summary(state)
+def _render_multi_app_dag_readiness(state: Dict[str, Any]) -> None:
+    summary = _multi_app_dag_readiness_summary(state)
     st.markdown("**Plan readiness**")
     stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
     stage_col.metric("Steps", int(summary["stage_count"]))
@@ -1441,7 +1441,7 @@ def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     st.caption(f"Run mode: {summary['execution_scope']}")
 
 
-def _render_global_dag_execution_capability(
+def _render_multi_app_dag_execution_capability(
     *,
     contract_name: str,
     execution_status: str,
@@ -1713,7 +1713,7 @@ def _dot_quote(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _global_dag_dot(state: Dict[str, Any]) -> str:
+def _multi_app_dag_dot(state: Dict[str, Any]) -> str:
     units = state.get("units", [])
     if not isinstance(units, list) or not units:
         return ""
@@ -1742,7 +1742,7 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
             continue
         status = str(unit.get("dispatch_status", ""))
         app = str(unit.get("app", ""))
-        executor = _global_dag_executor_label(unit)
+        executor = _multi_app_dag_executor_label(unit)
         executor_line = f"\\nexec: {executor}" if executor != "preview" else ""
         label = f"{unit_id}\\n{app}\\n{status}{executor_line}"
         fill = status_colors.get(status, "#f8fafc")
@@ -2128,7 +2128,7 @@ def _mark_pipeline_stages_state_stale(
         state["events"] = events
     events.append(
         {
-            "timestamp": _global_dag_now_iso(),
+            "timestamp": _multi_app_dag_now_iso(),
             "kind": "run_stale",
             "unit_id": "",
             "from_status": "",
@@ -2184,7 +2184,7 @@ def _build_pipeline_stages_runner_state(
     pipeline_stages: list[dict[str, Any]],
     now: str | None = None,
 ) -> dict[str, Any]:
-    timestamp = now or _global_dag_now_iso()
+    timestamp = now or _multi_app_dag_now_iso()
     app_name = _active_app_name(env) or "project"
     stages_digest = _pipeline_stages_digest(pipeline_stages)
     units: list[dict[str, Any]] = []
@@ -2349,7 +2349,7 @@ def _write_pipeline_stages_runner_state_with_evidence(
     write_workflow_run_evidence(
         state=state,
         state_path=written_path,
-        repo_root=_repo_root_for_global_dag(),
+        repo_root=_repo_root_for_multi_app_dag(),
         lab_dir=lab_dir,
         dag_path=None,
         trigger=trigger,
@@ -2466,13 +2466,13 @@ def _render_global_runner_state_view(
         st.caption(f"Plan path: `{dag_label}`")
     st.caption(f"State file: `{state_path}`")
     real_run_support = dag_engine.real_run_support(state)
-    execution_status = _global_dag_execution_status(state, real_run_support)
-    _render_global_dag_execution_capability(
-        contract_name=dag_label_override or _global_dag_display_name(dag_label, repo_root),
+    execution_status = _multi_app_dag_execution_status(state, real_run_support)
+    _render_multi_app_dag_execution_capability(
+        contract_name=dag_label_override or _multi_app_dag_display_name(dag_label, repo_root),
         execution_status=execution_status,
         real_run_support=real_run_support,
     )
-    _render_global_dag_readiness(state)
+    _render_multi_app_dag_readiness(state)
     _render_existing_execution_log(run_log_dir, key_prefix=f"workflow:{index_page_str}:execution")
     _render_workflow_run_evidence(state_path)
     running_col, completed_col, failed_col = st.columns(3)
@@ -2480,7 +2480,7 @@ def _render_global_runner_state_view(
     completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
     failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
 
-    dag_dot = _global_dag_dot(state)
+    dag_dot = _multi_app_dag_dot(state)
     show_graph = bool(
         dag_dot
         and st.checkbox(
@@ -2492,7 +2492,7 @@ def _render_global_runner_state_view(
     if show_graph:
         st.graphviz_chart(dag_dot, width="stretch")
 
-    workplan_rows = _global_dag_workplan_rows_for_display(state)
+    workplan_rows = _multi_app_dag_workplan_rows_for_display(state)
     if workplan_rows:
         st.caption("Multi-app plan")
         st.dataframe(workplan_rows, hide_index=True, width="stretch")
@@ -2516,7 +2516,7 @@ def _render_global_runner_state_view(
         st.caption("Output handoffs")
         st.dataframe(artifact_rows, hide_index=True, width="stretch")
 
-    history_rows = _global_dag_execution_history_rows(state)
+    history_rows = _multi_app_dag_execution_history_rows(state)
     if history_rows:
         st.caption("Execution history")
         st.dataframe(history_rows, hide_index=True, width="stretch")
@@ -2644,7 +2644,7 @@ def _render_global_runner_state_panel(
     stages_file: Path | None = None,
 ) -> None:
     with st.expander("Workflow graph", expanded=True):
-        repo_root = _repo_root_for_global_dag()
+        repo_root = _repo_root_for_multi_app_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
         scope_key = f"{index_page_str}_pipeline_scope"
         source_key = f"{index_page_str}_global_runner_source"
@@ -2652,9 +2652,9 @@ def _render_global_runner_state_panel(
         library_key = f"{index_page_str}_global_runner_library"
         workspace_key = f"{index_page_str}_global_runner_workspace_dag"
         dag_input_key = f"{index_page_str}_global_runner_dag_path"
-        app_template_options = _global_dag_app_template_options(repo_root, _active_app_name(env))
-        sample_options = _global_dag_sample_options(repo_root)
-        workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
+        app_template_options = _multi_app_dag_app_template_options(repo_root, _active_app_name(env))
+        sample_options = _multi_app_dag_sample_options(repo_root)
+        workspace_options = _multi_app_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
         project_stage_rows = _pipeline_dag_stage_rows(pipeline_stages)
         default_dag_text = (
@@ -2685,7 +2685,7 @@ def _render_global_runner_state_panel(
             if pipeline_scope == PIPELINE_SCOPE_PROJECT
             else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STAGES]
         )
-        _apply_global_dag_pending_source_selection(
+        _apply_multi_app_dag_pending_source_selection(
             index_page_str,
             source_key=source_key,
             app_template_key=app_template_key,
@@ -2725,7 +2725,7 @@ def _render_global_runner_state_panel(
         if dag_input_key not in st.session_state:
             st.session_state[dag_input_key] = ""
 
-        save_notice = st.session_state.pop(_global_dag_notice_key(index_page_str), "")
+        save_notice = st.session_state.pop(_multi_app_dag_notice_key(index_page_str), "")
         if save_notice:
             st.success(str(save_notice))
 
@@ -2766,7 +2766,7 @@ def _render_global_runner_state_panel(
                 state=state,
                 state_path=state_path,
                 dag_path=None,
-                dag_engine=_global_dag_engine(repo_root, lab_dir, None, env=env),
+                dag_engine=_multi_app_dag_engine(repo_root, lab_dir, None, env=env),
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override=GLOBAL_DAG_SOURCE_PROJECT_STAGES,
@@ -2794,7 +2794,7 @@ def _render_global_runner_state_panel(
                 "App template",
                 app_template_options or [""],
                 key=app_template_key,
-                format_func=lambda value: _global_dag_label(value, repo_root),
+                format_func=lambda value: _multi_app_dag_label(value, repo_root),
                 help="Choose an app workflow template bundled with the active project.",
             )
         elif dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
@@ -2802,7 +2802,7 @@ def _render_global_runner_state_panel(
                 "Sample",
                 sample_options or [""],
                 key=library_key,
-                format_func=lambda value: _global_dag_label(value, repo_root),
+                format_func=lambda value: _multi_app_dag_label(value, repo_root),
                 help="Choose a checked-in sample. The UAV queue to relay sample is the only live-run enabled plan.",
             )
         elif dag_source == GLOBAL_DAG_SOURCE_WORKSPACE:
@@ -2812,7 +2812,7 @@ def _render_global_runner_state_panel(
                 "Saved draft",
                 workspace_options or [""],
                 key=workspace_key,
-                format_func=lambda value: _global_dag_label(value, repo_root),
+                format_func=lambda value: _multi_app_dag_label(value, repo_root),
                 help="Choose a plan saved from this project workspace.",
             )
         else:
@@ -2825,12 +2825,12 @@ def _render_global_runner_state_panel(
                 ),
             )
         dag_text = str(selected_dag_text or "").strip()
-        dag_path = _resolve_global_dag_input(dag_text, repo_root)
-        base_payload, load_error = _load_global_dag_payload(dag_path)
+        dag_path = _resolve_multi_app_dag_input(dag_text, repo_root)
+        base_payload, load_error = _load_multi_app_dag_payload(dag_path)
         if load_error:
             st.warning(load_error)
 
-        token = _global_dag_source_token(dag_text)
+        token = _multi_app_dag_source_token(dag_text)
         reset_clicked = action_button(
             st,
             "Reset preview state",
@@ -2852,7 +2852,7 @@ def _render_global_runner_state_panel(
                     dag_path=dag_path,
                     reset=reset_clicked,
                 )
-                dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
+                dag_engine = _multi_app_dag_engine(repo_root, lab_dir, dag_path, env=env)
             except Exception as exc:
                 st.error("Multi-app plan preview is unavailable.")
                 st.caption("Full diagnostic")
@@ -2900,7 +2900,7 @@ def _render_global_runner_state_panel(
         controlled_contract_key = f"{index_page_str}_global_runner_controlled_contract_{token}"
         st.session_state.setdefault(
             controlled_contract_key,
-            _global_dag_has_controlled_contract_marker(base_payload),
+            _multi_app_dag_has_controlled_contract_marker(base_payload),
         )
         controlled_contract_enabled = st.checkbox(
             "Make executable app template",
@@ -2915,8 +2915,8 @@ def _render_global_runner_state_panel(
         else:
             st.caption("Workspace drafts stay preview-only. Enable this to save a checked-in executable template.")
 
-        tables = _global_dag_editor_tables(base_payload)
-        stage_options = _global_dag_stage_options(repo_root, base_payload)
+        tables = _multi_app_dag_editor_tables(base_payload)
+        stage_options = _multi_app_dag_stage_options(repo_root, base_payload)
         stage_option_ids = list(stage_options)
         default_stage_ids = [
             row["id"]
@@ -2953,7 +2953,7 @@ def _render_global_runner_state_panel(
             st.warning("Select at least two steps to create a valid multi-app plan.")
 
         st.markdown("**Outputs each step creates**")
-        artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
+        artifact_options = _multi_app_dag_artifact_options(selected_stage_ids, tables)
         artifact_option_keys = list(artifact_options)
         default_artifact_keys = _default_artifact_keys(artifact_options, tables)
         selected_artifact_keys = st.session_state.get(table_keys["produces"])
@@ -2981,7 +2981,7 @@ def _render_global_runner_state_panel(
             for key in selected_artifact_keys
             if key in artifact_options
         }
-        need_options = _global_dag_handoff_options(
+        need_options = _multi_app_dag_handoff_options(
             selected_stage_ids,
             selected_artifact_options,
             base_payload,
@@ -3011,7 +3011,7 @@ def _render_global_runner_state_panel(
             st.caption("Technical input records are created from selected uses.")
             st.dataframe(consumes_value, hide_index=True, width="stretch")
 
-        visual_payload = _global_dag_payload_from_visual_editor(
+        visual_payload = _multi_app_dag_payload_from_visual_editor(
             base_payload,
             dag_id=dag_id,
             label=label,
@@ -3035,7 +3035,7 @@ def _render_global_runner_state_panel(
             st.download_button(
                 "Download plan JSON",
                 data=editor_text,
-                file_name=f"{_portable_global_dag_stem(visual_payload, 'global-dag-draft')}.json",
+                file_name=f"{_portable_multi_app_dag_stem(visual_payload, 'multi-app-dag-draft')}.json",
                 mime="application/json",
                 key=f"{index_page_str}_global_runner_download_json",
             )
@@ -3067,7 +3067,7 @@ def _render_global_runner_state_panel(
                 ),
             )
         if validate_clicked:
-            validation_error = _global_dag_validation_error(editor_text, repo_root)
+            validation_error = _multi_app_dag_validation_error(editor_text, repo_root)
             if validation_error:
                 st.error("Plan draft is not valid.")
                 st.caption("Validation details")
@@ -3076,7 +3076,7 @@ def _render_global_runner_state_panel(
                 st.success("Plan draft is valid.")
 
         if save_clicked:
-            draft_path, validation_error = _save_global_dag_draft(lab_dir, editor_text, repo_root)
+            draft_path, validation_error = _save_multi_app_dag_draft(lab_dir, editor_text, repo_root)
             if validation_error:
                 st.error("Plan draft was not saved.")
                 st.caption("Validation details")
@@ -3086,7 +3086,7 @@ def _render_global_runner_state_panel(
                 dag_path = draft_path
                 reset_clicked = True
                 notice = f"Saved plan draft to `{draft_path}` and selected it for this preview."
-                _queue_global_dag_source_selection(
+                _queue_multi_app_dag_source_selection(
                     index_page_str,
                     source=GLOBAL_DAG_SOURCE_WORKSPACE,
                     dag_path=draft_path,
@@ -3097,7 +3097,7 @@ def _render_global_runner_state_panel(
                 st.rerun()
 
         if save_app_template_clicked:
-            template_path, validation_error = _save_global_dag_app_template(
+            template_path, validation_error = _save_multi_app_dag_app_template(
                 repo_root,
                 active_app_name=_active_app_name(env),
                 editor_text=editor_text,
@@ -3111,7 +3111,7 @@ def _render_global_runner_state_panel(
                 dag_path = template_path
                 reset_clicked = True
                 notice = f"Saved executable app workflow template to `{template_path}`."
-                _queue_global_dag_source_selection(
+                _queue_multi_app_dag_source_selection(
                     index_page_str,
                     source=GLOBAL_DAG_SOURCE_APP_TEMPLATES,
                     dag_path=template_path,
@@ -3128,8 +3128,8 @@ def _render_global_runner_state_panel(
                 dag_path=dag_path,
                 reset=reset_clicked,
             )
-            dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
-            distributed_preview_rows = _global_dag_distributed_request_preview_rows(env, state, repo_root)
+            dag_engine = _multi_app_dag_engine(repo_root, lab_dir, dag_path, env=env)
+            distributed_preview_rows = _multi_app_dag_distributed_request_preview_rows(env, state, repo_root)
         except Exception as exc:
             st.error("Multi-app DAG preview is unavailable.")
             st.caption("Full diagnostic")

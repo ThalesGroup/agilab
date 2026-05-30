@@ -13,7 +13,7 @@ from typing import Any, Iterable
 
 import streamlit as st
 from agi_pages.runtime import ensure_repo_on_path as _page_ensure_repo_on_path
-from agi_pages.runtime import relative_label, resolve_active_app_path
+from agi_pages.runtime import relative_label, reset_scoped_session_state, resolve_active_app_path
 
 
 PAGE_KEY = "view_live_artifacts"
@@ -270,19 +270,13 @@ def _resolve_active_app() -> Path:
 def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
     """Clear Live Artifacts state that belongs to a specific active app path."""
 
-    app_scope = str(active_app_path.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in list(st.session_state.keys()):
-        if key == APP_SCOPE_KEY:
-            continue
-        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
-            isinstance(key, str) and key.startswith(prefix)
-            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
-        ):
-            st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
 
 
 def _active_env(active_app_path: Path) -> AgiEnv:
