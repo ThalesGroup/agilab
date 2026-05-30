@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-AGI_ENV_MAX_LINES = 1500
+AGI_ENV_MAX_LINES = 1000
 AGI_ENV_IMPORT_ALIAS_BUDGET = 30
 
 

@@ -32,8 +32,8 @@ try:
     from IPython.core.ultratb import FormattedTB
 except (ImportError, AttributeError):  # Optional dependency; fallback if absent
     FormattedTB = None  # type: ignore
-import getpass
 import os
+import getpass
 import shutil
 import psutil
 import socket
@@ -56,12 +56,19 @@ from agi_env.app_settings_support import (
     find_source_app_settings_file,
     resolve_user_app_settings_file,
 )
-from agi_env.app_provider_registry import resolve_app_runtime_target
 from agi_env.env_config_support import (
-    clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
     write_env_updates,
 )
+from agi_env.agi_env_app_switch_support import change_app as _agi_env_change_app
+from agi_env.agi_env_execution_methods import (
+    run as _agi_env_run,
+    run_agi as _agi_env_run_agi,
+    run_async as _agi_env_run_async,
+    run_bg as _agi_env_run_bg,
+)
+from agi_env.agi_env_instance_initialization import initialize_agi_env_instance
+from agi_env.agi_env_meta_support import AgiEnvMeta as _AgiEnvMeta
 from agi_env.env_runtime_initialization_support import initialize_app_runtime
 from agi_env.hook_support import resolve_worker_hook, select_hook
 from agi_env.host_runtime_support import (
@@ -74,16 +81,7 @@ from agi_env.installation_support import (
     locate_agilab_installation_path,
     read_agilab_installation_marker,
 )
-from agi_env.package_layout_support import (
-    resolve_agilab_package_context,
-    resolve_package_layout,
-    resolve_resource_root,
-)
-from agi_env.runtime_bootstrap_support import (
-    parse_int_env_value,
-    resolve_share_runtime_config,
-    sync_repository_apps,
-)
+from agi_env.runtime_bootstrap_support import parse_int_env_value
 from agi_env.worker_runtime_support import configure_worker_runtime
 from agi_env.windows_link_support import (
     create_junction_windows as _create_junction_windows,
@@ -110,27 +108,13 @@ from agi_env.share_runtime_support import (
     share_target_name,
     python_supports_free_threading,
 )
-from agi_env.share_mount_support import (
-    cluster_enabled_from_settings as resolve_cluster_enabled_from_settings,
-    resolve_share_path as resolve_runtime_share_path,
-)
 from agi_env.rename_gitignore_support import (
     is_relative_to as is_path_relative_to,
     load_gitignore_spec,
     replace_text_content,
 )
 from agi_env.content_renamer_support import ContentRenamer as BaseContentRenamer
-from agi_env.bootstrap_support import (
-    can_link_repo_apps,
-    coerce_active_app_request,
-    resolve_active_app_selection,
-    resolve_builtin_apps_path,
-    resolve_default_apps_path,
-    resolve_install_type,
-    resolve_package_dir,
-    resolve_requested_apps_path,
-)
-from agi_env.app_provider_registry import installed_app_project_paths
+from agi_env.bootstrap_support import coerce_active_app_request
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
     get_full_attribute_name as build_full_attribute_name,
@@ -154,12 +138,6 @@ from agi_env.project_clone_support import (
     create_rename_map as build_clone_rename_map,
 )
 from agi_env.data_archive_support import unzip_data as extract_dataset_archive
-from agi_env.execution_support import (
-    run as run_command_in_env,
-    run_agi as run_agi_snippet,
-    run_async as run_command_async,
-    run_bg as run_command_in_background,
-)
 try:
     import pwd
 except ImportError:  # Windows
@@ -188,6 +166,7 @@ if FormattedTB is not None:
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
+_LOGGING_MODULE = logging
 
 
 def _optional_agi_pages_bundles_root() -> Path | None:
@@ -233,65 +212,6 @@ def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str)
         hook_label,
         resolve_hook=_resolve_worker_hook,
     )
-
-class _AgiEnvMeta(type):
-    """Delegate AgiEnv class attribute access to the singleton instance.
-
-    This keeps existing call-sites that use ``AgiEnv.attr`` working while
-    allowing the implementation to set values only on the instance. Methods
-    and descriptors are never shadowed.
-    """
-
-    def __getattribute__(cls, name):  # type: ignore[override]
-        # Core attributes always from the class
-        if name in {"_instance", "_lock", "current", "reset", "__dict__", "__weakref__"}:
-            return super().__getattribute__(name)
-
-        # Try to get class attribute; remember if it exists even when value is None
-        found_on_class = False
-        try:
-            obj = super().__getattribute__(name)
-            found_on_class = True
-            if (
-                inspect.isfunction(obj)
-                or inspect.ismethoddescriptor(obj)
-                or isinstance(obj, (property, staticmethod, classmethod, type))
-            ):
-                return obj
-        except AttributeError:
-            obj = None
-
-        # Prefer the instance attribute when available
-        try:
-            inst = super().__getattribute__("_instance")
-        except AttributeError:
-            inst = None
-        if inst is not None and hasattr(inst, name):
-            return getattr(inst, name)
-
-        # Fall back to the class attribute (may be None)
-        if found_on_class:
-            return obj
-
-        # Nothing found
-        raise AttributeError(f"type object '{cls.__name__}' has no attribute '{name}'")
-
-    def __setattr__(cls, name, value):  # type: ignore[override]
-        if name in {"_instance", "_lock"} or (name.startswith("__") and name.endswith("__")):
-            return super().__setattr__(name, value)
-        # Always set callables/descriptors on the class itself to allow patching/overrides
-        if (
-            inspect.isfunction(value)
-            or inspect.ismethoddescriptor(value)
-            or isinstance(value, (property, staticmethod, classmethod, type))
-        ):
-            return super().__setattr__(name, value)
-        inst = getattr(cls, "_instance", None)
-        if inst is not None:
-            setattr(inst, name, value)
-        else:
-            super().__setattr__(name, value)
-
 
 class AgiEnv(metaclass=_AgiEnvMeta):
     """Encapsulates filesystem and configuration state for AGILab deployments.
@@ -410,12 +330,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                  **kwargs):
 
         allow_reinitialize = bool(kwargs.pop("_agilab_reinitialize", False))
+        verbose = 0 if verbose is None else verbose
         app, active_app_override = coerce_active_app_request(app, kwargs, path_cls=Path)
         init_signature = self._init_signature(
             apps_path=apps_path,
             app=app,
             active_app_override=active_app_override,
-            verbose=0 if verbose is None else verbose,
+            verbose=verbose,
             debug=debug,
             python_variante=python_variante,
             kwargs=kwargs,
@@ -430,350 +351,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
             )
 
-        self.skip_repo_links = False
-        self.AGILAB_SHARE_HINT = None
-        self.AGILAB_SHARE_REL = None
-
-        self.is_managed_pc = getpass.getuser().startswith("T0")
-        self._is_managed_pc = self.is_managed_pc
-        self._agi_resources = Path("resources/.agilab")
-        home_abs = Path.home() / "MyApp" if self.is_managed_pc else Path.home()
-        self.home_abs = home_abs
-        self._share_root_cache: Path | None = None
-
-        if verbose is None:
-            verbose = 0
-        self.uv = "uv"
-        if verbose < 3:
-            self.uv = "uv --quiet"
-        elif verbose >= 3:
-            self.uv = "uv --verbose"
-        
-        self.resources_path = home_abs / self._agi_resources.name
-        env_path = self.resources_path / ".env"
-        self.benchmark = self.resources_path / "benchmark.json"
-        self.envars = _load_dotenv_values(env_path, verbose=verbose)  # ty: ignore[invalid-argument-type]
-        logger.debug(f"env path: {env_path}")
-        envars = self.envars
-        repo_agilab_dir = Path(__file__).resolve().parents[4]
-
-        # Propagate Streamlit message size from AgiEnv env vars to runtime env to avoid local config writes.
-        streamlit_size = envars.get("STREAMLIT_SERVER_MAX_MESSAGE_SIZE") or envars.get(
-            "STREAMLIT_MAX_MESSAGE_SIZE"
-        )
-        if streamlit_size:
-            os.environ.setdefault("STREAMLIT_SERVER_MAX_MESSAGE_SIZE", str(streamlit_size))
-            os.environ.setdefault("STREAMLIT_MAX_MESSAGE_SIZE", str(streamlit_size))
-
-        package_context = resolve_agilab_package_context(
-            repo_agilab_dir=repo_agilab_dir,
-            find_spec_fn=importlib.util.find_spec,
-            path_cls=Path,
-        )
-        agilab_pkg_dir = package_context.package_dir
-        agilab_pck = package_context.apps_root_hint
-        is_agilab_installed = package_context.is_installed
-
-        env_apps_path = str(envars.get("APPS_PATH", "") or "").strip()
-        apps_path, override_builtin_apps_path = resolve_requested_apps_path(
-            env_apps_path=env_apps_path,
-            explicit_apps_path=apps_path,
-            active_app_override=active_app_override,
-            path_cls=Path,
-        )
-
-        # Honour env flags when present
-        env_is_source = envars.get("IS_SOURCE_ENV")
-        env_is_worker = envars.get("IS_WORKER_ENV")
-        if env_is_source is not None:
-            try:
-                is_agilab_installed = not bool(int(env_is_source))
-            except (TypeError, ValueError):
-                is_agilab_installed = str(env_is_source).lower() in {"false", "0", "no", ""}  # default False-ish
-            self.is_source_env = not is_agilab_installed
-        if env_is_worker is not None:
-            try:
-                self.is_worker_env = bool(int(env_is_worker))
-            except (TypeError, ValueError):
-                self.is_worker_env = str(env_is_worker).lower() not in {"false", "0", "no", ""}
-
-        install_type, inferred_worker_env = resolve_install_type(
-            apps_path,
-            active_app_override=active_app_override,
-        )
-        if env_is_source is None and install_type == 1:
-            self.is_source_env = True
-        if env_is_worker is None and install_type == 2:
-            self.is_worker_env = True
-        if inferred_worker_env:
-            self.is_worker_env = True
-        if self.is_worker_env:
-            self.skip_repo_links = True
-
-        repo_root = agilab_pck.parents[1] if len(agilab_pck.parents) > 1 else agilab_pck
-        self.builtin_apps_path = override_builtin_apps_path or resolve_builtin_apps_path(
+        initialize_agi_env_instance(
+            self,
             apps_path=apps_path,
-            repo_root=repo_root,
-            agilab_pck=agilab_pck,
-        )
-
-        # Default apps_path for non-worker envs when not provided
-        repo_apps = self._get_apps_repository_root()
-        default_apps_root = agilab_pck / "apps"
-        apps_path, apps_repository_root = resolve_default_apps_path(
-            apps_path=apps_path,
-            is_worker_env=self.is_worker_env,
-            default_apps_root=default_apps_root,
-            apps_repository_root=repo_apps,
-        )
-        self.apps_repository_root = apps_repository_root or repo_apps
-        self.installed_app_project_paths = installed_app_project_paths()
-
-        active_app_selection = resolve_active_app_selection(
             app=app,
             active_app_override=active_app_override,
-            apps_path=apps_path,
-            builtin_apps_path=self.builtin_apps_path,
-            installed_app_projects=self.installed_app_project_paths,
-            home_abs=home_abs,
-            is_worker_env=self.is_worker_env,
-            default_app=str(envars.get("APP_DEFAULT", "flight_telemetry_project") or "").strip(),
-            path_cls=Path,
-        )
-        app = active_app_selection.app
-        active_app = active_app_selection.active_app
-
-        if not app.endswith('_project') and not app.endswith('_worker'):
-            raise ValueError(f"{app} must end with '_project' or '_worker'")
-
-        # If apps_path contains a builtin subdir, prefer that as the builtin root.
-        if apps_path and (apps_path / "builtin").exists():
-            self.builtin_apps_path = apps_path / "builtin"
-
-        self.app = app
-        try:
-            self.active_app = active_app.resolve()
-        except OSError:
-            self.active_app = active_app
-        self.apps_path = apps_path
-
-        target = resolve_app_runtime_target(active_app, app)
-        self.share_target_name = target
-
-        self.verbose = verbose
-        self.python_variante = python_variante
-        self.logger = AgiLogger.configure(verbose=verbose, base_name="agi_env")
-        self.debug = debug
-
-        # Keep resolved flags from env/config/layout detection above.
-        self.is_local_worker = False
-        # Backward-compat: map booleans to legacy install_type
-        self.install_type = 1 if self.is_source_env else (2 if self.is_worker_env else 0)
-
-        package_layout = resolve_package_layout(
-            is_source_env=self.is_source_env,
-            repo_agilab_dir=repo_agilab_dir,
-            installed_package_dir=agilab_pkg_dir,
-            resolve_package_dir_fn=resolve_package_dir,
-            find_spec_fn=importlib.util.find_spec,
-            path_cls=Path,
-        )
-        self.agilab_pck = package_layout.agilab_pck
-        self.env_pck = package_layout.env_pck
-        self.node_pck = package_layout.node_pck
-        self.core_pck = package_layout.core_pck
-        self.cluster_pck = package_layout.cluster_pck
-        self.cli = package_layout.cli
-
-        resolve = self._resolve_package
-        self.env_pck = resolve(self.env_pck)
-        self.node_pck = resolve(self.node_pck)
-        self.core_pck = resolve(self.core_pck)
-        self.cluster_pck = resolve(self.cluster_pck)
-        self.agi_env = self.env_pck.parents[1]
-        self.agi_node = self.node_pck.parents[1]
-        self.agi_core = self.core_pck.parents[1]
-        self.agi_cluster = self.cluster_pck.parents[1]
-
-        self.st_resources = resolve_resource_root(self.agilab_pck, path_cls=Path)
-
-        apps_root = self.agilab_pck / "apps"
-        can_link_repo = can_link_repo_apps(
-            apps_path=apps_path,
-            active_app=self.active_app,
-            builtin_apps_path=self.builtin_apps_path,
-            is_worker_env=self.is_worker_env,
-            skip_repo_links=self.skip_repo_links,
-        )
-        sync_repository_apps(
-            can_link_repo=can_link_repo,
-            apps_path=apps_path,
-            apps_root=apps_root,
-            active_app=active_app,
-            is_source_env=self.is_source_env,
-            apps_repository_root=self.apps_repository_root,
-            get_apps_repository_root_fn=self._get_apps_repository_root,
+            verbose=verbose,
+            debug=debug,
+            python_variante=python_variante,
+            init_signature=init_signature,
+            load_dotenv_values_fn=_load_dotenv_values,
+            optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
             ensure_dir_fn=_ensure_dir,
-            copy_existing_projects_fn=self.copy_existing_projects,
-            create_symlink_windows_fn=AgiEnv.create_symlink_windows,
-            symlink_fn=os.symlink,
-            logger=AgiEnv.logger,
-            os_name=os.name,
-            path_cls=Path,
+            module_logger=logger,
         )
-
-
-        # Resource seed files (.agilab/.env, balancer assets) always live under
-        # the agi_env package tree, regardless of install mode.
-        resources_root = self.env_pck
-        if not self.is_worker_env:
-            self._init_resources(resources_root / self._agi_resources)
-        self.TABLE_MAX_ROWS = parse_int_env_value(envars, "TABLE_MAX_ROWS", 1000000)
-        self.GUI_SAMPLING = parse_int_env_value(envars, "GUI_SAMPLING", 20)
-
-        self._configure_worker_runtime(
-            target=target,
-            home_abs=home_abs,
-            apps_path=apps_path,
-            apps_root=apps_root,
-            envars=envars,
-            requested_active_app=active_app,
-        )
-
-        share_runtime_config = resolve_share_runtime_config(
-            envars=envars,
-            environ=os.environ,
-            is_worker_env=self.is_worker_env,
-            resolve_workspace_settings_fn=lambda: self.resolve_user_app_settings_file(ensure_exists=False),
-            find_source_settings_fn=self.find_source_app_settings_file,
-            clean_envar_value_fn=clean_envar_value,
-            resolve_cluster_enabled_fn=resolve_cluster_enabled_from_settings,
-            resolve_runtime_share_path_fn=resolve_runtime_share_path,
-            env_path=env_path,
-            home_path=Path.home(),
-        )
-        self.AGI_LOCAL_SHARE = share_runtime_config.local_share
-        self.AGI_CLUSTER_SHARE = share_runtime_config.cluster_share
-        self.agi_share_path = share_runtime_config.agi_share_path
-        self._share_root_cache = None
-
-        share_root_abs = self.share_root_path()
-        share_target_name = self._share_target_name()
-        self.share_target_name = share_target_name
-        self.agi_share_path_abs = share_root_abs
-        self.app_data_rel = share_root_abs / share_target_name
-        self.dataframe_path = self.app_data_rel / "dataframe"
-
-        if self.is_worker_env:
-            self.user = "agi"
-            return
-
-        if self.worker_path.exists():  # ty: ignore[unresolved-attribute]
-            self.base_worker_cls, self._base_worker_module = self.get_base_worker_cls(
-                self.worker_path, self.target_worker_class  # ty: ignore[unresolved-attribute]
-            )
-        else:
-            self.base_worker_cls, self._base_worker_module = (None, None)
-            # In packaged end‑user environments, worker sources may be absent by design.
-            # Proceed without exiting; the installer will materialize required files under wenv.
-            if (not self.is_source_env) and (not self.is_worker_env):
-                AgiEnv.logger.debug(  # ty: ignore[unresolved-attribute]
-                    f"Missing {self.target_worker_class} definition; expected {self.worker_path} (packaged end-user env)"  # ty: ignore[unresolved-attribute]
-                )
-            else:
-                AgiEnv.logger.info(  # ty: ignore[unresolved-attribute]
-                    f"Missing {self.target_worker_class} definition; expected {self.worker_path}"  # ty: ignore[unresolved-attribute]
-                )
-
-        envars = self.envars
-        raw_credentials = envars.get("CLUSTER_CREDENTIALS", getpass.getuser())
-        credentials_parts = raw_credentials.split(":")
-        self.user = credentials_parts[0]
-        self.password = credentials_parts[1] if len(credentials_parts) > 1 else None
-        ssh_key_env = envars.get("AGI_SSH_KEY_PATH", "")
-        ssh_key_env = ssh_key_env.strip() if isinstance(ssh_key_env, str) else ""
-        self.ssh_key_path = str(Path(ssh_key_env).expanduser()) if ssh_key_env else None
-
-        self.projects = self.get_projects(self.apps_path, self.builtin_apps_path)  # ty: ignore[invalid-argument-type]
-        if not self.projects:
-            AgiEnv.logger.info(f"Could not find any target project app in {self.agilab_pck / 'apps'}.")  # ty: ignore[unresolved-attribute]
-
-        self.setup_app = self.active_app / "build.py"
-        self.setup_app_module = "agi_node.agi_dispatcher.build"
-
-        self._init_projects()
-
-        self.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")
-        if not self.is_valid_ip(self.scheduler_ip):
-            raise ValueError(f"Invalid scheduler IP address: {self.scheduler_ip}")
-
-        if self.is_source_env:
-            self.help_path = str(self.agilab_pck.parents[1] / "docs/html")
-        else:
-            self.help_path = "https://thalesgroup.github.io/agilab"
-        # Ensure packaged datasets are available when running locally (e.g. app_test).
-        dataset_archive = getattr(self, "dataset_archive", None)
-        if not self.is_worker_env and dataset_archive and Path(dataset_archive).exists():
-            dataset_root = (Path(self.app_data_rel) / "dataset").expanduser()
-            archive_mtime = Path(dataset_archive).stat().st_mtime
-            stamp_path = dataset_root / ".agilab_dataset_stamp"
-
-            existing_files = (
-                [p for p in dataset_root.rglob("*") if p != stamp_path and p.is_file()]
-                if dataset_root.exists()
-                else []
-            )
-
-            if not existing_files:
-                needs_extract = True
-            elif stamp_path.exists():
-                try:
-                    needs_extract = stamp_path.stat().st_mtime < archive_mtime
-                except OSError:
-                    needs_extract = False
-            else:
-                # No stamp file means the dataset was created by an older AGILAB version
-                # or manually by the user. Avoid clobbering existing content; use
-                # AGILAB_FORCE_DATA_REFRESH=1 if a rebuild is required.
-                needs_extract = False
-            if needs_extract:
-                try:
-                    self.unzip_data(Path(dataset_archive), self.app_data_rel, force_extract=True)
-                except (OSError, RuntimeError, ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
-                    AgiEnv.logger.warning(  # ty: ignore[unresolved-attribute]
-                        "Failed to extract packaged dataset %s: %s",
-                        dataset_archive,
-                        exc,
-                    )
-
-        _ensure_dir(self.app_src)  # ty: ignore[unresolved-attribute]
-        app_src_str = str(self.app_src)  # ty: ignore[unresolved-attribute]
-        if app_src_str not in sys.path:
-            sys.path.append(app_src_str)
-
-        # Populate examples/apps in standard environments
-        examples_candidates = [
-            self.agilab_pck / "agilab/examples",
-            self.agilab_pck / "examples",
-        ]
-        for candidate in examples_candidates:
-            if candidate.exists():
-                self.examples = candidate
-                break
-        else:
-            self.examples = examples_candidates[-1]
-        # examples path available via singleton delegation if accessed as AgiEnv.examples
-        self.init_envars_app(self.envars)
-        self._init_apps()
-
-        if os.name == "nt":
-            self.export_local_bin = ""
-        else:
-            self.export_local_bin = 'export PATH="~/.local/bin:$PATH";'
-        # export_local_bin available via singleton delegation if accessed as AgiEnv.export_local_bin
-
-        self._agilab_init_signature = init_signature
-        self._agilab_initialized = True
 
     @staticmethod
     def _init_signature(
@@ -1212,67 +803,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         else:
             print(line)
 
-    @staticmethod
-    async def run(cmd, venv, cwd=None, timeout=None, wait=True, log_callback=None):
-        """Run a shell command inside a virtual environment."""
-        return await run_command_in_env(
-            cmd,
-            venv,
-            cwd=cwd,
-            timeout=timeout,
-            wait=wait,
-            log_callback=log_callback,
-            verbose=AgiEnv.verbose or 0,
-            logger=AgiEnv.logger,
-            build_env_fn=AgiEnv._build_env,
-        )
-
-    @staticmethod
-    async def _run_bg(cmd, cwd=".", venv=None, timeout=None, log_callback=None,
-                      env_override: dict | None = None, remove_env: set[str] | None = None):
-        """Run a command asynchronously and return ``(stdout, stderr)``."""
-        return await run_command_in_background(
-            cmd,
-            cwd=cwd,
-            venv=venv,
-            timeout=timeout,
-            log_callback=log_callback,
-            env_override=env_override,
-            remove_env=remove_env,
-            logger=AgiEnv.logger,
-            build_env_fn=AgiEnv._build_env,
-        )
-
-    async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):  # ty: ignore[invalid-parameter-default]
-        """Asynchronous version of run_agi for use within an async context."""
-        return await run_agi_snippet(
-            code=code,
-            runenv=Path(self.runenv),
-            target=str(self.target),
-            log_callback=log_callback,
-            venv=Path(venv) if venv else None,
-            run_bg_fn=AgiEnv._run_bg,
-            ensure_dir_fn=_ensure_dir,
-            logger=AgiEnv.logger,
-            python_executable=sys.executable,
-            log_info_fn=logging.info,
-            snippet_type=type,
-        )
-
-    @staticmethod
-    async def run_async(cmd, venv=None, cwd=None, timeout=None, log_callback=None):
-        """Run a shell command asynchronously and return the last non-empty line."""
-        return await run_command_async(
-            cmd,
-            venv=venv,
-            cwd=cwd,
-            timeout=timeout,
-            log_callback=log_callback,
-            verbose=AgiEnv.verbose or 0,
-            logger=AgiEnv.logger,
-            build_env_fn=AgiEnv._build_env,
-        )
-
+    run = staticmethod(_agi_env_run)
+    _run_bg = staticmethod(_agi_env_run_bg)
+    run_agi = _agi_env_run_agi
+    run_async = staticmethod(_agi_env_run_async)
 
     @staticmethod
     def create_symlink(src: Path, dest: Path) -> bool:
@@ -1284,55 +818,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             create_junction_windows_fn=AgiEnv.create_junction_windows,
         )
 
-    def change_app(self, app):
-        # Normalize current and requested app identifiers to comparable names
-        def _app_name(value):
-            if value is None:
-                return None
-            try:
-                # Accept Path-like or string; compare by final directory name
-                return Path(str(value)).name
-            except (TypeError, ValueError):
-                return str(value)
-
-        # Normalize *both* current and requested app identifiers
-        current_name = _app_name(getattr(self, "app", None))
-        requested_name = _app_name(app)
-
-        if not requested_name:
-            raise ValueError("app name must be non-empty")
-
-        # No-op when the requested app is already active
-        if requested_name == current_name:
-            return
-
-        apps_path = None
-        current_app = getattr(self, "app", None)
-        try:
-            current_app_path = Path(str(current_app))
-            if current_app_path.name:
-                apps_path = current_app_path.parent
-        except (TypeError, ValueError):
-            apps_path = None
-
-        if apps_path is None:
-            apps_path = getattr(self, "apps_path", None) or AgiEnv.apps_path
-        if apps_path is None:
-            raise RuntimeError("apps_path is not configured on AgiEnv")
-
-        active_app = apps_path / requested_name
-
-        try:
-            type(self).__init__(
-                self,
-                apps_path=active_app.parent,
-                app=requested_name,
-                verbose=AgiEnv.verbose,
-                _agilab_reinitialize=True,
-            )
-        finally:
-            if sys.exc_info()[0] is not None and active_app.exists():
-                shutil.rmtree(active_app, ignore_errors=True)
+    change_app = _agi_env_change_app
 
     @staticmethod
     def is_local(ip):
