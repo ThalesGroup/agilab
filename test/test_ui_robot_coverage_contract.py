@@ -63,10 +63,12 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert set(module.REQUIRED_DEMO_PROOF_SCENARIOS).issubset(proof_scenario_ids)
     assert payload["coverage"]["hf_first_proof_apps"] == [
         "flight_telemetry_project",
+        "pytorch_playground_project",
         "weather_forecast_project",
     ]
     assert payload["coverage"]["hf_install_profile_apps"] == [
         "flight_telemetry_project",
+        "pytorch_playground_project",
         "weather_forecast_project",
     ]
     assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
@@ -77,10 +79,12 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     ]
     assert payload["coverage"]["hf_visual_smoke_profile_apps"] == [
         "flight_telemetry_project",
+        "pytorch_playground_project",
         "weather_forecast_project",
     ]
     assert payload["coverage"]["hf_install_profile_apps"] == [
         "flight_telemetry_project",
+        "pytorch_playground_project",
         "weather_forecast_project",
     ]
     assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
@@ -358,7 +362,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     details = [issue["detail"] for issue in payload["issues"]]
     assert (
         "first-proof HF profile is missing public demo apps: "
-        "flight_telemetry_project, weather_forecast_project"
+        "flight_telemetry_project, pytorch_playground_project, weather_forecast_project"
     ) in details
     assert "first-proof HF profile still exposes stale demo apps: flight_project" in details
     assert (
