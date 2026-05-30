@@ -210,7 +210,7 @@ if __name__ == "__main__":
     #   "builtin/flight_telemetry_project"
     folder_name = raw_arg
 
-    # setup_pycharm creates SDKs like: uv (flight_telemetry_project), uv (mycode_project), ...
+    # setup_pycharm creates SDKs like: uv (flight_telemetry_project), uv (minimal_app_project), ...
     sdk_name_for_app = f"uv ({module_name})"
     runtime_target = _resolve_runtime_target(raw_arg, module_name, Path(__file__).resolve().parent)
 

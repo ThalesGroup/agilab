@@ -26,12 +26,12 @@ def test_notebook_import_sample_catalog_and_default_lookup() -> None:
 
     assert [sample.sample_id for sample in samples] == [
         "flight_telemetry",
-        "mycode",
+        "minimal_app",
         "weather_forecast",
         "mission_decision",
     ]
     assert notebook_import_sample.get_sample_notebook() == samples[0]
-    assert notebook_import_sample.get_sample_notebook("mycode").recommended_template == "mycode_project"
+    assert notebook_import_sample.get_sample_notebook("minimal_app").recommended_template == "minimal_app_project"
     assert notebook_import_sample.get_sample_notebook("weather_forecast").project_name_hint == (
         "weather-forecast-from-notebook-project"
     )
@@ -51,5 +51,5 @@ def test_notebook_import_sample_paths_and_payloads_are_packaged() -> None:
 
 
 def test_notebook_import_sample_rejects_unknown_id_with_available_samples() -> None:
-    with pytest.raises(KeyError, match="available: flight_telemetry, mycode, weather_forecast, mission_decision"):
+    with pytest.raises(KeyError, match="available: flight_telemetry, minimal_app, weather_forecast, mission_decision"):
         notebook_import_sample.get_sample_notebook("unknown")

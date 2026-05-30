@@ -136,7 +136,7 @@ interactive exploration into a replayable, inspectable workflow:
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
 - a repository guardrail requires every non-template built-in app to expose a
-  reducer contract, while ``mycode_project`` and ``global_dag_project`` are
+  reducer contract, while ``minimal_app_project`` and ``multi_app_dag_project`` are
   explicitly template-only until a clone or concrete worker flow adds merge
   outputs
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
@@ -212,36 +212,36 @@ history:
 - the global pipeline DAG report combines that handoff with each app-local
   ``pipeline_view.dot`` so reviewers can inspect one read-only product graph
   before runner and UI orchestration are claimed
-- the global DAG execution plan report turns that product graph into ordered
+- the multi-app DAG execution plan report turns that product graph into ordered
   ``pending/not_executed`` runnable units with artifact dependencies and
   provenance, while still avoiding any app dispatch
-- the global DAG runner state report projects that plan into read-only
+- the multi-app DAG runner state report projects that plan into read-only
   ``runnable/blocked`` dispatch state, retry and partial-rerun metadata, and
   operator-facing readiness messages without starting the apps
-- the global DAG dispatch state report persists the first queue-to-relay
+- the multi-app DAG dispatch state report persists the first queue-to-relay
   state transition proof, records ``queue_baseline`` completion,
   ``queue_metrics`` availability, ``relay_followup`` unblocking, timestamps,
   retry counters, partial-rerun flags, operator messages, and provenance
   without claiming real app execution
-- the global DAG app dispatch smoke report executes real ``queue_baseline`` and
+- the multi-app DAG app dispatch smoke report executes real ``queue_baseline`` and
   ``relay_followup`` app entries through ``uav_queue_project`` and
   ``uav_relay_queue_project``, persists ``queue_metrics``, ``relay_metrics``,
   and reducer artifacts into dispatch-state JSON, and stops short of claiming
   live operator UI
-- the global DAG operator state report projects that persisted full-DAG state
+- the multi-app DAG operator state report projects that persisted full-DAG state
   into operator-visible completed unit state, available artifact handoffs, and
   retry/partial-rerun action rows while still avoiding live UI claims
-- the global DAG dependency view report turns that operator-state proof into
+- the multi-app DAG dependency view report turns that operator-state proof into
   cross-app upstream/downstream adjacency, the ``queue_baseline ->
   relay_followup`` ``queue_metrics`` edge, and artifact-flow rows without
   claiming live UI rendering
-- the global DAG live state updates report turns the dependency view into
+- the multi-app DAG live state updates report turns the dependency view into
   ordered graph, unit, artifact, dependency, and action refresh payloads without
   claiming a runtime streaming service
-- the global DAG operator actions report executes retry and partial-rerun
+- the multi-app DAG operator actions report executes retry and partial-rerun
   operator requests through real queue and relay app-entry replays, then
   persists action outcomes and output artifacts without claiming UI controls
-- the global DAG operator UI report renders persisted state into reusable
+- the multi-app DAG operator UI report renders persisted state into reusable
   status, unit-card, dependency, timeline, action-control, and artifact
   components with a static HTML proof
 

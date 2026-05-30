@@ -17,8 +17,11 @@ import streamlit as st
 import tomllib
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_pages.runtime import (
+    active_app_scope_value,
+    env_app_scope_value,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     resolve_active_app_path,
+    reset_scoped_session_state,
 )
 
 try:
@@ -35,12 +38,13 @@ except ModuleNotFoundError:  # pragma: no cover
             handle.write(_tomlkit_dumps(data).encode("utf-8"))
 
     except ImportError as _toml_exc:  # pragma: no cover
+        _toml_import_error = _toml_exc
         _tomlkit_dumps = None  # type: ignore[assignment]
 
         def _dump_toml(data: dict, handle) -> None:
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package."
-            ) from _toml_exc
+            ) from _toml_import_error
 
 
 PAGE_KEY = "view_training_analysis"
@@ -79,33 +83,24 @@ def _resolve_active_app() -> Path:
     return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
-def _env_app_scope_key(env: Any) -> str | None:
-    app_path = getattr(env, "app_path", None)
-    if app_path:
-        return str(Path(app_path).resolve())
-    apps_path = getattr(env, "apps_path", None)
-    app = getattr(env, "app", None)
-    if apps_path and app:
-        return str((Path(apps_path) / str(app)).resolve())
-    return None
-
-
 def _ensure_app_scoped_env() -> AgiEnv:
     env = st.session_state.get("env")
     scope_key = st.session_state.get(APP_SCOPE_KEY)
     if env is not None and scope_key is None:
-        inferred_scope_key = _env_app_scope_key(env)
+        inferred_scope_key = env_app_scope_value(env)
         if inferred_scope_key is None:
             return env
         st.session_state[APP_SCOPE_KEY] = inferred_scope_key
         scope_key = inferred_scope_key
 
     active_app_path = _resolve_active_app()
-    active_app_key = str(active_app_path.resolve())
-    if scope_key != active_app_key:
-        for key in APP_SCOPED_SESSION_KEYS:
-            st.session_state.pop(key, None)
-        st.session_state[APP_SCOPE_KEY] = active_app_key
+    if scope_key != active_app_scope_value(active_app_path):
+        reset_scoped_session_state(
+            st.session_state,
+            APP_SCOPE_KEY,
+            active_app_path,
+            keys=APP_SCOPED_SESSION_KEYS,
+        )
 
     if "env" not in st.session_state:
         env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)

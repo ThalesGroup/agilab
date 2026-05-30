@@ -19,7 +19,7 @@ def test_connector_registry_resolves_relative_roots_and_portable_labels(tmp_path
     env = SimpleNamespace(
         home_abs=tmp_path,
         envars={"AGI_EXPORT_DIR": "configured-export", "AGI_LOG_DIR": "configured-log"},
-        target="meteo_forecast",
+        target="weather_forecast_legacy",
         AGILAB_PAGES_ABS=tmp_path / "pages",
     )
 
@@ -28,7 +28,7 @@ def test_connector_registry_resolves_relative_roots_and_portable_labels(tmp_path
     assert registry.path("export_root") == (tmp_path / "configured-export").resolve()
     assert registry.path("log_root") == (tmp_path / "configured-log").resolve()
     assert registry.path("artifact_root") == (
-        tmp_path / "configured-export" / "meteo_forecast"
+        tmp_path / "configured-export" / "weather_forecast_legacy"
     ).resolve()
     assert registry.path("first_proof_manifest") == (
         tmp_path / "configured-log" / "execute" / "flight" / "run_manifest.json"

@@ -343,7 +343,7 @@ def test_select_run_config_apps_skips_local_private_folders(tmp_path: Path) -> N
         """<?xml version="1.0" encoding="UTF-8"?>
 <component name="RunManager">
   <folder name="flight_telemetry_project" />
-  <folder name="builtin/mycode_project" />
+  <folder name="builtin/minimal_app_project" />
 </component>
 """,
         encoding="utf-8",
@@ -354,11 +354,11 @@ def test_select_run_config_apps_skips_local_private_folders(tmp_path: Path) -> N
         [
             Path("flight_telemetry_project"),
             Path("flowsynth_project"),
-            Path("builtin/mycode_project"),
+            Path("builtin/minimal_app_project"),
         ],
     )
 
-    assert selected == [Path("flight_telemetry_project"), Path("builtin/mycode_project")]
+    assert selected == [Path("flight_telemetry_project"), Path("builtin/minimal_app_project")]
 
 
 def test_disable_pyproject_auto_import_turns_off_pyproject_module_sync(tmp_path: Path) -> None:

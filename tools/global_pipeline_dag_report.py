@@ -129,9 +129,9 @@ def build_report(
             "global_pipeline_dag_source_contract",
             "Global pipeline DAG source contract",
             graph.ok and graph.schema == SCHEMA and graph.app_node_count >= 2,
-            "global DAG uses the supported schema and multi-app source contract"
+            "multi-app DAG uses the supported schema and multi-app source contract"
             if graph.ok
-            else "global DAG source contract is invalid",
+            else "multi-app DAG source contract is invalid",
             evidence=[graph.dag_path, "src/agilab/global_pipeline_dag.py"],
             details={
                 "schema": graph.schema,
@@ -146,7 +146,7 @@ def build_report(
             graph.app_node_count > 0
             and len(app_views) == graph.app_node_count
             and all(view["local_node_count"] > 0 and view["local_edge_count"] > 0 for view in app_views),
-            "global DAG includes app-local pipeline_view.dot expansions",
+            "multi-app DAG includes app-local pipeline_view.dot expansions",
             evidence=["src/agilab/apps/builtin/*/pipeline_view.dot"],
             details={"app_pipeline_views": app_views},
         ),
@@ -158,7 +158,7 @@ def build_report(
             and graph.local_pipeline_edge_count == 6
             and graph.cross_app_edge_count == 1
             and list(graph.execution_order) == ["queue_baseline", "relay_followup"],
-            "global DAG assembles app nodes, app-local steps, and one cross-app handoff",
+            "multi-app DAG assembles app nodes, app-local steps, and one cross-app handoff",
             evidence=[graph.dag_path, "src/agilab/apps/builtin"],
             details={
                 "app_node_count": graph.app_node_count,
@@ -172,7 +172,7 @@ def build_report(
             "global_pipeline_dag_artifact_edge",
             "Global pipeline DAG artifact edge",
             len(handoff_edges) == 1 and handoff_edges[0].get("artifact") == "queue_metrics",
-            "global DAG preserves the queue_metrics artifact handoff edge",
+            "multi-app DAG preserves the queue_metrics artifact handoff edge",
             evidence=[graph.dag_path],
             details={"artifact_handoff_edges": handoff_edges},
         ),

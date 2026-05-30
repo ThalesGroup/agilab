@@ -25,7 +25,7 @@ runner-state preview.
 There is no separate project install for this preview. Install AGILAB and the
 public built-in apps, then run the script from the source checkout or from the
 packaged examples. The DAG contract is owned by the built-in
-`global_dag_project` app so UI users and script users share the same template.
+`multi_app_dag_project` app so UI users and script users share the same template.
 
 ## Run
 
@@ -51,7 +51,7 @@ python -c "from pathlib import Path; import agilab; print(Path(agilab.__file__).
 ## Expected Input
 
 The script reads the built-in
-`global_dag_project/dag_templates/flight_to_weather_global_dag.json` template.
+`multi_app_dag_project/dag_templates/flight_to_weather_multi_app_dag.json` template.
 The contract says:
 
 - `flight_context` runs `flight_telemetry_project` and produces
@@ -115,7 +115,7 @@ Open `preview_inter_project_dag.py` and look for these functions first:
 ## Change One Thing
 
 After the preview works, copy
-`src/agilab/apps/builtin/global_dag_project/dag_templates/flight_to_weather_global_dag.json`
+`src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_multi_app_dag.json`
 to a scratch file, change only the artifact id, and rerun with
 `--dag-path /path/to/scratch.json`. The validation should fail because the edge
 no longer matches what the first node produces. Restore the id before adapting

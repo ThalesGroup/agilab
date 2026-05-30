@@ -149,7 +149,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
     assert first.state["provenance"]["controlled_execution"] is True
     assert first.state["units"][0]["execution_mode"] == "contract_adapter"
     assert first.state["units"][1]["dispatch_status"] == "runnable"
-    context_artifact = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context" / "context.json"
+    context_artifact = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context" / "context" / "context.json"
     assert context_artifact.is_file()
     assert second.ok
     assert second.executed_unit_id == "review_forecast"
@@ -216,7 +216,7 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
     result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
 
     assert result.ok
-    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context"]
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context"]
     unit = result.state["units"][0]
     assert unit["contract_execution"]["summary_metrics"]["custom_runner"] == 1
     assert unit["contract_execution"]["execution_contract"]["params"] == {"scenario": "demo"}
@@ -265,7 +265,7 @@ def test_controlled_contract_adapter_runs_declared_command(tmp_path):
     result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
 
     assert result.ok
-    artifact_path = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context" / "context.json"
+    artifact_path = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context" / "context" / "context.json"
     assert artifact_path.read_text(encoding="utf-8") == '{"ok": true}\n'
     assert result.state["units"][0]["contract_execution"]["command_returncode"] == 0
 
@@ -353,7 +353,7 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
     assert result.executed_unit_id == "relay_followup"
     assert relay_calls == [
         {
-            "run_root": tmp_path / ".agilab" / "global_dag_real_runs" / "relay_followup",
+            "run_root": tmp_path / ".agilab" / "multi_app_dag_real_runs" / "relay_followup",
             "queue_result": {"summary_metrics_path": "queue/from-artifact.json"},
         }
     ]
@@ -522,11 +522,11 @@ def test_controlled_contract_adapter_sanitizes_unsafe_artifact_path(tmp_path):
         ),
     )
 
-    expected_path = tmp_path / ".agilab" / "global_dag_real_runs" / "extract-context" / "context_artifact.json"
+    expected_path = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract-context" / "context_artifact.json"
     assert result.ok
     assert expected_path.is_file()
     assert result.state["units"][0]["produces"][0]["path"] == str(expected_path)
-    assert not (tmp_path / ".agilab" / "global_dag_real_runs" / "escape.json").exists()
+    assert not (tmp_path / ".agilab" / "multi_app_dag_real_runs" / "escape.json").exists()
 
 
 def test_adapter_helpers_tolerate_nonstandard_state_shapes():

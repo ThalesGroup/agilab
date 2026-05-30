@@ -40,11 +40,12 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
             handle.write(_tomlkit_dumps(data).encode("utf-8"))
 
     except ImportError as _toml_exc:
+        _toml_import_error = _toml_exc
 
         def _dump_toml_payload(data: dict, handle) -> None:
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package"
-            ) from _toml_exc
+            ) from _toml_import_error
 
 
 def _ensure_repo_on_path() -> None:
@@ -61,6 +62,9 @@ def _ensure_repo_on_path() -> None:
 
 
 _ensure_repo_on_path()
+
+from agi_pages.runtime import reset_scoped_session_state
+
 
 def _default_app() -> Path | None:
     apps_path = Path(__file__).resolve().parents[4] / "apps"
@@ -142,17 +146,13 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
 def _reset_app_scoped_session_state(active_app: Path) -> bool:
     """Clear View Maps state that belongs to a specific active app."""
 
-    app_scope = str(active_app.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in list(st.session_state.keys()):
-        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
-            isinstance(key, str) and key.startswith(prefix)
-            for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
-        ):
-            st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
 
 
 def _discover_dataset_files(datadir: Path, ext_choice: str) -> list[Path]:

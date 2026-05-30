@@ -50,7 +50,7 @@ def diagnostics_widget_key(app_name: Any) -> str:
     app_text = str(app_name or "default").strip() or "default"
     safe = "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in app_text)
     legacy_prefixes = {
-        "meteo_forecast_project": "weather_forecast_project",
+        "weather_forecast_legacy_project": "weather_forecast_project",
     }
     for legacy, current in legacy_prefixes.items():
         if safe == legacy or safe.startswith(f"{legacy}_"):

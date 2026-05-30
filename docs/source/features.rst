@@ -81,7 +81,7 @@ agi-core
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
   - A repository guardrail requires every non-template built-in app to expose a
-    reducer contract. ``mycode_project`` and ``global_dag_project`` are explicit
+    reducer contract. ``minimal_app_project`` and ``multi_app_dag_project`` are explicit
     template-only exemptions because they do not produce concrete worker merge
     output; future apps/templates must opt in when they produce durable worker
     summaries.
@@ -379,13 +379,13 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``tools/global_pipeline_dag_report.py --compact``; it emits a read-only graph
   with app nodes, app-local pipeline stages, and the ``queue_metrics`` edge
   without claiming runner execution or operator UI state
-- the global DAG execution plan report converts that graph into ordered
+- the multi-app DAG execution plan report converts that graph into ordered
   runnable units with ``tools/global_pipeline_execution_plan_report.py --compact``;
   the first plan keeps ``queue_baseline`` and ``relay_followup``
   in ``pending/not_executed`` state, records the ``queue_metrics`` dependency,
   and preserves DAG plus ``pipeline_view.dot`` provenance without dispatching
   any app
-- the global DAG runner state report projects that plan into
+- the multi-app DAG runner state report projects that plan into
   ``runnable/blocked`` dispatch readiness with
   ``tools/global_pipeline_runner_state_report.py --compact``; it records
   retry and partial-rerun metadata plus operator-facing readiness messages
@@ -403,14 +403,14 @@ to the same contract, artifact names, stable node IDs, and provenance.
   explicit ``nodes[].execution`` request fields, the ORCHESTRATE-derived
   scheduler/workers/Workers Data Path contract, and the two-node distributed
   request preview before a live ``--execute`` run is attempted
-- the global DAG dispatch state report writes and reads back a
+- the multi-app DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records
   ``queue_baseline completed``, publishes ``queue_metrics``, marks
   ``relay_followup runnable``, and preserves timestamps, retry counters,
   partial-rerun flags, operator messages, and provenance without claiming
   real app execution
-- the global DAG app dispatch smoke report performs real queue_baseline and
+- the multi-app DAG app dispatch smoke report performs real queue_baseline and
   relay_followup execution with
   ``tools/global_pipeline_app_dispatch_smoke_report.py --compact``; it runs the
   checked-in ``uav_queue_project`` and ``uav_relay_queue_project``
@@ -418,29 +418,29 @@ to the same contract, artifact names, stable node IDs, and provenance.
   reducer artifacts into dispatch-state JSON, and records
   ``real queue_baseline and relay_followup execution`` without claiming live
   operator UI
-- the global DAG operator state report reads that persisted full-DAG dispatch
+- the multi-app DAG operator state report reads that persisted full-DAG dispatch
   state with ``tools/global_pipeline_operator_state_report.py --compact``; it
   projects ``operator-visible state`` for the completed units, the
   queue-to-relay artifact handoff, available artifacts, and
   ``retry/partial-rerun actions`` without claiming a live UI
-- the global DAG dependency view report reads the operator-state proof with
+- the multi-app DAG dependency view report reads the operator-state proof with
   ``tools/global_pipeline_dependency_view_report.py --compact``; it provides
   ``upstream/downstream dependency visualization`` for
   ``queue_baseline -> relay_followup``, including the ``queue_metrics`` edge,
   producer/consumer apps, adjacency lists, artifact flow, and linkage back to
   persisted operator state without claiming a live UI component
-- the global DAG live state updates report reads that dependency view with
+- the multi-app DAG live state updates report reads that dependency view with
   ``tools/global_pipeline_live_state_updates_report.py --compact``; it emits a
   ``deterministic update stream`` for ``live orchestration-state updates``
   across graph-ready, unit-state, artifact-state, dependency-state, and
   operator-action refresh payloads without claiming a streaming service or UI
-- the global DAG operator actions report reads those update payloads with
+- the multi-app DAG operator actions report reads those update payloads with
   ``tools/global_pipeline_operator_actions_report.py --compact``; it performs
   ``retry and partial-rerun action execution`` for ``queue_baseline:retry`` and
   ``relay_followup:partial_rerun`` through ``real app-entry action replay`` and
   persists action outcomes plus output artifacts without claiming a UI control
   surface
-- the global DAG operator UI report reads action outcomes with
+- the multi-app DAG operator UI report reads action outcomes with
   ``tools/global_pipeline_operator_ui_report.py --compact``; it builds
   ``operator UI components`` for status, unit cards, dependency graph, update
   timeline, action controls, and artifacts that render persisted state and support operator actions through a static HTML proof

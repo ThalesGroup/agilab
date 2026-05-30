@@ -63,7 +63,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG dependency view report",
+        "multi-app DAG dependency view report",
         "tools/global_pipeline_dependency_view_report.py --compact",
         "upstream/downstream dependency visualization",
         "queue_baseline -> relay_followup",
@@ -81,9 +81,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline dependency view docs reference",
         ok,
         (
-            "features docs expose the global DAG dependency view evidence command"
+            "features docs expose the multi-app DAG dependency view evidence command"
             if ok
-            else "features docs do not expose the global DAG dependency view evidence command"
+            else "features docs do not expose the multi-app DAG dependency view evidence command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,

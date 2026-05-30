@@ -902,9 +902,9 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "meteo_forecast_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_legacy_project",
         "weather_forecast_project",
     ]
     assert "data_connector_app_catalogs_discovery" in check["details"]["check_ids"]
@@ -919,8 +919,8 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     assert check["status"] == "pass"
     assert check["details"]["checked_app_count"] == 12
     assert check["details"]["template_only_exemptions"] == {
-        "global_dag_project": "cross-app DAG template preview with no concrete worker merge output",
-        "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
+        "multi_app_dag_project": "cross-app DAG template preview with no concrete worker merge output",
+        "minimal_app_project": "starter template with placeholder worker hooks and no concrete merge output",
     }
     assert check["details"]["failures"] == []
 

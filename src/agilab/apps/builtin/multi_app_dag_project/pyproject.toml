@@ -1,0 +1,15 @@
+[project]
+name = "multi_app_dag_project"
+version = "2026.05.30"
+description = "Built-in AGILAB multi-app DAG example project"
+requires-python = ">=3.11"
+dependencies = ["agi-env>=2026.05.30", "agi-node>=2026.05.30", "agi-cluster>=2026.05.30", "polars>=1.35,<2", "pydantic>=2.11,<2.13", "streamlit>=1.56,<1.57"]
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
+agi-cluster = { path = "../../../core/agi-cluster", editable = true }
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

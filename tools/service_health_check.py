@@ -32,7 +32,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "and exit non-zero when health gates fail."
         )
     )
-    parser.add_argument("--app", required=True, help="App name (for example: mycode_project).")
+    parser.add_argument("--app", required=True, help="App name (for example: minimal_app_project).")
     parser.add_argument(
         "--apps-path",
         default=str(_default_apps_path()),

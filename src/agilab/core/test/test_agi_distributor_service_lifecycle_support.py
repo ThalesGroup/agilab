@@ -15,8 +15,8 @@ from agi_node.agi_dispatcher import BaseWorker
 _BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
 
 
-def _mycode_env(*, verbose: int = 0) -> AgiEnv:
-    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="mycode_project", verbose=verbose)
+def _minimal_app_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="minimal_app_project", verbose=verbose)
 
 # Set AGI verbosity low to avoid extra prints during test.
 AGI.verbose = 0
@@ -66,7 +66,7 @@ def _reset_agi_service_state():
         "verbose": AGI.verbose,
     }
 
-    env = _mycode_env()
+    env = _minimal_app_env()
     AGI._args = None
     AGI._dask_client = None
     AGI._dask_workers = None
@@ -191,7 +191,7 @@ def test_wrap_worker_chunk_handles_non_list_and_out_of_range_index():
 
 
 def test_prepare_service_worker_args_sets_queue_bound_service_args(tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._args = {"alpha": 1}
     AGI._service_apply_queue_root(tmp_path / "queue", create=True)
 
@@ -204,7 +204,7 @@ def test_prepare_service_worker_args_sets_queue_bound_service_args(tmp_path):
 
 
 def test_submit_service_worker_inits_submits_new_for_each_worker(tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     client = _FakeClient(["127.0.0.1:8787", "127.0.0.1:8788"])
     AGI._args = {"alpha": 1}
     AGI._mode = AGI.DASK_MODE
@@ -226,11 +226,11 @@ def test_submit_service_worker_inits_submits_new_for_each_worker(tmp_path):
     assert len(submit_calls) == 2
     assert submit_calls[0]["kwargs"]["worker_id"] == 0
     assert submit_calls[1]["kwargs"]["worker_id"] == 1
-    assert submit_calls[1]["kwargs"]["key"] == "agi-test-init-mycode-127.0.0.1-8788"
+    assert submit_calls[1]["kwargs"]["key"] == "agi-test-init-minimal_app-127.0.0.1-8788"
 
 
 def test_submit_service_loops_returns_worker_future_map():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     client = _FakeClient(["127.0.0.1:8787"])
     AGI._service_poll_interval = 2.5
 
@@ -245,19 +245,19 @@ def test_submit_service_loops_returns_worker_future_map():
     assert list(futures.keys()) == ["127.0.0.1:8787"]
     loop_call = [entry for entry in client.submissions if entry["fn"] == "loop"][0]
     assert loop_call["kwargs"]["poll_interval"] == 2.5
-    assert loop_call["kwargs"]["key"] == "agi-loop-loop-mycode-127.0.0.1-8787"
+    assert loop_call["kwargs"]["key"] == "agi-loop-loop-minimal_app-127.0.0.1-8787"
 
 
 @pytest.mark.asyncio
 async def test_service_restart_workers_returns_empty_for_empty_input():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     restarted = await AGI._service_restart_workers(env, client=_FakeClient([]), workers_to_restart=[])
     assert restarted == []
 
 
 @pytest.mark.asyncio
 async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._args = {"sample": 1}
     AGI._mode = AGI.DASK_MODE
     AGI._service_poll_interval = 0.2
@@ -298,7 +298,7 @@ async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, 
 
 @pytest.mark.asyncio
 async def test_service_restart_workers_propagates_unexpected_break_loop_bug(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._args = {"sample": 1}
     AGI._mode = AGI.DASK_MODE
     AGI._service_poll_interval = 0.2
@@ -327,7 +327,7 @@ async def test_service_restart_workers_propagates_unexpected_break_loop_bug(monk
 
 @pytest.mark.asyncio
 async def test_service_auto_restart_unhealthy_returns_empty_without_workers(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_workers = []
 
     async def _connected(_client):
@@ -340,7 +340,7 @@ async def test_service_auto_restart_unhealthy_returns_empty_without_workers(monk
 
 @pytest.mark.asyncio
 async def test_service_auto_restart_unhealthy_restarts_and_persists(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_workers = []
     calls = {"write": 0}
 
@@ -368,7 +368,7 @@ async def test_service_auto_restart_unhealthy_restarts_and_persists(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_path, monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_dir = tmp_path / "service_queue"
     queue_dir.mkdir(parents=True, exist_ok=True)
 
@@ -403,7 +403,7 @@ async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_p
 
 @pytest.mark.asyncio
 async def test_service_recover_without_stale_cleanup_keeps_state_on_failure(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     state_path = AGI._service_state_path(env)
     AGI._service_write_state(
         env,
@@ -430,7 +430,7 @@ async def test_service_recover_without_stale_cleanup_keeps_state_on_failure(monk
 
 @pytest.mark.asyncio
 async def test_service_recover_propagates_unexpected_attribute_error(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_write_state(
         env,
         {
@@ -455,7 +455,7 @@ async def test_service_recover_propagates_unexpected_attribute_error(monkeypatch
 
 @pytest.mark.asyncio
 async def test_service_recover_fails_when_no_workers_attached(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_write_state(
         env,
         {
@@ -486,7 +486,7 @@ async def test_service_recover_fails_when_no_workers_attached(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_status_idle_when_not_started():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     status = await AGI.serve(env, action="status")
     assert status["status"] == "idle"
     assert status["workers"] == []
@@ -498,14 +498,14 @@ async def test_agi_serve_status_idle_when_not_started():
 
 @pytest.mark.asyncio
 async def test_agi_serve_rejects_invalid_action():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     with pytest.raises(ValueError, match=r"action must be"):
         await AGI.serve(env, action="invalid-action")
 
 
 @pytest.mark.asyncio
 async def test_agi_serve_stop_returns_idle_when_nothing_to_stop(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     calls = {"stop": 0, "clean": 0}
     AGI._dask_client = _FakeClient([])
     AGI._jobs = object()
@@ -534,7 +534,7 @@ async def test_agi_serve_stop_returns_idle_when_nothing_to_stop(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_stop_returns_error_when_client_missing(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._dask_client = None
     AGI._jobs = object()
     AGI._service_futures = {"w1": _FakeFuture("running")}
@@ -555,7 +555,7 @@ async def test_agi_serve_stop_returns_error_when_client_missing(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_stop_handles_empty_targets_and_shuts_down(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._dask_client = _FakeClient([])
     AGI._service_futures = {}
     AGI._service_workers = []
@@ -582,7 +582,7 @@ async def test_agi_serve_stop_handles_empty_targets_and_shuts_down(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_health_action_writes_json(tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     health_path = tmp_path / "export" / "health.json"
     payload = await AGI.serve(env, action="health", health_output_path=health_path)
     assert payload["schema"] == "agi.service.health.v1"
@@ -596,7 +596,7 @@ async def test_agi_serve_health_action_writes_json(tmp_path):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_status_stop_supports_agidataworker(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "AgiDataWorker"
     fake_client = _FakeClient(["127.0.0.1:8787"])
 
@@ -644,7 +644,7 @@ async def test_agi_serve_start_status_stop_supports_agidataworker(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_reuses_recovered_service(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_workers = ["127.0.0.1:8787"]
     AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
 
@@ -668,7 +668,7 @@ async def test_agi_serve_start_reuses_recovered_service(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_rejects_invalid_workers_type(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
 
     async def _recover(_env, allow_stale_cleanup=False):
         return False
@@ -680,7 +680,7 @@ async def test_agi_serve_start_rejects_invalid_workers_type(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_rejects_modes_without_dask(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
 
     async def _recover(_env, allow_stale_cleanup=False):
         return False
@@ -692,7 +692,7 @@ async def test_agi_serve_start_rejects_modes_without_dask(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_rejects_invalid_mode_string(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
 
     async def _recover(_env, allow_stale_cleanup=False):
         return False
@@ -704,7 +704,7 @@ async def test_agi_serve_start_rejects_invalid_mode_string(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_rejects_invalid_mode_type(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
 
     async def _recover(_env, allow_stale_cleanup=False):
         return False
@@ -716,7 +716,7 @@ async def test_agi_serve_start_rejects_invalid_mode_type(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_uses_sync_when_client_already_running(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "PandasWorker"
     AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
     calls = {"sync": 0}
@@ -744,7 +744,7 @@ async def test_agi_serve_start_uses_sync_when_client_already_running(monkeypatch
 
 @pytest.mark.asyncio
 async def test_agi_serve_start_raises_when_client_not_obtained(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "PandasWorker"
     AGI._dask_client = None
 
@@ -763,7 +763,7 @@ async def test_agi_serve_start_raises_when_client_not_obtained(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_serve_rejects_unsupported_base_worker():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "UnknownWorker"
     with pytest.raises(ValueError, match=r"Unsupported base worker class"):
         await AGI.serve(
@@ -776,7 +776,7 @@ async def test_agi_serve_rejects_unsupported_base_worker():
 
 @pytest.mark.asyncio
 async def test_agi_serve_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "Sb3TrainerWorker"
     env._base_worker_module = "sb3_trainer_worker"
     fake_client = _FakeClient(["127.0.0.1:8787"])
@@ -817,7 +817,7 @@ async def test_agi_serve_resolves_sb3_trainer_worker_to_dag_group(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agi_submit_requires_running_service():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     with pytest.raises(RuntimeError, match=r"Service is not running"):
         await AGI.submit(env, work_plan=[], work_plan_metadata=[])
 
@@ -831,7 +831,7 @@ async def test_agi_submit_requires_env_when_not_initialized():
 
 @pytest.mark.asyncio
 async def test_agi_submit_fails_when_dask_client_is_unavailable():
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_futures = {"w1": _FakeFuture("running")}
     AGI._service_workers = ["w1"]
     AGI._dask_client = None
@@ -841,7 +841,7 @@ async def test_agi_submit_fails_when_dask_client_is_unavailable():
 
 @pytest.mark.asyncio
 async def test_agi_submit_rejects_invalid_workers_type_when_running(tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_futures = {"w1": _FakeFuture("running")}
     AGI._service_workers = ["w1"]
     AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
@@ -857,7 +857,7 @@ async def test_agi_submit_rejects_invalid_workers_type_when_running(tmp_path):
 
 @pytest.mark.asyncio
 async def test_agi_submit_builds_distribution_when_plan_missing(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_futures = {"w1": _FakeFuture("running")}
     AGI._service_workers = ["w1"]
     AGI._dask_client = _FakeClient(["127.0.0.1:8787"])
@@ -877,7 +877,7 @@ async def test_agi_submit_builds_distribution_when_plan_missing(monkeypatch, tmp
 
 @pytest.mark.asyncio
 async def test_agi_submit_queues_tasks_for_service_workers(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "AgiDataWorker"
     fake_client = _FakeClient(["127.0.0.1:8787"])
 
@@ -932,7 +932,7 @@ async def test_agi_submit_queues_tasks_for_service_workers(monkeypatch, tmp_path
 
 @pytest.mark.asyncio
 async def test_agi_serve_status_recovers_persistent_state(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_dir = tmp_path / "service_queue"
     for name in ("pending", "running", "done", "failed"):
         (queue_dir / name).mkdir(parents=True, exist_ok=True)
@@ -973,7 +973,7 @@ async def test_agi_serve_status_recovers_persistent_state(monkeypatch, tmp_path)
 
 @pytest.mark.asyncio
 async def test_agi_submit_recovers_persistent_state(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_dir = tmp_path / "service_queue"
     for name in ("pending", "running", "done", "failed"):
         (queue_dir / name).mkdir(parents=True, exist_ok=True)
@@ -1021,7 +1021,7 @@ async def test_agi_submit_recovers_persistent_state(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_agi_status_auto_restarts_stale_heartbeat(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_dir = tmp_path / "service_queue"
     for name in ("pending", "running", "done", "failed", "heartbeats"):
         (queue_dir / name).mkdir(parents=True, exist_ok=True)
@@ -1086,7 +1086,7 @@ async def test_agi_service_real_dask_e2e_self_heal_submit_stop(monkeypatch, tmp_
     local_cluster = distributed.LocalCluster
     client_cls = distributed.Client
 
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "AgiDataWorker"
 
     cluster = local_cluster(
@@ -1185,7 +1185,7 @@ async def test_agi_service_real_dask_e2e_self_heal_submit_stop(monkeypatch, tmp_
 
 @pytest.mark.asyncio
 async def test_service_recover_missing_scheduler_cleans_stale_state(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_root = tmp_path / "queue"
     queue_root.mkdir(parents=True, exist_ok=True)
     calls = {"cleared": 0, "reset": 0}
@@ -1223,7 +1223,7 @@ async def test_service_recover_missing_scheduler_cleans_stale_state(monkeypatch,
 
 @pytest.mark.asyncio
 async def test_serve_status_reports_missing_client_and_future_states(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_workers = ["w-finished", "w-running"]
     AGI._service_futures = {
         "w-finished": _FakeFuture(status="finished"),
@@ -1281,7 +1281,7 @@ async def test_serve_status_reports_missing_client_and_future_states(monkeypatch
 
 @pytest.mark.asyncio
 async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypatch):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._dask_client = SimpleNamespace(
         submit=lambda *_args, **_kwargs: _FakeFuture(status="submitted"),
         gather=lambda *_args, **_kwargs: None,
@@ -1340,7 +1340,7 @@ async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypat
 
 @pytest.mark.asyncio
 async def test_serve_start_rejects_duplicate_service_loops(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     AGI._service_futures = {"w1": _FakeFuture(status="running")}
 
     async def _fake_recover(*_args, **_kwargs):
@@ -1354,7 +1354,7 @@ async def test_serve_start_rejects_duplicate_service_loops(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch):
-    env = _mycode_env()
+    env = _minimal_app_env()
     AGI._service_futures = {}
     AGI._service_state = None
     AGI._worker_default = {"127.0.0.1": 1}
@@ -1393,7 +1393,7 @@ async def test_serve_start_uses_worker_default_when_workers_missing(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_submit_initializes_queue_and_raises_without_active_service_workers(monkeypatch, tmp_path):
-    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="mycode_project", verbose=0)
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI.env = env
     AGI._service_queue_pending = None
     AGI._service_futures = {}

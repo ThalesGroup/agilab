@@ -229,7 +229,7 @@ def build_three_project_demo(mp4: Path, gif: Path, poster: Path) -> None:
 
         write_loop_mp4(intro, 2.0, intro_mp4)
         build_variant(data_mp4, tmpdir / "data.gif", tmpdir / "data_poster.png", variant_key="execution_pandas")
-        build_variant(ml_mp4, tmpdir / "ml.gif", tmpdir / "ml_poster.png", variant_key="meteo_forecast")
+        build_variant(ml_mp4, tmpdir / "ml.gif", tmpdir / "ml_poster.png", variant_key="weather_forecast_legacy")
         build_variant(rl_mp4, tmpdir / "rl.gif", tmpdir / "rl_poster.png", variant_key="uav_queue")
         write_loop_mp4(outro, 2.4, outro_mp4)
 

@@ -35,7 +35,7 @@ Quick start (dev checkout):
   - Compares a candidate bundle against a baseline bundle, applies explicit evidence gates, and exports `promotion_decision.json`.
 
 - view_shap_explanation
-  - uv run streamlit run src/agilab/apps-pages/view_shap_explanation/src/view_shap_explanation/view_shap_explanation.py -- --active-app src/agilab/apps/builtin/mycode_project
+  - uv run streamlit run src/agilab/apps-pages/view_shap_explanation/src/view_shap_explanation/view_shap_explanation.py -- --active-app src/agilab/apps/builtin/minimal_app_project
   - Displays local feature-attribution evidence exported by SHAPKit, the modern `shap` package, or a compatible custom explainer.
 
 - view_queue_resilience

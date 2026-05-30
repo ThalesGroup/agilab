@@ -828,7 +828,7 @@ def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contra
     )
     expected_projects = {
         "flight_telemetry": "flight_telemetry_from_notebook_project",
-        "mycode": "mycode_from_notebook_project",
+        "minimal_app": "minimal_app_from_notebook_project",
         "weather_forecast": "weather_forecast_from_notebook_project",
         "mission_decision": "mission_decision_from_notebook_project",
     }
@@ -1090,10 +1090,10 @@ def test_notebook_import_metadata_prefills_create_defaults():
 def test_notebook_project_source_options_include_apps_before_templates(tmp_path: Path):
     module = _load_project_module()
     (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)
-    (tmp_path / "mycode_project").mkdir()
+    (tmp_path / "minimal_app_project").mkdir()
     env = SimpleNamespace(
         app="flight_telemetry_project",
-        projects=["flight_telemetry_project", "mycode_project"],
+        projects=["flight_telemetry_project", "minimal_app_project"],
         apps_path=tmp_path,
     )
 
@@ -1102,7 +1102,7 @@ def test_notebook_project_source_options_include_apps_before_templates(tmp_path:
         ["pandas_app_template", "flight_telemetry_project"],
     ) == [
         "flight_telemetry_project",
-        "mycode_project",
+        "minimal_app_project",
         "pandas_app_template",
     ]
 
@@ -1111,7 +1111,7 @@ def test_notebook_project_source_options_skip_app_sources_without_apps_path():
     module = _load_project_module()
     env = SimpleNamespace(
         app="flight_telemetry_project",
-        projects=["flight_telemetry_project", "mycode_project"],
+        projects=["flight_telemetry_project", "minimal_app_project"],
     )
 
     assert module._notebook_project_source_options(env, ["pandas_app_template"]) == [
@@ -1374,27 +1374,27 @@ def test_active_notebook_import_source_uses_selected_packaged_sample():
     module = _load_project_module()
     session_state: dict[str, object] = {
         module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY: True,
-        module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY: "mycode",
+        module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY: "minimal_app",
     }
 
     source = module._active_notebook_import_source(session_state)
     notebook = json.loads(module._read_uploaded_notebook_bytes(source).decode("utf-8"))
 
-    assert source.name == "mycode_from_notebook.ipynb"
+    assert source.name == "minimal_app_from_notebook.ipynb"
     assert source.type == "application/x-ipynb+json"
-    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == "mycode_project"
+    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == "minimal_app_project"
     assert notebook["metadata"]["agilab"]["import"]["project_name_hint"] == (
-        "mycode-from-notebook-project"
+        "minimal_app-from-notebook-project"
     )
     assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
-    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY] == "mycode"
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_ID_KEY] == "minimal_app"
 
 
 def test_notebook_import_query_seed_selects_packaged_sample():
     module = _load_project_module()
     session_state: dict[str, object] = {}
     query_params = {
-        "active_app": "mycode_project",
+        "active_app": "minimal_app_project",
         "start": "notebook-import",
         "sample": "agilab-first-proof",
     }

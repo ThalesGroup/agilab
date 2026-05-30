@@ -25,12 +25,12 @@ def test_change_app_reinitializes_on_change(monkeypatch, env):
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
     flight_path = apps_path / 'flight_telemetry_project'
     env.app = flight_path
-    mycode_name = "mycode_path"
+    minimal_app_name = "minimal_app_path"
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_app(mycode_name)
+        env.change_app(minimal_app_name)
     assert called['count'] == 1
     assert called['kwargs'].get('apps_path') == apps_path
-    assert called['kwargs'].get('app') == mycode_name
+    assert called['kwargs'].get('app') == minimal_app_name
     assert 'install_type' not in called['kwargs']
 
 def test_change_app_noop_when_same_app(monkeypatch, env):

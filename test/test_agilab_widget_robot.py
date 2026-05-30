@@ -1077,7 +1077,7 @@ def test_seed_public_demo_artifacts_skips_unknown_targets(tmp_path) -> None:
     share_root = tmp_path / "share"
 
     module.seed_public_demo_artifacts(
-        "mycode_project",
+        "minimal_app_project",
         export_root=export_root,
         share_root=share_root,
     )
@@ -1361,12 +1361,12 @@ def test_workflow_artifact_helpers_cover_query_paths_and_bad_contracts(tmp_path)
     assert run_log in module._snapshot_workflow_run_logs(context).files
 
     file_root_context = module.WorkflowArtifactContext(
-        app_name="meteo_forecast_project",
-        active_app_query="meteo_forecast_project",
+        app_name="weather_forecast_legacy_project",
+        active_app_query="weather_forecast_legacy_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
-    file_root = tmp_path / "log" / "execute" / "meteo_forecast"
+    file_root = tmp_path / "log" / "execute" / "weather_forecast_legacy"
     file_root.parent.mkdir(parents=True, exist_ok=True)
     file_root.write_text("single log root", encoding="utf-8")
     assert file_root in module._snapshot_workflow_run_logs(file_root_context).files
@@ -1754,8 +1754,8 @@ def test_orchestrate_artifact_validation_covers_skip_and_unchanged_failures(tmp_
         cluster_share_root=tmp_path / "clustershare",
     )
     no_output_context = module.OrchestrateArtifactContext(
-        app_name="mycode_project",
-        active_app_query="mycode_project",
+        app_name="minimal_app_project",
+        active_app_query="minimal_app_project",
         home_root=tmp_path,
         export_root=export_root,
         share_root=share_root,
@@ -3361,7 +3361,7 @@ def test_probe_selected_actions_first_allows_known_no_output_placeholder_app(tmp
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="mycode_project",
+            app_name="minimal_app_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export", "Load output", "Delete output"],

@@ -156,13 +156,13 @@ def test_app_provider_registry_defensive_edges(tmp_path: Path) -> None:
 
 
 def test_resolve_installed_app_project_accepts_slug_provider_and_project_name(tmp_path: Path) -> None:
-    project = tmp_path / "mycode_project"
+    project = tmp_path / "minimal_app_project"
     project.mkdir()
     (project / "src").mkdir()
     (project / "src" / "app_settings.toml").write_text("", encoding="utf-8")
-    installed = [InstalledAppProject(name="mycode_project", project_root=project, provider="mycode")]
+    installed = [InstalledAppProject(name="minimal_app_project", project_root=project, provider="minimal_app")]
 
-    assert resolve_installed_app_project("mycode", projects=installed) == project
-    assert resolve_installed_app_project("mycode_project", projects=installed) == project
+    assert resolve_installed_app_project("minimal_app", projects=installed) == project
+    assert resolve_installed_app_project("minimal_app_project", projects=installed) == project
     assert resolve_installed_app_project("other", projects=installed) is None
     assert resolve_installed_app_project("", projects=installed) is None

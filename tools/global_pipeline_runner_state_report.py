@@ -62,7 +62,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG runner state report",
+        "multi-app DAG runner state report",
         "tools/global_pipeline_runner_state_report.py --compact",
         "runnable/blocked",
         "retry and partial-rerun metadata",
@@ -80,9 +80,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline runner state docs reference",
         ok,
         (
-            "features docs expose the global DAG runner state evidence command"
+            "features docs expose the multi-app DAG runner state evidence command"
             if ok
-            else "features docs do not expose the global DAG runner state evidence command"
+            else "features docs do not expose the multi-app DAG runner state evidence command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,
@@ -141,7 +141,6 @@ def build_report(
 
     state_details = state.as_dict()
     units = state_details["state_units"]
-    by_id = {unit["id"]: unit for unit in units}
     transitions = _transition_pairs(units)
     required_transitions = {
         ("pending", "runnable"),

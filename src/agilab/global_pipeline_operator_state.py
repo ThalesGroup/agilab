@@ -21,7 +21,7 @@ from agilab.global_pipeline_dispatch_state import (
 
 
 SCHEMA = "agilab.global_pipeline_operator_state.v1"
-DEFAULT_RUN_ID = "global-dag-operator-state-proof"
+DEFAULT_RUN_ID = "multi-app-dag-operator-state-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:06Z"
 UPDATED_AT = "2026-04-25T00:00:06Z"

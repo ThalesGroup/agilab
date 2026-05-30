@@ -43,6 +43,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
+from agi_pages.runtime import reset_scoped_session_state
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
 from agi_gui.pagelib import render_logo
@@ -198,14 +199,14 @@ def _session_app_scope_key(env: AgiEnv) -> str:
 
 def _reset_app_scoped_session_defaults(streamlit: Any, env: AgiEnv) -> None:
     current_scope = _session_app_scope_key(env)
-    scope_key = "release_decision_app_scope"
-    previous_scope = streamlit.session_state.get(scope_key)
-    if previous_scope == current_scope:
-        return
-    if previous_scope is not None:
-        for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
-            streamlit.session_state.pop(key, None)
-    streamlit.session_state[scope_key] = current_scope
+    reset_scoped_session_state(
+        streamlit.session_state,
+        "release_decision_app_scope",
+        current_scope,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        clear_on_first_scope=False,
+        normalize_scope=False,
+    )
 
 
 def _dedupe_paths(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:

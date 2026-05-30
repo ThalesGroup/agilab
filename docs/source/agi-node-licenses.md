@@ -17,11 +17,11 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-env | 2026.5.25 | BSD-3-Clause |
+| agi-env | 2026.5.30 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | backports-zstd | 1.3.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
-| cython | 3.2.5 | APACHE-2.0 |
+| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
 | humanize | 4.15.0 | MIT |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -29,17 +29,18 @@ Audit notes:
 | pandas | 2.3.3 | BSD LICENSE |
 | parso | 0.8.6 | MIT LICENSE |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| polars | 1.41.0 | MIT LICENSE |
-| polars-runtime-32 | 1.41.0 | MIT LICENSE |
+| polars | 1.40.1 | MIT LICENSE |
+| polars-runtime-32 | 1.40.1 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
-| py7zr | 1.1.0 | LGPL-2.1-OR-LATER |
+| py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
-| pydantic | 2.13.3 | MIT |
-| pydantic-core | 2.46.3 | MIT |
-| pyppmd | 1.3.1 | LGPL-2.1-OR-LATER |
+| pydantic | 2.12.5 | MIT |
+| pydantic-core | 2.41.5 | MIT |
+| pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
+| pyzstd | 0.19.1 | BSD LICENSE |
 | setuptools | 81.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |

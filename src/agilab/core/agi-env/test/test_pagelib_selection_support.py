@@ -264,9 +264,9 @@ def test_resolve_active_app_support_prefers_query_param_and_fallback_last_app(tm
 
     env = SimpleNamespace(
         apps_path=apps_root,
-        app="mycode_project",
+        app="minimal_app_project",
         projects=["flight_telemetry_project"],
-        active_app=apps_root / "mycode_project",
+        active_app=apps_root / "minimal_app_project",
         change_app=lambda path: changed_to.append(path)
         or setattr(env, "active_app", path)
         or setattr(env, "app", path.name),

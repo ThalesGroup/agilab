@@ -37,7 +37,7 @@ apps/
             packages_flight.dot
             pyproject.toml
             README.md
-        mycode_project/
+        minimal_app_project/
             .venv/ [excluded]
             agilab/
                 core/
@@ -51,17 +51,17 @@ apps/
                                         [max depth reached]
             Modules/ [excluded]
             src/
-                mycode/
+                minimal_app/
                     __pycache__/ [excluded]
                     __init__.py
                     app_args.py
-                    mycode.py
-                    mycode_args.py
-                mycode_worker/
+                    minimal_app.py
+                    minimal_app_args.py
+                minimal_app_worker/
                     __pycache__/ [excluded]
                     __init__.py
-                    mycode_worker.py
-                    mycode_worker.pyx
+                    minimal_app_worker.py
+                    minimal_app_worker.pyx
                 app_args_form.py
                 app_settings.toml
                 pre_prompt.json
@@ -430,9 +430,9 @@ examples/
     flight/
         AGI_install_flight_telemetry.py
         AGI_run_flight_telemetry.py
-    mycode/
-        AGI_install_mycode.py
-        AGI_run_mycode.py
+    minimal_app/
+        AGI_install_minimal_app.py
+        AGI_run_minimal_app.py
 pages/
     __pycache__/ [excluded]
     1_PROJECT.py

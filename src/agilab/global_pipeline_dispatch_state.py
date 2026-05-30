@@ -15,7 +15,7 @@ from agilab.global_pipeline_runner_state import build_runner_state
 
 
 SCHEMA = "agilab.global_pipeline_dispatch_state.v1"
-DEFAULT_RUN_ID = "global-dag-dispatch-proof"
+DEFAULT_RUN_ID = "multi-app-dag-dispatch-proof"
 PERSISTENCE_FORMAT = "json"
 SIMULATED_CREATED_AT = "2026-04-25T00:00:00Z"
 SIMULATED_QUEUE_COMPLETED_AT = "2026-04-25T00:00:01Z"
@@ -236,7 +236,7 @@ def build_dispatch_state(
             "unit_id": "",
             "from_status": "",
             "to_status": "created",
-            "detail": "persistent global DAG dispatch state created",
+            "detail": "persistent multi-app DAG dispatch state created",
         }
     ]
     artifacts: list[dict[str, str]] = []

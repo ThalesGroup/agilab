@@ -416,7 +416,7 @@ Current packaging policy is conservative:
   examples, agents, MLflow, visualization, local-LLM, offline, and dev profiles.
 - Promoted app payloads live in per-app packages such as
   `agi-app-mission-decision`, `agi-app-pandas-execution`,
-  `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
+  `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-app-dag`,
   `agi-app-weather-forecast`, `agi-app-pytorch-playground`,
   `agi-app-tescia-diagnostic`, and `agi-app-uav-relay-queue`;
   `agi-apps` is the umbrella catalog/example package

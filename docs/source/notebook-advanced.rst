@@ -62,7 +62,7 @@ published package.
   `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
 
 Both launchers clone the repository, prepare an isolated runtime venv, and run
-the built-in MyCode example app (internal id ``mycode_project``) without
+the built-in Minimal App example app (internal id ``minimal_app_project``) without
 mutating the base notebook kernel packages.
 
 Kaggle note: enable Internet in the notebook settings for the first install.
@@ -71,7 +71,7 @@ Other notebook entry points
 ---------------------------
 
 - `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
-  benchmarks the built-in MyCode example app across the default AGILAB mode
+  benchmarks the built-in Minimal App example app across the default AGILAB mode
   sweep and renders a ranked comparison table.
 - `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
   is the advanced source notebook for a data-worker app and a DAG-style app.
@@ -130,7 +130,7 @@ Cell 1: create the built-in app environment and local request.
        notebook_log_root,
    )
 
-   APP = "mycode_project"  # built-in MyCode example app
+   APP = "minimal_app_project"  # built-in Minimal App example app
    app_env = notebook_app_env(APP, verbose=1)
    request = notebook_local_request()
    print("App:", app_env.app)

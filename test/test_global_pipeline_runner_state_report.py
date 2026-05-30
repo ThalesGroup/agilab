@@ -274,7 +274,7 @@ def test_runner_state_helper_and_failure_edges(tmp_path: Path, monkeypatch) -> N
         now="2026-05-17T00:00:00Z",
     )
     assert result.ok is False
-    assert result.message == "No runnable global DAG unit is available to dispatch."
+    assert result.message == "No runnable multi-app DAG unit is available to dispatch."
     assert result.state["units"] == [
         {"id": "blocked", "dispatch_status": "blocked"},
         {"id": "done", "dispatch_status": "completed"},

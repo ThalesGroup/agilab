@@ -178,8 +178,8 @@ def test_builtin_app_args_form_renders_without_streamlit_exception(
     assert not at.exception
 
 
-def test_mycode_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
-    settings_file = tmp_path / "mycode_project" / "app_settings.toml"
+def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
+    settings_file = tmp_path / "minimal_app_project" / "app_settings.toml"
     settings_file.parent.mkdir()
     settings_file.write_text("[args]\n", encoding="utf-8")
     env = _BuiltinFormEnv(
@@ -188,7 +188,7 @@ def test_mycode_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
     )
 
     at = AppTest.from_file(
-        "src/agilab/apps/builtin/mycode_project/src/app_args_form.py",
+        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py",
         default_timeout=20,
     )
     at.session_state["env"] = env
@@ -197,14 +197,14 @@ def test_mycode_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
     at.run()
 
     assert not at.exception
-    assert at.text_input(key="mycode_project:app_args_form:data_in").value == "mycode/dataset"
-    assert at.text_input(key="mycode_project:app_args_form:data_out").value == "mycode/dataframe"
-    assert at.text_input(key="mycode_project:app_args_form:files").value == "*"
+    assert at.text_input(key="minimal_app_project:app_args_form:data_in").value == "minimal_app/dataset"
+    assert at.text_input(key="minimal_app_project:app_args_form:data_out").value == "minimal_app/dataframe"
+    assert at.text_input(key="minimal_app_project:app_args_form:files").value == "*"
 
-    at.text_input(key="mycode_project:app_args_form:files").set_value("*.csv")
-    at.number_input(key="mycode_project:app_args_form:nfile").set_value(3)
-    at.number_input(key="mycode_project:app_args_form:nskip").set_value(2)
-    at.checkbox(key="mycode_project:app_args_form:reset_target").set_value(True)
+    at.text_input(key="minimal_app_project:app_args_form:files").set_value("*.csv")
+    at.number_input(key="minimal_app_project:app_args_form:nfile").set_value(3)
+    at.number_input(key="minimal_app_project:app_args_form:nskip").set_value(2)
+    at.checkbox(key="minimal_app_project:app_args_form:reset_target").set_value(True)
     at.run()
 
     assert not at.exception

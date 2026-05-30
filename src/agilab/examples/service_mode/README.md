@@ -8,7 +8,7 @@
 ## Purpose
 
 Shows how to reason about AGILAB service mode before starting persistent
-workers. The example uses `mycode_project` as the smallest public target and
+workers. The example uses `minimal_app_project` as the smallest public target and
 previews the operator lifecycle:
 
 ```text
@@ -32,7 +32,7 @@ call `AGI.serve` or launch a service.
 ## Install
 
 There is no separate project install for this preview. Install AGILAB and the
-public built-in apps first. Use `mycode_project` when you later want the
+public built-in apps first. Use `minimal_app_project` when you later want the
 smallest real service target.
 
 ## Run
@@ -58,9 +58,9 @@ python preview_service_mode.py
 ## Expected Input
 
 The script reads the built-in
-`mycode_project/service_templates/sample_health_running.json` health payload:
+`minimal_app_project/service_templates/sample_health_running.json` health payload:
 
-- app: `mycode_project`
+- app: `minimal_app_project`
 - status: `running`
 - running workers: `1`
 - unhealthy workers: `0`

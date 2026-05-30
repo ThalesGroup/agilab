@@ -20,11 +20,11 @@ PAGE_PATH = (
 def _create_demo_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
-    project_dir = apps_dir / "mycode_project"
-    (project_dir / "src" / "mycode").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='mycode-project'\n", encoding="utf-8")
+    project_dir = apps_dir / "minimal_app_project"
+    (project_dir / "src" / "minimal_app").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text("[project]\nname='minimal_app_project'\n", encoding="utf-8")
     (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
-    (project_dir / "src" / "mycode" / "__init__.py").write_text("", encoding="utf-8")
+    (project_dir / "src" / "minimal_app" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
 
 
@@ -59,7 +59,7 @@ def _load_shap_helpers() -> ModuleType:
 
 def test_view_shap_explanation_renders_exported_artifacts(tmp_path: Path, monkeypatch) -> None:
     project_dir = _create_demo_project(tmp_path)
-    artifact_dir = tmp_path / "export" / "mycode" / "shap_explanation"
+    artifact_dir = tmp_path / "export" / "minimal_app" / "shap_explanation"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "shap_values.csv").write_text(
         "feature,shap_value\nage,0.46\npriors_count,-0.09\nethnicity,0.15\n",
@@ -110,7 +110,7 @@ def test_view_shap_explanation_resets_stale_app_scoped_state(
 ) -> None:
     module = _load_shap_helpers()
     project_dir = _create_demo_project(tmp_path)
-    old_project = project_dir.parent / "old_mycode_project"
+    old_project = project_dir.parent / "old_minimal_app_project"
     old_project.mkdir()
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
 
@@ -126,9 +126,9 @@ def test_view_shap_explanation_resets_stale_app_scoped_state(
             apps_path=old_project.parent,
             app=old_project.name,
             AGILAB_EXPORT_ABS=str(tmp_path / "old-export"),
-            target="old_mycode",
+            target="old_minimal_app",
         )
-        at.session_state["shap_explanation_datadir"] = str(tmp_path / "old-export" / "old_mycode")
+        at.session_state["shap_explanation_datadir"] = str(tmp_path / "old-export" / "old_minimal_app")
         at.session_state["shap_values_glob"] = "old_values.csv"
         at.session_state["shap_feature_values_glob"] = "old_features.csv"
         at.session_state["shap_metadata_glob"] = "old_metadata.json"
@@ -137,7 +137,7 @@ def test_view_shap_explanation_resets_stale_app_scoped_state(
     assert not at.exception
     assert at.session_state[module.APP_SCOPE_KEY] == str(project_dir.resolve())
     assert at.session_state["shap_explanation_datadir"] == str(
-        tmp_path / "export" / "mycode" / "shap_explanation"
+        tmp_path / "export" / "minimal_app" / "shap_explanation"
     )
     assert at.session_state["shap_values_glob"] == "**/shap_values.*"
     assert at.session_state["shap_feature_values_glob"] == "**/feature_values.*"
@@ -150,7 +150,7 @@ def test_view_shap_explanation_warns_when_shap_values_are_missing(
     monkeypatch,
 ) -> None:
     project_dir = _create_demo_project(tmp_path)
-    artifact_dir = tmp_path / "export" / "mycode" / "shap_explanation"
+    artifact_dir = tmp_path / "export" / "minimal_app" / "shap_explanation"
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "explanation_summary.json").write_text("{}", encoding="utf-8")
 

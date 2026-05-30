@@ -56,8 +56,8 @@ Profile app/page sets:
   - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
 - `advanced`
   - apps: `execution_pandas_project`, `execution_polars_project`,
-    `flight_telemetry_project`, `global_dag_project`,
-    `mission_decision_project`, `mycode_project`, `tescia_diagnostic_project`,
+    `flight_telemetry_project`, `multi_app_dag_project`,
+    `mission_decision_project`, `minimal_app_project`, `tescia_diagnostic_project`,
     `uav_queue_project`, `uav_relay_queue_project`,
     `weather_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
@@ -77,7 +77,7 @@ Before every deploy, compare the profile app/page lists in
 ```bash
 find <agilab-checkout>/src/agilab/apps/builtin -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
 find <agilab-checkout>/src/agilab/apps-pages -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
-rg -n "flight_project|meteo_forecast_project|data_io_2026_project|view_uav_queue_analysis|view_uav_relay_queue_analysis" \
+rg -n "flight_project|weather_forecast_legacy_project|data_io_2026_project|view_uav_queue_analysis|view_uav_relay_queue_analysis" \
   <apps-repo>/huggingface <agilab-checkout>/.claude/skills/agilab-huggingface-spaces <agilab-checkout>/.codex/skills/agilab-huggingface-spaces
 rg -n "flight_telemetry_project|weather_forecast_project|mission_decision_project" <apps-repo>/huggingface
 ```
@@ -298,12 +298,12 @@ hf download "$space" pyproject.toml README.md Dockerfile \
   --revision "$space_sha" \
   --local-dir "$tmpdir"
 rg -n '^version = |^name = ' "$tmpdir/pyproject.toml"
-rg -n 'Anti-lock-in|anti-lock-in|agi-core|core runtime|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
+rg -n 'Anti-lock-in|anti-lock-in|agi-core|core runtime|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|weather_forecast_legacy_project|AGILAB_HF_BUILTIN_APPS' \
   "$tmpdir/README.md" "$tmpdir/Dockerfile"
 ```
 
 Treat an old `pyproject.toml` version, missing current app IDs, or stale app IDs
-such as `flight_project`, `meteo_forecast_project`, or `data_io_2026_project`
+such as `flight_project`, `weather_forecast_legacy_project`, or `data_io_2026_project`
 in deployed profile files as a failed alignment, even if the live HTTP smoke passes. Treat
 missing anti-lock-in / `agi-core` notebook-export copy as a Space-card
 alignment failure, even when the runtime itself is healthy.

@@ -137,7 +137,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-global-dag"
+    directory: "/src/agilab/lib/agi-app-multi-app-dag"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -170,7 +170,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-uav-queue-project"
+    directory: "/src/agilab/lib/agi-app-uav-queue"
     schedule:
       interval: "weekly"
       day: "monday"

@@ -57,7 +57,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG execution plan report",
+        "multi-app DAG execution plan report",
         "tools/global_pipeline_execution_plan_report.py --compact",
         "pending/not_executed",
     ]
@@ -74,9 +74,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline execution plan docs reference",
         ok,
         (
-            "features docs expose the global DAG execution plan evidence command"
+            "features docs expose the multi-app DAG execution plan evidence command"
             if ok
-            else "features docs do not expose the global DAG execution plan evidence command"
+            else "features docs do not expose the multi-app DAG execution plan evidence command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,
@@ -152,7 +152,7 @@ def build_report(
             "Global pipeline execution plan order",
             list(plan.execution_order) == ["queue_baseline", "relay_followup"]
             and [unit["id"] for unit in units] == ["queue_baseline", "relay_followup"],
-            "execution plan preserves global DAG order",
+            "execution plan preserves multi-app DAG order",
             evidence=[plan.dag_path],
             details={
                 "execution_order": list(plan.execution_order),

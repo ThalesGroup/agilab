@@ -56,6 +56,7 @@ bundle and is distributed on PyPI as both a wheel and source distribution:
 - ``agi-page-geospatial-map``
 - ``agi-page-geospatial-3d``
 - ``agi-page-network-map``
+- ``agi-page-routing-model-comparison``
 - ``agi-page-queue-health``
 - ``agi-page-relay-health``
 - ``agi-page-scenario-cockpit``
@@ -94,18 +95,18 @@ recommended use cases, see :doc:`public-app-catalog`.
 - ``agi-app-pandas-execution``
 - ``agi-app-polars-execution``
 - ``agi-app-flight-telemetry``
-- ``agi-app-global-dag``
+- ``agi-app-multi-app-dag``
 - ``agi-app-weather-forecast``
 - ``agi-app-sklearn-pipeline``
 - ``agi-app-pytorch-playground``
 - ``agi-app-tescia-diagnostic``
-- ``agi-app-uav-queue-project``
+- ``agi-app-uav-queue``
 - ``agi-app-uav-relay-queue``
 
 Ten app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
-``agi-app-global-dag``, ``agi-app-weather-forecast``,
+``agi-app-multi-app-dag``, ``agi-app-weather-forecast``,
 ``agi-app-sklearn-pipeline``, ``agi-app-pytorch-playground``,
 ``agi-app-tescia-diagnostic``, and ``agi-app-uav-relay-queue``. The
 remaining app project payload is also built as wheel and source-distribution
@@ -127,7 +128,7 @@ app entry points from wheel metadata, file hashes, and advertised
 provenance/signature status. ``APPS_REPOSITORY`` remains the source-checkout
 mechanism for external app repositories.
 
-``mycode_project`` is not published as a separate ``agi-app-*`` distribution.
+``minimal_app_project`` is not published as a separate ``agi-app-*`` distribution.
 It is the single base starter template bundled inside ``agi-apps`` so packaged
 users can inspect or copy a minimal app scaffold without treating it as a
 standalone demo package.
@@ -152,10 +153,10 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
   Streamlit page dependencies for the local web interface, plus ``agi-apps``,
   its per-app project dependencies, and ``agi-pages`` so the UI opens with
-  the base ``mycode_project`` template, promoted app packages, and analysis
+  the base ``minimal_app_project`` template, promoted app packages, and analysis
   views available.
 - ``pip install "agilab[examples]"`` installs ``agi-apps`` and its per-app
-  project dependencies plus the base ``mycode_project`` starter template and
+  project dependencies plus the base ``minimal_app_project`` starter template and
   notebook/demo helper dependencies for public packaged examples.
 - ``pip install "agilab[pages]"`` installs ``agi-pages`` for analysis page
   bundle discovery without also pulling public built-in apps.
@@ -351,6 +352,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-page-network-map``
+   * - ``agi-page-routing-model-comparison``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-page-routing-model-comparison``
    * - ``agi-page-queue-health``
      - ``ThalesGroup``
      - ``agilab``
@@ -426,11 +432,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-flight-telemetry``
-   * - ``agi-app-global-dag``
+   * - ``agi-app-multi-app-dag``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-global-dag``
+     - ``pypi-agi-app-multi-app-dag``
    * - ``agi-app-weather-forecast``
      - ``ThalesGroup``
      - ``agilab``
@@ -451,11 +457,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-tescia-diagnostic``
-   * - ``agi-app-uav-queue-project``
+   * - ``agi-app-uav-queue``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-uav-queue-project``
+     - ``pypi-agi-app-uav-queue``
    * - ``agi-app-uav-relay-queue``
      - ``ThalesGroup``
      - ``agilab``
@@ -516,6 +522,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-page-geospatial-map``
 - ``pypi-agi-page-geospatial-3d``
 - ``pypi-agi-page-network-map``
+- ``pypi-agi-page-routing-model-comparison``
 - ``pypi-agi-page-queue-health``
 - ``pypi-agi-page-relay-health``
 - ``pypi-agi-page-scenario-cockpit``
@@ -528,12 +535,12 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-app-pandas-execution``
 - ``pypi-agi-app-polars-execution``
 - ``pypi-agi-app-flight-telemetry``
-- ``pypi-agi-app-global-dag``
+- ``pypi-agi-app-multi-app-dag``
 - ``pypi-agi-app-weather-forecast``
 - ``pypi-agi-app-sklearn-pipeline``
 - ``pypi-agi-app-pytorch-playground``
 - ``pypi-agi-app-tescia-diagnostic``
-- ``pypi-agi-app-uav-queue-project``
+- ``pypi-agi-app-uav-queue``
 - ``pypi-agi-app-uav-relay-queue``
 - ``pypi-agi-apps``
 - ``pypi-agilab``

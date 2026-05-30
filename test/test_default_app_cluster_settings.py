@@ -20,7 +20,7 @@ from agilab.app_template_registry import discover_app_templates
 
 SINGLE_WORKER_PROJECTS = {
     "pytorch_playground_project",
-    "r_stage_smoke_project",
+    "r_runtime_bridge_project",
     "sklearn_pipeline_project",
 }
 

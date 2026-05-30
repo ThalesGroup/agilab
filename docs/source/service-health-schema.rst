@@ -95,7 +95,7 @@ From the AGILab repository, run:
 .. code-block:: bash
 
    uv run python tools/service_health_check.py \
-     --app mycode_project \
+     --app minimal_app_project \
      --apps-path src/agilab/apps/builtin
 
 Optional flags:

@@ -63,7 +63,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG operator state report",
+        "multi-app DAG operator state report",
         "tools/global_pipeline_operator_state_report.py --compact",
         "operator-visible state",
         "retry/partial-rerun actions",
@@ -81,9 +81,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline operator state docs reference",
         ok,
         (
-            "features docs expose the global DAG operator state evidence command"
+            "features docs expose the multi-app DAG operator state evidence command"
             if ok
-            else "features docs do not expose the global DAG operator state evidence command"
+            else "features docs do not expose the multi-app DAG operator state evidence command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,

@@ -347,6 +347,10 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/apps-pages/view_maps_network"
     editable = true
 
+[tool.uv.sources.agi-page-routing-model-comparison]
+    path = "./src/agilab/apps-pages/view_routing_model_comparison"
+    editable = true
+
 [tool.uv.sources.agi-page-queue-health]
     path = "./src/agilab/apps-pages/view_queue_resilience"
     editable = true
@@ -395,8 +399,8 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-app-flight-telemetry"
     editable = true
 
-[tool.uv.sources.agi-app-global-dag]
-    path = "./src/agilab/lib/agi-app-global-dag"
+[tool.uv.sources.agi-app-multi-app-dag]
+    path = "./src/agilab/lib/agi-app-multi-app-dag"
     editable = true
 
 [tool.uv.sources.agi-app-weather-forecast]
@@ -415,8 +419,8 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-app-tescia-diagnostic"
     editable = true
 
-[tool.uv.sources.agi-app-uav-queue-project]
-    path = "./src/agilab/lib/agi-app-uav-queue-project"
+[tool.uv.sources.agi-app-uav-queue]
+    path = "./src/agilab/lib/agi-app-uav-queue"
     editable = true
 
 [tool.uv.sources.agi-app-uav-relay-queue]

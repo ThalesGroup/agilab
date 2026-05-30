@@ -63,7 +63,7 @@ def _check_result(
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     doc_path = repo_root / DOC_RELATIVE_PATH
     required = [
-        "global DAG dispatch state report",
+        "multi-app DAG dispatch state report",
         "tools/global_pipeline_dispatch_state_report.py --compact",
         "queue_baseline completed",
         "relay_followup runnable",
@@ -82,9 +82,9 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "Global pipeline dispatch state docs reference",
         ok,
         (
-            "features docs expose the global DAG dispatch state evidence command"
+            "features docs expose the multi-app DAG dispatch state evidence command"
             if ok
-            else "features docs do not expose the global DAG dispatch state evidence command"
+            else "features docs do not expose the multi-app DAG dispatch state evidence command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,
@@ -105,7 +105,7 @@ def _load_failure_report(dag_path: Path | None, exc: Exception) -> dict[str, Any
         "status": "fail",
         "scope": (
             "Builds, writes, and reads back a persisted JSON dispatch-state "
-            "proof for the global DAG. It simulates the first dispatch "
+            "proof for the multi-app DAG. It simulates the first dispatch "
             "transition without executing apps."
         ),
         "dag_path": str(dag_path or SAMPLE_DAG_RELATIVE_PATH),
@@ -272,7 +272,7 @@ def build_report(
         "status": "pass" if failed == 0 else "fail",
         "scope": (
             "Builds, writes, and reads back a persisted JSON dispatch-state "
-            "proof for the global DAG. It simulates queue_baseline completion "
+            "proof for the multi-app DAG. It simulates queue_baseline completion "
             "and relay_followup unblocking without executing apps."
         ),
         "dag_path": state.get("source", {}).get("dag_path", str(dag_path or SAMPLE_DAG_RELATIVE_PATH)),

@@ -28,12 +28,12 @@ APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-app-pandas-execution", "src/agilab/lib/agi-app-pandas-execution"),
     ("agi-app-polars-execution", "src/agilab/lib/agi-app-polars-execution"),
     ("agi-app-flight-telemetry", "src/agilab/lib/agi-app-flight-telemetry"),
-    ("agi-app-global-dag", "src/agilab/lib/agi-app-global-dag"),
+    ("agi-app-multi-app-dag", "src/agilab/lib/agi-app-multi-app-dag"),
     ("agi-app-weather-forecast", "src/agilab/lib/agi-app-weather-forecast"),
     ("agi-app-sklearn-pipeline", "src/agilab/lib/agi-app-sklearn-pipeline"),
     ("agi-app-pytorch-playground", "src/agilab/lib/agi-app-pytorch-playground"),
     ("agi-app-tescia-diagnostic", "src/agilab/lib/agi-app-tescia-diagnostic"),
-    ("agi-app-uav-queue-project", "src/agilab/lib/agi-app-uav-queue-project"),
+    ("agi-app-uav-queue", "src/agilab/lib/agi-app-uav-queue"),
     ("agi-app-uav-relay-queue", "src/agilab/lib/agi-app-uav-relay-queue"),
 )
 
@@ -42,7 +42,7 @@ PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
     "agi-app-pandas-execution",
     "agi-app-polars-execution",
     "agi-app-flight-telemetry",
-    "agi-app-global-dag",
+    "agi-app-multi-app-dag",
     "agi-app-weather-forecast",
     "agi-app-sklearn-pipeline",
     "agi-app-pytorch-playground",

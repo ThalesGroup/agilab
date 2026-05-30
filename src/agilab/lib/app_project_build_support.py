@@ -34,10 +34,10 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
         "package": "agi_app_flight_telemetry",
     },
     {
-        "project": "global_dag_project",
-        "slug": "global_dag",
-        "distribution": "agi-app-global-dag",
-        "package": "agi_app_global_dag",
+        "project": "multi_app_dag_project",
+        "slug": "multi_app_dag",
+        "distribution": "agi-app-multi-app-dag",
+        "package": "agi_app_multi_app_dag",
     },
     {
         "project": "weather_forecast_project",
@@ -66,8 +66,8 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
         "project": "uav_queue_project",
         "slug": "uav_queue",
-        "distribution": "agi-app-uav-queue-project",
-        "package": "agi_app_uav_queue_project",
+        "distribution": "agi-app-uav-queue",
+        "package": "agi_app_uav_queue",
     },
     {
         "project": "uav_relay_queue_project",
@@ -77,7 +77,7 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     },
 )
 
-BASE_BUILTIN_TEMPLATE_PROJECTS: tuple[str, ...] = ("mycode_project",)
+BASE_BUILTIN_TEMPLATE_PROJECTS: tuple[str, ...] = ("minimal_app_project",)
 
 _EXCLUDED_PAYLOAD_DIRS = {
     ".mypy_cache",

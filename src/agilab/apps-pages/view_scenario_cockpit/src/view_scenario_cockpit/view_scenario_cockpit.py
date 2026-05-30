@@ -15,6 +15,7 @@ from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     resolve_active_app_path,
+    reset_scoped_session_state,
 )
 
 
@@ -89,13 +90,12 @@ def _default_artifact_root(env: AgiEnv) -> Path:
 def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
     """Clear persisted widget defaults when Scenario Cockpit switches apps."""
 
-    app_scope = str(active_app_path.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
-        st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+    )
 
 
 def _coerce_selection(saved_value: Any, options: list[str], *, fallback: list[str] | None = None) -> list[str]:

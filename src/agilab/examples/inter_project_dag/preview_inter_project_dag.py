@@ -27,9 +27,9 @@ DAG_PATH = (
     _PACKAGE_ROOT
     / "apps"
     / "builtin"
-    / "global_dag_project"
+    / "multi_app_dag_project"
     / "dag_templates"
-    / "flight_to_weather_global_dag.json"
+    / "flight_to_weather_multi_app_dag.json"
 )
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "inter_project_dag" / "runner_state.json"
 RUN_ID = "inter-project-dag-preview"

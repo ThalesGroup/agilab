@@ -224,7 +224,7 @@ def test_bootstrap_colab_core_prepares_paths_and_installs_core_packages(monkeypa
     assert str(core_node / "src") in os.environ["PYTHONPATH"]
     assert os.environ["PYTHONPATH"].endswith("existing_path")
 
-    env = SimpleNamespace(active_app=repo_root / "src" / "agilab" / "apps" / "builtin" / "mycode_project")
+    env = SimpleNamespace(active_app=repo_root / "src" / "agilab" / "apps" / "builtin" / "minimal_app_project")
     ctx.ensure_env_core_packages(env)
     ctx.ensure_env_core_packages(env)
 
@@ -248,11 +248,11 @@ def test_bootstrap_colab_core_prepares_paths_and_installs_core_packages(monkeypa
 
 def test_ensure_env_core_packages_uses_resolved_active_app():
     calls: list[Path] = []
-    env = SimpleNamespace(active_app=Path("/repo/src/agilab/apps/builtin/mycode_project"))
+    env = SimpleNamespace(active_app=Path("/repo/src/agilab/apps/builtin/minimal_app_project"))
 
     colab_support.ensure_env_core_packages(lambda app_root: calls.append(app_root), env)
 
-    assert calls == [Path("/repo/src/agilab/apps/builtin/mycode_project")]
+    assert calls == [Path("/repo/src/agilab/apps/builtin/minimal_app_project")]
 
 
 @pytest.mark.asyncio

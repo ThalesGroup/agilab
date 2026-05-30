@@ -138,7 +138,7 @@ class PandasWorker(BaseWorker):
             ncore = 1
 
         logging.info(
-            f"PandasWorker.work - ncore {ncore} - mycode_worker #{self._worker_id}"
+            f"PandasWorker.work - ncore {ncore} - minimal_app_worker #{self._worker_id}"
             f" - work_pool x {len(works)}",
         )
 
@@ -148,13 +148,8 @@ class PandasWorker(BaseWorker):
             df = pd.DataFrame()
             ncore = max(min(len(work), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
 
-            if os.name == "nt":
-                process_factory_type = "spawn"
-            else:
-                process_factory_type = "spawn"
-
             # Note: multiprocessing context commented out, as ThreadPoolExecutor is used
-            # mp_ctx = multiprocessing.get_context(process_factory_type)
+            # mp_ctx = multiprocessing.get_context("spawn")
 
             with ProcessPoolExecutor(
                 # mp_context=mp_ctx,

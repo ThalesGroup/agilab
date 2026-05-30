@@ -1956,17 +1956,17 @@ def test_workflow_dag_project_keeps_dataframe_load_export_controls_hidden(tmp_pa
         },
         clear=False,
     ):
-        env = AgiEnv(apps_path=apps_dir, app="global_dag_project", verbose=0)
+        env = AgiEnv(apps_path=apps_dir, app="multi_app_dag_project", verbose=0)
         env.init_done = True
         env.st_resources = (
             Path(__file__).resolve().parents[1] / "src/agilab/resources"
         ).resolve()
-        env.get_projects = MagicMock(return_value=["global_dag_project"])
+        env.get_projects = MagicMock(return_value=["multi_app_dag_project"])
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=30)
         at.session_state["env"] = env
-        at.session_state["global_dag_project"] = [0, "", "", "", "", ""]
-        at.session_state["global_dag"] = [0, "", "", "", "", ""]
-        at.session_state["global_dag_project__venv_map"] = {}
+        at.session_state["multi_app_dag_project"] = [0, "", "", "", "", ""]
+        at.session_state["multi_app_dag"] = [0, "", "", "", "", ""]
+        at.session_state["multi_app_dag_project__venv_map"] = {}
 
         at.run()
 

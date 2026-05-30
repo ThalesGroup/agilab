@@ -63,6 +63,7 @@ UI and page packages
    agi-page-geospatial-map <agi-page-geospatial-map-licenses>
    agi-page-geospatial-3d <agi-page-geospatial-3d-licenses>
    agi-page-network-map <agi-page-network-map-licenses>
+   agi-page-routing-model-comparison <agi-page-routing-model-comparison-licenses>
    agi-page-queue-health <agi-page-queue-health-licenses>
    agi-page-relay-health <agi-page-relay-health-licenses>
    agi-page-scenario-cockpit <agi-page-scenario-cockpit-licenses>
@@ -82,11 +83,11 @@ App packages
    agi-app-pandas-execution <agi-app-pandas-execution-licenses>
    agi-app-polars-execution <agi-app-polars-execution-licenses>
    agi-app-flight-telemetry <agi-app-flight-telemetry-licenses>
-   agi-app-global-dag <agi-app-global-dag-licenses>
+   agi-app-multi-app-dag <agi-app-multi-app-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
    agi-app-sklearn-pipeline <agi-app-sklearn-pipeline-licenses>
    agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
    agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
-   agi-app-uav-queue-project <agi-app-uav-queue-project-licenses>
+   agi-app-uav-queue <agi-app-uav-queue-licenses>
    agi-app-uav-relay-queue <agi-app-uav-relay-queue-licenses>
    agi-apps <agi-apps-licenses>

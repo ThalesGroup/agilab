@@ -1490,8 +1490,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             else:
                 add(f"{{text}}_project")
             aliases = {{
-                "meteo_forecast": ("weather_forecast", "weather_forecast_project"),
-                "weather_forecast": ("meteo_forecast", "meteo_forecast_project"),
+                "weather_forecast_legacy": ("weather_forecast", "weather_forecast_project"),
+                "weather_forecast": ("weather_forecast_legacy", "weather_forecast_legacy_project"),
             }}
             for candidate in list(candidates):
                 base = candidate.removesuffix("_project") if candidate.endswith("_project") else candidate

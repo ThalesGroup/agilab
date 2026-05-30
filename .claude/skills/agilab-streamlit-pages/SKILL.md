@@ -224,7 +224,7 @@ Use this skill when editing:
 - Treat `DagWorker`, known DAG-derived workers such as `Sb3TrainerWorker`, and
   custom `*Dag*Worker` base names as DAG-capable for UI decisions.
 - Keep name-token fallbacks narrow and explicit for planning-only or synthetic apps
-  that intentionally have no DAG worker base yet, such as global DAG draft/demo
+  that intentionally have no DAG worker base yet, such as multi-app DAG draft/demo
   projects.
 - Reuse one helper for DAG detection across sidebars, execute controls, and
   distribution/workplan rendering. Do not leave page-local string checks such as

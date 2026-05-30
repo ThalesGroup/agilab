@@ -20,7 +20,7 @@ from agilab.global_pipeline_operator_actions import (
 
 
 SCHEMA = "agilab.global_pipeline_operator_ui.v1"
-DEFAULT_RUN_ID = "global-dag-operator-ui-proof"
+DEFAULT_RUN_ID = "multi-app-dag-operator-ui-proof"
 PERSISTENCE_FORMAT = "json+html"
 CREATED_AT = "2026-04-25T00:00:19Z"
 UPDATED_AT = "2026-04-25T00:00:19Z"
@@ -215,9 +215,9 @@ def build_operator_ui(
         {
             "id": "status_banner",
             "component": "status_banner",
-            "title": "Global DAG status",
+            "title": "Multi-app DAG status",
             "state": operator_actions.get("run_status", ""),
-            "message": "Global DAG action replay evidence is ready.",
+            "message": "Multi-app DAG action replay evidence is ready.",
         },
         {
             "id": "unit_cards",
@@ -297,9 +297,9 @@ def render_operator_ui_html(operator_ui: Mapping[str, Any]) -> str:
     iterable_components = components if isinstance(components, list) else []
     parts = [
         "<!doctype html>",
-        "<html><head><meta charset=\"utf-8\"><title>AGILAB Global DAG Operator UI</title></head>",
-        "<body><main data-agilab-component=\"global-dag-operator-ui\">",
-        "<h1>AGILAB Global DAG Operator UI</h1>",
+        "<html><head><meta charset=\"utf-8\"><title>AGILAB Multi-app DAG Operator UI</title></head>",
+        "<body><main data-agilab-component=\"multi-app-dag-operator-ui\">",
+        "<h1>AGILAB Multi-app DAG Operator UI</h1>",
     ]
     for component in iterable_components:
         if not isinstance(component, dict):

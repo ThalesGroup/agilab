@@ -67,7 +67,7 @@ except ModuleNotFoundError:
 
 try:
     from settings_support import (
-        coerce_str_list as _coerce_str_list,
+        coerce_str_list as _coerce_str_list,  # noqa: F401
         first_nonempty_setting as _get_first_nonempty_setting,
         get_view_maps_page_settings as _page_settings_from_app_settings,
         setting_list as _get_setting_list,
@@ -78,6 +78,7 @@ except ModuleNotFoundError:
     if page_dir_str not in sys.path:
         sys.path.insert(0, page_dir_str)
     from settings_support import (
+        coerce_str_list as _coerce_str_list,  # noqa: F401
         first_nonempty_setting as _get_first_nonempty_setting,
         get_view_maps_page_settings as _page_settings_from_app_settings,
         setting_list as _get_setting_list,
@@ -124,6 +125,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
+from agi_pages.runtime import reset_scoped_session_state
 from agi_env import AgiEnv
 import agi_gui.pagelib as pagelib
 from agi_gui.pagelib import render_logo
@@ -241,16 +243,13 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
 def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
     """Clear Maps Network state that belongs to a specific active app."""
 
-    app_scope = str(active_app_path.resolve())
-    if st.session_state.get(APP_SCOPE_KEY) == app_scope:
-        return False
-    for key in list(st.session_state.keys()):
-        if key in APP_SCOPED_SESSION_DEFAULT_KEYS or any(
-            key.startswith(prefix) for prefix in APP_SCOPED_SESSION_KEY_PREFIXES
-        ):
-            st.session_state.pop(key, None)
-    st.session_state[APP_SCOPE_KEY] = app_scope
-    return True
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
 
 
 def _render_app_page_context(app: str, active_app: Path) -> None:

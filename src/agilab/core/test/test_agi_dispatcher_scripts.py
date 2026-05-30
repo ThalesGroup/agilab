@@ -556,7 +556,7 @@ def test_post_try_link_dir_keeps_matching_symlink_and_rejects_sample_dir(tmp_pat
 
 def test_post_dataset_archive_candidates_deduplicates(tmp_path):
     class DummyEnv:
-        share_target_name = "mycode"
+        share_target_name = "minimal_app"
         dataset_archive = tmp_path / "dataset.7z"
         agilab_pck = tmp_path
 
@@ -785,7 +785,7 @@ def test_post_try_link_dir_windows_junction_fallbacks(tmp_path, monkeypatch):
 
 def test_post_dataset_archive_candidates_handles_resolve_failure(monkeypatch, tmp_path):
     class DummyEnv:
-        share_target_name = "mycode"
+        share_target_name = "minimal_app"
         dataset_archive = tmp_path / "dataset.7z"
         agilab_pck = tmp_path
 
@@ -806,7 +806,7 @@ def test_post_dataset_archive_candidates_handles_resolve_failure(monkeypatch, tm
 
 def test_post_dataset_archive_candidates_propagates_unexpected_resolve_bug(monkeypatch, tmp_path):
     class DummyEnv:
-        share_target_name = "mycode"
+        share_target_name = "minimal_app"
         dataset_archive = tmp_path / "dataset.7z"
         agilab_pck = tmp_path
 
@@ -824,15 +824,15 @@ def test_post_dataset_archive_candidates_propagates_unexpected_resolve_bug(monke
 
 
 def test_post_dataset_archive_candidates_skips_non_path_and_duplicate_packaged_archive(tmp_path):
-    packaged = tmp_path / "apps" / "mycode_project" / "src" / "mycode_worker" / "dataset.7z"
+    packaged = tmp_path / "apps" / "minimal_app_project" / "src" / "minimal_app_worker" / "dataset.7z"
 
     class NonPathEnv:
-        share_target_name = "mycode"
+        share_target_name = "minimal_app"
         dataset_archive = "dataset.7z"
         agilab_pck = tmp_path
 
     class DuplicateEnv:
-        share_target_name = "mycode"
+        share_target_name = "minimal_app"
         dataset_archive = packaged
         agilab_pck = tmp_path
 

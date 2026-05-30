@@ -23,7 +23,7 @@ from agilab.global_pipeline_runner_state import build_runner_state
 
 
 SCHEMA = "agilab.global_pipeline_app_dispatch_smoke.v1"
-DEFAULT_RUN_ID = "global-dag-real-dispatch-smoke"
+DEFAULT_RUN_ID = "multi-app-dag-real-dispatch-smoke"
 QUEUE_UNIT_ID = "queue_baseline"
 RELAY_UNIT_ID = "relay_followup"
 REAL_UNIT_ID = QUEUE_UNIT_ID
@@ -277,7 +277,7 @@ def run_queue_baseline_app(
         manager_class_name="UavQueue",
         args_class_name="UavQueueArgs",
         worker_class_name="UavQueueWorker",
-        target="global_dag_dispatch_smoke_queue",
+        target="multi_app_dag_dispatch_smoke_queue",
         app_entry="uav_queue.UavQueue + uav_queue_worker.UavQueueWorker",
     )
 
@@ -297,7 +297,7 @@ def run_relay_followup_app(
         manager_class_name="UavRelayQueue",
         args_class_name="UavRelayQueueArgs",
         worker_class_name="UavRelayQueueWorker",
-        target="global_dag_dispatch_smoke_relay",
+        target="multi_app_dag_dispatch_smoke_relay",
         app_entry="uav_relay_queue.UavRelayQueue + uav_relay_queue_worker.UavRelayQueueWorker",
     )
     result["consumed_artifacts"] = [
@@ -500,7 +500,7 @@ def build_app_dispatch_smoke_state(
             unit_id="",
             from_status="",
             to_status="created",
-            detail="real global DAG app dispatch smoke created",
+            detail="real multi-app DAG app dispatch smoke created",
         ),
         _event(
             timestamp=QUEUE_STARTED_AT,

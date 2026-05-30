@@ -452,7 +452,7 @@ def sample_candidate_artifacts() -> list[dict[str, Any]]:
         *sample_baseline_artifacts(),
         {
             "id": "forecast_metrics",
-            "path": "meteo_forecast/forecast_metrics.json",
+            "path": "weather_forecast_legacy/forecast_metrics.json",
             "status": "present",
         },
         {

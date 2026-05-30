@@ -75,6 +75,74 @@ def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> Non
     assert runtime.safe_metric(1.23456, digits=2) == "1.23"
 
 
+def test_agi_pages_runtime_resets_app_scoped_session_state(tmp_path: Path) -> None:
+    first_app = tmp_path / "first"
+    second_app = tmp_path / "second"
+    first_app.mkdir()
+    second_app.mkdir()
+    state = {
+        "scope": str(first_app.resolve()),
+        "keep": "global",
+        "exact": "stale",
+        "page:widget": "stale",
+        "other:widget": "global",
+    }
+
+    assert (
+        runtime.reset_scoped_session_state(
+            state,
+            "scope",
+            second_app,
+            keys=("exact",),
+            prefixes=("page:",),
+        )
+        is True
+    )
+
+    assert state == {
+        "scope": str(second_app.resolve()),
+        "keep": "global",
+        "other:widget": "global",
+    }
+    assert (
+        runtime.reset_scoped_session_state(
+            state,
+            "scope",
+            second_app,
+            keys=("exact",),
+            prefixes=("page:",),
+        )
+        is False
+    )
+
+
+def test_agi_pages_runtime_resets_can_preserve_first_scope(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    app.mkdir()
+    state = {"page:value": "warm-start"}
+
+    changed = runtime.reset_scoped_session_state(
+        state,
+        "scope",
+        app,
+        prefixes=("page:",),
+        clear_on_first_scope=False,
+    )
+
+    assert changed is True
+    assert state == {"page:value": "warm-start", "scope": str(app.resolve())}
+
+
+def test_agi_pages_runtime_infers_env_app_scope(tmp_path: Path) -> None:
+    app = tmp_path / "apps" / "demo"
+    app.mkdir(parents=True)
+
+    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app)) == str(app.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app)) == str(app.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(apps_path=app.parent, app=app.name)) == str(app.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace()) is None
+
+
 def test_agi_pages_runtime_ensure_repo_on_path(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"

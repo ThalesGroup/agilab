@@ -11,6 +11,7 @@ keywords = [
     "analysis",
     "routing",
     "page-bundle",
+    "reproducibility",
 ]
 dependencies = [
     "agi-pages>=2026.05.25,<2027.0",
