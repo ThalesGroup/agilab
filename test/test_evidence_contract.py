@@ -727,6 +727,8 @@ def test_defensive_helper_branches_and_export_errors(tmp_path: Path, monkeypatch
 def test_proof_capsule_invalid_archive_and_signature_edges(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
 
+    assert module.default_signature_path(tmp_path / "run.agipack") == tmp_path / "run.agipack.sig.json"
+
     missing_report = module.verify_proof_capsule(tmp_path / "missing.agipack")
     assert missing_report["status"] == "fail"
     assert missing_report["checks"][0]["id"] == "capsule_exists"
@@ -735,6 +737,8 @@ def test_proof_capsule_invalid_archive_and_signature_edges(tmp_path: Path, monke
     bad_zip.write_text("not a zip", encoding="utf-8")
     bad_zip_report = module.verify_proof_capsule(bad_zip)
     assert any(check["id"] == "zip_readable" and check["status"] == "fail" for check in bad_zip_report["checks"])
+    with pytest.raises(ValueError, match="does not verify"):
+        module.sign_proof_capsule(bad_zip, tmp_path / "key.pem")
 
     no_manifest = tmp_path / "no-manifest.agipack"
     with zipfile.ZipFile(no_manifest, "w") as archive:
@@ -880,3 +884,171 @@ def test_proof_capsule_invalid_archive_and_signature_edges(tmp_path: Path, monke
     assert module._safe_archive_member_name("dir/") is False
     assert module._safe_int("bad", default=-1) == -1
     assert module._ascii_bytes("é") == b""
+
+
+def test_proof_capsule_remaining_cli_and_crypto_edges(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    manifest_path = _write_run_manifest(tmp_path)
+    capsule_path = tmp_path / "run.agipack"
+    module.write_proof_capsule(manifest_path, capsule_path)
+
+    with pytest.raises(SystemExit, match="Signature verification requires"):
+        module.main(["verify", str(manifest_path), "--signature", str(tmp_path / "missing.sig")])
+    with pytest.raises(SystemExit, match="expects a run_manifest.json"):
+        module.main(["prove", str(capsule_path)])
+
+    assert module.main(["policy-check", str(capsule_path), "--json"]) == 0
+    policy_payload = json.loads(capsys.readouterr().out)
+    assert policy_payload["source_capsule"] == str(capsule_path)
+
+    assert module.main(["cards", str(capsule_path), "--json"]) == 0
+    cards_payload = json.loads(capsys.readouterr().out)
+    assert cards_payload["source_capsule"] == str(capsule_path)
+
+    store_path = tmp_path / "capsule-store.json"
+    assert module.main(["metadata-store", str(capsule_path), "--store", str(store_path), "--json"]) == 0
+    store_payload = json.loads(capsys.readouterr().out)
+    assert store_payload["entries"][0]["source_capsule"] == str(capsule_path)
+
+    with zipfile.ZipFile(tmp_path / "payload.zip", "w") as archive:
+        archive.writestr("payload.json", "[]")
+    with zipfile.ZipFile(tmp_path / "payload.zip") as archive:
+        with pytest.raises(ValueError, match="JSON object"):
+            module._read_archive_json(archive, "payload.json")
+
+    class BrokenArchive:
+        def __init__(self, _path):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def namelist(self):
+            return [module.PROOF_CAPSULE_MANIFEST_FILENAME, "payload.txt"]
+
+        def read(self, name):
+            if name == module.PROOF_CAPSULE_MANIFEST_FILENAME:
+                return json.dumps(
+                    {
+                        "schema": module.PROOF_CAPSULE_SCHEMA,
+                        "entries": [
+                            {"path": "payload.txt", "sha256": "x", "size_bytes": 1}
+                        ],
+                    }
+                ).encode("utf-8")
+            raise KeyError(name)
+
+    broken_capsule = tmp_path / "broken.agipack"
+    broken_capsule.write_text("not really a zip", encoding="utf-8")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(module.zipfile, "ZipFile", BrokenArchive)
+        key_error_report = module.verify_proof_capsule(broken_capsule)
+    assert key_error_report["checks"][-1]["id"] == "capsule_required_files_present"
+
+    missing_key = tmp_path / "missing-key.pem"
+    with pytest.raises(FileNotFoundError, match="Missing signing key"):
+        module._load_ed25519_private_key(missing_key)
+
+    class FakePrivateKey:
+        @classmethod
+        def generate(cls):
+            return cls()
+
+        def private_bytes(self, **_kwargs):
+            return b"fake-private-key"
+
+    class FakePublicKey:
+        pass
+
+    class FakeSerialization:
+        class Encoding:
+            PEM = object()
+
+        class PrivateFormat:
+            PKCS8 = object()
+
+        class PublicFormat:
+            SubjectPublicKeyInfo = object()
+
+        @staticmethod
+        def NoEncryption():
+            return object()
+
+        @staticmethod
+        def load_pem_private_key(_payload, password):
+            return object()
+
+        @staticmethod
+        def load_pem_public_key(_payload):
+            return object()
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            module,
+            "_cryptography_ed25519",
+            lambda: (FakePrivateKey, FakePublicKey, FakeSerialization),
+        )
+        existing_key = tmp_path / "existing.pem"
+        existing_key.write_text("key", encoding="utf-8")
+        with pytest.raises(ValueError, match="Ed25519 PEM private"):
+            module._load_ed25519_private_key(existing_key)
+        with pytest.raises(ValueError, match="Ed25519 PEM public"):
+            module._load_ed25519_public_key_pem("not-ed25519")
+        with pytest.raises(FileExistsError, match="already exists"):
+            module._generate_ed25519_private_key(existing_key)
+
+        def raise_chmod(self, _mode):
+            raise OSError("chmod denied")
+
+        scoped.setattr(Path, "chmod", raise_chmod)
+        generated_key = module._generate_ed25519_private_key(
+            tmp_path / "generated.pem",
+            force=True,
+        )
+    assert generated_key.read_bytes() == b"fake-private-key"
+
+    assert module.load_trust_policy(None) == {}
+    unknown_policy = tmp_path / "trust.txt"
+    unknown_policy.write_text("schema='x'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="JSON or TOML"):
+        module.load_trust_policy(unknown_policy)
+
+    list_policy = tmp_path / "trust.json"
+    list_policy.write_text("[]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="must contain an object"):
+        module.load_trust_policy(list_policy)
+
+    toml_policy = tmp_path / "trust.toml"
+    toml_policy.write_text("schema='x'\n", encoding="utf-8")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(module, "tomllib", None)
+        with pytest.raises(RuntimeError, match="TOML trust policies"):
+            module.load_trust_policy(toml_policy)
+
+    unsupported_policy = tmp_path / "unsupported-policy.json"
+    unsupported_policy.write_text(json.dumps({"schema": "other"}), encoding="utf-8")
+    unsupported_checks = module._trust_policy_checks(
+        unsupported_policy,
+        {"signer": "alice", "issuer": "lab"},
+        capsule_sha256="capsule",
+        public_key_sha256="key",
+    )
+    assert unsupported_checks[0]["details"]["schema"] == "other"
+
+    assert module._policy_values(
+        {
+            "one": "alpha",
+            "many": ["beta", 3],
+            "other": {"nested": True},
+        },
+        "one",
+        "many",
+        "other",
+    ) == ["alpha", "beta", "3", "{'nested': True}"]
