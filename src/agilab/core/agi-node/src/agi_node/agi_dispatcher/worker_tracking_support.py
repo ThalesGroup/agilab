@@ -17,6 +17,8 @@ MLFLOW_TRACKING_URI_ENV = "MLFLOW_TRACKING_URI"
 MLFLOW_PARENT_RUN_ID_TAG = "mlflow.parentRunId"
 DEFAULT_MLFLOW_DB_NAME = "mlflow.db"
 DEFAULT_MLFLOW_ARTIFACT_DIR = "artifacts"
+TRACKING_OPTIONAL_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
+WORKER_RUN_BODY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 def prepare_worker_tracking_environment(
@@ -53,7 +55,7 @@ def prepare_worker_tracking_environment(
             default_db_name=DEFAULT_MLFLOW_DB_NAME,
         )
         tracking_uri = mlflow_store.sqlite_uri_for_path(db_path, os_name=os.name, path_cls=path_cls)
-    except Exception as exc:  # pragma: no cover - defensive tracking boundary
+    except TRACKING_OPTIONAL_BOUNDARY_EXCEPTIONS as exc:  # pragma: no cover - defensive tracking boundary
         _log_debug(logger_obj, "worker tracking disabled: failed to resolve MLflow URI: %s", exc)
         return None
 
@@ -126,7 +128,7 @@ def worker_tracking_run(
             yield worker_run
         # Worker code boundary: record failure metadata, then re-raise the
         # original worker exception without converting it into tracking success.
-        except Exception as exc:
+        except WORKER_RUN_BODY_EXCEPTIONS as exc:
             exit_exc_info = sys.exc_info()
             _log_tracking_metadata(
                 mlflow,
@@ -148,7 +150,7 @@ def worker_tracking_run(
             )
     # Defensive tracking boundary: MLflow startup is optional; if no worker run
     # was entered yet, disable tracking and let the worker continue.
-    except Exception as exc:
+    except TRACKING_OPTIONAL_BOUNDARY_EXCEPTIONS as exc:
         if worker_run is None:
             _log_debug(logger_obj, "worker tracking disabled: failed to start MLflow run: %s", exc)
             yield None
@@ -160,7 +162,7 @@ def worker_tracking_run(
         for context in reversed(entered_contexts):
             try:
                 context.__exit__(*exit_exc_info)
-            except Exception as exc:  # pragma: no cover - defensive tracking boundary
+            except TRACKING_OPTIONAL_BOUNDARY_EXCEPTIONS as exc:  # pragma: no cover - defensive tracking boundary
                 _log_debug(logger_obj, "worker tracking cleanup failed: %s", exc)
 
 

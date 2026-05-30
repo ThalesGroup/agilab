@@ -29,6 +29,9 @@ from typing import Any
 from agi_node.agi_dispatcher import BaseWorker
 
 
+_DAG_PARTITION_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
+
+
 class DagWorker(BaseWorker):
     """
     Minimal-change DAG worker:
@@ -232,7 +235,7 @@ class DagWorker(BaseWorker):
                 logging.info(f"Method {fn} for partition {pname} completed.")
             # Worker code boundary: DAG partitions execute app methods; log each
             # failed partition and continue collecting sibling partition results.
-            except Exception as exc:
+            except _DAG_PARTITION_BOUNDARY_EXCEPTIONS as exc:
                 logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
 
         # ._exec_multi_process doesn't need to return anything specific

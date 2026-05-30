@@ -56,6 +56,8 @@ from . import base_worker_runtime_support as runtime_support
 from . import base_worker_service_support as service_support
 
 logger = AgiLogger.get_logger(__name__)
+_WORKER_HOOK_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
+_WORKER_SERVICE_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 class BaseWorker(ArtifactContract, abc.ABC):
@@ -418,7 +420,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             base_method = BaseWorker.start
             if method and method is not base_method:
                 method()
-        except Exception:  # pragma: no cover - intentional hook boundary
+        except _WORKER_HOOK_BOUNDARY_EXCEPTIONS:  # pragma: no cover - intentional hook boundary
             logger.error("Worker start hook failed:\n%s", traceback.format_exc())
             raise
 
@@ -570,7 +572,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             _write_heartbeat("stopped")
             return {"status": "stopped", "runtime": time.time() - start_time}
 
-        except Exception as exc:  # pragma: no cover - intentional hook boundary
+        except _WORKER_SERVICE_BOUNDARY_EXCEPTIONS as exc:  # pragma: no cover - intentional hook boundary
             primary_exc = exc
             logger.exception("Service loop failed: %s", exc)
             raise
@@ -585,7 +587,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             if callable(stop_hook):
                 try:
                     stop_hook()
-                except Exception:  # pragma: no cover - intentional hook boundary
+                except _WORKER_HOOK_BOUNDARY_EXCEPTIONS:  # pragma: no cover - intentional hook boundary
                     logger.exception(
                         "Worker stop hook raised inside service loop", exc_info=True
                     )

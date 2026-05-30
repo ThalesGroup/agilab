@@ -399,21 +399,19 @@ Result: `7 passed`.
 
 | # | Category | Count | Status | Primary fix location |
 |---|---|---|---|---|
-| 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Fixed in current repo; rerun Windows to verify count | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
-| 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_local_support.py`, `process_support.py` |
-| 3 | uv TOML paths with `\` | 8 | ✅ Fixed in current repo; rerun Windows to verify count | `uv_source_support.py` |
-| 4 | `cmd /c exit N` unreliable exit code | 4 | ✅ Fixed in current repo; rerun Windows to verify count | `src/agilab/core/agi-env/test/test_agi_env.py` |
-| 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ✅ Fixed in current repo; rerun Windows to verify count | `share_mount_support.py`, `test_pagelib.py`, `test_agi_env.py`, `test_agi_distributor_deployment_remote_support.py` |
-| 6 | mlflow file locking | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `mlflow_store.py`, `test_pagelib.py` |
-| 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Fixed in current repo; rerun Windows to verify count | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
-| 8 | `prepare_local_env` self-update | 3 | ✅ Fixed in current repo; rerun Windows to verify count | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
-| 9 | `sshpass` not on Windows | 1 | ✅ Fixed in current repo; rerun Windows to verify count | `test_agi_distributor_transport_support.py` |
-| — | Needs `pytest -vv` | 0 | ✅ Resolved in current repo; rerun Windows to verify count | Targeted bucket now passes |
+| 1 | Env isolation (`~/.agilab/.env` leaks) | 15 | ✅ Verified by Windows CI run 26650203561 | `test/conftest.py`, `src/agilab/core/test/conftest.py`, `src/agilab/core/agi-env/test/conftest.py` |
+| 2 | `.venv/bin` vs `.venv/Scripts` | 7 | ✅ Verified by Windows CI run 26650203561 | `deployment_local_support.py`, `process_support.py` |
+| 3 | uv TOML paths with `\` | 8 | ✅ Verified by Windows CI run 26650203561 | `uv_source_support.py` |
+| 4 | `cmd /c exit N` unreliable exit code | 4 | ✅ Verified by Windows CI run 26650203561 | `src/agilab/core/agi-env/test/test_agi_env.py` |
+| 5 | Linux-only (fstab, PosixPath, sshfs) | 6 | ✅ Verified by Windows CI run 26650203561 | `share_mount_support.py`, `test_pagelib.py`, `test_agi_env.py`, `test_agi_distributor_deployment_remote_support.py` |
+| 6 | mlflow file locking | 1 | ✅ Verified by Windows CI run 26650203561 | `mlflow_store.py`, `test_pagelib.py` |
+| 7 | Polars CSV non-UTF-8 encoding | 2 | ✅ Verified by Windows CI run 26650203561 | `capacity_support.py`, `test_agi_distributor_capacity_support.py` |
+| 8 | `prepare_local_env` self-update | 3 | ✅ Verified by Windows CI run 26650203561 | `deployment_prepare_support.py`, `test_agi_distributor_deployment_prepare_support.py` |
+| 9 | `sshpass` not on Windows | 1 | ✅ Verified by Windows CI run 26650203561 | `test_agi_distributor_transport_support.py` |
+| — | Needs `pytest -vv` | 0 | ✅ Verified by Windows CI run 26650203561 | Targeted bucket now passes |
 
-**Recommended priority:** use the `windows-core-tests` workflow, or rerun the
-Windows command above, to refresh the verified remaining count after the
-environment-isolation, virtualenv layout, uv TOML path, Python subprocess exit
-fixture, Linux-only guard, mlflow backend reset, capacity CSV encoding,
-prepare_local_env self-update, and sshpass test fixes. Then prioritize any
-still-failing Windows categories from the refreshed run. There are no named
-local regression buckets left open in this tracker.
+**Recommended priority:** keep this tracker as a historical regression index.
+Rerun the Windows command or the `windows-core-tests` workflow only after future
+Windows-sensitive core changes, then add any new failing category here with its
+fresh run evidence. There are no named Windows regression buckets left open in
+this tracker.

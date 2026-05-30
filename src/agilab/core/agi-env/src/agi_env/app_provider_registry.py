@@ -14,6 +14,7 @@ APP_PROVIDER_ENTRYPOINT_GROUP = "agilab.apps"
 _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {}
 RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = set()
+APP_PROVIDER_DISCOVERY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +145,7 @@ def _entry_points(entry_points_fn: Callable[[], Any]) -> Iterable[Any]:
         entry_points = entry_points_fn()
     # Best-effort provider discovery boundary: broken entry-point backends must
     # not prevent AGILAB from using source checkout app discovery.
-    except Exception:
+    except APP_PROVIDER_DISCOVERY_EXCEPTIONS:
         return ()
     select = getattr(entry_points, "select", None)
     if callable(select):
@@ -152,7 +153,7 @@ def _entry_points(entry_points_fn: Callable[[], Any]) -> Iterable[Any]:
             return tuple(select(group=APP_PROVIDER_ENTRYPOINT_GROUP))
         # Best-effort provider discovery boundary: ignore malformed third-party
         # entry-point selectors and fall back to source checkout app discovery.
-        except Exception:
+        except APP_PROVIDER_DISCOVERY_EXCEPTIONS:
             return ()
     if isinstance(entry_points, Mapping):
         return tuple(entry_points.get(APP_PROVIDER_ENTRYPOINT_GROUP, ()))
@@ -169,7 +170,7 @@ def _coerce_project_root(value: Any) -> Path | None:
             value = value()
         # Best-effort provider discovery boundary: provider callbacks execute
         # third-party package code, so broken providers are ignored.
-        except Exception:
+        except APP_PROVIDER_DISCOVERY_EXCEPTIONS:
             return None
     try:
         path = Path(value).expanduser().resolve(strict=False)
@@ -191,7 +192,7 @@ def discover_installed_app_projects(
             loaded = entry_point.load()
         # Best-effort provider discovery boundary: one broken installed
         # provider must not hide the rest of the installed app catalog.
-        except Exception:
+        except APP_PROVIDER_DISCOVERY_EXCEPTIONS:
             continue
         root = _coerce_project_root(loaded)
         if root is None:

@@ -28,6 +28,7 @@ _EXPORT_CMD_LOOKUP_EXCEPTIONS = (
     OSError,
     RuntimeError,
 )
+_AGI_RUN_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
 def _normalize_workers(
@@ -173,7 +174,7 @@ async def _run_main_with_handled_errors(
     except ModuleNotFoundError as exc:
         log.error("failed to load module \n%s", exc)
         return None
-    except Exception as exc:  # Intentional AGI.run boundary: log and re-raise.
+    except _AGI_RUN_BOUNDARY_EXCEPTIONS as exc:  # Intentional AGI.run boundary: log and re-raise.
         _log_unhandled_run_exception(
             exc,
             format_exception_chain_fn=format_exception_chain_fn,
