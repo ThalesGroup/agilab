@@ -96,6 +96,8 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "test/test_first_proof_cli.py",
             "test/test_first_proof_wizard.py",
             "test/test_generated_actions.py",
+            "test/test_promotion_dossier.py",
+            "test/test_run_storyboard.py",
             "test/test_notebook_colab_support.py",
             "test/test_notebook_demo.py",
             "test/test_notebook_import_sample.py",
