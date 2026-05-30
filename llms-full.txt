@@ -26,6 +26,10 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-19
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
+- agilab-evidence-contracts: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation. (.claude/skills/agilab-evidence-contracts/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-30
+  preview: # AGILAB Evidence Contracts Use this skill when a change affects AGILAB's evidence-first value: proving that an experiment, app run, notebook migration, agent action, or release can be reviewed and replayed. The default stance is simple: a feature is not validated
 - agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-28

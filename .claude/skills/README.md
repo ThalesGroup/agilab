@@ -28,6 +28,7 @@ canonical source can serve both agents.
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
 - `agilab-deep-audit`: Produce evidence-backed AGILAB audit/code-review artifacts with architecture context, blast-radius tracing, and prioritized recommendations.
+- `agilab-evidence-contracts`: Maintain evidence, proof, replay, artifact hash, and verification contracts across AGILAB runs, notebooks, agent traces, releases, and docs.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.

@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-05-30T13:38:41Z",
+  "generated_at_utc": "2026-05-30T13:43:01Z",
   "tool": "tools/codex_skills.py",
-  "count": 32,
+  "count": 33,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -34,6 +34,14 @@
       "updated": "2026-05-19",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
+    },
+    {
+      "name": "agilab-evidence-contracts",
+      "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-30",
+      "path": ".codex/skills/agilab-evidence-contracts/SKILL.md",
+      "body_preview": "# AGILAB Evidence Contracts\nUse this skill when a change affects AGILAB's evidence-first value: proving that\nan experiment, app run, notebook migration, agent action, or release can be\nreviewed and replayed. The default stance is simple: a feature is not validated"
     },
     {
       "name": "agilab-example-maturity",
