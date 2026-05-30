@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import builtins
-from pathlib import PosixPath
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -575,14 +574,15 @@ def test_move_mlflow_sqlite_backend_files_uses_windows_copy_unlink_retry(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(mlflow_store.os, "name", "nt")
-    monkeypatch.setattr(mlflow_store, "Path", PosixPath)
     monkeypatch.setattr("time.sleep", lambda _delay: None)
 
     db_path = tmp_path / "mlflow.db"
     backup_path = tmp_path / "mlflow.schema-reset.db"
+    path_cls = type(db_path)
+    monkeypatch.setattr(mlflow_store, "Path", path_cls)
     db_path.write_text("x", encoding="utf-8")
     calls = {"unlink": 0}
-    original_unlink = PosixPath.unlink
+    original_unlink = path_cls.unlink
 
     def _flaky_unlink(path, *args, **kwargs):
         if path == db_path and calls["unlink"] == 0:
@@ -591,7 +591,7 @@ def test_move_mlflow_sqlite_backend_files_uses_windows_copy_unlink_retry(
         calls["unlink"] += 1
         return original_unlink(path, *args, **kwargs)
 
-    monkeypatch.setattr(PosixPath, "unlink", _flaky_unlink)
+    monkeypatch.setattr(path_cls, "unlink", _flaky_unlink)
 
     mlflow_store._move_mlflow_sqlite_backend_files(db_path, backup_path=backup_path)
 
@@ -605,14 +605,15 @@ def test_move_mlflow_sqlite_backend_files_raises_after_windows_retry_exhaustion(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(mlflow_store.os, "name", "nt")
-    monkeypatch.setattr(mlflow_store, "Path", PosixPath)
     monkeypatch.setattr("time.sleep", lambda _delay: None)
 
     db_path = tmp_path / "mlflow.db"
     backup_path = tmp_path / "mlflow.schema-reset.db"
+    path_cls = type(db_path)
+    monkeypatch.setattr(mlflow_store, "Path", path_cls)
     db_path.write_text("x", encoding="utf-8")
     monkeypatch.setattr(
-        PosixPath,
+        path_cls,
         "unlink",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("busy")),
     )

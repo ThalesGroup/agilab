@@ -260,6 +260,7 @@ def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path
         "symlink",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no symlink")),
     )
+    monkeypatch.setattr(project_clone_support.os, "name", "posix")
     assert project_clone_support._try_link_directory(source, dest) is False
 
     monkeypatch.setattr(project_clone_support.os, "name", "nt")
