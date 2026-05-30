@@ -83,6 +83,11 @@ def test_kubernetes_job_renderers_are_deterministic() -> None:
     assert '- name: "AGILAB_ACTIVE_APP"' in yaml_text
     assert json.loads(json_text)["metadata"]["name"] == "agilab-demo-project"
     assert kubernetes_job.kubectl_apply_command("/tmp/job.yaml") == "kubectl apply -f /tmp/job.yaml"
+    with pytest.raises(ValueError, match="unsupported manifest format"):
+        kubernetes_job.render_manifest(manifest, output_format="toml")
+    assert "empty:\n  []" in "\n".join(kubernetes_job._yaml_lines({"empty": []}))
+    assert "- {}" in "\n".join(kubernetes_job._yaml_lines([{}]))
+    assert "-\n  - 1" in "\n".join(kubernetes_job._yaml_lines([[1]]))
 
 
 def test_kubernetes_job_cli_writes_manifest_and_accepts_command_after_separator(
@@ -126,6 +131,23 @@ def test_kubernetes_job_cli_reports_bad_environment_assignment() -> None:
 
     assert exc_info.value.code == 2
 
+    with pytest.raises(ValueError, match="invalid Kubernetes"):
+        kubernetes_job.parse_env_assignments(["1_BAD=value"])
+
+    with pytest.raises(ValueError, match="app is required"):
+        kubernetes_job.build_kubernetes_job_manifest(
+            kubernetes_job.KubernetesJobConfig(app="", image="agilab:local")
+        )
+    with pytest.raises(ValueError, match="image is required"):
+        kubernetes_job.build_kubernetes_job_manifest(
+            kubernetes_job.KubernetesJobConfig(app="demo", image="")
+        )
+
+    manifest = kubernetes_job.build_kubernetes_job_manifest(
+        kubernetes_job.KubernetesJobConfig(app="demo", image="agilab:local", command=("",))
+    )
+    assert manifest["spec"]["template"]["spec"]["containers"][0]["command"] == ["python"]
+
 
 def test_kubernetes_job_module_entrypoint_reads_process_argv(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
@@ -146,3 +168,21 @@ def test_kubernetes_job_module_entrypoint_reads_process_argv(monkeypatch, capsys
 
     manifest = json.loads(capsys.readouterr().out)
     assert manifest["metadata"]["name"] == "agilab-demo-project"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "python -m agilab.kubernetes_job",
+            "manifest",
+            "--app",
+            "demo_project",
+            "--image",
+            "agilab:local",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert kubernetes_job.main() == 0
+    assert json.loads(capsys.readouterr().out)["metadata"]["name"] == "agilab-demo-project"

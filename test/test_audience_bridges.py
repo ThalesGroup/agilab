@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import builtins
 import json
 from pathlib import Path
 import subprocess
@@ -187,6 +188,13 @@ def test_hf_space_export_edges_and_secret_scan(tmp_path: Path) -> None:
 
 def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_payload["validations"][0]["details"] = {
+        "score": 1.25,
+        "accepted": True,
+        "attempts": 2,
+    }
+    manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
 
     mlflow_payload = bridge_cli.export_mlflow_handoff(
         manifest_path,
@@ -194,6 +202,8 @@ def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
     )
     assert mlflow_payload["params"]["agilab_app"] == "demo_project"
     assert mlflow_payload["metrics"]["duration_seconds"] == 1.25
+    assert mlflow_payload["metrics"]["schema_accepted"] == 1.0
+    assert mlflow_payload["metrics"]["schema_attempts"] == 2.0
 
     imported = bridge_cli.import_mlflow_handoff(
         "demo",
@@ -205,6 +215,8 @@ def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
     vscode = bridge_cli.init_vscode_bridge(tmp_path / "workspace", force=True)
     assert any(path.endswith(".vscode/tasks.json") for path in vscode["files"])
     assert (tmp_path / "workspace" / "AGILAB_QUICKSTART.md").is_file()
+    with pytest.raises(FileExistsError, match="already exists"):
+        bridge_cli.init_vscode_bridge(tmp_path / "workspace")
 
     airflow = bridge_cli.export_airflow_dag(
         manifest_path,
@@ -289,6 +301,8 @@ def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> No
     assert bridge_cli._resolve_artifact_path(str(tmp_path / "absolute.txt"), tmp_path / "run.json") == (
         tmp_path / "absolute.txt"
     )
+    assert bridge_cli._resolve_artifact_path("relative.txt", tmp_path / "run.json") == tmp_path / "relative.txt"
+    assert bridge_cli._markdown_cell("a|b\nc") == "a\\|b<br>c"
 
     notebook = tmp_path / "bad.ipynb"
     notebook.write_text("[]\n", encoding="utf-8")
@@ -354,6 +368,69 @@ def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> No
 
     with pytest.raises(RuntimeError, match="MLflow import MVP requires"):
         bridge_cli.import_mlflow_handoff("demo", tmp_path / "mlflow.json")
+
+
+def test_bridge_cli_remaining_failure_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    notebook = tmp_path / "demo.ipynb"
+    _write_minimal_notebook(notebook)
+
+    original_import = builtins.__import__
+
+    def block_notebook_import(name, *args, **kwargs):
+        if name == "nbformat":
+            raise ModuleNotFoundError("nbformat")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", block_notebook_import)
+    with pytest.raises(RuntimeError, match="optional notebook dependencies"):
+        bridge_cli._execute_notebook_with_nbclient(
+            notebook,
+            tmp_path / "executed.ipynb",
+            tmp_path,
+            tmp_path,
+            {},
+            1,
+            None,
+            False,
+        )
+    monkeypatch.undo()
+
+    bridge_cli._redact_notebook_text_fields(tmp_path / "missing.ipynb")
+    invalid = tmp_path / "invalid-redact.ipynb"
+    invalid.write_text("[]\n", encoding="utf-8")
+    bridge_cli._redact_notebook_text_fields(invalid)
+
+    def status_fail_executor(prepared, executed, *_args):
+        executed.write_text(prepared.read_text(encoding="utf-8"), encoding="utf-8")
+        return {"status": "error", "stdout": "partial", "stderr": "failed"}
+
+    payload = bridge_cli.run_notebook_sandbox(
+        notebook,
+        tmp_path / "notebook-status-fail",
+        executor=status_fail_executor,
+    )
+    assert payload["status"] == "fail"
+    assert "failed" in Path(payload["stderr_log"]).read_text(encoding="utf-8")
+
+    def block_duckdb_import(name, *args, **kwargs):
+        if name == "duckdb":
+            raise ModuleNotFoundError("duckdb")
+        return original_import(name, *args, **kwargs)
+
+    query = tmp_path / "query.sql"
+    query.write_text("select 1", encoding="utf-8")
+    monkeypatch.setattr(builtins, "__import__", block_duckdb_import)
+    with pytest.raises(RuntimeError, match="DuckDB bridge requires"):
+        bridge_cli.run_duckdb_query(query, tmp_path / "duckdb-missing")
+    monkeypatch.undo()
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mcp_server, "main", lambda argv: calls.append(list(argv)) or 17)
+    assert bridge_cli.main(["mcp", "--", "serve"]) == 17
+    assert calls == [["serve"]]
 
 
 def _write_minimal_notebook(path: Path, source: str = "print('hello')") -> Path:

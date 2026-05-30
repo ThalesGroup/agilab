@@ -288,6 +288,10 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
         def __str__(self):
             return "bad-path"
 
+    class BadNestedPath(BadPath):
+        def __str__(self):
+            return f"dir{environment_health.os.sep}bad-path"
+
     assert environment_health.render_environment_details(SimpleNamespace(), []) is None
     assert environment_health.data_share_content_summary(None) == (
         "not configured",
@@ -299,6 +303,7 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
     )
     assert environment_health.path_status(BadPath()) == ("not configured", "bad-path")
     assert environment_health.compact_path_caption("/") == "/"
+    assert environment_health.compact_path_caption(BadNestedPath()) == "bad-path in dir"
 
     fifo_path = tmp_path / "fifo"
     if hasattr(environment_health.os, "mkfifo"):
@@ -311,18 +316,36 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
     def raise_walk(_path):
         raise OSError("walk unavailable")
 
-    monkeypatch.setattr(environment_health.os, "walk", raise_walk)
-    assert environment_health.data_share_content_summary(data_dir)[0] == "unknown"
-    monkeypatch.undo()
+    with monkeypatch.context() as scoped:
+        scoped.setattr(environment_health.os, "walk", raise_walk)
+        assert environment_health.data_share_content_summary(data_dir)[0] == "unknown"
+
+    stat_error_dir = tmp_path / "stat-error"
+    stat_error_dir.mkdir()
+    stat_error_file = stat_error_dir / "item.txt"
+    stat_error_file.write_text("x", encoding="utf-8")
+    original_stat = environment_health.Path.stat
+
+    def stat_raises_for_item(self, *args, **kwargs):
+        if self == stat_error_file:
+            raise OSError("stat denied")
+        return original_stat(self, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(environment_health.Path, "stat", stat_raises_for_item)
+        assert environment_health.data_share_content_summary(stat_error_dir) == (
+            "unknown",
+            str(stat_error_dir),
+        )
 
     project = tmp_path / "project"
     project.mkdir()
     (project / "code.py").write_text("print('ok')\n", encoding="utf-8")
     assert environment_health.latest_project_mtime(project) != "unknown"
 
-    monkeypatch.setattr(environment_health.os, "walk", raise_walk)
-    assert environment_health.latest_project_mtime(project) == "unknown"
-    monkeypatch.undo()
+    with monkeypatch.context() as scoped:
+        scoped.setattr(environment_health.os, "walk", raise_walk)
+        assert environment_health.latest_project_mtime(project) == "unknown"
 
     assert environment_health._environment_mapping(SimpleNamespace(envars=["not", "mapping"])) == {}
     assert environment_health._looks_placeholder_secret("   ") is True
@@ -358,4 +381,49 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
     assert environment_health._is_local_worker_host("[::1]:8786") is True
     assert environment_health._cluster_has_nonlocal_workers({"workers": "[]"}) is False
     assert environment_health._cluster_has_nonlocal_workers({"workers": "worker-a"}) is True
+
+    runenv = tmp_path / "runenv"
+    runenv.mkdir()
+    original_glob = environment_health.Path.glob
+
+    def glob_raises(self, pattern):
+        if self == runenv and pattern == "run_*.log":
+            raise OSError("glob denied")
+        return original_glob(self, pattern)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(environment_health.Path, "glob", glob_raises)
+        assert environment_health.run_history_summary(SimpleNamespace(runenv=runenv)) == (
+            "0",
+            "run log directory unavailable",
+        )
+
+    (runenv / "run_bad.log").write_text("bad\n", encoding="utf-8")
+
+    def stat_always_raises(self, *args, **kwargs):
+        if self.name == "run_bad.log":
+            raise OSError("stat denied")
+        return original_stat(self, *args, **kwargs)
+
+    original_is_file = environment_health.Path.is_file
+
+    def is_file_for_bad_log(self, *args, **kwargs):
+        if self.name == "run_bad.log":
+            return True
+        return original_is_file(self, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(environment_health.Path, "stat", stat_always_raises)
+        scoped.setattr(environment_health.Path, "is_file", is_file_for_bad_log)
+        scoped.setattr(
+            environment_health.Path,
+            "glob",
+            lambda self, pattern: [runenv / "run_bad.log"]
+            if self == runenv and pattern == "run_*.log"
+            else original_glob(self, pattern),
+        )
+        assert environment_health.run_history_summary(SimpleNamespace(runenv=runenv)) == (
+            "1",
+            "latest run log unavailable",
+        )
     assert environment_health._resolve_share_path(SimpleNamespace(), "relative") == Path("relative")

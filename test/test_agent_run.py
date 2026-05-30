@@ -1264,12 +1264,84 @@ def test_agent_run_command_policy_and_read_edge_cases(tmp_path: Path, monkeypatc
 def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
 
+    assert module._render_summary_table([]) == "No AGILAB agent runs found."
+    assert "pass" in module._render_summary_table(
+        [
+            module.AgentRunSummary(
+                run_id="summary",
+                agent="codex",
+                label="Summary",
+                status="pass",
+                returncode=0,
+                manifest_path=tmp_path / "manifest.json",
+                stdout_path=None,
+                stderr_path=None,
+                trace_events_path=None,
+                duration_seconds=1.0,
+                tags=(),
+                metadata={},
+            )
+        ]
+    )
+
+    invalid_root = tmp_path / "invalid-runs"
+    invalid_dir = invalid_root / "invalid"
+    invalid_dir.mkdir(parents=True)
+    (invalid_dir / module.MANIFEST_FILENAME).write_text("{bad-json", encoding="utf-8")
+    assert module.list_agent_runs(invalid_root) == []
+
+    handoff_from_dict = module.agent_handoff_payload(
+        {
+            "kind": module.TRACE_KIND,
+            "run_id": "dict-run",
+            "agent": "codex",
+            "status": "planned",
+            "command": {},
+            "permission": {},
+            "artifacts": {},
+        }
+    )
+    assert handoff_from_dict["run"]["run_id"] == "dict-run"
+
+    next_text = module.render_next_actions_markdown(
+        {
+            "run": {"run_id": "next", "agent": "codex", "status": "pass", "manifest": "m"},
+            "next_actions": ["skip", {"priority": "P2", "action": "Document", "reason": "done"}],
+        }
+    )
+    assert "Document" in next_text
+
     assert "No matching agent runs" in module.render_context_markdown(
         {"match_count": 0, "status_counts": {}, "runs": [], "latest": {}}
     )
+    context_with_non_dict_items = module.render_context_markdown(
+        {
+            "match_count": 0,
+            "status_counts": {},
+            "runs": ["skip"],
+            "latest": {
+                "next_actions": {
+                    "next_actions": [
+                        "skip",
+                        {"priority": "P1", "action": "Retry", "reason": "failed"},
+                    ]
+                }
+            },
+        }
+    )
+    assert "Retry" in context_with_non_dict_items
     assert "No linked agent runs" in module.render_lineage_markdown(
         {"query": {"run_id": "missing"}, "found": False, "chain": [], "edges": []}
     )
+    lineage_with_non_dict_items = module.render_lineage_markdown(
+        {
+            "query": {"run_id": "missing"},
+            "found": False,
+            "chain": ["skip"],
+            "edges": ["skip", {"from": "left", "to": "right"}],
+        }
+    )
+    assert "left -> right" in lineage_with_non_dict_items
     assert "Metadata delta" in module.render_compare_markdown(
         {
             "left": {"run_id": "left", "status": "fail"},
@@ -1306,6 +1378,35 @@ def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeyp
     assert {"kind", "status", "manifest_path", "stdout_path", "stderr_path", "argv_sha256", "trace_events_exists"} <= codes
     assert "argv_redaction" in warning_codes
 
+    stdout_only = tmp_path / "stdout.txt"
+    stdout_only.write_text("ok\n", encoding="utf-8")
+    stderr_missing_manifest = {
+        "kind": module.TRACE_KIND,
+        "run_id": "stderr-missing",
+        "status": "pass",
+        "command": {"argv_sha256": "hash"},
+        "artifacts": {
+            "stdout": {"path": str(stdout_only)},
+            "stderr": {"path": str(tmp_path / "missing-stderr.txt")},
+        },
+    }
+    stderr_missing_validation = module.validate_agent_run(stderr_missing_manifest)
+    assert {item["code"] for item in stderr_missing_validation["issues"]} >= {"stderr_exists"}
+
+    trace_path = tmp_path / "agent_events.ndjson"
+    trace_path.write_text('{"event":"command_done","sequence":2}\n', encoding="utf-8")
+    monkeypatch.setattr(module, "validate_event_sequence", lambda _events: ["out of order"])
+    trace_validation = module.validate_agent_run(
+        {
+            "kind": module.TRACE_KIND,
+            "run_id": "trace-bad",
+            "status": "planned",
+            "command": {"argv_sha256": "hash"},
+            "artifacts": {"agent_trace": {"events": str(trace_path)}},
+        }
+    )
+    assert "trace_sequence" in {item["code"] for item in trace_validation["issues"]}
+
     no_trace_manifest = {
         "kind": module.TRACE_KIND,
         "run_id": "planned",
@@ -1318,6 +1419,42 @@ def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeyp
 
     assert module.agent_next_actions_payload({"kind": module.TRACE_KIND, "status": "timeout"})["next_actions"][0]["priority"] == "P0"
     assert module.agent_next_actions_payload({"kind": module.TRACE_KIND, "status": "unknown"})["next_actions"][0]["priority"] == "P1"
+    assert module._trace_event_count(
+        module.AgentRunSummary(
+            run_id="no-trace",
+            agent="codex",
+            label="no trace",
+            status="planned",
+            returncode=None,
+            manifest_path=None,
+            stdout_path=None,
+            stderr_path=None,
+            trace_events_path=None,
+            duration_seconds=0.0,
+            tags=(),
+            metadata={},
+        )
+    ) == 0
+    monkeypatch.setattr(module, "load_trace_events", lambda _root: (_ for _ in ()).throw(OSError("bad trace")))
+    assert module._trace_event_count(
+        module.AgentRunSummary(
+            run_id="bad-trace",
+            agent="codex",
+            label="bad trace",
+            status="pass",
+            returncode=0,
+            manifest_path=None,
+            stdout_path=None,
+            stderr_path=None,
+            trace_events_path=tmp_path / "events.ndjson",
+            duration_seconds=0.0,
+            tags=(),
+            metadata={},
+        )
+    ) == 0
+
+    with pytest.raises(SystemExit):
+        module._main_list(["--root", str(tmp_path), "--limit", "-1"])
 
     monkeypatch.setattr(
         module,
@@ -1373,3 +1510,21 @@ def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeyp
     lineage = module.agent_lineage_payload(tmp_path, run_id="child")
     assert lineage["found"] is True
     assert [item["run_id"] for item in lineage["ancestors"]] == ["parent"]
+
+    missing_parent = module.AgentRunSummary(
+        run_id="orphan",
+        agent="codex",
+        label="orphan",
+        status="pass",
+        returncode=0,
+        manifest_path=Path(""),
+        stdout_path=None,
+        stderr_path=None,
+        trace_events_path=None,
+        duration_seconds=0.0,
+        tags=(),
+        metadata={"followup_of": "missing-parent"},
+    )
+    monkeypatch.setattr(module, "list_agent_runs", lambda *_args, **_kwargs: [missing_parent])
+    orphan_lineage = module.agent_lineage_payload(tmp_path, run_id="orphan")
+    assert orphan_lineage["ancestors"] == []
