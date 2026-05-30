@@ -50,6 +50,10 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-07
   preview: # Product Reels Skill (AGILAB) Use this skill when the user wants a short AGILAB teaser, technical benchmark reel, live-demo plan, or YouTube-ready demo package. ## Pick The Right Demo Type
+- agilab-prompt-eval-regression: Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX. (.claude/skills/agilab-prompt-eval-regression/SKILL.md)
+  license: BSD-3-Clause (see repo LICENSE)
+  updated: 2026-05-30
+  preview: # AGILAB Prompt Eval Regression Use this skill when AGILAB behavior depends on a prompt, model response, or LLM-assisted classification. The goal is not to make tests depend on live model luck. The goal is to turn prompt-sensitive workflows into deterministic
 - agilab-pypi-release-maintenance: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item. (.claude/skills/agilab-pypi-release-maintenance/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-27

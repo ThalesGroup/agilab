@@ -5,7 +5,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 ## Badges
 
-- Skills: 31 skills
+- Skills: 32 skills
 - Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references
 - Works with: Codex, Claude Code, Aider, OpenCode
 - Catalog-compatible: Continue
@@ -30,6 +30,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 - agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
 - agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
 - agilab-product-reels: Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging. (.claude/skills/agilab-product-reels/SKILL.md)
+- agilab-prompt-eval-regression: Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX. (.claude/skills/agilab-prompt-eval-regression/SKILL.md)
 - agilab-pypi-release-maintenance: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item. (.claude/skills/agilab-pypi-release-maintenance/SKILL.md)
 - agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
 - agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
