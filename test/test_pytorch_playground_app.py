@@ -3572,6 +3572,12 @@ def test_pytorch_playground_core_remaining_training_edges() -> None:
         hidden_layers=(),
         epochs=2,
     )
+    if module.torch is None or module.nn is None:
+        missing_result = module._train_playground(no_hidden_config)
+        assert missing_result["status"] == "missing_torch"
+        assert module._new_live_training_state(no_hidden_config)["status"] == "missing_torch"
+        return
+
     training_data = module._prepare_training_data(no_hidden_config)
     model = module._build_model(len(no_hidden_config.feature_names), no_hidden_config)
     assert module._hidden_activation_maps(
