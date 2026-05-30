@@ -70,8 +70,6 @@ class FlightTelemetry(BaseWorker):
         self.args.data_out = env.resolve_share_path(self.args.data_out)
         self.data_out = self.args.data_out
 
-        WorkDispatcher.args = self.args.model_dump(mode="json")
-
         if getattr(self.args, "reset_target", False):
             try:
                 if self.data_out.exists():

@@ -47,8 +47,6 @@ class MinimalApp(BaseWorker):
         logger.info(f"mkdir {self.args.data_in}")
         self.args.data_in.mkdir(parents=True, exist_ok=True)
 
-        WorkDispatcher.args = self.args.model_dump(mode="json")
-
         reset_target = getattr(self.args, "reset_target", False)
         try:
             if reset_target and self.data_out.exists():
@@ -118,4 +116,3 @@ class MinimalAppApp(MinimalApp):
 
 
 __all__ = ["MinimalApp", "MinimalAppApp"]
-

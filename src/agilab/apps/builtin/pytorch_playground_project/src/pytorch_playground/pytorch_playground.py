@@ -54,8 +54,6 @@ class PytorchPlayground(BaseWorker):
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        WorkDispatcher.args = self.args.model_dump(mode="json")
-
     @property
     def analysis_artifact_dir(self) -> Path:
         export_root = Path(getattr(self.env, "AGILAB_EXPORT_ABS", Path.home() / "export"))

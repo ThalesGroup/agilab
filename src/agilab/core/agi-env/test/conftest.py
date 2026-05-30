@@ -98,6 +98,19 @@ if "streamlit" not in sys.modules and importlib.util.find_spec("streamlit") is N
     sys.modules["streamlit"] = _StreamlitStub()
 
 
+def _restore_agi_env_submodule_identity() -> None:
+    """Keep package and submodule bindings coherent after sys.modules cleanup tests."""
+
+    package = sys.modules.get("agi_env")
+    package_module = getattr(package, "agi_env", None)
+    module = sys.modules.get("agi_env.agi_env")
+    if module is None and isinstance(package_module, types.ModuleType):
+        sys.modules["agi_env.agi_env"] = package_module
+        module = package_module
+    if package is not None and module is not None:
+        setattr(package, "agi_env", module)
+
+
 def _posix_marker_path(
     *,
     os_name: str | None = None,
@@ -159,6 +172,8 @@ def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
         "AGI_CLUSTER_SHARE=\nAGI_LOCAL_SHARE=\nAPPS_REPOSITORY=\n",
         encoding="utf-8",
     )
+
+    _restore_agi_env_submodule_identity()
 
     from agi_env import AgiEnv
     from agi_env import ui_support

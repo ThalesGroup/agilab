@@ -32,8 +32,6 @@ class MultiAppDag(BaseWorker):
             except ValidationError as exc:
                 raise ValueError(f"Invalid Multi-app DAG arguments: {exc}") from exc
         self.args = ensure_defaults(args, env=env)
-        WorkDispatcher.args = self.args.model_dump(mode="json")
-
     @classmethod
     def from_toml(
         cls,
