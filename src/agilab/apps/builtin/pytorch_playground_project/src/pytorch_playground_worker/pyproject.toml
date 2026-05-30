@@ -4,8 +4,8 @@ version = "2026.05.30.post1"
 description = "Worker package for the AGILAB PyTorch playground app"
 requires-python = ">=3.12"
 dependencies = [
-    "agi-env>=2026.05.30.post1",
-    "agi-node>=2026.05.30.post1",
+    "agi-env>=2026.05.31",
+    "agi-node>=2026.05.31",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
     "pydantic>=2.11,<2.13",
