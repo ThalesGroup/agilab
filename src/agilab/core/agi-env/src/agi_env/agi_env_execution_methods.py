@@ -1,5 +1,6 @@
 """Async execution methods exposed through ``AgiEnv``."""
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -12,9 +13,10 @@ from agi_env.execution_support import (
 
 
 def _env_class():
-    from agi_env.agi_env import AgiEnv
-
-    return AgiEnv
+    module = sys.modules.get("agi_env.agi_env")
+    if module is None:
+        module = importlib.import_module("agi_env.agi_env")
+    return module.AgiEnv
 
 
 def _class_static_method(env_cls, name: str):
@@ -67,7 +69,7 @@ async def run_bg(
 async def run_agi(self, code, log_callback=None, venv: Path = None, type=None):  # ty: ignore[invalid-parameter-default]
     """Asynchronous version of run_agi for use within an async context."""
     env_cls = _env_class()
-    from agi_env import agi_env as agi_env_module
+    agi_env_module = importlib.import_module("agi_env.agi_env")
 
     return await run_agi_snippet(
         code=code,

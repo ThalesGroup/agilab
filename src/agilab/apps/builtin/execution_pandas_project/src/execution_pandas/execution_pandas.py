@@ -61,8 +61,6 @@ class ExecutionPandas(BaseWorker):
             shutil.rmtree(self.data_out, ignore_errors=True, onerror=WorkDispatcher._onerror)
         self.data_out.mkdir(parents=True, exist_ok=True)
 
-        WorkDispatcher.args = self.args.model_dump(mode="json")
-
     @classmethod
     def from_toml(
         cls,
