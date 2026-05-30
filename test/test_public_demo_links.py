@@ -26,6 +26,7 @@ CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
     Path("docs/source/agilab-demo.rst"),
     Path("docs/source/demos.rst"),
+    Path("docs/source/pytorch-playground.rst"),
     Path("docs/source/quick-start.rst"),
     Path("docs/source/release-proof.rst"),
 )
@@ -215,7 +216,9 @@ def test_source_package_version_contract_is_explicit_and_proven_release_scoped()
     source_version = pyproject["project"]["version"]
     package_version = release["package_version"]
     core_dependency = next(
-        dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("agi-core==")
+        dependency
+        for dependency in pyproject["project"]["optional-dependencies"]["core"]
+        if dependency.startswith("agi-core==")
     )
     core_version = core_dependency.removeprefix("agi-core==").split(";", 1)[0]
     agi_apps_pyproject = tomllib.loads(

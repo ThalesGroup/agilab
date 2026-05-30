@@ -42,6 +42,7 @@ RUNTIME_DISTRIBUTIONS = (
     "agi-app-weather-forecast",
     "agi-app-uav-relay-queue",
 )
+CORE_RUNTIME_DISTRIBUTIONS = ("agi-core", "agi-env", "agi-node", "agi-cluster")
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DIAGNOSTIC_TAIL_LINES = 20
 
@@ -95,6 +96,26 @@ def _distribution_version(distribution: str) -> str | None:
         return importlib_metadata.version(distribution)
     except importlib_metadata.PackageNotFoundError:
         return None
+
+
+def missing_core_runtime_distributions() -> tuple[str, ...]:
+    return tuple(
+        distribution
+        for distribution in CORE_RUNTIME_DISTRIBUTIONS
+        if _distribution_version(distribution) is None
+    )
+
+
+def require_core_runtime_for_first_proof() -> None:
+    missing = missing_core_runtime_distributions()
+    if not missing:
+        return
+    raise SystemExit(
+        "agilab first-proof: core runtime is not installed. "
+        f"Missing: {', '.join(missing)}. "
+        "Install `python -m pip install 'agilab[core]'` for dry-run checks "
+        "or `python -m pip install 'agilab[examples]'` for the packaged first proof."
+    )
 
 
 def runtime_identity() -> dict[str, object]:
@@ -763,6 +784,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--max-seconds must be greater than 0")
     if args.dry_run and (args.with_install or args.with_ui):
         parser.error("--dry-run cannot be combined with --with-install or --with-ui")
+    if not args.print_only:
+        require_core_runtime_for_first_proof()
 
     with_install = False if args.dry_run else args.with_install
     with_ui = False if args.dry_run else args.with_ui
