@@ -212,6 +212,8 @@ versioning responsibilities:
 - bundle packages such as ``agilab``, ``agi-core``, ``agi-apps``, and
   ``agi-pages`` version the curated dependency graph they expose
 - app and page payload packages version the payload they carry
+- built-in source app manifests in ``src/agilab/apps/builtin`` can carry
+  independent versions to reflect local seed updates
 
 Bundle packages exact-pin the curated component graph for reproducible
 installs. Payload packages should normally declare compatible AGILAB runtime
