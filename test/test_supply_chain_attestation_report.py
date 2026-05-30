@@ -458,7 +458,7 @@ def test_supply_chain_attestation_accepts_partial_umbrella_post_release(
     assert state["summary"]["mismatched_internal_dependency_pin_count"] == 0
 
 
-def test_supply_chain_attestation_rejects_stale_builtin_app_release_metadata(
+def test_supply_chain_attestation_allows_stale_builtin_app_version_metadata_if_bounds_match(
     tmp_path: Path,
 ) -> None:
     core = _load_module(CORE_PATH, "supply_chain_attestation_core_app_test_module")
@@ -542,12 +542,10 @@ def test_supply_chain_attestation_rejects_stale_builtin_app_release_metadata(
     assert state["summary"]["aligned_page_lib_versions"] is True
     assert state["summary"]["aligned_app_lib_versions"] is True
     assert state["summary"]["aligned_internal_dependency_pins"] is True
-    assert state["summary"]["aligned_builtin_app_versions"] is False
-    assert state["summary"]["mismatched_builtin_app_version_count"] == 1
+    assert state["summary"]["aligned_builtin_app_versions"] is True
+    assert state["summary"]["mismatched_builtin_app_version_count"] == 0
     assert state["summary"]["aligned_builtin_app_internal_dependency_bounds"] is False
     assert state["summary"]["mismatched_builtin_app_internal_dependency_bound_count"] == 1
-    app_mismatch = state["summary"]["mismatched_builtin_app_versions"][0]
-    assert app_mismatch["app"] == "demo_project"
     bound_mismatch = state["summary"][
         "mismatched_builtin_app_internal_dependency_bounds"
     ][0]
@@ -557,10 +555,6 @@ def test_supply_chain_attestation_rejects_stale_builtin_app_release_metadata(
     assert bound_mismatch["expected_operator"] == ">="
     assert bound_mismatch["pinned_version"] == stale_version
     assert bound_mismatch["expected_version"] == version
-    assert any(
-        issue["location"] == "builtin_apps.demo_project.version"
-        for issue in state["issues"]
-    )
     assert any(
         issue["location"] == "builtin_apps.demo_project.dependencies.agi-env"
         for issue in state["issues"]

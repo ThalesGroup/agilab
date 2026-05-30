@@ -219,7 +219,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             and summary.get("mismatched_builtin_app_version_count") == 0
             and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
             and summary.get("mismatched_builtin_app_internal_dependency_bound_count") == 0,
-            "built-in app payload versions and runtime dependency lower bounds match their package metadata",
+            "built-in app payload manifests exist and dependency lower bounds remain compatible",
             evidence=["src/agilab/apps/builtin"],
             details={
                 "mismatched_builtin_app_versions": summary.get(
