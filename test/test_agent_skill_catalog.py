@@ -57,9 +57,11 @@ def test_catalog_outputs_include_badge_contract_and_skill_entries(tmp_path: Path
     assert "Standard: Agent Skills style" in markdown
     assert "Works with: Codex, Claude Code, Aider, OpenCode" in markdown
     assert "Catalog-compatible: Continue" in markdown
+    assert "tools/agent_skill_quality_guard.py" in markdown
     assert "Continue can consume this generated catalog" in llms
     assert "alpha-skill: Alpha workflow guidance." in llms
     assert "license: BSD-3-Clause" in full
+    assert "tools/agent_skill_quality_guard.py" in full
     assert module.check_outputs(outputs) == []
 
 

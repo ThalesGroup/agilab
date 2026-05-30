@@ -1495,6 +1495,8 @@ def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
         "--skills",
         "agilab-installer",
     ]
+    skill_labels = [command["label"] for command in payload["commands"]["skills"]]
+    assert "guard repo agent skill quality" in skill_labels
 
 
 def test_main_list_profiles_and_print_only_human(capsys) -> None:
