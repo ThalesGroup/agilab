@@ -289,28 +289,49 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         with cls._lock:
             cls._instance = None
-    install_type = None  # deprecated: derived from flags for backward compatibility
-    apps_path = None
-    app = None
-    target = None
-    TABLE_MAX_ROWS = None
-    GUI_SAMPLING = None
-    init_done = False
-    hw_rapids_capable = None
-    is_worker_env = False
-    _is_managed_pc = None
-    skip_repo_links = False
-    debug = False
-    uv = None
-    benchmark = None
-    verbose = None
-    pyvers_worker = None
-    logger = None
-    out_log = None
-    err_log = None
+    install_type: int | None = None  # deprecated: derived from flags for backward compatibility
+    apps_path: Path | None = None
+    app: str | None = None
+    target: str | None = None
+    TABLE_MAX_ROWS: int | None = None
+    GUI_SAMPLING: int | float | None = None
+    init_done: bool = False
+    hw_rapids_capable: bool | None = None
+    is_worker_env: bool = False
+    _is_managed_pc: bool | None = None
+    skip_repo_links: bool = False
+    debug: bool = False
+    uv: str | None = None
+    benchmark: object = None
+    verbose: int | None = None
+    pyvers_worker: str | None = None
+    logger: logging.Logger | None = None
+    out_log: object = None
+    err_log: object = None
     # Minimal class-level fallbacks to support limited static usage pre-init
-    resources_path: Path | None = Path.home() / ".agilab"
-    envars: dict | None = {}
+    resources_path: Path = Path.home() / ".agilab"
+    envars: dict[str, str] = {}
+    home_abs: Path
+    active_app: Path
+    app_src: Path
+    builtin_apps_path: Path | None
+    apps_repository_root: Path | None
+    installed_app_project_paths: tuple[Path, ...]
+    projects: list[str]
+    user: str
+    env_pck: Path
+    node_pck: Path
+    core_pck: Path
+    cluster_pck: Path
+    agilab_pck: Path
+    st_resources: Path
+    agi_share_path: str | Path | None
+    agi_share_path_abs: Path
+    app_data_rel: Path
+    share_target_name: str
+    AGI_LOCAL_SHARE: str | Path | None
+    dist_abs: Path
+    wenv_abs: Path
     # Simplified environment flags
     is_source_env: bool = False
     is_local_worker: bool = False
@@ -414,9 +435,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             node_pck=self.node_pck,
             core_pck=self.core_pck,
             cluster_pck=self.cluster_pck,
-            dist_abs=self.dist_abs,  # ty: ignore[unresolved-attribute]
-            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
-            wenv_abs=self.wenv_abs,  # ty: ignore[unresolved-attribute]
+            dist_abs=self.dist_abs,
+            app_src=self.app_src,
+            wenv_abs=self.wenv_abs,
             agilab_pck=self.agilab_pck,
             dedupe_paths_fn=self._dedupe_paths,
         )
@@ -490,7 +511,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def set_env_var(key: str, value: str):
         """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file."""
         AgiEnv._ensure_defaults()
-        AgiEnv.envars[key] = value  # ty: ignore[invalid-assignment]
+        AgiEnv.envars[key] = value
         os.environ[key] = str(value)
         AgiEnv._update_env_file({key: value})
 
@@ -543,7 +564,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 cls.resources_path = Path(".agilab").resolve()
         if getattr(cls, "envars", None) is None or not isinstance(cls.envars, dict):
             try:
-                env_path = cls.resources_path / ".env"  # ty: ignore[unsupported-operator]
+                env_path = cls.resources_path / ".env"
                 cls.envars = _load_dotenv_values(env_path, verbose=False)
             except (OSError, RuntimeError, TypeError, ValueError):
                 cls.envars = {}
@@ -585,14 +606,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _update_env_file(updates: dict):
         AgiEnv._ensure_defaults()
-        env_file = AgiEnv.resources_path / ".env"  # ty: ignore[unsupported-operator]
+        env_file = AgiEnv.resources_path / ".env"
         write_env_updates(env_file, updates)
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""
         initialize_resources(
             resources_src,
-            resources_path=self.resources_path,  # ty: ignore[arg-type]
+            resources_path=self.resources_path,
             st_resources=self.st_resources,
             is_source_env=self.is_source_env,
             ensure_dir_fn=_ensure_dir,
@@ -608,7 +629,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.projects = self.get_projects(self.apps_path, self.builtin_apps_path, self.apps_repository_root)  # ty: ignore[invalid-argument-type]
         for idx, project in enumerate(self.projects):
             if self.target == project[:-8].replace("-", "_"):
-                self.app = self.apps_path / project
                 self.app = project
                 break
 
@@ -681,7 +701,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return app_settings_source_roots(
             target_app=app_name or self.app,
             current_app=self.app,
-            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
+            app_src=self.app_src,
             active_app=self.active_app,
             apps_path=self.apps_path,
             builtin_apps_path=self.builtin_apps_path,
@@ -695,7 +715,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return find_source_app_settings_file(
             target_app=app_name or self.app,
             current_app=self.app,
-            app_src=self.app_src,  # ty: ignore[unresolved-attribute]
+            app_src=self.app_src,
             active_app=self.active_app,
             apps_path=self.apps_path,
             builtin_apps_path=self.builtin_apps_path,
@@ -717,7 +737,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """
         return resolve_user_app_settings_file(
             target_app=app_name or self.app or self.target,
-            resources_path=self.resources_path,  # ty: ignore[invalid-argument-type]
+            resources_path=self.resources_path,
             ensure_exists=ensure_exists,
             find_source_file=self.find_source_app_settings_file,
         )
@@ -748,7 +768,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         initialize_app_runtime(
             self,
             envars,
-            environ=os.environ,  # ty: ignore[arg-type]
+            environ=os.environ,
             default_account=getpass.getuser(),
             read_agilab_path_fn=self.read_agilab_path,
             optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
@@ -764,9 +784,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _init_apps(self):
         app_files = initialize_app_files(
-            app_src=self.app_src,  # ty: ignore[arg-type]
+            app_src=self.app_src,
             active_app=self.active_app,
-            resources_path=self.resources_path,  # ty: ignore[arg-type]
+            resources_path=self.resources_path,
             agilab_pck=self.agilab_pck,
             find_source_app_settings_file_fn=self.find_source_app_settings_file,
             resolve_user_app_settings_file_fn=self.resolve_user_app_settings_file,
