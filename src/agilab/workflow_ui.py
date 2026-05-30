@@ -435,6 +435,7 @@ def _render_cockpit_card(streamlit: Any, *, label: str, value: str, caption: str
 
 
 def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, str]]:
+    del page_label
     project_name = _project_display_name(env)
     project_root = _project_path(env)
     project_ready = bool(project_root and (project_root.exists() or project_root.is_symlink()))
@@ -443,12 +444,15 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
     evidence = _scan_project_evidence(env)
     artifact_count = int(evidence["count"])
     artifact_suffix = "+" if evidence["truncated"] else ""
+    artifact_value = f"{artifact_count}{artifact_suffix} artifact"
+    if artifact_count != 1 or artifact_suffix:
+        artifact_value += "s"
     if evidence["manifest"] is not None:
-        evidence_value = "Manifest"
-        evidence_caption = Path(evidence["manifest"]).name
+        evidence_value = artifact_value
+        evidence_caption = f"manifest: {Path(evidence['manifest']).name}"
         evidence_state = "ready"
     elif artifact_count:
-        evidence_value = "Outputs"
+        evidence_value = artifact_value
         evidence_caption = ", ".join(evidence["examples"]) or "artifact files detected"
         evidence_state = "ready"
     else:
@@ -456,12 +460,6 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
         evidence_caption = "run ORCHESTRATE -> EXECUTE"
         evidence_state = "incomplete"
     return [
-        {
-            "label": "Page",
-            "value": _as_text(page_label) or "AGILAB",
-            "caption": "current workspace",
-            "state": "neutral",
-        },
         {
             "label": "Project",
             "value": project_name,
@@ -485,12 +483,6 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
             "value": evidence_value,
             "caption": evidence_caption,
             "state": evidence_state,
-        },
-        {
-            "label": "Artifacts",
-            "value": f"{artifact_count}{artifact_suffix}",
-            "caption": _latest_timestamp_label(evidence["latest"]),
-            "state": "ready" if artifact_count else "incomplete",
         },
     ]
 
@@ -516,7 +508,7 @@ def render_next_best_action(
     *,
     env: Any | None,
     key_prefix: str,
-    title: str = "Next best action",
+    title: str = "Next",
 ) -> dict[str, str]:
     """Render one navigation CTA derived from project readiness."""
     action = project_next_action(env)
@@ -578,14 +570,12 @@ def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = No
         return None
 
     def _render_body() -> None:
-        streamlit.markdown("### Project cockpit")
+        streamlit.markdown("### Project status")
         cards = _project_cockpit_cards(page_label, env)
-        for start in range(0, len(cards), 3):
-            row = cards[start : start + 3]
-            columns = streamlit.columns(len(row))
-            for column, card in zip(columns, row):
-                with column:
-                    _render_cockpit_card(streamlit, **card)
+        columns = streamlit.columns(len(cards))
+        for column, card in zip(columns, cards):
+            with column:
+                _render_cockpit_card(streamlit, **card)
         render_next_best_action(
             streamlit,
             env=env,
