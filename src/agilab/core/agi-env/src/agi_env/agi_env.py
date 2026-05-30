@@ -49,21 +49,20 @@ import ctypes
 from ctypes import wintypes
 import importlib.util
 from threading import RLock
-from agi_env.defaults import get_default_openai_model
 from agi_env.app_settings_support import (
     app_settings_aliases,
     app_settings_source_roots,
     candidate_app_settings_path,
-    find_source_app_settings_file as find_versioned_app_settings_file,
-    resolve_user_app_settings_file as resolve_workspace_app_settings_file,
+    find_source_app_settings_file,
+    resolve_user_app_settings_file,
 )
-from agi_env.connector_registry import resolve_connector_root
 from agi_env.app_provider_registry import resolve_app_runtime_target
 from agi_env.env_config_support import (
-    clean_envar_value as _clean_envar_value,
+    clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
     write_env_updates,
 )
+from agi_env.env_runtime_initialization_support import initialize_app_runtime
 from agi_env.hook_support import resolve_worker_hook, select_hook
 from agi_env.host_runtime_support import (
     check_internet_connectivity,
@@ -132,11 +131,16 @@ from agi_env.bootstrap_support import (
     resolve_requested_apps_path,
 )
 from agi_env.app_provider_registry import installed_app_project_paths
-from agi_env.credential_store_support import read_cluster_credentials
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
     get_full_attribute_name as build_full_attribute_name,
     get_import_mapping as build_import_mapping,
+)
+from agi_env.project_initialization_support import (
+    copy_file_if_missing,
+    discover_projects,
+    initialize_app_files,
+    initialize_resources,
 )
 from agi_env.worker_source_support import (
     get_base_classes as discover_base_classes,
@@ -156,7 +160,6 @@ from agi_env.execution_support import (
     run_async as run_command_async,
     run_bg as run_command_in_background,
 )
-import inspect as _inspect
 try:
     import pwd
 except ImportError:  # Windows
@@ -250,8 +253,8 @@ class _AgiEnvMeta(type):
             obj = super().__getattribute__(name)
             found_on_class = True
             if (
-                _inspect.isfunction(obj)
-                or _inspect.ismethoddescriptor(obj)
+                inspect.isfunction(obj)
+                or inspect.ismethoddescriptor(obj)
                 or isinstance(obj, (property, staticmethod, classmethod, type))
             ):
                 return obj
@@ -278,8 +281,8 @@ class _AgiEnvMeta(type):
             return super().__setattr__(name, value)
         # Always set callables/descriptors on the class itself to allow patching/overrides
         if (
-            _inspect.isfunction(value)
-            or _inspect.ismethoddescriptor(value)
+            inspect.isfunction(value)
+            or inspect.ismethoddescriptor(value)
             or isinstance(value, (property, staticmethod, classmethod, type))
         ):
             return super().__setattr__(name, value)
@@ -643,7 +646,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             is_worker_env=self.is_worker_env,
             resolve_workspace_settings_fn=lambda: self.resolve_user_app_settings_file(ensure_exists=False),
             find_source_settings_fn=self.find_source_app_settings_file,
-            clean_envar_value_fn=_clean_envar_value,
+            clean_envar_value_fn=clean_envar_value,
             resolve_cluster_enabled_fn=resolve_cluster_enabled_from_settings,
             resolve_runtime_share_path_fn=resolve_runtime_share_path,
             env_path=env_path,
@@ -996,43 +999,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""
-
-        src_env_path = resources_src / ".env"
-        dest_env_file = self.resources_path / ".env"  # ty: ignore[unsupported-operator]
-        if not dest_env_file.exists():
-            _ensure_dir(dest_env_file.parent)
-            shutil.copy(src_env_path, dest_env_file)
-        for root, dirs, files in os.walk(resources_src):
-            for file in files:
-                src_file = Path(root) / file
-                relative_path = src_file.relative_to(resources_src)
-                dest_file = self.resources_path / relative_path  # ty: ignore[unsupported-operator]
-                _ensure_dir(dest_file.parent)
-                if not dest_file.exists():
-                    shutil.copy(src_file, dest_file)
-
-        # Ensure UI assets required by Streamlit editors are present.
-        extras = [
-            "custom_buttons.json",
-            "info_bar.json",
-            "code_editor.scss",
-        ]
-
-        if not self.is_source_env:
-            for extra in extras:
-                src_extra = self.st_resources / extra
-                dest_extra = self.resources_path / extra  # ty: ignore[unsupported-operator]
-                if src_extra.exists() and not dest_extra.exists():
-                    _ensure_dir(dest_extra.parent)
-                    shutil.copy(src_extra, dest_extra)
-        else:
-            for extra in extras:
-                dest_extra = self.resources_path / extra  # ty: ignore[unsupported-operator]
-                try:
-                    if dest_extra.exists():
-                        dest_extra.unlink()
-                except OSError:
-                    AgiEnv.logger.warning(f"Could not remove legacy resource {dest_extra}")  # ty: ignore[unresolved-attribute]
+        initialize_resources(
+            resources_src,
+            resources_path=self.resources_path,  # ty: ignore[arg-type]
+            st_resources=self.st_resources,
+            is_source_env=self.is_source_env,
+            ensure_dir_fn=_ensure_dir,
+            logger=AgiEnv.logger,
+        )
 
     def _init_projects(self):
         """Identify available projects and align state with the selected target."""
@@ -1049,49 +1023,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def get_projects(self, *paths: Path):
         """Return the names of ``*_project`` directories beneath the provided paths."""
-
-        projects: list[str] = []
-        seen: set[str] = set()
-
-        for path in paths:
-            if path is None:
-                continue
-            try:
-                base = Path(path)
-            except (TypeError, ValueError):
-                continue
-            if not base.exists():
-                continue
-
-            for project_path in sorted(base.glob("*_project"), key=lambda candidate: candidate.name):
-                if project_path.is_symlink() and not project_path.exists():
-                    try:
-                        project_path.unlink()
-                        AgiEnv.logger.info(  # ty: ignore[unresolved-attribute]
-                            f"Removed dangling project symlink: {project_path}"
-                        )
-                    except OSError as exc:
-                        AgiEnv.logger.warning(  # ty: ignore[unresolved-attribute]
-                            f"Failed to remove dangling project symlink {project_path}: {exc}"
-                        )
-                    continue
-
-                if project_path.is_dir():
-                    name = project_path.name
-                    if name not in seen:
-                        projects.append(name)
-                        seen.add(name)
-
-        for project_path in sorted(getattr(self, "installed_app_project_paths", ()), key=lambda candidate: candidate.name):
-            try:
-                name = Path(project_path).name
-            except (TypeError, ValueError):
-                continue
-            if name.endswith("_project") and name not in seen:
-                projects.append(name)
-                seen.add(name)
-
-        return projects
+        return discover_projects(
+            paths,
+            installed_app_project_paths=getattr(self, "installed_app_project_paths", ()),
+            logger=AgiEnv.logger,
+        )
 
     def get_base_worker_cls(self, module_path, class_name):
         """Return the base worker class name and module for ``class_name``."""
@@ -1165,7 +1101,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def find_source_app_settings_file(self, app_name: str | None = None) -> Path | None:
         """Return the versioned/source ``app_settings.toml`` for an app when available."""
-        return find_versioned_app_settings_file(
+        return find_source_app_settings_file(
             target_app=app_name or self.app,
             current_app=self.app,
             app_src=self.app_src,  # ty: ignore[unresolved-attribute]
@@ -1188,7 +1124,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         The workspace copy lives under ``~/.agilab/apps/<app>/app_settings.toml`` and
         is seeded from the versioned source file on first use.
         """
-        return resolve_workspace_app_settings_file(
+        return resolve_user_app_settings_file(
             target_app=app_name or self.app or self.target,
             resources_path=self.resources_path,  # ty: ignore[invalid-argument-type]
             ensure_exists=ensure_exists,
@@ -1218,141 +1154,36 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def init_envars_app(self, envars):
         """Cache frequently used environment variables and ensure directories exist."""
-
-        self.CLUSTER_CREDENTIALS = read_cluster_credentials(
-            envars.get("CLUSTER_CREDENTIALS", None),
-            environ=os.environ,
+        initialize_app_runtime(
+            self,
+            envars,
+            environ=os.environ,  # ty: ignore[arg-type]
             default_account=getpass.getuser(),
+            read_agilab_path_fn=self.read_agilab_path,
+            optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
+            ensure_dir_fn=_ensure_dir,
             logger=AgiEnv.logger,
         )
-        if self.CLUSTER_CREDENTIALS:
-            envars["CLUSTER_CREDENTIALS"] = self.CLUSTER_CREDENTIALS
-        self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
-        self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
-        log_connector = resolve_connector_root(
-            self,
-            connector_id="log_root",
-            label="Log root",
-            attr_name="AGILAB_LOG_ABS",
-            env_key="AGI_LOG_DIR",
-            default_child="log",
-            ensure=True,
-            prefer_attr=False,
-            description="Root for execution logs and run manifests.",
-        )
-        self.AGILAB_LOG_ABS = log_connector.path
-        runenv_base = self.AGILAB_LOG_ABS / "execute"
-        _ensure_dir(runenv_base)
-        self.runenv = runenv_base / self.target  # ty: ignore[unsupported-operator]
-        _ensure_dir(self.runenv)
-        export_connector = resolve_connector_root(
-            self,
-            connector_id="export_root",
-            label="Export root",
-            attr_name="AGILAB_EXPORT_ABS",
-            env_key="AGI_EXPORT_DIR",
-            default_child="export",
-            ensure=True,
-            prefer_attr=False,
-            description="Root for app and page output artifacts.",
-        )
-        self.AGILAB_EXPORT_ABS = export_connector.path
-        self.export_apps = self.AGILAB_EXPORT_ABS / "apps-zip"
-        _ensure_dir(self.export_apps)
-        mlflow_tracking_override = _clean_envar_value(envars, "MLFLOW_TRACKING_DIR")
-        if mlflow_tracking_override:
-            mlflow_tracking_dir = Path(mlflow_tracking_override).expanduser()
-            if not mlflow_tracking_dir.is_absolute():
-                mlflow_tracking_dir = self.home_abs / mlflow_tracking_dir
-            self.MLFLOW_TRACKING_DIR = mlflow_tracking_dir
-        else:
-            self.MLFLOW_TRACKING_DIR = self.home_abs / ".mlflow"
-        pages_override = _clean_envar_value(envars, "AGI_PAGES_DIR")
-        if pages_override:
-            pages_root = Path(pages_override).expanduser()
-        else:
-            candidates = [
-                self.agilab_pck / "apps-pages",
-                self.agilab_pck / "agilab/apps-pages",
-            ]
-            repo_hint = self.read_agilab_path()
-            if repo_hint:
-                repo_hint = Path(repo_hint)
-                for suffix in ("apps-pages", "agilab/apps-pages"):
-                    candidates.append(repo_hint / suffix)
-            agi_pages_root = _optional_agi_pages_bundles_root()
-            if agi_pages_root is not None:
-                candidates.append(agi_pages_root)
-
-            pages_root = next((c.resolve() for c in candidates if c and c.exists()), candidates[0])
-
-        self.AGILAB_PAGES_ABS = pages_root
-        if not self.AGILAB_PAGES_ABS.exists():
-            AgiEnv.logger.info(f"AGILAB_PAGES_ABS missing: {self.AGILAB_PAGES_ABS}")  # ty: ignore[unresolved-attribute]
-        self.copilot_file = self.agilab_pck / "agi_codex.py"
 
 
     @staticmethod
     def _copy_file(src_item, dst_item):
         """Copy ``src_item`` to ``dst_item`` if the destination does not exist."""
-
-        if not dst_item.exists():
-            if not src_item.exists():
-                logger = AgiEnv.logger
-                if logger:
-                    logger.info(f"[WARN] Source file missing (skipped): {src_item}")
-                return
-            try:
-                shutil.copy2(src_item, dst_item)
-            except (OSError, shutil.Error) as e:
-                logger = AgiEnv.logger
-                if logger:
-                    logger.error(f"[WARN] Could not copy {src_item} → {dst_item}: {e}")
-
-    # def copy_missing(self, src: Path, dst: Path, max_workers=8):
-    #     dst.mkdir(parents=True, exist_ok=True)
-    #     to_copy = []
-    #     dirs = []
-    #
-    #     for item in src.iterdir():
-    #         src_item = item
-    #         dst_item = dst / item.name
-    #         if src_item.is_dir():
-    #             dirs.append((src_item, dst_item))
-    #         else:
-    #             to_copy.append((src_item, dst_item))
-    #
-    #     # Parallel file copy
-    #     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-    #         list(executor.map(lambda args: AgiEnv._copy_file(*args), to_copy))
-    #
-    #     # Recurse into directories
-    #     for src_dir, dst_dir in dirs:
-    #         self.copy_missing(src_dir, dst_dir, max_workers=max_workers)
-
+        copy_file_if_missing(src_item, dst_item, logger=AgiEnv.logger)
 
     def _init_apps(self):
-        app_settings_source_file = self.find_source_app_settings_file() or (self.app_src / "app_settings.toml")  # ty: ignore[unresolved-attribute]
-        self.app_settings_source_file = app_settings_source_file
-        self.app_settings_file = self.resolve_user_app_settings_file()
-
-        app_args_form = self.app_src / "app_args_form.py"  # ty: ignore[unresolved-attribute]
-        app_args_form.touch(exist_ok=True)
-        self.app_args_form = app_args_form
-
-        self.gitignore_file = self.active_app / ".gitignore"
-        dest = self.resources_path
-        src = self.agilab_pck / "resources"
-        if src.exists():
-            dest.mkdir(parents=True, exist_ok=True)  # ty: ignore[unresolved-attribute]
-            for file in src.iterdir():
-                if not file.is_file():
-                    continue
-                dest_file = dest / file.name  # ty: ignore[unsupported-operator]
-                if dest_file.exists():
-                    continue
-                shutil.copy(file, dest_file)
-        # shutil.copytree(self.agilab_pck / "resources", dest, dirs_exist_ok=True)
+        app_files = initialize_app_files(
+            app_src=self.app_src,  # ty: ignore[arg-type]
+            active_app=self.active_app,
+            resources_path=self.resources_path,  # ty: ignore[arg-type]
+            agilab_pck=self.agilab_pck,
+            find_source_app_settings_file_fn=self.find_source_app_settings_file,
+            resolve_user_app_settings_file_fn=self.resolve_user_app_settings_file,
+        )
+        self.app_settings_source_file = app_files.app_settings_source_file
+        self.app_settings_file = app_files.app_settings_file
+        self.app_args_form = app_files.app_args_form
+        self.gitignore_file = app_files.gitignore_file
 
 
     @staticmethod
