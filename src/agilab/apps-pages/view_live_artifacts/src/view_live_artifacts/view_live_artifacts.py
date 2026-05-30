@@ -12,8 +12,14 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import streamlit as st
-from agi_pages.runtime import ensure_repo_on_path as _page_ensure_repo_on_path
-from agi_pages.runtime import relative_label, reset_scoped_session_state, resolve_active_app_path
+from agi_pages.runtime import (
+    configure_streamlit_page,
+    ensure_repo_on_path as _page_ensure_repo_on_path,
+    relative_label,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+    resolve_active_app_path,
+)
 
 
 PAGE_KEY = "view_live_artifacts"
@@ -90,7 +96,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 def parse_patterns(raw_value: str | Iterable[str] | None) -> tuple[str, ...]:
@@ -424,14 +429,17 @@ def _render_live_or_static_panel(root: Path, patterns: tuple[str, ...], max_file
 
 
 def main() -> None:
-    st.set_page_config(layout="wide")
+    configure_streamlit_page(st, title="Live artifacts")
     active_app_path = _resolve_active_app()
     _reset_app_scoped_session_state(active_app_path)
     env = _active_env(active_app_path)
 
-    render_logo("Live Artifacts")
-    st.title("Live artifacts")
-    st.caption("Monitor exported evidence, manifests, logs, and lightweight artifacts for the active app.")
+    render_streamlit_page_header(
+        st,
+        title="Live artifacts",
+        logo_title="Live Artifacts",
+        caption="Monitor exported evidence, manifests, logs, and lightweight artifacts for the active app.",
+    )
 
     root, patterns, max_files, live_refresh, interval_seconds = _render_controls(env, active_app_path)
     st.caption(f"Root: {root}")

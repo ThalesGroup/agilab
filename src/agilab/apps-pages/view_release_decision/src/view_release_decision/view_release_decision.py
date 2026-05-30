@@ -43,10 +43,13 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import reset_scoped_session_state
+from agi_pages.runtime import (
+    configure_streamlit_page,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
-from agi_gui.pagelib import render_logo
 from agilab.data_connector_facility import (
     DEFAULT_CONNECTORS_RELATIVE_PATH,
     load_connector_catalog,
@@ -2096,7 +2099,7 @@ def _render_release_decision_connector_live_ui(
     )
 
 
-st.set_page_config(layout="wide")
+configure_streamlit_page(st, title="Evidence cockpit")
 
 if "env" not in st.session_state:
     active_app_path = _resolve_active_app()
@@ -2107,10 +2110,14 @@ else:
     env = st.session_state["env"]
 _reset_app_scoped_session_defaults(st, env)
 
-render_logo("Evidence Cockpit")
-st.title("Evidence cockpit")
-st.caption(
-    "Review baseline versus candidate evidence, explain gate failures, and export a portable promotion decision."
+render_streamlit_page_header(
+    st,
+    title="Evidence cockpit",
+    logo_title="Evidence Cockpit",
+    caption=(
+        "Review baseline versus candidate evidence, explain gate failures, "
+        "and export a portable promotion decision."
+    ),
 )
 
 connector_registry = _connector_path_registry(env)

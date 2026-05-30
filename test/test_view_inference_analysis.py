@@ -109,6 +109,15 @@ class _FakeStreamlit:
         return [_FakeContext() for _ in range(count)]
 
 
+def _patch_page_header(monkeypatch, module) -> None:
+    def _render_header(streamlit, *, title: str, caption: str | None = None, **_kwargs) -> None:
+        streamlit.title(title)
+        if caption:
+            streamlit.caption(caption)
+
+    monkeypatch.setattr(module, "render_streamlit_page_header", _render_header)
+
+
 def test_view_inference_analysis_builds_routed_latency_percentiles() -> None:
     module = _load_module()
 
@@ -1442,7 +1451,7 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_missing(monkeyp
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: tmp_path / "missing-root")
 
@@ -1486,7 +1495,7 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_unresolved(monk
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: None)
 
@@ -1521,7 +1530,7 @@ def test_view_inference_analysis_main_stops_when_no_allocation_files_match(
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [])
@@ -1562,7 +1571,7 @@ def test_view_inference_analysis_main_handles_no_selection_before_loading_frames
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [allocations])
@@ -1620,7 +1629,7 @@ default_metric = "missing_metric"
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [empty_path, run_path])
@@ -1666,7 +1675,7 @@ def test_view_inference_analysis_main_renders_no_axis_detail_state(
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_path])
@@ -1710,7 +1719,7 @@ def test_view_inference_analysis_main_stops_when_selected_files_have_no_numeric_
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [allocations])
@@ -1780,7 +1789,7 @@ def test_view_inference_analysis_main_renders_time_series_requested_reference(
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_a_path, run_b_path])
@@ -1879,7 +1888,7 @@ default_profile_axis = "missing_axis"
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", _FakeEnv)
-    monkeypatch.setattr(module, "render_logo", lambda *_args, **_kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_base_path", lambda *_args, **_kwargs: tmp_path / "base")
     monkeypatch.setattr(module, "_resolve_dataset_root", lambda *_args, **_kwargs: dataset_root)
     monkeypatch.setattr(module, "_discover_allocation_files", lambda *_args, **_kwargs: [run_a_path, run_b_path])

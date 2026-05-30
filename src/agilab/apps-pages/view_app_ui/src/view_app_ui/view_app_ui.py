@@ -13,6 +13,7 @@ from typing import Any
 
 import streamlit as st
 from agi_pages.runtime import (
+    configure_streamlit_page,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     resolve_active_app_path,
 )
@@ -23,7 +24,7 @@ PAGE_KEY = "view_app_ui"
 
 def _safe_page_config() -> None:
     try:
-        st.set_page_config(page_title="App UI", layout="wide")
+        configure_streamlit_page(st, title="App UI")
     except Exception:
         pass
 
