@@ -109,8 +109,10 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "llms-full.txt" in agent_workflows
     assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
     assert "agilab.resource_snapshot.v1" in agent_workflows
+    assert "python tools/agent_skill_quality_guard.py --changed-only --fail-on high" in agent_workflows
     assert "python tools/skill_security_scan.py --changed-only --fail-on critical" in agent_workflows
     assert "Changed repo-managed skills are scanned locally" in agent_workflows
+    assert "portable skill structure" in agent_workflows
     assert "does not ship a Continue wrapper" in agent_workflows
 
 
