@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from agilab import environment_health
@@ -277,3 +278,84 @@ def test_environment_health_resolvers_and_cluster_edges(tmp_path, monkeypatch):
     monkeypatch.setattr(environment_health, "_default_install_status", lambda _env: {"workerless": True})
     health = environment_health.build_environment_health(TypeErrorResolver(), app_settings={})
     assert _card_map(health)["API keys"].value == "Configured"
+
+
+def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
+    class BadPath:
+        def __fspath__(self):
+            raise TypeError("bad path")
+
+        def __str__(self):
+            return "bad-path"
+
+    assert environment_health.render_environment_details(SimpleNamespace(), []) is None
+    assert environment_health.data_share_content_summary(None) == (
+        "not configured",
+        "not configured",
+    )
+    assert environment_health.data_share_content_summary(BadPath()) == (
+        "not configured",
+        "bad-path",
+    )
+    assert environment_health.path_status(BadPath()) == ("not configured", "bad-path")
+    assert environment_health.compact_path_caption("/") == "/"
+
+    fifo_path = tmp_path / "fifo"
+    if hasattr(environment_health.os, "mkfifo"):
+        environment_health.os.mkfifo(fifo_path)
+        assert environment_health.data_share_content_summary(fifo_path)[0] == "unknown"
+
+    data_dir = tmp_path / "walk-error"
+    data_dir.mkdir()
+
+    def raise_walk(_path):
+        raise OSError("walk unavailable")
+
+    monkeypatch.setattr(environment_health.os, "walk", raise_walk)
+    assert environment_health.data_share_content_summary(data_dir)[0] == "unknown"
+    monkeypatch.undo()
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "code.py").write_text("print('ok')\n", encoding="utf-8")
+    assert environment_health.latest_project_mtime(project) != "unknown"
+
+    monkeypatch.setattr(environment_health.os, "walk", raise_walk)
+    assert environment_health.latest_project_mtime(project) == "unknown"
+    monkeypatch.undo()
+
+    assert environment_health._environment_mapping(SimpleNamespace(envars=["not", "mapping"])) == {}
+    assert environment_health._looks_placeholder_secret("   ") is True
+    assert environment_health._looks_placeholder_secret("None") is True
+    assert environment_health._looks_placeholder_secret("***") is True
+    assert environment_health._looks_placeholder_secret("YOUR_API_KEY") is True
+    assert environment_health._looks_placeholder_secret("sk-XXXX") is True
+
+    card, detail = environment_health._api_key_card(
+        SimpleNamespace(
+            envars={
+                "AZURE_OPENAI_API_KEY": "azure-real-key-12345",
+                "MISTRAL_API_KEY": "mistral-real-key-12345",
+            }
+        )
+    )
+    assert card.value == "Configured"
+    assert detail == ("API keys", "Azure OpenAI, Mistral")
+
+    class FailingLegacyResolver:
+        app_settings_file = None
+        app_settings_source_file = None
+
+        def resolve_user_app_settings_file(self, *args, **kwargs):
+            if kwargs:
+                raise TypeError("legacy")
+            raise RuntimeError("boom")
+
+    assert environment_health._app_settings_file(FailingLegacyResolver()) is None
+    assert environment_health._is_local_worker_host("") is False
+    assert environment_health._is_local_worker_host("tcp://127.0.0.1:8786") is True
+    assert environment_health._is_local_worker_host("user@localhost") is True
+    assert environment_health._is_local_worker_host("[::1]:8786") is True
+    assert environment_health._cluster_has_nonlocal_workers({"workers": "[]"}) is False
+    assert environment_health._cluster_has_nonlocal_workers({"workers": "worker-a"}) is True
+    assert environment_health._resolve_share_path(SimpleNamespace(), "relative") == Path("relative")

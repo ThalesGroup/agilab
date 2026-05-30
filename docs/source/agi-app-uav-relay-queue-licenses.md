@@ -79,7 +79,6 @@ Audit notes:
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | referencing | 0.37.0 | MIT |
 | requests | 2.33.1 | APACHE SOFTWARE LICENSE |
 | rpds-py | 0.30.0 | MIT |

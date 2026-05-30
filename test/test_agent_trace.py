@@ -7,6 +7,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_MODULE_PATH = ROOT / "src" / "agilab" / "secret_uri.py"
@@ -214,3 +216,97 @@ def test_agent_trace_summaries_tolerate_missing_or_invalid_files(tmp_path: Path)
     assert artifact["event_count"] == 0
     assert artifact["event_types"] == []
     assert artifact["exists"] is False
+
+
+def test_agent_trace_lock_and_sequence_edge_cases(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    events_path = tmp_path / module.EVENTS_FILENAME
+    events_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "schema": module.TRACE_SCHEMA,
+                        "event": "session_start",
+                        "run_id": "run",
+                        "sequence": 4,
+                        "created_at": "now",
+                        "status": "running",
+                        "message": "",
+                        "metadata": {},
+                    }
+                ),
+                "{not-json",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert module._last_event_sequence(events_path) == 4
+
+    events_path.write_text(json.dumps({"sequence": "bad"}) + "\n", encoding="utf-8")
+    assert module._last_event_sequence(events_path) == 0
+    events_path.write_text(json.dumps(["not", "mapping"]) + "\n", encoding="utf-8")
+    assert module._last_event_sequence(events_path) == 0
+
+    same_host = {"host": module.socket.gethostname(), "pid": str(os.getpid())}
+    assert module._lock_owner_alive({"host": "other", "pid": os.getpid()}) is None
+    assert module._lock_owner_alive({"host": module.socket.gethostname(), "pid": "bad"}) is None
+    assert module._lock_owner_alive({"host": module.socket.gethostname(), "pid": 0}) is None
+    assert module._lock_owner_alive(same_host) is True
+
+    def process_missing(_pid, _signal):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(module.os, "kill", process_missing)
+    assert module._lock_owner_alive(same_host) is False
+
+    def process_forbidden(_pid, _signal):
+        raise PermissionError
+
+    monkeypatch.setattr(module.os, "kill", process_forbidden)
+    assert module._lock_owner_alive(same_host) is True
+
+    def process_unknown(_pid, _signal):
+        raise OSError
+
+    monkeypatch.setattr(module.os, "kill", process_unknown)
+    assert module._lock_owner_alive(same_host) is None
+
+    lock_path = tmp_path / "events.lock"
+    lock_path.write_text("{not-json", encoding="utf-8")
+    assert module._read_lock_payload(lock_path) == {}
+    assert module._lock_is_stale(lock_path, now=lock_path.stat().st_mtime + module.LOCK_STALE_SECONDS) is True
+
+    monkeypatch.setattr(module, "_lock_owner_alive", lambda _payload: True)
+    assert module._lock_is_stale(lock_path, now=lock_path.stat().st_mtime + 999) is False
+    assert module._clear_stale_lock(lock_path) is False
+
+
+def test_agent_trace_event_lock_timeout_and_finally_edges(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    events_path = tmp_path / module.EVENTS_FILENAME
+    events_path.touch()
+    lock_path = events_path.with_name(events_path.name + ".lock")
+    lock_path.write_text("{}", encoding="utf-8")
+
+    monotonic_values = iter([0.0, module.LOCK_TIMEOUT_SECONDS + 1.0])
+    monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(module, "_clear_stale_lock", lambda _path: False)
+
+    with pytest.raises(TimeoutError, match="Timed out waiting"):
+        with module._event_file_lock(events_path):
+            pass
+
+    lock_path.unlink()
+    monkeypatch.setattr(module.time, "monotonic", lambda: 0.0)
+    original_unlink = module.Path.unlink
+
+    def unlink_missing(self):
+        if self == lock_path:
+            raise FileNotFoundError
+        return original_unlink(self)
+
+    monkeypatch.setattr(module.Path, "unlink", unlink_missing)
+    with module._event_file_lock(events_path):
+        assert lock_path.exists()

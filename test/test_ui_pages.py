@@ -960,6 +960,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Run readiness" not in markdown_text
     assert all("Check what will run" not in str(item.value) for item in at.caption)
+    assert "Project cockpit" not in markdown_text
     assert "Environment Health" in markdown_text
     assert "Project path" in markdown_text
     assert "Manager env" in markdown_text

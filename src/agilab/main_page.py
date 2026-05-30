@@ -955,14 +955,17 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     _about_env_editor._render_env_editor(env, help_file)
 
 
-def _render_navigation_context(env: Any, *, page_label: str) -> None:
+def _render_navigation_context(
+    env: Any, *, page_label: str, show_project_context: bool = True
+) -> None:
     try:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
     render_sidebar_settings_link(env)
     render_pinned_expanders(st)
-    render_page_context(st, page_label=page_label, env=env)
+    if show_project_context:
+        render_page_context(st, page_label=page_label, env=env)
 
 
 def _seed_session_runtime_defaults(env: Any) -> None:
@@ -974,7 +977,7 @@ def _seed_session_runtime_defaults(env: Any) -> None:
 
 def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
-    _render_navigation_context(env, page_label="MAIN_PAGE")
+    _render_navigation_context(env, page_label="MAIN_PAGE", show_project_context=False)
     _sync_layout_module()
     _about_layout.render_footer()
     _seed_session_runtime_defaults(env)

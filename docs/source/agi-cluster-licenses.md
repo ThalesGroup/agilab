@@ -58,7 +58,6 @@ Audit notes:
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
-| pyzstd | 0.19.1 | BSD LICENSE |
 | scikit-learn | 1.8.0 | BSD-3-CLAUSE |
 | scipy | 1.16.3 | BSD LICENSE |
 | setuptools | 81.0.0 | MIT |

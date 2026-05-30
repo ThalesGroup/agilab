@@ -722,3 +722,161 @@ def test_defensive_helper_branches_and_export_errors(tmp_path: Path, monkeypatch
     monkeypatch.setattr(module, "_build_parser", lambda: parser)
     assert module.main(["unsupported", str(manifest_path)]) == 2
     assert parser.message == "unsupported command: unsupported"
+
+
+def test_proof_capsule_invalid_archive_and_signature_edges(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+
+    missing_report = module.verify_proof_capsule(tmp_path / "missing.agipack")
+    assert missing_report["status"] == "fail"
+    assert missing_report["checks"][0]["id"] == "capsule_exists"
+
+    bad_zip = tmp_path / "bad.agipack"
+    bad_zip.write_text("not a zip", encoding="utf-8")
+    bad_zip_report = module.verify_proof_capsule(bad_zip)
+    assert any(check["id"] == "zip_readable" and check["status"] == "fail" for check in bad_zip_report["checks"])
+
+    no_manifest = tmp_path / "no-manifest.agipack"
+    with zipfile.ZipFile(no_manifest, "w") as archive:
+        archive.writestr("payload.txt", "payload")
+    no_manifest_report = module.verify_proof_capsule(no_manifest)
+    assert any(check["id"] == "capsule_manifest_present" and check["status"] == "fail" for check in no_manifest_report["checks"])
+
+    invalid_manifest = tmp_path / "invalid-manifest.agipack"
+    with zipfile.ZipFile(invalid_manifest, "w") as archive:
+        archive.writestr(module.PROOF_CAPSULE_MANIFEST_FILENAME, "{not-json")
+    invalid_manifest_report = module.verify_proof_capsule(invalid_manifest)
+    assert any(
+        check["id"] == "capsule_manifest_schema_supported" and check["status"] == "fail"
+        for check in invalid_manifest_report["checks"]
+    )
+
+    bad_schema = tmp_path / "bad-schema.agipack"
+    with zipfile.ZipFile(bad_schema, "w") as archive:
+        archive.writestr(module.PROOF_CAPSULE_MANIFEST_FILENAME, json.dumps({"schema": "other", "entries": []}))
+    bad_schema_report = module.verify_proof_capsule(bad_schema)
+    assert any(
+        check["id"] == "capsule_manifest_schema_supported" and check["status"] == "fail"
+        for check in bad_schema_report["checks"]
+    )
+
+    bad_entries = tmp_path / "bad-entries.agipack"
+    with zipfile.ZipFile(bad_entries, "w") as archive:
+        archive.writestr(
+            module.PROOF_CAPSULE_MANIFEST_FILENAME,
+            json.dumps({"schema": module.PROOF_CAPSULE_SCHEMA, "entries": "not-a-list"}),
+        )
+    bad_entries_report = module.verify_proof_capsule(bad_entries)
+    assert any(check["id"] == "capsule_entries_valid" and check["status"] == "fail" for check in bad_entries_report["checks"])
+
+    malformed_entries = tmp_path / "malformed-entries.agipack"
+    with zipfile.ZipFile(malformed_entries, "w") as archive:
+        archive.writestr("payload.txt", "payload")
+        archive.writestr("extra.txt", "extra")
+        archive.writestr(
+            module.PROOF_CAPSULE_MANIFEST_FILENAME,
+            json.dumps(
+                {
+                    "schema": module.PROOF_CAPSULE_SCHEMA,
+                    "entries": [
+                        {"path": "payload.txt", "sha256": "bad", "size_bytes": "bad"},
+                        {"path": "payload.txt", "sha256": "bad", "size_bytes": 999},
+                        {"path": "../unsafe", "sha256": "bad", "size_bytes": 1},
+                        "not-a-mapping",
+                    ],
+                }
+            ),
+        )
+    malformed_report = module.verify_proof_capsule(malformed_entries)
+    checks = {check["id"]: check for check in malformed_report["checks"]}
+    assert checks["capsule_entries_valid"]["status"] == "fail"
+    assert checks["capsule_entry_inventory_matches"]["status"] == "fail"
+    assert checks["capsule_entry_hashes_match"]["status"] == "fail"
+    assert checks["run_manifest_snapshot_valid"]["status"] == "fail"
+    assert checks["proof_pack_manifest_valid"]["status"] == "fail"
+
+    signature_checks = module._proof_capsule_signature_checks(malformed_entries, None)
+    assert signature_checks[0]["id"] == "capsule_signature_present"
+    missing_signature = module._proof_capsule_signature_checks(malformed_entries, tmp_path / "missing.sig.json")
+    assert missing_signature[0]["summary"].startswith("Missing detached")
+
+    invalid_signature = tmp_path / "invalid.sig.json"
+    invalid_signature.write_text("{not-json", encoding="utf-8")
+    invalid_signature_checks = module._proof_capsule_signature_checks(malformed_entries, invalid_signature)
+    assert invalid_signature_checks[1]["id"] == "capsule_signature_schema_supported"
+
+    list_signature = tmp_path / "list.sig.json"
+    list_signature.write_text("[]\n", encoding="utf-8")
+    list_signature_checks = module._proof_capsule_signature_checks(malformed_entries, list_signature)
+    assert list_signature_checks[1]["summary"] == "Signature file must contain a JSON object."
+
+    unsupported_signature = tmp_path / "unsupported.sig.json"
+    unsupported_signature.write_text(json.dumps({"schema": "other"}), encoding="utf-8")
+    unsupported_signature_checks = module._proof_capsule_signature_checks(malformed_entries, unsupported_signature)
+    assert unsupported_signature_checks[1]["status"] == "fail"
+
+    bad_key_signature = tmp_path / "bad-key.sig.json"
+    bad_key_signature.write_text(
+        json.dumps(
+            {
+                "schema": module.PROOF_CAPSULE_SIGNATURE_SCHEMA,
+                "subject": {"sha256": "wrong", "size_bytes": "bad"},
+                "key": {"algorithm": "rsa", "public_key_pem": "é", "public_key_sha256": "bad"},
+                "signature": {"algorithm": "rsa", "encoding": "hex", "value": ""},
+                "signer": "alice",
+                "issuer": "lab",
+            }
+        ),
+        encoding="utf-8",
+    )
+    bad_key_checks = module._proof_capsule_signature_checks(malformed_entries, bad_key_signature)
+    bad_key_by_id = {check["id"]: check for check in bad_key_checks}
+    assert bad_key_by_id["capsule_signature_subject_matches"]["status"] == "fail"
+    assert bad_key_by_id["capsule_signature_key_supported"]["status"] == "fail"
+
+    bad_policy = tmp_path / "bad-policy.txt"
+    bad_policy.write_text("not-json", encoding="utf-8")
+    trust_checks = module._trust_policy_checks(
+        bad_policy,
+        {"signer": "alice", "issuer": "lab"},
+        capsule_sha256="capsule",
+        public_key_sha256="key",
+    )
+    assert trust_checks[0]["id"] == "capsule_trust_policy_loaded"
+
+    no_anchor_policy = tmp_path / "no-anchor.json"
+    no_anchor_policy.write_text(json.dumps({"schema": module.TRUST_POLICY_SCHEMA}), encoding="utf-8")
+    no_anchor_checks = module._trust_policy_checks(
+        no_anchor_policy,
+        {"signer": "alice", "issuer": "lab"},
+        capsule_sha256="capsule",
+        public_key_sha256="key",
+    )
+    assert {check["id"]: check["status"] for check in no_anchor_checks}["capsule_trust_policy_has_anchor"] == "fail"
+
+    subject_policy = tmp_path / "subject-policy.json"
+    subject_policy.write_text(
+        json.dumps(
+            {
+                "schema": module.TRUST_POLICY_SCHEMA,
+                "allowed_issuers": ["lab"],
+                "expected_subject_sha256": ["capsule"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    subject_checks = module._trust_policy_checks(
+        subject_policy,
+        {"signer": "alice", "issuer": "lab"},
+        capsule_sha256="capsule",
+        public_key_sha256="key",
+    )
+    subject_status = {check["id"]: check["status"] for check in subject_checks}
+    assert subject_status["capsule_trust_policy_allows_issuer"] == "pass"
+    assert subject_status["capsule_trust_policy_allows_subject"] == "pass"
+
+    assert module._safe_archive_member_name("") is False
+    assert module._safe_archive_member_name("/absolute") is False
+    assert module._safe_archive_member_name("dir/") is False
+    assert module._safe_int("bad", default=-1) == -1
+    assert module._ascii_bytes("é") == b""

@@ -1165,3 +1165,211 @@ def test_agent_run_read_helpers_reject_negative_limit(tmp_path):
         list_agent_runs(tmp_path, limit=-1)
     with pytest.raises(ValueError, match="limit must be non-negative"):
         agent_context_payload(tmp_path, limit=-1)
+
+
+def test_agent_run_command_policy_and_read_edge_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+
+    assert module._is_destructive_git_args(()) is False
+    assert module._is_destructive_git_args(("clean", "-fdx")) is True
+    assert module._is_destructive_git_args(("branch", "-D", "old")) is True
+    assert module._is_destructive_git_args(("push", "--force-with-lease")) is True
+    assert module._is_destructive_git_args(("rm", "--force", "file")) is True
+    assert module._is_destructive_docker_args(()) is False
+    assert module._is_destructive_docker_args(("rm", "container")) is True
+    assert module._is_destructive_docker_args(("system", "prune")) is True
+    assert module._is_destructive_docker_args(("volume", "rm", "cache")) is True
+    assert module._is_destructive_uv_args(("pip", "uninstall", "pkg")) is True
+    assert module._is_destructive_uv_args(("cache", "clean")) is True
+    assert module._inline_python_snippets(("-c", "print(1)", "-cimport shutil; shutil.rmtree('x')")) == [
+        "print(1)",
+        "import shutil; shutil.rmtree('x')",
+    ]
+
+    commands = [
+        ("git", "clean", "-fdx"),
+        ("docker", "system", "prune"),
+        ("kubectl", "delete", "pod/demo"),
+        ("pip", "uninstall", "demo"),
+        ("uv", "cache", "clean"),
+        ("npm", "uninstall", "demo"),
+        ("bash", "-c", "rm -rf ./demo"),
+        (sys.executable, "-c", "import shutil; shutil.rmtree('demo')"),
+    ]
+    for command in commands:
+        assert module._command_content_requires_operator(command), command
+    assert module._command_content_requires_operator(()) is False
+    assert module._command_content_requires_operator(("python", "-c", "print('safe')")) is False
+
+    list_manifest = tmp_path / "list.json"
+    list_manifest.write_text("[]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        module.load_agent_run_manifest(list_manifest)
+    wrong_kind = tmp_path / "wrong-kind.json"
+    wrong_kind.write_text('{"kind": "other"}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported agent run manifest kind"):
+        module.load_agent_run_manifest(wrong_kind)
+
+    assert module._path_from_artifact({"path": ""}) is None
+    summary = module.summarize_agent_run(
+        {
+            "kind": module.TRACE_KIND,
+            "artifacts": "not-a-map",
+            "context": {"tags": "not-a-list", "metadata": "not-a-map"},
+            "timing": "not-a-map",
+            "returncode": "not-int",
+        }
+    )
+    assert summary.tags == ()
+    assert summary.metadata == {}
+    assert summary.returncode is None
+    assert summary.duration_seconds == 0.0
+
+    missing_root = tmp_path / "missing"
+    assert module.find_agent_run_manifests(missing_root) == []
+    monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "logs"))
+    assert module.find_agent_run_manifests(agent="codex") == []
+
+    root = tmp_path / "runs"
+    valid_dir = root / "valid"
+    invalid_dir = root / "invalid"
+    valid_dir.mkdir(parents=True)
+    invalid_dir.mkdir()
+    valid_manifest = {
+        "kind": module.TRACE_KIND,
+        "run_id": "run-1",
+        "agent": "codex",
+        "status": "pass",
+        "context": {"tags": ["keep"], "metadata": {"branch": "main"}},
+        "protocols": {"adapters": "bad", "capabilities": "bad"},
+        "artifacts": {"manifest": {"path": str(valid_dir / module.MANIFEST_FILENAME)}},
+        "timing": {"duration_seconds": 1},
+    }
+    (valid_dir / module.MANIFEST_FILENAME).write_text(json.dumps(valid_manifest), encoding="utf-8")
+    (invalid_dir / module.MANIFEST_FILENAME).write_text("{bad-json", encoding="utf-8")
+
+    assert module.find_agent_run_manifests(root, protocol_adapters=("mcp",)) == []
+    assert module.find_agent_run_manifests(root, capabilities=("agent",)) == []
+    assert module.find_agent_run_manifests(root, tags=("keep",), metadata={"branch": "main"}) == [
+        valid_dir / module.MANIFEST_FILENAME
+    ]
+
+    assert module._protocol_summary({"protocols": {"adapters": "bad", "capabilities": "bad"}}) == {
+        "adapters": [],
+        "capabilities": [],
+        "mode": "",
+    }
+
+
+def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+
+    assert "No matching agent runs" in module.render_context_markdown(
+        {"match_count": 0, "status_counts": {}, "runs": [], "latest": {}}
+    )
+    assert "No linked agent runs" in module.render_lineage_markdown(
+        {"query": {"run_id": "missing"}, "found": False, "chain": [], "edges": []}
+    )
+    assert "Metadata delta" in module.render_compare_markdown(
+        {
+            "left": {"run_id": "left", "status": "fail"},
+            "right": {"run_id": "right", "status": "pass"},
+            "metadata": {"added": {"followup_of": "left"}, "removed": {}, "changed": {}},
+        }
+    )
+    validation_text = module.render_validation_markdown(
+        {
+            "run": {"run_id": "bad", "status": "unknown"},
+            "ok": False,
+            "issue_count": 1,
+            "warning_count": 1,
+            "issues": [{"code": "kind", "message": "bad kind"}, "skip"],
+            "warnings": [{"code": "trace", "message": "missing trace"}, "skip"],
+        }
+    )
+    assert "## Issues" in validation_text
+    assert "## Warnings" in validation_text
+
+    bad_manifest = {
+        "kind": "other",
+        "run_id": "bad",
+        "status": "weird",
+        "command": {"argv_redacted": False},
+        "artifacts": {
+            "manifest": {"path": str(tmp_path / "missing-manifest.json")},
+            "agent_trace": {"events": str(tmp_path / "missing-events.ndjson")},
+        },
+    }
+    validation = module.validate_agent_run(bad_manifest)
+    codes = {item["code"] for item in validation["issues"]}
+    warning_codes = {item["code"] for item in validation["warnings"]}
+    assert {"kind", "status", "manifest_path", "stdout_path", "stderr_path", "argv_sha256", "trace_events_exists"} <= codes
+    assert "argv_redaction" in warning_codes
+
+    no_trace_manifest = {
+        "kind": module.TRACE_KIND,
+        "run_id": "planned",
+        "status": "planned",
+        "command": {"argv_sha256": "hash"},
+        "artifacts": {"manifest": {"path": ""}},
+    }
+    no_trace_validation = module.validate_agent_run(no_trace_manifest)
+    assert {item["code"] for item in no_trace_validation["warnings"]} == {"trace_events_path"}
+
+    assert module.agent_next_actions_payload({"kind": module.TRACE_KIND, "status": "timeout"})["next_actions"][0]["priority"] == "P0"
+    assert module.agent_next_actions_payload({"kind": module.TRACE_KIND, "status": "unknown"})["next_actions"][0]["priority"] == "P1"
+
+    monkeypatch.setattr(
+        module,
+        "list_agent_runs",
+        lambda *_args, **_kwargs: [
+            module.AgentRunSummary(
+                run_id="latest",
+                agent="codex",
+                label="bad latest",
+                status="pass",
+                returncode=0,
+                manifest_path=tmp_path / "bad.json",
+                stdout_path=None,
+                stderr_path=None,
+                trace_events_path=None,
+                duration_seconds=0.0,
+                tags=(),
+                metadata={},
+            )
+        ],
+    )
+    assert module.agent_context_payload(tmp_path)["latest"]["handoff"] is None
+
+    parent = module.AgentRunSummary(
+        run_id="parent",
+        agent="codex",
+        label="parent",
+        status="pass",
+        returncode=0,
+        manifest_path=Path(""),
+        stdout_path=None,
+        stderr_path=None,
+        trace_events_path=None,
+        duration_seconds=0.0,
+        tags=(),
+        metadata={"followup_of": "child"},
+    )
+    child = module.AgentRunSummary(
+        run_id="child",
+        agent="codex",
+        label="child",
+        status="pass",
+        returncode=0,
+        manifest_path=Path(""),
+        stdout_path=None,
+        stderr_path=None,
+        trace_events_path=None,
+        duration_seconds=0.0,
+        tags=(),
+        metadata={"followup_of": "parent"},
+    )
+    monkeypatch.setattr(module, "list_agent_runs", lambda *_args, **_kwargs: [parent, child])
+    lineage = module.agent_lineage_payload(tmp_path, run_id="child")
+    assert lineage["found"] is True
+    assert [item["run_id"] for item in lineage["ancestors"]] == ["parent"]

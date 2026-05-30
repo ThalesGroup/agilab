@@ -2358,6 +2358,11 @@ async def _render_run_panels(
 # ===========================
 # Main Application UI
 # ===========================
+def _skip_orchestrate_project_cockpit(*_args: Any, **_kwargs: Any) -> None:
+    """ORCHESTRATE uses its action rail and Environment Health instead."""
+    return None
+
+
 async def page() -> None:
     env = _ensure_page_env(st, __file__)
     if env is None:
@@ -2379,6 +2384,7 @@ async def page() -> None:
         env=env,
         page_label="ORCHESTRATE",
         docs_html_file="execute-help.html",
+        render_page_context=_skip_orchestrate_project_cockpit,
     )
 
     if background_services_enabled() and not st.session_state.get("server_started"):

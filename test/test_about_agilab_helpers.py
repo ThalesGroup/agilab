@@ -2138,6 +2138,68 @@ def test_bootstrap_additional_active_app_and_source_path_edges(tmp_path, monkeyp
     assert any("cannot reinit" in warning for warning in warnings)
 
 
+def test_bootstrap_path_matching_and_payload_project_edges(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "src" / "agilab" / "apps"
+    builtin_path = apps_path / "builtin"
+    project = builtin_path / "demo_project"
+    project.mkdir(parents=True)
+
+    assert bootstrap._normalize_path(_BrokenPath()) is None
+    assert bootstrap._existing_env_matches_apps_path(SimpleNamespace(), apps_path) is False
+    assert (
+        bootstrap._existing_env_matches_apps_path(
+            SimpleNamespace(active_app=project),
+            builtin_path,
+        )
+        is True
+    )
+    assert (
+        bootstrap._existing_env_matches_apps_path(
+            SimpleNamespace(app=project),
+            builtin_path,
+        )
+        is True
+    )
+    assert (
+        bootstrap._existing_env_matches_apps_path(
+            SimpleNamespace(app=_BrokenPath()),
+            builtin_path,
+        )
+        is False
+    )
+    assert bootstrap._recover_existing_env_for_apps_path(SimpleNamespace(current=None), apps_path) is None
+
+    class RaisingCurrent:
+        @staticmethod
+        def current():
+            raise RuntimeError("not initialised")
+
+    assert bootstrap._recover_existing_env_for_apps_path(RaisingCurrent, apps_path) is None
+
+    package_project = (
+        tmp_path
+        / "agi-app-demo"
+        / "src"
+        / "agi_app_demo"
+        / "project"
+        / "demo_project"
+    )
+    package_project.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        builtin_apps_path=builtin_path,
+        apps_repository_root=tmp_path / "repo",
+        projects={"demo_project"},
+    )
+
+    assert bootstrap.normalize_active_app_input(env, str(package_project)) == project.resolve()
+    assert bootstrap.persisted_active_app_request(env, project) == str(project)
+
+    stale = tmp_path / "other" / "demo_project"
+    assert bootstrap.persisted_active_app_request(env, stale) == "demo_project"
+
+
 def test_bootstrap_persist_env_handles_plain_and_empty_cluster_credentials(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     calls: list[tuple[str, str]] = []
@@ -3908,11 +3970,16 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
         body for kind, body in fake_st.events if kind == "sidebar.markdown"
     ]
     sidebar_markup = "\n".join(sidebar_markdowns)
+    page_markdown = "\n".join(
+        body for kind, body in fake_st.events if kind == "markdown"
+    )
     assert "[Settings](/SETTINGS)" in sidebar_markdowns
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
     assert "[Settings](/SETTINGS)" in sidebar_markup
     assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markup
     assert "[README]" not in sidebar_markup
+    assert "Project cockpit" not in page_markdown
+    assert "agilab-header-card" not in page_markdown
     assert "agilab-sidebar-system" not in sidebar_markup
     assert "Active project" not in sidebar_markup
     assert "Scheduler" not in sidebar_markup
