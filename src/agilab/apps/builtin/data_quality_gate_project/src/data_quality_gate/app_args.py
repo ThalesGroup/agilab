@@ -38,6 +38,10 @@ class DataQualityGateArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data_out: Path = Field(default_factory=lambda: Path("data_quality_gate/evidence"))
+    baseline_csv: Path | None = None
+    candidate_csv: Path | None = None
+    contract_json: Path | None = None
+    thresholds_json: Path | None = None
     baseline_rows: int = Field(default=240, ge=50, le=10000)
     candidate_rows: int = Field(default=220, ge=50, le=10000)
     drift_strength: float = Field(default=0.35, ge=0.0, le=1.0)
@@ -50,9 +54,20 @@ class DataQualityGateArgs(BaseModel):
     def _validate_data_out(cls, value: str | Path) -> Path:
         return validate_relative_data_out(value)
 
+    @field_validator("baseline_csv", "candidate_csv", "contract_json", "thresholds_json", mode="before")
+    @classmethod
+    def _validate_optional_input_path(cls, value: str | Path | None) -> Path | None:
+        if value is None or str(value).strip() == "":
+            return None
+        return validate_relative_data_out(value)
+
 
 class DataQualityGateArgsTD(TypedDict, total=False):
     data_out: str
+    baseline_csv: str | None
+    candidate_csv: str | None
+    contract_json: str | None
+    thresholds_json: str | None
     baseline_rows: int
     candidate_rows: int
     drift_strength: float

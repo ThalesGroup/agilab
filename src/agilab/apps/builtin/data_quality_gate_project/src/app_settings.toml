@@ -1,5 +1,9 @@
 [args]
 data_out = "data_quality_gate/evidence"
+baseline_csv = ""
+candidate_csv = ""
+contract_json = ""
+thresholds_json = ""
 baseline_rows = 240
 candidate_rows = 220
 drift_strength = 0.35
