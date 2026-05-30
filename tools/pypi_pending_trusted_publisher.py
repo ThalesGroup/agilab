@@ -25,6 +25,7 @@ if str(TOOLS_DIR) not in sys.path:
 try:
     from pypi_release_retention import (
         PYPI_HOSTS,
+        PYPI_JSON_URLS,
         _find_form,
         _fresh_totp_code,
         _submit_reauthentication_if_needed,
@@ -39,6 +40,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     from tools.pypi_release_retention import (
         PYPI_HOSTS,
+        PYPI_JSON_URLS,
         _find_form,
         _fresh_totp_code,
         _submit_reauthentication_if_needed,
@@ -154,6 +156,33 @@ def _publisher_form_data(
         }
     )
     return data
+
+
+def _existing_project_result(publisher: PendingGitHubPublisher) -> RegistrationResult:
+    return RegistrationResult(
+        publisher=publisher,
+        registered=False,
+        already_registered=False,
+        project_exists=True,
+    )
+
+
+def _public_project_exists(project_name: str, repo: str, *, timeout: int = 15) -> bool:
+    url = PYPI_JSON_URLS[repo].format(package=project_name)
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "agilab-pypi-pending-trusted-publisher/1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout):
+            return True
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return False
+        raise RuntimeError(f"{url}: HTTP {exc.code}") from exc
 
 
 def _confirm_login_url_is_safe(url: str) -> bool:
@@ -401,12 +430,7 @@ def _interpret_registration_response(
             "PyPI account publishing settings, then rerun this workflow."
         )
     if PROJECT_EXISTS_FRAGMENT in text:
-        return RegistrationResult(
-            publisher=publisher,
-            registered=False,
-            already_registered=False,
-            project_exists=True,
-        )
+        return _existing_project_result(publisher)
     if GENERIC_FAILURE_FRAGMENT in text or DIFFERENT_PROJECT_FRAGMENT in text:
         raise RuntimeError(
             "PyPI rejected the pending trusted publisher registration; check the "
@@ -428,8 +452,13 @@ def register_pending_github_publisher(
     auth_code: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
     session_factory: Callable[[], Any] | None = None,
+    project_exists_checker: Callable[[str, str], bool] | None = None,
 ) -> RegistrationResult:
     import requests
+
+    exists = project_exists_checker or _public_project_exists
+    if exists(publisher.project_name, repo):
+        return _existing_project_result(publisher)
 
     base_url = PYPI_HOSTS[repo].rstrip("/")
     session_factory = session_factory or requests.Session
@@ -585,6 +614,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             already_registered=False,
             dry_run=True,
         )
+    elif _public_project_exists(publisher.project_name, args.repo):
+        result = _existing_project_result(publisher)
     else:
         username, password = require_credentials(args.username, args.password)
         confirm_provider = None
@@ -617,6 +648,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             password=password,
             auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
             confirm_login_url_provider=confirm_provider,
+            project_exists_checker=lambda _project, _repo: False,
         )
 
     summary = render_summary(result)

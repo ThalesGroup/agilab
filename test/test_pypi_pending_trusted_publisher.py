@@ -155,6 +155,7 @@ def test_register_submits_github_pending_publisher_form_after_login_and_reauth()
         username="maintainer",
         password="secret",
         session_factory=lambda: session,
+        project_exists_checker=lambda _project, _repo: False,
     )
 
     assert result.registered is True
@@ -213,6 +214,7 @@ def test_register_handles_totp_when_login_requires_two_factor() -> None:
         password="secret",
         auth_code="123456",
         session_factory=lambda: session,
+        project_exists_checker=lambda _project, _repo: False,
     )
 
     assert result.registered is True
@@ -266,6 +268,7 @@ def test_register_consumes_same_runner_confirmation_url_before_retrying() -> Non
         password="secret",
         confirm_login_url_provider=lambda: confirm_url,
         session_factory=lambda: session,
+        project_exists_checker=lambda _project, _repo: False,
     )
 
     assert result.registered is True
@@ -339,6 +342,57 @@ def test_register_treats_existing_project_as_successful_noop() -> None:
     assert result.project_exists is True
     assert summary["success"] is True
     assert summary["project_exists"] is True
+
+
+def test_register_existing_public_project_skips_authenticated_web_flow() -> None:
+    module = _load_module()
+    publisher = module.PendingGitHubPublisher(
+        project_name="agi-app-multi-dag",
+        owner="ThalesGroup",
+        repository="agilab",
+        workflow_filename="pypi-publish.yaml",
+        environment="pypi-agi-app-multi-dag",
+    )
+
+    def fail_session():
+        raise AssertionError("PyPI web session should not be opened")
+
+    result = module.register_pending_github_publisher(
+        publisher=publisher,
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        session_factory=fail_session,
+        project_exists_checker=(
+            lambda project, repo: project == "agi-app-multi-dag" and repo == "pypi"
+        ),
+    )
+
+    assert result.registered is False
+    assert result.already_registered is False
+    assert result.project_exists is True
+
+
+def test_existing_public_project_does_not_require_credentials(monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_USERNAME", raising=False)
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_PASSWORD", raising=False)
+    monkeypatch.setattr(module, "_public_project_exists", lambda _project, _repo: True)
+
+    status = module.main(
+        [
+            "--project-name",
+            "agi-app-multi-dag",
+            "--environment",
+            "pypi-agi-app-multi-dag",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert '"project_exists": true' in captured.out
+    assert "PYPI_RELEASE_PRUNE_USERNAME" not in captured.err
 
 
 def test_register_rejects_pending_publisher_for_different_project() -> None:
