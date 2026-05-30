@@ -65,6 +65,11 @@ from agi_env.env_config_support import (
     write_env_updates,
 )
 from agi_env.hook_support import resolve_worker_hook, select_hook
+from agi_env.host_runtime_support import (
+    check_internet_connectivity,
+    create_symlink as _create_symlink,
+    is_local_ip,
+)
 from agi_env.installation_support import (
     installation_marker_path,
     locate_agilab_installation_path,
@@ -1440,31 +1445,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     @staticmethod
     def create_symlink(src: Path, dest: Path) -> bool:
-        try:
-            if dest.exists() or dest.is_symlink():
-                if dest.is_symlink() and dest.resolve() == src.resolve():
-                    logger = AgiEnv.logger
-                    if logger:
-                        logger.info(f"Symlink already exists and is correct: {dest} -> {src}")
-                    return True
-                logger = AgiEnv.logger
-                if logger:
-                    logger.warning(f"Warning: Destination already exists and is not a symlink: {dest}")
-                if dest.is_dir():
-                    return False
-                dest.unlink()
-            dest.symlink_to(src, target_is_directory=src.is_dir())
-            logger = AgiEnv.logger
-            if logger:
-                logger.info(f"Symlink created: @{dest.name} -> {src}")
-            return True
-        except OSError as e:
-            if os.name == "nt" and src.is_dir() and AgiEnv.create_junction_windows(src, dest):
-                return True
-            logger = AgiEnv.logger
-            if logger:
-                logger.error(f"Failed to create symlink @{dest} -> {src}: {e}")
-            return False
+        return _create_symlink(
+            src,
+            dest,
+            logger=AgiEnv.logger,
+            os_name=os.name,
+            create_junction_windows_fn=AgiEnv.create_junction_windows,
+        )
 
     def change_app(self, app):
         # Normalize current and requested app identifiers to comparable names
@@ -1526,18 +1513,12 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         Returns:
 
         """
-        if (
-                not ip or ip in AgiEnv._ip_local_cache
-        ):  # Check if IP is None, empty, or cached
-            return True
-
-        for _, addrs in psutil.net_if_addrs().items():
-            for addr in addrs:
-                if addr.family == socket.AF_INET and ip == addr.address:
-                    AgiEnv._ip_local_cache.add(ip)  # Cache the local IP found
-                    return True
-
-        return False
+        return is_local_ip(
+            ip,
+            cache=AgiEnv._ip_local_cache,
+            net_if_addrs_fn=psutil.net_if_addrs,
+            inet_family=socket.AF_INET,
+        )
 
     @staticmethod
     def has_admin_rights():
@@ -1659,17 +1640,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     @staticmethod
     def check_internet():
-        AgiEnv.logger.info("Checking internet connectivity...")  # ty: ignore[unresolved-attribute]
-        try:
-            # HEAD request to Google
-            req = urllib.request.Request("https://www.google.com", method="HEAD")
-            with urllib.request.urlopen(req, timeout=3):
-                pass  # Success if no exception
-        except OSError:
-            AgiEnv.logger.error("No internet connection detected. Aborting.")  # ty: ignore[unresolved-attribute]
-            return False
-        AgiEnv.logger.info("Internet connection is OK.")  # ty: ignore[unresolved-attribute]
-        return True
+        return check_internet_connectivity(
+            logger=AgiEnv.logger,
+            request_factory=urllib.request.Request,
+            urlopen_fn=urllib.request.urlopen,
+        )
 
 
 
