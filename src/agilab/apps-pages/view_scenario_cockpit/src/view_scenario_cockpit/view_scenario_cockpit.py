@@ -13,7 +13,9 @@ import pandas as pd
 import streamlit as st
 from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
+    configure_streamlit_page,
     ensure_repo_on_path as _page_ensure_repo_on_path,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
 )
@@ -26,7 +28,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 RUN_SELECTION_KEY = "scenario_cockpit_selected_runs"
@@ -139,7 +140,7 @@ _candidate_gate = _evidence_helpers.candidate_gate
 _build_evidence_bundle = _evidence_helpers.build_evidence_bundle
 
 
-st.set_page_config(layout="wide")
+configure_streamlit_page(st, title=PAGE_TITLE)
 
 active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
@@ -150,11 +151,14 @@ if "env" not in st.session_state or app_scope_changed:
 else:
     env = st.session_state["env"]
 
-render_logo(PAGE_LOGO)
-st.title(PAGE_TITLE)
-st.caption(
-    "Compare exported scenario runs, choose a baseline and candidate, then download a hashed evidence bundle "
-    "that explains the promotion decision."
+render_streamlit_page_header(
+    st,
+    title=PAGE_TITLE,
+    logo_title=PAGE_LOGO,
+    caption=(
+        "Compare exported scenario runs, choose a baseline and candidate, then download a hashed evidence bundle "
+        "that explains the promotion decision."
+    ),
 )
 st.info(
     "This page reuses the queue-analysis artifact contract exported by the UAV queue and relay demos. "

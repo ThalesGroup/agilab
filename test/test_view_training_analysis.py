@@ -34,6 +34,10 @@ def _stop() -> None:
     raise _StopCalled()
 
 
+def _patch_page_header(monkeypatch, module) -> None:
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
+
+
 def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> None:
     module = _load_module()
 
@@ -570,7 +574,7 @@ def test_view_training_analysis_main_warns_when_data_root_missing(monkeypatch, t
         warning=warnings_seen.append,
         stop=_stop,
     )
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
 
     with pytest.raises(_StopCalled):
         module.main()
@@ -619,7 +623,7 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
         plotly_chart=lambda *args, **kwargs: None,
         stop=_stop,
     )
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
     monkeypatch.setattr(module, "AgiEnv", FakeEnv)
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
@@ -699,7 +703,7 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
         plotly_chart=lambda *args, **kwargs: None,
         stop=_stop,
     )
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: new_app)
     monkeypatch.setattr(module, "AgiEnv", FakeEnv)
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
@@ -783,7 +787,7 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
         plotly_chart=lambda fig, width=None: plotted.append((fig, width)),
         stop=_stop,
     )
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
     monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
 
@@ -877,8 +881,8 @@ def test_view_training_analysis_embedded_mode_autoscales_export_target(monkeypat
     )
     monkeypatch.setattr(
         module,
-        "render_logo",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("logo is hidden in embed mode")),
+        "render_streamlit_page_header",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("header is hidden in embed mode")),
     )
 
     def fake_discover_training_roots(data_root: Path) -> list[Path]:
@@ -914,7 +918,9 @@ def test_view_training_analysis_embedded_mode_autoscales_export_target(monkeypat
 
     module.main()
 
-    assert page_configs == [{"layout": "wide", "initial_sidebar_state": "collapsed"}]
+    assert page_configs == [
+        {"page_title": "Training analysis", "layout": "wide", "initial_sidebar_state": "collapsed"}
+    ]
     assert markdown_calls and markdown_calls[0][1] is True
     assert captions == ["Training analysis"]
     assert discovered_roots == [target_root.resolve()]
@@ -1043,7 +1049,7 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
             stop=_stop,
         )
 
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
 
     module.st = _base_st()
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
@@ -1101,7 +1107,7 @@ def test_view_training_analysis_main_warns_when_no_trainer_output_selected(monke
         plotly_chart=lambda *args, **kwargs: None,
         stop=_stop,
     )
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
 
     with pytest.raises(_StopCalled):
@@ -1169,7 +1175,7 @@ def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(mon
             stop=_stop,
         )
 
-    monkeypatch.setattr(module, "render_logo", lambda *args, **kwargs: None)
+    _patch_page_header(monkeypatch, module)
     monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
     monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
 

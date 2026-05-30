@@ -12,7 +12,7 @@ PAGE_PATH = (
 
 def _load_helpers() -> ModuleType:
     source = Path(PAGE_PATH).read_text(encoding="utf-8")
-    prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
+    prefix = source.split("\nconfigure_streamlit_page(st,", 1)[0]
     module = ModuleType("view_data_io_decision_test_module")
     module.__file__ = str(Path(PAGE_PATH).resolve())
     module.__package__ = None

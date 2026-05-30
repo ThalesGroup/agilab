@@ -17,7 +17,9 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import tomllib
 from agi_pages.runtime import (
+    configure_streamlit_page,
     ensure_repo_on_path as _page_ensure_repo_on_path,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
 )
@@ -56,7 +58,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv  # noqa: E402
-from agi_gui.pagelib import render_logo  # noqa: E402
 
 
 def _resolve_active_app() -> Path:
@@ -692,15 +693,14 @@ def _format_summary(summary_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Routing Model Comparison", layout="wide")
+    configure_streamlit_page(st, title="Routing Model Comparison")
     env = _ensure_app_scoped_env()
     active_app_path = _resolve_active_app()
     settings = _load_app_settings(active_app_path)
     defaults = _page_defaults(settings)
     default_root = _default_pipeline_root(env, defaults)
 
-    render_logo()
-    st.title("Routing Model Comparison")
+    render_streamlit_page_header(st, title="Routing Model Comparison")
 
     pipeline_dir_text = st.sidebar.text_input(
         "Pipeline directory",

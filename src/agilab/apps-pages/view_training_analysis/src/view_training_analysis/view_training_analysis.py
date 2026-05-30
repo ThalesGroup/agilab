@@ -18,8 +18,10 @@ import tomllib
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_pages.runtime import (
     active_app_scope_value,
+    configure_streamlit_page,
     env_app_scope_value,
     ensure_repo_on_path as _page_ensure_repo_on_path,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
 )
@@ -76,7 +78,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 def _resolve_active_app() -> Path:
@@ -627,8 +628,9 @@ def _build_scalar_figure(
 
 def main() -> None:
     embed_mode = _is_embed_mode(getattr(st, "query_params", {}))
-    st.set_page_config(
-        layout="wide",
+    configure_streamlit_page(
+        st,
+        title="Training analysis",
         initial_sidebar_state="collapsed" if embed_mode else "auto",
     )
     if embed_mode:
@@ -641,10 +643,13 @@ def main() -> None:
     if embed_mode:
         st.caption("Training analysis")
     else:
-        render_logo("Training Analysis")
-        st.title("Training analysis")
-        st.caption(
-            "Browse TensorBoard scalar logs or AGILAB training-history artifacts and plot the metrics you need."
+        render_streamlit_page_header(
+            st,
+            title="Training analysis",
+            logo_title="Training Analysis",
+            caption=(
+                "Browse TensorBoard scalar logs or AGILAB training-history artifacts and plot the metrics you need."
+            ),
         )
 
     page_state = _get_page_state()

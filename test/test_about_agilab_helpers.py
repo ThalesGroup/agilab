@@ -732,6 +732,106 @@ def test_page_bootstrap_ensure_page_env_delegates_cold_start(tmp_path):
     assert events == ["main", "rerun"]
 
 
+def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path):
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        set_page_config=lambda **kwargs: events.append(("config", kwargs))
+    )
+
+    def fake_docs_menu_items(*, html_file: str):
+        events.append(("docs", html_file))
+        return {"Get help": html_file}
+
+    def fake_inject_theme(resources_path):
+        events.append(("theme", resources_path))
+
+    page_bootstrap.configure_page_chrome(
+        fake_st,
+        page_label="ANALYSIS",
+        docs_html_file="explore-help.html",
+        resources_path=tmp_path,
+        get_docs_menu_items=fake_docs_menu_items,
+        inject_theme=fake_inject_theme,
+    )
+
+    assert events == [
+        ("docs", "explore-help.html"),
+        (
+            "config",
+            {
+                "page_title": "AGILab ANALYSIS",
+                "layout": "wide",
+                "menu_items": {"Get help": "explore-help.html"},
+            },
+        ),
+        ("theme", tmp_path),
+    ]
+
+
+def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace()
+    env = SimpleNamespace(app="demo")
+
+    page_bootstrap.render_page_header(
+        fake_st,
+        page_label="PROJECT",
+        env=env,
+        render_logo=lambda: events.append(("logo", None)),
+        render_pinned_expanders=lambda streamlit: events.append(
+            ("pinned", streamlit is fake_st)
+        ),
+        render_page_context=lambda streamlit, **kwargs: events.append(
+            ("context", (streamlit is fake_st, kwargs))
+        ),
+    )
+
+    assert events == [
+        ("logo", None),
+        ("pinned", True),
+        ("context", (True, {"page_label": "PROJECT", "env": env})),
+    ]
+
+
+def test_page_bootstrap_render_page_chrome_uses_env_resources():
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        set_page_config=lambda **kwargs: events.append(("config", kwargs))
+    )
+    env = SimpleNamespace(st_resources="/resources")
+
+    page_bootstrap.render_page_chrome(
+        fake_st,
+        env=env,
+        page_label="WORKFLOW",
+        docs_html_file="experiment-help.html",
+        get_docs_menu_items=lambda *, html_file: {"Get help": html_file},
+        inject_theme=lambda resources_path: events.append(("theme", resources_path)),
+        render_logo=lambda: events.append(("logo", None)),
+        render_pinned_expanders=lambda streamlit: events.append(
+            ("pinned", streamlit is fake_st)
+        ),
+        render_page_context=lambda streamlit, **kwargs: events.append(
+            ("context", (streamlit is fake_st, kwargs))
+        ),
+    )
+
+    assert events == [
+        (
+            "config",
+            {
+                "page_title": "AGILab WORKFLOW",
+                "layout": "wide",
+                "menu_items": {"Get help": "experiment-help.html"},
+            },
+        ),
+        ("theme", "/resources"),
+        ("logo", None),
+        ("pinned", True),
+        ("context", (True, {"page_label": "WORKFLOW", "env": env})),
+    ]
+
+
 def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(
     tmp_path, monkeypatch
 ):

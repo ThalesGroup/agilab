@@ -48,7 +48,7 @@ def _run_forecast_page(
 
 def _load_forecast_helpers() -> ModuleType:
     source = Path(PAGE_PATH).read_text(encoding="utf-8")
-    prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
+    prefix = source.split("\nconfigure_streamlit_page(st,", 1)[0]
     module = ModuleType("view_forecast_analysis_test_module")
     module.__file__ = str(Path(PAGE_PATH).resolve())
     module.__package__ = None

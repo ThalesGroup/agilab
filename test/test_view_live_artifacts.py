@@ -461,8 +461,8 @@ def test_live_artifacts_main_wires_page_controls_and_panel(monkeypatch, tmp_path
         def __init__(self) -> None:
             self.session_state = {}
 
-        def set_page_config(self, *, layout: str) -> None:
-            calls.append(("set_page_config", layout))
+        def set_page_config(self, **kwargs: object) -> None:
+            calls.append(("set_page_config", kwargs))
 
         def title(self, value: str) -> None:
             calls.append(("title", value))
@@ -473,7 +473,11 @@ def test_live_artifacts_main_wires_page_controls_and_panel(monkeypatch, tmp_path
     monkeypatch.setattr(module, "st", FakeStreamlit())
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app_path)
     monkeypatch.setattr(module, "_active_env", lambda active_app_path: env)
-    monkeypatch.setattr(module, "render_logo", lambda title: calls.append(("logo", title)))
+    monkeypatch.setattr(
+        module,
+        "render_streamlit_page_header",
+        lambda streamlit, **kwargs: calls.append(("header", kwargs)),
+    )
     monkeypatch.setattr(
         module,
         "_render_controls",
@@ -490,10 +494,15 @@ def test_live_artifacts_main_wires_page_controls_and_panel(monkeypatch, tmp_path
     module.main()
 
     assert calls == [
-        ("set_page_config", "wide"),
-        ("logo", "Live Artifacts"),
-        ("title", "Live artifacts"),
-        ("caption", "Monitor exported evidence, manifests, logs, and lightweight artifacts for the active app."),
+        ("set_page_config", {"page_title": "Live artifacts", "layout": "wide"}),
+        (
+            "header",
+            {
+                "title": "Live artifacts",
+                "logo_title": "Live Artifacts",
+                "caption": "Monitor exported evidence, manifests, logs, and lightweight artifacts for the active app.",
+            },
+        ),
         ("caption", f"Root: {tmp_path / 'artifacts'}"),
         ("panel", (tmp_path / "artifacts", ("**/*.json",), 5, False, 10)),
     ]
