@@ -169,6 +169,12 @@ def _run_storyboard(argv: list[str]) -> int:
     return run_storyboard.main(argv)
 
 
+def _run_promotion_dossier(argv: list[str]) -> int:
+    from agilab import promotion_dossier
+
+    return promotion_dossier.main(argv)
+
+
 def _run_evidence_contract(argv: list[str]) -> int:
     from agilab import evidence_contract
 
@@ -249,6 +255,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_adoption_report(raw_argv[1:])
     if raw_argv[:1] in (["story"], ["storyboard"], ["run-story"], ["run_story"]):
         return _run_storyboard(raw_argv[1:])
+    if raw_argv[:1] in (
+        ["dossier"],
+        ["promotion-dossier"],
+        ["promotion_dossier"],
+    ):
+        return _run_promotion_dossier(raw_argv[1:])
     if raw_argv[:1] in (
         ["prove"],
         ["verify"],

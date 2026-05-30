@@ -91,6 +91,7 @@ The shipped first layer operates on a run manifest:
    agilab replay ~/log/execute/flight_telemetry/run_manifest.json
    agilab replay proof.agipack
    agilab story ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack/story
+   agilab promotion-dossier ~/log/execute/flight_telemetry/run_manifest.json --output-dir proof-pack/promotion
    agilab export-lineage ~/log/execute/flight_telemetry/run_manifest.json --format all --output-dir proof-pack
    agilab export-traces proof.agipack --output-dir proof-pack
    agilab policy-check ~/log/execute/flight_telemetry/run_manifest.json --strict
@@ -105,6 +106,7 @@ The proof pack includes:
 * RO-Crate metadata
 * OpenTelemetry-shaped trace JSON
 * ``run_story.json`` and ``run_story.md`` for a shareable one-run summary
+* ``promotion_dossier.md`` plus ``promotion_decision.json`` for handoff review
 * a local metadata-store entry
 * model, dataset, prompt, and evaluation cards generated from available
   manifest evidence
@@ -134,6 +136,23 @@ keeps only environment-variable names from command overrides, and writes:
 The command is read-only: it does not replay the run, call network services, or
 execute recorded commands. Use it when a reviewer needs to understand what
 happened after one AGILAB run without opening logs or notebooks first.
+
+Promotion dossier
+-----------------
+
+``agilab promotion-dossier`` is the production-handoff view of the same
+manifest. It does not deploy or serve a model. Instead it writes a deterministic
+review package:
+
+* ``promotion_decision.json`` with ``promote``, ``block``, or
+  ``manual-review``.
+* ``promotion_dossier.md`` for human reviewers.
+* ``evidence_manifest.json`` with dossier file hashes and source artifacts.
+* ``policy_results.json``, ``lineage.json``, ``mlflow_export.json``, and
+  ``replay.sh`` for downstream systems.
+
+Use it when a run needs a clear handoff package before MLflow, Kubeflow,
+SageMaker, a CI promotion gate, or another production stack takes ownership.
 
 Minimal trust policy example:
 
