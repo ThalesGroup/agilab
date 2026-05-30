@@ -45,7 +45,10 @@ def _artifact_dir(env: object, leaf: str) -> Path:
 def _args_with_defaults(value: Any) -> PytorchPlaygroundArgs:
     if isinstance(value, PytorchPlaygroundArgs):
         return value
-    if isinstance(value, dict):
+    model_dump = getattr(value, "model_dump", None)
+    if value.__class__.__name__ == "PytorchPlaygroundArgs" and callable(model_dump):
+        raw = model_dump(mode="json")
+    elif isinstance(value, dict):
         raw = dict(value)
     elif isinstance(value, SimpleNamespace):
         raw = vars(value).copy()
