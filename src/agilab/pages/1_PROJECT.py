@@ -59,15 +59,6 @@ _public_bind_guard_module = import_agilab_module(
 )
 _public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
 
-_page_docs_module = import_agilab_module(
-    "agilab.page_docs",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
-get_docs_menu_items = _page_docs_module.get_docs_menu_items
-
-from agi_gui.pagelib import inject_theme
 from agi_gui.pagelib import (
     background_services_enabled,
     get_classes_name,
@@ -75,7 +66,6 @@ from agi_gui.pagelib import (
     get_templates,
     get_projects_zip,
     on_project_change,
-    render_logo,
     activate_mlflow,
 )
 from agi_gui.ux_widgets import compact_choice
@@ -100,6 +90,7 @@ _page_bootstrap_module = import_agilab_module(
     fallback_name="agilab_page_bootstrap_fallback",
 )
 ensure_page_env = _page_bootstrap_module.ensure_page_env
+render_page_chrome = _page_bootstrap_module.render_page_chrome
 
 _pinned_expander_module = import_agilab_module(
     "agilab.pinned_expander",
@@ -107,18 +98,9 @@ _pinned_expander_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
     fallback_name="agilab_pinned_expander_fallback",
 )
-render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
 is_pinned_expander = _pinned_expander_module.is_pinned_expander
 remove_pinned_expander = _pinned_expander_module.remove_pinned_expander
 upsert_pinned_expander = _pinned_expander_module.upsert_pinned_expander
-
-_workflow_ui_module = import_agilab_module(
-    "agilab.workflow_ui",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
-    fallback_name="agilab_workflow_ui_fallback",
-)
-render_page_context = _workflow_ui_module.render_page_context
 
 _environment_health_module = import_agilab_module(
     "agilab.environment_health",
@@ -4655,16 +4637,12 @@ def page():
     st.session_state["_env"] = env
 
     env = st.session_state["_env"]
-    st.set_page_config(
-        page_title="AGILab PROJECT",
-        layout="wide",
-        menu_items=get_docs_menu_items(html_file="edit-help.html"),
+    render_page_chrome(
+        st,
+        env=env,
+        page_label="PROJECT",
+        docs_html_file="edit-help.html",
     )
-    inject_theme(env.st_resources)
-
-    render_logo()
-    render_pinned_expanders(st)
-    render_page_context(st, page_label="PROJECT", env=env)
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)

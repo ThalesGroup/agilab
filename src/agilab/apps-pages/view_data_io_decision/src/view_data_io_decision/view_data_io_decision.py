@@ -12,9 +12,11 @@ import pandas as pd
 import streamlit as st
 from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
+    configure_streamlit_page,
     discover_files as _page_discover_files,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     relative_label as _page_relative_label,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
 )
@@ -27,7 +29,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 ARTIFACT_ROOT_KEY = "decision_evidence_artifact_root"
 RUN_SELECTION_KEY = "decision_evidence_selected_run"
@@ -94,7 +95,7 @@ def _read_csv_if_present(path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-st.set_page_config(layout="wide")
+configure_streamlit_page(st, title="Decision evidence")
 
 active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
@@ -105,11 +106,14 @@ if "env" not in st.session_state or app_scope_changed:
 else:
     env = st.session_state["env"]
 
-render_logo("Decision Evidence")
-st.title("Decision evidence")
-st.caption(
-    "Inspect exported decision artifacts: pipeline generation, failure injection, "
-    "re-planning, and final evidence."
+render_streamlit_page_header(
+    st,
+    title="Decision evidence",
+    logo_title="Decision Evidence",
+    caption=(
+        "Inspect exported decision artifacts: pipeline generation, failure injection, "
+        "re-planning, and final evidence."
+    ),
 )
 
 default_root = _default_artifact_root(env)

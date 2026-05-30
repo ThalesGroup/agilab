@@ -39,9 +39,14 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import active_app_scope_value, env_app_scope_value, reset_scoped_session_state
+from agi_pages.runtime import (
+    active_app_scope_value,
+    configure_streamlit_page,
+    env_app_scope_value,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 PAGE_KEY = "view_inference_analysis"
@@ -1384,7 +1389,7 @@ def _render_heatmap_section(
 
 
 def main() -> None:
-    st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+    configure_streamlit_page(st, title=PAGE_TITLE)
 
     active_app_path = _resolve_active_app()
     _reset_state_for_active_app(active_app_path)
@@ -1424,11 +1429,14 @@ def main() -> None:
     st.session_state.setdefault(GLOBS_KEY, "\n".join(default_globs))
     st.session_state.setdefault(AGGREGATION_KEY, default_aggregation)
 
-    render_logo(PAGE_LOGO)
-    st.title(PAGE_TITLE)
-    st.caption(
-        "Inspect `allocations_steps` exports across several runs without hard-coding a specific project. "
-        "The page flattens nested step payloads and focuses on load, latency, bearer, and flow-level diagnostics."
+    render_streamlit_page_header(
+        st,
+        title=PAGE_TITLE,
+        logo_title=PAGE_LOGO,
+        caption=(
+            "Inspect `allocations_steps` exports across several runs without hard-coding a specific project. "
+            "The page flattens nested step payloads and focuses on load, latency, bearer, and flow-level diagnostics."
+        ),
     )
 
     with st.sidebar:

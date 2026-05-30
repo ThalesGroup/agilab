@@ -61,13 +61,6 @@ _public_bind_guard_module = import_agilab_module(
 )
 _public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
 
-_page_docs_module = import_agilab_module(
-    "agilab.page_docs",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
-get_docs_menu_items = _page_docs_module.get_docs_menu_items
 import_agilab_symbols(
     globals(),
     "agilab.analysis_page_state",
@@ -81,20 +74,20 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.pinned_expander",
+    "agilab.page_bootstrap",
     {
-        "render_pinned_expanders": "render_pinned_expanders",
+        "configure_page_chrome": "configure_page_chrome",
+        "render_page_header": "render_page_header",
     },
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
-    fallback_name="agilab_pinned_expander_fallback",
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
 )
 import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
         "render_project_evidence_drawer": "render_project_evidence_drawer",
-        "render_page_context": "render_page_context",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
@@ -139,9 +132,7 @@ import tomli_w  # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
 from agi_gui.pagelib import (
-    render_logo,
     on_project_change,
-    inject_theme,
 )
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
@@ -393,12 +384,13 @@ def _write_minimal_view_template(
 
 
 # =============== Streamlit page config ==================
-st.set_page_config(
-    layout="wide",
-    menu_items=get_docs_menu_items(html_file="explore-help.html"),
-)
 resources_path = Path(__file__).resolve().parents[1] / "resources"
-inject_theme(resources_path)
+configure_page_chrome(
+    st,
+    page_label="ANALYSIS",
+    docs_html_file="explore-help.html",
+    resources_path=resources_path,
+)
 
 # =============== Helpers: per-view venv sidecar ==================
 
@@ -2781,9 +2773,7 @@ async def main():
         st.query_params["active_app"] = env.app
 
     # Sidebar header/logo
-    render_logo()
-    render_pinned_expanders(st)
-    render_page_context(st, page_label="ANALYSIS", env=env)
+    render_page_header(st, page_label="ANALYSIS", env=env)
 
     # Sidebar: project selection
     projects = env.projects

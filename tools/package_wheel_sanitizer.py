@@ -22,6 +22,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-app-multi-dag",
         "agi-app-weather-forecast",
         "agi-app-sklearn-pipeline",
+        "agi-app-data-quality-gate",
         "agi-app-pytorch-playground",
         "agi-app-tescia-diagnostic",
         "agi-app-uav-queue",

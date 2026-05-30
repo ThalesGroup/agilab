@@ -18,7 +18,7 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | annotated-types | 0.7.0 | MIT LICENSE |
-| backports-zstd | 1.3.0 | PSF-2.0 |
+| backports-zstd | 1.5.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
@@ -33,6 +33,6 @@ Audit notes:
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyzstd | 0.19.1 | BSD LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |
-| tomlkit | 0.14.0 | MIT LICENSE |
+| tomlkit | 0.15.0 | MIT LICENSE |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |

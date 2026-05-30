@@ -68,7 +68,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-29
+  updated: 2026-05-30
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. ## Philosophy - For non-trivial diffs, start with
 - agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

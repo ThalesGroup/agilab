@@ -215,9 +215,8 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
             Widget(
                 "AGILAB logo AI/ML reproducibility workbench "
                 "DEMO / ORCHESTRATE / ANALYSIS "
-                "Choose your next proof Run the built-in proof "
-                "Import the included notebook See AI/ML demos "
-                "Validate engineering evidence Capability Map "
+                "Explore more proof routes "
+                "Weather notebook migration Mission decision PyTorch playground MLflow tracking "
                 f'<a href="{readme_route}">README</a>'
             )
         ]

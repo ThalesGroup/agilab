@@ -10,15 +10,16 @@ SRC_ROOT = ROOT / "src"
 SRC_PACKAGE = SRC_ROOT / "agilab"
 sys.path.insert(0, str(SRC_ROOT))
 
-import agilab as _agilab_package
+import agilab as _agilab_package  # noqa: E402
 
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-from agilab.app_template_registry import discover_app_templates
+from agilab.app_template_registry import discover_app_templates  # noqa: E402
 
 
 SINGLE_WORKER_PROJECTS = {
+    "data_quality_gate_project",
     "pytorch_playground_project",
     "r_runtime_bridge_project",
     "sklearn_pipeline_project",

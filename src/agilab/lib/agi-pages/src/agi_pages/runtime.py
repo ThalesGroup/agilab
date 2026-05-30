@@ -165,3 +165,49 @@ def safe_metric(value: Any, *, digits: int = 3) -> str:
     if numeric is None:
         return "n/a"
     return f"{numeric:.{digits}f}"
+
+
+def configure_streamlit_page(
+    streamlit: Any,
+    *,
+    title: str,
+    page_title: str | None = None,
+    layout: str = "wide",
+    initial_sidebar_state: str | None = None,
+) -> None:
+    """Configure a Streamlit analysis page with consistent defaults."""
+
+    config: dict[str, Any] = {
+        "page_title": page_title or title,
+        "layout": layout,
+    }
+    if initial_sidebar_state is not None:
+        config["initial_sidebar_state"] = initial_sidebar_state
+    streamlit.set_page_config(**config)
+
+
+def render_streamlit_page_header(
+    streamlit: Any,
+    *,
+    title: str,
+    logo_title: str | None = None,
+    caption: str | None = None,
+    show_logo: bool = True,
+    show_title: bool = True,
+    render_logo_fn: Callable[..., Any] | None = None,
+) -> None:
+    """Render the common AGILAB analysis-page logo, title, and optional caption."""
+
+    if show_logo:
+        if render_logo_fn is None:
+            from agi_gui.pagelib import render_logo as _render_logo
+
+            render_logo_fn = _render_logo
+        if logo_title is None:
+            render_logo_fn()
+        else:
+            render_logo_fn(logo_title)
+    if show_title:
+        streamlit.title(title)
+    if caption:
+        streamlit.caption(caption)

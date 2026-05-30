@@ -12,10 +12,12 @@ import streamlit as st
 from agi_pages.runtime import (
     active_app_scope_value,
     artifact_root as _page_artifact_root,
+    configure_streamlit_page,
     discover_files as _page_discover_files,
     env_app_scope_value,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     load_json_object,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
     safe_float,
@@ -42,7 +44,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 PAGE_KEY = "view_shap_explanation"
@@ -187,14 +188,15 @@ def _state_text_input(key: str, label: str, default_value: str) -> str:
     return st.sidebar.text_input(label, key=key)
 
 
-st.set_page_config(layout="wide")
+configure_streamlit_page(st, title="SHAP explanation")
 
 env = _ensure_app_scoped_env()
 
-render_logo("SHAP Explanation")
-st.title("SHAP explanation")
-st.caption(
-    "Inspect local feature attributions exported by SHAPKit, shap, or any compatible explainer."
+render_streamlit_page_header(
+    st,
+    title="SHAP explanation",
+    logo_title="SHAP Explanation",
+    caption="Inspect local feature attributions exported by SHAPKit, shap, or any compatible explainer.",
 )
 
 default_root = _default_artifact_root(env)

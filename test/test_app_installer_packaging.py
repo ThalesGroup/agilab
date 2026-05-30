@@ -145,6 +145,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-multi-dag": "multi_app_dag_project",
     "agi-app-weather-forecast": "weather_forecast_project",
     "agi-app-sklearn-pipeline": "sklearn_pipeline_project",
+    "agi-app-data-quality-gate": "data_quality_gate_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",
     "agi-app-tescia-diagnostic": "tescia_diagnostic_project",
     "agi-app-uav-queue": "uav_queue_project",

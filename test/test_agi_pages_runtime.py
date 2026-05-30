@@ -75,6 +75,76 @@ def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> Non
     assert runtime.safe_metric(1.23456, digits=2) == "1.23"
 
 
+def test_agi_pages_runtime_configures_and_renders_streamlit_page_header() -> None:
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        set_page_config=lambda **kwargs: events.append(("config", kwargs)),
+        title=lambda value: events.append(("title", value)),
+        caption=lambda value: events.append(("caption", value)),
+    )
+
+    runtime.configure_streamlit_page(
+        fake_st,
+        title="Evidence cockpit",
+        initial_sidebar_state="collapsed",
+    )
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title="Evidence cockpit",
+        logo_title="Evidence Cockpit",
+        caption="Review baseline versus candidate evidence.",
+        render_logo_fn=lambda *args: events.append(("logo", args)),
+    )
+
+    assert events == [
+        (
+            "config",
+            {
+                "page_title": "Evidence cockpit",
+                "layout": "wide",
+                "initial_sidebar_state": "collapsed",
+            },
+        ),
+        ("logo", ("Evidence Cockpit",)),
+        ("title", "Evidence cockpit"),
+        ("caption", "Review baseline versus candidate evidence."),
+    ]
+
+
+def test_agi_pages_runtime_header_can_skip_logo_and_caption() -> None:
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        title=lambda value: events.append(("title", value)),
+        caption=lambda value: events.append(("caption", value)),
+    )
+
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title="Embedded training analysis",
+        show_logo=False,
+    )
+
+    assert events == [("title", "Embedded training analysis")]
+
+
+def test_agi_pages_runtime_header_can_render_logo_without_title() -> None:
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        title=lambda value: events.append(("title", value)),
+        caption=lambda value: events.append(("caption", value)),
+    )
+
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title="3D maps",
+        logo_title="3D Maps",
+        show_title=False,
+        render_logo_fn=lambda *args: events.append(("logo", args)),
+    )
+
+    assert events == [("logo", ("3D Maps",))]
+
+
 def test_agi_pages_runtime_resets_app_scoped_session_state(tmp_path: Path) -> None:
     first_app = tmp_path / "first"
     second_app = tmp_path / "second"

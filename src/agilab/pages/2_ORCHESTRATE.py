@@ -47,14 +47,6 @@ _public_bind_guard_module = import_agilab_module(
 )
 _public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
 
-_page_docs_module = import_agilab_module(
-    "agilab.page_docs",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
-    fallback_name="agilab_page_docs_fallback",
-)
-get_docs_menu_items = _page_docs_module.get_docs_menu_items
-
 import_agilab_symbols(
     globals(),
     "agilab.orchestrate_page_support",
@@ -114,6 +106,7 @@ import_agilab_symbols(
         "PAGE_ENV_REALIGNED_STATE_KEY": "_PAGE_ENV_REALIGNED_STATE_KEY",
         "ensure_page_env": "_ensure_page_env",
         "realign_session_env_with_page_root": "_realign_session_env_with_page_root",
+        "render_page_chrome": "render_page_chrome",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
@@ -121,20 +114,9 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.pinned_expander",
-    {
-        "render_pinned_expanders": "render_pinned_expanders",
-    },
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
-    fallback_name="agilab_pinned_expander_fallback",
-)
-import_agilab_symbols(
-    globals(),
     "agilab.workflow_ui",
     {
         "is_dag_worker_base": "is_dag_worker_base",
-        "render_page_context": "render_page_context",
         "render_project_evidence_drawer": "render_project_evidence_drawer",
         "render_workflow_timeline": "render_workflow_timeline",
     },
@@ -351,11 +333,9 @@ import_agilab_symbols(
 # Project Libraries:
 from agi_gui.pagelib import (
     background_services_enabled,
-    render_logo,
     activate_mlflow,
     init_custom_ui,
     on_project_change,
-    inject_theme,
     is_valid_ip,
     render_dataframe_preview,
     resolve_active_app,
@@ -2394,15 +2374,12 @@ async def page() -> None:
 
     st.session_state["_env"] = env
 
-    st.set_page_config(
-        page_title="AGILab ORCHESTRATE",
-        layout="wide",
-        menu_items=get_docs_menu_items(html_file="execute-help.html"),
+    render_page_chrome(
+        st,
+        env=env,
+        page_label="ORCHESTRATE",
+        docs_html_file="execute-help.html",
     )
-    inject_theme(env.st_resources)
-    render_logo()
-    render_pinned_expanders(st)
-    render_page_context(st, page_label="ORCHESTRATE", env=env)
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)

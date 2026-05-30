@@ -43,7 +43,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import reset_scoped_session_state
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 
 
 def _default_app() -> Path | None:
@@ -62,7 +62,7 @@ def _default_app() -> Path | None:
 
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
-from agi_gui.pagelib import find_files, load_df, render_dataframe_preview, render_logo, _dump_toml_payload
+from agi_gui.pagelib import find_files, load_df, render_dataframe_preview, _dump_toml_payload
 import tomllib as _toml
 
 
@@ -185,7 +185,7 @@ def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     return visible
 
 
-st.title(":world_map: Cartography-3D Visualization")
+render_streamlit_page_header(st, title=":world_map: Cartography-3D Visualization", show_logo=False)
 
 
 def _normalize_legacy_coltype(raw: str) -> str:
@@ -597,7 +597,12 @@ def page():
     Returns:
         None
     """
-    render_logo("3D Maps and Network Topology Visualization")
+    render_streamlit_page_header(
+        st,
+        title="3D Maps and Network Topology Visualization",
+        logo_title="3D Maps and Network Topology Visualization",
+        show_title=False,
+    )
 
     if 'env' not in st.session_state:
         restored = _bootstrap_env_from_active_app()

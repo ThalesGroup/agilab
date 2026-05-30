@@ -1,0 +1,33 @@
+[args]
+data_out = "data_quality_gate/evidence"
+baseline_csv = ""
+candidate_csv = ""
+contract_json = ""
+thresholds_json = ""
+baseline_rows = 240
+candidate_rows = 220
+drift_strength = 0.35
+seed = 2026
+include_quality_issues = false
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 1
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[pages]
+restrict_to_view_module = false
+view_module = []

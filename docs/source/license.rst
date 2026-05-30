@@ -86,6 +86,7 @@ App packages
    agi-app-multi-dag <agi-app-multi-dag-licenses>
    agi-app-weather-forecast <agi-app-weather-forecast-licenses>
    agi-app-sklearn-pipeline <agi-app-sklearn-pipeline-licenses>
+   agi-app-data-quality-gate <agi-app-data-quality-gate-licenses>
    agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
    agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
    agi-app-uav-queue <agi-app-uav-queue-licenses>

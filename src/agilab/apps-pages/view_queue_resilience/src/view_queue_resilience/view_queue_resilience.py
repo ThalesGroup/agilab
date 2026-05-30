@@ -13,8 +13,10 @@ import pandas as pd
 import streamlit as st
 from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
+    configure_streamlit_page,
     discover_files as _page_discover_files,
     ensure_repo_on_path as _page_ensure_repo_on_path,
+    render_streamlit_page_header,
     resolve_active_app_path,
     reset_scoped_session_state,
     safe_metric,
@@ -28,7 +30,6 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_gui.pagelib import render_logo
 
 
 DATA_DIR_KEY = "queue_resilience_datadir"
@@ -94,7 +95,7 @@ def _safe_metric(value: Any) -> str:
     return safe_metric(value)
 
 
-st.set_page_config(layout="wide")
+configure_streamlit_page(st, title=PAGE_TITLE)
 
 active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
@@ -105,11 +106,14 @@ if "env" not in st.session_state or app_scope_changed:
 else:
     env = st.session_state["env"]
 
-render_logo(PAGE_LOGO)
-st.title(PAGE_TITLE)
-st.caption(
-    "Use exported queue telemetry to inspect backlog, routing pressure, and delivery outcomes "
-    "without reopening the producer code."
+render_streamlit_page_header(
+    st,
+    title=PAGE_TITLE,
+    logo_title=PAGE_LOGO,
+    caption=(
+        "Use exported queue telemetry to inspect backlog, routing pressure, and delivery outcomes "
+        "without reopening the producer code."
+    ),
 )
 st.info(
     "Each run also writes `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, "

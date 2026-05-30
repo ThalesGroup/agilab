@@ -39,7 +39,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_pages.runtime import active_app_scope_value, reset_scoped_session_state
+from agi_pages.runtime import active_app_scope_value, render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
@@ -70,7 +70,7 @@ APP_SCOPED_SESSION_KEYS = (
     "coltype",
 )
 
-st.title(":chart_with_downwards_trend: Dimension Reduction")
+render_streamlit_page_header(st, title=":chart_with_downwards_trend: Dimension Reduction", show_logo=False)
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 

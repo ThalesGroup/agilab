@@ -465,8 +465,8 @@ def test_main_print_only_json_has_no_playwright_requirement(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["base_url"] == "http://127.0.0.1:9999"
     assert payload["route"] == [
-        "landing Upload chooser",
-        "PROJECT notebook handoff",
+        "landing built-in notebook link",
+        "PROJECT sample notebook handoff",
         "ORCHESTRATE",
         "ANALYSIS",
     ]
@@ -1255,42 +1255,41 @@ class _FakeLocator:
     def count(self) -> int:
         return self._count
 
+    @property
+    def first(self):
+        return self
+
     def inner_text(self, *, timeout: int) -> str:
         assert self.selector == "body"
         return self.page.body_text
 
     def click(self, *, timeout: float) -> None:
+        if self.page.link_error is not None and self.selector.startswith("text:Create from included notebook"):
+            raise self.page.link_error
         self.page.clicked_selectors.append((self.selector, timeout))
 
+    def wait_for(self, *, timeout: float) -> None:
+        if self.page.link_error is not None and self.selector == "a:Create from built-in notebook":
+            raise self.page.link_error
+        if (
+            self.page.selector_error is not None
+            and self.selector.startswith("text:AGILAB's included notebook is selected")
+        ):
+            raise self.page.selector_error
 
-class _FakeFileChooser:
-    def __init__(self, page) -> None:
-        self.page = page
-
-    def set_files(self, path: str) -> None:
-        self.page.selected_files.append(Path(path).name)
-
-
-class _FakeFileChooserContext:
-    def __init__(self, page, error: Exception | None = None) -> None:
-        self.value = _FakeFileChooser(page)
-        self.error = error
-
-    def __enter__(self):
-        if self.error is not None:
-            raise self.error
-        return self
-
-    def __exit__(self, *_exc):
-        return None
+    def get_attribute(self, name: str) -> str | None:
+        assert self.selector == "a:Create from built-in notebook"
+        assert name == "href"
+        return self.page.link_href
 
 
 class _FakeBrowserPage:
     def __init__(
         self,
         *,
-        chooser_error: Exception | None = None,
         goto_error: Exception | None = None,
+        link_error: Exception | None = None,
+        link_href: str | None = "/PROJECT?active_app=flight&start=notebook-import&sample=agilab-first-proof",
         selector_error: Exception | None = None,
         url_error: Exception | None = None,
     ) -> None:
@@ -1298,10 +1297,10 @@ class _FakeBrowserPage:
         self.body_text = ""
         self.launch_headless: bool | None = None
         self.clicked_selectors: list[tuple[str, float]] = []
-        self.selected_files: list[str] = []
         self.visited: list[str] = []
-        self.chooser_error = chooser_error
         self.goto_error = goto_error
+        self.link_error = link_error
+        self.link_href = link_href
         self.selector_error = selector_error
         self.url_error = url_error
 
@@ -1317,8 +1316,10 @@ class _FakeBrowserPage:
             self.body_text = "View: selected analysis view"
         elif "ANALYSIS" in url:
             self.body_text = "ANALYSIS Choose pages View:"
+        elif "PROJECT" in url:
+            self.body_text = "PROJECT AGILAB's included notebook is selected"
         else:
-            self.body_text = "First proof Upload"
+            self.body_text = "First proof Explore more proof routes Create from included notebook"
 
     def wait_for_selector(self, selector: str, *, timeout: float) -> None:
         if (
@@ -1335,16 +1336,18 @@ class _FakeBrowserPage:
         if self.url_error is not None:
             raise self.url_error
         self.url = "http://demo/PROJECT?active_app=flight"
-        self.body_text = "PROJECT notebook uploader"
+        self.body_text = "PROJECT AGILAB's included notebook is selected"
 
-    def expect_file_chooser(self, *, timeout: float):
-        return _FakeFileChooserContext(self, self.chooser_error)
+    def get_by_text(self, text: str, *, exact: bool = False):
+        return _FakeLocator(self, selector=f"text:{text}")
 
-    def locator(self, selector: str):
+    def locator(self, selector: str, **kwargs):
         if selector == "body":
             return _FakeLocator(self, selector=selector)
         if selector == "[data-testid='stException']":
             return _FakeLocator(self, selector=selector, count=0)
+        if selector == "a" and kwargs.get("has_text") == "Create from built-in notebook":
+            return _FakeLocator(self, selector="a:Create from built-in notebook", count=1)
         return _FakeLocator(self, selector=selector)
 
     def screenshot(self, *, path: str, full_page: bool) -> None:
@@ -1370,9 +1373,9 @@ def test_run_browser_robot_covers_full_happy_path_with_analysis_view(monkeypatch
     assert [step.label for step in steps] == [
         "landing navigation",
         "landing page",
-        "about upload button",
-        "notebook upload handoff",
-        "project notebook uploader",
+        "about built-in notebook link",
+        "built-in notebook handoff",
+        "project sample notebook import",
         "orchestrate navigation",
         "orchestrate page",
         "analysis navigation",
@@ -1382,8 +1385,7 @@ def test_run_browser_robot_covers_full_happy_path_with_analysis_view(monkeypatch
     ]
     assert all(step.success for step in steps)
     assert page.launch_headless is True
-    assert page.clicked_selectors == [("[data-testid='stFileUploaderDropzone'] button", 1000.0)]
-    assert page.selected_files == ["agilab-web-robot-upload.ipynb"]
+    assert page.clicked_selectors == [("text:Create from included notebook", 1000.0)]
     assert page.visited[-1].endswith("active_app=flight&current_page=%2Fapp%2Fview_maps.py")
 
 
@@ -1405,7 +1407,7 @@ def test_run_browser_robot_skips_analysis_sidecar_when_not_requested(monkeypatch
     assert not any("current_page=" in url for url in page.visited)
 
 
-def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path: Path) -> None:
+def test_run_browser_robot_reports_notebook_handoff_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
@@ -1420,13 +1422,13 @@ def test_run_browser_robot_reports_upload_handoff_failure(monkeypatch, tmp_path:
         screenshot_dir=tmp_path,
     )
 
-    assert steps[-1].label == "notebook upload handoff"
+    assert steps[-1].label == "built-in notebook handoff"
     assert steps[-1].success is False
-    assert "PROJECT did not open after notebook upload" in steps[-1].detail
+    assert "PROJECT did not open after built-in notebook handoff" in steps[-1].detail
     assert "screenshot=" in steps[-1].detail
 
 
-def test_run_browser_robot_reports_upload_handoff_failure_without_screenshot(monkeypatch) -> None:
+def test_run_browser_robot_reports_notebook_handoff_failure_without_screenshot(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
@@ -1440,15 +1442,15 @@ def test_run_browser_robot_reports_upload_handoff_failure_without_screenshot(mon
         timeout=1.0,
     )
 
-    assert steps[-1].label == "notebook upload handoff"
-    assert steps[-1].detail == "PROJECT did not open after notebook upload: PROJECT did not load"
+    assert steps[-1].label == "built-in notebook handoff"
+    assert steps[-1].detail == "PROJECT did not open after built-in notebook handoff: PROJECT did not load"
 
 
-def test_run_browser_robot_reports_upload_button_failure(monkeypatch, tmp_path: Path) -> None:
+def test_run_browser_robot_reports_built_in_notebook_link_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
-    page.chooser_error = PlaywrightError("chooser blocked")
+    page.link_error = PlaywrightError("link blocked")
 
     steps = module.run_browser_robot(
         base_url="http://demo",
@@ -1459,17 +1461,17 @@ def test_run_browser_robot_reports_upload_button_failure(monkeypatch, tmp_path: 
         screenshot_dir=tmp_path,
     )
 
-    assert steps[-1].label == "about upload button"
+    assert steps[-1].label == "about built-in notebook link"
     assert steps[-1].success is False
-    assert "could not open file chooser" in steps[-1].detail
+    assert "could not validate ABOUT built-in notebook link" in steps[-1].detail
     assert "screenshot=" in steps[-1].detail
 
 
-def test_run_browser_robot_reports_upload_button_failure_without_screenshot(monkeypatch) -> None:
+def test_run_browser_robot_reports_built_in_notebook_link_failure_without_screenshot(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
-    page.chooser_error = PlaywrightError("chooser blocked")
+    page.link_error = PlaywrightError("link blocked")
 
     steps = module.run_browser_robot(
         base_url="http://demo",
@@ -1479,16 +1481,16 @@ def test_run_browser_robot_reports_upload_button_failure_without_screenshot(monk
         timeout=1.0,
     )
 
-    assert steps[-1].label == "about upload button"
+    assert steps[-1].label == "about built-in notebook link"
     assert steps[-1].success is False
-    assert steps[-1].detail == "could not open file chooser from ABOUT Upload button: chooser blocked"
+    assert steps[-1].detail == "could not validate ABOUT built-in notebook link: link blocked"
 
 
-def test_run_browser_robot_reports_project_uploader_failure(monkeypatch, tmp_path: Path) -> None:
+def test_run_browser_robot_reports_project_sample_import_failure(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
-    page.selector_error = PlaywrightError("uploader missing")
+    page.selector_error = PlaywrightError("sample import missing")
 
     steps = module.run_browser_robot(
         base_url="http://demo",
@@ -1499,17 +1501,17 @@ def test_run_browser_robot_reports_project_uploader_failure(monkeypatch, tmp_pat
         screenshot_dir=tmp_path,
     )
 
-    assert steps[-1].label == "project notebook uploader"
+    assert steps[-1].label == "project sample notebook import"
     assert steps[-1].success is False
-    assert "PROJECT notebook uploader not visible" in steps[-1].detail
+    assert "PROJECT sample notebook import not visible" in steps[-1].detail
     assert "screenshot=" in steps[-1].detail
 
 
-def test_run_browser_robot_reports_project_uploader_failure_without_screenshot(monkeypatch) -> None:
+def test_run_browser_robot_reports_project_sample_import_failure_without_screenshot(monkeypatch) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
     PlaywrightError, _TimeoutError = _install_fake_playwright(monkeypatch, module, page)
-    page.selector_error = PlaywrightError("uploader missing")
+    page.selector_error = PlaywrightError("sample import missing")
 
     steps = module.run_browser_robot(
         base_url="http://demo",
@@ -1519,8 +1521,11 @@ def test_run_browser_robot_reports_project_uploader_failure_without_screenshot(m
         timeout=1.0,
     )
 
-    assert steps[-1].label == "project notebook uploader"
-    assert steps[-1].detail == "PROJECT notebook uploader not visible after upload handoff: uploader missing"
+    assert steps[-1].label == "project sample notebook import"
+    assert (
+        steps[-1].detail
+        == "PROJECT sample notebook import not visible after handoff: sample import missing"
+    )
 
 
 def test_run_browser_robot_can_stop_after_navigation_steps(monkeypatch) -> None:
@@ -1943,4 +1948,4 @@ def test_render_human_non_json_output_includes_route_and_step_details(capsys) ->
     assert module.main(["--print-only", "--port", "8765"]) == 0
     human = capsys.readouterr().out
     assert "mode: print-only" in human
-    assert "route: landing Upload chooser -> PROJECT notebook handoff -> ORCHESTRATE -> ANALYSIS" in human
+    assert "route: landing built-in notebook link -> PROJECT sample notebook handoff -> ORCHESTRATE -> ANALYSIS" in human

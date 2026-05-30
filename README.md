@@ -95,6 +95,7 @@ Start with the route that matches the proof you want to show:
 | Keep a notebook dashboard | [Voila notebook proof](https://thalesgroup.github.io/agilab/voila-users.html) | Hide-code notebook dashboard path plus widget-to-args and app-view evidence. |
 | Publish run evidence | [Quarto bridge](https://thalesgroup.github.io/agilab/quarto-users.html) | `agilab export quarto` turns a run manifest into a publishable `.qmd` report. |
 | Prove database access locally | [SQLite connector proof](https://thalesgroup.github.io/agilab/data-connectors.html#sqlite-database-proof) | Local schema, parameterized SQL query, result CSV, and JSON evidence hashes. |
+| Gate candidate data | [Data Quality Gate](src/agilab/apps/builtin/data_quality_gate_project) | Contract, drift, leakage, and promotion decision evidence before training. |
 | Show performance engineering | [Cython worker speedup demo](https://thalesgroup.github.io/agilab/execution-playground.html) | Worker execution model plus checksum-matched typed-kernel speedup evidence. |
 | Show a native extension boundary | [Rust/PyO3 native worker preview](https://thalesgroup.github.io/agilab/execution-playground.html#optional-rust-pyo3-worker-preview) | Generated PyO3/maturin worker skeleton with explicit evidence handoff. |
 | Explore an opt-in app | [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project) | Reproducible classifier playground with loss-landscape analysis. |
@@ -119,6 +120,10 @@ install.
 
 ## Featured Opt-In App
 
+- [Data Quality Gate](src/agilab/apps/builtin/data_quality_gate_project)
+  is the deterministic data-readiness gate: baseline/candidate datasets,
+  contract checks, drift metrics, leakage detection, and promotion evidence
+  without external services.
 - [PyTorch Playground](src/agilab/apps/builtin/pytorch_playground_project)
   is the opt-in classifier playground app for
   synthetic datasets, hidden-layer activation maps, network diagnostics, and
