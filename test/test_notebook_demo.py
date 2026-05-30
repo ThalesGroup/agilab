@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import builtins
 import json
 from pathlib import Path
 import sys
@@ -62,6 +63,7 @@ def test_resolve_notebook_apps_path_reports_install_hint(monkeypatch, tmp_path: 
 
 def test_notebook_demo_package_and_installed_app_resolution_edges(monkeypatch, tmp_path: Path) -> None:
     assert notebook_demo._normalise_project_app("") == "minimal_app_project"
+    assert notebook_demo._normalise_project_app("   ") == "minimal_app_project"
     assert notebook_demo._normalise_project_app("weather-forecast") == "weather_forecast_project"
     assert notebook_demo._app_aliases("weather_forecast_project") == (
         "weather_forecast_project",
@@ -98,9 +100,26 @@ def test_notebook_demo_package_and_installed_app_resolution_edges(monkeypatch, t
     monkeypatch.setattr(
         notebook_demo.importlib.util,
         "find_spec",
+        lambda _package: SimpleNamespace(submodule_search_locations=[], origin=None),
+    )
+    assert notebook_demo._package_dir("demo") is None
+    monkeypatch.setattr(
+        notebook_demo.importlib.util,
+        "find_spec",
         lambda _package: (_ for _ in ()).throw(ValueError("bad spec")),
     )
     assert notebook_demo._package_dir("demo") is None
+
+    original_import = builtins.__import__
+
+    def block_registry_import(name, *args, **kwargs):
+        if name == "agi_env.app_provider_registry":
+            raise ImportError("missing registry")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", block_registry_import)
+    assert notebook_demo._installed_app_project_root("weather_forecast_project") is None
+    monkeypatch.undo()
 
     provider = ModuleType("agi_env.app_provider_registry")
     provider.resolve_installed_app_project = lambda _app: app_root
@@ -114,11 +133,27 @@ def test_notebook_demo_package_and_installed_app_resolution_edges(monkeypatch, t
     monkeypatch.setattr(notebook_demo, "_installed_app_project_root", lambda _app: None)
     assert notebook_demo.resolve_notebook_apps_path("weather_forecast", start=tmp_path / "missing") == builtin_root
 
+    apps_package_root = tmp_path / "apps_package"
+    _make_app(apps_package_root, "weather_forecast_project")
+    monkeypatch.setattr(
+        notebook_demo,
+        "_package_dir",
+        lambda package: apps_package_root if package == "agilab.apps" else None,
+    )
+    assert notebook_demo.resolve_notebook_apps_path("weather_forecast", start=tmp_path / "missing") == apps_package_root
+
     installed_root = tmp_path / "installed" / "standalone_project"
     _make_app(installed_root.parent, "standalone_project")
     monkeypatch.setattr(notebook_demo, "_package_dir", lambda _package: None)
     monkeypatch.setattr(notebook_demo, "_installed_app_project_root", lambda _app: installed_root)
     assert notebook_demo.resolve_notebook_apps_path("standalone_project", start=tmp_path / "missing") == installed_root.parent
+    detached_project = tmp_path / "installed" / "detached_project"
+    monkeypatch.setattr(notebook_demo, "_installed_app_project_root", lambda _app: detached_project)
+    assert notebook_demo.resolve_notebook_apps_path("detached_project", start=tmp_path / "missing") == detached_project.parent
+
+    request = SimpleNamespace(workers={"remote": 2}, mode="local")
+    assert notebook_demo._workers_from_request(request, None) == {"remote": 2}
+    assert notebook_demo._modes_from_request(request, None) == notebook_demo.DEFAULT_LOCAL_MODE
 
 
 def test_notebook_local_request_uses_visible_local_defaults(monkeypatch) -> None:
