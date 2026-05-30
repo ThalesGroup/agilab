@@ -6,9 +6,10 @@ import ctypes as _ctypes
 import subprocess
 from ctypes import wintypes as _wintypes
 from pathlib import Path
+from typing import Any
 
 
-def has_admin_rights(*, ctypes_module=_ctypes):
+def has_admin_rights(*, ctypes_module: Any = _ctypes):
     """Return whether the current Windows process has administrative rights."""
 
     try:
@@ -43,8 +44,8 @@ def create_symlink_windows(
     *,
     has_admin_rights_fn,
     logger=None,
-    ctypes_module=_ctypes,
-    wintypes_module=_wintypes,
+    ctypes_module: Any = _ctypes,
+    wintypes_module: Any = _wintypes,
 ) -> None:
     """Create a Windows directory symbolic link when privileges allow it."""
 

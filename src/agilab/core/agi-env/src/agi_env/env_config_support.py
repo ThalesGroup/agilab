@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from dotenv import dotenv_values, set_key
@@ -18,7 +19,7 @@ def _normalize_env_value(value: object) -> str | None:
 
 
 def clean_envar_value(
-    envars: dict | None,
+    envars: Mapping[str, object] | None,
     key: str,
     *,
     fallback_to_process: bool = False,

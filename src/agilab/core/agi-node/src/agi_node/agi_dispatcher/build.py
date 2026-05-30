@@ -12,6 +12,7 @@ import stat
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
+import logging
 import subprocess
 from collections.abc import Mapping
 
@@ -40,6 +41,10 @@ warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
+
+
+def _runtime_logger(log: logging.Logger | None = None) -> logging.Logger:
+    return log or AgiEnv.logger or logger
 
 def _ensure_hacl_dir(log=logger, path_factory=Path) -> None:
     hacl_dir = path_factory("Modules/_hacl")
@@ -371,12 +376,11 @@ def _unpack_worker_eggs(
     dist_dir: Path,
     dest_src: Path,
     zip_cls=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> None:
     if zip_cls is None:
         zip_cls = ZipFile
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
     log.info(f"mkdir {dest_src}")
     dest_src.mkdir(exist_ok=True, parents=True)
     for egg in dist_dir.glob("*.egg"):
@@ -386,10 +390,9 @@ def _unpack_worker_eggs(
     _remove_top_level_ui_modules(dest_src, log=log)
 
 
-def _remove_top_level_ui_modules(dest_src: Path, *, log=None) -> list[Path]:
+def _remove_top_level_ui_modules(dest_src: Path, *, log: logging.Logger | None = None) -> list[Path]:
     """Remove stale UI-only top-level modules from headless worker sources."""
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
     removed: list[Path] = []
 
     for pattern in _TOP_LEVEL_UI_MODULE_PATTERNS:
@@ -415,10 +418,9 @@ def _remove_top_level_ui_modules(dest_src: Path, *, log=None) -> list[Path]:
     return removed
 
 
-def _purge_top_level_ui_build_artifacts(app_root: Path, *, log=None) -> list[Path]:
+def _purge_top_level_ui_build_artifacts(app_root: Path, *, log: logging.Logger | None = None) -> list[Path]:
     """Drop stale top-level UI modules from setuptools build caches."""
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
     build_root = app_root / "build"
     if not build_root.exists():
         return []
@@ -453,7 +455,7 @@ def _postprocess_bdist_egg_output(
     cleanup_links_fn=None,
     os_system_fn=None,
     zip_cls=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> None:
     if cleanup_links_fn is None:
         cleanup_links_fn = cleanup_links
@@ -461,8 +463,7 @@ def _postprocess_bdist_egg_output(
         os_system_fn = os.system  # ty: ignore[deprecated]
     if zip_cls is None:
         zip_cls = ZipFile
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
     dest_src = out_dir / "src"
     _unpack_worker_eggs(dist_dir=out_dir / "dist", dest_src=dest_src, zip_cls=zip_cls, log=log)
 
@@ -512,7 +513,7 @@ def _ensure_worker_cython_source(
     resolve_pre_install_script_fn=None,
     resolve_cython_type_preprocess_option_fn=None,
     subprocess_run=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> None:
     if resolve_pre_install_script_fn is None:
         resolve_pre_install_script_fn = _resolve_pre_install_script
@@ -520,8 +521,7 @@ def _ensure_worker_cython_source(
         resolve_cython_type_preprocess_option_fn = _resolve_cython_type_preprocess_option
     if subprocess_run is None:
         subprocess_run = subprocess.run
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
 
     worker_py = _resolve_worker_python_path(env)
     worker_pyx = worker_py.with_suffix(".pyx")
@@ -543,10 +543,9 @@ def _resolve_build_output(
     outdir,
     *,
     home_abs: str | Path,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> tuple[Path, str, str]:
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
     if not outdir:
         log.error("Cannot determine target package name.")
         raise RuntimeError("Cannot determine target package name")
@@ -622,7 +621,7 @@ def _configure_build_ext_modules(
     ensure_hacl_dir_fn=None,
     build_worker_extension_fn=None,
     cythonize_worker_extension_fn=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> list:
     if find_sys_prefix_fn is None:
         find_sys_prefix_fn = find_sys_prefix
@@ -636,8 +635,7 @@ def _configure_build_ext_modules(
         build_worker_extension_fn = _build_worker_extension
     if cythonize_worker_extension_fn is None:
         cythonize_worker_extension_fn = _cythonize_worker_extension
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
 
     log.info(f"cwd: {active_app}")
     log.info(f"build_dir: {build_dir}")
@@ -692,14 +690,13 @@ def _prepare_build_ext_command(
     build_dir: str | None,
     truncate_path_at_segment_fn=None,
     ensure_worker_cython_source_fn=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> None:
     if truncate_path_at_segment_fn is None:
         truncate_path_at_segment_fn = truncate_path_at_segment
     if ensure_worker_cython_source_fn is None:
         ensure_worker_cython_source_fn = _ensure_worker_cython_source
-    if log is None:
-        log = AgiEnv.logger or logger
+    log = _runtime_logger(log)
 
     if not build_dir:
         log.error("build_ext requires --build-dir/-b argument")
@@ -727,7 +724,7 @@ def _prepare_setup_artifacts(
     purge_top_level_ui_build_artifacts_fn=None,
     configure_build_ext_modules_fn=None,
     prepare_bdist_egg_sources_fn=None,
-    log=None,
+    log: logging.Logger | None = None,
 ) -> tuple[list, list[Path]]:
     if purge_worker_venv_artifacts_fn is None:
         purge_worker_venv_artifacts_fn = _purge_worker_venv_artifacts
