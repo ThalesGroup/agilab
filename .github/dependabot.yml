@@ -25,6 +25,14 @@ updates:
       python-runtime:
         patterns:
           - "*"
+    ignore:
+      # Streamlit >=1.57 is blocked by test_pyproject_dependency_hygiene.py
+      # until the uv archive install blank-frontend failure is resolved.
+      - dependency-name: "streamlit"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
     directory: "/src/agilab/core/agi-env"
@@ -80,6 +88,13 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    ignore:
+      # Keep agi-gui aligned with the root UI extra Streamlit cap.
+      - dependency-name: "streamlit"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
     directory: "/src/agilab/lib/agi-apps"
