@@ -576,7 +576,7 @@ def _agi_gui_coverage_manifest_paths() -> list[str]:
 def _agi_gui_coverage_chunk_code(label: str, data_file: str, junit_path: str, manifest_path: str) -> str:
     return (
         "from pathlib import Path\n"
-        "import json, subprocess, sys, time\n"
+        "import json, shutil, subprocess, sys, time\n"
         "import xml.etree.ElementTree as ET\n"
         f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
         f"label = {label!r}\n"
@@ -612,7 +612,7 @@ def _agi_gui_coverage_combine_code() -> str:
     manifest_paths = _agi_gui_coverage_manifest_paths()
     return (
         "from pathlib import Path\n"
-        "import json, subprocess, sys, time\n"
+        "import json, shutil, subprocess, sys, time\n"
         "import xml.etree.ElementTree as ET\n"
         f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
         f"manifest_paths = {manifest_paths!r}\n"
@@ -700,7 +700,11 @@ def _agi_gui_coverage_combine_code() -> str:
         "    raw_chunk_paths = raw_paths if isinstance(raw_paths, list) else []\n"
         "    data_file = manifest.get('data_file')\n"
         "    base_path = Path(str(data_file)) if data_file else Path(f'test-results/coverage-agi-gui-{chunk}.db')\n"
-        "    chunk_paths = _stable_coverage_db_paths(base_path, raw_chunk_paths)\n"
+        "    discovered_chunk_paths = _stable_coverage_db_paths(\n"
+        "        base_path,\n"
+        "        [path for path in base_path.parent.glob(base_path.name + '*') if path.is_file() and path.stat().st_size > 0],\n"
+        "    )\n"
+        "    chunk_paths = discovered_chunk_paths or _stable_coverage_db_paths(base_path, raw_chunk_paths)\n"
         "    valid_chunk_paths = []\n"
         "    for raw_path in chunk_paths:\n"
         "        path = Path(str(raw_path))\n"
@@ -723,7 +727,17 @@ def _agi_gui_coverage_combine_code() -> str:
         "if missing_dbs:\n"
         "    print('Missing agi-gui coverage DB files: ' + ', '.join(missing_dbs))\n"
         "    sys.exit(1)\n"
-        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *coverage_paths]\n"
+        "combine_input_dir = Path('test-results/coverage-agi-gui-combine-inputs')\n"
+        "if combine_input_dir.exists():\n"
+        "    shutil.rmtree(combine_input_dir)\n"
+        "combine_input_dir.mkdir(parents=True, exist_ok=True)\n"
+        "combine_paths = []\n"
+        "for index, raw_path in enumerate(coverage_paths):\n"
+        "    source = Path(raw_path)\n"
+        "    target = combine_input_dir / f'{index:03d}-{source.name}'\n"
+        "    shutil.copy2(source, target)\n"
+        "    combine_paths.append(target.as_posix())\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *combine_paths]\n"
         "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
     )
 

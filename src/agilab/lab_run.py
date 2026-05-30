@@ -52,6 +52,12 @@ _PUBLIC_BIND_GUARD_MODULE = import_agilab_module(
 )
 PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
 enforce_public_bind_policy = _PUBLIC_BIND_GUARD_MODULE.enforce_public_bind_policy
+_APP_SURFACE_MODULE = import_agilab_module(
+    "agilab.app_surface",
+    current_file=__file__,
+    fallback_path=_PACKAGE_DIR / "app_surface.py",
+    fallback_name="agilab_app_surface_local",
+)
 
 
 def _streamlit_config_path() -> Path:
@@ -196,6 +202,9 @@ def _run_env(argv: list[str]) -> int:
 
 
 def _run_app(argv: list[str]) -> int:
+    if argv[:1] == ["surface"]:
+        return _run_app_surface(argv[1:])
+
     from agilab import pypi_app_packages
 
     return pypi_app_packages.main(argv)
@@ -250,21 +259,30 @@ def _validate_streamlit_host(host: str | None) -> str:
     return enforce_public_bind_policy(env)
 
 
-def _url_with_pytorch_playground_query(url: str) -> str:
+def _url_with_active_app_query(url: str, app_name: str) -> str:
     parsed = urlparse(url)
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    query.setdefault("active_app", PYTORCH_PLAYGROUND_APP_NAME)
+    query.setdefault("active_app", app_name)
     return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _url_with_pytorch_playground_query(url: str) -> str:
+    return _url_with_active_app_query(url, PYTORCH_PLAYGROUND_APP_NAME)
 
 
 def _hf_runtime_url(space_id: str) -> str:
     if space_id.startswith(("http://", "https://")):
         return _url_with_pytorch_playground_query(space_id)
+    return _url_with_pytorch_playground_query(_hf_space_runtime_url(space_id))
+
+
+def _hf_space_runtime_url(space_id: str) -> str:
+    if space_id.startswith(("http://", "https://")):
+        return space_id
     if "/" not in space_id:
-        raise SystemExit("agilab pytorch-playground: --hf-space must look like <owner>/<space>.")
+        raise SystemExit("--hf-space must look like <owner>/<space>.")
     owner, name = space_id.split("/", 1)
-    host = f"https://{owner.lower().replace('_', '-')}-{name.lower().replace('_', '-')}.hf.space/"
-    return _url_with_pytorch_playground_query(host)
+    return f"https://{owner.lower().replace('_', '-')}-{name.lower().replace('_', '-')}.hf.space/"
 
 
 def _pytorch_playground_hf_url(hf_url: str | None, hf_space: str | None) -> str:
@@ -305,6 +323,156 @@ def _pytorch_playground_streamlit_command(
         command.append("--")
         command.extend(extra_args)
     return command
+
+
+def _resolve_app_surface_project_root(project: str) -> Path:
+    candidate = Path(project).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+
+    repo_root = _detect_repo_root(_PACKAGE_DIR)
+    if repo_root is not None:
+        for root in (
+            repo_root / "src" / "agilab" / "apps" / "builtin",
+            repo_root / "src" / "agilab" / "apps",
+        ):
+            path = root / project
+            if path.exists():
+                return path.resolve()
+
+    try:
+        from agilab import pypi_app_packages
+    except Exception:
+        pypi_app_packages = None
+
+    if pypi_app_packages is not None:
+        for app in pypi_app_packages.list_installed_pypi_apps():
+            if app.provider == project or Path(app.project_root).name == project:
+                return Path(app.project_root).expanduser().resolve()
+
+    raise SystemExit(f"agilab app surface: project not found: {project}")
+
+
+def _app_surface_streamlit_command(
+    *,
+    project_root: Path,
+    entrypoint: Path,
+    host: str,
+    port: int,
+    headless: bool,
+    extra_args: list[str],
+) -> list[str]:
+    command = [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--project",
+        str(project_root),
+        "streamlit",
+        "run",
+        "--server.address",
+        host,
+        "--server.port",
+        str(port),
+    ]
+    if headless:
+        command.extend(["--server.headless", "true"])
+    command.extend([str(entrypoint), "--", "--active-app", str(project_root)])
+    command.extend(extra_args)
+    return command
+
+
+def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
+    parser = argparse.ArgumentParser(
+        prog="agilab app surface",
+        description="Launch an app-owned UI surface without coupling apps to one web framework.",
+    )
+    parser.add_argument("project", help="App project name or path.")
+    parser.add_argument(
+        "--ui",
+        default=None,
+        help="Surface name or backend. Examples: streamlit, hf, nicegui.",
+    )
+    parser.add_argument("--list", action="store_true", help="List declared surfaces.")
+    parser.add_argument("--json", action="store_true", help="Emit JSON for --list.")
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Local UI host. Streamlit uses AGILAB's guarded localhost bind by default.",
+    )
+    parser.add_argument("--port", type=int, default=8501, help="Local UI port.")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open external URLs.")
+    parser.add_argument("--hf-url", default=None, help="Explicit hosted backend URL.")
+    parser.add_argument("--hf-space", default=None, help="Hosted Space ID, for example owner/agilab.")
+    args, extra_args = parser.parse_known_args(argv)
+    if extra_args[:1] == ["--"]:
+        extra_args = extra_args[1:]
+
+    project_root = _resolve_app_surface_project_root(args.project)
+    specs = _APP_SURFACE_MODULE.app_surface_specs(project_root)
+    if args.list:
+        payload = [spec.as_dict() for spec in specs.values()]
+        if args.json:
+            import json
+
+            print(json.dumps({"project": project_root.name, "surfaces": payload}, indent=2))
+        else:
+            for spec in payload:
+                default = " default" if spec.get("default") else ""
+                print(f"{spec['name']}\t{spec['backend']}{default}\t{spec['title']}")
+        return 0
+    if not specs:
+        raise SystemExit(f"agilab app surface: no app surface declared in {project_root}")
+
+    selected = _APP_SURFACE_MODULE.select_app_surface_spec(project_root, name=args.ui)
+    if selected is None:
+        available = ", ".join(sorted(specs)) or "<none>"
+        raise SystemExit(
+            f"agilab app surface: unknown --ui {args.ui!r}; available: {available}"
+        )
+
+    if selected.backend in {"hf", "url"}:
+        url = (
+            args.hf_url
+            or (_hf_space_runtime_url(args.hf_space) if args.hf_space else "")
+            or selected.url
+        )
+        if not url:
+            raise SystemExit(f"agilab app surface: surface {selected.name!r} has no URL.")
+        url = _url_with_active_app_query(url, project_root.name)
+        print(url)
+        if not args.no_browser:
+            webbrowser.open(url)
+        return 0
+
+    if selected.backend != "streamlit":
+        raise SystemExit(
+            f"agilab app surface: backend {selected.backend!r} is declared but "
+            "does not have a built-in launcher yet."
+        )
+
+    try:
+        host = _validate_streamlit_host(args.host)
+    except PublicBindPolicyError as exc:
+        raise SystemExit(f"agilab app surface: {exc}") from exc
+    entrypoint = _APP_SURFACE_MODULE.resolve_app_surface_entrypoint(
+        project_root, selected.entrypoint
+    )
+    if entrypoint is None:
+        raise SystemExit(
+            f"agilab app surface: Streamlit entrypoint not found for {selected.name!r}."
+        )
+    _ensure_streamlit_config_file()
+    command = _app_surface_streamlit_command(
+        project_root=project_root,
+        entrypoint=entrypoint,
+        host=host,
+        port=args.port,
+        headless=args.no_browser,
+        extra_args=extra_args,
+    )
+    return int(runner(command))
 
 
 def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:

@@ -51,6 +51,9 @@ no longer the right interface. Those apps can run locally or on distributed
 workers, and the workflow stays portable: export it back to an `agi-core`
 notebook, inspect or adapt the Python stages, and hand off tracking evidence to
 MLflow when that integration is enabled.
+Apps can also declare multiple UI surfaces, so an app can keep the same runtime
+and evidence contract while exposing Streamlit, hosted Hugging Face, or future
+NiceGUI/Gradio/FastAPI adapters.
 
 You do not need a cluster to get AGILAB's core value. The primary adoption path
 is local: turn a notebook or script into a replayable app with evidence,
@@ -129,9 +132,11 @@ install.
   synthetic datasets, real play/pause training, hidden-layer activation maps,
   network diagnostics, and the **Loss landscape** view. Launch it directly with
   `agilab pytorch-playground` or open the hosted backend with
-  `agilab pytorch-playground --backend hf`. It is a reproducible app project,
-  not a generic app-agnostic analysis page, and loss landscape is part of that
-  project.
+  `agilab pytorch-playground --backend hf`. The generic surface launcher also
+  works: `agilab app surface pytorch_playground_project --ui streamlit` or
+  `agilab app surface pytorch_playground_project --ui hf`. It is a reproducible
+  app project, not a generic app-agnostic analysis page, and loss landscape is
+  part of that project.
 
 ## Featured Performance Demo
 
@@ -396,7 +401,7 @@ the same releaseable tree.
 | Area | Role | Stability contract |
 |---|---|---|
 | `src/agilab/core/agi-env`, `agi-node`, `agi-cluster`, `agi-core` | Runtime packages for environment setup, worker packaging, distributed execution, and the compact API. | Stable where documented; changes require focused regression evidence. |
-| `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI and page helpers. | Beta product surface; useful for operators, still evolving. |
+| `src/agilab/lib/agi-gui`, `src/agilab/pages` | Main web UI, Streamlit page helpers, and app-surface launch adapters. | Beta product surface; useful for operators, still evolving. App runtime contracts should not depend on one UI backend. |
 | `src/agilab/lib/agi-apps` | PyPI umbrella that carries app catalog/example assets and exact-pins the app payload packages already promoted to PyPI. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Published `agi-page-*` payload packages are distributed independently; `agi-pages` supplies the discovery/provider surface. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | Public built-in apps used for first proof, demos, workflow examples, and regression coverage. | Packaged examples, not enterprise deployment templates. |

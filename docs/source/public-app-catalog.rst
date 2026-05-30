@@ -69,8 +69,10 @@ Status legend:
      - ``agi-app-pytorch-playground``
      - PyPI app package
      - Reproducible PyTorch classifier playground with live play/pause training,
-       persisted controls, and evidence artifacts. It can also be launched with
-       ``agilab pytorch-playground`` or ``agilab pytorch-playground --backend hf``.
+       persisted controls, multi-UI surface declarations, and evidence
+       artifacts. It can also be launched with ``agilab pytorch-playground``,
+       ``agilab pytorch-playground --backend hf``, or the generic
+       ``agilab app surface pytorch_playground_project --ui <backend>`` path.
    * - ``r_runtime_bridge_project``
      - None
      - Source built-in
