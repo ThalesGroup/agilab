@@ -43,8 +43,8 @@ Status legend:
    * - ``data_quality_gate_project``
      - ``agi-app-data-quality-gate``
      - Release artifact
-     - Deterministic data-readiness gate: contract checks, drift metrics,
-       leakage detection, gate decision, and artifact hashes before training.
+     - Production-adjacent data gate for contract, drift, leakage, and
+       promotion-decision evidence before training.
    * - ``mission_decision_project``
      - ``agi-app-mission-decision``
      - PyPI app package
@@ -68,8 +68,9 @@ Status legend:
    * - ``pytorch_playground_project``
      - ``agi-app-pytorch-playground``
      - PyPI app package
-     - Reproducible PyTorch classifier playground with persisted controls and
-       evidence artifacts.
+     - Reproducible PyTorch classifier playground with live play/pause training,
+       persisted controls, and evidence artifacts. It can also be launched with
+       ``agilab pytorch-playground`` or ``agilab pytorch-playground --backend hf``.
    * - ``r_runtime_bridge_project``
      - None
      - Source built-in
@@ -112,10 +113,8 @@ Recommended first choices
   reusable forecast artifacts.
 - Use ``sklearn_pipeline_project`` when the question is classic ML
   reproducibility with a familiar scikit-learn pipeline.
-- Use ``data_quality_gate_project`` when the question is whether candidate data
-  is ready to train, promote, or block before a downstream model workflow.
 - Use ``pytorch_playground_project`` when you want a more visual AI/ML demo
-  with training evidence.
+  with live play/pause training and exportable training evidence.
 - Use ``uav_relay_queue_project`` or ``uav_queue_project`` only after the first
   proof, because they are better suited to advanced evidence and scenario
   comparison.

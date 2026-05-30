@@ -24,7 +24,7 @@ DEFAULT_PROFILE = "first-proof"
 DEFAULT_TIMEOUT_SECONDS = 900.0
 DEFAULT_POLL_SECONDS = 10.0
 
-FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project")
+FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project", "pytorch_playground_project")
 FIRST_PROOF_PAGES = ("view_maps", "view_forecast_analysis", "view_release_decision")
 ADVANCED_APPS = (
     "execution_pandas_project",

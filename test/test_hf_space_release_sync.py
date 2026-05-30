@@ -133,7 +133,7 @@ def test_first_proof_profile_uses_public_weather_demo() -> None:
 
     apps, pages = module.profile_entries("first-proof")
 
-    assert apps == ("flight_telemetry_project", "weather_forecast_project")
+    assert apps == ("flight_telemetry_project", "weather_forecast_project", "pytorch_playground_project")
     assert pages == ("view_maps", "view_forecast_analysis", "view_release_decision")
 
 
@@ -145,6 +145,7 @@ def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path:
 
     (repo / "src/agilab/apps/builtin/flight_telemetry_project").mkdir(parents=True)
     (repo / "src/agilab/apps/builtin/weather_forecast_project").mkdir(parents=True)
+    (repo / "src/agilab/apps/builtin/pytorch_playground_project").mkdir(parents=True)
     (repo / "src/agilab/apps/private_project").mkdir(parents=True)
     for page in ("view_maps", "view_forecast_analysis", "view_release_decision"):
         (repo / "src/agilab/apps-pages" / page).mkdir(parents=True)
@@ -158,10 +159,15 @@ def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path:
 
     summary = module.stage_space_tree(repo, stage, profile="first-proof")
 
-    assert summary["apps"] == ["flight_telemetry_project", "weather_forecast_project"]
+    assert summary["apps"] == [
+        "flight_telemetry_project",
+        "weather_forecast_project",
+        "pytorch_playground_project",
+    ]
     assert not (stage / "src/agilab/apps/private_project").exists()
     assert (stage / "src/agilab/apps/builtin/flight_telemetry_project").is_dir()
     assert (stage / "src/agilab/apps/builtin/weather_forecast_project").is_dir()
+    assert (stage / "src/agilab/apps/builtin/pytorch_playground_project").is_dir()
 
 
 def test_hosted_smoke_receives_profile(monkeypatch, tmp_path: Path) -> None:

@@ -35,6 +35,7 @@ ALLOWED_APP_ENTRIES = {
 PROFILE_BUILTIN_APP_ENTRIES = {
     "first-proof": {
         "flight_telemetry_project",
+        "pytorch_playground_project",
         "weather_forecast_project",
     },
     "advanced": {
@@ -153,6 +154,7 @@ def route_specs(profile: str = "first-proof") -> list[RouteSpec]:
                 "current_page": "/app/src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             },
         ),
+        RouteSpec("pytorch playground project", query={"active_app": "pytorch_playground_project"}),
     ]
 
 

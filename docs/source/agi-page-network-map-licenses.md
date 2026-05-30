@@ -18,60 +18,61 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | agi-env | 2026.5.30 | BSD-3-Clause |
-| agi-gui | 2026.5.23 | BSD-3-Clause |
+| agi-gui | 2026.5.30 | BSD-3-Clause |
 | agi-node | 2026.5.30 | BSD-3-Clause |
+| agi-pages | 2026.5.30 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asttokens | 3.0.1 | APACHE 2.0 |
 | attrs | 23.2.0 | MIT LICENSE |
-| backports-zstd | 1.5.0 | PSF-2.0 |
+| backports-zstd | 1.3.0 | PSF-2.0 |
 | blinker | 1.9.0 | MIT LICENSE |
 | brotli | 1.2.0 | MIT |
-| cachetools | 7.1.4 | MIT |
-| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.0.6 | MIT |
+| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | charset-normalizer | 3.4.7 | MIT |
-| click | 8.4.1 | BSD-3-CLAUSE |
+| click | 8.3.3 | BSD-3-CLAUSE |
 | contourpy | 1.3.3 | BSD LICENSE |
 | cycler | 0.12.1 | BSD LICENSE |
-| cython | 3.2.5 | APACHE-2.0 |
-| decorator | 5.3.1 | BSD-2-CLAUSE |
+| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
+| decorator | 5.2.1 | BSD LICENSE |
 | executing | 2.2.1 | MIT LICENSE |
-| fonttools | 4.63.0 | MIT |
+| fonttools | 4.62.1 | MIT |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
 | humanize | 4.15.0 | MIT |
-| idna | 3.17 | BSD-3-CLAUSE |
+| idna | 3.16 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| ipython | 9.14.0 | BSD-3-CLAUSE |
+| ipython | 9.13.0 | BSD-3-CLAUSE |
 | ipython-pygments-lexers | 1.1.1 | BSD LICENSE |
-| jedi | 0.20.0 | MIT LICENSE |
+| jedi | 0.19.2 | MIT LICENSE |
 | jinja2 | 3.1.6 | BSD LICENSE |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
 | kiwisolver | 1.5.0 | BSD LICENSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
 | matplotlib | 3.10.0 | PYTHON SOFTWARE FOUNDATION LICENSE |
-| matplotlib-inline | 0.2.2 | BSD-3-CLAUSE |
+| matplotlib-inline | 0.2.1 | BSD-3-CLAUSE |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| narwhals | 2.21.2 | MIT LICENSE |
+| narwhals | 2.20.0 | MIT LICENSE |
 | networkx | 3.6.1 | BSD-3-CLAUSE |
 | numpy | 2.3.5 | BSD LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
-| parso | 0.8.7 | MIT LICENSE |
+| parso | 0.8.6 | MIT LICENSE |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pexpect | 4.9.0 | ISC LICENSE _ISCL_ |
 | pillow | 12.2.0 | MIT-CMU |
-| plotly | 6.7.0 | MIT |
-| polars | 1.41.2 | MIT LICENSE |
-| polars-runtime-32 | 1.41.2 | MIT LICENSE |
+| plotly | 6.7.0 | MIT LICENSE |
+| polars | 1.40.1 | MIT LICENSE |
+| polars-runtime-32 | 1.40.1 | MIT LICENSE |
 | prompt-toolkit | 3.0.52 | BSD LICENSE |
-| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
+| protobuf | 6.33.6 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | ptyprocess | 0.7.0 | ISC LICENSE _ISCL_ |
 | pure-eval | 0.2.3 | MIT LICENSE |
 | py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pyarrow | 24.0.0 | APACHE-2.0 |
+| pyarrow | 23.0.1 | APACHE-2.0 |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
 | pydantic | 2.12.5 | MIT |
@@ -84,23 +85,23 @@ Audit notes:
 | python-dotenv | 1.2.2 | BSD-3-CLAUSE |
 | pyzstd | 0.19.1 | BSD LICENSE |
 | referencing | 0.37.0 | MIT |
-| requests | 2.34.2 | APACHE SOFTWARE LICENSE |
-| rpds-py | 2026.5.1 | MIT |
+| requests | 2.33.1 | APACHE SOFTWARE LICENSE |
+| rpds-py | 0.30.0 | MIT |
 | setuptools | 81.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | smmap | 5.0.3 | BSD LICENSE |
-| sqlalchemy | 2.0.50 | MIT |
+| sqlalchemy | 2.0.49 | MIT |
 | stack-data | 0.6.3 | MIT LICENSE |
 | streamlit | 1.56.0 | APACHE-2.0 |
 | streamlit-code-editor | 0.1.22 | UNKNOWN |
 | tenacity | 9.1.4 | APACHE SOFTWARE LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | toml | 0.10.2 | MIT LICENSE |
-| tomlkit | 0.15.0 | MIT LICENSE |
-| tornado | 6.5.6 | APACHE SOFTWARE LICENSE |
-| traitlets | 5.15.0 | BSD LICENSE |
+| tomlkit | 0.14.0 | MIT LICENSE |
+| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
+| traitlets | 5.14.3 | BSD LICENSE |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |
 | urllib3 | 2.7.0 | MIT |
 | watchdog | 6.0.0 | APACHE SOFTWARE LICENSE |
-| wcwidth | 0.7.0 | MIT |
+| wcwidth | 0.6.0 | MIT |

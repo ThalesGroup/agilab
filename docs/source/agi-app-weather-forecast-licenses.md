@@ -28,25 +28,25 @@ Audit notes:
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
 | attrs | 23.2.0 | MIT LICENSE |
-| backports-zstd | 1.5.0 | PSF-2.0 |
+| backports-zstd | 1.3.0 | PSF-2.0 |
 | blinker | 1.9.0 | MIT LICENSE |
 | brotli | 1.2.0 | MIT |
-| cachetools | 7.1.4 | MIT |
-| certifi | 2026.5.20 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
+| cachetools | 7.0.6 | MIT |
+| certifi | 2026.4.22 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | cffi | 2.0.0 | MIT |
 | charset-normalizer | 3.4.7 | MIT |
-| click | 8.4.1 | BSD-3-CLAUSE |
+| click | 8.3.3 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
 | colorlog | 6.10.1 | MIT LICENSE |
 | cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
-| cython | 3.2.5 | APACHE-2.0 |
+| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
 | dask | 2026.3.0 | BSD-3-CLAUSE |
 | distributed | 2026.3.0 | BSD-3-CLAUSE |
 | fsspec | 2026.2.0 | BSD-3-CLAUSE |
 | gitdb | 4.0.12 | BSD LICENSE |
 | gitpython | 3.1.50 | BSD-3-CLAUSE |
 | humanize | 4.15.0 | MIT |
-| idna | 3.17 | BSD-3-CLAUSE |
+| idna | 3.16 | BSD-3-CLAUSE |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | 3.1.6 | BSD LICENSE |
 | joblib | 1.5.3 | BSD-3-CLAUSE |
@@ -55,27 +55,27 @@ Audit notes:
 | llvmlite | 0.45.1 | BSD |
 | locket | 1.0.0 | BSD LICENSE |
 | mako | 1.3.12 | MIT LICENSE |
-| markdown-it-py | 4.2.0 | MIT LICENSE |
+| markdown-it-py | 4.0.0 | MIT LICENSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
 | mdurl | 0.1.2 | MIT LICENSE |
 | msgpack | 1.1.2 | APACHE-2.0 |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| narwhals | 2.21.2 | MIT LICENSE |
+| narwhals | 2.20.0 | MIT LICENSE |
 | numba | 0.62.1 | BSD LICENSE |
 | numpy | 2.3.5 | BSD LICENSE |
 | optuna | 4.8.0 | MIT LICENSE |
 | packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
-| parso | 0.8.7 | MIT LICENSE |
+| parso | 0.8.6 | MIT LICENSE |
 | partd | 1.4.2 | BSD |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
 | pillow | 12.2.0 | MIT-CMU |
-| polars | 1.41.2 | MIT LICENSE |
-| polars-runtime-32 | 1.41.2 | MIT LICENSE |
-| protobuf | 7.35.0 | 3-CLAUSE BSD LICENSE |
+| polars | 1.40.1 | MIT LICENSE |
+| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| protobuf | 6.33.6 | 3-CLAUSE BSD LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
 | py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pyarrow | 24.0.0 | APACHE-2.0 |
+| pyarrow | 23.0.1 | APACHE-2.0 |
 | pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | pycparser | 3.0 | BSD-3-CLAUSE |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
@@ -89,9 +89,9 @@ Audit notes:
 | pyyaml | 6.0.3 | MIT LICENSE |
 | pyzstd | 0.19.1 | BSD LICENSE |
 | referencing | 0.37.0 | MIT |
-| requests | 2.34.2 | APACHE SOFTWARE LICENSE |
+| requests | 2.33.1 | APACHE SOFTWARE LICENSE |
 | rich | 15.0.0 | MIT LICENSE |
-| rpds-py | 2026.5.1 | MIT |
+| rpds-py | 0.30.0 | MIT |
 | scikit-learn | 1.8.0 | BSD-3-CLAUSE |
 | scipy | 1.16.3 | BSD LICENSE |
 | setuptools | 81.0.0 | MIT |
@@ -99,16 +99,16 @@ Audit notes:
 | skforecast | 0.19.1 | BSD-3-CLAUSE |
 | smmap | 5.0.3 | BSD LICENSE |
 | sortedcontainers | 2.4.0 | APACHE SOFTWARE LICENSE |
-| sqlalchemy | 2.0.50 | MIT |
+| sqlalchemy | 2.0.49 | MIT |
 | streamlit | 1.56.0 | APACHE-2.0 |
 | tblib | 3.2.2 | BSD-2-CLAUSE |
 | tenacity | 9.1.4 | APACHE SOFTWARE LICENSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | threadpoolctl | 3.6.0 | BSD LICENSE |
 | toml | 0.10.2 | MIT LICENSE |
-| tomlkit | 0.15.0 | MIT LICENSE |
+| tomlkit | 0.14.0 | MIT LICENSE |
 | toolz | 1.1.0 | BSD-3-CLAUSE |
-| tornado | 6.5.6 | APACHE SOFTWARE LICENSE |
+| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
 | tqdm | 4.67.3 | MIT;; MPL-2.0 |
 | typing-extensions | 4.15.0 | PSF-2.0 |
 | typing-inspection | 0.4.2 | MIT |
