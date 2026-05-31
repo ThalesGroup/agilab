@@ -40,6 +40,29 @@ The JSON uses schema `agilab.resource_snapshot.v1` and records CPU, memory,
 disk, GPU backends, and execution recommendations. Attach it to run evidence
 when resource constraints explain scheduler, autoscale, or model choices.
 
+## Context routing
+
+Before starting an ambiguous repo task, ask the local router which AGILAB
+runbooks and skills apply:
+
+```bash
+python tools/agent_context_router.py \
+  --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+  --prompt "update agent evidence docs" \
+  --json
+```
+
+The output uses schema `agilab.agent_context_recommendation.v1` and is produced
+from the reviewed rules in `agent-context-rules.json`. It is a contract proof
+for agent context selection only: it does not execute agents, run tests, or
+override the validation gates reported by `tools/impact_validate.py`.
+
+Validate the rule file with:
+
+```bash
+python tools/agent_context_router.py --check
+```
+
 ## Skill quality and security scans
 
 Changed repo-managed skills are scanned locally. Run the local check before

@@ -33,6 +33,7 @@ SCHEMA_SCAN_FILES = (
     REPO_ROOT / "README.md",
     REPO_ROOT / "README.pypi.md",
     REPO_ROOT / "AGENT_SKILLS.md",
+    REPO_ROOT / "agent-context-rules.json",
     REPO_ROOT / "llms.txt",
     REPO_ROOT / "llms-full.txt",
 )
@@ -98,6 +99,15 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
             "agilab.agent_run.v1",
             "agilab.agent_trace.v1",
         ],
+    },
+    {
+        "id": "agent-context-router",
+        "command": "python3 tools/agent_context_router.py --files <paths> --prompt <task> --json",
+        "kind": "agent-context",
+        "maturity": "contract-proof",
+        "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_context_recommendation.v1"],
     },
     {
         "id": "security-check",
@@ -208,6 +218,11 @@ CATALOG_FILES: tuple[dict[str, str], ...] = (
         "path": "agilab-capability-rules.yml",
         "kind": "capability-rules",
         "description": "declarative semantic rule metadata for the public AGILAB capability manifest linter",
+    },
+    {
+        "path": "agent-context-rules.json",
+        "kind": "agent-context-rules",
+        "description": "declarative file and prompt rules for AGILAB agent runbook and skill routing",
     },
 )
 

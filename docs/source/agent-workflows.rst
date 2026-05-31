@@ -63,6 +63,27 @@ Skill catalog and security checks are local-first. Use ``./dev skills`` or the
 ``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated
 GitHub Actions workflow for this agent-skill scan.
 
+Context routing
+---------------
+
+When the task is ambiguous, route the prompt and changed files through the
+local context router before loading a large skill set::
+
+   python3 tools/agent_context_router.py \
+     --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+     --prompt "update agent evidence docs" \
+     --json
+
+The output uses schema ``agilab.agent_context_recommendation.v1``. It lists the
+baseline runbooks, matched rules, and recommended repo-managed skills from
+``agent-context-rules.json``. This is a contract proof for context selection
+only: it does not execute agents, run tests, or replace
+``tools/impact_validate.py``.
+
+Validate the rules with::
+
+   python3 tools/agent_context_router.py --check
+
 Agent run evidence
 ------------------
 

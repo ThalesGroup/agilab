@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T18:11:53Z",
+  "generated_at_utc": "2026-05-31T19:39:55Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,13 +17,13 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 7,
+    "cli_command_count": 8,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 202,
-    "catalog_file_count": 6
+    "evidence_schema_count": 209,
+    "catalog_file_count": 7
   },
   "cli_commands": [
     {
@@ -81,6 +81,19 @@
       "evidence_outputs": [
         "agilab.agent_run.v1",
         "agilab.agent_trace.v1"
+      ]
+    },
+    {
+      "id": "agent-context-router",
+      "command": "python3 tools/agent_context_router.py --files <paths> --prompt <task> --json",
+      "kind": "agent-context",
+      "maturity": "contract-proof",
+      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_context_recommendation.v1"
       ]
     },
     {
@@ -929,6 +942,31 @@
       ]
     },
     {
+      "schema": "agilab.agent_context_recommendation.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "docs/source/capability-map.rst",
+        "llms-full.txt",
+        "tools/agent_context_router.py",
+        "tools/agent_skill_catalog.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_rules.v1",
+      "sources": [
+        "agent-context-rules.json",
+        "tools/agent_context_router.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_rules_validation.v1",
+      "sources": [
+        "tools/agent_context_router.py"
+      ]
+    },
+    {
       "schema": "agilab.agent_handoff.v1",
       "sources": [
         "src/agilab/agent_run.py"
@@ -1540,6 +1578,18 @@
       ]
     },
     {
+      "schema": "agilab.maintenance_memory.check.v1",
+      "sources": [
+        "tools/maintenance_memory.py"
+      ]
+    },
+    {
+      "schema": "agilab.maintenance_memory.v1",
+      "sources": [
+        "tools/maintenance_memory.py"
+      ]
+    },
+    {
       "schema": "agilab.manifest_index.v1",
       "sources": [
         "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
@@ -1987,6 +2037,13 @@
       ]
     },
     {
+      "schema": "agilab.run_markdown_evidence.v1",
+      "sources": [
+        "docs/source/proof-capsule.rst",
+        "src/agilab/run_markdown_evidence.py"
+      ]
+    },
+    {
       "schema": "agilab.run_storyboard.paths.v1",
       "sources": [
         "src/agilab/run_storyboard.py"
@@ -2195,6 +2252,13 @@
       ]
     },
     {
+      "schema": "agilab.untrusted_content_boundary.v1",
+      "sources": [
+        "docs/source/security-adoption.rst",
+        "src/agilab/untrusted_content_boundary.py"
+      ]
+    },
+    {
       "schema": "agilab.venv_link_report.v1",
       "sources": [
         "src/agilab/venv_linker.py"
@@ -2301,6 +2365,12 @@
       "path": "agilab-capability-rules.yml",
       "kind": "capability-rules",
       "description": "declarative semantic rule metadata for the public AGILAB capability manifest linter",
+      "exists": true
+    },
+    {
+      "path": "agent-context-rules.json",
+      "kind": "agent-context-rules",
+      "description": "declarative file and prompt rules for AGILAB agent runbook and skill routing",
       "exists": true
     }
   ],

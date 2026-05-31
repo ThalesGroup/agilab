@@ -18,6 +18,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 - Public catalog files are regenerated with `tools/agent_skill_catalog.py --apply`.
 - The public capability manifest is regenerated with `tools/agilab_capabilities_manifest.py --apply`.
 - The capability manifest contract is checked with `tools/agilab_capabilities_lint.py --check` and `agilab-capability-rules.yml`.
+- Agent context routing is checked with `tools/agent_context_router.py --check`; use `--files ... --prompt ... --json` to recommend the right runbooks and skills before a task.
 - Skills that require network access, shell execution, or local services must say so explicitly.
 
 ## Catalog

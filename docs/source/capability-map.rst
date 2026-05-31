@@ -100,6 +100,13 @@ Job-to-route map
      - ``agilab prove``, ``verify``, ``story``, ``promotion-dossier`` outputs.
      - Live product path
      - Proof capsules are engineering evidence, not external certification.
+   * - Route a coding-agent task
+     - ``python3 tools/agent_context_router.py --files <paths> --prompt <task> --json``
+     - ``agilab.agent_context_recommendation.v1`` with matched rules, runbooks,
+       and recommended repo-managed skills.
+     - Contract proof
+     - Routes context only; it does not execute agents, tests, or repository
+       mutations.
    * - Compare or promote evidence
      - :doc:`advanced-proof-pack`
      - Release-decision views, run-diff reports, promotion dossier artifacts.
