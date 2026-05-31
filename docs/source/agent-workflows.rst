@@ -30,7 +30,9 @@ the repository root when they need a machine-readable inventory of shipped
 commands, pages, apps, packages, schemas, and catalog files. The paired
 ``agilab-capabilities.schema.json`` file defines the manifest shape, and
 ``python3 tools/agilab_capabilities_lint.py --check`` validates the schema
-contract plus cross-object discovery rules.
+contract plus cross-object discovery rules. The semantic rule metadata is
+declared in ``agilab-capability-rules.yml`` so categories, severities, and
+rationales are inspectable by humans and agents.
 
 Shared repo contract
 --------------------

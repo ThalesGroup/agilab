@@ -1222,6 +1222,7 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                     "llms-full.txt",
                     "agilab-capabilities.json",
                     "agilab-capabilities.schema.json",
+                    "agilab-capability-rules.yml",
                     "badges/",
                 ],
             ),

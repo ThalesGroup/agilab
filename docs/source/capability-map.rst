@@ -14,7 +14,9 @@ certification evidence. The paired ``agilab-capabilities.schema.json`` file
 defines the JSON contract, while
 ``python3 tools/agilab_capabilities_lint.py --check`` enforces cross-object
 rules such as existing docs paths, summary counts, known app packages, and
-evidence-schema references.
+evidence-schema references. The linter's auditable rule metadata lives in
+``agilab-capability-rules.yml`` with stable severity, category, rationale, and
+profile groupings.
 
 Maturity labels
 ---------------

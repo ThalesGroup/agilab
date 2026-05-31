@@ -51,6 +51,7 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     assert catalogs["AGENT_SKILLS.md"]["exists"] is True
     assert catalogs["agilab-capabilities.json"]["kind"] == "capability-manifest"
     assert catalogs["agilab-capabilities.schema.json"]["kind"] == "capability-schema"
+    assert catalogs["agilab-capability-rules.yml"]["kind"] == "capability-rules"
 
 
 def test_checked_in_capability_manifest_is_current() -> None:

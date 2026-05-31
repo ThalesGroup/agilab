@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -14,9 +15,27 @@ from typing import Any, Iterable, Mapping
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "agilab-capabilities.json"
 DEFAULT_SCHEMA = REPO_ROOT / "agilab-capabilities.schema.json"
+DEFAULT_RULES = REPO_ROOT / "agilab-capability-rules.yml"
 REPORT_SCHEMA = "agilab.capabilities_lint.v1"
+RULES_SCHEMA = "agilab.capability_rules.v1"
 MANIFEST_SCHEMA = "agilab.capabilities.v1"
 MANIFEST_SCHEMA_VERSION = 1
+RULES_SCHEMA_VERSION = 1
+SEVERITY_VALUES = {"error", "warning", "info"}
+RULE_CATEGORIES = {
+    "boundary",
+    "catalog-contract",
+    "discoverability",
+    "evidence-contract",
+    "package-contract",
+    "path-integrity",
+    "provenance",
+    "rules-contract",
+    "schema-contract",
+    "source-integrity",
+    "summary-contract",
+    "ui-contract",
+}
 MATURITY_VALUES = {
     "live-product-path",
     "local-proof",
@@ -25,6 +44,7 @@ MATURITY_VALUES = {
     "roadmap-boundary",
 }
 APP_STATUSES = {"PyPI app package", "Release artifact", "Source built-in"}
+SOURCE_RULE_RE = re.compile(r'rule="([^"]+)"|"rule":\s*"([^"]+)"')
 
 
 @dataclass(frozen=True)
@@ -33,6 +53,14 @@ class LintIssue:
     rule: str
     path: str
     message: str
+
+
+@dataclass(frozen=True)
+class RuleDefinition:
+    severity: str
+    category: str
+    title: str
+    rationale: str
 
 
 def _rel(path: Path) -> str:
@@ -49,6 +77,16 @@ def _load_json(path: Path) -> Any:
         raise ValueError(f"missing JSON file: {_rel(path)}") from exc
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid JSON in {_rel(path)}: {exc}") from exc
+
+
+def _load_json_compatible_yaml(path: Path) -> Any:
+    """Load the repo-owned YAML-compatible rules file without a PyYAML dependency."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"missing rules file: {_rel(path)}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON-compatible YAML in {_rel(path)}: {exc}") from exc
 
 
 def _is_non_empty_string(value: Any) -> bool:
@@ -157,13 +195,20 @@ def _check_unique(
 def lint_manifest(
     manifest: Mapping[str, Any],
     schema_contract: Mapping[str, Any],
+    rules_contract: Mapping[str, Any] | None = None,
     *,
     manifest_path: Path = DEFAULT_MANIFEST,
     schema_path: Path = DEFAULT_SCHEMA,
+    rules_path: Path = DEFAULT_RULES,
 ) -> dict[str, Any]:
     issues: list[LintIssue] = []
+    if rules_contract is None:
+        rules_contract = _expect_root_mapping(_load_json_compatible_yaml(rules_path), rules_path)
+    rule_catalog = _lint_rules_contract(rules_contract, rules_path=rules_path, issues=issues)
     _lint_schema_contract(schema_contract, schema_path=schema_path, issues=issues)
     _lint_manifest_contract(manifest, manifest_path=manifest_path, schema_path=schema_path, issues=issues)
+    _lint_linter_rule_catalog(rule_catalog, issues=issues)
+    _lint_issue_metadata(issues, rule_catalog)
     errors = sum(1 for issue in issues if issue.severity == "error")
     warnings = sum(1 for issue in issues if issue.severity == "warning")
     return {
@@ -171,26 +216,32 @@ def lint_manifest(
         "status": "fail" if errors else "pass",
         "manifest": _rel(manifest_path),
         "schema_file": _rel(schema_path),
+        "rules_file": _rel(rules_path),
         "summary": {
             "issue_count": len(issues),
             "error_count": errors,
             "warning_count": warnings,
+            "rule_count": len(rule_catalog),
         },
-        "issues": [asdict(issue) for issue in issues],
+        "issues": _issue_dicts(issues, rule_catalog),
     }
 
 
 def lint_files(
     manifest_path: Path = DEFAULT_MANIFEST,
     schema_path: Path = DEFAULT_SCHEMA,
+    rules_path: Path = DEFAULT_RULES,
 ) -> dict[str, Any]:
     manifest = _expect_root_mapping(_load_json(manifest_path), manifest_path)
     schema_contract = _expect_root_mapping(_load_json(schema_path), schema_path)
+    rules_contract = _expect_root_mapping(_load_json_compatible_yaml(rules_path), rules_path)
     return lint_manifest(
         manifest,
         schema_contract,
+        rules_contract,
         manifest_path=manifest_path,
         schema_path=schema_path,
+        rules_path=rules_path,
     )
 
 
@@ -198,6 +249,192 @@ def _expect_root_mapping(payload: Any, path: Path) -> Mapping[str, Any]:
     if not isinstance(payload, Mapping):
         raise ValueError(f"{_rel(path)} must contain a JSON object")
     return payload
+
+
+def _lint_rules_contract(
+    rules_contract: Mapping[str, Any],
+    *,
+    rules_path: Path,
+    issues: list[LintIssue],
+) -> dict[str, RuleDefinition]:
+    if rules_contract.get("schema") != RULES_SCHEMA:
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-schema",
+            path="rules.schema",
+            message=f"expected {RULES_SCHEMA!r}",
+        )
+    if rules_contract.get("schema_version") != RULES_SCHEMA_VERSION:
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-schema-version",
+            path="rules.schema_version",
+            message=f"expected {RULES_SCHEMA_VERSION}",
+        )
+    if not rules_path.exists():
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-file-exists",
+            path=_rel(rules_path),
+            message="rules catalog file is missing",
+        )
+
+    rules = _expect_list(rules_contract.get("rules"), path="rules.rules", issues=issues)
+    _check_unique(rules, key="id", path="rules.rules", issues=issues)
+
+    catalog: dict[str, RuleDefinition] = {}
+    for index, raw_rule in enumerate(rules):
+        row = _expect_mapping(raw_rule, path=f"rules.rules[{index}]", issues=issues)
+        path = f"rules.rules[{index}]"
+        for key in ("id", "severity", "category", "title", "rationale"):
+            _expect_non_empty_string(row.get(key), path=f"{path}.{key}", rule="rules-field", issues=issues)
+
+        rule_id = row.get("id")
+        severity = row.get("severity")
+        category = row.get("category")
+        title = row.get("title")
+        rationale = row.get("rationale")
+
+        if severity not in SEVERITY_VALUES:
+            _add_issue(
+                issues,
+                severity="error",
+                rule="rules-severity",
+                path=f"{path}.severity",
+                message=f"unknown rule severity {severity!r}",
+            )
+        if category not in RULE_CATEGORIES:
+            _add_issue(
+                issues,
+                severity="error",
+                rule="rules-category",
+                path=f"{path}.category",
+                message=f"unknown rule category {category!r}",
+            )
+        if (
+            _is_non_empty_string(rule_id)
+            and severity in SEVERITY_VALUES
+            and category in RULE_CATEGORIES
+            and _is_non_empty_string(title)
+            and _is_non_empty_string(rationale)
+            and rule_id not in catalog
+        ):
+            catalog[str(rule_id)] = RuleDefinition(
+                severity=str(severity),
+                category=str(category),
+                title=str(title),
+                rationale=str(rationale),
+            )
+    profiles = rules_contract.get("profiles", {})
+    if profiles is not None and not isinstance(profiles, Mapping):
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-profile-field",
+            path="rules.profiles",
+            message="rules profiles must be an object mapping profile names to rule-id lists",
+        )
+    elif isinstance(profiles, Mapping):
+        for profile_name, rule_ids in profiles.items():
+            profile_path = f"rules.profiles.{profile_name}"
+            if not _is_non_empty_string(profile_name):
+                _add_issue(
+                    issues,
+                    severity="error",
+                    rule="rules-profile-field",
+                    path=profile_path,
+                    message="rules profile names must be non-empty strings",
+                )
+            for rule_index, profile_rule in enumerate(
+                _expect_list(rule_ids, path=profile_path, issues=issues)
+            ):
+                if profile_rule not in catalog:
+                    _add_issue(
+                        issues,
+                        severity="error",
+                        rule="rules-profile-reference",
+                        path=f"{profile_path}[{rule_index}]",
+                        message=f"profile references unknown rule {profile_rule!r}",
+                    )
+    return catalog
+
+
+def _source_rule_ids() -> set[str]:
+    rule_ids: set[str] = set()
+    for match in SOURCE_RULE_RE.finditer(Path(__file__).read_text(encoding="utf-8")):
+        rule_id = match.group(1) or match.group(2)
+        if re.fullmatch(r"[a-z0-9][a-z0-9-]*", rule_id):
+            rule_ids.add(rule_id)
+    return rule_ids
+
+
+def _lint_linter_rule_catalog(
+    rule_catalog: Mapping[str, RuleDefinition],
+    *,
+    issues: list[LintIssue],
+) -> None:
+    source_rule_ids = _source_rule_ids()
+    for rule_id in sorted(source_rule_ids - set(rule_catalog)):
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-catalog-missing-rule",
+            path="rules.rules",
+            message=f"rule {rule_id!r} is emitted by the linter but missing from the rules catalog",
+        )
+    for rule_id in sorted(set(rule_catalog) - source_rule_ids):
+        _add_issue(
+            issues,
+            severity="error",
+            rule="rules-catalog-stale-rule",
+            path="rules.rules",
+            message=f"rule {rule_id!r} is listed in the rules catalog but not emitted by the linter",
+        )
+
+
+def _lint_issue_metadata(
+    issues: list[LintIssue],
+    rule_catalog: Mapping[str, RuleDefinition],
+) -> None:
+    for issue in list(issues):
+        rule = rule_catalog.get(issue.rule)
+        if rule is None:
+            _add_issue(
+                issues,
+                severity="error",
+                rule="rules-unknown-issue",
+                path=issue.path,
+                message=f"issue rule {issue.rule!r} has no catalog metadata",
+            )
+            continue
+        if issue.severity != rule.severity:
+            _add_issue(
+                issues,
+                severity="error",
+                rule="rules-severity-mismatch",
+                path=issue.path,
+                message=(
+                    f"issue rule {issue.rule!r} emitted severity {issue.severity!r} "
+                    f"but catalog declares {rule.severity!r}"
+                ),
+            )
+
+
+def _issue_dicts(
+    issues: list[LintIssue],
+    rule_catalog: Mapping[str, RuleDefinition],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for issue in issues:
+        row = asdict(issue)
+        if rule := rule_catalog.get(issue.rule):
+            row["category"] = rule.category
+            row["title"] = rule.title
+        rows.append(row)
+    return rows
 
 
 def _lint_schema_contract(
@@ -709,6 +946,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA)
+    parser.add_argument("--rules", type=Path, default=DEFAULT_RULES)
     parser.add_argument("--check", action="store_true", help="Fail when lint issues are found.")
     parser.add_argument("--json", action="store_true", help="Print the full JSON lint report.")
     return parser.parse_args(argv)
@@ -718,15 +956,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     manifest_path = args.manifest if args.manifest.is_absolute() else REPO_ROOT / args.manifest
     schema_path = args.schema if args.schema.is_absolute() else REPO_ROOT / args.schema
+    rules_path = args.rules if args.rules.is_absolute() else REPO_ROOT / args.rules
     try:
-        report = lint_files(manifest_path=manifest_path, schema_path=schema_path)
+        report = lint_files(manifest_path=manifest_path, schema_path=schema_path, rules_path=rules_path)
     except ValueError as exc:
         report = {
             "schema": REPORT_SCHEMA,
             "status": "fail",
             "manifest": _rel(manifest_path),
             "schema_file": _rel(schema_path),
-            "summary": {"issue_count": 1, "error_count": 1, "warning_count": 0},
+            "rules_file": _rel(rules_path),
+            "summary": {"issue_count": 1, "error_count": 1, "warning_count": 0, "rule_count": 0},
             "issues": [
                 {
                     "severity": "error",

@@ -204,6 +204,11 @@ CATALOG_FILES: tuple[dict[str, str], ...] = (
         "kind": "capability-schema",
         "description": "JSON Schema contract for the public AGILAB capability manifest",
     },
+    {
+        "path": "agilab-capability-rules.yml",
+        "kind": "capability-rules",
+        "description": "declarative semantic rule metadata for the public AGILAB capability manifest linter",
+    },
 )
 
 KEY_DOCS: tuple[dict[str, str], ...] = (

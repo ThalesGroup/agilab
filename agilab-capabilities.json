@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T17:47:48Z",
+  "generated_at_utc": "2026-05-31T18:01:14Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,8 +22,8 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 201,
-    "catalog_file_count": 5
+    "evidence_schema_count": 202,
+    "catalog_file_count": 6
   },
   "cli_commands": [
     {
@@ -1120,6 +1120,12 @@
     },
     {
       "schema": "agilab.capabilities_lint.v1",
+      "sources": [
+        "tools/agilab_capabilities_lint.py"
+      ]
+    },
+    {
+      "schema": "agilab.capability_rules.v1",
       "sources": [
         "tools/agilab_capabilities_lint.py"
       ]
@@ -2296,6 +2302,12 @@
       "path": "agilab-capabilities.schema.json",
       "kind": "capability-schema",
       "description": "JSON Schema contract for the public AGILAB capability manifest",
+      "exists": true
+    },
+    {
+      "path": "agilab-capability-rules.yml",
+      "kind": "capability-rules",
+      "description": "declarative semantic rule metadata for the public AGILAB capability manifest linter",
       "exists": true
     }
   ],
