@@ -1182,6 +1182,14 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 argv=["python3", "tools/agilab_capabilities_lint.py", "--check"],
             ),
             CommandSpec(
+                label="generate agenticweb discovery file",
+                argv=["python3", "tools/agenticweb_manifest.py", "--apply"],
+            ),
+            CommandSpec(
+                label="check agenticweb discovery file",
+                argv=["python3", "tools/agenticweb_manifest.py", "--check"],
+            ),
+            CommandSpec(
                 label="refresh public agent skill badges",
                 argv=["python3", "tools/generate_skill_badges.py"],
             ),
@@ -1223,6 +1231,7 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                     "agilab-capabilities.json",
                     "agilab-capabilities.schema.json",
                     "agilab-capability-rules.yml",
+                    "agenticweb.md",
                     "badges/",
                 ],
             ),

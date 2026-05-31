@@ -16,7 +16,10 @@ regenerated with `python3 tools/agilab_capabilities_manifest.py --apply` and
 checked against [agilab-capabilities.schema.json](../agilab-capabilities.schema.json)
 with `python3 tools/agilab_capabilities_lint.py --check`. The semantic lint
 rules are declared in [agilab-capability-rules.yml](../agilab-capability-rules.yml)
-so severity, category, and rationale are reviewable without reading Python. The README badge
+so severity, category, and rationale are reviewable without reading Python.
+The compact agentic-web discovery file is [agenticweb.md](../agenticweb.md);
+generate it with `python3 tools/agenticweb_manifest.py --apply` and check it
+with `python3 tools/agenticweb_manifest.py --check`. The README badge
 contract is:
 
 - **Skills**: the reviewed skill count

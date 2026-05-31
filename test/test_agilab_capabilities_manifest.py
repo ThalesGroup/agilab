@@ -49,9 +49,12 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
 
     catalogs = {row["path"]: row for row in payload["catalog_files"]}
     assert catalogs["AGENT_SKILLS.md"]["exists"] is True
+    assert catalogs["agenticweb.md"]["kind"] == "agenticweb-discovery"
     assert catalogs["agilab-capabilities.json"]["kind"] == "capability-manifest"
     assert catalogs["agilab-capabilities.schema.json"]["kind"] == "capability-schema"
     assert catalogs["agilab-capability-rules.yml"]["kind"] == "capability-rules"
+
+    assert commands["agenticweb-manifest"]["evidence_outputs"] == ["agilab.agenticweb_discovery.v1"]
 
 
 def test_checked_in_capability_manifest_is_current() -> None:

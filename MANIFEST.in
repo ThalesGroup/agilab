@@ -2,6 +2,7 @@
 include README.md
 include README.pypi.md
 include AGENT_SKILLS.md
+include agenticweb.md
 include llms.txt
 include llms-full.txt
 include agilab-capabilities.json

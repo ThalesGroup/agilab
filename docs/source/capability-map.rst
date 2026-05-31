@@ -17,6 +17,10 @@ rules such as existing docs paths, summary counts, known app packages, and
 evidence-schema references. The linter's auditable rule metadata lives in
 ``agilab-capability-rules.yml`` with stable severity, category, rationale, and
 profile groupings.
+The root ``agenticweb.md`` file is generated from the same capability manifest
+as a compact discovery front door for AI agents. Check it with
+``python3 tools/agenticweb_manifest.py --check``; it is a discovery index, not
+additional runtime validation.
 
 Maturity labels
 ---------------
@@ -107,6 +111,12 @@ Job-to-route map
      - Contract proof
      - Routes context only; it does not execute agents, tests, or repository
        mutations.
+   * - Expose agentic-web discovery
+     - ``python3 tools/agenticweb_manifest.py --check``
+     - Generated ``agenticweb.md`` derived from ``agilab-capabilities.json``.
+     - Contract proof
+     - Discovery only; it does not prove runtime success or production
+       readiness.
    * - Compare or promote evidence
      - :doc:`advanced-proof-pack`
      - Release-decision views, run-diff reports, promotion dossier artifacts.

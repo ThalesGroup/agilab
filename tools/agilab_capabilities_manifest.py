@@ -34,6 +34,7 @@ SCHEMA_SCAN_FILES = (
     REPO_ROOT / "README.pypi.md",
     REPO_ROOT / "AGENT_SKILLS.md",
     REPO_ROOT / "agent-context-rules.json",
+    REPO_ROOT / "agenticweb.md",
     REPO_ROOT / "llms.txt",
     REPO_ROOT / "llms-full.txt",
 )
@@ -108,6 +109,15 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
         "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
         "docs": ["docs/source/agent-workflows.rst"],
         "evidence_outputs": ["agilab.agent_context_recommendation.v1"],
+    },
+    {
+        "id": "agenticweb-manifest",
+        "command": "python3 tools/agenticweb_manifest.py --check",
+        "kind": "agent-discovery",
+        "maturity": "contract-proof",
+        "description": "Validate the generated root agenticweb.md discovery file against the AGILAB capability manifest.",
+        "docs": ["docs/source/agent-workflows.rst", "docs/source/capability-map.rst"],
+        "evidence_outputs": ["agilab.agenticweb_discovery.v1"],
     },
     {
         "id": "security-check",
@@ -223,6 +233,11 @@ CATALOG_FILES: tuple[dict[str, str], ...] = (
         "path": "agent-context-rules.json",
         "kind": "agent-context-rules",
         "description": "declarative file and prompt rules for AGILAB agent runbook and skill routing",
+    },
+    {
+        "path": "agenticweb.md",
+        "kind": "agenticweb-discovery",
+        "description": "generated agenticweb.md discovery file for AI-agent capability discovery",
     },
 )
 

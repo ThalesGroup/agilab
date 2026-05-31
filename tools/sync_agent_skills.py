@@ -63,6 +63,16 @@ def refresh_capability_manifest(*, python_executable: str = sys.executable, root
         check=True,
         cwd=str(root),
     )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agenticweb_manifest.py"), "--apply"],
+        check=True,
+        cwd=str(root),
+    )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agenticweb_manifest.py"), "--check"],
+        check=True,
+        cwd=str(root),
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

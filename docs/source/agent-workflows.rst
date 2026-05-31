@@ -33,6 +33,10 @@ commands, pages, apps, packages, schemas, and catalog files. The paired
 contract plus cross-object discovery rules. The semantic rule metadata is
 declared in ``agilab-capability-rules.yml`` so categories, severities, and
 rationales are inspectable by humans and agents.
+The generated ``agenticweb.md`` file is the compact agentic-web front door for
+external discovery. It is generated from the capability manifest with
+``python3 tools/agenticweb_manifest.py --apply`` and checked with
+``python3 tools/agenticweb_manifest.py --check``.
 
 Shared repo contract
 --------------------
