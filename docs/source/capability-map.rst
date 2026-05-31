@@ -127,6 +127,13 @@ Job-to-route map
      - SQLite DB, result CSV, ``database_evidence.json`` hashes.
      - Local proof
      - Replace the local URI with real databases only after operator review.
+   * - Validate a file-based data or document handoff
+     - ``python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check --json``
+     - ``agilab.data_artifact_lane_contract.v1`` with role directories,
+       required artifact rules, file sizes, and SHA-256 hashes.
+     - Contract proof
+     - Checks handoff presence and hashability, not data correctness, OCR
+       quality, privacy compliance, or service liveness.
    * - Prepare cloud/object-storage connectors
      - :doc:`data-connectors`
      - Facility, resolution, health-plan, and runtime-adapter reports.

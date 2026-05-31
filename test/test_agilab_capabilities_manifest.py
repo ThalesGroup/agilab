@@ -61,6 +61,9 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     assert commands["agent-instruction-contract"]["evidence_outputs"] == [
         "agilab.agent_instruction_contract.v1"
     ]
+    assert commands["data-artifact-lane-contract"]["evidence_outputs"] == [
+        "agilab.data_artifact_lane_contract.v1"
+    ]
 
 
 def test_checked_in_capability_manifest_is_current() -> None:

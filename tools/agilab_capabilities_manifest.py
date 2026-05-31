@@ -129,6 +129,15 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
         "evidence_outputs": ["agilab.agent_instruction_contract.v1"],
     },
     {
+        "id": "data-artifact-lane-contract",
+        "command": "python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check",
+        "kind": "data-artifact-contract",
+        "maturity": "contract-proof",
+        "description": "Validate local data-analysis or document-ingestion handoff lanes for required directories, artifacts, and hashes.",
+        "docs": ["docs/source/data-connectors.rst", "docs/source/capability-map.rst"],
+        "evidence_outputs": ["agilab.data_artifact_lane_contract.v1"],
+    },
+    {
         "id": "security-check",
         "command": "agilab security-check --json --strict",
         "kind": "security-posture",
