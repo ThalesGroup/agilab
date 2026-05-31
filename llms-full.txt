@@ -86,7 +86,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. ## Philosophy - For non-trivial diffs, start with
 - agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-18
+  updated: 2026-05-31
   preview: # AGILAB UI Robot Validation Use this skill when a change affects user-visible Streamlit behavior, page navigation, sidebar actions, wizard links, notebook import/upload flows, UI screenshots, or public demo evidence.
 - chat-export: Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling. (.claude/skills/chat-export/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

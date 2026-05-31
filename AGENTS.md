@@ -186,6 +186,15 @@ Use this runbook whenever you:
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
+- **Browser dev-log validation**: When validating Streamlit, React, `agi-web`,
+  custom component, canvas/WebGL, or iframe pages in a real browser, inspect
+  browser dev-log evidence as part of the validation. For robot runs, use
+  scenarios/options that capture console warnings/errors, `pageerror`, failed
+  requests, and HTTP 4xx/5xx responses, then inspect the JSON/progress output
+  or failure-bundle `browser-issues.json`. For manual Chrome validation, open
+  DevTools Console and Network and report whether relevant runtime, asset, or
+  HTTP errors were present. Do not call a browser page validated only because
+  the visible DOM rendered.
 - **CLI agent helpers**: Repo-scoped wrappers and configs exist for Codex, Aider, and
   OpenCode under `tools/*_workflow.*`, `.aider.conf.yml`, `opencode.json`, and
   `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.

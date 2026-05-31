@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T18:01:14Z",
+  "generated_at_utc": "2026-05-31T18:09:04Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -822,7 +822,7 @@
       "name": "agilab-ui-robot-validation",
       "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
       "path": ".claude/skills/agilab-ui-robot-validation/SKILL.md",
-      "updated": "2026-05-18"
+      "updated": "2026-05-31"
     },
     {
       "name": "chat-export",

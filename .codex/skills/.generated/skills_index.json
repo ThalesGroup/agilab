@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T17:06:09Z",
+  "generated_at_utc": "2026-05-31T18:09:04Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -151,7 +151,7 @@
       "name": "agilab-ui-robot-validation",
       "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-18",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-ui-robot-validation/SKILL.md",
       "body_preview": "# AGILAB UI Robot Validation\nUse this skill when a change affects user-visible Streamlit behavior, page\nnavigation, sidebar actions, wizard links, notebook import/upload flows, UI\nscreenshots, or public demo evidence."
     },
