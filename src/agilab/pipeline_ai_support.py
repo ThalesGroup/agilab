@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import importlib.util
 import importlib.metadata as importlib_metadata
 import sys
 import os
@@ -18,6 +19,23 @@ from typing import Any, Dict, List, Optional, Tuple, Callable
 import pandas as pd
 
 from agi_env import normalize_path
+
+try:
+    from .untrusted_content_boundary import build_untrusted_content_boundary
+except ImportError:  # pragma: no cover - supports direct file loading in tests/tools.
+    try:
+        from untrusted_content_boundary import build_untrusted_content_boundary  # type: ignore[no-redef]
+    except ImportError:
+        _boundary_path = Path(__file__).resolve().parent / "untrusted_content_boundary.py"
+        _boundary_spec = importlib.util.spec_from_file_location(
+            "agilab_untrusted_content_boundary_local",
+            _boundary_path,
+        )
+        if _boundary_spec is None or _boundary_spec.loader is None:
+            raise
+        _boundary_module = importlib.util.module_from_spec(_boundary_spec)
+        _boundary_spec.loader.exec_module(_boundary_module)
+        build_untrusted_content_boundary = _boundary_module.build_untrusted_content_boundary
 
 DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 
@@ -134,6 +152,31 @@ def extract_code(gpt_message: str) -> Tuple[str, str]:
     except SyntaxError:
         return "", text
     return text, ""
+
+
+def extract_code_with_boundary(
+    gpt_message: str,
+    *,
+    source_kind: str = "llm_snippet",
+    source_name: str = "assistant_response",
+    model: str = "",
+) -> Tuple[str, str, dict[str, Any]]:
+    """Extract code and attach untrusted-content metadata for the model payload."""
+
+    code, detail = extract_code(gpt_message)
+    boundary = build_untrusted_content_boundary(
+        code or gpt_message or "",
+        source_kind=source_kind,
+        source_name=source_name,
+        mime_type="text/x-python" if code else "text/plain",
+        trust_status="generated",
+        metadata={
+            "model": model,
+            "has_code": bool(code),
+            "detail_present": bool(detail),
+        },
+    )
+    return code, detail, boundary
 
 
 def normalize_ollama_endpoint(raw_endpoint: Optional[str]) -> str:

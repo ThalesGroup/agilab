@@ -147,6 +147,10 @@ organization's security requirements in mind. At minimum:
   repositories from an explicit allowlist via ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` or
   ``AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE``, pin them to a reviewed commit SHA or immutable tag,
   reject floating branches, and scan the repository before installing or linking apps/pages.
+- Keep untrusted-content boundary evidence with imported or generated payloads. Notebook imports
+  write ``<notebook>.untrusted-content.json`` next to the source notebook, WORKFLOW records
+  generated-snippet boundary metadata, and ``agilab security-check`` annotates external app
+  repositories. This metadata makes trust decisions visible and hashable; it is not a sandbox.
 - Treat the service queue as scheduler-owned state. Workers process ``*.task.json`` payloads with
   the ``agi.service.task.v1`` schema, and legacy ``*.task.pkl`` files are quarantined without
   deserialization. The queue directory must be writable only by the trusted scheduler/operator.

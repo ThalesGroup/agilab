@@ -2344,6 +2344,8 @@ def test_ask_gpt_routes_to_selected_provider(monkeypatch):
     monkeypatch.setattr(pipeline_ai, "chat_offline", lambda *args: ("```python\nprint(1)\n```", "gpt-oss"))
     result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
     assert result[2:] == ["gpt-oss", "print(1)", ""]
+    assert fake_st.session_state["last_generated_code_boundary"]["source"]["kind"] == "llm_snippet"
+    assert fake_st.session_state["last_generated_code_boundary"]["trust"]["status"] == "generated"
 
     fake_st.session_state["lab_llm_provider"] = pipeline_ai.OPENAI_COMPAT_PROVIDER
     monkeypatch.setattr(

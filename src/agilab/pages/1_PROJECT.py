@@ -185,6 +185,12 @@ _notebook_import_sample_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parents[1] / "notebook_import_sample.py",
     fallback_name="agilab_notebook_import_sample_project_fallback",
 )
+_untrusted_content_boundary_module = import_agilab_module(
+    "agilab.untrusted_content_boundary",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "untrusted_content_boundary.py",
+    fallback_name="agilab_untrusted_content_boundary_project_fallback",
+)
 _pipeline_editor_module = import_agilab_module(
     "agilab.pipeline_editor",
     current_file=__file__,
@@ -192,6 +198,9 @@ _pipeline_editor_module = import_agilab_module(
     fallback_name="agilab_pipeline_editor_project_fallback",
 )
 _write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
+_write_untrusted_content_manifest = (
+    _untrusted_content_boundary_module.write_untrusted_content_manifest
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -3282,6 +3291,8 @@ def _packaged_sample_notebook_upload(sample_id: str | None = None):
     return SimpleNamespace(
         name=sample.download_name,
         type=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
+        agilab_source_kind="packaged_sample_notebook",
+        agilab_trust_status="packaged-sample",
         getvalue=lambda sample_bytes=sample_bytes: sample_bytes,
         read=lambda sample_bytes=sample_bytes: sample_bytes,
     )
@@ -3931,10 +3942,32 @@ def _create_project_from_notebook_action(
         return clone_result
 
     notebook_path = dest_root / notebook_relative_path
+    notebook_boundary_manifest_path = notebook_path.with_name(
+        f"{notebook_path.name}.untrusted-content.json"
+    )
     stages_file = dest_root / NOTEBOOK_STEPS_FILE
     try:
         notebook_path.parent.mkdir(parents=True, exist_ok=True)
         notebook_path.write_bytes(notebook_bytes)
+        _write_untrusted_content_manifest(
+            notebook_boundary_manifest_path,
+            notebook_bytes,
+            source_kind=str(
+                getattr(uploaded_notebook, "agilab_source_kind", "uploaded_notebook")
+            ),
+            source_name=notebook_name,
+            mime_type=str(
+                getattr(uploaded_notebook, "type", "application/x-ipynb+json") or ""
+            ),
+            trust_status=str(
+                getattr(uploaded_notebook, "agilab_trust_status", "untrusted")
+            ),
+            metadata={
+                "project": new_name,
+                "source_notebook": notebook_relative_path.as_posix(),
+                "runtime_roles_reviewed": bool(runtime_roles),
+            },
+        )
         cell_count = _write_project_notebook_import_preview(
             preview, dest_root, stages_file
         )
@@ -3957,6 +3990,7 @@ def _create_project_from_notebook_action(
                 "dest_root": dest_root,
                 "source_notebook": notebook_relative_path.as_posix(),
                 "notebook_path": notebook_path,
+                "notebook_boundary_manifest": notebook_boundary_manifest_path,
                 "stages_file": stages_file,
                 "preflight": preflight,
                 "cleanup_ok": cleanup_ok,
@@ -3976,6 +4010,7 @@ def _create_project_from_notebook_action(
             "dest_root": dest_root,
             "source_notebook": notebook_relative_path.as_posix(),
             "notebook_path": notebook_path,
+            "notebook_boundary_manifest": notebook_boundary_manifest_path,
             "stages_file": stages_file,
             "notebook_import_cell_count": cell_count,
             "notebook_import_preflight": preflight,

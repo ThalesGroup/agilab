@@ -34,6 +34,24 @@ def test_extract_code_splits_detail_and_python_block():
     assert detail == "Use this.\n\nDone."
 
 
+def test_extract_code_with_boundary_marks_llm_payload_as_generated():
+    message = "Use this.\n```python\nprint('ok')\n```"
+
+    code, detail, boundary = pipeline_ai_support.extract_code_with_boundary(
+        message,
+        source_name="gpt-test",
+        model="gpt-test",
+    )
+
+    assert code == "print('ok')"
+    assert detail == "Use this."
+    assert boundary["schema"] == "agilab.untrusted_content_boundary.v1"
+    assert boundary["source"]["kind"] == "llm_snippet"
+    assert boundary["source"]["name"] == "gpt-test"
+    assert boundary["trust"]["status"] == "generated"
+    assert boundary["metadata"]["has_code"] is True
+
+
 def test_extract_code_handles_plain_python_empty_and_non_python_text():
     assert pipeline_ai_support.extract_code("value = 1\nprint(value)") == ("value = 1\nprint(value)", "")
     assert pipeline_ai_support.extract_code("") == ("", "")

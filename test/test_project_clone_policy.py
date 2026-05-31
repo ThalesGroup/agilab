@@ -768,7 +768,14 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert "WORKFLOW" in str(result.next_action)
     assert clone_calls == [(Path("pandas_app_template"), Path("notebook_demo_project"))]
     assert (dest_root / "notebooks/source/Demo_Notebook.ipynb").is_file()
+    boundary_manifest = dest_root / "notebooks/source/Demo_Notebook.ipynb.untrusted-content.json"
+    assert boundary_manifest.is_file()
+    boundary = json.loads(boundary_manifest.read_text(encoding="utf-8"))
+    assert boundary["schema"] == "agilab.untrusted_content_boundary.v1"
+    assert boundary["source"]["kind"] == "uploaded_notebook"
+    assert boundary["trust"]["status"] == "untrusted"
     assert result.data["source_notebook"] == "notebooks/source/Demo_Notebook.ipynb"
+    assert result.data["notebook_boundary_manifest"] == boundary_manifest
     assert result.data["notebook_import_cell_count"] == 1
 
     steps = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
