@@ -207,9 +207,14 @@ Use this runbook whenever you:
   OpenCode under `tools/*_workflow.*`, `.aider.conf.yml`, `opencode.json`, and
   `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.
 - **Agent instruction contract**: Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`,
-  `tools/agent_workflows.md`, public agent docs, and `agilab-capabilities.json`
-  aligned. Run `python3 tools/agent_instruction_contract.py --check` after
-  changing root agent runbooks, agent-discovery surfaces, or capability metadata.
+  `AGENT_LEARNINGS.md`, `tools/agent_workflows.md`, public agent docs, and
+  `agilab-capabilities.json` aligned. Run
+  `python3 tools/agent_instruction_contract.py --check` after changing root
+  agent runbooks, agent-discovery surfaces, or capability metadata.
+- **Agent correction ledger**: When a correction reveals a reusable agent
+  operating rule that is not already covered, add one concrete rule to
+  `AGENT_LEARNINGS.md` or tighten an existing rule. Do not use it as a session
+  transcript, generic caution list, or replacement for code/tests.
 - **Streamlit form state**: In custom `app_args_form.py` pages, initialize editable widgets
   from persisted values (`defaults_model` / stored args). Only derive companion paths such as
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace

@@ -1239,6 +1239,7 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                     "badges/",
                     "AGENTS.md",
                     "AGENT_CONVENTIONS.md",
+                    "AGENT_LEARNINGS.md",
                     "tools/agent_workflows.md",
                 ],
             ),

@@ -29,13 +29,13 @@ python3 tools/agent_instruction_contract.py --check
 
 The output uses schema `agilab.agent_instruction_contract.v1` and verifies that
 [AGENTS.md](../AGENTS.md), [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md),
-this workflow guide, public agent docs, `agilab-capabilities.json`, and
-`agenticweb.md` still describe the same executable agent-facing contract. The
-report also includes a deterministic file evidence snapshot with line counts,
-heading counts, required-marker coverage, and SHA-256 hashes for the checked
-runbook files. This guards the runbook and discovery layer only; it does not
-execute agents, generate instructions with an LLM, or replace skill quality,
-security, or capability-manifest checks.
+[AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md), this workflow guide, public agent
+docs, `agilab-capabilities.json`, and `agenticweb.md` still describe the same
+executable agent-facing contract. The report also includes a deterministic file
+evidence snapshot with line counts, heading counts, required-marker coverage,
+and SHA-256 hashes for the checked runbook files. This guards the runbook and
+discovery layer only; it does not execute agents, generate instructions with an
+LLM, or replace skill quality, security, or capability-manifest checks.
 
 The README badge contract is:
 
@@ -46,6 +46,12 @@ The README badge contract is:
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
+
+Use [AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md) only for reusable corrections:
+when a user, reviewer, or failed validation exposes a repeated agent behavior
+not already covered by the runbooks, add one concrete rule or tighten an
+existing one. Do not use it as a session transcript, brainstorming log, or
+replacement for tests.
 
 ## Resource preflight
 

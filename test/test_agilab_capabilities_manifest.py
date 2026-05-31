@@ -51,6 +51,7 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     assert catalogs["AGENT_SKILLS.md"]["exists"] is True
     assert catalogs["AGENTS.md"]["kind"] == "agent-runbook"
     assert catalogs["AGENT_CONVENTIONS.md"]["kind"] == "agent-runbook"
+    assert catalogs["AGENT_LEARNINGS.md"]["kind"] == "agent-correction-ledger"
     assert catalogs["tools/agent_workflows.md"]["kind"] == "agent-workflow-runbook"
     assert catalogs["agenticweb.md"]["kind"] == "agenticweb-discovery"
     assert catalogs["agilab-capabilities.json"]["kind"] == "capability-manifest"

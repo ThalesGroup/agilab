@@ -43,13 +43,14 @@ Root agent instructions are checked as their own contract::
    python3 tools/agent_instruction_contract.py --check
 
 The output uses schema ``agilab.agent_instruction_contract.v1`` and verifies
-that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``tools/agent_workflows.md``,
-this public page, ``agilab-capabilities.json``, and ``agenticweb.md`` still
-describe the same executable agent-facing contract. The report also includes a
-deterministic file evidence snapshot with line counts, heading counts, required
-marker coverage, and SHA-256 hashes for the checked runbook files. This guards
-the runbook and discovery layer only; it does not execute agents, generate
-instructions with an LLM, or replace skill quality, security, or
+that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``AGENT_LEARNINGS.md``,
+``tools/agent_workflows.md``, this public page, ``agilab-capabilities.json``,
+and ``agenticweb.md`` still describe the same executable agent-facing contract.
+The report also includes a deterministic file evidence snapshot with line
+counts, heading counts, required marker coverage, and SHA-256 hashes for the
+checked runbook files. This guards the runbook and discovery layer only; it does
+not execute agents, generate instructions with an LLM, or replace skill quality,
+security, or
 capability-manifest checks.
 
 Shared repo contract
@@ -72,10 +73,16 @@ required gates reported by ``impact_validate.py``.
 Then follow the repo rules in:
 
 - ``AGENT_CONVENTIONS.md`` for the short local-agent contract
+- ``AGENT_LEARNINGS.md`` for reusable corrections after user, reviewer, or
+  validation feedback
 - ``AGENTS.md`` for the full AGILAB runbook and validation rules
 
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
+
+Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
+correction is reusable and not already covered by the runbooks. Do not use it
+as a session transcript, brainstorming log, or replacement for code and tests.
 
 Skill catalog and security checks are local-first. Use ``./dev skills`` or the
 ``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated

@@ -241,6 +241,11 @@ CATALOG_FILES: tuple[dict[str, str], ...] = (
         "description": "short local-agent contract for tools with smaller context windows",
     },
     {
+        "path": "AGENT_LEARNINGS.md",
+        "kind": "agent-correction-ledger",
+        "description": "compact correction ledger for reusable AGILAB agent operating rules",
+    },
+    {
         "path": "tools/agent_workflows.md",
         "kind": "agent-workflow-runbook",
         "description": "developer workflow reference for repo-supported coding agents",

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T20:50:51Z",
+  "generated_at_utc": "2026-05-31T21:02:18Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -23,7 +23,7 @@
     "public_app_count": 15,
     "agent_skill_count": 33,
     "evidence_schema_count": 213,
-    "catalog_file_count": 11
+    "catalog_file_count": 12
   },
   "cli_commands": [
     {
@@ -2433,6 +2433,12 @@
       "path": "AGENT_CONVENTIONS.md",
       "kind": "agent-runbook",
       "description": "short local-agent contract for tools with smaller context windows",
+      "exists": true
+    },
+    {
+      "path": "AGENT_LEARNINGS.md",
+      "kind": "agent-correction-ledger",
+      "description": "compact correction ledger for reusable AGILAB agent operating rules",
       "exists": true
     },
     {
