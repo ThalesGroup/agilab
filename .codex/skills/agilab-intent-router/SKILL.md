@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-29
+  updated: 2026-05-31
 ---
 
 # AGILAB Intent Router
@@ -24,9 +24,9 @@ validate     ::= "check" | "test" | "validate" | "verify" | "prove"
 release      ::= "release" | "ready for release" | "prepare release" | "publish"
 sync         ::= "update repos" | "sync repos" | "merge" | "push"
 publish      ::= "linkedin" | "youtube" | "teaser" | "thumbnail" | "article"
-explain      ::= "why" | "what next" | "where" | "explain"
+explain      ::= "why" | "what next" | "where" | "explain" | "inspire"
 continue     ::= "do it" | "go on" | "next move" | "check again"
-target       ::= "agilab" | "docs" | "skills" | "examples" | "release" | "cluster" | "ui" | "video" | "repo"
+target       ::= "agilab" | "docs" | "skills" | "examples" | "release" | "cluster" | "ui" | "video" | "repo" | url
 depth        ::= "quick" | "targeted" | "deep" | "full" | "detailed"
 output       ::= "summary" | "review doc" | "patch" | "PR" | "commit" | "copy/paste"
 mode         ::= "do not fix" | "fix it" | "push it" | "merge it" | "only report"
@@ -61,6 +61,7 @@ Route these patterns before choosing tools:
 | `docs aligned`, `screenshot docs`, `link added`, `published docs` | docs workflow | canonical docs then mirror | `agilab-docs` |
 | `cluster`, `remote worker`, `validate cluster` | cluster validation | rediscover worker, split SSH/share/compute | `agilab-testing`, `agilab-installer`, `agilab-runbook` |
 | `teaser`, `youtube`, `thumbnail`, `linkedin` | content packaging | no repo edit unless asked | `agilab-product-reels` for video assets |
+| `anything to inspire from <url>`, `think from <repo>`, `learn from <tool>` | external benchmark | inspect source, extract transferable patterns, reject misfit, implement only if AGILAB-native | `agilab-evidence-contracts`, `agilab-docs`, plus domain skill |
 
 ## Behavior Contract
 
@@ -79,6 +80,10 @@ Route these patterns before choosing tools:
   cluster discovery as appropriate.
 - For `next move`, inspect current repo state and relevant workflow/tooling;
   do not answer only from memory.
+- For external product URLs, browse or inspect the current source first, then
+  separate reusable pattern from product-specific scope. If the next user says
+  `do it`, implement the strongest AGILAB-native primitive with schema, tests,
+  docs, and validation instead of adding vague roadmap copy.
 
 ## Regenerating The Policy From Sessions
 

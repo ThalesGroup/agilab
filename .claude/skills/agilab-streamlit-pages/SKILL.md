@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-21
+  updated: 2026-05-31
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -144,6 +144,12 @@ Use this skill when editing:
 - Derived header values must be computed locally from existing evidence when possible.
   For example, count ORCHESTRATE runs from `run_*.log` files under the app run
   environment instead of adding another persisted setting.
+- When a page references a machine-readable evidence file such as
+  `run_manifest.json`, `evidence_graph.json`, `workflow_run_manifest.json`,
+  `notebook_export_manifest.json`, or a dry-run report, do not stop at showing
+  the file path. Render a compact human inspection surface for the contents:
+  status, counts, schema, key rows, validation issues, and artifact links. Keep
+  the raw path visible for audit/replay.
 - When a generic page has no app-specific semantic data, show an honest fallback such
   as execution stages, output files, or discovered dataframes rather than inventing a
   domain-specific metric.
