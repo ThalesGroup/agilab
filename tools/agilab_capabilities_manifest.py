@@ -120,6 +120,15 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
         "evidence_outputs": ["agilab.agenticweb_discovery.v1"],
     },
     {
+        "id": "agent-instruction-contract",
+        "command": "python3 tools/agent_instruction_contract.py --check",
+        "kind": "agent-runbook-contract",
+        "maturity": "contract-proof",
+        "description": "Validate that root agent runbooks, public agent docs, and discovery manifests describe the same executable contract.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_instruction_contract.v1"],
+    },
+    {
         "id": "security-check",
         "command": "agilab security-check --json --strict",
         "kind": "security-posture",
@@ -199,6 +208,21 @@ STREAMLIT_PAGES: tuple[dict[str, Any], ...] = (
 )
 
 CATALOG_FILES: tuple[dict[str, str], ...] = (
+    {
+        "path": "AGENTS.md",
+        "kind": "agent-runbook",
+        "description": "full AGILAB operator runbook for coding agents and maintainers",
+    },
+    {
+        "path": "AGENT_CONVENTIONS.md",
+        "kind": "agent-runbook",
+        "description": "short local-agent contract for tools with smaller context windows",
+    },
+    {
+        "path": "tools/agent_workflows.md",
+        "kind": "agent-workflow-runbook",
+        "description": "developer workflow reference for repo-supported coding agents",
+    },
     {
         "path": "AGENT_SKILLS.md",
         "kind": "agent-skill-catalog",

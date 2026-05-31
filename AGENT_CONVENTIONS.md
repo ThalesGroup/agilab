@@ -19,6 +19,9 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Do not edit `docs/html/**`.
 - Canonical editable docs live in the sibling private docs repo; `docs/source`
   here is a managed mirror.
+- Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`, `tools/agent_workflows.md`, and
+  public agent docs aligned; validate with
+  `python3 tools/agent_instruction_contract.py --check`.
 
 ## Validation defaults
 
@@ -39,3 +42,6 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Worker/runtime behavior is often different from manager/runtime behavior.
 - Installer bugs must be checked on both manager and worker manifests.
 - Do not silently add fallbacks that hide missing capabilities or broken setup.
+- `AGENT_SKILLS.md`, `llms.txt`, `llms-full.txt`, `agenticweb.md`, and
+  `agilab-capabilities.json` are discovery surfaces; refresh them through the
+  repo tools instead of hand-editing generated content.

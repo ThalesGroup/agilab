@@ -19,8 +19,22 @@ rules are declared in [agilab-capability-rules.yml](../agilab-capability-rules.y
 so severity, category, and rationale are reviewable without reading Python.
 The compact agentic-web discovery file is [agenticweb.md](../agenticweb.md);
 generate it with `python3 tools/agenticweb_manifest.py --apply` and check it
-with `python3 tools/agenticweb_manifest.py --check`. The README badge
-contract is:
+with `python3 tools/agenticweb_manifest.py --check`.
+
+Root agent instructions are checked as their own contract. Run:
+
+```bash
+python3 tools/agent_instruction_contract.py --check
+```
+
+The output uses schema `agilab.agent_instruction_contract.v1` and verifies that
+[AGENTS.md](../AGENTS.md), [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md),
+this workflow guide, public agent docs, `agilab-capabilities.json`, and
+`agenticweb.md` still describe the same executable agent-facing contract. This
+guards the runbook and discovery layer only; it does not execute agents or
+replace skill quality, security, or capability-manifest checks.
+
+The README badge contract is:
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks

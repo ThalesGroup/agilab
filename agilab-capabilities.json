@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T19:50:13Z",
+  "generated_at_utc": "2026-05-31T20:04:40Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,13 +17,13 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 9,
+    "cli_command_count": 10,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 210,
-    "catalog_file_count": 8
+    "evidence_schema_count": 211,
+    "catalog_file_count": 11
   },
   "cli_commands": [
     {
@@ -108,6 +108,19 @@
       ],
       "evidence_outputs": [
         "agilab.agenticweb_discovery.v1"
+      ]
+    },
+    {
+      "id": "agent-instruction-contract",
+      "command": "python3 tools/agent_instruction_contract.py --check",
+      "kind": "agent-runbook-contract",
+      "maturity": "contract-proof",
+      "description": "Validate that root agent runbooks, public agent docs, and discovery manifests describe the same executable contract.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_instruction_contract.v1"
       ]
     },
     {
@@ -984,6 +997,15 @@
       "schema": "agilab.agent_handoff.v1",
       "sources": [
         "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_instruction_contract.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "tools/agent_instruction_contract.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
       ]
     },
     {
@@ -2354,6 +2376,24 @@
     }
   ],
   "catalog_files": [
+    {
+      "path": "AGENTS.md",
+      "kind": "agent-runbook",
+      "description": "full AGILAB operator runbook for coding agents and maintainers",
+      "exists": true
+    },
+    {
+      "path": "AGENT_CONVENTIONS.md",
+      "kind": "agent-runbook",
+      "description": "short local-agent contract for tools with smaller context windows",
+      "exists": true
+    },
+    {
+      "path": "tools/agent_workflows.md",
+      "kind": "agent-workflow-runbook",
+      "description": "developer workflow reference for repo-supported coding agents",
+      "exists": true
+    },
     {
       "path": "AGENT_SKILLS.md",
       "kind": "agent-skill-catalog",

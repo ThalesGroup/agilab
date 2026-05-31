@@ -38,6 +38,17 @@ external discovery. It is generated from the capability manifest with
 ``python3 tools/agenticweb_manifest.py --apply`` and checked with
 ``python3 tools/agenticweb_manifest.py --check``.
 
+Root agent instructions are checked as their own contract::
+
+   python3 tools/agent_instruction_contract.py --check
+
+The output uses schema ``agilab.agent_instruction_contract.v1`` and verifies
+that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``tools/agent_workflows.md``,
+this public page, ``agilab-capabilities.json``, and ``agenticweb.md`` still
+describe the same executable agent-facing contract. This guards the runbook and
+discovery layer only; it does not execute agents or replace skill quality,
+security, or capability-manifest checks.
+
 Shared repo contract
 --------------------
 
