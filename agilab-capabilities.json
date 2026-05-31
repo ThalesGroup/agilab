@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T18:09:04Z",
+  "generated_at_utc": "2026-05-31T18:11:53Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1592,8 +1592,6 @@
     {
       "schema": "agilab.notebook_artifact_contract.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_contract.json",
-        "src/agilab/apps/toto_project/notebook_import_pipeline_view.json",
         "src/agilab/notebook_pipeline_import.py"
       ]
     },
@@ -1638,14 +1636,12 @@
     {
       "schema": "agilab.notebook_import.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_contract.json",
         "src/agilab/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_contract.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_contract.json",
         "src/agilab/notebook_pipeline_import.py"
       ]
     },
@@ -1658,21 +1654,18 @@
     {
       "schema": "agilab.notebook_import_pipeline_view.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_pipeline_view.json",
         "src/agilab/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_preflight.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_contract.json",
         "src/agilab/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_view_plan.v1",
       "sources": [
-        "src/agilab/apps/toto_project/notebook_import_view_plan.json",
         "src/agilab/notebook_pipeline_import.py",
         "tools/notebook_import_preflight.py"
       ]
