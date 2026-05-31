@@ -1,5 +1,13 @@
 # Include top-level files
 include README.md
+include README.pypi.md
+include AGENT_SKILLS.md
+include agenticweb.md
+include llms.txt
+include llms-full.txt
+include agilab-capabilities.json
+include agilab-capabilities.schema.json
+include agilab-capability-rules.yml
 include LICENSE
 include pyproject.toml
 include MANIFEST.in

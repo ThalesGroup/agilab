@@ -153,6 +153,7 @@ import_agilab_symbols(
         "_SAFE_BUILTINS": "_SAFE_BUILTINS",
         "_UnsafeCodeError": "_UnsafeCodeError",
         "extract_code": "extract_code",
+        "extract_code_with_boundary": "extract_code_with_boundary",
         "_build_autofix_prompt": "_build_autofix_prompt",
         "_exec_code_on_df": "_exec_code_on_df",
         "_validate_code_safety": "_validate_code_safety",
@@ -925,7 +926,15 @@ def ask_gpt(
     if not result:
         return [df_file, original_question, model_label, "", ""]
 
-    code, detail = extract_code(result)
+    code, detail, boundary = extract_code_with_boundary(
+        result,
+        source_name=str(model_label or "assistant_response"),
+        model=str(model_label or ""),
+    )
+    try:
+        st.session_state["last_generated_code_boundary"] = boundary
+    except (AttributeError, TypeError, RuntimeError):
+        pass
     detail = detail or ("" if code else result.strip())
     return [
         df_file,

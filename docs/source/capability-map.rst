@@ -5,6 +5,23 @@ AGILAB has many demos, apps, reports, and proof commands. Use this page as the
 product map: start from the user job, follow the shortest route, then inspect
 the evidence and boundary before expanding to advanced features.
 
+For agent and tooling discovery, the repository root also ships
+``agilab-capabilities.json``. Regenerate it with
+``python3 tools/agilab_capabilities_manifest.py --apply``. The manifest lists
+checked-in CLI commands, Streamlit pages, public apps, packages, schemas, docs,
+and catalog files; it is a discovery index, not runtime validation or external
+certification evidence. The paired ``agilab-capabilities.schema.json`` file
+defines the JSON contract, while
+``python3 tools/agilab_capabilities_lint.py --check`` enforces cross-object
+rules such as existing docs paths, summary counts, known app packages, and
+evidence-schema references. The linter's auditable rule metadata lives in
+``agilab-capability-rules.yml`` with stable severity, category, rationale, and
+profile groupings.
+The root ``agenticweb.md`` file is generated from the same capability manifest
+as a compact discovery front door for AI agents. Check it with
+``python3 tools/agenticweb_manifest.py --check``; it is a discovery index, not
+additional runtime validation.
+
 Maturity labels
 ---------------
 
@@ -87,6 +104,19 @@ Job-to-route map
      - ``agilab prove``, ``verify``, ``story``, ``promotion-dossier`` outputs.
      - Live product path
      - Proof capsules are engineering evidence, not external certification.
+   * - Route a coding-agent task
+     - ``python3 tools/agent_context_router.py --files <paths> --prompt <task> --json``
+     - ``agilab.agent_context_recommendation.v1`` with matched rules, runbooks,
+       and recommended repo-managed skills.
+     - Contract proof
+     - Routes context only; it does not execute agents, tests, or repository
+       mutations.
+   * - Expose agentic-web discovery
+     - ``python3 tools/agenticweb_manifest.py --check``
+     - Generated ``agenticweb.md`` derived from ``agilab-capabilities.json``.
+     - Contract proof
+     - Discovery only; it does not prove runtime success or production
+       readiness.
    * - Compare or promote evidence
      - :doc:`advanced-proof-pack`
      - Release-decision views, run-diff reports, promotion dossier artifacts.
@@ -97,6 +127,20 @@ Job-to-route map
      - SQLite DB, result CSV, ``database_evidence.json`` hashes.
      - Local proof
      - Replace the local URI with real databases only after operator review.
+   * - Validate a file-based data or document handoff
+     - ``python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check --json``
+     - ``agilab.data_artifact_lane_contract.v1`` with role directories,
+       required artifact rules, file sizes, and SHA-256 hashes.
+     - Contract proof
+     - Checks handoff presence and hashability, not data correctness, OCR
+       quality, privacy compliance, or service liveness.
+   * - Prepare evidence for regulatory review
+     - :doc:`regulatory-readiness`
+     - ``agilab.regulatory_readiness.v1`` with source freshness, keyword
+       screening flags, hashed evidence files, and missing readiness controls.
+     - Contract proof
+     - Engineering readiness only; it is not legal advice, EU AI Act
+       compliance, conformity assessment, or production governance approval.
    * - Prepare cloud/object-storage connectors
      - :doc:`data-connectors`
      - Facility, resolution, health-plan, and runtime-adapter reports.

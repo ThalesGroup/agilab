@@ -1,0 +1,2537 @@
+{
+  "generated_at_utc": "2026-05-31T21:02:18Z",
+  "schema": "agilab.capabilities.v1",
+  "schema_version": 1,
+  "generated_by": {
+    "tool": "tools/agilab_capabilities_manifest.py",
+    "command": "python3 tools/agilab_capabilities_manifest.py --apply"
+  },
+  "source": {
+    "repository": "https://github.com/ThalesGroup/agilab",
+    "documentation": "https://thalesgroup.github.io/agilab/",
+    "project": "agilab",
+    "version": "2026.05.31"
+  },
+  "boundary": {
+    "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
+    "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
+  },
+  "summary": {
+    "cli_command_count": 12,
+    "streamlit_page_count": 6,
+    "package_count": 37,
+    "public_app_count": 15,
+    "agent_skill_count": 33,
+    "evidence_schema_count": 213,
+    "catalog_file_count": 12
+  },
+  "cli_commands": [
+    {
+      "id": "ui",
+      "command": "agilab",
+      "kind": "streamlit-ui",
+      "maturity": "live-product-path",
+      "description": "Launch the local Streamlit workbench.",
+      "docs": [
+        "docs/source/quick-start.rst",
+        "docs/source/agilab-help.rst"
+      ],
+      "evidence_outputs": []
+    },
+    {
+      "id": "first-proof",
+      "command": "agilab first-proof --json",
+      "aliases": [
+        "agilab dry-run"
+      ],
+      "kind": "proof",
+      "maturity": "local-proof",
+      "description": "Run the packaged first proof and emit install/run evidence.",
+      "docs": [
+        "docs/source/quick-start.rst",
+        "docs/source/release-proof.rst"
+      ],
+      "evidence_outputs": [
+        "run_manifest.json"
+      ]
+    },
+    {
+      "id": "workflow-validate",
+      "command": "agilab workflow validate <lab_stages.toml> --dry-run --json",
+      "kind": "workflow-contract",
+      "maturity": "contract-proof",
+      "description": "Validate stage, dependency, role, artifact-flow, and app-reference contracts without executing user code.",
+      "docs": [
+        "docs/source/capability-map.rst",
+        "docs/source/features.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.workflow_dry_run_report.v1"
+      ]
+    },
+    {
+      "id": "agent-run",
+      "command": "agilab agent-run ...",
+      "kind": "agent-evidence",
+      "maturity": "live-product-path",
+      "description": "Wrap coding-agent actions with redacted manifests, traces, and local artifact pointers.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_run.v1",
+        "agilab.agent_trace.v1"
+      ]
+    },
+    {
+      "id": "agent-context-router",
+      "command": "python3 tools/agent_context_router.py --files <paths> --prompt <task> --json",
+      "kind": "agent-context",
+      "maturity": "contract-proof",
+      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_context_recommendation.v1"
+      ]
+    },
+    {
+      "id": "agenticweb-manifest",
+      "command": "python3 tools/agenticweb_manifest.py --check",
+      "kind": "agent-discovery",
+      "maturity": "contract-proof",
+      "description": "Validate the generated root agenticweb.md discovery file against the AGILAB capability manifest.",
+      "docs": [
+        "docs/source/agent-workflows.rst",
+        "docs/source/capability-map.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agenticweb_discovery.v1"
+      ]
+    },
+    {
+      "id": "agent-instruction-contract",
+      "command": "python3 tools/agent_instruction_contract.py --check",
+      "kind": "agent-runbook-contract",
+      "maturity": "contract-proof",
+      "description": "Validate that root agent runbooks, public agent docs, and discovery manifests describe the same executable contract.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_instruction_contract.v1"
+      ]
+    },
+    {
+      "id": "data-artifact-lane-contract",
+      "command": "python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check",
+      "kind": "data-artifact-contract",
+      "maturity": "contract-proof",
+      "description": "Validate local data-analysis or document-ingestion handoff lanes for required directories, artifacts, and hashes.",
+      "docs": [
+        "docs/source/data-connectors.rst",
+        "docs/source/capability-map.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.data_artifact_lane_contract.v1"
+      ]
+    },
+    {
+      "id": "regulatory-readiness-report",
+      "command": "python3 tools/regulatory_readiness_report.py --profile eu-ai-act-screening --run-manifest <run_manifest.json> --check --json",
+      "kind": "regulatory-readiness",
+      "maturity": "contract-proof",
+      "description": "Screen AGILAB run evidence for regulatory-review readiness gaps without claiming legal compliance.",
+      "docs": [
+        "docs/source/regulatory-readiness.rst",
+        "docs/source/capability-map.rst",
+        "docs/source/evidence-claims-policy.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.regulatory_readiness.v1"
+      ]
+    },
+    {
+      "id": "security-check",
+      "command": "agilab security-check --json --strict",
+      "kind": "security-posture",
+      "maturity": "contract-proof",
+      "description": "Inspect local AGILAB safety posture and fail on strict adoption blockers.",
+      "docs": [
+        "docs/source/security-adoption.rst"
+      ],
+      "evidence_outputs": [
+        "security check JSON report"
+      ]
+    },
+    {
+      "id": "proof-capsule",
+      "command": "agilab prove|verify|sign|replay|export-lineage|policy-check|cards|metadata-store ...",
+      "kind": "evidence-core",
+      "maturity": "live-product-path",
+      "description": "Create, inspect, replay, and package run evidence and proof capsules.",
+      "docs": [
+        "docs/source/proof-capsule.rst",
+        "docs/source/advanced-proof-pack.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.proof_capsule.v1",
+        ".agipack",
+        "lineage export",
+        "policy report"
+      ]
+    },
+    {
+      "id": "app-surface",
+      "command": "agilab app surface <project> --ui <backend>",
+      "kind": "app-ui-surface",
+      "maturity": "live-product-path",
+      "description": "Launch an app-declared UI surface through the generic app surface route.",
+      "docs": [
+        "docs/source/public-app-catalog.rst",
+        "docs/source/pytorch-playground.rst"
+      ],
+      "evidence_outputs": [
+        "app surface metadata"
+      ]
+    }
+  ],
+  "streamlit_pages": [
+    {
+      "title": "ABOUT",
+      "url_path": "",
+      "source": "src/agilab/main_page.py",
+      "visible_in_nav": false,
+      "purpose": "product overview, first-proof wizard, and entry routing",
+      "exists": true
+    },
+    {
+      "title": "SETTINGS",
+      "url_path": "SETTINGS",
+      "source": "src/agilab/pages/0_SETTINGS.py",
+      "visible_in_nav": false,
+      "purpose": "runtime diagnostics and local environment settings",
+      "exists": true
+    },
+    {
+      "title": "PROJECT",
+      "url_path": "PROJECT",
+      "source": "src/agilab/pages/1_PROJECT.py",
+      "visible_in_nav": false,
+      "purpose": "project selection, creation, import, export, and package updates",
+      "exists": true
+    },
+    {
+      "title": "ORCHESTRATE",
+      "url_path": "ORCHESTRATE",
+      "source": "src/agilab/pages/2_ORCHESTRATE.py",
+      "visible_in_nav": true,
+      "purpose": "install, execute, cluster/service controls, and run evidence",
+      "exists": true
+    },
+    {
+      "title": "WORKFLOW",
+      "url_path": "WORKFLOW",
+      "source": "src/agilab/pages/3_WORKFLOW.py",
+      "visible_in_nav": true,
+      "purpose": "stage contract, pipeline view, notebook import/export, and dry-run evidence",
+      "exists": true
+    },
+    {
+      "title": "ANALYSIS",
+      "url_path": "ANALYSIS",
+      "source": "src/agilab/pages/4_ANALYSIS.py",
+      "visible_in_nav": true,
+      "purpose": "analysis views, artifacts, evidence graphs, and app surfaces",
+      "exists": true
+    }
+  ],
+  "packages": [
+    {
+      "name": "agi-env",
+      "role": "runtime-component",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers",
+      "project": "src/agilab/core/agi-env",
+      "pyproject": "src/agilab/core/agi-env/pyproject.toml",
+      "pypi_environment": "pypi-agi-env",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-gui",
+      "role": "ui-component",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB Streamlit UI dependency bundle and compatibility imports",
+      "project": "src/agilab/lib/agi-gui",
+      "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
+      "pypi_environment": "pypi-agi-gui",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-web",
+      "role": "ui-component",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML",
+      "project": "src/agilab/lib/agi-web",
+      "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
+      "pypi_environment": "pypi-agi-web",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-app-ui",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for app-owned interactive Streamlit UIs.",
+      "project": "src/agilab/apps-pages/view_app_ui",
+      "pyproject": "src/agilab/apps-pages/view_app_ui/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-app-ui",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-simplex-map",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for simplex projection and barycentric analysis.",
+      "project": "src/agilab/apps-pages/view_barycentric",
+      "pyproject": "src/agilab/apps-pages/view_barycentric/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-simplex-map",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-decision-evidence",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for decision evidence review.",
+      "project": "src/agilab/apps-pages/view_data_io_decision",
+      "pyproject": "src/agilab/apps-pages/view_data_io_decision/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-decision-evidence",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-timeseries-forecast",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for time-series forecast review.",
+      "project": "src/agilab/apps-pages/view_forecast_analysis",
+      "pyproject": "src/agilab/apps-pages/view_forecast_analysis/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-timeseries-forecast",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-inference-report",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for inference result reporting.",
+      "project": "src/agilab/apps-pages/view_inference_analysis",
+      "pyproject": "src/agilab/apps-pages/view_inference_analysis/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-inference-report",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-live-artifacts",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for live artifact and evidence monitoring.",
+      "project": "src/agilab/apps-pages/view_live_artifacts",
+      "pyproject": "src/agilab/apps-pages/view_live_artifacts/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-live-artifacts",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-geospatial-map",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for 2D geospatial map exploration.",
+      "project": "src/agilab/apps-pages/view_maps",
+      "pyproject": "src/agilab/apps-pages/view_maps/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-geospatial-map",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-geospatial-3d",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for 3D geospatial exploration.",
+      "project": "src/agilab/apps-pages/view_maps_3d",
+      "pyproject": "src/agilab/apps-pages/view_maps_3d/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-geospatial-3d",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-network-map",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for network-aware geospatial analysis.",
+      "project": "src/agilab/apps-pages/view_maps_network",
+      "pyproject": "src/agilab/apps-pages/view_maps_network/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-network-map",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-routing-model-comparison",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for comparing routing model allocation decisions.",
+      "project": "src/agilab/apps-pages/view_routing_model_comparison",
+      "pyproject": "src/agilab/apps-pages/view_routing_model_comparison/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-routing-model-comparison",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-queue-health",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for queue health and resilience evidence.",
+      "project": "src/agilab/apps-pages/view_queue_resilience",
+      "pyproject": "src/agilab/apps-pages/view_queue_resilience/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-queue-health",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-relay-health",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for relay health and resilience evidence.",
+      "project": "src/agilab/apps-pages/view_relay_resilience",
+      "pyproject": "src/agilab/apps-pages/view_relay_resilience/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-relay-health",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-scenario-cockpit",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for scenario evidence comparison.",
+      "project": "src/agilab/apps-pages/view_scenario_cockpit",
+      "pyproject": "src/agilab/apps-pages/view_scenario_cockpit/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-scenario-cockpit",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-promotion-gate",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for evidence-cockpit run review and promotion gates.",
+      "project": "src/agilab/apps-pages/view_release_decision",
+      "pyproject": "src/agilab/apps-pages/view_release_decision/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-promotion-gate",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-feature-attribution",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for feature-attribution evidence.",
+      "project": "src/agilab/apps-pages/view_shap_explanation",
+      "pyproject": "src/agilab/apps-pages/view_shap_explanation/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-feature-attribution",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-page-training-report",
+      "role": "page-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB page bundle for training run reporting.",
+      "project": "src/agilab/apps-pages/view_training_analysis",
+      "pyproject": "src/agilab/apps-pages/view_training_analysis/pyproject.toml",
+      "pypi_environment": "pypi-agi-page-training-report",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-pages",
+      "role": "page-umbrella",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB public analysis page umbrella and provider package",
+      "project": "src/agilab/lib/agi-pages",
+      "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
+      "pypi_environment": "pypi-agi-pages",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-node",
+      "role": "runtime-component",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "Distributed worker orchestration and execution support library for AGILAB",
+      "project": "src/agilab/core/agi-node",
+      "pyproject": "src/agilab/core/agi-node/pyproject.toml",
+      "pypi_environment": "pypi-agi-node",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-cluster",
+      "role": "runtime-component",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends",
+      "project": "src/agilab/core/agi-cluster",
+      "pyproject": "src/agilab/core/agi-cluster/pyproject.toml",
+      "pypi_environment": "pypi-agi-cluster",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-core",
+      "role": "runtime-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together",
+      "project": "src/agilab/core/agi-core",
+      "pyproject": "src/agilab/core/agi-core/pyproject.toml",
+      "pypi_environment": "pypi-agi-core",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-mission-decision",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts",
+      "project": "src/agilab/lib/agi-app-mission-decision",
+      "pyproject": "src/agilab/lib/agi-app-mission-decision/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-mission-decision",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-pandas-execution",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB Pandas execution benchmark for deterministic worker and reducer validation",
+      "project": "src/agilab/lib/agi-app-pandas-execution",
+      "pyproject": "src/agilab/lib/agi-app-pandas-execution/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-pandas-execution",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-polars-execution",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB Polars execution benchmark for deterministic worker and reducer validation",
+      "project": "src/agilab/lib/agi-app-polars-execution",
+      "pyproject": "src/agilab/lib/agi-app-polars-execution/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-polars-execution",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-flight-telemetry",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs",
+      "project": "src/agilab/lib/agi-app-flight-telemetry",
+      "pyproject": "src/agilab/lib/agi-app-flight-telemetry/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-flight-telemetry",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-multi-dag",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB cross-app DAG preview showing artifact handoffs between demo projects",
+      "project": "src/agilab/lib/agi-app-multi-dag",
+      "pyproject": "src/agilab/lib/agi-app-multi-dag/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-multi-dag",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-weather-forecast",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts",
+      "project": "src/agilab/lib/agi-app-weather-forecast",
+      "pyproject": "src/agilab/lib/agi-app-weather-forecast/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-weather-forecast",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-sklearn-pipeline",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest",
+      "project": "src/agilab/lib/agi-app-sklearn-pipeline",
+      "pyproject": "src/agilab/lib/agi-app-sklearn-pipeline/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-sklearn-pipeline",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-data-quality-gate",
+      "role": "app-project",
+      "status": "Release artifact",
+      "version": "2026.05.31",
+      "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate",
+      "project": "src/agilab/lib/agi-app-data-quality-gate",
+      "pyproject": "src/agilab/lib/agi-app-data-quality-gate/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-data-quality-gate",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-pytorch-playground",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB PyTorch playground app for reproducible neural-network experiments",
+      "project": "src/agilab/lib/agi-app-pytorch-playground",
+      "pyproject": "src/agilab/lib/agi-app-pytorch-playground/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-pytorch-playground",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-tescia-diagnostic",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts",
+      "project": "src/agilab/lib/agi-app-tescia-diagnostic",
+      "pyproject": "src/agilab/lib/agi-app-tescia-diagnostic/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-tescia-diagnostic",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-uav-queue",
+      "role": "app-project",
+      "status": "Release artifact",
+      "version": "2026.05.31",
+      "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts",
+      "project": "src/agilab/lib/agi-app-uav-queue",
+      "pyproject": "src/agilab/lib/agi-app-uav-queue/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-uav-queue",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-app-uav-relay-queue",
+      "role": "app-project",
+      "status": "PyPI app package",
+      "version": "2026.05.31",
+      "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts",
+      "project": "src/agilab/lib/agi-app-uav-relay-queue",
+      "pyproject": "src/agilab/lib/agi-app-uav-relay-queue/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-uav-relay-queue",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agi-apps",
+      "role": "app-umbrella",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB public app package umbrella and example assets",
+      "project": "src/agilab/lib/agi-apps",
+      "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
+      "pypi_environment": "pypi-agi-apps",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
+      "name": "agilab",
+      "role": "top-level-bundle",
+      "status": "PyPI package",
+      "version": "2026.05.31",
+      "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
+      "project": ".",
+      "pyproject": "pyproject.toml",
+      "pypi_environment": "pypi-agilab",
+      "artifact_policy": "wheel+sdist"
+    }
+  ],
+  "public_apps": [
+    {
+      "project": "data_quality_gate_project",
+      "package": "agi-app-data-quality-gate",
+      "status": "Release artifact",
+      "source": "src/agilab/lib/agi-app-data-quality-gate",
+      "version": "2026.05.31",
+      "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate"
+    },
+    {
+      "project": "execution_pandas_project",
+      "package": "agi-app-pandas-execution",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-pandas-execution",
+      "version": "2026.05.31",
+      "description": "AGILAB Pandas execution benchmark for deterministic worker and reducer validation"
+    },
+    {
+      "project": "execution_polars_project",
+      "package": "agi-app-polars-execution",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-polars-execution",
+      "version": "2026.05.31",
+      "description": "AGILAB Polars execution benchmark for deterministic worker and reducer validation"
+    },
+    {
+      "project": "flight_telemetry_project",
+      "package": "agi-app-flight-telemetry",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-flight-telemetry",
+      "version": "2026.05.31",
+      "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
+    },
+    {
+      "project": "minimal_app_project",
+      "package": null,
+      "status": "Source built-in",
+      "source": "src/agilab/apps/builtin/minimal_app_project",
+      "version": "2026.05.30.post1",
+      "description": "Built-in AGILab example app template (minimal manager + worker)"
+    },
+    {
+      "project": "mission_decision_project",
+      "package": "agi-app-mission-decision",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-mission-decision",
+      "version": "2026.05.31",
+      "description": "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
+    },
+    {
+      "project": "multi_app_dag_project",
+      "package": "agi-app-multi-dag",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-multi-dag",
+      "version": "2026.05.31",
+      "description": "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
+    },
+    {
+      "project": "pytorch_playground_project",
+      "package": "agi-app-pytorch-playground",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-pytorch-playground",
+      "version": "2026.05.31",
+      "description": "AGILAB PyTorch playground app for reproducible neural-network experiments"
+    },
+    {
+      "project": "r_runtime_bridge_project",
+      "package": null,
+      "status": "Source built-in",
+      "source": "src/agilab/apps/builtin/r_runtime_bridge_project",
+      "version": "2026.05.30.post1",
+      "description": "Built-in AGILAB smoke app for Rscript JSON/artifact stage execution"
+    },
+    {
+      "project": "sklearn_pipeline_project",
+      "package": "agi-app-sklearn-pipeline",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-sklearn-pipeline",
+      "version": "2026.05.31",
+      "description": "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
+    },
+    {
+      "project": "tescia_diagnostic_project",
+      "package": "agi-app-tescia-diagnostic",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-tescia-diagnostic",
+      "version": "2026.05.31",
+      "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
+    },
+    {
+      "project": "uav_queue_project",
+      "package": "agi-app-uav-queue",
+      "status": "Release artifact",
+      "source": "src/agilab/lib/agi-app-uav-queue",
+      "version": "2026.05.31",
+      "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts"
+    },
+    {
+      "project": "uav_relay_queue_project",
+      "package": "agi-app-uav-relay-queue",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-uav-relay-queue",
+      "version": "2026.05.31",
+      "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
+    },
+    {
+      "project": "weather_forecast_legacy_project",
+      "package": null,
+      "status": "Source built-in",
+      "source": "src/agilab/apps/builtin/weather_forecast_legacy_project",
+      "version": "2026.05.30.post1",
+      "description": "Built-in AGILab weather forecasting example migrated from notebooks"
+    },
+    {
+      "project": "weather_forecast_project",
+      "package": "agi-app-weather-forecast",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-weather-forecast",
+      "version": "2026.05.31",
+      "description": "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts"
+    }
+  ],
+  "agent_skills": [
+    {
+      "name": "advanced-svg-system-design",
+      "description": "Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure.",
+      "path": ".claude/skills/advanced-svg-system-design/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "agilab-code-statistics",
+      "description": "Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.",
+      "path": ".claude/skills/agilab-code-statistics/SKILL.md",
+      "updated": "2026-04-29"
+    },
+    {
+      "name": "agilab-deep-audit",
+      "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
+      "path": ".claude/skills/agilab-deep-audit/SKILL.md",
+      "updated": "2026-05-29"
+    },
+    {
+      "name": "agilab-docs",
+      "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
+      "path": ".claude/skills/agilab-docs/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "agilab-evidence-contracts",
+      "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
+      "path": ".claude/skills/agilab-evidence-contracts/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "agilab-example-maturity",
+      "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
+      "path": ".claude/skills/agilab-example-maturity/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "agilab-huggingface-spaces",
+      "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
+      "path": ".claude/skills/agilab-huggingface-spaces/SKILL.md",
+      "updated": "2026-05-30"
+    },
+    {
+      "name": "agilab-installer",
+      "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
+      "path": ".claude/skills/agilab-installer/SKILL.md",
+      "updated": "2026-05-29"
+    },
+    {
+      "name": "agilab-intent-router",
+      "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
+      "path": ".claude/skills/agilab-intent-router/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "agilab-local-llm",
+      "description": "Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts.",
+      "path": ".claude/skills/agilab-local-llm/SKILL.md",
+      "updated": "2026-05-09"
+    },
+    {
+      "name": "agilab-product-reels",
+      "description": "Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging.",
+      "path": ".claude/skills/agilab-product-reels/SKILL.md",
+      "updated": "2026-05-07"
+    },
+    {
+      "name": "agilab-prompt-eval-regression",
+      "description": "Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX.",
+      "path": ".claude/skills/agilab-prompt-eval-regression/SKILL.md",
+      "updated": "2026-05-30"
+    },
+    {
+      "name": "agilab-pypi-release-maintenance",
+      "description": "Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.",
+      "path": ".claude/skills/agilab-pypi-release-maintenance/SKILL.md",
+      "updated": "2026-05-27"
+    },
+    {
+      "name": "agilab-release-verification",
+      "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
+      "path": ".claude/skills/agilab-release-verification/SKILL.md",
+      "updated": "2026-05-30"
+    },
+    {
+      "name": "agilab-runbook",
+      "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
+      "path": ".claude/skills/agilab-runbook/SKILL.md",
+      "updated": "2026-05-19"
+    },
+    {
+      "name": "agilab-security-review-patterns",
+      "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
+      "path": ".claude/skills/agilab-security-review-patterns/SKILL.md",
+      "updated": "2026-05-30"
+    },
+    {
+      "name": "agilab-streamlit-pages",
+      "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
+      "path": ".claude/skills/agilab-streamlit-pages/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "agilab-testing",
+      "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
+      "path": ".claude/skills/agilab-testing/SKILL.md",
+      "updated": "2026-05-30"
+    },
+    {
+      "name": "agilab-ui-robot-validation",
+      "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
+      "path": ".claude/skills/agilab-ui-robot-validation/SKILL.md",
+      "updated": "2026-05-31"
+    },
+    {
+      "name": "chat-export",
+      "description": "Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling.",
+      "path": ".claude/skills/chat-export/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "codex-session-learning",
+      "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
+      "path": ".claude/skills/codex-session-learning/SKILL.md",
+      "updated": "2026-04-16"
+    },
+    {
+      "name": "docs-publish-github-pages",
+      "description": "Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end.",
+      "path": ".claude/skills/docs-publish-github-pages/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "docx-figure-sync",
+      "description": "Replace or update embedded figures in DOCX reports while preserving placement, sizing, and nearby captions. Use this skill when a user wants a figure updated inside a Word document, wants SVG/PNG media replaced without rebuilding the whole document manually, or needs related PDF regeneration only when explicitly requested.",
+      "path": ".claude/skills/docx-figure-sync/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "notebook-to-agilab-project",
+      "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
+      "path": ".claude/skills/notebook-to-agilab-project/SKILL.md",
+      "updated": "2026-05-21"
+    },
+    {
+      "name": "pipeline-concept-view",
+      "description": "Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_stages.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page.",
+      "path": ".claude/skills/pipeline-concept-view/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "plan-before-code",
+      "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
+      "path": ".claude/skills/plan-before-code/SKILL.md",
+      "updated": "2026-05-06"
+    },
+    {
+      "name": "repo-skill-maintenance",
+      "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
+      "path": ".claude/skills/repo-skill-maintenance/SKILL.md",
+      "updated": "2026-05-06"
+    },
+    {
+      "name": "report-qa-docx",
+      "description": "Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery.",
+      "path": ".claude/skills/report-qa-docx/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "scientific-svg-figures",
+      "description": "Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter.",
+      "path": ".claude/skills/scientific-svg-figures/SKILL.md",
+      "updated": "2026-04-15"
+    },
+    {
+      "name": "slides",
+      "description": "Create and edit presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying slide content while preserving editable output, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.",
+      "path": ".claude/skills/slides/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "slides-docx-align",
+      "description": "Align a slide deck with a DOCX report while preserving each artifact\u2019s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version.",
+      "path": ".claude/skills/slides-docx-align/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "svg-diagram-tuning",
+      "description": "Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.",
+      "path": ".claude/skills/svg-diagram-tuning/SKILL.md",
+      "updated": null
+    },
+    {
+      "name": "svg-diagrams",
+      "description": "Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow.",
+      "path": ".claude/skills/svg-diagrams/SKILL.md",
+      "updated": "2026-04-09"
+    }
+  ],
+  "evidence_schemas": [
+    {
+      "schema": "agilab.agent_compare.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_config.v1",
+      "sources": [
+        "src/agilab/agent_config.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_recommendation.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "docs/source/capability-map.rst",
+        "llms-full.txt",
+        "tools/agent_context_router.py",
+        "tools/agent_skill_catalog.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_rules.v1",
+      "sources": [
+        "agent-context-rules.json",
+        "tools/agent_context_router.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_rules_validation.v1",
+      "sources": [
+        "tools/agent_context_router.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_handoff.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_instruction_contract.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "tools/agent_instruction_contract.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_lineage.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_next_actions.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_provider_capability.v1",
+      "sources": [
+        "src/agilab/agent_provider_capabilities.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_run.v1",
+      "sources": [
+        "README.md",
+        "README.pypi.md",
+        "docs/source/agent-workflows.rst",
+        "src/agilab/agent_run.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py",
+        "tools/controlled_pilot_readiness_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_run_validation.v1",
+      "sources": [
+        "src/agilab/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_skill_quality_guard.v1",
+      "sources": [
+        "tools/agent_skill_quality_guard.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_skill_security_scan.v1",
+      "sources": [
+        "tools/skill_security_scan.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_tool_safety.v1",
+      "sources": [
+        "src/agilab/agent_tool_safety.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_trace.v1",
+      "sources": [
+        "README.md",
+        "README.pypi.md",
+        "docs/source/agent-workflows.rst",
+        "src/agilab/agent_trace.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agenticweb_discovery.v1",
+      "sources": [
+        "agenticweb.md",
+        "tools/agenticweb_manifest.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_pages.chart_evidence.v1",
+      "sources": [
+        "src/agilab/lib/agi-pages/src/agi_pages/chart_spec.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_pages.chart_spec.v1",
+      "sources": [
+        "src/agilab/lib/agi-pages/src/agi_pages/chart_spec.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_web.action.v1",
+      "sources": [
+        "src/agilab/lib/agi-web/src/agi_web/component.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_web.component.v1",
+      "sources": [
+        "src/agilab/lib/agi-web/src/agi_web/component.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_web.component_evidence.v1",
+      "sources": [
+        "src/agilab/lib/agi-web/src/agi_web/component.py"
+      ]
+    },
+    {
+      "schema": "agilab.agi_web_visual_regression.v1",
+      "sources": [
+        "tools/agi_web_visual_regression.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.data_quality_gate.contract.v1",
+      "sources": [
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.data_quality_gate.thresholds.v1",
+      "sources": [
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.data_quality_gate.v1",
+      "sources": [
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.r_runtime_bridge.v1",
+      "sources": [
+        "src/agilab/apps/builtin/r_runtime_bridge_project/src/r_runtime_bridge/r_runtime_adapter.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.sklearn_pipeline.v1",
+      "sources": [
+        "src/agilab/apps/builtin/sklearn_pipeline_project/src/sklearn_pipeline/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.app_contract_matrix.v1",
+      "sources": [
+        "tools/app_contract_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.app_settings.v1",
+      "sources": [
+        "src/agilab/core/agi-env/src/agi_env/app_settings_support.py",
+        "src/agilab/core/agi-env/test/test_app_args.py",
+        "src/agilab/core/agi-env/test/test_app_settings_support.py",
+        "tools/robustness_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.app_template_registry.v1",
+      "sources": [
+        "src/agilab/app_template_registry.py"
+      ]
+    },
+    {
+      "schema": "agilab.architecture_hardening_gaps.v1",
+      "sources": [
+        "docs/source/data/architecture_hardening_gaps.json",
+        "tools/architecture_scorecard.py"
+      ]
+    },
+    {
+      "schema": "agilab.architecture_scorecard.v1",
+      "sources": [
+        "tools/architecture_scorecard.py"
+      ]
+    },
+    {
+      "schema": "agilab.audit.v1",
+      "sources": [
+        "tools/agilab_audit.py"
+      ]
+    },
+    {
+      "schema": "agilab.audit_quality_evaluator.v1",
+      "sources": [
+        "tools/audit_quality_evaluator.py"
+      ]
+    },
+    {
+      "schema": "agilab.capabilities.v1",
+      "sources": [
+        "agenticweb.md",
+        "tools/agilab_capabilities_lint.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.capabilities_lint.v1",
+      "sources": [
+        "tools/agilab_capabilities_lint.py"
+      ]
+    },
+    {
+      "schema": "agilab.capability_rules.v1",
+      "sources": [
+        "tools/agilab_capabilities_lint.py"
+      ]
+    },
+    {
+      "schema": "agilab.capacity_model_manifest.v1",
+      "sources": [
+        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime_misc_support.py",
+        "src/agilab/core/agi-env/src/agi_env/resources/.agilab/balancer_model.pkl.sha256.json",
+        "tools/architecture_scorecard.py"
+      ]
+    },
+    {
+      "schema": "agilab.ci_artifact_harvest.v1",
+      "sources": [
+        "src/agilab/ci_artifact_harvest.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.ci_provider_artifact_index.v1",
+      "sources": [
+        "src/agilab/ci_provider_artifacts.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.clean_local_artifacts.v1",
+      "sources": [
+        "tools/clean_local_artifacts.py"
+      ]
+    },
+    {
+      "schema": "agilab.cluster_advisor.v1",
+      "sources": [
+        "src/agilab/orchestrate_cluster.py"
+      ]
+    },
+    {
+      "schema": "agilab.controlled_pilot_readiness.v1",
+      "sources": [
+        "tools/controlled_pilot_readiness_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.coverage_shard_plan.v1",
+      "sources": [
+        "tools/coverage_shard_plan.py"
+      ]
+    },
+    {
+      "schema": "agilab.dag_contract_stage_result.v1",
+      "sources": [
+        "src/agilab/dag_execution_adapters.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_artifact_lane_contract.v1",
+      "sources": [
+        "docs/source/capability-map.rst",
+        "docs/source/data-connectors.rst",
+        "tools/agilab_capabilities_manifest.py",
+        "tools/data_artifact_lane_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_app_catalogs.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_app_catalogs.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_facility.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_facility.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_health.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_health.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_health_actions.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_health_actions.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_live_endpoint_smoke.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_live_endpoint_smoke.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_live_ui.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",
+        "src/agilab/data_connector_live_ui.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_resolution.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_resolution.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_runtime_adapters.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_runtime_adapters.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_ui_preview.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_ui_preview.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.data_connector_view_surface.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/data_connector_view_surface.py",
+        "tools/data_connector_view_surface_report.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.default_adoption_gate.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.distributed_dag_stage_smoke.v1",
+      "sources": [
+        "tools/dag_distributed_stage_smoke.py"
+      ]
+    },
+    {
+      "schema": "agilab.distributed_dag_stage_submission.v1",
+      "sources": [
+        "src/agilab/dag_distributed_submitter.py"
+      ]
+    },
+    {
+      "schema": "agilab.env_footprint.v1",
+      "sources": [
+        "src/agilab/env_footprint.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_card.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_cards.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_cockpit_summary.v1",
+      "sources": [
+        "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_exports.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_graph.v1",
+      "sources": [
+        "src/agilab/evidence_graph.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_verification.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.excel_workbook_proof.evidence.v1",
+      "sources": [
+        "src/agilab/examples/excel_workbook_proof/preview_excel_workbook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.mlflow_auto_tracking.evidence.v1",
+      "sources": [
+        "src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.mlflow_auto_tracking.v1",
+      "sources": [
+        "src/agilab/apps/builtin/weather_forecast_legacy_project/tracking_templates/mlflow_auto_tracking_run_config.json",
+        "src/agilab/apps/builtin/weather_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json",
+        "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json"
+      ]
+    },
+    {
+      "schema": "agilab.example.native_rust_worker.evidence.v1",
+      "sources": [
+        "src/agilab/examples/native_rust_worker/preview_native_rust_worker.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.parallel_stage.preview.v1",
+      "sources": [
+        "src/agilab/examples/parallel_stage/preview_parallel_stage.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.resilience_failure_injection.v1",
+      "sources": [
+        "src/agilab/apps/builtin/uav_queue_project/scenario_templates/resilience_failure_injection_scenario.json",
+        "src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.sqlite_connector_proof.evidence.v1",
+      "sources": [
+        "src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.train_then_serve.contract.v1",
+      "sources": [
+        "src/agilab/examples/train_then_serve/preview_train_then_serve.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.train_then_serve.prediction.v1",
+      "sources": [
+        "src/agilab/examples/train_then_serve/preview_train_then_serve.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.train_then_serve.v1",
+      "sources": [
+        "src/agilab/apps/builtin/uav_relay_queue_project/service_templates/train_then_serve_policy_run.json",
+        "src/agilab/examples/train_then_serve/preview_train_then_serve.py",
+        "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/project/uav_relay_queue_project/service_templates/train_then_serve_policy_run.json"
+      ]
+    },
+    {
+      "schema": "agilab.example.voila_notebook_proof.app_view_plan.v1",
+      "sources": [
+        "src/agilab/examples/voila_notebook_proof/preview_voila_notebook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.voila_notebook_proof.evidence.v1",
+      "sources": [
+        "src/agilab/examples/voila_notebook_proof/preview_voila_notebook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.voila_notebook_proof.hidden_code.v1",
+      "sources": [
+        "src/agilab/examples/voila_notebook_proof/preview_voila_notebook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.example.voila_notebook_proof.widget_to_args.v1",
+      "sources": [
+        "src/agilab/examples/voila_notebook_proof/preview_voila_notebook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.extension_contracts.v1",
+      "sources": [
+        "docs/source/data/extension_contracts.toml",
+        "tools/maintenance_dashboard.py"
+      ]
+    },
+    {
+      "schema": "agilab.first_launch_robot.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "tools/first_launch_robot.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_app_dispatch_smoke.v1",
+      "sources": [
+        "src/agilab/global_pipeline_app_dispatch_smoke.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_dag.v1",
+      "sources": [
+        "src/agilab/global_pipeline_dag.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_dependency_view.v1",
+      "sources": [
+        "src/agilab/global_pipeline_dependency_view.py",
+        "tools/global_pipeline_live_state_updates_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_dispatch_state.v1",
+      "sources": [
+        "src/agilab/global_pipeline_dispatch_state.py",
+        "tools/global_pipeline_operator_state_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_execution_plan.v1",
+      "sources": [
+        "src/agilab/global_pipeline_execution_plan.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_live_state_updates.v1",
+      "sources": [
+        "src/agilab/global_pipeline_live_state_updates.py",
+        "tools/global_pipeline_operator_actions_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_operator_actions.v1",
+      "sources": [
+        "src/agilab/global_pipeline_operator_actions.py",
+        "tools/global_pipeline_operator_ui_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_operator_state.v1",
+      "sources": [
+        "src/agilab/global_pipeline_operator_state.py",
+        "tools/global_pipeline_dependency_view_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_operator_ui.v1",
+      "sources": [
+        "src/agilab/global_pipeline_operator_ui.py"
+      ]
+    },
+    {
+      "schema": "agilab.global_pipeline_runner_state.v1",
+      "sources": [
+        "src/agilab/global_pipeline_runner_state.py",
+        "src/agilab/pipeline_lab.py",
+        "tools/global_pipeline_dispatch_state_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.kubernetes_job.v1",
+      "sources": [
+        "src/agilab/kubernetes_job.py"
+      ]
+    },
+    {
+      "schema": "agilab.lab_stages.v1",
+      "sources": [
+        "src/agilab/pipeline_stages.py",
+        "src/agilab/workflow_validation.py",
+        "tools/agilab_widget_robot.py"
+      ]
+    },
+    {
+      "schema": "agilab.lab_stages_dag_preview.v1",
+      "sources": [
+        "src/agilab/pipeline_lab.py"
+      ]
+    },
+    {
+      "schema": "agilab.lightning_checkpoint_manifest.v1",
+      "sources": [
+        "src/agilab/lightning_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.lightning_evidence.v1",
+      "sources": [
+        "src/agilab/lightning_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.lightning_evidence_verification.v1",
+      "sources": [
+        "src/agilab/lightning_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.maintenance_dashboard.v1",
+      "sources": [
+        "tools/maintenance_dashboard.py"
+      ]
+    },
+    {
+      "schema": "agilab.maintenance_memory.check.v1",
+      "sources": [
+        "tools/maintenance_memory.py"
+      ]
+    },
+    {
+      "schema": "agilab.maintenance_memory.v1",
+      "sources": [
+        "tools/maintenance_memory.py"
+      ]
+    },
+    {
+      "schema": "agilab.manifest_index.v1",
+      "sources": [
+        "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
+      ]
+    },
+    {
+      "schema": "agilab.metadata_entry.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.metadata_store.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.mission_decision.pipeline.v1",
+      "sources": [
+        "src/agilab/apps/builtin/mission_decision_project/src/mission_decision/artifacts.py",
+        "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/src/mission_decision/artifacts.py"
+      ]
+    },
+    {
+      "schema": "agilab.mission_decision.summary.v1",
+      "sources": [
+        "src/agilab/apps/builtin/mission_decision_project/src/mission_decision/artifacts.py",
+        "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/src/mission_decision/artifacts.py"
+      ]
+    },
+    {
+      "schema": "agilab.multi_app_dag.v1",
+      "sources": [
+        "docs/source/data/multi_app_dag_flight_sample.json",
+        "docs/source/data/multi_app_dag_portfolio_sample.json",
+        "docs/source/data/multi_app_dag_sample.json",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_legacy_multi_app_dag.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_multi_app_dag.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/src/multi_app_dag/preview_multi_app_dag.py",
+        "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json",
+        "src/agilab/examples/inter_project_dag/preview_inter_project_dag.py",
+        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/dag_templates/flight_to_weather.json",
+        "src/agilab/multi_app_dag.py",
+        "src/agilab/multi_app_dag_templates.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_artifact_contract.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_export.stage_cell.v1",
+      "sources": [
+        "src/agilab/notebook_export_support.py",
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_export.v1",
+      "sources": [
+        "src/agilab/notebook_export_support.py",
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_export_handoff.v1",
+      "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/notebook_export_support.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_export_manifest.v1",
+      "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/notebook_export_support.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_export_portability.v1",
+      "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/notebook_export_support.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_contract.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_doctor.v1",
+      "sources": [
+        "src/agilab/notebook_import_doctor.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_pipeline_view.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_preflight.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_view_plan.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py",
+        "tools/notebook_import_preflight.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_views.v1",
+      "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebook_import_views.toml",
+        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebook_import_views.toml",
+        "src/agilab/apps/builtin/weather_forecast_project/notebook_import_views.toml",
+        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/notebook_import_views.toml",
+        "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/notebook_import_views.toml",
+        "src/agilab/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_pipeline_import.v1",
+      "sources": [
+        "src/agilab/notebook_pipeline_import.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_to_dask_pipeline.v1",
+      "sources": [
+        "src/agilab/examples/notebook_to_dask/pipeline_view.json"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_union_environment.v1",
+      "sources": [
+        "src/agilab/notebook_union_environment.py"
+      ]
+    },
+    {
+      "schema": "agilab.openlineage_export.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.orchestrate_notebook.v1",
+      "sources": [
+        "src/agilab/pages/2_ORCHESTRATE.py"
+      ]
+    },
+    {
+      "schema": "agilab.otel_trace_export.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.page_bundle_registry.v1",
+      "sources": [
+        "src/agilab/page_bundle_registry.py"
+      ]
+    },
+    {
+      "schema": "agilab.page_template_registry.v1",
+      "sources": [
+        "src/agilab/page_bundle_registry.py"
+      ]
+    },
+    {
+      "schema": "agilab.parallel_stage.v1",
+      "sources": [
+        "docs/source/parallel-stages.rst",
+        "src/agilab/examples/parallel_stage/parallel_stage.toml",
+        "src/agilab/examples/parallel_stage/preview_parallel_stage.py",
+        "tools/parallel_stage.py"
+      ]
+    },
+    {
+      "schema": "agilab.pipeline.lock.v1",
+      "sources": [
+        "src/agilab/pipeline_run_controls.py"
+      ]
+    },
+    {
+      "schema": "agilab.pipeline_recipe_memory.v1",
+      "sources": [
+        "src/agilab/pipeline_recipe_memory.py"
+      ]
+    },
+    {
+      "schema": "agilab.pipeline_stage_templates.v1",
+      "sources": [
+        "src/agilab/pipeline_stage_templates.py"
+      ]
+    },
+    {
+      "schema": "agilab.policy.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.policy_report.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.profile_supply_chain_scan.v1",
+      "sources": [
+        "tools/profile_supply_chain_scan.py"
+      ]
+    },
+    {
+      "schema": "agilab.promotion.decision.v1",
+      "sources": [
+        "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",
+        "src/agilab/ci_artifact_harvest.py"
+      ]
+    },
+    {
+      "schema": "agilab.promotion_decision.v1",
+      "sources": [
+        "src/agilab/promotion_dossier.py"
+      ]
+    },
+    {
+      "schema": "agilab.promotion_dossier.v1",
+      "sources": [
+        "src/agilab/promotion_dossier.py"
+      ]
+    },
+    {
+      "schema": "agilab.promotion_evidence_manifest.v1",
+      "sources": [
+        "src/agilab/promotion_dossier.py"
+      ]
+    },
+    {
+      "schema": "agilab.proof_capsule.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.proof_capsule_signature.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.proof_capsule_trust_policy.v1",
+      "sources": [
+        "docs/source/proof-capsule.rst",
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.proof_capsule_verification.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.proof_pack.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.public_certification_profile.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/public_certification.py",
+        "tools/kpi_evidence_bundle.py",
+        "tools/public_certification_profile_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.public_proof_scenarios.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "tools/public_proof_scenarios.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_pending_trusted_publisher.v1",
+      "sources": [
+        "tools/pypi_pending_trusted_publisher.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_project_preflight.v1",
+      "sources": [
+        "tools/pypi_project_preflight.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_provenance_check.v1",
+      "sources": [
+        "tools/pypi_provenance_check.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_release_retention.v1",
+      "sources": [
+        "tools/pypi_release_retention.py"
+      ]
+    },
+    {
+      "schema": "agilab.pytorch_playground.agi_web_payload.v1",
+      "sources": [
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+      ]
+    },
+    {
+      "schema": "agilab.pytorch_playground.dataframe.v1",
+      "sources": [
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+      ]
+    },
+    {
+      "schema": "agilab.pytorch_playground_config.v1",
+      "sources": [
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/core.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.pytorch_playground_evidence.v1",
+      "sources": [
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/core.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.regulatory_readiness.v1",
+      "sources": [
+        "docs/source/capability-map.rst",
+        "docs/source/regulatory-readiness.rst",
+        "tools/agilab_capabilities_manifest.py",
+        "tools/regulatory_readiness_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.release_artifact_manifest.v1",
+      "sources": [
+        "tools/pypi_distribution_state.py",
+        "tools/release_artifact_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.release_handoff.v1",
+      "sources": [
+        "tools/release_handoff.py"
+      ]
+    },
+    {
+      "schema": "agilab.release_plan.v1",
+      "sources": [
+        "tools/release_plan.py"
+      ]
+    },
+    {
+      "schema": "agilab.release_proof.v1",
+      "sources": [
+        "docs/source/data/release_proof.toml",
+        "tools/release_proof_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.release_status.v1",
+      "sources": [
+        "tools/release_status.py"
+      ]
+    },
+    {
+      "schema": "agilab.replay_plan.v1",
+      "sources": [
+        "src/agilab/evidence_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.repository_knowledge_index.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/repository_knowledge.py",
+        "tools/kpi_evidence_bundle.py",
+        "tools/repository_knowledge_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.repository_knowledge_record_cache.v1",
+      "sources": [
+        "src/agilab/repository_knowledge.py"
+      ]
+    },
+    {
+      "schema": "agilab.resource_snapshot.v1",
+      "sources": [
+        "tools/agent_workflows.md",
+        "tools/resource_snapshot.py"
+      ]
+    },
+    {
+      "schema": "agilab.revision_traceability.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/revision_traceability.py",
+        "tools/kpi_evidence_bundle.py",
+        "tools/revision_traceability_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.robustness_matrix.v1",
+      "sources": [
+        "tools/robustness_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.run_diff_evidence.v1",
+      "sources": [
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/run_diff_evidence.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.run_markdown_evidence.v1",
+      "sources": [
+        "docs/source/proof-capsule.rst",
+        "src/agilab/run_markdown_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.run_storyboard.paths.v1",
+      "sources": [
+        "src/agilab/run_storyboard.py"
+      ]
+    },
+    {
+      "schema": "agilab.run_storyboard.v1",
+      "sources": [
+        "src/agilab/run_storyboard.py"
+      ]
+    },
+    {
+      "schema": "agilab.scenario_cockpit_source_proof.v1",
+      "sources": [
+        "docs/source/data/scenario_cockpit_uav_queue_sample.json",
+        "tools/scenario_cockpit_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.scenario_evidence_bundle.v1",
+      "sources": [
+        "src/agilab/apps-pages/view_scenario_cockpit/src/view_scenario_cockpit/evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.screenshot_manifest.v1",
+      "sources": [
+        "docs/source/_static/agi-web-visual-baseline/screenshot_manifest.json",
+        "docs/source/_static/page-shots/screenshot_manifest.json",
+        "src/agilab/screenshot_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.security_check.v1",
+      "sources": [
+        "src/agilab/security_check.py"
+      ]
+    },
+    {
+      "schema": "agilab.security_hygiene.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "tools/security_hygiene_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.service.operator_snapshot.v1",
+      "sources": [
+        "src/agilab/orchestrate_services.py"
+      ]
+    },
+    {
+      "schema": "agilab.session_intent_synthesis.v1",
+      "sources": [
+        "tools/session_intent_synthesis.py"
+      ]
+    },
+    {
+      "schema": "agilab.shared_go_gate.v1",
+      "sources": [
+        "tools/production_readiness_report.py",
+        "tools/shared_go_gate.py"
+      ]
+    },
+    {
+      "schema": "agilab.simple_app_template.manifest.v1",
+      "sources": [
+        "src/agilab/apps/templates/simple_app_template/src/simple_app/simple_app.py"
+      ]
+    },
+    {
+      "schema": "agilab.snippet_registry.v1",
+      "sources": [
+        "src/agilab/snippet_registry.py"
+      ]
+    },
+    {
+      "schema": "agilab.supply_chain_attestation.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "docs/source/roadmap/agilab-future-work.md",
+        "src/agilab/supply_chain_attestation.py",
+        "tools/kpi_evidence_bundle.py",
+        "tools/supply_chain_attestation_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.template_contract.v1",
+      "sources": [
+        "src/agilab/apps-pages/templates/analysis_page_template/agilab.template.toml",
+        "src/agilab/template_contracts.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.cases.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/app_surface.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_diagnostic_cases.json"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.classroom.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_classroom_submissions.json",
+        "src/agilab/lib/agi-app-tescia-diagnostic/README.md"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.classroom_run_report.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.math_program_coverage.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum/math_program_2026.json"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.math_program_coverage_report.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.report.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.self_evaluation.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.summary.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_action_contract.v1",
+      "sources": [
+        "tools/ui_robot_action_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_canary.v1",
+      "sources": [
+        "tools/ui_robot_canary.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_coverage_contract.v1",
+      "sources": [
+        "tools/ui_robot_coverage_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_evidence.v1",
+      "sources": [
+        "docs/source/data/ui_robot_evidence.json",
+        "tools/ui_robot_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_failure_replay.v1",
+      "sources": [
+        "tools/ui_robot_failure_replay.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_matrix_aggregate.v1",
+      "sources": [
+        "tools/ui_robot_evidence.py",
+        "tools/ui_robot_matrix_aggregate.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_matrix_shard_manifest.v1",
+      "sources": [
+        "tools/ui_robot_matrix_aggregate.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_robot_trend_report.v1",
+      "sources": [
+        "docs/source/data/ui_robot_evidence.json",
+        "tools/ui_robot_evidence.py",
+        "tools/ui_robot_matrix_aggregate.py",
+        "tools/ui_robot_trend_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.ui_visual_baseline_report.v1",
+      "sources": [
+        "tools/ui_visual_baseline_report.py"
+      ]
+    },
+    {
+      "schema": "agilab.untrusted_content_boundary.v1",
+      "sources": [
+        "docs/source/security-adoption.rst",
+        "src/agilab/untrusted_content_boundary.py"
+      ]
+    },
+    {
+      "schema": "agilab.venv_link_report.v1",
+      "sources": [
+        "src/agilab/venv_linker.py"
+      ]
+    },
+    {
+      "schema": "agilab.widget_robot_failure_bundle.v1",
+      "sources": [
+        "tools/agilab_widget_robot.py",
+        "tools/ui_robot_failure_replay.py"
+      ]
+    },
+    {
+      "schema": "agilab.widget_robot_matrix.aggregate_projection.v1",
+      "sources": [
+        "tools/ui_robot_evidence.py"
+      ]
+    },
+    {
+      "schema": "agilab.widget_robot_matrix.v1",
+      "sources": [
+        "tools/agilab_widget_robot_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.widget_robot_matrix_failure_bundle.v1",
+      "sources": [
+        "tools/agilab_widget_robot_matrix.py",
+        "tools/ui_robot_failure_replay.py"
+      ]
+    },
+    {
+      "schema": "agilab.widget_robot_matrix_result_cache.v1",
+      "sources": [
+        "tools/agilab_widget_robot_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.worker_artifacts.v1",
+      "sources": [
+        "src/agilab/core/agi-node/src/agi_node/artifact_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.workflow_dry_run_report.v1",
+      "sources": [
+        "docs/source/capability-map.rst",
+        "docs/source/features.rst",
+        "src/agilab/workflow_validation.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.workflow_parity.agi_gui_coverage_chunk.v1",
+      "sources": [
+        "tools/workflow_parity.py"
+      ]
+    },
+    {
+      "schema": "agilab.workflow_runtime_contract.v1",
+      "sources": [
+        "src/agilab/workflow_runtime_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.worktree_scope_guard.v1",
+      "sources": [
+        "tools/worktree_scope_guard.py"
+      ]
+    }
+  ],
+  "catalog_files": [
+    {
+      "path": "AGENTS.md",
+      "kind": "agent-runbook",
+      "description": "full AGILAB operator runbook for coding agents and maintainers",
+      "exists": true
+    },
+    {
+      "path": "AGENT_CONVENTIONS.md",
+      "kind": "agent-runbook",
+      "description": "short local-agent contract for tools with smaller context windows",
+      "exists": true
+    },
+    {
+      "path": "AGENT_LEARNINGS.md",
+      "kind": "agent-correction-ledger",
+      "description": "compact correction ledger for reusable AGILAB agent operating rules",
+      "exists": true
+    },
+    {
+      "path": "tools/agent_workflows.md",
+      "kind": "agent-workflow-runbook",
+      "description": "developer workflow reference for repo-supported coding agents",
+      "exists": true
+    },
+    {
+      "path": "AGENT_SKILLS.md",
+      "kind": "agent-skill-catalog",
+      "description": "human-readable repo-managed agent skills catalog",
+      "exists": true
+    },
+    {
+      "path": "llms.txt",
+      "kind": "agent-docs-index",
+      "description": "compact LLM/scraper entry-point index",
+      "exists": true
+    },
+    {
+      "path": "llms-full.txt",
+      "kind": "agent-docs-index",
+      "description": "expanded LLM/scraper skill index",
+      "exists": true
+    },
+    {
+      "path": "agilab-capabilities.json",
+      "kind": "capability-manifest",
+      "description": "machine-readable inventory of shipped public AGILAB surfaces",
+      "exists": true
+    },
+    {
+      "path": "agilab-capabilities.schema.json",
+      "kind": "capability-schema",
+      "description": "JSON Schema contract for the public AGILAB capability manifest",
+      "exists": true
+    },
+    {
+      "path": "agilab-capability-rules.yml",
+      "kind": "capability-rules",
+      "description": "declarative semantic rule metadata for the public AGILAB capability manifest linter",
+      "exists": true
+    },
+    {
+      "path": "agent-context-rules.json",
+      "kind": "agent-context-rules",
+      "description": "declarative file and prompt rules for AGILAB agent runbook and skill routing",
+      "exists": true
+    },
+    {
+      "path": "agenticweb.md",
+      "kind": "agenticweb-discovery",
+      "description": "generated agenticweb.md discovery file for AI-agent capability discovery",
+      "exists": true
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/source/capability-map.rst",
+      "title": "Capability map",
+      "description": "job-to-route map with evidence and maturity boundaries",
+      "exists": true
+    },
+    {
+      "path": "docs/source/features.rst",
+      "title": "Features",
+      "description": "inventory of shipped capability families",
+      "exists": true
+    },
+    {
+      "path": "docs/source/public-app-catalog.rst",
+      "title": "Public app catalog",
+      "description": "public app project/package/status mapping",
+      "exists": true
+    },
+    {
+      "path": "docs/source/release-proof.rst",
+      "title": "Release proof",
+      "description": "current release evidence contract",
+      "exists": true
+    },
+    {
+      "path": "docs/source/proof-capsule.rst",
+      "title": "Proof capsule",
+      "description": "proof, replay, lineage, policy, and capsule commands",
+      "exists": true
+    },
+    {
+      "path": "docs/source/agent-workflows.rst",
+      "title": "Agent workflows",
+      "description": "coding-agent run evidence and repo workflow guidance",
+      "exists": true
+    }
+  ]
+}

@@ -135,6 +135,10 @@ def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(t
     )
     assert pinned_check.status == "pass"
     assert pinned_check.details["head_state"] == "detached"
+    assert pinned_check.details["untrusted_content_boundary"]["source"]["kind"] == (
+        "external_app_repository"
+    )
+    assert pinned_check.details["untrusted_content_boundary"]["trust"]["status"] == "untrusted"
 
 
 def test_shared_profile_requires_apps_repository_origin_allowlist(tmp_path: Path):

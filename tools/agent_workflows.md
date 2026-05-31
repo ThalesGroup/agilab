@@ -10,7 +10,34 @@ This repository is prepared for four executable agent paths, plus one catalog-co
 
 The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
 and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
-[llms-full.txt](../llms-full.txt). The README badge contract is:
+[llms-full.txt](../llms-full.txt). The shipped product surface is also indexed
+for agents in [agilab-capabilities.json](../agilab-capabilities.json), which is
+regenerated with `python3 tools/agilab_capabilities_manifest.py --apply` and
+checked against [agilab-capabilities.schema.json](../agilab-capabilities.schema.json)
+with `python3 tools/agilab_capabilities_lint.py --check`. The semantic lint
+rules are declared in [agilab-capability-rules.yml](../agilab-capability-rules.yml)
+so severity, category, and rationale are reviewable without reading Python.
+The compact agentic-web discovery file is [agenticweb.md](../agenticweb.md);
+generate it with `python3 tools/agenticweb_manifest.py --apply` and check it
+with `python3 tools/agenticweb_manifest.py --check`.
+
+Root agent instructions are checked as their own contract. Run:
+
+```bash
+python3 tools/agent_instruction_contract.py --check
+```
+
+The output uses schema `agilab.agent_instruction_contract.v1` and verifies that
+[AGENTS.md](../AGENTS.md), [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md),
+[AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md), this workflow guide, public agent
+docs, `agilab-capabilities.json`, and `agenticweb.md` still describe the same
+executable agent-facing contract. The report also includes a deterministic file
+evidence snapshot with line counts, heading counts, required-marker coverage,
+and SHA-256 hashes for the checked runbook files. This guards the runbook and
+discovery layer only; it does not execute agents, generate instructions with an
+LLM, or replace skill quality, security, or capability-manifest checks.
+
+The README badge contract is:
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks
@@ -19,6 +46,12 @@ and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
+
+Use [AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md) only for reusable corrections:
+when a user, reviewer, or failed validation exposes a repeated agent behavior
+not already covered by the runbooks, add one concrete rule or tighten an
+existing one. Do not use it as a session transcript, brainstorming log, or
+replacement for tests.
 
 ## Resource preflight
 
@@ -32,6 +65,29 @@ python tools/resource_snapshot.py --output resource_snapshot.json --json
 The JSON uses schema `agilab.resource_snapshot.v1` and records CPU, memory,
 disk, GPU backends, and execution recommendations. Attach it to run evidence
 when resource constraints explain scheduler, autoscale, or model choices.
+
+## Context routing
+
+Before starting an ambiguous repo task, ask the local router which AGILAB
+runbooks and skills apply:
+
+```bash
+python tools/agent_context_router.py \
+  --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+  --prompt "update agent evidence docs" \
+  --json
+```
+
+The output uses schema `agilab.agent_context_recommendation.v1` and is produced
+from the reviewed rules in `agent-context-rules.json`. It is a contract proof
+for agent context selection only: it does not execute agents, run tests, or
+override the validation gates reported by `tools/impact_validate.py`.
+
+Validate the rule file with:
+
+```bash
+python tools/agent_context_router.py --check
+```
 
 ## Skill quality and security scans
 

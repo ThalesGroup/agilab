@@ -75,6 +75,27 @@ A complete proof capsule should contain these parts:
      - Adoption reports, release proof, compatibility matrix, and security
        checks.
 
+Run Markdown evidence
+---------------------
+
+Every ORCHESTRATE app execution writes a local Markdown evidence directory next
+to the run log. The files are intentionally plain text so a reviewer can inspect
+the run without opening the UI:
+
+* ``RUN_PLAN.md`` records the app, project path, runtime mode, command, and
+  whether cluster or service execution required explicit operator approval.
+* ``RUN_PROCESS.md`` records the run lifecycle events as they happen.
+* ``RUN_REPORT.md`` records the pass/fail verdict, duration, diagnostics, and
+  SHA-256 hashes for the inspectable evidence artifacts.
+* ``run_evidence_manifest.json`` indexes the three Markdown files with the
+  ``agilab.run_markdown_evidence.v1`` schema.
+
+Cluster-backed ORCHESTRATE runs require the operator to approve the execution
+plan before ``RUN`` or ``Run -> Load -> Export`` starts. Service mode applies
+the same approval boundary to ``START service`` and ``SUBMIT job``. Local-only
+runs still write the same evidence chain, but the approval status is
+``not_required``.
+
 Target CLI shape
 ----------------
 

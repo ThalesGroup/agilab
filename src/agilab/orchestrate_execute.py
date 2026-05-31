@@ -143,6 +143,13 @@ render_latest_run_card = _workflow_ui.render_latest_run_card
 render_log_actions = _workflow_ui.render_log_actions
 render_workflow_timeline = _workflow_ui.render_workflow_timeline
 
+_run_markdown_evidence = import_agilab_module(
+    "agilab.run_markdown_evidence",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "run_markdown_evidence.py",
+    fallback_name="agilab_run_markdown_evidence_fallback",
+)
+
 _pending_actions = import_agilab_module(
     "agilab.orchestrate_pending_actions",
     current_file=__file__,
@@ -462,6 +469,43 @@ async def render_execute_section(
     if controls_visible:
         render_execute_notice(st, st.session_state)
 
+    def _cluster_params() -> dict[str, Any]:
+        app_settings = getattr(st.session_state, "app_settings", None)
+        if app_settings is None and hasattr(st.session_state, "get"):
+            app_settings = st.session_state.get("app_settings", {})
+        cluster_settings = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+        return dict(cluster_settings) if isinstance(cluster_settings, dict) else {}
+
+    def _run_cluster_enabled() -> bool:
+        return bool(_cluster_params().get("cluster_enabled", False))
+
+    def _run_approval_key() -> str:
+        return f"orchestrate_run_approval__{app_state_name}"
+
+    def _run_approval_required() -> bool:
+        return _run_markdown_evidence.requires_execution_approval(
+            cluster_enabled=_run_cluster_enabled(),
+            service_mode=False,
+        )
+
+    def _run_approved() -> bool:
+        if not _run_approval_required():
+            return True
+        return bool(st.session_state.get(_run_approval_key(), False))
+
+    def _render_run_approval_control() -> None:
+        if not _run_approval_required():
+            st.session_state.pop(_run_approval_key(), None)
+            return
+        st.checkbox(
+            "Approve cluster execution plan",
+            key=_run_approval_key(),
+            help=(
+                "Required before running with Cluster enabled. "
+                "The run writes RUN_PLAN.md, RUN_PROCESS.md, and RUN_REPORT.md evidence."
+            ),
+        )
+
     def _run_log_pin_title() -> str:
         app_name = str(getattr(env, "app", "") or "project")
         return f"Run logs: {app_name}"
@@ -517,8 +561,64 @@ async def render_execute_section(
         log_dir = Path(env.runenv or (Path.home() / "log" / "execute" / env.app))
         log_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_id = f"run_{timestamp}"
         log_file_path = log_dir / f"run_{timestamp}.log"
+        evidence_paths = _run_markdown_evidence.build_run_evidence_paths(
+            log_dir / f"{run_id}_evidence"
+        )
+        run_started_at = _run_markdown_evidence.utc_now_text()
+        cluster_enabled = _run_cluster_enabled()
+        approval_required = _run_markdown_evidence.requires_execution_approval(
+            cluster_enabled=cluster_enabled,
+            service_mode=False,
+        )
+        approval_state = _run_markdown_evidence.approval_status(
+            approval_required=approval_required,
+            approved=_run_approved(),
+        )
         st.session_state["last_run_log_path"] = str(log_file_path)
+        st.session_state["last_run_evidence_dir"] = str(evidence_paths.root)
+        st.session_state["last_run_plan_path"] = str(evidence_paths.plan)
+        st.session_state["last_run_process_path"] = str(evidence_paths.process)
+        st.session_state["last_run_report_path"] = str(evidence_paths.report)
+        st.session_state["last_run_evidence_manifest_path"] = str(evidence_paths.manifest)
+
+        if approval_required and approval_state != "approved":
+            st.error("Approve the cluster execution plan before running.")
+            st.session_state["_last_execute_failed"] = True
+            return target_expander
+
+        try:
+            _run_markdown_evidence.write_run_plan(
+                evidence_paths,
+                run_id=run_id,
+                app=str(getattr(env, "app", "") or ""),
+                target=str(getattr(env, "target", "") or ""),
+                project_path=project_path,
+                command=cmd or "",
+                execution_mode="cluster" if cluster_enabled else "local",
+                cluster_enabled=cluster_enabled,
+                service_mode=False,
+                approval_required=approval_required,
+                approval_status_value=approval_state,
+                created_at=run_started_at,
+                metadata={
+                    "dag_based_app": dag_based_app,
+                    "worker_env_required": not app_declares_workerless(env),
+                    "benchmark": bool(st.session_state.get("benchmark")),
+                },
+            )
+            _run_markdown_evidence.append_run_process(
+                evidence_paths,
+                event="started",
+                status="running",
+                message=f"AGILAB run started; log path: {log_file_path}",
+                at=run_started_at,
+            )
+        except OSError as exc:
+            st.error(f"Run evidence could not be initialized: {exc}")
+            st.session_state["_last_execute_failed"] = True
+            return target_expander
 
         async def _run_and_stream():
             nonlocal log_file_path
@@ -551,10 +651,54 @@ async def render_execute_section(
         fatal_stderr = _run_stderr_indicates_failure(stderr)
         if fatal_stderr:
             st.session_state["_last_execute_failed"] = True
+        run_failed = run_error is not None or fatal_stderr
+        run_finished_at = _run_markdown_evidence.utc_now_text()
+        try:
+            started_dt = datetime.fromisoformat(run_started_at.replace("Z", "+00:00"))
+            ended_dt = datetime.fromisoformat(run_finished_at.replace("Z", "+00:00"))
+            duration_seconds = max(0.0, (ended_dt - started_dt).total_seconds())
+        except ValueError:
+            duration_seconds = 0.0
+        try:
+            _run_markdown_evidence.append_run_process(
+                evidence_paths,
+                event="finished",
+                status="failed" if run_failed else "success",
+                message=f"AGILAB run {'failed' if run_failed else 'completed'}; log path: {log_file_path}",
+                at=run_finished_at,
+            )
+            _run_markdown_evidence.write_run_report(
+                evidence_paths,
+                run_id=run_id,
+                status="failed" if run_failed else "success",
+                started_at=run_started_at,
+                ended_at=run_finished_at,
+                duration_seconds=duration_seconds,
+                log_path=log_file_path,
+                stderr=str(stderr or ""),
+                error=str(run_error or ""),
+                artifacts=(evidence_paths.plan, evidence_paths.process),
+                metadata={
+                    "execution_mode": "cluster" if cluster_enabled else "local",
+                    "approval_status": approval_state,
+                },
+            )
+            _run_markdown_evidence.write_run_evidence_manifest(
+                evidence_paths,
+                run_id=run_id,
+                status="failed" if run_failed else "success",
+                context={
+                    "app": str(getattr(env, "app", "") or ""),
+                    "target": str(getattr(env, "target", "") or ""),
+                    "log_path": str(log_file_path),
+                },
+            )
+        except OSError as exc:
+            st.warning(f"Run completed but Markdown evidence could not be finalized: {exc}")
         with target_expander:
             log_placeholder.empty()
             log_body = st.session_state["run_log_cache"]
-            if run_error is not None or fatal_stderr:
+            if run_failed:
                 diagnostic = classify_runtime_failure(
                     "\n".join(str(item) for item in (log_body, stderr)),
                     phase="execute",
@@ -592,15 +736,15 @@ async def render_execute_section(
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
-        if run_error is not None or fatal_stderr:
+        if run_failed:
             record_action_history(
                 st.session_state,
                 page_label="ORCHESTRATE",
                 env=env,
                 title="Run failed",
                 status="error",
-                detail=f"Logs saved to {log_file_path}",
-                artifact=log_file_path,
+                detail=f"Logs saved to {log_file_path}; evidence saved to {evidence_paths.root}",
+                artifact=evidence_paths.report,
             )
         else:
             record_action_history(
@@ -609,8 +753,8 @@ async def render_execute_section(
                 env=env,
                 title="Run finished",
                 status="done",
-                detail=f"Logs saved to {log_file_path}",
-                artifact=log_file_path,
+                detail=f"Logs saved to {log_file_path}; evidence saved to {evidence_paths.root}",
+                artifact=evidence_paths.report,
             )
         st.session_state["dataframe_deleted"] = False
         return target_expander
@@ -634,6 +778,13 @@ async def render_execute_section(
     def _render_run_panel_controls() -> None:
         artifact_state = _current_artifact_state()
         if show_run_panel:
+            _render_run_approval_control()
+            approval_ready = _run_approved()
+            approval_disabled_reason = (
+                "Approve the cluster execution plan before running."
+                if not approval_ready
+                else ""
+            )
             run_label = (
                 "Run workflow"
                 if dag_based_app
@@ -642,8 +793,8 @@ async def render_execute_section(
             readiness_actions = [
                 (
                     run_label,
-                    execute_state.run_action.enabled,
-                    execute_state.run_action.disabled_reason,
+                    execute_state.run_action.enabled and approval_ready,
+                    approval_disabled_reason or execute_state.run_action.disabled_reason,
                 )
             ]
             if not dag_based_app:
@@ -663,8 +814,9 @@ async def render_execute_section(
                 run_label,
                 key="run_btn",
                 type="primary",
-                disabled=not execute_state.run_action.enabled,
-                help=execute_state.run_action.disabled_reason
+                disabled=not (execute_state.run_action.enabled and approval_ready),
+                help=approval_disabled_reason
+                or execute_state.run_action.disabled_reason
                 or ("Run the selected DAG workflow." if dag_based_app else "Run the configured AGILAB command."),
                 width="stretch",
             ):
@@ -767,8 +919,9 @@ async def render_execute_section(
                 "Run -> Load -> Export",
                 key="combo_exec_load_export",
                 type="primary",
-                disabled=not execute_state.combo_action.enabled,
-                help=execute_state.combo_action.disabled_reason
+                disabled=not (execute_state.combo_action.enabled and approval_ready),
+                help=approval_disabled_reason
+                or execute_state.combo_action.disabled_reason
                 or "Run the workflow, load the latest previewable output, and export tabular output when available.",
                 width="stretch",
             ):
@@ -1000,7 +1153,9 @@ async def render_execute_section(
 
     if show_run_panel and run_clicked:
         run_action = execute_state.run_action
-        if run_action.enabled:
+        if not _run_approved():
+            st.error("Approve the cluster execution plan before running.")
+        elif run_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
             if st.session_state.get("benchmark") and not st.session_state.get("_last_execute_failed"):
                 st.session_state["_benchmark_expand"] = True
@@ -1010,7 +1165,9 @@ async def render_execute_section(
 
     if show_run_panel and combo_clicked:
         combo_action = execute_state.combo_action
-        if combo_action.enabled:
+        if not _run_approved():
+            st.error("Approve the cluster execution plan before running.")
+        elif combo_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
             if not st.session_state.get("_last_execute_failed"):
                 st.session_state["_combo_load_trigger"] = True
@@ -1098,6 +1255,14 @@ async def render_execute_section(
     artifacts = [
         {"label": "Loaded output", "path": source_preview_path, "kind": "output", "preview": False},
         {"label": "Run log", "path": latest_log_path, "kind": "log"},
+        {"label": "RUN_PLAN.md", "path": st.session_state.get("last_run_plan_path"), "kind": "markdown"},
+        {"label": "RUN_PROCESS.md", "path": st.session_state.get("last_run_process_path"), "kind": "markdown"},
+        {"label": "RUN_REPORT.md", "path": st.session_state.get("last_run_report_path"), "kind": "markdown"},
+        {
+            "label": "Run evidence manifest",
+            "path": st.session_state.get("last_run_evidence_manifest_path"),
+            "kind": "json",
+        },
     ]
     if not dag_based_app:
         artifacts.extend(

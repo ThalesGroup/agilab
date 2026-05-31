@@ -21,6 +21,12 @@ def test_capability_map_is_discoverable_from_public_entry_points() -> None:
     assert "Capability map](https://thalesgroup.github.io/agilab/capability-map.html)" in readme
     assert "Capability map](https://thalesgroup.github.io/agilab/capability-map.html)" in pypi_readme
     assert ":doc:`capability-map`" in features
+    assert "agilab-capabilities.json" in readme
+    assert "agilab-capabilities.schema.json" in readme
+    assert "agilab-capability-rules.yml" in readme
+    assert "agilab-capabilities.json" in pypi_readme
+    assert "agilab-capabilities.schema.json" in pypi_readme
+    assert "agilab-capability-rules.yml" in pypi_readme
 
 
 def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> None:
@@ -49,6 +55,7 @@ def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> N
         ":doc:`notebook-migration-skforecast-meteo`",
         ":doc:`proof-capsule`",
         ":doc:`data-connectors`",
+        ":doc:`regulatory-readiness`",
         ":doc:`public-app-catalog`",
         ":doc:`release-proof`",
     ):
@@ -58,6 +65,7 @@ def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> N
         "``run_manifest.json``",
         "``lab_stages.toml``",
         "``agilab prove``",
+        "``agilab.regulatory_readiness.v1``",
         "``.agipack``",
         "SBOM",
         "``pip-audit``",
@@ -66,6 +74,14 @@ def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> N
 
     assert "Use the lowest maturity level that proves the question" in page
     assert "Do not present it as current capability" in page
+    assert "agilab-capabilities.json" in page
+    assert "tools/agilab_capabilities_manifest.py --apply" in page
+    assert "agilab-capabilities.schema.json" in page
+    assert "agilab-capability-rules.yml" in page
+    assert "tools/agilab_capabilities_lint.py --check" in page
+    assert "cross-object" in page
+    assert "runtime validation" in page
+    assert "certification evidence" in page
 
 
 def test_data_connector_docs_explain_live_contract_and_local_proof_levels() -> None:

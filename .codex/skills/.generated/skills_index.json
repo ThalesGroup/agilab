@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-30T13:43:13Z",
+  "generated_at_utc": "2026-05-31T18:09:04Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -31,7 +31,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-19",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -39,7 +39,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-30",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-evidence-contracts/SKILL.md",
       "body_preview": "# AGILAB Evidence Contracts\nUse this skill when a change affects AGILAB's evidence-first value: proving that\nan experiment, app run, notebook migration, agent action, or release can be\nreviewed and replayed. The default stance is simple: a feature is not validated"
     },
@@ -47,7 +47,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-28",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-example-maturity/SKILL.md",
       "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
     },
@@ -71,7 +71,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-29",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-intent-router/SKILL.md",
       "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },
@@ -135,7 +135,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-21",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
     },
@@ -151,7 +151,7 @@
       "name": "agilab-ui-robot-validation",
       "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-18",
+      "updated": "2026-05-31",
       "path": ".codex/skills/agilab-ui-robot-validation/SKILL.md",
       "body_preview": "# AGILAB UI Robot Validation\nUse this skill when a change affects user-visible Streamlit behavior, page\nnavigation, sidebar actions, wizard links, notebook import/upload flows, UI\nscreenshots, or public demo evidence."
     },

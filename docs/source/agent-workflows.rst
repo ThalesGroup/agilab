@@ -25,6 +25,33 @@ local setup.
 
 Continue can consume the same public catalog through ``AGENT_SKILLS.md`` and
 ``llms.txt``, but AGILAB does not ship a Continue wrapper or project config yet.
+Agents and external tools can also consume ``agilab-capabilities.json`` from
+the repository root when they need a machine-readable inventory of shipped
+commands, pages, apps, packages, schemas, and catalog files. The paired
+``agilab-capabilities.schema.json`` file defines the manifest shape, and
+``python3 tools/agilab_capabilities_lint.py --check`` validates the schema
+contract plus cross-object discovery rules. The semantic rule metadata is
+declared in ``agilab-capability-rules.yml`` so categories, severities, and
+rationales are inspectable by humans and agents.
+The generated ``agenticweb.md`` file is the compact agentic-web front door for
+external discovery. It is generated from the capability manifest with
+``python3 tools/agenticweb_manifest.py --apply`` and checked with
+``python3 tools/agenticweb_manifest.py --check``.
+
+Root agent instructions are checked as their own contract::
+
+   python3 tools/agent_instruction_contract.py --check
+
+The output uses schema ``agilab.agent_instruction_contract.v1`` and verifies
+that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``AGENT_LEARNINGS.md``,
+``tools/agent_workflows.md``, this public page, ``agilab-capabilities.json``,
+and ``agenticweb.md`` still describe the same executable agent-facing contract.
+The report also includes a deterministic file evidence snapshot with line
+counts, heading counts, required marker coverage, and SHA-256 hashes for the
+checked runbook files. This guards the runbook and discovery layer only; it does
+not execute agents, generate instructions with an LLM, or replace skill quality,
+security, or
+capability-manifest checks.
 
 Shared repo contract
 --------------------
@@ -46,14 +73,41 @@ required gates reported by ``impact_validate.py``.
 Then follow the repo rules in:
 
 - ``AGENT_CONVENTIONS.md`` for the short local-agent contract
+- ``AGENT_LEARNINGS.md`` for reusable corrections after user, reviewer, or
+  validation feedback
 - ``AGENTS.md`` for the full AGILAB runbook and validation rules
 
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
 
+Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
+correction is reusable and not already covered by the runbooks. Do not use it
+as a session transcript, brainstorming log, or replacement for code and tests.
+
 Skill catalog and security checks are local-first. Use ``./dev skills`` or the
 ``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated
 GitHub Actions workflow for this agent-skill scan.
+
+Context routing
+---------------
+
+When the task is ambiguous, route the prompt and changed files through the
+local context router before loading a large skill set::
+
+   python3 tools/agent_context_router.py \
+     --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+     --prompt "update agent evidence docs" \
+     --json
+
+The output uses schema ``agilab.agent_context_recommendation.v1``. It lists the
+baseline runbooks, matched rules, and recommended repo-managed skills from
+``agent-context-rules.json``. This is a contract proof for context selection
+only: it does not execute agents, run tests, or replace
+``tools/impact_validate.py``.
+
+Validate the rules with::
+
+   python3 tools/agent_context_router.py --check
 
 Agent run evidence
 ------------------

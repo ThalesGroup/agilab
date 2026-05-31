@@ -7,6 +7,9 @@
 AGILAB exposes repo-managed Agent Skills compatible with Codex and Claude Code.
 Continue can consume this generated catalog, but AGILAB does not ship a Continue wrapper.
 Use `.claude/skills/` as the canonical skill source and `.codex/skills/` as the Codex mirror.
+Use `agilab-capabilities.json`, `agilab-capabilities.schema.json`, and `agilab-capability-rules.yml` for the machine-readable inventory of shipped CLI, page, app, package, schema, catalog, and lint-rule surfaces.
+Use `python3 tools/agent_context_router.py --files <paths> --prompt "<task>" --json` when an agent needs deterministic AGILAB skill and runbook recommendations before editing.
+Use `agenticweb.md` as the compact agentic-web discovery front door generated from the capability manifest.
 
 - advanced-svg-system-design: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure. (.claude/skills/advanced-svg-system-design/SKILL.md)
 - agilab-code-statistics: Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds. (.claude/skills/agilab-code-statistics/SKILL.md)

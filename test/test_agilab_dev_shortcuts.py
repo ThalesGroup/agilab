@@ -259,6 +259,21 @@ def test_maintenance_shortcut_has_maintain_alias():
     ]
 
 
+def test_memory_shortcut_runs_maintenance_memory():
+    assert agilab_dev.planned_commands(["memory", "check", "--all"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/maintenance_memory.py",
+            "check",
+            "--all",
+        ]
+    ]
+
+
 def test_audit_shortcut_runs_agilab_audit():
     assert agilab_dev.planned_commands(["audit", "--no-network"]) == [
         [

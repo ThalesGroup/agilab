@@ -12,6 +12,7 @@ import streamlit as st
 from agi_gui.ux_widgets import action_button
 
 from .action_execution import ActionResult, render_action_result
+from . import run_markdown_evidence
 
 SERVICE_MODE_POOL = 1
 SERVICE_MODE_CYTHON = 2
@@ -122,6 +123,12 @@ class OrchestrateServiceState:
 
     def can(self, action: OrchestrateServiceAction) -> bool:
         return action in self.available_actions
+
+
+def service_action_requires_approval(action: OrchestrateServiceAction) -> bool:
+    """Return whether a service action starts or submits cluster-backed work."""
+
+    return action in {OrchestrateServiceAction.START, OrchestrateServiceAction.SUBMIT}
 
 
 def ensure_service_session_defaults(session_state: Any) -> None:
@@ -530,8 +537,6 @@ async def render_service_panel(
         if not service_enabled:
             st.info("Enable Cluster in deployment settings before starting service mode.")
 
-        service_mode = compute_service_mode(cluster_params, service_enabled)
-
         service_poll_interval = st.number_input(
             "Service poll interval (seconds)",
             min_value=0.0,
@@ -675,6 +680,30 @@ async def render_service_panel(
         )
 
         st.caption(f"Service status: `{service_state.status_text}`")
+        service_approval_key = f"service_execution_approval__{env.app}"
+        service_approval_required = bool(service_enabled) and run_markdown_evidence.requires_execution_approval(
+            cluster_enabled=True,
+            service_mode=True,
+        )
+        if service_approval_required:
+            checkbox = getattr(st, "checkbox", None)
+            if callable(checkbox):
+                service_approved = checkbox(
+                    "Approve service execution plan",
+                    key=service_approval_key,
+                    disabled=not service_enabled,
+                    help=(
+                        "Required before START service or SUBMIT job. "
+                        "Each action writes RUN_PLAN.md, RUN_PROCESS.md, and RUN_REPORT.md evidence."
+                    ),
+                )
+            else:
+                service_approved = bool(st.session_state.get(service_approval_key, True))
+            if not service_approved:
+                st.caption("START service and SUBMIT job stay disabled until the service plan is approved.")
+        else:
+            st.session_state.pop(service_approval_key, None)
+            service_approved = True
 
         preview_action = st.selectbox(
             "Service snippet action",
@@ -721,14 +750,14 @@ async def render_service_panel(
             "START service",
             key="service_start_btn",
             kind="run",
-            disabled=not service_state.can(OrchestrateServiceAction.START),
+            disabled=not service_state.can(OrchestrateServiceAction.START) or not service_approved,
         )
         submit_service_clicked = action_button(
             submit_col,
             "SUBMIT job",
             key="service_submit_btn",
             kind="run",
-            disabled=not service_state.can(OrchestrateServiceAction.SUBMIT),
+            disabled=not service_state.can(OrchestrateServiceAction.SUBMIT) or not service_approved,
         )
         status_service_clicked = action_button(
             status_col,
@@ -853,9 +882,27 @@ async def render_service_panel(
                     next_action=blocked_detail,
                     data={"action": action.value, "status": current_state.status.value},
                 )
+            if (
+                service_action_requires_approval(action)
+                and service_approval_required
+                and not bool(service_approved)
+            ):
+                return ActionResult.warning(
+                    "Service execution approval is required.",
+                    detail="Approve the service execution plan before START service or SUBMIT job.",
+                    next_action="Check 'Approve service execution plan', then retry the service action.",
+                    data={"action": action.value, "status": current_state.status.value},
+                )
 
             deps.reset_traceback_skip()
             local_log: list[str] = []
+            evidence_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_id = f"service_{action.value}_{evidence_timestamp}"
+            evidence_root = Path(
+                getattr(env, "runenv", None) or (Path.home() / "log" / "execute" / env.app)
+            ) / f"{run_id}_evidence"
+            evidence_paths = run_markdown_evidence.build_run_evidence_paths(evidence_root)
+            service_started_at = run_markdown_evidence.utc_now_text()
             context_lines = [
                 f"=== Service action: {action_name.upper()} ===",
                 f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
@@ -917,6 +964,46 @@ async def render_service_panel(
                     args_serialized=st.session_state.args_serialized,
                 )
             )
+            try:
+                run_markdown_evidence.write_run_plan(
+                    evidence_paths,
+                    run_id=run_id,
+                    app=str(getattr(env, "app", "") or ""),
+                    target=str(getattr(env, "target", "") or ""),
+                    project_path=project_path,
+                    command=cmd_service,
+                    execution_mode="service",
+                    cluster_enabled=service_enabled,
+                    service_mode=True,
+                    approval_required=service_approval_required
+                    and service_action_requires_approval(action),
+                    approval_status_value=run_markdown_evidence.approval_status(
+                        approval_required=service_approval_required
+                        and service_action_requires_approval(action),
+                        approved=bool(service_approved),
+                    ),
+                    created_at=service_started_at,
+                    metadata={
+                        "action": action.value,
+                        "mode": current_state.mode,
+                        "scheduler": cluster_params.get("scheduler") if service_enabled else None,
+                        "workers": cluster_params.get("workers") if service_enabled else None,
+                    },
+                )
+                run_markdown_evidence.append_run_process(
+                    evidence_paths,
+                    event="started",
+                    status="running",
+                    message=f"Service action '{action.value}' started.",
+                    at=service_started_at,
+                )
+            except OSError as exc:
+                return ActionResult.error(
+                    "Service evidence could not be initialized.",
+                    detail=str(exc),
+                    next_action="Check filesystem permissions and available disk space, then retry.",
+                    data={"action": action.value, "evidence_dir": str(evidence_paths.root)},
+                )
             service_stdout = ""
             service_stderr = ""
             service_error: Exception | None = None
@@ -1043,11 +1130,51 @@ async def render_service_panel(
             _render_logs()
 
             if service_error or service_stderr.strip():
+                service_finished_at = run_markdown_evidence.utc_now_text()
+                try:
+                    start_dt = datetime.fromisoformat(service_started_at.replace("Z", "+00:00"))
+                    end_dt = datetime.fromisoformat(service_finished_at.replace("Z", "+00:00"))
+                    duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+                except ValueError:
+                    duration_seconds = 0.0
+                try:
+                    run_markdown_evidence.append_run_process(
+                        evidence_paths,
+                        event="finished",
+                        status="failed",
+                        message=f"Service action '{action.value}' failed.",
+                        at=service_finished_at,
+                    )
+                    run_markdown_evidence.write_run_report(
+                        evidence_paths,
+                        run_id=run_id,
+                        status="failed",
+                        started_at=service_started_at,
+                        ended_at=service_finished_at,
+                        duration_seconds=duration_seconds,
+                        stderr=service_stderr,
+                        error=str(service_error or ""),
+                        artifacts=(evidence_paths.plan, evidence_paths.process),
+                        metadata={"action": action.value, "display_status": display_status},
+                    )
+                    run_markdown_evidence.write_run_evidence_manifest(
+                        evidence_paths,
+                        run_id=run_id,
+                        status="failed",
+                        context={"app": env.app, "action": action.value},
+                    )
+                except OSError:
+                    pass
                 return ActionResult.error(
                     f"Service action '{action_name}' failed.",
                     detail=service_stderr.strip() or str(service_error),
                     next_action="Inspect the service log and rerun STATUS after fixing the reported failure.",
-                    data={"action": action_name, "payload": result_payload},
+                    data={
+                        "action": action_name,
+                        "payload": result_payload,
+                        "evidence_dir": str(evidence_paths.root),
+                        "run_report": str(evidence_paths.report),
+                    },
                 )
             if isinstance(result_payload, dict):
                 restarted_workers = result_payload.get("restarted_workers") or []
@@ -1056,10 +1183,48 @@ async def render_service_panel(
                         "Service auto-restarted worker loops: "
                         + ", ".join(str(worker) for worker in restarted_workers)
                     )
+            service_finished_at = run_markdown_evidence.utc_now_text()
+            try:
+                start_dt = datetime.fromisoformat(service_started_at.replace("Z", "+00:00"))
+                end_dt = datetime.fromisoformat(service_finished_at.replace("Z", "+00:00"))
+                duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+            except ValueError:
+                duration_seconds = 0.0
+            try:
+                run_markdown_evidence.append_run_process(
+                    evidence_paths,
+                    event="finished",
+                    status="success",
+                    message=f"Service action '{action.value}' completed with status '{display_status}'.",
+                    at=service_finished_at,
+                )
+                run_markdown_evidence.write_run_report(
+                    evidence_paths,
+                    run_id=run_id,
+                    status="success",
+                    started_at=service_started_at,
+                    ended_at=service_finished_at,
+                    duration_seconds=duration_seconds,
+                    artifacts=(evidence_paths.plan, evidence_paths.process),
+                    metadata={"action": action.value, "display_status": display_status},
+                )
+                run_markdown_evidence.write_run_evidence_manifest(
+                    evidence_paths,
+                    run_id=run_id,
+                    status="success",
+                    context={"app": env.app, "action": action.value},
+                )
+            except OSError:
+                pass
             return ActionResult.success(
                 f"Service action '{action_name}' completed with status "
                 f"'{display_status}'.",
-                data={"action": action_name, "payload": result_payload},
+                data={
+                    "action": action_name,
+                    "payload": result_payload,
+                    "evidence_dir": str(evidence_paths.root),
+                    "run_report": str(evidence_paths.report),
+                },
             )
 
         if start_service_clicked:

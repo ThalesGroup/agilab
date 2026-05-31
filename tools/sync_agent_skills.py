@@ -52,6 +52,29 @@ def refresh_agent_skill_catalog(*, python_executable: str = sys.executable, root
     )
 
 
+def refresh_capability_manifest(*, python_executable: str = sys.executable, root: Path = ROOT) -> None:
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agilab_capabilities_manifest.py"), "--apply"],
+        check=True,
+        cwd=str(root),
+    )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agilab_capabilities_lint.py"), "--check"],
+        check=True,
+        cwd=str(root),
+    )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agenticweb_manifest.py"), "--apply"],
+        check=True,
+        cwd=str(root),
+    )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agenticweb_manifest.py"), "--check"],
+        check=True,
+        cwd=str(root),
+    )
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
@@ -89,6 +112,7 @@ def main(argv: list[str]) -> int:
 
     refresh_skill_badges()
     refresh_agent_skill_catalog()
+    refresh_capability_manifest()
 
     print(f"Synced {len(synced)} skill(s) from {CLAUDE_ROOT} to {CODEX_ROOT}")
     for path in synced:

@@ -33,7 +33,8 @@ Use this runbook whenever you:
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
-  drift signals, `docs` for docs mirror sync plus stamp verification, `scope` for
+  drift signals, `memory` for path-scoped maintenance-note drift checks,
+  `docs` for docs mirror sync plus stamp verification, `scope` for
   dirty worktree scope classification, `task-worktree` for clean isolated task
   worktrees, and
   `clean` for stale local build/lib duplicate-source cleanup. `impact` tells you what must be validated, `test` runs the
@@ -53,6 +54,7 @@ Use this runbook whenever you:
   `badge` checks badge freshness when intentionally requested, `maintenance` reports the
   extension contract kit, ADRs, docs drift, app/package contracts, Evidence Core docs,
   release skip-existing behavior, TODO hotspots, generated artifacts, and coverage signal,
+  `memory` checks path-scoped maintenance notes for source drift,
   `docs` keeps the public mirror aligned, `scope` fails fast when unrelated dirty
   scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
   branch, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
@@ -123,6 +125,12 @@ Use this runbook whenever you:
   whether PyPI, GitHub release assets, Hugging Face sync, release proof, or docs updates
   are separate manual steps. If the workflow already performs a step, state the condition
   under which it runs rather than adding a redundant manual step.
+- **Path-scoped maintenance memory**: Some fragile files have durable notes under
+  `maintenance/memory/by-path/` using URL-encoded source paths. When `./dev impact` reports a
+  maintenance-memory check, run it before closing the change and update the note
+  only after the code and validations are current. Use
+  `./dev memory context --files <path>` to read the hidden invariants for a
+  touched file. Treat drifted notes as stale guidance, not current truth.
 - **Optimized PyPI release scope**: Do not bump unchanged AGILAB packages only to keep
   a global version aligned. For partial behavior releases, compute the minimal publish
   set with `tools/release_plan.py --impact-base-ref <previous-tag>` or
@@ -186,9 +194,27 @@ Use this runbook whenever you:
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
+- **Browser dev-log validation**: When validating Streamlit, React, `agi-web`,
+  custom component, canvas/WebGL, or iframe pages in a real browser, inspect
+  browser dev-log evidence as part of the validation. For robot runs, use
+  scenarios/options that capture console warnings/errors, `pageerror`, failed
+  requests, and HTTP 4xx/5xx responses, then inspect the JSON/progress output
+  or failure-bundle `browser-issues.json`. For manual Chrome validation, open
+  DevTools Console and Network and report whether relevant runtime, asset, or
+  HTTP errors were present. Do not call a browser page validated only because
+  the visible DOM rendered.
 - **CLI agent helpers**: Repo-scoped wrappers and configs exist for Codex, Aider, and
   OpenCode under `tools/*_workflow.*`, `.aider.conf.yml`, `opencode.json`, and
   `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.
+- **Agent instruction contract**: Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`,
+  `AGENT_LEARNINGS.md`, `tools/agent_workflows.md`, public agent docs, and
+  `agilab-capabilities.json` aligned. Run
+  `python3 tools/agent_instruction_contract.py --check` after changing root
+  agent runbooks, agent-discovery surfaces, or capability metadata.
+- **Agent correction ledger**: When a correction reveals a reusable agent
+  operating rule that is not already covered, add one concrete rule to
+  `AGENT_LEARNINGS.md` or tighten an existing rule. Do not use it as a session
+  transcript, generic caution list, or replacement for code/tests.
 - **Streamlit form state**: In custom `app_args_form.py` pages, initialize editable widgets
   from persisted values (`defaults_model` / stored args). Only derive companion paths such as
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace

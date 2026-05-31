@@ -1275,6 +1275,10 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         )
         at.run()
         assert not at.exception
+        at.checkbox(
+            key="orchestrate_run_approval__flight_telemetry_project"
+        ).set_value(True).run()
+        assert not at.exception
         at.button(key="run_btn").click().run()
 
     assert not at.exception

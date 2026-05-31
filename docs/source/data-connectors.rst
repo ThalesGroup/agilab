@@ -137,6 +137,38 @@ query hash, row count, result hash, and artifact hashes. This proves the AGILAB
 database boundary before replacing the local URI with Postgres, a warehouse, or
 another operator-managed SQL source.
 
+Local Artifact Lane Contract
+----------------------------
+
+Use the artifact-lane contract when work enters AGILAB as files rather than a
+database or cloud connector. It is designed for simple, reviewable handoffs such
+as a data-analyst bundle with raw files, cleaned tables, aggregates, plots, and
+a report, or a document-ingestion lane with PDFs, Markdown outputs, and
+processed originals.
+
+.. code-block:: bash
+
+   python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check --json
+
+For document ingestion lanes whose folders are not under one root, map the
+roles explicitly:
+
+.. code-block:: bash
+
+   python3 tools/data_artifact_lane_contract.py \
+     --profile document-ingestion \
+     --dir input=/path/to/incoming \
+     --dir output=/path/to/markdown \
+     --dir done=/path/to/done \
+     --check --json
+
+The report uses schema ``agilab.data_artifact_lane_contract.v1``. It records
+the profile, role directories, required artifact rules, matched artifacts,
+sizes, SHA-256 hashes, and missing-directory or missing-artifact issues. This
+proves the local file handoff is present and inspectable. It does not prove
+data correctness, OCR quality, business interpretation, privacy compliance, or
+background-service liveness.
+
 Account-Free Cloud Emulator Validation
 --------------------------------------
 

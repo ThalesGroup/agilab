@@ -16,9 +16,14 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Do not edit shared core (`agi-env`, `agi-node`, `agi-cluster`, `agi-core`,
   shared installer/build tooling) unless the user explicitly approves it.
 - Keep edits narrow and validate with the smallest relevant proof first.
+- When corrected, update `AGENT_LEARNINGS.md` only if the correction is reusable
+  and not already covered by an existing rule.
 - Do not edit `docs/html/**`.
 - Canonical editable docs live in the sibling private docs repo; `docs/source`
   here is a managed mirror.
+- Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`, `AGENT_LEARNINGS.md`,
+  `tools/agent_workflows.md`, and public agent docs aligned; validate with
+  `python3 tools/agent_instruction_contract.py --check`.
 
 ## Validation defaults
 
@@ -39,3 +44,6 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Worker/runtime behavior is often different from manager/runtime behavior.
 - Installer bugs must be checked on both manager and worker manifests.
 - Do not silently add fallbacks that hide missing capabilities or broken setup.
+- `AGENT_SKILLS.md`, `llms.txt`, `llms-full.txt`, `agenticweb.md`, and
+  `agilab-capabilities.json` are discovery surfaces; refresh them through the
+  repo tools instead of hand-editing generated content.

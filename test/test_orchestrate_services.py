@@ -70,6 +70,21 @@ def test_compute_service_mode_uses_expected_bitmask():
     assert result == 15
 
 
+def test_service_execution_approval_is_only_required_for_start_and_submit():
+    assert orchestrate_services.service_action_requires_approval(
+        orchestrate_services.OrchestrateServiceAction.START
+    )
+    assert orchestrate_services.service_action_requires_approval(
+        orchestrate_services.OrchestrateServiceAction.SUBMIT
+    )
+    assert not orchestrate_services.service_action_requires_approval(
+        orchestrate_services.OrchestrateServiceAction.STATUS
+    )
+    assert not orchestrate_services.service_action_requires_approval(
+        orchestrate_services.OrchestrateServiceAction.STOP
+    )
+
+
 def test_service_path_and_status_helpers_cover_defensive_edges(tmp_path):
     builtin_app = tmp_path / "apps" / "builtin" / "demo_project"
     builtin_app.mkdir(parents=True)

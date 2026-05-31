@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-19
+  updated: 2026-05-31
 ---
 
 # Docs Skill (AGILAB)
@@ -116,6 +116,24 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   optional detached Ed25519 signatures are shipped; external Sigstore/SLSA
   attestation remains roadmap unless the implementation and release proof show
   it is shipped.
+
+## Agent-Readable Documentation
+
+When a change improves discoverability for agents, downstream tools, or
+machine-readable catalogs, keep human docs and machine-readable indexes aligned.
+Useful public patterns include:
+
+- `llms.txt` or a similar compact docs index for agent entry points;
+- `agilab.yml` or capability manifests that list shipped commands, packages,
+  apps, pages, schemas, and evidence outputs;
+- JSON Schema, OpenAPI, or JSON-LD only when there is a real API or stable
+  artifact contract to describe;
+- links from docs to the exact generated catalog files and the command that
+  refreshes them.
+
+Do not publish a catalog entry for a roadmap-only feature. If a catalog mentions
+a command, schema, package, app, or page, add a local check or test that proves
+the referenced artifact exists and is current.
 
 ## Positioning Claim Guardrail
 

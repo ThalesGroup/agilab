@@ -2008,14 +2008,20 @@ def _render_section_intro(title: str, text: str) -> None:
 def _render_reuse_snippets(config: PlaygroundConfig) -> None:
     _render_section_intro(
         "Reuse outside AGILAB",
-        "Copy the generated scripts or keep them from the evidence ZIP when you want a plain PyTorch or Lightning handoff.",
+        "The evidence ZIP always includes both handoff scripts: torch-only code and an optional Lightning port.",
     )
-    plain_tab, lightning_tab = st.tabs(["Plain PyTorch", "PyTorch Lightning"])
-    with plain_tab:
-        st.caption("Torch-only script generated from the active playground configuration.")
+    plain_col, lightning_col = st.columns(2)
+    with plain_col:
+        st.markdown("**Plain PyTorch handoff**")
+        st.caption(
+            "File: `reuse/train_plain_pytorch.py`. Use this when you want the lightest torch-only script."
+        )
         st.code(_plain_pytorch_reuse_snippet(config), language="python")
-    with lightning_tab:
-        st.caption("Optional Lightning port. The playground does not require Lightning unless you run this exported script.")
+    with lightning_col:
+        st.markdown("**PyTorch Lightning handoff**")
+        st.caption(
+            "File: `reuse/train_pytorch_lightning.py`. Use this when you want a LightningModule/Trainer structure."
+        )
         st.code(_pytorch_lightning_reuse_snippet(config), language="python")
 
 

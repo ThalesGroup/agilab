@@ -5,12 +5,30 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import importlib.util
 import json
 import os
 from pathlib import Path
 import re
 import tomllib
 from typing import Any, Mapping, Sequence
+
+try:
+    from .untrusted_content_boundary import build_external_source_boundary
+except ImportError:  # pragma: no cover - supports direct script execution.
+    try:
+        from untrusted_content_boundary import build_external_source_boundary  # type: ignore[no-redef]
+    except ImportError:
+        _boundary_path = Path(__file__).resolve().parent / "untrusted_content_boundary.py"
+        _boundary_spec = importlib.util.spec_from_file_location(
+            "agilab_untrusted_content_boundary_local",
+            _boundary_path,
+        )
+        if _boundary_spec is None or _boundary_spec.loader is None:
+            raise
+        _boundary_module = importlib.util.module_from_spec(_boundary_spec)
+        _boundary_spec.loader.exec_module(_boundary_module)
+        build_external_source_boundary = _boundary_module.build_external_source_boundary
 
 
 SCHEMA = "agilab.security_check.v1"
@@ -244,6 +262,16 @@ def _check_apps_repository(config: Mapping[str, str], *, cwd: Path, profile: str
         **git_state,
         "origin_url": _redact_url(origin_url),
         "allowlist_configured": bool(allowlist),
+        "untrusted_content_boundary": build_external_source_boundary(
+            path,
+            source_kind="external_app_repository",
+            source_name="APPS_REPOSITORY",
+            trust_status="untrusted",
+            metadata={
+                "origin_url": _redact_url(origin_url),
+                "allowlist_configured": bool(allowlist),
+            },
+        ),
     }
     if _is_hardening_profile(profile):
         if not origin_url:

@@ -82,6 +82,31 @@ release evidence, not production certification for every remote cluster,
 GPU/cloud stack, private app repository, security posture, or long-running
 operation.
 
+Untrusted content boundary
+--------------------------
+
+AGILAB treats notebooks, external apps repositories, model-generated snippets,
+and uploaded files as untrusted content until they have been reviewed in the
+target environment. The current helper writes or exposes
+``agilab.untrusted_content_boundary.v1`` metadata with the source kind, source
+name, SHA-256 or repository-source marker, trust status, and handling
+instructions.
+
+Current integration points:
+
+* Notebook project import writes
+  ``<notebook>.untrusted-content.json`` beside the imported notebook.
+* WORKFLOW LLM code extraction records a generated-snippet boundary in session
+  state before the code is reviewed or executed.
+* ``agilab security-check`` annotates configured ``APPS_REPOSITORY`` checkouts
+  as external executable-content boundaries while still enforcing pinning and
+  allowlist policy for shared profiles.
+
+The boundary is evidence, not a sandbox. It makes the trust decision visible and
+hashable; it does not make arbitrary notebooks, app repositories, uploads, or
+LLM snippets safe to execute without review, isolation, and the appropriate
+security-check profile.
+
 See also
 --------
 
