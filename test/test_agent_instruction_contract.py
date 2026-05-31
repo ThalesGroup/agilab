@@ -47,6 +47,15 @@ def test_current_agent_instruction_contract_passes() -> None:
     assert report["schema"] == module.SCHEMA
     assert report["status"] == "pass"
     assert report["summary"]["error_count"] == 0
+    assert report["summary"]["file_evidence_count"] == len(module.CONTRACTS)
+
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    agents_evidence = evidence_by_path["AGENTS.md"]
+    assert agents_evidence["sha256"]
+    assert agents_evidence["line_count"] > 0
+    assert agents_evidence["heading_count"] > 0
+    assert "uv" in agents_evidence["required_terms_present"]
+    assert agents_evidence["required_terms_missing"] == ()
 
 
 def test_contract_detects_missing_root_runbook_marker(tmp_path: Path) -> None:
@@ -64,6 +73,8 @@ def test_contract_detects_missing_root_runbook_marker(tmp_path: Path) -> None:
         and "no-fallbacks" in issue["message"]
         for issue in report["issues"]
     )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert "no-fallbacks" in evidence_by_path["AGENTS.md"]["required_terms_missing"]
 
 
 def test_contract_detects_missing_capability_command(tmp_path: Path) -> None:

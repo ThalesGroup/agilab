@@ -45,9 +45,12 @@ Root agent instructions are checked as their own contract::
 The output uses schema ``agilab.agent_instruction_contract.v1`` and verifies
 that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``tools/agent_workflows.md``,
 this public page, ``agilab-capabilities.json``, and ``agenticweb.md`` still
-describe the same executable agent-facing contract. This guards the runbook and
-discovery layer only; it does not execute agents or replace skill quality,
-security, or capability-manifest checks.
+describe the same executable agent-facing contract. The report also includes a
+deterministic file evidence snapshot with line counts, heading counts, required
+marker coverage, and SHA-256 hashes for the checked runbook files. This guards
+the runbook and discovery layer only; it does not execute agents, generate
+instructions with an LLM, or replace skill quality, security, or
+capability-manifest checks.
 
 Shared repo contract
 --------------------

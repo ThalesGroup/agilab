@@ -10,8 +10,9 @@ manifest still describe the same executable contract.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-import sys
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -20,6 +21,8 @@ from typing import Any, Iterable, Mapping
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.agent_instruction_contract.v1"
 CAPABILITY_COMMAND_ID = "agent-instruction-contract"
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
+RST_HEADING_CHARS = "=-~^\"'#*+"
 CATALOG_PATHS = (
     "AGENTS.md",
     "AGENT_CONVENTIONS.md",
@@ -52,6 +55,25 @@ class Issue:
     rule: str
     path: str
     message: str
+
+
+@dataclass(frozen=True)
+class HeadingEvidence:
+    level: int
+    title: str
+
+
+@dataclass(frozen=True)
+class FileEvidence:
+    path: str
+    purpose: str
+    exists: bool
+    sha256: str | None
+    line_count: int | None
+    heading_count: int
+    top_headings: tuple[HeadingEvidence, ...]
+    required_terms_present: tuple[str, ...]
+    required_terms_missing: tuple[str, ...]
 
 
 CONTRACTS: tuple[FileContract, ...] = (
@@ -169,6 +191,62 @@ def _check_file_contract(root: Path, contract: FileContract) -> list[Issue]:
     return issues
 
 
+def _iter_headings(text: str) -> Iterable[HeadingEvidence]:
+    for match in HEADING_RE.finditer(text):
+        title = match.group(2).strip()
+        if title:
+            yield HeadingEvidence(level=len(match.group(1)), title=title)
+    lines = text.splitlines()
+    rst_level_by_char = {char: index + 1 for index, char in enumerate(RST_HEADING_CHARS)}
+    for index, line in enumerate(lines[:-1]):
+        title = line.strip()
+        underline = lines[index + 1].strip()
+        if not title or title.startswith((".. ", "|")):
+            continue
+        if len(underline) < len(title) or not underline:
+            continue
+        if len(set(underline)) != 1 or underline[0] not in rst_level_by_char:
+            continue
+        yield HeadingEvidence(level=rst_level_by_char[underline[0]], title=title)
+
+
+def _build_file_evidence(root: Path, contract: FileContract) -> FileEvidence:
+    path = root / contract.path
+    if not path.exists():
+        return FileEvidence(
+            path=contract.path,
+            purpose=contract.purpose,
+            exists=False,
+            sha256=None,
+            line_count=None,
+            heading_count=0,
+            top_headings=(),
+            required_terms_present=(),
+            required_terms_missing=tuple(term.label for term in contract.required_terms),
+        )
+
+    text = _read_text(path)
+    headings = tuple(_iter_headings(text))
+    present: list[str] = []
+    missing: list[str] = []
+    for term in contract.required_terms:
+        if term.text in text:
+            present.append(term.label)
+        else:
+            missing.append(term.label)
+    return FileEvidence(
+        path=contract.path,
+        purpose=contract.purpose,
+        exists=True,
+        sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        line_count=len(text.splitlines()),
+        heading_count=len(headings),
+        top_headings=headings[:12],
+        required_terms_present=tuple(present),
+        required_terms_missing=tuple(missing),
+    )
+
+
 def _expect_mapping(value: Any, *, path: str, issues: list[Issue]) -> Mapping[str, Any]:
     if isinstance(value, Mapping):
         return value
@@ -266,6 +344,7 @@ def _check_capability_manifest(root: Path) -> list[Issue]:
 def build_report(root: Path = REPO_ROOT) -> dict[str, Any]:
     root = root.resolve()
     issues: list[Issue] = []
+    file_evidence = [_build_file_evidence(root, contract) for contract in CONTRACTS]
     for contract in CONTRACTS:
         issues.extend(_check_file_contract(root, contract))
     try:
@@ -286,8 +365,10 @@ def build_report(root: Path = REPO_ROOT) -> dict[str, Any]:
         "status": "fail" if errors else "pass",
         "root": _rel(root),
         "files": [asdict(contract) for contract in CONTRACTS],
+        "file_evidence": [asdict(evidence) for evidence in file_evidence],
         "summary": {
             "file_contract_count": len(CONTRACTS),
+            "file_evidence_count": len(file_evidence),
             "catalog_path_count": len(CATALOG_PATHS),
             "issue_count": len(issues),
             "error_count": errors,
@@ -306,6 +387,33 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         f"Issues: {report['summary']['issue_count']}",
         "",
     ]
+    file_evidence = report.get("file_evidence", [])
+    if file_evidence:
+        lines.extend(
+            [
+                "## File Evidence",
+                "",
+                "| Path | Lines | Headings | Required Markers | SHA-256 |",
+                "|---|---:|---:|---:|---|",
+            ]
+        )
+        for raw in file_evidence:
+            evidence = _expect_mapping(raw, path="file_evidence[]", issues=[])
+            present = evidence.get("required_terms_present")
+            missing = evidence.get("required_terms_missing")
+            present_count = len(present) if isinstance(present, (list, tuple)) else 0
+            missing_count = len(missing) if isinstance(missing, (list, tuple)) else 0
+            sha256 = str(evidence.get("sha256") or "")
+            sha256_short = f"`{sha256[:12]}`" if sha256 else "missing"
+            lines.append(
+                "| "
+                f"`{evidence.get('path')}` | "
+                f"{evidence.get('line_count') or 0} | "
+                f"{evidence.get('heading_count') or 0} | "
+                f"{present_count} present / {missing_count} missing | "
+                f"{sha256_short} |"
+            )
+        lines.append("")
     issues = report.get("issues", [])
     if not issues:
         lines.append("No findings.")
