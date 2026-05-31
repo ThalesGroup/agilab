@@ -242,6 +242,53 @@ def test_copy_existing_projects_swallow_unsupported_operation_from_resolve(tmp_p
     assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
+def test_git_lfs_helpers_cover_error_edges(tmp_path: Path, monkeypatch):
+    pointer = tmp_path / "dataset.7z"
+    pointer.write_text("version https://git-lfs.github.com/spec/v1\n", encoding="utf-8")
+    git_root = tmp_path / "repo"
+    git_root.mkdir()
+    outside = tmp_path / "outside" / "dataset.7z"
+    outside.parent.mkdir()
+    outside.write_text("payload", encoding="utf-8")
+
+    assert project_clone_support._find_git_root(tmp_path / "not-a-repo") is None
+
+    original_read_bytes = Path.read_bytes
+
+    def _read_bytes(self):
+        if self == pointer:
+            raise OSError("unreadable")
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _read_bytes)
+    assert project_clone_support._is_git_lfs_pointer_file(pointer) is False
+
+    with pytest.raises(RuntimeError, match="outside the git root"):
+        project_clone_support._git_lfs_include_arg([outside], git_root)
+
+
+def test_ensure_git_lfs_payloads_reports_missing_git_root_and_binary(
+    tmp_path: Path, monkeypatch
+):
+    source = tmp_path / "project"
+    dataset = source / "src" / "demo_worker" / "dataset.7z"
+    dataset.parent.mkdir(parents=True)
+    dataset.write_text("version https://git-lfs.github.com/spec/v1\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="no git repository root"):
+        project_clone_support._ensure_git_lfs_dataset_payloads(source, mock.Mock())
+
+    (source / ".git").mkdir()
+
+    def _missing_git_lfs(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(project_clone_support.subprocess, "run", _missing_git_lfs)
+
+    with pytest.raises(RuntimeError, match="git-lfs is not available"):
+        project_clone_support._ensure_git_lfs_dataset_payloads(source, mock.Mock())
+
+
 def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path: Path):
     source = tmp_path / "source"
     source.mkdir()

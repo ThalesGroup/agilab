@@ -444,6 +444,141 @@ def test_app_surface_missing_evidence_renders_page_and_checked_paths(monkeypatch
     assert ("code", (str(evidence_path), {"language": "text"})) in events
 
 
+def test_app_surface_manifest_token_helpers_cover_stale_state_edges(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    module = _load_app_surface_module("pytorch_playground_app_surface_manifest_edges_test")
+    session_state: dict[str, object] = {}
+    fake_streamlit = SimpleNamespace(session_state=session_state)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    app_path = tmp_path / "pytorch_playground_project"
+    app_path.mkdir()
+    older = tmp_path / "older"
+    newer = tmp_path / "newer"
+    older.mkdir()
+    newer.mkdir()
+    (older / "manifest.json").write_text("{}", encoding="utf-8")
+    (newer / "manifest.json").write_text("{}", encoding="utf-8")
+
+    original_resolve = Path.resolve
+
+    def _resolve(self: Path, *args, **kwargs):
+        if self.name == "unresolvable":
+            raise OSError("synthetic resolve failure")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", _resolve)
+
+    try:
+        assert module._manifest_path_key(tmp_path / "unresolvable") == str(tmp_path / "unresolvable")
+        module._record_latest_manifest_path(app_path, [older, newer])
+        session_key = f"{module._LAST_MANIFEST_SESSION_KEY}:{app_path.name}"
+        assert session_key in session_state
+        assert module._consume_last_manifest_token(None) is None
+
+        session_state[session_key] = "bad-token"
+        assert module._consume_last_manifest_token(app_path) is None
+
+        session_state[session_key] = ("not-an-int", str(newer))
+        assert module._consume_last_manifest_token(app_path) is None
+
+        session_state[session_key] = (123, str(newer))
+        assert module._consume_last_manifest_token(app_path) == (123, str(newer))
+        assert module._has_evidence([newer]) is True
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+def test_app_surface_run_button_persists_args_records_manifest_and_reruns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    module = _load_app_surface_module("pytorch_playground_app_surface_run_success_edges_test")
+    events: list[tuple[str, object]] = []
+    session_state: dict[str, object] = {}
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    (evidence / "manifest.json").write_text("{}", encoding="utf-8")
+
+    class _Container:
+        def button(self, label, **kwargs):
+            events.append(("button", (label, kwargs)))
+            return True
+
+        def error(self, message):
+            events.append(("error", message))
+
+        def success(self, message):
+            events.append(("success", message))
+
+    class _Spinner:
+        def __enter__(self):
+            events.append(("spinner-enter", None))
+            return self
+
+        def __exit__(self, *_args):
+            events.append(("spinner-exit", None))
+            return False
+
+    fake_streamlit = SimpleNamespace(
+        session_state=session_state,
+        spinner=lambda message: events.append(("spinner", message)) or _Spinner(),
+        rerun=lambda: events.append(("rerun", None)),
+    )
+
+    runtime_env = SimpleNamespace(app="pytorch_playground_project")
+    initial_args = SimpleNamespace(name="initial")
+    persisted_args = SimpleNamespace(name="persisted")
+    app_args_form = SimpleNamespace(
+        persist_current_args=lambda **kwargs: events.append(("persist", kwargs)) or persisted_args
+    )
+
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (runtime_env, initial_args))
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: [evidence])
+    monkeypatch.setattr(
+        module,
+        "_run_playground_once",
+        lambda env, args: events.append(("run", (env, args))) or pd.DataFrame([{}, {}]),
+    )
+
+    try:
+        module._render_run_button(
+            tmp_path / "pytorch_playground_project",
+            container=_Container(),
+            app_args_form=app_args_form,
+        )
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert ("persist", {"env": runtime_env}) in events
+    assert ("run", (runtime_env, persisted_args)) in events
+    assert ("success", "Run complete. Evidence refreshed (2 rows).") in events
+    assert ("rerun", None) in events
+    assert any(key.startswith(module._LAST_MANIFEST_SESSION_KEY) for key in session_state)
+
+
+def test_app_surface_styles_and_entrypoint_delegate_to_render(monkeypatch: pytest.MonkeyPatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_entrypoint_edges_test")
+    events: list[tuple[str, object]] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(markdown=lambda body, **kwargs: events.append(("markdown", (body, kwargs)))),
+    )
+    monkeypatch.setattr(module, "render", lambda **kwargs: events.append(("render", kwargs)))
+
+    try:
+        module._render_surface_styles()
+        module.main()
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert events[0][0] == "markdown"
+    assert events[0][1][1] == {"unsafe_allow_html": True}
+    assert ("render", {"mode": "full"}) in events
+
+
 def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeypatch):
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_full_test", APP_SURFACE_PATH)
     assert spec is not None and spec.loader is not None
