@@ -107,6 +107,8 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "AGENT_SKILLS.md" in agent_workflows
     assert "llms.txt" in agent_workflows
     assert "llms-full.txt" in agent_workflows
+    assert "agilab-capabilities.json" in agent_workflows
+    assert "python3 tools/agilab_capabilities_manifest.py --apply" in agent_workflows
     assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
     assert "agilab.resource_snapshot.v1" in agent_workflows
     assert "python tools/agent_skill_quality_guard.py --changed-only --fail-on high" in agent_workflows

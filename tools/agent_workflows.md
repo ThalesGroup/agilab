@@ -10,7 +10,10 @@ This repository is prepared for four executable agent paths, plus one catalog-co
 
 The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
 and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
-[llms-full.txt](../llms-full.txt). The README badge contract is:
+[llms-full.txt](../llms-full.txt). The shipped product surface is also indexed
+for agents in [agilab-capabilities.json](../agilab-capabilities.json), which is
+regenerated with `python3 tools/agilab_capabilities_manifest.py --apply`. The
+README badge contract is:
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks

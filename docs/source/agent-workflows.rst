@@ -25,6 +25,9 @@ local setup.
 
 Continue can consume the same public catalog through ``AGENT_SKILLS.md`` and
 ``llms.txt``, but AGILAB does not ship a Continue wrapper or project config yet.
+Agents and external tools can also consume ``agilab-capabilities.json`` from
+the repository root when they need a machine-readable inventory of shipped
+commands, pages, apps, packages, schemas, and catalog files.
 
 Shared repo contract
 --------------------

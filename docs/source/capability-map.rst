@@ -5,6 +5,13 @@ AGILAB has many demos, apps, reports, and proof commands. Use this page as the
 product map: start from the user job, follow the shortest route, then inspect
 the evidence and boundary before expanding to advanced features.
 
+For agent and tooling discovery, the repository root also ships
+``agilab-capabilities.json``. Regenerate it with
+``python3 tools/agilab_capabilities_manifest.py --apply``. The manifest lists
+checked-in CLI commands, Streamlit pages, public apps, packages, schemas, docs,
+and catalog files; it is a discovery index, not runtime validation or external
+certification evidence.
+
 Maturity labels
 ---------------
 

@@ -16,6 +16,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 - Skill structure, local links, support-file reachability, and activation size are checked with `tools/agent_skill_quality_guard.py`.
 - Skill indexes are regenerated with `tools/codex_skills.py --root .codex/skills generate`.
 - Public catalog files are regenerated with `tools/agent_skill_catalog.py --apply`.
+- The public capability manifest is regenerated with `tools/agilab_capabilities_manifest.py --apply`.
 - Skills that require network access, shell execution, or local services must say so explicitly.
 
 ## Catalog

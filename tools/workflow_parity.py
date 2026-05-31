@@ -1174,6 +1174,10 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 argv=["python3", "tools/agent_skill_catalog.py", "--apply"],
             ),
             CommandSpec(
+                label="generate public capability manifest",
+                argv=["python3", "tools/agilab_capabilities_manifest.py", "--apply"],
+            ),
+            CommandSpec(
                 label="refresh public agent skill badges",
                 argv=["python3", "tools/generate_skill_badges.py"],
             ),
@@ -1212,6 +1216,7 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                     "AGENT_SKILLS.md",
                     "llms.txt",
                     "llms-full.txt",
+                    "agilab-capabilities.json",
                     "badges/",
                 ],
             ),
