@@ -14,8 +14,10 @@ from packaging.version import InvalidVersion, Version
 
 try:
     from pypi_project_preflight import fetch_pypi_json, selected_pypi_projects
+    from pypi_project_preflight import PlannedPyPIProject
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     from tools.pypi_project_preflight import fetch_pypi_json, selected_pypi_projects
+    from tools.pypi_project_preflight import PlannedPyPIProject
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,10 +86,47 @@ def _versions(payload: dict[str, Any]) -> set[Version]:
     return versions
 
 
-def pypi_version_status(expected_version: str, *, repo_root: Path = ROOT) -> list[dict[str, Any]]:
+def split_packages(values: Sequence[str] | None) -> list[str]:
+    packages: list[str] = []
+    for value in values or ():
+        packages.extend(token for token in re.split(r"[\s,]+", value.strip()) if token)
+    return list(dict.fromkeys(packages))
+
+
+def _filtered_projects(
+    *,
+    repo_root: Path,
+    packages: Sequence[str] | None,
+) -> list[PlannedPyPIProject]:
+    projects = selected_pypi_projects(repo_root=repo_root)
+    wanted = set(packages or ())
+    if not wanted:
+        return projects
+
+    selected: list[PlannedPyPIProject] = []
+    matched: set[str] = set()
+    for project in projects:
+        aliases = {project.package, project.pypi_project}
+        if aliases & wanted:
+            selected.append(project)
+            matched.update(aliases & wanted)
+    missing = sorted(wanted - matched)
+    if missing:
+        raise SystemExit(
+            "ERROR: unknown release-status package selection: " + ", ".join(missing)
+        )
+    return selected
+
+
+def pypi_version_status(
+    expected_version: str,
+    *,
+    repo_root: Path = ROOT,
+    packages: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
     expected = Version(expected_version)
     statuses: list[dict[str, Any]] = []
-    for project in selected_pypi_projects(repo_root=repo_root):
+    for project in _filtered_projects(repo_root=repo_root, packages=packages):
         payload = fetch_pypi_json(project.pypi_project)
         if payload is None:
             statuses.append(
@@ -111,10 +150,16 @@ def pypi_version_status(expected_version: str, *, repo_root: Path = ROOT) -> lis
     return statuses
 
 
-def build_report(tag: str, *, package_version: str | None = None, repo_root: Path = ROOT) -> dict[str, Any]:
+def build_report(
+    tag: str,
+    *,
+    package_version: str | None = None,
+    repo_root: Path = ROOT,
+    packages: Sequence[str] | None = None,
+) -> dict[str, Any]:
     expected = package_version or package_version_from_tag(tag)
     release = github_release_status(tag)
-    pypi = pypi_version_status(expected, repo_root=repo_root)
+    pypi = pypi_version_status(expected, repo_root=repo_root, packages=packages)
     pypi_failures = [item for item in pypi if item["status"] != "pass"]
     status = "pass" if release["status"] == "pass" and not pypi_failures else "fail"
     return {
@@ -154,6 +199,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--package-version")
+    parser.add_argument("--package", action="append", default=[])
+    parser.add_argument(
+        "--packages",
+        action="append",
+        default=[],
+        help="Comma- or space-separated package or PyPI project names to check.",
+    )
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--allow-failures", action="store_true")
@@ -166,6 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.tag,
         package_version=args.package_version,
         repo_root=args.repo_root.resolve(),
+        packages=split_packages([*args.package, *args.packages]),
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

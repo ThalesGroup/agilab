@@ -93,6 +93,51 @@ def test_release_status_derives_package_version_from_release_tag() -> None:
     assert release_status.package_version_from_tag("refs/tags/v2026.05.26") == "2026.05.26"
 
 
+def test_release_status_can_check_partial_release_packages(monkeypatch) -> None:
+    projects = [
+        _planned_project(version="2026.05.31.post1"),
+        pypi_project_preflight.PlannedPyPIProject(
+            package="agi-page-unchanged",
+            project="src/agilab/apps-pages/view_unchanged",
+            pypi_project="agi-page-unchanged",
+            pypi_environment="pypi-agi-page-unchanged",
+            artifact_policy="wheel+sdist",
+            version="2026.05.31",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        release_status,
+        "selected_pypi_projects",
+        lambda *, repo_root: projects,
+    )
+    monkeypatch.setattr(
+        release_status,
+        "github_release_status",
+        lambda _tag: {"status": "pass", "asset_count": 3},
+    )
+    monkeypatch.setattr(
+        release_status,
+        "fetch_pypi_json",
+        lambda name: {
+            "info": {"version": "2026.5.31.post1" if name == "agi-page-live-artifacts" else "2026.5.31"},
+            "releases": {
+                "2026.5.31.post1" if name == "agi-page-live-artifacts" else "2026.5.31": []
+            },
+        },
+    )
+
+    report = release_status.build_report(
+        "v2026.05.31-2",
+        package_version="2026.05.31.post1",
+        packages=["agi-page-live-artifacts"],
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["pypi_checked"] == 1
+    assert report["pypi"][0]["pypi_project"] == "agi-page-live-artifacts"
+
+
 def test_release_handoff_guard_requires_archiving_old_handoffs(tmp_path: Path) -> None:
     handoff = tmp_path / "v2026.05.23-2-other-machine.md"
     handoff.write_text("# AGILAB release handoff for v2026.05.23-2\n", encoding="utf-8")
