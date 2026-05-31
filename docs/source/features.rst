@@ -18,8 +18,9 @@ AGILab currently exposes 2 main user interfaces:
    generated snippets for review before execution.
 
 Shared components include ``agi-env`` (headless environment setup),
-``agi-gui`` (Streamlit UI dependency bundle and page helpers), ``agi-node``
-(runtime orchestration), and ``agi-cluster`` (multi-node execution support).
+``agi-gui`` (Streamlit UI dependency bundle and page helpers), ``agi-web``
+(portable rich web component contracts), ``agi-node`` (runtime orchestration),
+and ``agi-cluster`` (multi-node execution support).
 
 agi-core
 --------

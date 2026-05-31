@@ -54,6 +54,7 @@ UI and page packages
    :caption: UI and page packages
 
    agi-gui <agi-gui-licenses>
+   agi-web <agi-web-licenses>
    agi-page-app-ui <agi-page-app-ui-licenses>
    agi-page-simplex-map <agi-page-simplex-map-licenses>
    agi-page-decision-evidence <agi-page-decision-evidence-licenses>

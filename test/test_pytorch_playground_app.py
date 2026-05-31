@@ -1183,6 +1183,26 @@ def test_playground_ui_score_and_recommendation_edge_helpers(
     assert len(ladder_cards) == 4
     assert any(card["state"] == "active" and card["preset"] == module.DEFAULT_PRESET for card in ladder_cards)
     assert all(card["url"].startswith("?pytorch_playground=") for card in ladder_cards)
+    instant_result = {
+        "summary": {"validation_accuracy": 0.83},
+        "grid": pd.DataFrame({"probability": [0.05, 0.95]}),
+    }
+    instant_config = module.PlaygroundConfig(hidden_layers=(8,), sample_count=64, epochs=4, grid_size=8)
+    instant_cards = module._instant_boundary_cards(instant_config, instant_result, pending_changes=True)
+    assert [card["title"] for card in instant_cards] == ["See", "Tune", "Keep"]
+    assert "clear boundary" in instant_cards[0]["detail"]
+    assert "pending refresh" in instant_cards[1]["detail"]
+    instant_markup = module._instant_boundary_panel_html(
+        instant_config,
+        instant_result,
+        pending_changes=False,
+        preset_label=module.DEFAULT_PRESET,
+    )
+    assert "Start with the decision boundary" in instant_markup
+    assert "One click gives the visual boundary first" in instant_markup
+    assert "Pick the next visual lesson" in instant_markup
+    assert instant_markup.count("Try lesson") == len(module.DEMO_LADDER)
+    assert "agilab-pt-lesson-card--active" in instant_markup
 
     original_import = __import__
 
@@ -1232,6 +1252,22 @@ def test_playground_ui_score_and_recommendation_edge_helpers(
         {"boundary_snapshots": nonnumeric_snapshots},
         final_grid,
     ).equals(final_grid)
+    mixed_snapshots = pd.DataFrame(
+        {"epoch": ["bad", "2"], "x1": [1.0, 2.0], "x2": [1.0, 2.0], "probability": [0.9, 0.2]}
+    )
+    assert module._boundary_snapshot_grid({"boundary_snapshots": mixed_snapshots}, final_grid)["probability"].tolist() == [0.2]
+    numeric_snapshots = pd.DataFrame(
+        {
+            "epoch": [0, 1],
+            "x1": [0.0, 0.0],
+            "x2": [0.0, 0.0],
+            "probability": [0.25, 0.75],
+        }
+    )
+    first_snapshot = module._boundary_snapshot_grid_at({"boundary_snapshots": numeric_snapshots}, final_grid, first=True)
+    last_snapshot = module._boundary_snapshot_grid_at({"boundary_snapshots": numeric_snapshots}, final_grid, first=False)
+    assert first_snapshot["probability"].tolist() == [0.25]
+    assert last_snapshot["probability"].tolist() == [0.75]
 
 
 def test_playground_ui_remaining_helper_and_subprocess_edges(
@@ -1849,6 +1885,88 @@ def _write_playground_evidence_dir(module, root: Path, config, result: dict[str,
     (root / "manifest.json").write_bytes(module._json_bytes(module._build_evidence_manifest(config, result)))
 
 
+def test_pytorch_playground_builds_agi_web_payload_contract() -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=7)
+    result = _minimal_playground_result(module, config)
+    second_snapshot = result["boundary_snapshots"].copy()
+    second_snapshot["epoch"] = 1
+    second_snapshot["probability"] = [0.25, 0.75, 0.35, 0.65]
+    result["boundary_snapshots"] = pd.concat([result["boundary_snapshots"], second_snapshot], ignore_index=True)
+
+    payload = module._agi_web_playground_payload(
+        config,
+        result,
+        pending_changes=True,
+        preset_label="Playground",
+    )
+    component = module._build_agi_web_playground_component(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    )
+
+    assert payload["schema"] == "agilab.pytorch_playground.agi_web_payload.v1"
+    assert payload["pending_changes"] is True
+    assert payload["metrics"]["validation_accuracy"] == pytest.approx(0.7)
+    assert payload["metrics"]["samples"] == 32
+    assert len(payload["samples"]) == 32
+    assert payload["grid"]
+    assert payload["snapshot_epochs"] == [0, 1]
+    assert payload["snapshot_count"] == 8
+    assert {record["epoch"] for record in payload["snapshots"]} == {0, 1}
+    assert payload["history"] == [
+        {
+            "epoch": 0,
+            "train_loss": 0.5,
+            "validation_loss": 0.6,
+            "train_accuracy": 0.75,
+            "validation_accuracy": 0.7,
+        }
+    ]
+    assert component is not None
+    component_dict = component.as_dict()
+    assert component_dict["renderer"]["technology"] == "webgl"
+    assert component_dict["renderer"]["renderer_id"] == "pytorch-boundary-webgl"
+    assert "gpu-heatmap" in component_dict["renderer"]["capabilities"]
+    assert component_dict["payload"]["schema"] == payload["schema"]
+    assert component_dict["evidence"]["payload_hash"]
+
+
+def test_pytorch_playground_renders_agi_web_panel_with_streamlit_component(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=8)
+    result = _minimal_playground_result(module, config)
+    fragments: list[str] = []
+
+    def html_renderer(fragment, *, height, scrolling):
+        fragments.append(fragment)
+        assert height == 560
+        assert scrolling is False
+        return "rendered"
+
+    fake_st = SimpleNamespace(
+        components=SimpleNamespace(v1=SimpleNamespace(html=html_renderer)),
+        caption=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._render_agi_web_boundary_panel(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    )
+    assert fragments
+    assert 'data-agilab-web-evidence="' in fragments[0]
+    assert "pytorch-boundary-webgl" in fragments[0]
+    assert "agi-web-scrubber" in fragments[0]
+    assert "agi-web-overlay" in fragments[0]
+    assert "renderWebglBoundary" in fragments[0]
+    assert "snapshots" in fragments[0]
+
+
 def test_pytorch_playground_evidence_pack_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2311,8 +2429,12 @@ def test_pytorch_playground_evidence_and_figure_helpers_cover_fallbacks(monkeypa
     assert len(y_axis) == 2
     assert module._grid_axes(pd.DataFrame(), 5)[0].size == 0
     assert len(module._decision_figure(samples, irregular_grid, 5).data) == 4
+    mini_decision = module._decision_figure(samples, irregular_grid, 5, height=220, show_legend=False, marker_size=5)
+    assert mini_decision.layout.height == 220
+    assert mini_decision.layout.showlegend is False
     assert len(module._decision_figure(samples, pd.DataFrame(columns=["x1", "x2", "probability"]), 5).data) == 2
     assert len(module._history_figure(history).data) == 4
+    assert module._history_figure(history, height=220, show_legend=False).layout.height == 220
     assert len(module._history_figure(pd.DataFrame()).data) == 0
     assert len(module._activation_figure(activation_maps, 1, 1).data) == 1
     assert len(module._activation_figure(activation_maps, 2, 1).data) == 0

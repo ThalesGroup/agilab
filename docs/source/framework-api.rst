@@ -14,6 +14,10 @@ Core and UI packages
 - ``agi_gui`` is the UI/page helper package under ``src/agilab/lib/agi-gui``. It
   depends on ``agi_env`` and adds the Streamlit-facing imports used by AGILAB
   pages and page bundles.
+- ``agi_web`` is the portable web component contract under
+  ``src/agilab/lib/agi-web``. Use it when an app needs one evidence-backed
+  payload that can render through Streamlit/static HTML now and through future
+  React, Canvas, or WebGL adapters later.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.
@@ -41,6 +45,8 @@ Working with the API
   active project structure and configuration.
 - Use ``agi_gui`` imports for Streamlit page helpers so UI dependencies stay
   outside worker-only runtimes.
+- Use ``agi_web`` for app-owned rich visual islands so the Python/PyTorch
+  evidence payload is not tied to one web frontend.
 - Derive from ``agi_node`` base classes to implement new DAG stages or worker
   behaviours that can be shipped with your app bundles.
 - Call into ``agi_cluster.agi_distributor.agi_distributor.AGI`` for programmatic

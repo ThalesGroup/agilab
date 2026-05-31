@@ -97,6 +97,17 @@ updates:
           - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:10"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
     directory: "/src/agilab/lib/agi-apps"
     schedule:
       interval: "weekly"

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import re
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -13,6 +15,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-cluster",
         "agilab",
         "agi-gui",
+        "agi-web",
         "agi-apps",
         "agi-pages",
         "agi-app-mission-decision",
@@ -35,6 +38,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-page-geospatial-map",
         "agi-page-geospatial-3d",
         "agi-page-network-map",
+        "agi-page-app-ui",
         "agi-page-queue-health",
         "agi-page-relay-health",
         "agi-page-scenario-cockpit",
@@ -47,6 +51,21 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
 _SECTION_RE = re.compile(r"^\s*\[[^\]]+\]\s*(?:#.*)?$")
 _UV_SOURCES_RE = re.compile(r"^\s*\[tool\.uv\.sources\]\s*(?:#.*)?$")
 _SOURCE_ENTRY_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*=.*$")
+
+
+def _packaged_source_names() -> frozenset[str]:
+    """Return all known public package names, with a static fallback for build isolation."""
+
+    module_path = Path(__file__).with_name("package_split_contract.py")
+    if module_path.exists():
+        spec = importlib.util.spec_from_file_location("agilab_package_split_contract_for_sanitizer", module_path)
+        if spec is not None and spec.loader is not None:
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+            names = getattr(module, "PACKAGE_NAMES", ())
+            return PACKAGED_CORE_SOURCE_NAMES | frozenset(str(name) for name in names)
+    return PACKAGED_CORE_SOURCE_NAMES
 
 
 def _has_toml_entries(lines: list[str]) -> bool:
@@ -78,9 +97,10 @@ def strip_packaged_core_uv_sources(text: str) -> str:
             index += 1
 
         kept_block: list[str] = []
+        packaged_source_names = _packaged_source_names()
         for block_line in block:
             match = _SOURCE_ENTRY_RE.match(block_line)
-            if match and match.group(1) in PACKAGED_CORE_SOURCE_NAMES:
+            if match and match.group(1) in packaged_source_names:
                 continue
             kept_block.append(block_line)
 

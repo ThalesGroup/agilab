@@ -7,7 +7,7 @@ Resolver: `licensecheck 2025.1.0`.
 Source manifests:
 - `pyproject.toml`
 
-Extras included: `agents`, `ai`, `bridges`, `dev`, `examples`, `local-llm`, `mlflow`, `notebook`, `offline`, `pages`, `proof`, `ui`, `viz`.
+Extras included: `agents`, `ai`, `bridges`, `core`, `dev`, `examples`, `local-llm`, `mlflow`, `notebook`, `offline`, `pages`, `proof`, `ui`, `viz`.
 
 Audit notes:
 - This page lists Python dependency metadata resolved for documentation review.
@@ -18,23 +18,24 @@ Audit notes:
 | Package Name | Version | License |
 |--------------|---------|---------|
 | accelerate | 0.34.2 | APACHE SOFTWARE LICENSE |
-| agi-app-flight-telemetry | 2026.5.30 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.30 | BSD-3-Clause |
-| agi-app-multi-dag | 2026.5.30 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-pytorch-playground | 2026.5.30 | BSD-3-Clause |
-| agi-app-sklearn-pipeline | 2026.5.30 | BSD-3-Clause |
-| agi-app-tescia-diagnostic | 2026.5.30 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.30 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.30 | BSD-3-Clause |
-| agi-apps | 2026.5.30 | BSD-3-Clause |
-| agi-cluster | 2026.5.30 | BSD-3-Clause |
-| agi-core | 2026.5.30 | BSD-3-Clause |
-| agi-env | 2026.5.30 | BSD-3-Clause |
-| agi-gui | 2026.5.30 | BSD-3-Clause |
-| agi-node | 2026.5.30 | BSD-3-Clause |
-| agi-pages | 2026.5.30 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.31 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.31 | BSD-3-Clause |
+| agi-app-multi-dag | 2026.5.31 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.31 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.31 | BSD-3-Clause |
+| agi-app-pytorch-playground | 2026.5.31 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | 2026.5.31 | BSD-3-Clause |
+| agi-app-tescia-diagnostic | 2026.5.31 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.31 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.31 | BSD-3-Clause |
+| agi-apps | 2026.5.31 | BSD-3-Clause |
+| agi-cluster | 2026.5.31 | BSD-3-Clause |
+| agi-core | 2026.5.31 | BSD-3-Clause |
+| agi-env | 2026.5.31 | BSD-3-Clause |
+| agi-gui | 2026.5.31 | BSD-3-Clause |
+| agi-node | 2026.5.31 | BSD-3-Clause |
+| agi-pages | 2026.5.31 | BSD-3-Clause |
+| agi-web | UNKNOWN | BSD-3-Clause |
 | aiohappyeyeballs | 2.6.1 | PYTHON SOFTWARE FOUNDATION LICENSE |
 | aiohttp | 3.13.5 | APACHE-2.0;; MIT |
 | aiosignal | 1.4.0 | APACHE SOFTWARE LICENSE |

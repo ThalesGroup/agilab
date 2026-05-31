@@ -9,6 +9,7 @@ dependencies = [
     "agi-node>=2026.05.31",
     "agi-cluster>=2026.05.31",
     "agi-gui>=2026.05.31",
+    "agi-web>=2026.05.31",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
     "plotly>=6.3.0,<7",
@@ -30,6 +31,7 @@ agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }
 agi-cluster = { path = "../../../core/agi-cluster", editable = true }
 agi-gui = { path = "../../../lib/agi-gui", editable = true }
+agi-web = { path = "../../../lib/agi-web", editable = true }
 
 [tool.agilab.app]
 distribution_preview = false

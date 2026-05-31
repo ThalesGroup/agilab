@@ -32,14 +32,20 @@ They are runtime building blocks used by ``agi-core``, ``agilab``, app worker
 environments, and CI validation. Their publication is intentional, but they are
 not promoted as independent user products.
 
-Published UI support package
-----------------------------
+Published UI support packages
+-----------------------------
 
 ``agi-gui`` is also published to PyPI from ``src/agilab/lib/agi-gui``. It is
 not part of the core runtime: it depends on the headless ``agi-env`` package and
 adds the Streamlit/UI dependencies used by AGILAB pages and page bundles.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
+
+``agi-web`` is published to PyPI from ``src/agilab/lib/agi-web``. It defines
+portable, evidence-backed web component payloads for app-owned rich UI islands.
+The current package provides build-free Streamlit/static HTML rendering and a
+stable contract for future React, Canvas, or WebGL adapters; it should not be
+treated as a bundled JavaScript framework.
 
 Published page-bundle packages
 ------------------------------
@@ -156,11 +162,11 @@ Publishing these runtime packages keeps the release process reproducible:
   dependencies.
 - ``pip install "agilab[core]"`` installs the matching ``agi-core`` package for
   ``agilab dry-run`` and compact notebook/API runtime checks.
-- ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
-  Streamlit page dependencies for the local web interface, plus ``agi-apps``,
-  its per-app project dependencies, and ``agi-pages`` so the UI opens with
-  the base ``minimal_app_project`` template, promoted app packages, and analysis
-  views available.
+- ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package,
+  ``agi-web`` component contract, and Streamlit page dependencies for the local
+  web interface, plus ``agi-apps``, its per-app project dependencies, and
+  ``agi-pages`` so the UI opens with the base ``minimal_app_project`` template,
+  promoted app packages, and analysis views available.
 - ``pip install "agilab[examples]"`` installs ``agi-apps`` and its per-app
   project dependencies plus the base ``minimal_app_project`` starter template and
   notebook/demo helper dependencies for public packaged examples.
@@ -181,8 +187,8 @@ Release rule
 For each public release, publish only the packages whose own payload or curated
 dependency graph changed. AGILAB uses independent version tracks:
 
-- runtime components such as ``agi-env``, ``agi-node``, ``agi-cluster``, and
-  ``agi-gui`` version the implementation they carry;
+- runtime components such as ``agi-env``, ``agi-node``, ``agi-cluster``,
+  ``agi-gui``, and ``agi-web`` version the implementation they carry;
 - bundle packages such as ``agi-core``, ``agi-pages``, ``agi-apps``, and the
   root ``agilab`` version the curated dependency graph they expose;
 - payload packages such as ``agi-page-*`` and ``agi-app-*`` version the page or
@@ -194,10 +200,11 @@ Bundle packages should exact-pin the component versions they curate for
 reproducible installs. Payload packages should declare compatible AGILAB runtime
 ranges instead of exact-pinning every AGILAB release, so a runtime patch does
 not force republishing unchanged pages or apps. Do not skip ``agi-node``,
-``agi-cluster``, ``agi-gui``, ``agi-pages``, ``agi-apps``, ``agi-page-*``, or
-the root ``agilab`` package from the PyPI publish matrix when their own version
-or dependency graph changed. Keep unpromoted app-project payload packages in
-the release artifact matrix even when their PyPI upload flag is disabled.
+``agi-cluster``, ``agi-gui``, ``agi-web``, ``agi-pages``, ``agi-apps``,
+``agi-page-*``, or the root ``agilab`` package from the PyPI publish matrix
+when their own version or dependency graph changed. Keep unpromoted app-project
+payload packages in the release artifact matrix even when their PyPI upload
+flag is disabled.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,
@@ -345,6 +352,11 @@ OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-gui``
+   * - ``agi-web``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-web``
    * - ``agi-page-simplex-map``
      - ``ThalesGroup``
      - ``agilab``
@@ -552,6 +564,7 @@ release plan, but those entries are skipped while ``publish_to_pypi`` is
 - ``pypi-agi-cluster``
 - ``pypi-agi-core``
 - ``pypi-agi-gui``
+- ``pypi-agi-web``
 - ``pypi-agi-page-simplex-map``
 - ``pypi-agi-page-decision-evidence``
 - ``pypi-agi-page-timeseries-forecast``

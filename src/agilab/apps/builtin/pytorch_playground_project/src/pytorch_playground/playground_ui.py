@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import os
 import subprocess
 import sys
@@ -161,6 +162,19 @@ try:  # noqa: E402
 except Exception:  # pragma: no cover - headless worker/test environments
     def render_logo() -> None:
         return None
+
+try:  # noqa: E402
+    from agi_web import (
+        AgiWebComponent as _AgiWebComponent,
+        AgiWebRendererSpec as _AgiWebRendererSpec,
+        records_from_data as _agi_web_records_from_data,
+        render_streamlit as _render_agi_web_streamlit,
+    )
+except Exception:  # pragma: no cover - the Plotly view remains the fallback
+    _AgiWebComponent = None  # type: ignore[assignment]
+    _AgiWebRendererSpec = None  # type: ignore[assignment]
+    _agi_web_records_from_data = None  # type: ignore[assignment]
+    _render_agi_web_streamlit = None  # type: ignore[assignment]
 
 
 torch = _playground_core.torch
@@ -930,6 +944,108 @@ def _render_page_styles() -> None:
   gap: 0.42rem;
   margin-top: -0.05rem;
 }
+.agilab-pt-instant-panel {
+  border: 1px solid rgba(114, 214, 180, 0.28);
+  border-radius: 8px;
+  padding: 0.95rem 1.05rem;
+  margin: 0.7rem 0 0.8rem;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(114, 214, 180, 0.18), transparent 24rem),
+    linear-gradient(135deg, rgba(7, 13, 28, 0.94), rgba(15, 42, 51, 0.82));
+  box-shadow: 0 14px 36px rgba(7, 17, 31, 0.16), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.agilab-pt-instant-kicker {
+  color: #72d6b4;
+  font-size: 0.7rem;
+  font-weight: 820;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.agilab-pt-instant-headline {
+  color: #f8fafc;
+  font-size: 1.32rem;
+  font-weight: 860;
+  line-height: 1.14;
+  margin-top: 0.28rem;
+}
+.agilab-pt-instant-note {
+  color: #a7b4c7;
+  font-size: 0.88rem;
+  line-height: 1.38;
+  margin-top: 0.38rem;
+}
+.agilab-pt-instant-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+.agilab-pt-instant-card {
+  min-width: 0;
+  border: 1px solid rgba(247, 242, 232, 0.14);
+  border-radius: 8px;
+  padding: 0.66rem 0.72rem;
+  background: rgba(247, 242, 232, 0.04);
+}
+.agilab-pt-instant-card strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.18;
+}
+.agilab-pt-instant-card span {
+  color: #94a3b8;
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.32;
+  margin-top: 0.24rem;
+}
+.agilab-pt-replay-title {
+  color: #e0f2fe;
+  font-size: 0.88rem;
+  font-weight: 820;
+  letter-spacing: 0.08em;
+  margin: 0.15rem 0 0.45rem;
+  text-transform: uppercase;
+}
+.agilab-pt-lesson-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+.agilab-pt-lesson-card {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 8px;
+  min-height: 7.1rem;
+  padding: 0.66rem 0.72rem;
+  background: rgba(15, 23, 42, 0.60);
+}
+.agilab-pt-lesson-card--active {
+  border-color: rgba(114, 214, 180, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(114, 214, 180, 0.18);
+}
+.agilab-pt-lesson-card strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.18;
+}
+.agilab-pt-lesson-card span {
+  color: #94a3b8;
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  margin-top: 0.22rem;
+}
+.agilab-pt-lesson-card a {
+  color: #7dd3fc;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 780;
+  margin-top: 0.38rem;
+  text-decoration: none;
+}
 .agilab-header-card {
   position: relative;
   display: grid;
@@ -1225,6 +1341,8 @@ def _render_page_styles() -> None:
 }
 @media (max-width: 860px) {
   .agilab-pt-guide,
+  .agilab-pt-instant-grid,
+  .agilab-pt-lesson-strip,
   .agilab-pt-tour-grid,
   .agilab-pt-demo-ladder {
     grid-template-columns: 1fr;
@@ -1418,13 +1536,13 @@ def _guide_step(title: str, text: str, css_class: str) -> str:
 
 def _render_guided_flow(*, pending_changes: bool, result_status: str) -> None:
     first_class = "agilab-pt-step-active" if pending_changes else "agilab-pt-step-ready"
-    first_text = "Controls changed. Press Train / refresh to update charts." if pending_changes else "Run evidence matches the current charts."
+    first_text = "Controls changed. Press Train / refresh to update charts." if pending_changes else "Boundary is visible from the start."
     second_class = "agilab-pt-step-ready" if result_status == "ok" else ""
     third_class = "agilab-pt-step-ready" if result_status == "ok" and not pending_changes else ""
     st.markdown(
         '<div class="agilab-pt-guide">'
-        + _guide_step("1. Train", first_text, first_class)
-        + _guide_step("2. Inspect", "Read the boundary, curves, neurons, and terrain.", second_class)
+        + _guide_step("1. See boundary", first_text, first_class)
+        + _guide_step("2. Tune or inspect", "Change controls only after the first visual read.", second_class)
         + _guide_step("3. Reuse", "Download evidence or share the replay token.", third_class)
         + "</div>",
         unsafe_allow_html=True,
@@ -1782,25 +1900,46 @@ def _network_architecture_html(config: PlaygroundConfig, layers: pd.DataFrame) -
     return "".join(parts)
 
 
-def _boundary_snapshot_grid(result: Mapping[str, Any], final_grid: pd.DataFrame) -> pd.DataFrame:
+def _boundary_snapshot_grid(
+    result: Mapping[str, Any],
+    final_grid: pd.DataFrame,
+    *,
+    key: str | None = None,
+    label: str = "Boundary epoch",
+) -> pd.DataFrame:
     snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
     if snapshots.empty or "epoch" not in snapshots:
         return final_grid
-    epochs = sorted(int(value) for value in pd.to_numeric(snapshots["epoch"], errors="coerce").dropna().unique())
+    snapshot_epochs = pd.to_numeric(snapshots["epoch"], errors="coerce")
+    epochs = sorted(int(value) for value in snapshot_epochs.dropna().unique())
     if not epochs:
         return final_grid
     selectbox = getattr(st, "selectbox", None)
     selected_epoch = (
         selectbox(
-            "Boundary epoch",
+            label,
             epochs,
             index=len(epochs) - 1,
             help="Step through stored learning snapshots before the final evidence export.",
+            key=key,
         )
         if callable(selectbox)
         else epochs[-1]
     )
-    selected = snapshots[snapshots["epoch"].astype(int) == int(selected_epoch)].drop(columns=["epoch"], errors="ignore")
+    selected = snapshots[snapshot_epochs == int(selected_epoch)].drop(columns=["epoch"], errors="ignore")
+    return selected if not selected.empty else final_grid
+
+
+def _boundary_snapshot_grid_at(result: Mapping[str, Any], final_grid: pd.DataFrame, *, first: bool) -> pd.DataFrame:
+    snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
+    if snapshots.empty or "epoch" not in snapshots:
+        return final_grid
+    snapshot_epochs = pd.to_numeric(snapshots["epoch"], errors="coerce")
+    epochs = sorted(int(value) for value in snapshot_epochs.dropna().unique())
+    if not epochs:
+        return final_grid
+    selected_epoch = epochs[0] if first else epochs[-1]
+    selected = snapshots[snapshot_epochs == selected_epoch].drop(columns=["epoch"], errors="ignore")
     return selected if not selected.empty else final_grid
 
 
@@ -1892,7 +2031,15 @@ def _grid_axes(grid: pd.DataFrame, fallback_grid_size: int) -> tuple[np.ndarray,
     return axis, axis
 
 
-def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) -> go.Figure:
+def _decision_figure(
+    samples: pd.DataFrame,
+    grid: pd.DataFrame,
+    grid_size: int,
+    *,
+    height: int = 560,
+    show_legend: bool = True,
+    marker_size: int = 9,
+) -> go.Figure:
     if go is None:
         trace_count = len(tuple(samples.groupby("target", sort=True))) + (2 if not grid.empty else 0)
         return _plotly_unavailable_figure("Decision boundary", trace_count)  # type: ignore[return-value]
@@ -1923,7 +2070,7 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
                 y=y_axis,
                 z=z,
                 contours={"start": 0.5, "end": 0.5, "size": 0.5, "coloring": "lines"},
-                line={"width": 3, "color": "#f8fafc"},
+                line={"width": 3 if height >= 360 else 2, "color": "#f8fafc"},
                 showscale=False,
                 hoverinfo="skip",
                 name="decision boundary",
@@ -1939,7 +2086,7 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
                 mode="markers",
                 name=f"class {class_id}",
                 marker={
-                    "size": 9,
+                    "size": marker_size,
                     "color": colors.get(int(class_id), "#cbd5e1"),
                     "opacity": 0.92,
                     "line": {"width": 1.1, "color": "rgba(255,255,255,0.78)"},
@@ -1947,7 +2094,7 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
             )
         )
     figure.update_layout(
-        height=560,
+        height=height,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(7, 13, 28, 0.92)",
@@ -1959,12 +2106,13 @@ def _decision_figure(samples: pd.DataFrame, grid: pd.DataFrame, grid_size: int) 
             "gridcolor": "rgba(148, 163, 184, 0.12)",
         },
         yaxis={"range": [-1.35, 1.35], "zeroline": False, "gridcolor": "rgba(148, 163, 184, 0.12)"},
+        showlegend=show_legend,
         legend={"orientation": "h", "y": 1.02, "font": {"color": "#dbeafe"}},
     )
     return figure
 
 
-def _history_figure(history: pd.DataFrame) -> go.Figure:
+def _history_figure(history: pd.DataFrame, *, height: int = 280, show_legend: bool = True) -> go.Figure:
     if go is None:
         return _plotly_unavailable_figure("Training history", 4 if not history.empty else 0)  # type: ignore[return-value]
     figure = go.Figure()
@@ -2010,7 +2158,7 @@ def _history_figure(history: pd.DataFrame) -> go.Figure:
             )
         )
     figure.update_layout(
-        height=280,
+        height=height,
         margin={"l": 12, "r": 12, "t": 12, "b": 12},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(7, 13, 28, 0.86)",
@@ -2018,6 +2166,7 @@ def _history_figure(history: pd.DataFrame) -> go.Figure:
         yaxis={"title": "loss", "gridcolor": "rgba(148, 163, 184, 0.14)"},
         yaxis2={"title": "accuracy", "overlaying": "y", "side": "right", "range": [0, 1.05], "showgrid": False},
         xaxis={"gridcolor": "rgba(148, 163, 184, 0.10)"},
+        showlegend=show_legend,
         legend={"orientation": "h", "y": 1.12},
     )
     return figure
@@ -2210,6 +2359,314 @@ def _render_summary(config: PlaygroundConfig, result: Mapping[str, Any], *, comp
             st.markdown(card, unsafe_allow_html=True)
 
 
+def _instant_boundary_cards(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+) -> list[dict[str, str]]:
+    summary = result.get("summary", {})
+    summary_map = summary if isinstance(summary, Mapping) else {}
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    validation_accuracy = _format_percent(summary_map.get("validation_accuracy", 0.0))
+    confidence_note = _decision_confidence_note(_confidence_score(grid))
+    network = "-".join(str(width) for width in config.hidden_layers) or "linear"
+    run_state = "Pending refresh" if pending_changes else "Current run"
+    return [
+        {
+            "title": "See",
+            "detail": f"{confidence_note}; the white contour is the 0.5 boundary.",
+        },
+        {
+            "title": "Tune",
+            "detail": f"{network} network, {validation_accuracy} validation, {run_state.lower()}.",
+        },
+        {
+            "title": "Keep",
+            "detail": "Evidence ZIP, replay token, and PyTorch handoff stay available below.",
+        },
+    ]
+
+
+def _instant_lesson_cards_html(preset_label: str) -> str:
+    cards = []
+    for card in _demo_ladder_cards(preset_label):
+        css_suffix = "active" if card["state"] == "active" else ""
+        cards.append(
+            f'<div class="agilab-pt-lesson-card agilab-pt-lesson-card--{html.escape(css_suffix)}">'
+            f"<strong>{html.escape(card['lesson'])}</strong>"
+            f"<span>{html.escape(card['watch'])}</span>"
+            f'<a href="{html.escape(card["url"])}" target="_self">Try lesson</a>'
+            "</div>"
+        )
+    return (
+        '<div class="agilab-pt-replay-title">Pick the next visual lesson</div>'
+        '<div class="agilab-pt-lesson-strip">'
+        + "".join(cards)
+        + "</div>"
+    )
+
+
+def _instant_boundary_panel_html(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+    preset_label: str,
+) -> str:
+    cards = "".join(
+        '<div class="agilab-pt-instant-card">'
+        f"<strong>{html.escape(card['title'])}</strong>"
+        f"<span>{html.escape(card['detail'])}</span>"
+        "</div>"
+        for card in _instant_boundary_cards(config, result, pending_changes=pending_changes)
+    )
+    status_note = (
+        "Controls changed; train again when you want the boundary and evidence to catch up."
+        if pending_changes
+        else "One click gives the visual boundary first; deeper diagnostics stay below for evidence and reuse."
+    )
+    return (
+        '<div class="agilab-pt-instant-panel">'
+        '<div class="agilab-pt-instant-kicker">Instant playground path</div>'
+        '<div class="agilab-pt-instant-headline">Start with the decision boundary, not the controls.</div>'
+        f'<div class="agilab-pt-instant-note">{html.escape(status_note)}</div>'
+        f'<div class="agilab-pt-instant-grid">{cards}</div>'
+        f"{_instant_lesson_cards_html(preset_label)}"
+        "</div>"
+    )
+
+
+def _agi_web_frame_records(frame: pd.DataFrame, columns: Sequence[str], *, max_rows: int) -> list[dict[str, Any]]:
+    existing_columns = [column for column in columns if column in frame.columns]
+    if not existing_columns or frame.empty:
+        return []
+    selected = frame.loc[:, existing_columns]
+    if _agi_web_records_from_data is not None:
+        return list(_agi_web_records_from_data(selected, max_rows=max_rows))
+    records = selected.to_dict(orient="records")
+    if len(records) > max_rows:
+        indexes = np.linspace(0, len(records) - 1, num=max_rows).round().astype(int)
+        records = [records[int(index)] for index in indexes]
+    return [_json_safe(record) for record in records]
+
+
+def _agi_web_snapshot_records(frame: pd.DataFrame, *, max_epochs: int = 24, max_rows: int = 9000) -> list[dict[str, Any]]:
+    if frame.empty or "epoch" not in frame.columns:
+        return []
+    columns = ("epoch", "x1", "x2", "probability")
+    if any(column not in frame.columns for column in columns):
+        return []
+    snapshot_epochs = pd.to_numeric(frame["epoch"], errors="coerce")
+    epochs = sorted(int(value) for value in snapshot_epochs.dropna().unique())
+    if not epochs:
+        return []
+    if len(epochs) > max_epochs:
+        indexes = np.linspace(0, len(epochs) - 1, num=max_epochs).round().astype(int)
+        epochs = [epochs[int(index)] for index in sorted(set(indexes.tolist()))]
+    rows_per_epoch = max(1, max_rows // max(len(epochs), 1))
+    records: list[dict[str, Any]] = []
+    for epoch in epochs:
+        epoch_frame = frame.loc[snapshot_epochs == epoch, list(columns)]
+        records.extend(_agi_web_frame_records(epoch_frame, columns, max_rows=rows_per_epoch))
+    return records[:max_rows]
+
+
+def _agi_web_playground_payload(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+    preset_label: str,
+) -> dict[str, Any]:
+    samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    history = _result_frame(
+        result,
+        "history",
+        pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+    )
+    snapshots = _result_frame(result, "boundary_snapshots", _empty_boundary_snapshots())
+    snapshot_records = _agi_web_snapshot_records(snapshots)
+    snapshot_epochs = sorted(
+        {
+            int(epoch)
+            for epoch in (record.get("epoch") for record in snapshot_records)
+            if isinstance(epoch, (int, float)) and math.isfinite(float(epoch))
+        }
+    )
+    summary = result.get("summary", {})
+    summary_map = summary if isinstance(summary, Mapping) else {}
+    visible_grid = _boundary_snapshot_grid_at(result, grid, first=False)
+    return {
+        "schema": "agilab.pytorch_playground.agi_web_payload.v1",
+        "preset": preset_label,
+        "status": str(result.get("status", "")),
+        "pending_changes": bool(pending_changes),
+        "config": _json_safe(
+            {
+                "dataset": config.dataset,
+                "hidden_layers": list(config.hidden_layers),
+                "activation": config.activation,
+                "optimizer": config.optimizer,
+                "epochs": config.epochs,
+                "sample_count": config.sample_count,
+                "grid_size": config.grid_size,
+            }
+        ),
+        "metrics": {
+            "validation_accuracy": _finite_number(summary_map.get("validation_accuracy", 0.0)),
+            "train_accuracy": _finite_number(summary_map.get("train_accuracy", 0.0)),
+            "generalization_gap": _generalization_gap(summary_map),
+            "confidence": _confidence_score(grid),
+            "samples": int(len(samples)),
+        },
+        "lessons": [_json_safe(card) for card in _demo_ladder_cards(preset_label)],
+        "samples": _agi_web_frame_records(samples, ("x1", "x2", "target"), max_rows=1200),
+        "grid": _agi_web_frame_records(visible_grid, ("x1", "x2", "probability"), max_rows=3200),
+        "snapshots": snapshot_records,
+        "snapshot_epochs": snapshot_epochs,
+        "snapshot_count": len(snapshot_records),
+        "start_grid": _agi_web_frame_records(
+            _boundary_snapshot_grid_at(result, grid, first=True),
+            ("x1", "x2", "probability"),
+            max_rows=1200,
+        ),
+        "history": _agi_web_frame_records(
+            history,
+            ("epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"),
+            max_rows=400,
+        ),
+    }
+
+
+def _build_agi_web_playground_component(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+    preset_label: str,
+) -> Any | None:
+    if _AgiWebComponent is None or _AgiWebRendererSpec is None:
+        return None
+    payload = _agi_web_playground_payload(
+        config,
+        result,
+        pending_changes=pending_changes,
+        preset_label=preset_label,
+    )
+    renderer = _AgiWebRendererSpec(
+        renderer_id="pytorch-boundary-webgl",
+        technology="webgl",
+        capabilities=("decision-boundary", "learning-replay", "gpu-heatmap", "evidence-handoff"),
+    )
+    return _AgiWebComponent(
+        component_id="pytorch-playground-boundary",
+        title="Fluid decision boundary",
+        subtitle="WebGL-first UI island backed by the same PyTorch evidence payload.",
+        renderer=renderer,
+        payload=payload,
+    )
+
+
+def _render_agi_web_boundary_panel(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+    preset_label: str,
+) -> bool:
+    if _render_agi_web_streamlit is None:
+        return False
+    component = _build_agi_web_playground_component(
+        config,
+        result,
+        pending_changes=pending_changes,
+        preset_label=preset_label,
+    )
+    if component is None:
+        return False
+    try:
+        _render_agi_web_streamlit(component, streamlit=st, height=560)
+    except Exception as exc:
+        st.caption(f"Canvas preview unavailable; showing Plotly fallback ({exc}).")
+        return False
+    return True
+
+
+def _render_instant_boundary_panel(
+    config: PlaygroundConfig,
+    result: Mapping[str, Any],
+    *,
+    pending_changes: bool,
+    preset_label: str,
+) -> None:
+    samples = _result_frame(result, "samples", pd.DataFrame(columns=["x1", "x2", "target"]))
+    grid = _result_frame(result, "grid", pd.DataFrame(columns=["x1", "x2", "probability"]))
+    history = _result_frame(
+        result,
+        "history",
+        pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+    )
+    st.markdown(
+        _instant_boundary_panel_html(config, result, pending_changes=pending_changes, preset_label=preset_label),
+        unsafe_allow_html=True,
+    )
+    if _render_agi_web_boundary_panel(
+        config,
+        result,
+        pending_changes=pending_changes,
+        preset_label=preset_label,
+    ):
+        return
+    left, right = st.columns([2.25, 1.0])
+    with left:
+        visible_grid = _boundary_snapshot_grid(result, grid, key="pt_instant_boundary_epoch")
+        st.plotly_chart(
+            _decision_figure(samples, visible_grid, config.grid_size),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+    with right:
+        st.markdown('<div class="agilab-pt-replay-title">Learning replay</div>', unsafe_allow_html=True)
+        replay_start, replay_now = st.columns(2)
+        with replay_start:
+            st.caption("start")
+            st.plotly_chart(
+                _decision_figure(
+                    samples,
+                    _boundary_snapshot_grid_at(result, grid, first=True),
+                    config.grid_size,
+                    height=220,
+                    show_legend=False,
+                    marker_size=5,
+                ),
+                width="stretch",
+                config={"displayModeBar": False},
+            )
+        with replay_now:
+            st.caption("now")
+            st.plotly_chart(
+                _decision_figure(
+                    samples,
+                    _boundary_snapshot_grid_at(result, grid, first=False),
+                    config.grid_size,
+                    height=220,
+                    show_legend=False,
+                    marker_size=5,
+                ),
+                width="stretch",
+                config={"displayModeBar": False},
+            )
+        st.plotly_chart(
+            _history_figure(history, height=220, show_legend=False),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+        if not history.empty:
+            st.dataframe(history.tail(5), width="stretch", hide_index=True)
+
+
 def main(
     *,
     config_override: PlaygroundConfig | None = None,
@@ -2249,6 +2706,14 @@ def main(
             defaults = _preset_config(preset_label, shared_config)
             preset_key = _safe_key_fragment(preset_label)
             st.caption(_preset_story(preset_label, shared_config))
+            st.markdown("### Start")
+            instant_run_requested = st.button(
+                "Run instant demo",
+                type="primary",
+                width="stretch",
+                help="Train the selected challenge now and show the boundary-first view.",
+            )
+            st.caption("One click trains the selected challenge; advanced controls can wait.")
             st.markdown("### Dataset")
             dataset = st.selectbox("Dataset", DATASETS, index=DATASETS.index(defaults.dataset), key=f"pt_dataset_{preset_key}")
             sample_count = st.slider("Samples", 64, 1000, defaults.sample_count, step=32, key=f"pt_samples_{preset_key}")
@@ -2316,8 +2781,11 @@ def main(
                 key=f"pt_training_mode_{preset_key}",
                 help="Use full run for deterministic evidence, or live mode to watch training advance tick by tick.",
             )
+            if instant_run_requested:
+                training_mode = "Full run"
             live_mode = training_mode == LIVE_TRAINING_MODE_LABEL
-            train_requested = st.button("Train / refresh", type="primary", width="stretch", disabled=live_mode)
+            refresh_requested = st.button("Train / refresh", width="stretch", disabled=live_mode)
+            train_requested = refresh_requested or instant_run_requested
             live_epochs_per_tick = 5
             live_reset_requested = False
             live_step_requested = False
@@ -2443,6 +2911,12 @@ def main(
         st.warning("Controls changed. The visible charts and evidence still show the last trained run.")
 
     _render_summary(trained_config, result, compact=compact)
+    _render_instant_boundary_panel(
+        trained_config,
+        result,
+        pending_changes=pending_changes,
+        preset_label=trained_preset,
+    )
     if not compact:
         _render_teaching_tour(trained_preset, trained_config)
         _render_guided_flow(pending_changes=pending_changes, result_status=str(result.get("status", "")))
@@ -2466,7 +2940,7 @@ def main(
         )
         left, right = st.columns([2, 1])
         with left:
-            visible_grid = _boundary_snapshot_grid(result, result["grid"])
+            visible_grid = _boundary_snapshot_grid(result, result["grid"], key="pt_boundary_lab_epoch")
             st.plotly_chart(
                 _decision_figure(result["samples"], visible_grid, trained_config.grid_size),
                 width="stretch",

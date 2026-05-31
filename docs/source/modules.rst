@@ -9,7 +9,7 @@ second parallel tree.
 
 - ``agi_core`` currently exposes a deliberately thin top-level Python surface, so
   its architecture page is the authoritative reference.
-- ``agi_env``, ``agi_gui``, ``agi_node``, ``agi-distributor``, and ``agilab``
+- ``agi_env``, ``agi_gui``, ``agi_web``, ``agi_node``, ``agi-distributor``, and ``agilab``
   below are the canonical API pages for the main framework packages and entry
   points.
 
@@ -21,6 +21,8 @@ Canonical pages
 - :doc:`agi-env` for ``AgiEnv`` and the environment/configuration helpers.
 - :doc:`agi-gui` for the Streamlit page helper package under
   ``src/agilab/lib/agi-gui``.
+- :doc:`agi-web` for portable, evidence-backed web component payloads under
+  ``src/agilab/lib/agi-web``.
 - :doc:`agi-node` for ``BaseWorker`` and the concrete worker implementations.
 - :doc:`agi-distributor` for the orchestration layer implemented under
   ``agi_cluster.agi_distributor``.

@@ -191,6 +191,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "ui-browser-error-robot",
             "ui-above-fold-robot",
             "ui-visual-baseline-robot",
+            "agi-web-visual",
+            "agi-web-cross-browser",
             "ui-trend-robot",
             "ui-cross-browser-robot",
             "hf-install-robot",
@@ -320,6 +322,8 @@ def _profile_descriptions() -> dict[str, str]:
         "ui-browser-error-robot": "Run the opt-in console, pageerror, requestfailed, and HTTP error widget robot scenario.",
         "ui-above-fold-robot": "Run the opt-in above-the-fold primary-target widget robot scenario.",
         "ui-visual-baseline-robot": "Capture masked UI screenshots and compare them with screenshot baselines.",
+        "agi-web-visual": "Render the agi-web WebGL fixture in Chromium and capture visual-regression evidence.",
+        "agi-web-cross-browser": "Render the agi-web fixture in Chromium, Firefox, and WebKit with Canvas fallback allowed.",
         "ui-trend-robot": "Summarize widget robot NDJSON progress logs for failures, flakes, and slow pages.",
         "ui-cross-browser-robot": "Run the opt-in Firefox and WebKit widget robot smoke scenarios.",
         "hf-install-robot": "Run the hosted Hugging Face first-proof INSTALL action robot.",
@@ -360,6 +364,8 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "ui-browser-error-robot": _ui_browser_error_robot_profile(),
         "ui-above-fold-robot": _ui_above_fold_robot_profile(),
         "ui-visual-baseline-robot": _ui_visual_baseline_robot_profile(),
+        "agi-web-visual": _agi_web_visual_profile(),
+        "agi-web-cross-browser": _agi_web_cross_browser_profile(),
         "ui-trend-robot": _ui_trend_robot_profile(),
         "ui-cross-browser-robot": _ui_cross_browser_robot_profile(),
         "hf-install-robot": _hf_install_robot_profile(),
@@ -381,6 +387,8 @@ UI_ROBOT_PROFILE_ORDER = (
     "ui-browser-error-robot",
     "ui-above-fold-robot",
     "ui-visual-baseline-robot",
+    "agi-web-visual",
+    "agi-web-cross-browser",
     "ui-trend-robot",
     "ui-cross-browser-robot",
     "hf-install-robot",
@@ -415,6 +423,11 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
             )
         if lower.startswith(("tools/agilab_web_robot.py", "test/test_agilab_web_robot.py")):
             profiles.add("ui-frontend-smoke")
+        if (
+            lower.startswith(("tools/agi_web_visual_regression.py", "test/test_agi_web_visual_regression.py"))
+            or lower.startswith("src/agilab/lib/agi-web/")
+        ):
+            profiles.add("agi-web-visual")
         if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
             profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
         if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):
@@ -1954,6 +1967,96 @@ def _ui_visual_baseline_robot_profile() -> list[CommandSpec]:
     ]
 
 
+def _agi_web_visual_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-web WebGL visual regression",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "--with",
+                "pillow",
+                "python",
+                "tools/agi_web_visual_regression.py",
+                "--browser",
+                "chromium",
+                "--output-dir",
+                "test-results/agi-web-visual-regression",
+                "--screenshot-dir",
+                "screenshots/agi-web-visual-regression",
+                "--baseline",
+                "docs/source/_static/agi-web-visual-baseline",
+                "--max-render-ms",
+                "2500",
+                "--max-diff-ratio",
+                "0.08",
+                "--report-output",
+                "test-results/agi-web-visual-regression/report.json",
+                "--json",
+            ],
+            timeout_seconds=5 * 60,
+            remove_paths=["test-results/agi-web-visual-regression", "screenshots/agi-web-visual-regression"],
+        ),
+    ]
+
+
+def _agi_web_cross_browser_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-web cross-browser playwright browsers",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "-m",
+                "playwright",
+                "install",
+                "chromium",
+                "firefox",
+                "webkit",
+            ],
+            timeout_seconds=10 * 60,
+            remove_paths=["test-results/agi-web-cross-browser", "screenshots/agi-web-cross-browser"],
+        ),
+        CommandSpec(
+            label="agi-web cross-browser visual smoke",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "--with",
+                "pillow",
+                "python",
+                "tools/agi_web_visual_regression.py",
+                "--browser",
+                "all",
+                "--allow-canvas-fallback",
+                "--output-dir",
+                "test-results/agi-web-cross-browser",
+                "--screenshot-dir",
+                "screenshots/agi-web-cross-browser",
+                "--max-render-ms",
+                "4000",
+                "--report-output",
+                "test-results/agi-web-cross-browser/report.json",
+                "--json",
+            ],
+            timeout_seconds=10 * 60,
+        ),
+    ]
+
+
 def _ui_trend_robot_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -2208,6 +2311,8 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "ui-browser-error-robot",
         "ui-above-fold-robot",
         "ui-visual-baseline-robot",
+        "agi-web-visual",
+        "agi-web-cross-browser",
         "ui-trend-robot",
         "ui-cross-browser-robot",
         "hf-install-robot",

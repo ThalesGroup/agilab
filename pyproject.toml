@@ -61,7 +61,7 @@ agilab-mcp = "agilab_mcp.server:main"
 [project.optional-dependencies]
 ai = ["openai>=2.32.0,<3"]
 core = ["agi-core==2026.05.31"]
-ui = ["agi-apps==2026.05.31", "agi-pages==2026.05.31", "agi-gui==2026.05.31", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "streamlit>=1.56,<1.57", "tomli_w>=1.2.0,<2"]
+ui = ["agi-apps==2026.05.31", "agi-pages==2026.05.31", "agi-gui==2026.05.31", "agi-web==2026.05.31", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "streamlit>=1.56,<1.57", "tomli_w>=1.2.0,<2"]
 viz = ["matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7"]
 mlflow = ["mlflow>=3.11.1,<4", "idna>=3.15,<4", "starlette>=1.0.1,<2"]
 bridges = ["duckdb>=1.4.0,<2"]
@@ -318,6 +318,10 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/lib/agi-gui"
     editable = true
 
+[tool.uv.sources.agi-web]
+    path = "./src/agilab/lib/agi-web"
+    editable = true
+
 [tool.uv.sources.agi-page-simplex-map]
     path = "./src/agilab/apps-pages/view_barycentric"
     editable = true
@@ -506,6 +510,7 @@ testpaths = [
   "src/agilab/core/test",
   "src/agilab/core/agi-env/test",
   "src/agilab/lib/agi-gui/test",
+  "src/agilab/lib/agi-web/test",
 ]
 
 # Make the core packages importable when running pytest from the repo root
@@ -513,6 +518,7 @@ pythonpath = [
   "src",
   "src/agilab/core/agi-env/src",
   "src/agilab/lib/agi-gui/src",
+  "src/agilab/lib/agi-web/src",
   "src/agilab/core/agi-node/src",
   "src/agilab/core/agi-cluster/src",
 ]
@@ -535,13 +541,13 @@ filterwarnings = [
 
 addopts = [
   "--import-mode=importlib",
-  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_gui", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_gui", "--cov=agi_web", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
   "--cov-report=term-missing:skip-covered"
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["agilab", "agi_core", "agi_env", "agi_gui", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
+source = ["agilab", "agi_core", "agi_env", "agi_gui", "agi_web", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
 disable_warnings = ["module-not-imported"]
 
 [tool.coverage.report]

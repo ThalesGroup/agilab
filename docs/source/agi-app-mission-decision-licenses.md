@@ -19,10 +19,10 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-cluster | 2026.5.30 | BSD-3-Clause |
-| agi-core | 2026.5.30 | BSD-3-Clause |
-| agi-env | 2026.5.30 | BSD-3-Clause |
-| agi-node | 2026.5.30 | BSD-3-Clause |
+| agi-cluster | 2026.5.31 | BSD-3-Clause |
+| agi-core | 2026.5.31 | BSD-3-Clause |
+| agi-env | 2026.5.31 | BSD-3-Clause |
+| agi-node | 2026.5.31 | BSD-3-Clause |
 | altair | 6.1.0 | BSD LICENSE |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |

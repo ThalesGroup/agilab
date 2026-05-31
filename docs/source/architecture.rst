@@ -39,7 +39,7 @@ monorepo:
      - Product entry points, runtime APIs, environment resolution, worker
        packaging, and local/distributed execution.
      - ``src/agilab/core/*``, ``src/agilab/lib/agi-gui``,
-       ``src/agilab/pages``
+       ``src/agilab/lib/agi-web``, ``src/agilab/pages``
    * - Payload plane
      - Apps, page bundles, templates, notebooks, examples, and PyPI payload
        umbrellas.

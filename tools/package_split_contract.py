@@ -87,6 +87,13 @@ PACKAGE_CONTRACTS: tuple[PackageContract, ...] = (
         dist="src/agilab/lib/agi-gui/dist",
         pypi_environment="pypi-agi-gui",
     ),
+    PackageContract(
+        name="agi-web",
+        role="ui-component",
+        project="src/agilab/lib/agi-web",
+        dist="src/agilab/lib/agi-web/dist",
+        pypi_environment="pypi-agi-web",
+    ),
     *(
         PackageContract(
             name=name,
@@ -199,7 +206,7 @@ EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES: tuple[str, ...] = tuple(
 ROOT_EXTRA_INTERNAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "dependencies": (),
     "core": ("agi-core",),
-    "ui": ("agi-apps", "agi-pages", "agi-gui"),
+    "ui": ("agi-apps", "agi-pages", "agi-gui", "agi-web"),
     "examples": ("agi-apps",),
     "pages": ("agi-pages",),
 }

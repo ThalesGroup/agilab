@@ -19,12 +19,17 @@ artifact.
 - How Streamlit controls map to persisted ORCHESTRATE arguments.
 - How an app-owned ANALYSIS surface can show training curves, learning snapshots,
   neuron views, regularization effects, and loss landscape evidence.
+- How the boundary-first panel uses a WebGL-first `agi-web` island with
+  Canvas2D fallback for a fluid decision surface, local epoch scrubber,
+  clickable timeline, keyboard replay, confidence HUD, glowing uncertainty
+  contour, and hover probability readout, while the Plotly tabs remain
+  available for detailed evidence inspection.
 - How the `[app_surface]` contract separates the app runtime/evidence files
   from the UI backend, so the same project can open locally or through a hosted
   surface.
 - How live play/pause training differs from a deterministic full evidence run:
-  live mode mutates one in-session model, while `Train / refresh` rebuilds the
-  full reproducible artifact.
+  live mode mutates one in-session model, while `Run instant demo` and
+  `Train / refresh` rebuild the full reproducible artifact.
 - How generated samples, history, grids, network metadata, and manifests become
   a deterministic evidence ZIP.
 - How to reuse the trained experiment outside AGILAB through generated plain
@@ -37,8 +42,8 @@ artifact.
 
 ## Direct Launch
 
-Use the app-managed environment so PyTorch, Plotly, and Streamlit are installed
-in the right place:
+Use the app-managed environment so PyTorch, `agi-web`, Plotly, and Streamlit
+are installed in the right place:
 
 ```bash
 agilab app surface pytorch_playground_project --list
@@ -61,18 +66,22 @@ maintain a different Hugging Face Space.
 
 1. Select `pytorch_playground_project` in `PROJECT`.
 2. Open `ANALYSIS` for the interactive playground surface.
-3. Use the default clean-circles preset and either press `Train / refresh` for
-   a full evidence run or switch `Training mode` to `Live play/pause`.
-4. In live mode, press `Play`, `Pause`, or `Step` to watch the boundary and
+3. Keep the default clean-circles preset and press `Run instant demo` to see
+   the decision boundary first.
+4. Scrub or play the learning replay in the canvas panel to see how the surface
+   formed.
+5. Use the lesson cards in the boundary-first panel to try XOR, spiral, or
+   gaussian variants without hunting through advanced controls.
+6. In live mode, press `Play`, `Pause`, or `Step` to watch the boundary and
    curves advance by bounded epoch ticks.
-5. Open `Boundary lab` and change the `Boundary epoch` selector to see how the
-   decision surface formed during training.
-6. Open `Neuron lens` to read the network map, then change features, hidden
+7. Use the boundary panel or `Boundary lab` to change the `Boundary epoch`
+   selector and see how the decision surface formed during training.
+8. Open `Neuron lens` to read the network map, then change features, hidden
    layers, or regularization and refresh evidence again.
-7. Use the `Beyond a classic neural playground` teaching route to switch
+9. Use the `Beyond a classic neural playground` teaching route to switch
    between first-run circles, XOR feature engineering, spiral capacity, and
    gaussian sanity-check lessons.
-8. Open `ORCHESTRATE` when you want the reproducible install/run path.
+10. Open `ORCHESTRATE` when you want the reproducible install/run path.
 
 ## Expected Inputs
 

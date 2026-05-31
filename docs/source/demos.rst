@@ -122,11 +122,11 @@ The static scenario contract is available as JSON:
 
      agilab app surface pytorch_playground_project --ui streamlit
 
-  Stop when the ``Beyond a classic neural playground`` cards are visible, train
-  ``Instant wow: clean circles``, open the XOR lesson config, and download the
-  evidence ZIP. The useful proof is not the visual boundary alone; it is the
-  replay token, manifest, generated PyTorch/Lightning snippets, and boundary
-  snapshots attached to that lesson.
+  Stop when the boundary-first panel is visible, press ``Run instant demo`` for
+  ``Instant wow: clean circles``, read the start/now replay, try the XOR lesson
+  card, and download the evidence ZIP. The useful proof is not the visual
+  boundary alone; it is the replay token, manifest, generated
+  PyTorch/Lightning snippets, and boundary snapshots attached to that lesson.
 
 **SQLite database proof**
   Use the packaged ``sqlite_connector_proof`` preview when the demo objective is

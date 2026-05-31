@@ -17,7 +17,7 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-env | 2026.5.30 | BSD-3-Clause |
+| agi-env | 2026.5.31 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | backports-zstd | 1.3.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |

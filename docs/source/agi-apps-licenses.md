@@ -17,20 +17,20 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-app-flight-telemetry | 2026.5.30 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.30 | BSD-3-Clause |
-| agi-app-multi-dag | 2026.5.30 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.30 | BSD-3-Clause |
-| agi-app-pytorch-playground | 2026.5.30 | BSD-3-Clause |
-| agi-app-sklearn-pipeline | 2026.5.30 | BSD-3-Clause |
-| agi-app-tescia-diagnostic | 2026.5.30 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.30 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.30 | BSD-3-Clause |
-| agi-cluster | 2026.5.30 | BSD-3-Clause |
-| agi-core | 2026.5.30 | BSD-3-Clause |
-| agi-env | 2026.5.30 | BSD-3-Clause |
-| agi-node | 2026.5.30 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.31 | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.31 | BSD-3-Clause |
+| agi-app-multi-dag | 2026.5.31 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.31 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.31 | BSD-3-Clause |
+| agi-app-pytorch-playground | 2026.5.31 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | 2026.5.31 | BSD-3-Clause |
+| agi-app-tescia-diagnostic | 2026.5.31 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.31 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.31 | BSD-3-Clause |
+| agi-cluster | 2026.5.31 | BSD-3-Clause |
+| agi-core | 2026.5.31 | BSD-3-Clause |
+| agi-env | 2026.5.31 | BSD-3-Clause |
+| agi-node | 2026.5.31 | BSD-3-Clause |
 | annotated-types | 0.7.0 | MIT LICENSE |
 | asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
 | backports-zstd | 1.3.0 | PSF-2.0 |

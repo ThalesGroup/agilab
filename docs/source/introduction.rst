@@ -34,6 +34,7 @@ Shared components include:
 
 - ``agi-env`` for headless environment setup
 - ``agi-gui`` for the Streamlit UI dependency bundle and page helpers
+- ``agi-web`` for portable, evidence-backed rich web component payloads
 - ``agi-node`` for worker/runtime packaging
 - ``agi-cluster`` for local and distributed execution
 

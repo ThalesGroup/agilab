@@ -18,7 +18,13 @@ handed to another engineer.
 Use it when you need:
 
 - live play/pause boundary learning and a deterministic ``Train / refresh``
-  evidence path in the same UI;
+  evidence path in the same UI, with ``Run instant demo`` as the one-click
+  boundary-first route;
+- a boundary-first panel that uses a WebGL-first ``agi-web`` island with
+  Canvas2D fallback for fluid decision-surface interaction, local epoch
+  scrubbing, play/pause replay, and hover probability readouts, plus a
+  confidence HUD, clickable replay timeline, keyboard scrubbing, and glowing
+  uncertainty contour while keeping Plotly detail tabs for evidence inspection;
 - preset lessons for circles, XOR feature engineering, spiral capacity, and a
   gaussian sanity check;
 - boundary snapshots, training curves, hidden-neuron activation maps, network
@@ -62,11 +68,11 @@ One-Minute Demo Route
 
 Then:
 
-1. Keep ``Instant wow: clean circles`` and press ``Train / refresh``.
-2. Switch ``Training mode`` to ``Live play/pause`` and use ``Step`` or
+1. Keep ``Instant wow: clean circles`` and press ``Run instant demo``.
+2. Scrub or play the boundary replay, hover the surface, then try the XOR
+   lesson card.
+3. Switch ``Training mode`` to ``Live play/pause`` and use ``Step`` or
    ``Play`` to watch the boundary form.
-3. Open the ``Beyond a classic neural playground`` teaching route and choose
-   ``Feature puzzle: XOR``.
 4. Remove then restore ``x1_x2`` in ``Features`` to show why nonlinear features
    matter.
 5. Download the evidence pack and copy the replay token from ``Evidence pack``.

@@ -9,6 +9,7 @@ dependencies = [
     "agi-node>=2026.05.30.post1",
     "agi-cluster>=2026.05.30.post1",
     "agi-gui>=2026.05.30.post1",
+    "agi-web>=2026.05.31",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
     "plotly>=6.3.0,<7",

@@ -61,11 +61,15 @@ custom Hugging Face Space.
 Select `pytorch_playground_project`, then open `ANALYSIS` for the app-owned
 PyTorch Playground surface. That surface places persisted ORCHESTRATE
 arguments next to the decision boundary, training curves, neuron/loss views,
-evidence download, a deterministic `Train / refresh` path, and a live
-play/pause mode for watching bounded epoch ticks without leaving ANALYSIS. The
-surface also includes a teaching route that opens replayable lesson
-configurations for circles, XOR feature engineering, spiral capacity, and a
-gaussian sanity check.
+evidence download, a one-click `Run instant demo` path, a deterministic
+`Train / refresh` path, and a live play/pause mode for watching bounded epoch
+ticks without leaving ANALYSIS. The boundary-first panel shows the final
+surface through a WebGL-first `agi-web` island with Canvas2D fallback, local
+epoch scrubbing, play/pause replay, clickable timeline, keyboard controls,
+confidence HUD, glowing uncertainty contour, and hover probability readouts,
+with Plotly detail tabs kept for evidence inspection and lesson cards for
+replayable circles, XOR feature engineering, spiral capacity, and gaussian
+sanity-check variants.
 
 Open `ORCHESTRATE` when you want the reproducible AGILAB execution path: tune
 the sidebar fields, then run `INSTALL` and `RUN`. Enable loss-landscape

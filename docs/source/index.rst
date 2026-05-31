@@ -105,6 +105,7 @@ references, and example projects.
    WORKFLOW page <experiment-help>
    ANALYSIS page <explore-help>
    Page bundles <apps-pages>
+   Portable web components <agi-web>
 
 .. toctree::
    :maxdepth: 2

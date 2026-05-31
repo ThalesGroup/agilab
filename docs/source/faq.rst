@@ -188,6 +188,7 @@ AGILAB separates three concerns:
 
 - the root ``agilab`` package exposes the top-level CLI and curated extras
 - ``agi-apps`` and ``agi-pages`` expose catalog/provider surfaces
+- ``agi-web`` exposes portable rich web component payload contracts
 - ``agi-app-*`` and ``agi-page-*`` payload packages carry individual apps or
   reusable analysis page bundles
 
@@ -207,8 +208,8 @@ Do app and page versions always match the AGILAB version?
 No. Runtime components, bundle packages, and payload packages have different
 versioning responsibilities:
 
-- runtime components such as ``agi-env``, ``agi-node``, ``agi-cluster``, and
-  ``agi-gui`` version the implementation they carry
+- runtime components such as ``agi-env``, ``agi-node``, ``agi-cluster``,
+  ``agi-gui``, and ``agi-web`` version the implementation they carry
 - bundle packages such as ``agilab``, ``agi-core``, ``agi-apps``, and
   ``agi-pages`` version the curated dependency graph they expose
 - app and page payload packages version the payload they carry

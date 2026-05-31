@@ -186,6 +186,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_browser_error_robot = profiles["ui-browser-error-robot"][0]
     ui_above_fold_robot = profiles["ui-above-fold-robot"][0]
     ui_visual_baseline_robot = profiles["ui-visual-baseline-robot"]
+    agi_web_visual = profiles["agi-web-visual"][0]
+    agi_web_cross_browser = profiles["agi-web-cross-browser"]
     ui_trend_robot = profiles["ui-trend-robot"][0]
     ui_cross_browser_robot = profiles["ui-cross-browser-robot"]
     hf_install_robot = profiles["hf-install-robot"][0]
@@ -565,6 +567,29 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "--advisory" in ui_visual_baseline_robot[1].argv
     assert _has_with_dependency(ui_visual_baseline_robot[0].argv, "playwright")
     assert _has_with_dependency(ui_visual_baseline_robot[1].argv, "pillow")
+    assert agi_web_visual.label == "agi-web WebGL visual regression"
+    assert "tools/agi_web_visual_regression.py" in agi_web_visual.argv
+    assert agi_web_visual.argv[agi_web_visual.argv.index("--browser") + 1] == "chromium"
+    assert "screenshots/agi-web-visual-regression" in agi_web_visual.argv
+    assert "docs/source/_static/agi-web-visual-baseline" in agi_web_visual.argv
+    assert agi_web_visual.argv[agi_web_visual.argv.index("--max-render-ms") + 1] == "2500"
+    assert agi_web_visual.argv[agi_web_visual.argv.index("--max-diff-ratio") + 1] == "0.08"
+    assert _has_with_dependency(agi_web_visual.argv, "playwright")
+    assert _has_with_dependency(agi_web_visual.argv, "pillow")
+    assert [command.label for command in agi_web_cross_browser] == [
+        "agi-web cross-browser playwright browsers",
+        "agi-web cross-browser visual smoke",
+    ]
+    assert agi_web_cross_browser[0].remove_paths == [
+        "test-results/agi-web-cross-browser",
+        "screenshots/agi-web-cross-browser",
+    ]
+    assert agi_web_cross_browser[0].argv[-4:] == ["install", "chromium", "firefox", "webkit"]
+    assert agi_web_cross_browser[1].argv[agi_web_cross_browser[1].argv.index("--browser") + 1] == "all"
+    assert "--allow-canvas-fallback" in agi_web_cross_browser[1].argv
+    assert agi_web_cross_browser[1].argv[agi_web_cross_browser[1].argv.index("--max-render-ms") + 1] == "4000"
+    assert all(_has_with_dependency(command.argv, "playwright") for command in agi_web_cross_browser)
+    assert _has_with_dependency(agi_web_cross_browser[1].argv, "pillow")
     assert ui_trend_robot.label == "ui robot trend report"
     assert "tools/ui_robot_trend_report.py" in ui_trend_robot.argv
     assert "test-results/ui-robot-trend-report.json" in ui_trend_robot.argv
@@ -870,6 +895,8 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "ui-browser-error-robot" not in selected
     assert "ui-above-fold-robot" not in selected
     assert "ui-visual-baseline-robot" not in selected
+    assert "agi-web-visual" not in selected
+    assert "agi-web-cross-browser" not in selected
     assert "ui-trend-robot" not in selected
     assert "ui-cross-browser-robot" not in selected
     assert "hf-install-robot" not in selected
@@ -941,6 +968,12 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
     ]
     assert module.select_ui_robot_profiles_for_files(["tools/agilab_web_robot.py"]) == [
         "ui-frontend-smoke",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["src/agilab/lib/agi-web/src/agi_web/component.py"]) == [
+        "agi-web-visual",
+    ]
+    assert module.select_ui_robot_profiles_for_files(["tools/agi_web_visual_regression.py"]) == [
+        "agi-web-visual",
     ]
     assert module.select_ui_robot_profiles_for_files(["pyproject.toml"]) == [
         "ui-frontend-smoke",

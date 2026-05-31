@@ -95,6 +95,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "removes an installed external app package only after explicit user confirmation",
     ),
+    "Run instant demo": (
+        "trial-only",
+        "runs page-local PyTorch training; focused playground tests cover state and evidence without making generic robots train",
+    ),
     "Save .env": (
         "ignored",
         "writes local environment configuration and is covered by env-editor helper tests",

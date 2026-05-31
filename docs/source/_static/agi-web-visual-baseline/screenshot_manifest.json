@@ -1,0 +1,38 @@
+{
+  "created_at": "2026-05-31T15:29:06Z",
+  "kind": "agilab.screenshot_manifest",
+  "root": "docs/source/_static/agi-web-visual-baseline",
+  "schema": "agilab.screenshot_manifest.v1",
+  "schema_version": 1,
+  "screenshots": [
+    {
+      "alt": "AGI Web WebGL deterministic visual regression fixture in Chromium",
+      "app": "agi-web",
+      "created_at": "2026-05-31T15:29:06Z",
+      "height_px": 620,
+      "image_path": "agi-web-webgl-chromium.png",
+      "page": "agi-web-webgl-chromium",
+      "project": "agi-web-visual-regression",
+      "sha256": "9345368eb3de9df8157ab17e4e932066b03e556d393a04b1476ba6fb682575fa",
+      "size_bytes": 254821,
+      "source_command": [
+        "python",
+        "tools/agi_web_visual_regression.py",
+        "--browser",
+        "chromium",
+        "--max-render-ms",
+        "2500"
+      ],
+      "url": "",
+      "width_px": 960
+    }
+  ],
+  "source_command": [
+    "python",
+    "tools/agi_web_visual_regression.py",
+    "--browser",
+    "chromium",
+    "--max-render-ms",
+    "2500"
+  ]
+}

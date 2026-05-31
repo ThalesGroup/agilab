@@ -50,6 +50,9 @@ while maintainers can prove the matching payload and evidence contracts.
    * - `agi-gui on PyPI <https://pypi.org/project/agi-gui/>`_
      - Streamlit page and widget helpers.
      - Pulled by ``agilab[ui]``.
+   * - `agi-web on PyPI <https://pypi.org/project/agi-web/>`_
+     - Portable web component contracts for rich UI islands.
+     - Pulled by ``agilab[ui]``.
    * - `agi-pages on PyPI <https://pypi.org/project/agi-pages/>`_
      - Umbrella for public analysis page bundles.
      - Pulled by ``agilab[pages]``.

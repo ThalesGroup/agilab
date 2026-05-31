@@ -84,10 +84,10 @@ published package::
    agilab
 
 The ``ui`` extra installs ``agi-apps`` and its per-app project packages for
-public built-in projects, plus ``agi-pages`` for packaged ANALYSIS page
-bundles. A base ``agilab`` install stays command-shell only; install
-``agilab[core]`` when you only need ``agilab dry-run`` and the lightweight
-import/runtime smoke.
+public built-in projects, ``agi-pages`` for packaged ANALYSIS page bundles, and
+``agi-web`` for portable rich UI islands. A base ``agilab`` install stays
+command-shell only; install ``agilab[core]`` when you only need ``agilab
+dry-run`` and the lightweight import/runtime smoke.
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
