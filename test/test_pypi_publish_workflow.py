@@ -140,6 +140,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "release-plan:" in text
     assert "Render release package plan" in text
     assert "tools/release_plan.py" in text
+    assert "fetch-depth: 0" in text
+    assert "fetch-tags: true" in text
     assert "library_matrix: ${{ steps.release-plan.outputs.library_matrix }}" in text
     assert "library_selected: ${{ steps.release-plan.outputs.library_selected }}" in text
     assert "umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}" in text
