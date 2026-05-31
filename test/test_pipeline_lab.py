@@ -1046,6 +1046,9 @@ def test_render_workflow_run_evidence_displays_latest_manifest(monkeypatch, tmp_
     assert any(kind == "caption" and message.startswith("Manifest: `") for kind, message in fake_st.messages)
     assert any(kind == "caption" and message.startswith("Ledger: `") for kind, message in fake_st.messages)
     assert any(kind == "caption" and message.startswith("Evidence graph: `") for kind, message in fake_st.messages)
+    assert any(kind == "metric" and message.startswith("Nodes=") for kind, message in fake_st.messages)
+    assert ("metric", "Graph=valid") in fake_st.messages
+    assert any(kind == "markdown" and message == "**Nodes**" for kind, message in fake_st.messages)
 
 
 def test_render_workflow_run_evidence_handles_missing_pointer(monkeypatch, tmp_path):
@@ -2477,6 +2480,14 @@ def test_workflow_status_run_log_and_dot_helpers_cover_edge_branches(monkeypatch
     unreadable_evidence = pipeline_lab._latest_workflow_evidence_summary(state_path)
     assert unreadable_evidence["available"] is False
     assert unreadable_evidence["status_label"] == "unreadable"
+    missing_graph = pipeline_lab._workflow_evidence_graph_details(tmp_path / "missing_graph.json")
+    assert missing_graph["available"] is False
+    assert missing_graph["status"] == "missing"
+    bad_graph_path = tmp_path / "bad_graph.json"
+    bad_graph_path.write_text("[]", encoding="utf-8")
+    bad_graph = pipeline_lab._workflow_evidence_graph_details(bad_graph_path)
+    assert bad_graph["available"] is False
+    assert bad_graph["status"] == "unreadable"
     assert pipeline_lab._enabled_workflow_control_labels({"controls": "bad"}) == ()
     assert pipeline_lab._enabled_workflow_control_labels(
         {"controls": [{"label": "Run next stage", "enabled": True}, {"label": "Hidden", "enabled": False}, "bad"]}

@@ -263,6 +263,27 @@ def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
     assert captured == [["--dry-run", "--max-seconds", "45"]]
 
 
+def test_main_dispatches_workflow_validation_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_workflow(argv: list[str]) -> int:
+        captured.append(argv)
+        return 45
+
+    monkeypatch.setattr(lab_run, "_run_workflow", fake_workflow)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["workflow", "validate", "lab_stages.toml", "--dry-run"])
+
+    assert rc == 45
+    assert captured == [["validate", "lab_stages.toml", "--dry-run"]]
+
+
 def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []

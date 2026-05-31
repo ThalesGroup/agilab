@@ -194,6 +194,12 @@ current public evaluation snapshot.
   configurable UI surface instead of hard-coded script parameters
 - ``lab_stages.toml`` and notebook import/export support let teams move between
   notebook exploration and reproducible pipeline snippets
+- ``agilab workflow validate <lab_stages.toml> --dry-run --json`` adds a
+  static contract gate for AGILAB workflows; it emits
+  ``agilab.workflow_dry_run_report.v1`` with stage ids, dependency edges,
+  artifact-flow edges, external inputs, app-reference checks, runtime-role
+  hints, Python syntax checks, and risky-call warnings without executing
+  notebook or stage code
 - the notebook-to-pipeline import report validates that bridge with
   ``tools/notebook_pipeline_import_report.py --compact``; it reads a checked-in
   ``.ipynb``, preserves markdown context and code cells, extracts import hints
@@ -358,6 +364,10 @@ current public evaluation snapshot.
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
   run-manifest deltas, and artifact rows, then emits counterfactual prompts for
   material changes without executing commands or network probes
+- the WORKFLOW evidence panel opens the recorded ``evidence_graph.json`` as a
+  reviewer-visible graph inspection surface; operators can see node/edge counts
+  plus stage, artifact, validation, control, and evidence-artifact rows directly
+  from the latest workflow evidence bundle
 - the CI artifact harvest report validates
   ``tools/ci_artifact_harvest_report.py --compact`` in
   ``ci_artifact_contract_only`` mode; it maps external-machine

@@ -206,6 +206,15 @@ load_workflow_run_manifest = _workflow_run_manifest_module.load_workflow_run_man
 workflow_manifest_summary = _workflow_run_manifest_module.workflow_manifest_summary
 write_workflow_run_evidence = _workflow_run_manifest_module.write_workflow_run_evidence
 
+_evidence_graph_module = import_agilab_module(
+    "agilab.evidence_graph",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "evidence_graph.py",
+    fallback_name="agilab_evidence_graph_fallback",
+)
+evidence_graph_summary = _evidence_graph_module.evidence_graph_summary
+validate_evidence_graph = _evidence_graph_module.validate_evidence_graph
+
 _multi_app_dag_module = import_agilab_module(
     "agilab.multi_app_dag",
     current_file=__file__,
@@ -1667,6 +1676,88 @@ def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
     }
 
 
+def _workflow_evidence_graph_details(graph_path: str | Path) -> dict[str, Any]:
+    path = Path(str(graph_path or "")).expanduser()
+    if not str(graph_path or "").strip():
+        return {"available": False, "status": "missing", "message": "No evidence graph path is recorded."}
+    if not path.is_file():
+        return {
+            "available": False,
+            "status": "missing",
+            "message": f"Evidence graph file does not exist: {path}",
+            "path": str(path),
+        }
+    try:
+        graph = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(graph, Mapping):
+            raise ValueError("evidence graph must be a JSON object")
+        issues = tuple(validate_evidence_graph(graph))
+    except Exception as exc:
+        return {
+            "available": False,
+            "status": "unreadable",
+            "message": f"Evidence graph could not be read: {exc}",
+            "path": str(path),
+        }
+    summary = graph.get("summary", {})
+    summary = summary if isinstance(summary, Mapping) else evidence_graph_summary(graph)
+    nodes = [node for node in graph.get("nodes", []) if isinstance(node, Mapping)]
+    edges = [edge for edge in graph.get("edges", []) if isinstance(edge, Mapping)]
+    node_rows = [
+        {
+            "id": str(node.get("id", "") or ""),
+            "kind": str(node.get("kind", "") or ""),
+            "label": str(node.get("label", "") or ""),
+            "properties": json.dumps(node.get("properties", {}) or {}, sort_keys=True),
+        }
+        for node in nodes
+    ]
+    edge_rows = [
+        {
+            "source": str(edge.get("source", "") or ""),
+            "kind": str(edge.get("kind", "") or ""),
+            "target": str(edge.get("target", "") or ""),
+        }
+        for edge in edges
+    ]
+    return {
+        "available": True,
+        "status": "invalid" if issues else "valid",
+        "message": "Evidence graph is valid." if not issues else "Evidence graph has validation issues.",
+        "path": str(path),
+        "issues": list(issues),
+        "node_count": int(summary.get("node_count", len(node_rows)) or 0),
+        "edge_count": int(summary.get("edge_count", len(edge_rows)) or 0),
+        "node_kinds": dict(summary.get("node_kinds", {}) or {}),
+        "edge_kinds": dict(summary.get("edge_kinds", {}) or {}),
+        "node_rows": node_rows,
+        "edge_rows": edge_rows,
+    }
+
+
+def _render_workflow_evidence_graph(graph_path: str | Path) -> None:
+    details = _workflow_evidence_graph_details(graph_path)
+    with st.expander("Inspect evidence graph", expanded=False):
+        st.caption(str(details.get("message", "")))
+        if not details.get("available"):
+            return
+        node_col, edge_col, status_col = st.columns(3)
+        node_col.metric("Nodes", int(details.get("node_count", 0) or 0))
+        edge_col.metric("Edges", int(details.get("edge_count", 0) or 0))
+        status_col.metric("Graph", str(details.get("status", "unknown")))
+        issues = details.get("issues", [])
+        if issues:
+            st.warning("; ".join(str(issue) for issue in issues))
+        node_rows = details.get("node_rows", [])
+        if node_rows:
+            st.markdown("**Nodes**")
+            st.dataframe(pd.DataFrame(node_rows), hide_index=True, width="stretch")
+        edge_rows = details.get("edge_rows", [])
+        if edge_rows:
+            st.markdown("**Edges**")
+            st.dataframe(pd.DataFrame(edge_rows), hide_index=True, width="stretch")
+
+
 def _render_workflow_run_evidence(state_path: Path) -> None:
     evidence = _latest_workflow_evidence_summary(state_path)
     st.markdown("**Plan evidence**")
@@ -1696,6 +1787,7 @@ def _render_workflow_run_evidence(state_path: Path) -> None:
         st.caption(f"Ledger: `{ledger_path}`")
     if graph_path:
         st.caption(f"Evidence graph: `{graph_path}`")
+        _render_workflow_evidence_graph(graph_path)
 
 
 def _enabled_workflow_control_labels(runtime_contract: Mapping[str, Any]) -> tuple[str, ...]:

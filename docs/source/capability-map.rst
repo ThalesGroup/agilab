@@ -70,6 +70,13 @@ Job-to-route map
      - ``lab_stages.toml``, import preview, artifacts, analysis views.
      - Live product path
      - Notebook cells are imported without being trusted blindly.
+   * - Validate a workflow before execution
+     - ``agilab workflow validate <lab_stages.toml> --dry-run --json``
+     - ``agilab.workflow_dry_run_report.v1`` with stage, dependency,
+       artifact-flow, role, app-reference, and static code checks.
+     - Contract proof
+     - Static validation catches contract issues; it does not execute stages or
+       prove runtime success.
    * - Keep a durable exit path
      - :doc:`notebook-advanced`
      - Runnable ``agi-core`` supervisor notebook export and export manifest.
@@ -130,9 +137,11 @@ When a run needs review, inspect evidence in this order:
 2. App artifacts and reducer summaries for domain outputs and hashes.
 3. Notebook import/export manifests when the work entered or leaves through a
    notebook.
-4. ``agilab prove`` / ``agilab verify`` output or a ``.agipack`` archive when a
+4. ``agilab workflow validate <lab_stages.toml> --dry-run --json`` when the
+   question is static workflow readiness before execution.
+5. ``agilab prove`` / ``agilab verify`` output or a ``.agipack`` archive when a
    portable proof package is needed.
-5. Release proof, SBOM, ``pip-audit``, and provenance only when the question is
+6. Release proof, SBOM, ``pip-audit``, and provenance only when the question is
    package or release trust.
 
 This is the current Evidence Core operating model: evidence files remain plain

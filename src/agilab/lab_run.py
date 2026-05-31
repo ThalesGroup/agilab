@@ -192,6 +192,12 @@ def _run_evidence_contract(argv: list[str]) -> int:
     return evidence_contract.main(argv)
 
 
+def _run_workflow(argv: list[str]) -> int:
+    from agilab import workflow_validation
+
+    return workflow_validation.main(argv)
+
+
 def _run_env(argv: list[str]) -> int:
     if argv[:1] == ["footprint"]:
         from agilab import env_footprint
@@ -591,6 +597,8 @@ def main(argv: list[str] | None = None) -> int:
     ):
         command = raw_argv[0].replace("_", "-")
         return _run_evidence_contract([command, *raw_argv[1:]])
+    if raw_argv[:1] == ["workflow"]:
+        return _run_workflow(raw_argv[1:])
     if raw_argv[:1] == ["env"]:
         return _run_env(raw_argv[1:])
     if raw_argv[:1] == ["app"]:
