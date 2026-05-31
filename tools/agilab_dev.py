@@ -80,6 +80,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"maintenance", "maintain"}:
         return [_uv_python("tools/maintenance_dashboard.py", *args)]
 
+    if command in {"memory", "maint-memory"}:
+        return [_uv_python("tools/maintenance_memory.py", *args)]
+
     if command == "audit":
         return [_uv_python("tools/agilab_audit.py", *args)]
 
@@ -188,6 +191,7 @@ def _usage() -> str:
   ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
   ./dev [--print-only] maintenance [maintenance_dashboard args]
+  ./dev [--print-only] memory [maintenance_memory args]
   ./dev [--print-only] audit [agilab_audit args]
   ./dev [--print-only] audit-quality [audit_quality_evaluator args|audit.md]
   ./dev [--print-only] audit-preflight
@@ -211,6 +215,7 @@ High-frequency mappings:
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   maintenance -> Report extension contracts, ADRs, docs drift, app/package contracts, evidence docs, release friction, TODO hotspots, generated artifacts, and coverage signals.
+  memory    -> Check path-scoped maintenance memory notes for source drift.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.

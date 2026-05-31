@@ -33,7 +33,8 @@ Use this runbook whenever you:
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
-  drift signals, `docs` for docs mirror sync plus stamp verification, `scope` for
+  drift signals, `memory` for path-scoped maintenance-note drift checks,
+  `docs` for docs mirror sync plus stamp verification, `scope` for
   dirty worktree scope classification, `task-worktree` for clean isolated task
   worktrees, and
   `clean` for stale local build/lib duplicate-source cleanup. `impact` tells you what must be validated, `test` runs the
@@ -53,6 +54,7 @@ Use this runbook whenever you:
   `badge` checks badge freshness when intentionally requested, `maintenance` reports the
   extension contract kit, ADRs, docs drift, app/package contracts, Evidence Core docs,
   release skip-existing behavior, TODO hotspots, generated artifacts, and coverage signal,
+  `memory` checks path-scoped maintenance notes for source drift,
   `docs` keeps the public mirror aligned, `scope` fails fast when unrelated dirty
   scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
   branch, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
@@ -123,6 +125,12 @@ Use this runbook whenever you:
   whether PyPI, GitHub release assets, Hugging Face sync, release proof, or docs updates
   are separate manual steps. If the workflow already performs a step, state the condition
   under which it runs rather than adding a redundant manual step.
+- **Path-scoped maintenance memory**: Some fragile files have durable notes under
+  `maintenance/memory/by-path/` using URL-encoded source paths. When `./dev impact` reports a
+  maintenance-memory check, run it before closing the change and update the note
+  only after the code and validations are current. Use
+  `./dev memory context --files <path>` to read the hidden invariants for a
+  touched file. Treat drifted notes as stale guidance, not current truth.
 - **Optimized PyPI release scope**: Do not bump unchanged AGILAB packages only to keep
   a global version aligned. For partial behavior releases, compute the minimal publish
   set with `tools/release_plan.py --impact-base-ref <previous-tag>` or

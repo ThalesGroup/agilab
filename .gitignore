@@ -97,6 +97,8 @@ distribution.json
 docs/html/
 
 apps/
+!maintenance/
+!maintenance/**
 !tools/run_configs/apps/
 !tools/run_configs/apps/**
 !src/agilab/apps/

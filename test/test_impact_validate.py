@@ -189,6 +189,39 @@ def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
     assert "tools/workflow_parity.py --profile docs" in artifact.commands[0]
 
 
+def test_analyze_paths_adds_maintenance_memory_check_for_covered_source() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(
+        ["src/agilab/pages/4_ANALYSIS.py"],
+        use_cache=False,
+    )
+
+    action = next(
+        item for item in report.required_validations if item.key == "maintenance-memory-check"
+    )
+    assert action.commands == [
+        "uv --preview-features extra-build-dependencies run python tools/maintenance_memory.py check --files "
+        "src/agilab/pages/4_ANALYSIS.py"
+    ]
+
+
+def test_analyze_paths_checks_all_memory_when_memory_note_changes() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(
+        ["maintenance/memory/src/agilab/pages/4_ANALYSIS.py.md"],
+        use_cache=False,
+    )
+
+    artifact = next(
+        item for item in report.artifact_actions if item.key == "maintenance-memory-all"
+    )
+    assert artifact.commands == [
+        "uv --preview-features extra-build-dependencies run python tools/maintenance_memory.py check --all"
+    ]
+
+
 def test_build_test_index_matches_exact_and_prefix_tests(tmp_path: Path) -> None:
     module = _load_module()
     (tmp_path / "test").mkdir()

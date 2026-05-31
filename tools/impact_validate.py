@@ -11,6 +11,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
+from urllib.parse import quote
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,8 @@ RUNCONFIG_PREFIXES = (".idea/runConfigurations/", "tools/run_configs/")
 SKILL_PREFIXES = (".claude/skills/", ".codex/skills/")
 COVERAGE_BADGE_PATH_PREFIXES = ("badges/coverage-",)
 DOCS_PREFIXES = ("docs/source/",)
+MAINTENANCE_MEMORY_PREFIX = "maintenance/memory/"
+MAINTENANCE_MEMORY_ROOT = REPO_ROOT / "maintenance" / "memory" / "by-path"
 GUI_PREFIXES = (
     "src/agilab/apps-pages/",
     "src/agilab/lib/",
@@ -65,6 +68,7 @@ TEST_GUESS_ROOTS = (
 )
 IMPACT_STATIC_INPUTS = (
     "tools/impact_validate.py",
+    "tools/maintenance_memory.py",
 )
 NON_GUI_ROOT_TESTS = {
     "test/conftest.py",
@@ -453,6 +457,41 @@ def _static_input_signature(repo: Path | None = None) -> list[dict[str, object]]
     return [_file_signature(effective_repo, path) for path in IMPACT_STATIC_INPUTS]
 
 
+def _maintenance_memory_note_path(path: str) -> Path:
+    return MAINTENANCE_MEMORY_ROOT / f"{quote(Path(path).as_posix(), safe='')}.md"
+
+
+def _paths_with_maintenance_memory(paths: Sequence[str]) -> list[str]:
+    return [
+        path
+        for path in paths
+        if not path.startswith(MAINTENANCE_MEMORY_PREFIX)
+        and _maintenance_memory_note_path(path).is_file()
+    ]
+
+
+def _maintenance_memory_signature(
+    paths: Sequence[str], *, repo: Path | None = None
+) -> list[dict[str, object]]:
+    effective_repo = repo or REPO_ROOT
+    signatures: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for path in paths:
+        candidates: list[str] = []
+        if path.startswith(MAINTENANCE_MEMORY_PREFIX):
+            candidates.append(path)
+        else:
+            note = _maintenance_memory_note_path(path)
+            if note.exists():
+                candidates.append(note.relative_to(effective_repo).as_posix())
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            signatures.append(_file_signature(effective_repo, candidate))
+            seen.add(candidate)
+    return signatures
+
+
 def _test_index_to_payload(index: TestIndex) -> dict[str, object]:
     return {
         "roots": list(index.roots),
@@ -562,6 +601,7 @@ def _risk_zones(paths: list[str]) -> list[RiskZone]:
         ("installer", "Installer or deployment contract touched.", lambda p: p in SHELL_CHECK_FILES or p == "src/agilab/apps/install.py"),
         ("runconfig", "Run configuration or generated launcher touched.", lambda p: _matches_prefix(p, RUNCONFIG_PREFIXES)),
         ("skills", "Shared agent skill trees touched.", lambda p: _matches_prefix(p, SKILL_PREFIXES)),
+        ("maintenance-memory", "Path-scoped maintenance memory notes touched.", lambda p: p.startswith(MAINTENANCE_MEMORY_PREFIX)),
         (
             "badges",
             "Coverage badge inputs or generated badge artifacts touched.",
@@ -943,6 +983,30 @@ def _analyze_paths_uncached(paths: list[str], test_index: TestIndex) -> ImpactRe
             )
         )
 
+    memory_covered_paths = _paths_with_maintenance_memory(paths)
+    memory_note_paths = [path for path in paths if path.startswith(MAINTENANCE_MEMORY_PREFIX)]
+    if memory_covered_paths:
+        actions.append(
+            Action(
+                key="maintenance-memory-check",
+                summary="Touched files have path-scoped maintenance memory; verify the notes are current before trusting hidden invariants.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/maintenance_memory.py check --files "
+                    + " ".join(memory_covered_paths)
+                ],
+            )
+        )
+    if memory_note_paths:
+        artifacts.append(
+            Action(
+                key="maintenance-memory-all",
+                summary="Maintenance memory notes changed; check the full path-scoped memory set for drift.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/maintenance_memory.py check --all"
+                ],
+            )
+        )
+
     if any(_matches_prefix(path, RUNCONFIG_PREFIXES) for path in paths):
         artifacts.append(
             Action(
@@ -1084,7 +1148,7 @@ def analyze_paths(
         return _analyze_paths_uncached(paths, _build_test_index())
 
     test_signature = _test_index_signature()
-    static_signature = _static_input_signature()
+    static_signature = _static_input_signature() + _maintenance_memory_signature(paths)
     cache_key = _impact_report_cache_key(
         paths,
         test_signature=test_signature,

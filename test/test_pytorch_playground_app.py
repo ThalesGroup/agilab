@@ -2296,6 +2296,8 @@ def test_pytorch_playground_analysis_uses_evidence_without_training(
     )
 
     assert any(str(evidence_dir) in caption for caption in fake_st.captions)
+    assert any("reuse/train_plain_pytorch.py" in caption for caption in fake_st.captions)
+    assert any("reuse/train_pytorch_lightning.py" in caption for caption in fake_st.captions)
     assert fake_st.downloads
     manifest = next(json.loads(body) for body, language in fake_st.code_payloads if language == "json")
     assert manifest["backend"] == "persisted"

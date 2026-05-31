@@ -789,13 +789,14 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
 
     apps_path = _apps_path_for_active_app(active_app_path)
     app_name = active_app_path.name
-    env = AgiEnv(
+    env = AgiEnv.for_app(
         apps_path=apps_path,
         app=app_name,
         verbose=0,
     )
     env.init_done = True
     st.session_state["env"] = env
+    st.session_state["first_run"] = False
     st.session_state["IS_SOURCE_ENV"] = env.is_source_env
     st.session_state["IS_WORKER_ENV"] = env.is_worker_env
     st.session_state["apps_path"] = str(apps_path)

@@ -53,6 +53,29 @@ Use this order for non-trivial changes:
    drift.
 7. Run release guards only when the change is release-facing.
 
+Path-scoped maintenance memory
+------------------------------
+
+Some AGILAB files carry hidden operational invariants that are easy to miss in
+normal code review. For those files, AGILAB keeps path-derived Markdown notes
+under ``maintenance/memory/by-path/``. File paths are URL-encoded in note names
+so the memory tree cannot look like a second source tree to repository scanners.
+The note records the source path, the verified source SHA-256, and the
+maintenance rule that should be re-read before editing that file.
+
+Run the drift check directly when a touched file has a memory note:
+
+.. code-block:: bash
+
+   ./dev memory check --files src/agilab/pages/4_ANALYSIS.py
+   ./dev memory context --files src/agilab/pages/4_ANALYSIS.py
+
+``./dev impact`` also reports the same guard when changed files have matching
+maintenance-memory notes. A note is trusted only when its recorded hash matches
+the current source file. If the source changes, update the note after the change
+is validated so the hidden invariant stays current instead of becoming stale
+agent folklore.
+
 Shared-core discipline
 ----------------------
 

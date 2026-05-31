@@ -1063,6 +1063,13 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
     stored_apps: list[Path] = []
 
     class FakeAgiEnv:
+        for_app_calls: list[tuple[Path, str, int]] = []
+
+        @classmethod
+        def for_app(cls, *, apps_path: Path, app: str, verbose: int):
+            cls.for_app_calls.append((apps_path, app, verbose))
+            return cls(apps_path=apps_path, app=app, verbose=verbose)
+
         def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.app = app
@@ -1087,6 +1094,8 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
 
     assert env.apps_path == apps_path.resolve()
     assert env.app == "flight_telemetry_project"
+    assert FakeAgiEnv.for_app_calls == [(apps_path.resolve(), "flight_telemetry_project", 0)]
+    assert fake_st.session_state["first_run"] is False
     assert fake_st.session_state["apps_path"] == str(apps_path.resolve())
     assert fake_st.session_state["app"] == "flight_telemetry_project"
     assert stored_apps == [flight_telemetry_project.resolve()]
@@ -1102,6 +1111,10 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_telemetry_project(
     flight_telemetry_project.mkdir(parents=True)
 
     class FakeAgiEnv:
+        @classmethod
+        def for_app(cls, *, apps_path: Path, app: str, verbose: int):
+            return cls(apps_path=apps_path, app=app, verbose=verbose)
+
         def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.app = app
@@ -1126,6 +1139,7 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_telemetry_project(
 
     assert env.apps_path == apps_path.resolve()
     assert env.app == "flight_telemetry_project"
+    assert fake_st.session_state["first_run"] is False
 
 
 def test_builtin_flight_telemetry_project_defaults_to_view_maps_and_enables_network_page():
