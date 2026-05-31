@@ -50,6 +50,7 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     catalogs = {row["path"]: row for row in payload["catalog_files"]}
     assert catalogs["AGENT_SKILLS.md"]["exists"] is True
     assert catalogs["agilab-capabilities.json"]["kind"] == "capability-manifest"
+    assert catalogs["agilab-capabilities.schema.json"]["kind"] == "capability-schema"
 
 
 def test_checked_in_capability_manifest_is_current() -> None:

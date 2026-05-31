@@ -5,6 +5,7 @@ include AGENT_SKILLS.md
 include llms.txt
 include llms-full.txt
 include agilab-capabilities.json
+include agilab-capabilities.schema.json
 include LICENSE
 include pyproject.toml
 include MANIFEST.in

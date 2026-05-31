@@ -199,6 +199,11 @@ CATALOG_FILES: tuple[dict[str, str], ...] = (
         "kind": "capability-manifest",
         "description": "machine-readable inventory of shipped public AGILAB surfaces",
     },
+    {
+        "path": "agilab-capabilities.schema.json",
+        "kind": "capability-schema",
+        "description": "JSON Schema contract for the public AGILAB capability manifest",
+    },
 )
 
 KEY_DOCS: tuple[dict[str, str], ...] = (

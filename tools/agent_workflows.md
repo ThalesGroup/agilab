@@ -12,8 +12,10 @@ The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
 and mirrored for scraper/LLM discovery through [llms.txt](../llms.txt) and
 [llms-full.txt](../llms-full.txt). The shipped product surface is also indexed
 for agents in [agilab-capabilities.json](../agilab-capabilities.json), which is
-regenerated with `python3 tools/agilab_capabilities_manifest.py --apply`. The
-README badge contract is:
+regenerated with `python3 tools/agilab_capabilities_manifest.py --apply` and
+checked against [agilab-capabilities.schema.json](../agilab-capabilities.schema.json)
+with `python3 tools/agilab_capabilities_lint.py --check`. The README badge
+contract is:
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks

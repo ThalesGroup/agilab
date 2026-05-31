@@ -10,7 +10,11 @@ For agent and tooling discovery, the repository root also ships
 ``python3 tools/agilab_capabilities_manifest.py --apply``. The manifest lists
 checked-in CLI commands, Streamlit pages, public apps, packages, schemas, docs,
 and catalog files; it is a discovery index, not runtime validation or external
-certification evidence.
+certification evidence. The paired ``agilab-capabilities.schema.json`` file
+defines the JSON contract, while
+``python3 tools/agilab_capabilities_lint.py --check`` enforces cross-object
+rules such as existing docs paths, summary counts, known app packages, and
+evidence-schema references.
 
 Maturity labels
 ---------------

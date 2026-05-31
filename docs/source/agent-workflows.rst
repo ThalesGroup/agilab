@@ -27,7 +27,10 @@ Continue can consume the same public catalog through ``AGENT_SKILLS.md`` and
 ``llms.txt``, but AGILAB does not ship a Continue wrapper or project config yet.
 Agents and external tools can also consume ``agilab-capabilities.json`` from
 the repository root when they need a machine-readable inventory of shipped
-commands, pages, apps, packages, schemas, and catalog files.
+commands, pages, apps, packages, schemas, and catalog files. The paired
+``agilab-capabilities.schema.json`` file defines the manifest shape, and
+``python3 tools/agilab_capabilities_lint.py --check`` validates the schema
+contract plus cross-object discovery rules.
 
 Shared repo contract
 --------------------

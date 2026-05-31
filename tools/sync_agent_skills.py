@@ -58,6 +58,11 @@ def refresh_capability_manifest(*, python_executable: str = sys.executable, root
         check=True,
         cwd=str(root),
     )
+    subprocess.run(
+        [python_executable, str(root / "tools" / "agilab_capabilities_lint.py"), "--check"],
+        check=True,
+        cwd=str(root),
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

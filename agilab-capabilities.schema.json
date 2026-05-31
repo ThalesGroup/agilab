@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ThalesGroup/agilab/main/agilab-capabilities.schema.json",
+  "title": "AGILAB public capability manifest",
+  "description": "Machine-readable inventory of shipped AGILAB public CLI, page, app, package, evidence schema, documentation, and catalog surfaces.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "generated_at_utc",
+    "schema",
+    "schema_version",
+    "generated_by",
+    "source",
+    "boundary",
+    "summary",
+    "cli_commands",
+    "streamlit_pages",
+    "packages",
+    "public_apps",
+    "agent_skills",
+    "evidence_schemas",
+    "catalog_files",
+    "docs"
+  ],
+  "properties": {
+    "generated_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "schema": {
+      "const": "agilab.capabilities.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "generated_by": {
+      "$ref": "#/$defs/GeneratedBy"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "boundary": {
+      "$ref": "#/$defs/Boundary"
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary"
+    },
+    "cli_commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/CliCommand"
+      }
+    },
+    "streamlit_pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/StreamlitPage"
+      }
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Package"
+      }
+    },
+    "public_apps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/PublicApp"
+      }
+    },
+    "agent_skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/AgentSkill"
+      }
+    },
+    "evidence_schemas": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/EvidenceSchema"
+      }
+    },
+    "catalog_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/CatalogFile"
+      }
+    },
+    "docs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/DocEntry"
+      }
+    }
+  },
+  "$defs": {
+    "NonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "RelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "^/"
+      }
+    },
+    "GeneratedBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "command"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "command": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "documentation",
+        "project",
+        "version"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "documentation": {
+          "type": "string",
+          "format": "uri"
+        },
+        "project": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "Boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proves",
+        "does_not_prove"
+      ],
+      "properties": {
+        "proves": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "does_not_prove": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "Summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cli_command_count",
+        "streamlit_page_count",
+        "package_count",
+        "public_app_count",
+        "agent_skill_count",
+        "evidence_schema_count",
+        "catalog_file_count"
+      ],
+      "properties": {
+        "cli_command_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "streamlit_page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "package_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "public_app_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "agent_skill_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "evidence_schema_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "catalog_file_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "CliCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "command",
+        "kind",
+        "maturity",
+        "description",
+        "docs",
+        "evidence_outputs"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "command": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "maturity": {
+          "enum": [
+            "live-product-path",
+            "local-proof",
+            "contract-proof",
+            "operator-triggered-live-check",
+            "roadmap-boundary"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "docs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/RelativePath"
+          }
+        },
+        "evidence_outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "StreamlitPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "url_path",
+        "source",
+        "visible_in_nav",
+        "purpose",
+        "exists"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "url_path": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "visible_in_nav": {
+          "type": "boolean"
+        },
+        "purpose": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "exists": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "role",
+        "status",
+        "version",
+        "description",
+        "project",
+        "pyproject",
+        "pypi_environment",
+        "artifact_policy"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "role": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "status": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "project": {
+          "type": "string"
+        },
+        "pyproject": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "pypi_environment": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "artifact_policy": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "PublicApp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project",
+        "package",
+        "status",
+        "source",
+        "version",
+        "description"
+      ],
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "package": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "PyPI app package",
+            "Release artifact",
+            "Source built-in"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "AgentSkill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "path",
+        "updated"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "path": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "updated": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "EvidenceSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "sources"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "pattern": "^agilab[._-][A-Za-z0-9_.-]+\\.v1$"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/RelativePath"
+          }
+        }
+      }
+    },
+    "CatalogFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "description",
+        "exists"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "kind": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "exists": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DocEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "title",
+        "description",
+        "exists"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/RelativePath"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "exists": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

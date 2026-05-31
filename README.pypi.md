@@ -438,6 +438,7 @@ compatibility status, and roadmap scope live in:
 - [Features](https://thalesgroup.github.io/agilab/features.html)
 - [Capability map](https://thalesgroup.github.io/agilab/capability-map.html)
 - [Machine-readable capability manifest](https://raw.githubusercontent.com/ThalesGroup/agilab/main/agilab-capabilities.json)
+- [Capability manifest schema](https://raw.githubusercontent.com/ThalesGroup/agilab/main/agilab-capabilities.schema.json)
 - [Release proof](https://thalesgroup.github.io/agilab/release-proof.html)
 - [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
