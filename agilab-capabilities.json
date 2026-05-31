@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T20:16:26Z",
+  "generated_at_utc": "2026-05-31T20:50:51Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,12 +17,12 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 11,
+    "cli_command_count": 12,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 212,
+    "evidence_schema_count": 213,
     "catalog_file_count": 11
   },
   "cli_commands": [
@@ -135,6 +135,21 @@
       ],
       "evidence_outputs": [
         "agilab.data_artifact_lane_contract.v1"
+      ]
+    },
+    {
+      "id": "regulatory-readiness-report",
+      "command": "python3 tools/regulatory_readiness_report.py --profile eu-ai-act-screening --run-manifest <run_manifest.json> --check --json",
+      "kind": "regulatory-readiness",
+      "maturity": "contract-proof",
+      "description": "Screen AGILAB run evidence for regulatory-review readiness gaps without claiming legal compliance.",
+      "docs": [
+        "docs/source/regulatory-readiness.rst",
+        "docs/source/capability-map.rst",
+        "docs/source/evidence-claims-policy.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.regulatory_readiness.v1"
       ]
     },
     {
@@ -2017,6 +2032,15 @@
       "sources": [
         "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/core.py",
         "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.regulatory_readiness.v1",
+      "sources": [
+        "docs/source/capability-map.rst",
+        "docs/source/regulatory-readiness.rst",
+        "tools/agilab_capabilities_manifest.py",
+        "tools/regulatory_readiness_report.py"
       ]
     },
     {

@@ -134,6 +134,13 @@ Job-to-route map
      - Contract proof
      - Checks handoff presence and hashability, not data correctness, OCR
        quality, privacy compliance, or service liveness.
+   * - Prepare evidence for regulatory review
+     - :doc:`regulatory-readiness`
+     - ``agilab.regulatory_readiness.v1`` with source freshness, keyword
+       screening flags, hashed evidence files, and missing readiness controls.
+     - Contract proof
+     - Engineering readiness only; it is not legal advice, EU AI Act
+       compliance, conformity assessment, or production governance approval.
    * - Prepare cloud/object-storage connectors
      - :doc:`data-connectors`
      - Facility, resolution, health-plan, and runtime-adapter reports.

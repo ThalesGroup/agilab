@@ -138,6 +138,19 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
         "evidence_outputs": ["agilab.data_artifact_lane_contract.v1"],
     },
     {
+        "id": "regulatory-readiness-report",
+        "command": "python3 tools/regulatory_readiness_report.py --profile eu-ai-act-screening --run-manifest <run_manifest.json> --check --json",
+        "kind": "regulatory-readiness",
+        "maturity": "contract-proof",
+        "description": "Screen AGILAB run evidence for regulatory-review readiness gaps without claiming legal compliance.",
+        "docs": [
+            "docs/source/regulatory-readiness.rst",
+            "docs/source/capability-map.rst",
+            "docs/source/evidence-claims-policy.rst",
+        ],
+        "evidence_outputs": ["agilab.regulatory_readiness.v1"],
+    },
+    {
         "id": "security-check",
         "command": "agilab security-check --json --strict",
         "kind": "security-posture",

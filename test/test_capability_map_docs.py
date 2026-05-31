@@ -55,6 +55,7 @@ def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> N
         ":doc:`notebook-migration-skforecast-meteo`",
         ":doc:`proof-capsule`",
         ":doc:`data-connectors`",
+        ":doc:`regulatory-readiness`",
         ":doc:`public-app-catalog`",
         ":doc:`release-proof`",
     ):
@@ -64,6 +65,7 @@ def test_capability_map_routes_features_by_user_job_evidence_and_boundary() -> N
         "``run_manifest.json``",
         "``lab_stages.toml``",
         "``agilab prove``",
+        "``agilab.regulatory_readiness.v1``",
         "``.agipack``",
         "SBOM",
         "``pip-audit``",

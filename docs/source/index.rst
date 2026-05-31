@@ -62,6 +62,7 @@ references, and example projects.
    Capability map <capability-map>
    Capabilities <features>
    Data connectors <data-connectors>
+   Regulatory readiness <regulatory-readiness>
    AGILAB for Excel users <excel-users>
    AGILAB for Voila users <voila-users>
    AGILAB for Quarto users <quarto-users>
