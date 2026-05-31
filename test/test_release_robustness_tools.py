@@ -75,6 +75,19 @@ def test_pypi_project_preflight_allows_existing_project_with_unpublished_version
     assert report["blockers"] == []
 
 
+def test_pypi_project_preflight_allows_explicit_missing_project_for_first_publish() -> None:
+    report = pypi_project_preflight.build_report(
+        fetch_json=lambda _name: None,
+        package_names=["agi-page-live-artifacts"],
+        allowed_missing_projects=["agi-page-live-artifacts"],
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["allowed_missing_projects"] == 1
+    assert report["allowed_missing_projects"][0]["pypi_project"] == "agi-page-live-artifacts"
+    assert report["blockers"] == []
+
+
 def test_release_status_derives_package_version_from_release_tag() -> None:
     assert release_status.package_version_from_tag("v2026.05.23-2") == "2026.05.23"
     assert release_status.package_version_from_tag("refs/tags/v2026.05.26") == "2026.05.26"

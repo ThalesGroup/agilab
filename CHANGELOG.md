@@ -19,6 +19,16 @@ publication, or evidence refreshes on an already published date version.
 
 No unreleased public changes.
 
+## [2026.05.31.post1] - 2026-05-31
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31-2
+
+### Changed
+
+- Published AGILAB `2026.05.31.post1` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-pytorch-playground`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.05.31] - 2026-05-31
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31
@@ -769,3 +779,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.30]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30
 [2026.05.30.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.30-2
 [2026.05.31]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31
+[2026.05.31.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31-2

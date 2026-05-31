@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.31"
+version = "2026.05.31.post1"
 name = "agi-app-pytorch-playground"
 description = "AGILAB PyTorch playground app for reproducible neural-network experiments"
 requires-python = ">=3.12"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 pytorch_playground = "agi_app_pytorch_playground:project_root"
 pytorch_playground_project = "agi_app_pytorch_playground:project_root"
+
 
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable, Sequence
 import urllib.error
@@ -81,6 +82,10 @@ def _split_values(values: Sequence[str] | None) -> list[str]:
     for value in values or ():
         tokens.extend(token for token in value.replace(",", " ").split() if token)
     return tokens
+
+
+def _allowed_project_names(values: Sequence[str] | None) -> set[str]:
+    return set(_split_values(values))
 
 
 def selected_pypi_projects(
@@ -196,8 +201,10 @@ def build_report(
     repo_root: Path = ROOT,
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
+    allowed_missing_projects: Sequence[str] | None = None,
     fetch_json: Callable[[str], dict[str, Any] | None] = fetch_pypi_json,
 ) -> dict[str, Any]:
+    allowed_missing = _allowed_project_names(allowed_missing_projects)
     statuses = [
         classify_project(project, fetch_json=fetch_json)
         for project in selected_pypi_projects(
@@ -210,6 +217,22 @@ def build_report(
         status
         for status in statuses
         if status.status in {"missing-project", "empty-project", "newer-on-pypi", "error"}
+        and not (
+            status.status == "missing-project"
+            and (
+                status.pypi_project in allowed_missing
+                or status.package in allowed_missing
+            )
+        )
+    ]
+    allowed_missing_statuses = [
+        status
+        for status in statuses
+        if status.status == "missing-project"
+        and (
+            status.pypi_project in allowed_missing
+            or status.package in allowed_missing
+        )
     ]
     return {
         "schema": SCHEMA_VERSION,
@@ -219,9 +242,13 @@ def build_report(
             "checked": len(statuses),
             "current": sum(1 for status in statuses if status.status == "current"),
             "to_publish": sum(1 for status in statuses if status.status == "missing-version"),
+            "allowed_missing_projects": len(allowed_missing_statuses),
             "blockers": len(blockers),
         },
         "projects": [asdict(status) for status in statuses],
+        "allowed_missing_projects": [
+            asdict(status) for status in allowed_missing_statuses
+        ],
         "blockers": [asdict(status) for status in blockers],
     }
 
@@ -233,9 +260,18 @@ def render_text(report: dict[str, Any]) -> str:
         f"checked: {report['summary']['checked']}",
         f"current: {report['summary']['current']}",
         f"to publish: {report['summary']['to_publish']}",
+        f"allowed missing projects: {report['summary'].get('allowed_missing_projects', 0)}",
         f"blockers: {report['summary']['blockers']}",
         "",
     ]
+    if report.get("allowed_missing_projects"):
+        lines.append("Allowed missing projects:")
+        for project in report["allowed_missing_projects"]:
+            lines.append(
+                f"- {project['pypi_project']}: pending first trusted publish "
+                f"(expected {project['version']})"
+            )
+        lines.append("")
     if report["blockers"]:
         lines.append("Blockers:")
         for blocker in report["blockers"]:
@@ -253,6 +289,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--package", dest="packages", action="append")
     parser.add_argument("--role", dest="roles", action="append")
+    parser.add_argument(
+        "--allow-missing-project",
+        dest="allowed_missing_projects",
+        action="append",
+        help=(
+            "Allow an explicitly named missing PyPI project after its pending "
+            "trusted publisher was registered. Matches package or PyPI project name."
+        ),
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--allow-blockers", action="store_true")
     return parser.parse_args(argv)
@@ -264,6 +309,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         repo_root=args.repo_root.resolve(),
         package_names=_split_values(args.packages),
         roles=_split_values(args.roles),
+        allowed_missing_projects=[
+            *_split_values(args.allowed_missing_projects),
+            *_split_values([os.environ.get("AGILAB_ALLOW_MISSING_PYPI_PROJECTS", "")]),
+        ],
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

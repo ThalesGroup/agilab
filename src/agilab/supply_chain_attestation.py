@@ -229,6 +229,7 @@ def _app_project_package_rows(repo_root: Path) -> list[dict[str, Any]]:
 _DEPENDENCY_SPEC_RE = re.compile(
     r"^\s*([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?\s*(?:(==|>=)\s*([^,;\s]+))?"
 )
+_AGILAB_VERSION_RE = re.compile(r"^\s*(\d+(?:\.\d+)*)(?:\.post(\d+))?\s*$")
 
 
 def _dependency_parts(dependency: str) -> tuple[str, str, str] | None:
@@ -243,6 +244,36 @@ def _dependency_parts(dependency: str) -> tuple[str, str, str] | None:
 def _dependency_name(dependency: str) -> str:
     parts = _dependency_parts(dependency)
     return parts[0] if parts else ""
+
+
+def _agilab_version_key(version: str) -> tuple[tuple[int, ...], int] | None:
+    match = _AGILAB_VERSION_RE.match(version)
+    if not match:
+        return None
+    release, post = match.groups()
+    release_parts = tuple(int(part) for part in release.split("."))
+    # A base release sorts before its post releases.
+    return release_parts, int(post) if post is not None else -1
+
+
+def _dependency_constraint_aligned(
+    *,
+    operator: str,
+    version: str,
+    expected_operator: str,
+    expected_version: str,
+) -> bool:
+    if operator != expected_operator:
+        return False
+    if expected_operator == "==":
+        return version == expected_version
+    if expected_operator == ">=":
+        pinned_key = _agilab_version_key(version)
+        expected_key = _agilab_version_key(expected_version)
+        if pinned_key is None or expected_key is None:
+            return version == expected_version
+        return pinned_key <= expected_key
+    return version == expected_version
 
 
 def _aligned_rows_for_package(
@@ -288,9 +319,11 @@ def _internal_dependency_constraint_rows(
                     "expected_operator": expected_operator,
                     "pinned_version": version,
                     "expected_version": expected_version,
-                    "aligned": (
-                        operator == expected_operator
-                        and version == expected_version
+                    "aligned": _dependency_constraint_aligned(
+                        operator=operator,
+                        version=version,
+                        expected_operator=expected_operator,
+                        expected_version=expected_version,
                     ),
                     "specifier": str(dependency),
                 }
@@ -545,7 +578,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
                 "message": (
                     f"built-in app {row['package']} requires {row['dependency']} "
                     f"with {row['operator'] or 'no operator'} {row['pinned_version'] or '<none>'} "
-                    f"but expected >= {row['expected_version']}"
+                    f"but expected a >= lower bound no newer than {row['expected_version']}"
                 ),
             }
         )
