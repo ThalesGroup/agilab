@@ -241,6 +241,33 @@ PyPI web cleanup. Use the manual ``include_existing_pypi=true`` dispatch input
 only when intentionally repairing release assets from already-published PyPI
 artifacts.
 
+For behavior releases where only part of the tree changed, maintainers should
+compute the release set from impact rather than bumping every package. The
+planner supports ``--impact-base-ref <previous-release-tag>``: it maps changed
+paths to package payloads, then adds only transitive bundle packages that
+exact-pin those changed packages. For example, a PyTorch playground change
+selects ``agi-app-pytorch-playground``, ``agi-apps``, and ``agilab``; an
+``agi-env`` runtime change selects ``agi-env`` plus the runtime/UI/root bundles
+that exact-pin it, but not unrelated app payload packages. The
+``pypi-publish`` workflow exposes the same behavior with the
+``impact_base_ref`` dispatch input, ignored when explicit ``packages`` or
+``roles`` are supplied.
+
+The local release helper has the same selector for preparing a release commit:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/pypi_publish.py \
+     --repo pypi \
+     --version YYYY.MM.DD[.postN] \
+     --impact-base-ref vYYYY.MM.DD \
+     --dry-run \
+     --skip-cleanup \
+     --no-pypirc-check
+
+Use the printed package list as the release bump scope. Do not bump unchanged
+package ``pyproject.toml`` files just to keep a global version number aligned.
+
 After PyPI provenance passes, the release workflow attempts to keep one retained
 PyPI release per selected PyPI project that still needs publication in the
 optimized release plan. ``tools/pypi_release_retention.py`` reads the selected

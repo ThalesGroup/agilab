@@ -57,10 +57,8 @@ from html.parser import HTMLParser
 try:
     from package_split_contract import (
         APP_PACKAGE_NAMES,
-        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
         EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
-        LIBRARY_PACKAGE_CONTRACTS,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -92,10 +90,15 @@ def _ensure_pkgs():
         subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", *need], check=True)
 
 _ensure_pkgs()
-from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
-from packaging.markers import default_environment  # type: ignore
-from packaging.requirements import InvalidRequirement, Requirement  # type: ignore
-from packaging.version import Version, InvalidVersion  # type: ignore
+from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore  # noqa: E402
+from packaging.markers import default_environment  # type: ignore  # noqa: E402
+from packaging.requirements import InvalidRequirement, Requirement  # type: ignore  # noqa: E402
+from packaging.version import Version, InvalidVersion  # type: ignore  # noqa: E402
+
+try:
+    from release_plan import impacted_release_package_names  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
+    from tools.release_plan import impacted_release_package_names  # noqa: E402
 
 # upload-state flags (set by twine_upload)
 UPLOAD_COLLISION_DETECTED: bool = False
@@ -127,6 +130,13 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         choices=ALL_PACKAGE_NAMES,
         help="Limit build/upload to the specified packages (default: all)"
+    )
+    ap.add_argument(
+        "--impact-base-ref",
+        help=(
+            "When --packages is omitted, build/upload only packages changed since this "
+            "git ref plus transitive exact-pin dependents."
+        ),
     )
     ap.add_argument("--verbose", action="store_true", help="Verbose logging for cleanup")
 
@@ -233,6 +243,7 @@ class Cfg:
     pypirc_check: bool
     packages: list[str] | None
     gen_docs: bool
+    impact_base_ref: str | None = None
     release_preflight: bool = True
     delete_former_github_release: bool = False
     delete_pypi_releases: list[str] | None = None
@@ -263,6 +274,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         delete_former_github_release=bool(getattr(args, "delete_former_github_release", False)),
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
         packages=list(args.packages) if getattr(args, "packages", None) else None,
+        impact_base_ref=args.impact_base_ref.strip() if getattr(args, "impact_base_ref", None) else None,
         gen_docs=bool(getattr(args, "gen_docs", False)),
         release_preflight=bool(getattr(args, "release_preflight", True)),
         delete_pypi_releases=list(getattr(args, "delete_pypi_release", []) or []),
@@ -2485,6 +2497,17 @@ def main():
     # Validate explicit version if provided
     if cfg.version is not None and not VERSION_RE.fullmatch(cfg.version):
         raise SystemExit("ERROR: Invalid --version format. Use X.Y.Z, X.Y.ZrcN, or X.Y.Z.postN")
+
+    if cfg.impact_base_ref and not cfg.packages:
+        cfg.packages = impacted_release_package_names(REPO_ROOT, cfg.impact_base_ref)
+        if not cfg.packages:
+            raise SystemExit(
+                f"ERROR: no package-impacting changes found since {cfg.impact_base_ref!r}."
+            )
+        print(
+            "[impact] selected packages from "
+            f"{cfg.impact_base_ref}: {', '.join(cfg.packages)}"
+        )
 
     selected_packages = set(cfg.packages or ALL_PACKAGE_NAMES)
     unknown = selected_packages - set(ALL_PACKAGE_NAMES)

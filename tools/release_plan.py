@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 import re
+import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -44,6 +46,12 @@ PACKAGE_ROLES = tuple(sorted({package.role for package in PACKAGE_CONTRACTS}))
 PyPIArtifactExists = Callable[[dict[str, str], Path], bool]
 
 
+def _ordered_package_names(package_names: set[str]) -> list[str]:
+    """Return package names in contract order."""
+
+    return [package.name for package in PACKAGE_CONTRACTS if package.name in package_names]
+
+
 def _package_entry(package: Any) -> dict[str, str]:
     publish_to_pypi = package.role in PYPI_PUBLISH_ROLES or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
     return {
@@ -62,6 +70,152 @@ def _split_filter_values(values: Sequence[str] | None) -> tuple[str, ...]:
     for value in values or ():
         tokens.extend(token for token in re.split(r"[\s,]+", value.strip()) if token)
     return tuple(dict.fromkeys(tokens))
+
+
+def _path_is_under(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith(prefix.rstrip("/") + "/")
+
+
+def _builtin_app_aliases(repo_root: Path) -> dict[str, str]:
+    """Map built-in app source paths to their promoted PyPI app packages."""
+
+    aliases: dict[str, str] = {}
+    builtin_root = "src/agilab/apps/builtin"
+    for package in PACKAGE_CONTRACTS:
+        if package.role != "app-project":
+            continue
+        package_root = repo_root / package.project
+        project_root = package_root / "src"
+        for project_path in sorted(project_root.glob("*/project/*_project")):
+            if project_path.is_dir():
+                aliases[f"{builtin_root}/{project_path.name}"] = package.name
+    return aliases
+
+
+def package_seeds_for_changed_paths(
+    changed_paths: Sequence[str],
+    *,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """Resolve changed repository paths to directly impacted package names."""
+
+    resolved_repo_root = (repo_root or Path.cwd()).resolve()
+    aliases = _builtin_app_aliases(resolved_repo_root)
+    project_prefixes = sorted(
+        (
+            (package.project.rstrip("/"), package.name)
+            for package in PACKAGE_CONTRACTS
+            if package.project != "."
+        ),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    seeds: set[str] = set()
+    for raw_path in changed_paths:
+        path = raw_path.strip().replace("\\", "/").lstrip("./")
+        if not path:
+            continue
+        matched = False
+        for alias, package_name in aliases.items():
+            if _path_is_under(path, alias):
+                seeds.add(package_name)
+                matched = True
+                break
+        if matched:
+            continue
+        for prefix, package_name in project_prefixes:
+            if _path_is_under(path, prefix):
+                seeds.add(package_name)
+                matched = True
+                break
+        if matched:
+            continue
+        if path in {"pyproject.toml", "README.pypi.md"} or _path_is_under(path, "src/agilab"):
+            seeds.add(UMBRELLA_PACKAGE_CONTRACT.name)
+    return _ordered_package_names(seeds)
+
+
+def changed_paths_since(repo_root: Path, base_ref: str) -> list[str]:
+    """Return paths changed between a base ref and HEAD."""
+
+    completed = subprocess.run(
+        ["git", "diff", "--name-only", base_ref, "HEAD"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise ValueError(f"Could not compute changed paths since {base_ref!r}: {detail}")
+    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+_EXACT_INTERNAL_DEP_RE = re.compile(
+    r"^\s*([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?\s*==\s*([^;,\s]+)"
+)
+
+
+def _dependency_values(pyproject: dict[str, Any]) -> list[str]:
+    project = pyproject.get("project") or {}
+    values = [str(value) for value in project.get("dependencies") or ()]
+    optional = project.get("optional-dependencies") or {}
+    for dependencies in optional.values():
+        values.extend(str(value) for value in dependencies or ())
+    return values
+
+
+def exact_internal_dependency_graph(repo_root: Path | None = None) -> dict[str, set[str]]:
+    """Return exact internal dependency edges, package -> pinned packages."""
+
+    resolved_repo_root = (repo_root or Path.cwd()).resolve()
+    known_packages = set(PACKAGE_NAMES)
+    graph: dict[str, set[str]] = {}
+    for package in PACKAGE_CONTRACTS:
+        pyproject_path = resolved_repo_root / package.pyproject
+        if not pyproject_path.is_file():
+            graph[package.name] = set()
+            continue
+        data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        dependencies: set[str] = set()
+        for requirement in _dependency_values(data):
+            match = _EXACT_INTERNAL_DEP_RE.match(requirement)
+            if match and match.group(1) in known_packages:
+                dependencies.add(match.group(1))
+        graph[package.name] = dependencies
+    return graph
+
+
+def expand_with_exact_dependents(
+    package_names: Sequence[str],
+    *,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """Include packages that exactly pin any selected package, transitively."""
+
+    selected = set(package_names)
+    graph = exact_internal_dependency_graph(repo_root)
+    changed = True
+    while changed:
+        changed = False
+        for package_name, dependencies in graph.items():
+            if package_name not in selected and dependencies.intersection(selected):
+                selected.add(package_name)
+                changed = True
+    return _ordered_package_names(selected)
+
+
+def impacted_release_package_names(
+    repo_root: Path,
+    base_ref: str,
+    *,
+    changed_paths: Sequence[str] | None = None,
+) -> list[str]:
+    """Return the optimized release package set for paths changed since a base ref."""
+
+    paths = list(changed_paths) if changed_paths is not None else changed_paths_since(repo_root, base_ref)
+    seeds = package_seeds_for_changed_paths(paths, repo_root=repo_root)
+    return expand_with_exact_dependents(seeds, repo_root=repo_root)
 
 
 def _validate_filters(package_names: Sequence[str] | None, roles: Sequence[str] | None) -> None:
@@ -150,12 +304,19 @@ def library_matrix(
     repo_root: Path | None = None,
     skip_existing_pypi: bool = False,
     pypi_artifacts_exist: PyPIArtifactExists | None = None,
+    impact_base_ref: str | None = None,
 ) -> list[dict[str, str]]:
     """Return the GitHub matrix entries for publishable library packages."""
 
-    package_filter = set(package_names or ())
+    resolved_repo_root = (repo_root or Path.cwd()).resolve()
+    effective_package_names = tuple(package_names or ())
+    if impact_base_ref and not effective_package_names and not roles:
+        effective_package_names = tuple(
+            impacted_release_package_names(resolved_repo_root, impact_base_ref)
+        )
+    package_filter = set(effective_package_names)
     role_filter = set(roles or ())
-    _validate_filters(package_names, roles)
+    _validate_filters(effective_package_names, roles)
     packages = [
         _package_entry(package)
         for package in LIBRARY_PACKAGE_CONTRACTS
@@ -163,7 +324,7 @@ def library_matrix(
     ]
     selected, _skipped = _filter_existing_pypi_packages(
         packages,
-        repo_root=(repo_root or Path.cwd()).resolve(),
+        repo_root=resolved_repo_root,
         skip_existing_pypi=skip_existing_pypi,
         pypi_artifacts_exist=pypi_artifacts_exist,
     )
@@ -183,13 +344,22 @@ def release_plan(
     repo_root: Path | None = None,
     skip_existing_pypi: bool = False,
     pypi_artifacts_exist: PyPIArtifactExists | None = None,
+    impact_base_ref: str | None = None,
 ) -> dict[str, Any]:
     """Return the complete release package plan."""
 
-    package_filter = set(package_names or ())
-    role_filter = set(roles or ())
-    _validate_filters(package_names, roles)
     resolved_repo_root = (repo_root or Path.cwd()).resolve()
+    impact_seeds: list[str] = []
+    effective_package_names = tuple(package_names or ())
+    if impact_base_ref and not effective_package_names and not roles:
+        impact_paths = changed_paths_since(resolved_repo_root, impact_base_ref)
+        impact_seeds = package_seeds_for_changed_paths(impact_paths, repo_root=resolved_repo_root)
+        effective_package_names = tuple(
+            expand_with_exact_dependents(impact_seeds, repo_root=resolved_repo_root)
+        )
+    package_filter = set(effective_package_names)
+    role_filter = set(roles or ())
+    _validate_filters(effective_package_names, roles)
     candidate_matrix = [
         _package_entry(package)
         for package in LIBRARY_PACKAGE_CONTRACTS
@@ -216,6 +386,9 @@ def release_plan(
         "umbrella_selected": "true" if umbrella_selected else "false",
         "pypi_selection_mode": "missing-artifacts" if skip_existing_pypi else "all-selected",
         "pypi_existing_packages": skipped_existing,
+        "impact_base_ref": impact_base_ref or "",
+        "impact_package_seeds": impact_seeds,
+        "impact_package_closure": list(effective_package_names) if impact_base_ref else [],
     }
     publish_packages = _publish_packages(payload)
     payload["pypi_publish_selected"] = "true" if publish_packages else "false"
@@ -239,6 +412,9 @@ def format_text(payload: dict[str, Any]) -> str:
         f"PyPI selection mode: {payload['pypi_selection_mode']}",
         "PyPI packages already present: "
         + (", ".join(payload["pypi_existing_packages"]) or "(none)"),
+        f"Impact base ref: {payload.get('impact_base_ref') or '(none)'}",
+        "Impact seeds: " + (", ".join(payload.get("impact_package_seeds") or []) or "(none)"),
+        "Impact closure: " + (", ".join(payload.get("impact_package_closure") or []) or "(none)"),
         "",
         "Library packages:",
     ]
@@ -272,6 +448,9 @@ def format_markdown(payload: dict[str, Any]) -> str:
         f"- PyPI publication selected: `{payload['pypi_publish_selected']}`",
         f"- PyPI selection mode: `{payload['pypi_selection_mode']}`",
         f"- PyPI packages already present: `{', '.join(payload['pypi_existing_packages']) or '(none)'}`",
+        f"- Impact base ref: `{payload.get('impact_base_ref') or '(none)'}`",
+        f"- Impact seeds: `{', '.join(payload.get('impact_package_seeds') or []) or '(none)'}`",
+        f"- Impact closure: `{', '.join(payload.get('impact_package_closure') or []) or '(none)'}`",
         f"- Provenance packages: `{', '.join(payload['provenance_packages']) or '(none)'}`",
         "",
         "| Selected | Package | Project | PyPI environment | Artifact policy | Publish to PyPI |",
@@ -342,6 +521,15 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         ),
         "include_existing_pypi:": (
             "workflow must provide an explicit override for rebuilding assets from existing PyPI artifacts"
+        ),
+        "impact_base_ref:": (
+            "workflow must expose optimized impact-based package selection for partial releases"
+        ),
+        "RELEASE_IMPACT_BASE_REF": (
+            "workflow must propagate the impact base ref to release-plan and policy checks"
+        ),
+        "--impact-base-ref \"$RELEASE_IMPACT_BASE_REF\"": (
+            "workflow must let release-plan compute changed packages and exact-pin dependents"
         ),
         "INCLUDE_EXISTING_PYPI": (
             "workflow must propagate the explicit existing-PyPI override"
@@ -538,6 +726,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "project version already exist on PyPI."
         ),
     )
+    parser.add_argument(
+        "--impact-base-ref",
+        default="",
+        help=(
+            "When no package or role filter is supplied, select packages changed since "
+            "this git ref plus transitive exact-pin dependents."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -549,6 +745,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             roles=_split_filter_values(args.roles),
             repo_root=args.repo_root.resolve(),
             skip_existing_pypi=args.skip_existing_pypi,
+            impact_base_ref=args.impact_base_ref.strip() or None,
         )
     except ValueError as exc:
         print(f"ERROR: {exc}")

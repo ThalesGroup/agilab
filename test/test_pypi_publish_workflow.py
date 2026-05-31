@@ -114,14 +114,17 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "github.event.inputs.version" not in text
     assert "packages:" in text
     assert "roles:" in text
+    assert "impact_base_ref:" in text
     assert "allow_post_release:" in text
     assert "post_release_reason:" in text
     assert "include_existing_pypi:" in text
     assert "RELEASE_PACKAGES" in text
     assert "RELEASE_ROLES" in text
+    assert "RELEASE_IMPACT_BASE_REF" in text
     assert "INCLUDE_EXISTING_PYPI" in text
     assert "--packages \"$RELEASE_PACKAGES\"" in text
     assert "--roles \"$RELEASE_ROLES\"" in text
+    assert "--impact-base-ref \"$RELEASE_IMPACT_BASE_REF\"" in text
     assert "--skip-existing-pypi" in text
     assert "id-token: write" in text
     assert "name: ${{ matrix.pypi_environment }}" in text

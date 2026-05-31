@@ -72,12 +72,14 @@ def public_package_entries(
     roles: Sequence[str] | None = None,
     repo_root: Path = Path.cwd(),
     skip_existing_pypi: bool = False,
+    impact_base_ref: str | None = None,
 ) -> list[dict[str, str]]:
     payload = release_plan(
         package_names=package_names,
         roles=roles,
         repo_root=repo_root,
         skip_existing_pypi=skip_existing_pypi,
+        impact_base_ref=impact_base_ref,
     )
     entries = [
         package
@@ -105,6 +107,7 @@ def selected_public_versions(
     package_names: Sequence[str] | None = None,
     roles: Sequence[str] | None = None,
     skip_existing_pypi: bool = False,
+    impact_base_ref: str | None = None,
 ) -> dict[str, str]:
     return {
         package["package"]: read_project_version(repo_root, package["project"])
@@ -113,6 +116,7 @@ def selected_public_versions(
             roles=roles,
             repo_root=repo_root,
             skip_existing_pypi=skip_existing_pypi,
+            impact_base_ref=impact_base_ref,
         )
     }
 
@@ -167,6 +171,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--impact-base-ref",
+        default="",
+        help=(
+            "When no package or role filter is supplied, validate packages changed since "
+            "this git ref plus transitive exact-pin dependents."
+        ),
+    )
+    parser.add_argument(
         "--github-step-summary",
         type=Path,
         default=None,
@@ -184,6 +196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             package_names=split_filter_values(args.packages),
             roles=split_filter_values(args.roles),
             skip_existing_pypi=args.skip_existing_pypi,
+            impact_base_ref=args.impact_base_ref.strip() or None,
         )
         result = validate_public_release_versions(
             package_versions,

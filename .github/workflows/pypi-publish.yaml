@@ -12,6 +12,9 @@ on:
       roles:
         description: "Optional comma- or space-separated package roles to publish. Default: all."
         required: false
+      impact_base_ref:
+        description: "Optional git ref used to publish only changed packages plus exact-pin dependents. Ignored when packages or roles are set."
+        required: false
       allow_post_release:
         description: "Allow committed .postN versions on public PyPI only for a critical hotfix. Prefer TestPyPI or rc versions before final release."
         required: false
@@ -228,6 +231,7 @@ jobs:
         env:
           RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
           RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          RELEASE_IMPACT_BASE_REF: ${{ github.event.inputs.impact_base_ref || '' }}
           INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
         run: |
           set -euxo pipefail
@@ -246,6 +250,9 @@ jobs:
           if [ -n "${RELEASE_ROLES:-}" ]; then
             args+=(--roles "$RELEASE_ROLES")
           fi
+          if [ -n "${RELEASE_IMPACT_BASE_REF:-}" ] && [ -z "${RELEASE_PACKAGES:-}" ] && [ -z "${RELEASE_ROLES:-}" ]; then
+            args+=(--impact-base-ref "$RELEASE_IMPACT_BASE_REF")
+          fi
           python tools/release_plan.py "${args[@]}"
 
       - name: Render PyPI trusted publisher contract
@@ -259,6 +266,7 @@ jobs:
         env:
           RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
           RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
+          RELEASE_IMPACT_BASE_REF: ${{ github.event.inputs.impact_base_ref || '' }}
           INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
           ALLOW_POST_RELEASE: ${{ github.event.inputs.allow_post_release || 'false' }}
           POST_RELEASE_REASON: ${{ github.event.inputs.post_release_reason || '' }}
@@ -273,6 +281,9 @@ jobs:
           fi
           if [ -n "${RELEASE_ROLES:-}" ]; then
             args+=(--roles "$RELEASE_ROLES")
+          fi
+          if [ -n "${RELEASE_IMPACT_BASE_REF:-}" ] && [ -z "${RELEASE_PACKAGES:-}" ] && [ -z "${RELEASE_ROLES:-}" ]; then
+            args+=(--impact-base-ref "$RELEASE_IMPACT_BASE_REF")
           fi
           if [ "${ALLOW_POST_RELEASE:-false}" = "true" ]; then
             args+=(--allow-post-release --post-release-reason "$POST_RELEASE_REASON")

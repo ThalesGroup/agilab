@@ -183,6 +183,90 @@ def test_release_plan_can_target_umbrella_only() -> None:
     assert payload["provenance_packages"] == ["agilab"]
 
 
+def test_release_plan_maps_builtin_app_changes_to_promoted_app_package() -> None:
+    module = _load_module()
+
+    seeds = module.package_seeds_for_changed_paths(
+        [
+            "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
+            "test/test_pytorch_playground_app.py",
+        ],
+        repo_root=REPO_ROOT,
+    )
+
+    assert seeds == ["agi-app-pytorch-playground"]
+
+
+def test_release_plan_expands_changed_app_to_exact_pin_dependents() -> None:
+    module = _load_module()
+
+    packages = module.impacted_release_package_names(
+        REPO_ROOT,
+        "unused",
+        changed_paths=[
+            "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/app_surface.py",
+        ],
+    )
+
+    assert packages == ["agi-app-pytorch-playground", "agi-apps", "agilab"]
+
+
+def test_release_plan_expands_runtime_component_to_only_required_dependents() -> None:
+    module = _load_module()
+
+    packages = module.impacted_release_package_names(
+        REPO_ROOT,
+        "unused",
+        changed_paths=[
+            "src/agilab/core/agi-env/src/agi_env/project_clone_support.py",
+        ],
+    )
+
+    assert packages == [
+        "agi-env",
+        "agi-gui",
+        "agi-pages",
+        "agi-node",
+        "agi-cluster",
+        "agi-core",
+        "agi-apps",
+        "agilab",
+    ]
+    assert "agi-app-flight-telemetry" not in packages
+    assert "agi-app-pytorch-playground" not in packages
+
+
+def test_release_plan_can_select_impacted_packages_from_base_ref(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "changed_paths_since",
+        lambda _repo_root, _base_ref: [
+            "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
+        ],
+    )
+
+    payload = module.release_plan(impact_base_ref="v2026.05.31")
+
+    assert payload["impact_base_ref"] == "v2026.05.31"
+    assert payload["impact_package_seeds"] == ["agi-app-pytorch-playground"]
+    assert payload["impact_package_closure"] == [
+        "agi-app-pytorch-playground",
+        "agi-apps",
+        "agilab",
+    ]
+    assert [package["package"] for package in payload["library_matrix"]] == [
+        "agi-app-pytorch-playground",
+        "agi-apps",
+    ]
+    assert payload["umbrella_selected"] == "true"
+    assert payload["provenance_packages"] == [
+        "agi-app-pytorch-playground",
+        "agi-apps",
+        "agilab",
+    ]
+
+
 def test_release_plan_rejects_unknown_filters() -> None:
     module = _load_module()
 

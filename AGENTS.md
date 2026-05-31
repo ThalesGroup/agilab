@@ -123,6 +123,13 @@ Use this runbook whenever you:
   whether PyPI, GitHub release assets, Hugging Face sync, release proof, or docs updates
   are separate manual steps. If the workflow already performs a step, state the condition
   under which it runs rather than adding a redundant manual step.
+- **Optimized PyPI release scope**: Do not bump unchanged AGILAB packages only to keep
+  a global version aligned. For partial behavior releases, compute the minimal publish
+  set with `tools/release_plan.py --impact-base-ref <previous-tag>` or
+  `tools/pypi_publish.py --impact-base-ref <previous-tag> --dry-run`. The impact
+  selector maps changed paths to packages and adds only transitive bundle packages
+  that exact-pin changed packages. Use the workflow `impact_base_ref` input for the
+  same behavior in GitHub Actions; explicit `packages` or `roles` still override it.
 - **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
   for each checkout. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,

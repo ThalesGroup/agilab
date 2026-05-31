@@ -109,3 +109,33 @@ def test_public_package_entries_can_reuse_release_plan_skip_existing_mode(
     assert observed["package_names"] == ("agi-env",)
     assert observed["roles"] == ("runtime-component",)
     assert observed["skip_existing_pypi"] is True
+
+
+def test_public_package_entries_passes_impact_base_ref_to_release_plan(
+    tmp_path, monkeypatch
+) -> None:
+    policy = _load_policy()
+    observed = {}
+
+    def fake_release_plan(**kwargs):
+        observed.update(kwargs)
+        return {
+            "library_matrix": [
+                {"package": "agi-app-pytorch-playground", "publish_to_pypi": "true"}
+            ],
+            "umbrella_package": {"package": "agilab", "publish_to_pypi": "true"},
+            "umbrella_selected": "true",
+        }
+
+    monkeypatch.setattr(policy, "release_plan", fake_release_plan)
+
+    entries = policy.public_package_entries(
+        repo_root=tmp_path,
+        impact_base_ref="v2026.05.31",
+    )
+
+    assert entries == [
+        {"package": "agi-app-pytorch-playground", "publish_to_pypi": "true"},
+        {"package": "agilab", "publish_to_pypi": "true"},
+    ]
+    assert observed["impact_base_ref"] == "v2026.05.31"
