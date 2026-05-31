@@ -29,7 +29,7 @@ github_release_tag = "v2026.05.31"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "091f0b7b82c349e6b97113a969b395dd4b3d77fe"
+hf_space_commit = "dcdc137fafdf92cb3b6c2717e2bc76cd4cbca8f7"
 
 [[ci_runs]]
 id = "release-guardrails"
