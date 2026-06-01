@@ -189,6 +189,45 @@ def test_render_context_expander_links_back_to_project_page(tmp_path) -> None:
     assert not [event for event in fake_st.events if event[0] == "selectbox"]
 
 
+def test_render_context_expander_analysis_generic_and_noop_paths(tmp_path) -> None:
+    assert workflow_ui.render_context_expander(
+        _FakeStreamlit(), page_label="ANALYSIS", env=None
+    ) is None
+    assert workflow_ui.render_context_expander(
+        SimpleNamespace(expander=lambda *_args, **_kwargs: None),
+        page_label="ANALYSIS",
+        env=SimpleNamespace(app="demo_project"),
+    ) is None
+
+    app_root = tmp_path / "demo_project"
+    app_root.mkdir()
+    env = SimpleNamespace(app="demo_project", active_app=app_root)
+    analysis_st = _FakeStreamlit()
+    workflow_ui.render_context_expander(
+        analysis_st, page_label="ANALYSIS", env=env, expanded=True
+    )
+
+    assert ("expander", "Analysis context:True") in analysis_st.events
+    link_values = [value for kind, value in analysis_st.events if kind == "link_button"]
+    assert any(
+        value.startswith(
+            "Run again:/ORCHESTRATE?active_app=demo_project:context_expander:ANALYSIS:Run_again:"
+        )
+        for value in link_values
+    )
+    assert any(
+        value.startswith(
+            "Open workflow:/WORKFLOW?active_app=demo_project:context_expander:ANALYSIS:Open_workflow:"
+        )
+        for value in link_values
+    )
+
+    generic_st = _FakeStreamlit()
+    workflow_ui.render_context_expander(generic_st, page_label="OTHER", env=env)
+
+    assert ("expander", "Project context:False") in generic_st.events
+
+
 def test_workflow_link_buttons_do_not_require_key_support(monkeypatch) -> None:
     fake_st = _NoKeyLinkButtonStreamlit()
     monkeypatch.setattr(

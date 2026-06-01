@@ -95,10 +95,11 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
+        "forbidden_text": ["Project:"],
         "flags": ["browser_error_check"],
         "pages": ["ANALYSIS"],
         "required_actions": ["Refresh evidence"],
-        "required_text": ["PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
+        "required_text": ["Page", "PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
         "actions": [],
@@ -143,6 +144,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         apps_pages: str = "none",
         click_action_labels: str = "",
         required_text: str = "",
+        forbidden_text: str = "",
         required_action_labels: str = "",
         success_screenshot: bool = False,
         above_fold_check: bool = False,
@@ -155,6 +157,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
             apps_pages=apps_pages,
             click_action_labels=click_action_labels,
             required_text=required_text,
+            forbidden_text=forbidden_text,
             required_action_labels=required_action_labels,
             success_screenshot=success_screenshot,
             above_fold_check=above_fold_check,
@@ -191,6 +194,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         pages="ANALYSIS",
         apps=module.REQUIRED_PYTORCH_ANALYSIS_APP,
         required_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_TEXT),
+        forbidden_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_TEXT),
         required_action_labels=",".join(module.REQUIRED_PYTORCH_ANALYSIS_ACTIONS),
         browser_error_check=True,
     )
@@ -482,6 +486,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         apps_pages="none",
         click_action_labels="",
         required_text="",
+        forbidden_text="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -494,6 +499,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         apps_pages="view_maps",
         click_action_labels="",
         required_text="",
+        forbidden_text="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -506,6 +512,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         apps_pages="none",
         click_action_labels="",
         required_text="",
+        forbidden_text="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -518,6 +525,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         apps_pages="none",
         click_action_labels="",
         required_text="PyTorch Playground",
+        forbidden_text="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -594,8 +602,9 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis does not target pytorch_playground_project" in details
     assert (
         "isolated-pytorch-playground-analysis is missing required text probes: "
-        "Refresh evidence, Settings, Synced RUN snippet"
+        "Page, Refresh evidence, Settings, Synced RUN snippet"
     ) in details
+    assert "isolated-pytorch-playground-analysis is missing forbidden text probes: Project:" in details
     assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details

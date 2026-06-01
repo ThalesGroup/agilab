@@ -47,6 +47,7 @@ class RobotScenario:
     click_action_labels: str = ""
     preselect_labels: str = ""
     required_text: str = ""
+    forbidden_text: str = ""
     required_action_labels: str = ""
     route_query: str = ""
     missing_selected_action_policy: str = "fail"
@@ -493,7 +494,8 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         runtime_isolation="isolated",
         action_button_policy="trial",
         apps="pytorch_playground_project",
-        required_text="PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings",
+        required_text="PyTorch Playground,Page,Refresh evidence,Synced RUN snippet,Settings",
+        forbidden_text="Project:",
         required_action_labels="Refresh evidence",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
@@ -782,6 +784,8 @@ def build_robot_command(
         argv.extend(["--route-query", scenario.route_query])
     if scenario.required_text:
         argv.extend(["--required-text", scenario.required_text])
+    if scenario.forbidden_text:
+        argv.extend(["--forbidden-text", scenario.forbidden_text])
     if scenario.required_action_labels:
         argv.extend(["--required-action-labels", scenario.required_action_labels])
     if scenario.assert_orchestrate_artifacts:

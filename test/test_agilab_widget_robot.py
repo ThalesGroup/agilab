@@ -133,6 +133,8 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.accessibility_check is False
     assert args.browser_error_check is False
     assert args.above_fold_check is False
+    assert args.required_text == ""
+    assert args.forbidden_text == ""
     assert args.required_action_labels == ""
     assert args.visual_mask_dynamic_regions is False
     assert args.success_screenshot is False
@@ -833,6 +835,73 @@ def test_required_text_probe_reports_missing_text() -> None:
 
     assert probe.status == "failed"
     assert "Run training" in probe.detail
+
+
+def test_forbidden_text_probe_reads_child_frames_and_passes_when_absent() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, text: str):
+            self._text = text
+
+        def inner_text(self, **_kwargs) -> str:
+            return self._text
+
+    class _Frame:
+        def __init__(self, text: str):
+            self._text = text
+
+        def locator(self, _selector: str) -> _Locator:
+            return _Locator(self._text)
+
+    class _Page(_Frame):
+        url = "http://demo/ANALYSIS"
+
+        def __init__(self) -> None:
+            super().__init__("PyTorch Playground\nPage")
+            self.main_frame = object()
+            self.frames = [self.main_frame, _Frame("Refresh evidence")]
+
+    probe = module._forbidden_text_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        forbidden_text=("Project:",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+    assert probe.kind == "forbidden_text"
+    assert "forbidden text absent" in probe.detail
+
+
+def test_forbidden_text_probe_reports_visible_forbidden_text() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def inner_text(self, **_kwargs) -> str:
+            return "Project: PyTorch Playground\nPage"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+    probe = module._forbidden_text_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        forbidden_text=("Project:",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "forbidden_text"
+    assert "forbidden text present" in probe.detail
 
 
 def test_required_action_probe_trial_clicks_child_frame_button() -> None:

@@ -210,7 +210,8 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert all_builtin_orchestrate.page_timeout_seconds == 120.0
     assert pytorch_analysis.apps == "pytorch_playground_project"
     assert pytorch_analysis.pages == "ANALYSIS"
-    assert pytorch_analysis.required_text == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
+    assert pytorch_analysis.required_text == "PyTorch Playground,Page,Refresh evidence,Synced RUN snippet,Settings"
+    assert pytorch_analysis.forbidden_text == "Project:"
     assert pytorch_analysis.required_action_labels == "Refresh evidence"
     assert pytorch_analysis.browser_error_check is True
     assert above_fold.above_fold_check is True
@@ -538,7 +539,8 @@ def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -
     assert argv[argv.index("--apps") + 1] == "pytorch_playground_project"
     assert argv[argv.index("--pages") + 1] == "ANALYSIS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
-    assert argv[argv.index("--required-text") + 1] == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
+    assert argv[argv.index("--required-text") + 1] == "PyTorch Playground,Page,Refresh evidence,Synced RUN snippet,Settings"
+    assert argv[argv.index("--forbidden-text") + 1] == "Project:"
     assert argv[argv.index("--required-action-labels") + 1] == "Refresh evidence"
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"

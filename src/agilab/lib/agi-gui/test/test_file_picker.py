@@ -62,10 +62,15 @@ class _FakeStreamlit:
         self.dataframes: list[dict[str, object]] = []
         self.errors: list[str] = []
         self.popovers: list[str] = []
+        self.popover_kwargs: list[dict[str, object]] = []
         self.reruns = 0
 
-    def popover(self, label, **_kwargs):
+    def popover(self, label, **kwargs):
+        icon = kwargs.get("icon")
+        if isinstance(icon, str) and icon.startswith(":material/"):
+            raise ModuleNotFoundError("No module named 'streamlit.material_icon_names'")
         self.popovers.append(str(label))
+        self.popover_kwargs.append(dict(kwargs))
         return _Popover()
 
     def pills(self, _label, options, **_kwargs):
@@ -269,6 +274,7 @@ def test_agi_file_picker_selects_dataframe_row(tmp_path: Path, monkeypatch) -> N
 
     assert result == str(selected_file.resolve())
     assert fake_st.popovers == ["Browse"]
+    assert "icon" not in fake_st.popover_kwargs[0]
     assert fake_st.dataframes[0]["selection_mode"] == "single-row"
     assert fake_st.dataframes[0]["column_order"] == ("relative_path", "type", "size", "modified")
 

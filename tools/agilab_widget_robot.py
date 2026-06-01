@@ -4582,6 +4582,7 @@ def sweep_page(  # pragma: no cover - live browser path
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    forbidden_text: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     success_screenshot: bool = False,
@@ -4704,6 +4705,16 @@ def sweep_page(  # pragma: no cover - live browser path
                         app_name=app_name,
                         display=display,
                         required_text=required_text,
+                        timeout_ms=widget_timeout_ms,
+                    )
+                )
+            if forbidden_text and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _forbidden_text_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        forbidden_text=forbidden_text,
                         timeout_ms=widget_timeout_ms,
                     )
                 )
@@ -5556,6 +5567,41 @@ def _required_text_probe(  # pragma: no cover - live browser path
     )
 
 
+def _forbidden_text_probe(  # pragma: no cover - live browser path
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    forbidden_text: Sequence[str],
+    timeout_ms: float,
+) -> WidgetProbe:
+    expected = tuple(str(label).strip() for label in forbidden_text if str(label).strip())
+    text = _page_and_frame_text(page, timeout_ms=timeout_ms)
+    normalized_text = text.lower()
+    present = [label for label in expected if label.lower() in normalized_text]
+    if present:
+        detail = f"forbidden text present: {present}; page/frame text sample={text[:500]!r}"
+        return WidgetProbe(
+            app_name,
+            display,
+            "forbidden_text",
+            "page_and_frames",
+            "failed",
+            _short_detail(detail),
+            getattr(page, "url", ""),
+        )
+    detail = f"forbidden text absent from page and child frames: {list(expected)}"
+    return WidgetProbe(
+        app_name,
+        display,
+        "forbidden_text",
+        "page_and_frames",
+        "interacted",
+        _short_detail(detail),
+        getattr(page, "url", ""),
+    )
+
+
 def _trial_click_required_button(  # pragma: no cover - live browser path
     owner: Any,
     label: str,
@@ -5677,6 +5723,7 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    forbidden_text: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
@@ -5803,6 +5850,7 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
                         required_text=required_text,
+                        forbidden_text=forbidden_text,
                         required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         failure_bundle_dir=failure_bundle_dir,
@@ -5854,6 +5902,7 @@ def sweep_app(  # pragma: no cover - live browser path
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    forbidden_text: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
@@ -5958,6 +6007,7 @@ def sweep_app(  # pragma: no cover - live browser path
                                 browser_error_check=browser_error_check,
                                 above_fold_check=above_fold_check,
                                 required_text=required_text,
+                                forbidden_text=forbidden_text,
                                 required_action_labels=required_action_labels,
                                 visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                                 success_screenshot=success_screenshot,
@@ -6072,6 +6122,7 @@ def sweep_app(  # pragma: no cover - live browser path
                     browser_error_check=browser_error_check,
                     above_fold_check=above_fold_check,
                     required_text=required_text,
+                    forbidden_text=forbidden_text,
                     required_action_labels=required_action_labels,
                     visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
@@ -6125,6 +6176,7 @@ def sweep_remote_app(  # pragma: no cover - live browser path
     browser_error_check: bool = False,
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
+    forbidden_text: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
@@ -6208,6 +6260,7 @@ def sweep_remote_app(  # pragma: no cover - live browser path
                         browser_error_check=browser_error_check,
                         above_fold_check=above_fold_check,
                         required_text=required_text,
+                        forbidden_text=forbidden_text,
                         required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         success_screenshot=success_screenshot,
@@ -6342,6 +6395,7 @@ def sweep_remote_app(  # pragma: no cover - live browser path
                             browser_error_check=browser_error_check,
                             above_fold_check=above_fold_check,
                             required_text=required_text,
+                            forbidden_text=forbidden_text,
                             required_action_labels=required_action_labels,
                             visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                             failure_bundle_dir=failure_bundle_dir,
@@ -6472,6 +6526,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
     parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
     parser.add_argument("--required-text", default="", help="Comma-separated text that must be visible in the page or a child iframe after render.")
+    parser.add_argument("--forbidden-text", default="", help="Comma-separated text that must not be visible in the page or a child iframe after render.")
     parser.add_argument("--required-action-labels", default="", help="Comma-separated button labels that must be visible, enabled, and trial-clickable in the page or a child iframe.")
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
@@ -6542,6 +6597,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
     click_action_labels = parse_csv(args.click_action_labels)
     preselect_labels = parse_csv(args.preselect_labels)
     required_text = parse_csv(args.required_text)
+    forbidden_text = parse_csv(args.forbidden_text)
     required_action_labels = parse_csv(args.required_action_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
@@ -6608,6 +6664,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
+                forbidden_text=forbidden_text,
                 required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
@@ -6661,6 +6718,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 browser_error_check=args.browser_error_check,
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
+                forbidden_text=forbidden_text,
                 required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
