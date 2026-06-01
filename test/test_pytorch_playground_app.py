@@ -536,7 +536,14 @@ def test_app_surface_missing_evidence_renders_page_and_checked_paths(monkeypatch
     finally:
         sys.modules.pop(module.__name__, None)
 
-    assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
+    assert (
+        "page_config",
+        {
+            "page_title": "PyTorch Playground",
+            "layout": "wide",
+            "initial_sidebar_state": "auto",
+        },
+    ) in events
     assert ("title", "PyTorch Playground") in events
     assert any(kind == "info" and "No exported PyTorch evidence" in message for kind, message in events)
     assert ("caption", "Checked evidence locations:") in events
@@ -759,7 +766,14 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
     finally:
         sys.modules.pop(spec.name, None)
 
-    assert ("page_config", {"page_title": "PyTorch Playground", "layout": "wide"}) in events
+    assert (
+        "page_config",
+        {
+            "page_title": "PyTorch Playground",
+            "layout": "wide",
+            "initial_sidebar_state": "auto",
+        },
+    ) in events
     assert ("columns", [0.70, 0.30]) in events
     assert not any(kind == "column_caption" for kind, _payload in events)
 

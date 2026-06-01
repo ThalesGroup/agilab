@@ -2232,7 +2232,7 @@ def test_edit_page_load(mock_ui_env):
     assert "Functions" in markdown_text
     assert "Classes" in markdown_text
     assert "Docs/config" in markdown_text
-    assert "Environment Health" in markdown_text
+    assert "Environment Health" not in markdown_text
     assert "Project path" in markdown_text
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
@@ -2692,9 +2692,9 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
         assert "Workflow stages" not in markdown_text
-        assert (
-            "agilab-header-value agilab-header-value--ready'>1/1</div>" in markdown_text
-        )
+        assert "agilab-header-value agilab-header-value--ready'>1/1</div>" not in markdown_text
+        assert "beams.csv" in markdown_text
+        assert "satellites.csv" in markdown_text
         assert "Workflow graph" in markdown_text
         assert "stages / dependencies" in markdown_text
 
