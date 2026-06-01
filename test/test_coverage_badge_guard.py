@@ -38,6 +38,24 @@ def test_changed_coverage_components_maps_gui_and_root_tests() -> None:
     }
 
 
+def test_changed_coverage_components_maps_agi_web_without_gui_overlap() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(
+        [
+            "src/agilab/lib/agi-web/src/agi_web/component.py",
+            "src/agilab/lib/agi-web/test/test_agi_web_component.py",
+        ]
+    )
+
+    assert changed == {
+        "agi-web": [
+            "src/agilab/lib/agi-web/src/agi_web/component.py",
+            "src/agilab/lib/agi-web/test/test_agi_web_component.py",
+        ]
+    }
+
+
 def test_changed_coverage_components_ignores_coverage_tooling_tests() -> None:
     module = _load_module()
 
@@ -118,6 +136,7 @@ def test_expand_with_aggregates_adds_core_and_global_badges() -> None:
 
     assert module.expand_with_aggregates(["agi-env"]) == ["agi-env", "agi-core", "agilab"]
     assert module.expand_with_aggregates(["agi-gui"]) == ["agi-gui", "agilab"]
+    assert module.expand_with_aggregates(["agi-web"]) == ["agi-web"]
 
 
 def test_expected_svg_uses_generator_aggregate_policy() -> None:

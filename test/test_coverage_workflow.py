@@ -174,6 +174,23 @@ def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
+def test_agi_web_has_dedicated_coverage_job_and_badge_input() -> None:
+    workflow_text = _workflow_text()
+    run_block = _step_block("Run agi-web coverage")
+    upload_block = _step_block("Upload agi-web coverage to Codecov")
+    archive_block = _step_block("Archive agi-web coverage XML")
+
+    assert "  agi-web:" in workflow_text
+    assert "--with-editable ./src/agilab/lib/agi-web" in run_block
+    assert "--cov=agi_web" in run_block
+    assert "coverage-agi-web.xml" in run_block
+    assert "src/agilab/lib/agi-web/test" in run_block
+    assert "flags: agi-web" in upload_block
+    assert "coverage-agi-web-xml" in archive_block
+    assert "      - agi-web" in workflow_text
+    assert "./merged-coverage/coverage-agi-web.xml" in workflow_text
+
+
 def test_agi_gui_coverage_includes_pytorch_playground_app_surface_regressions() -> None:
     run_block = _agi_gui_run_block()
 
@@ -391,6 +408,7 @@ def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
         "Upload agi-node coverage to Codecov",
         "Upload agi-cluster coverage to Codecov",
         "Upload agi-gui coverage to Codecov",
+        "Upload agi-web coverage to Codecov",
         "Upload repo-wide agilab coverage to Codecov",
     ]
 
@@ -412,6 +430,7 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
         "Upload agi-gui chunk JUnit",
         "Upload JUnit results",
         "Archive agi-gui coverage XML",
+        "Archive agi-web coverage XML",
     ):
         block = _step_block(step_name)
 

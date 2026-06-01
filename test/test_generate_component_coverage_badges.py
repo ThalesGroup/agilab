@@ -49,6 +49,7 @@ def test_component_badges_use_component_name_in_label() -> None:
     assert module.COMPONENTS["agi-node"]["label"] == "agi-node coverage"
     assert module.COMPONENTS["agi-cluster"]["label"] == "agi-cluster coverage"
     assert module.COMPONENTS["agi-gui"]["label"] == "agi-gui coverage"
+    assert module.COMPONENTS["agi-web"]["label"] == "agi-web coverage"
     assert module.COMPONENTS["agi-core"]["label"] == "agi-core coverage"
 
 
@@ -194,6 +195,7 @@ def test_node_and_cluster_default_to_explicit_component_or_combined_reports_only
     assert module.COMPONENTS["agi-cluster"].get("allow_combined_fallback") is None
     assert module.COMPONENTS["agi-env"].get("allow_combined_fallback") is None
     assert module.COMPONENTS["agi-gui"].get("allow_combined_fallback") is None
+    assert module.COMPONENTS["agi-web"].get("allow_combined_fallback") is None
 
 
 def test_resolve_component_counts_does_not_use_combined_xml_without_opt_in(tmp_path: Path) -> None:

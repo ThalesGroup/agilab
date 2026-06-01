@@ -35,6 +35,12 @@ COMPONENTS = {
         "prefix": "src/agilab/",
         "badge": REPO_ROOT / "badges" / "coverage-agi-gui.svg",
     },
+    "agi-web": {
+        "label": "agi-web coverage",
+        "xml": REPO_ROOT / "coverage-agi-web.xml",
+        "prefix": "src/agilab/lib/agi-web/",
+        "badge": REPO_ROOT / "badges" / "coverage-agi-web.svg",
+    },
     "agi-core": {
         "label": "agi-core coverage",
         "aggregate": ("agi-env", "agi-node", "agi-cluster"),
