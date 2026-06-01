@@ -43,9 +43,9 @@ to render UI.
 
 ``agi-web`` is published to PyPI from ``src/agilab/lib/agi-web``. It defines
 portable, evidence-backed web component payloads for app-owned rich UI islands.
-The current package provides build-free Streamlit/static HTML rendering and a
-stable contract for future React, Canvas, or WebGL adapters; it should not be
-treated as a bundled JavaScript framework.
+The current package provides build-free Streamlit/static HTML rendering with
+Canvas2D/WebGL paths and a stable React-ready contract for app-owned adapters;
+it should not be treated as a bundled JavaScript framework.
 
 Published page-bundle packages
 ------------------------------
