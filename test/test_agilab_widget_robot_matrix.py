@@ -33,9 +33,10 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "isolated-project-rename-sidebar",
         "isolated-settings-page",
         "current-home-actions",
+        "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
     ]
-    isolated, entry, project, project_notebook, project_import, project_rename, settings, current_home, journey = scenarios
+    isolated, entry, project, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -77,6 +78,16 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert current_home.click_action_labels == "CHECK distribute,Run -> Load -> Export"
     assert current_home.preselect_labels == "Run now"
     assert current_home.missing_selected_action_policy == "ignore-absent"
+    assert pytorch_direct.pages == "ORCHESTRATE"
+    assert pytorch_direct.apps == "pytorch_playground_project"
+    assert pytorch_direct.runtime_isolation == "current-home"
+    assert pytorch_direct.action_button_policy == "click-selected"
+    assert pytorch_direct.click_action_labels == "RUN"
+    assert pytorch_direct.preselect_labels == "Run now"
+    assert pytorch_direct.required_text == "pytorch_playground_project,RUN"
+    assert pytorch_direct.missing_selected_action_policy == "fail"
+    assert pytorch_direct.max_action_clicks_per_page == 0
+    assert pytorch_direct.browser_error_check is True
     assert journey.runtime_isolation == "current-home"
     assert journey.pages == "ORCHESTRATE"
     assert journey.action_button_policy == "click-selected"
@@ -1483,14 +1494,15 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "isolated-project-rename-sidebar",
         "isolated-settings-page",
         "current-home-actions",
+        "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 9
-    assert summary["page_count"] == 18
-    assert summary["widget_count"] == 45
-    assert summary["interacted_count"] == 27
-    assert summary["probed_count"] == 18
+    assert summary["scenario_count"] == 10
+    assert summary["page_count"] == 20
+    assert summary["widget_count"] == 50
+    assert summary["interacted_count"] == 30
+    assert summary["probed_count"] == 20
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 

@@ -2540,7 +2540,7 @@ def _current_home_worker_import_preflight_requested(click_action_labels: Sequenc
     selected = [_normalized_label(label) for label in click_action_labels if _normalized_label(label)]
     required = [_normalized_label(label) for label in CURRENT_HOME_WORKER_IMPORT_PREFLIGHT_ACTION_LABELS]
     return any(
-        expected == label or expected in label or label in expected
+        expected == label or expected in label
         for label in selected
         for expected in required
     )
@@ -3691,6 +3691,7 @@ def _probe_selected_actions_first(  # pragma: no cover - live browser path
     orchestrate_artifact_context: OrchestrateArtifactContext | None = None,
     workflow_artifact_context: WorkflowArtifactContext | None = None,
     max_action_settle_seconds: float = 0.0,
+    max_action_clicks_per_page: int = 25,
 ) -> list[WidgetProbe]:
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
@@ -3781,7 +3782,9 @@ def _probe_selected_actions_first(  # pragma: no cover - live browser path
             widget,
             timeout_ms=widget_timeout_ms,
             interaction_mode="full",
-            action_button_policy="click-selected",
+            action_button_policy=(
+                "trial" if max_action_clicks_per_page <= 0 else "click-selected"
+            ),
             click_action_labels=[selected_label],
             preselect_labels=(),
             action_timeout_ms=action_timeout_ms,
@@ -4780,6 +4783,7 @@ def sweep_page(  # pragma: no cover - live browser path
                         orchestrate_artifact_context=orchestrate_artifact_context,
                         workflow_artifact_context=workflow_artifact_context,
                         max_action_settle_seconds=max_action_settle_seconds,
+                        max_action_clicks_per_page=max_action_clicks_per_page,
                     )
                 )
                 if not any(probe.status == "failed" for probe in probes):

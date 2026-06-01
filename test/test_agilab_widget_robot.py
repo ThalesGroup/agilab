@@ -1928,6 +1928,24 @@ def test_current_home_action_preflight_does_not_block_install_when_worker_missin
     assert detail is None
 
 
+def test_current_home_action_preflight_allows_direct_run_with_missing_worker(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="pytorch_playground_project",
+        active_app_query="pytorch_playground_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["RUN"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is None
+
+
 def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
